@@ -67,6 +67,8 @@ import {
   TikTokShopDashboardPageSkeleton,
   TikTokShopProductsPageSkeleton,
   StockManagementDashboardSkeleton,
+  EcommerceChatPageSkeleton,
+  BlibliOrdersPageSkeleton,
   SocialMediaPerformanceHubPageSkeleton,
   TikTokContentPerformancePageSkeleton,
   YouTubeContentPerformancePageSkeleton,
@@ -200,6 +202,9 @@ const StockPlatformMappingPage = lazy(
   () => import("@/6-0-stock-management/pages/StockPlatformMappingPage"),
 );
 const StockSyncLogsPage = lazy(() => import("@/6-0-stock-management/pages/StockSyncLogsPage"));
+const EcommerceChatPage = lazy(() => import("@/6-0-ecommerce-chat/pages/EcommerceChatPage"));
+const BlibliOrdersPage = lazy(() => import("@/6-0-blibli-orders/pages/BlibliOrdersPage"));
+const BlibliOrdersSettingsPage = lazy(() => import("@/6-0-blibli-orders/pages/BlibliOrdersSettingsPage"));
 const SocialMediaPerformanceHubPage = lazy(
   () => import("@/6-0-social-media-performance/pages/SocialMediaPerformanceHubPage"),
 );
@@ -2156,6 +2161,48 @@ function StockSyncLogsPageRouteElement() {
   );
 }
 
+function EcommerceChatPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <EcommerceChatPageSkeleton />
+        </div>
+      }
+    >
+      <EcommerceChatPage />
+    </Suspense>
+  );
+}
+
+function BlibliOrdersPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <BlibliOrdersPageSkeleton />
+        </div>
+      }
+    >
+      <BlibliOrdersPage />
+    </Suspense>
+  );
+}
+
+function BlibliOrdersSettingsPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <BlibliOrdersPageSkeleton />
+        </div>
+      }
+    >
+      <BlibliOrdersSettingsPage />
+    </Suspense>
+  );
+}
+
 function TikTokShopProductsPageRouteElement() {
   return (
     <Suspense
@@ -3920,6 +3967,30 @@ const App = () => (
                             }
                           />
                           <Route
+                            path="/operations/sales/blibli-orders"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/operations/sales/blibli-orders"
+                                loadingShell={<BlibliOrdersPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <BlibliOrdersPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/operations/sales/blibli-orders/settings"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/operations/sales/blibli-orders"
+                                loadingShell={<BlibliOrdersPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <BlibliOrdersSettingsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
                             path="/operations/sales/stock-management"
                             element={
                               <PageAccessGuard
@@ -3952,6 +4023,30 @@ const App = () => (
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <StockSyncLogsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/operations/sales/ecommerce-chat"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/operations/sales/ecommerce-chat"
+                                loadingShell={<EcommerceChatPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <EcommerceChatPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/operations/sales/ecommerce-chat/:platform"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/operations/sales/ecommerce-chat"
+                                loadingShell={<EcommerceChatPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <EcommerceChatPageRouteElement />
                               </PageAccessGuard>
                             }
                           />

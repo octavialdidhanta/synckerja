@@ -249,9 +249,19 @@ export const mainNavItems: MainNavItem[] = [
         activePathPrefixes: ["/operations/sales/tiktok-shop"],
       },
       {
+        titleKey: "sidebar.operations.sales.blibliOrders.title",
+        path: "/operations/sales/blibli-orders",
+        activePathPrefixes: ["/operations/sales/blibli-orders"],
+      },
+      {
         titleKey: "sidebar.operations.sales.stockManagement.title",
         path: "/operations/sales/stock-management",
         activePathPrefixes: ["/operations/sales/stock-management"],
+      },
+      {
+        titleKey: "sidebar.operations.sales.ecommerceChat.title",
+        path: "/operations/sales/ecommerce-chat",
+        activePathPrefixes: ["/operations/sales/ecommerce-chat"],
       },
     ],
   },

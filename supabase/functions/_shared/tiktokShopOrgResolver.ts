@@ -31,6 +31,7 @@ type TokenRow = {
   access_token_enc: string;
   refresh_token_enc: string;
   access_token_expires_at: string | null;
+  refresh_token_expires_at: string | null;
   seller_name: string | null;
   seller_base_region: string | null;
 };
@@ -44,7 +45,7 @@ export async function getTikTokShopAccessToken(
   const { data: row } = await admin
     .from("organization_tiktok_shop_connection_tokens")
     .select(
-      "access_token_enc, refresh_token_enc, access_token_expires_at, seller_name, seller_base_region",
+      "access_token_enc, refresh_token_enc, access_token_expires_at, refresh_token_expires_at, seller_name, seller_base_region",
     )
     .eq("organization_id", organizationId)
     .eq("seller_open_id", sellerOpenId)
@@ -52,14 +53,31 @@ export async function getTikTokShopAccessToken(
   if (!row?.access_token_enc || !row?.refresh_token_enc) return null;
 
   const tokenRow = row as TokenRow;
+
+  const refreshExpiresAtMs = tokenRow.refresh_token_expires_at
+    ? new Date(String(tokenRow.refresh_token_expires_at)).getTime()
+    : null;
+  if (
+    refreshExpiresAtMs != null &&
+    Number.isFinite(refreshExpiresAtMs) &&
+    refreshExpiresAtMs < Date.now()
+  ) {
+    console.warn(
+      "getTikTokShopAccessToken: refresh_token expired",
+      organizationId,
+      sellerOpenId,
+    );
+    return null;
+  }
+
   const expiresAtMs = tokenRow.access_token_expires_at
     ? new Date(String(tokenRow.access_token_expires_at)).getTime()
     : null;
-  const needsRefresh = options?.forceRefresh === true || (
-    expiresAtMs != null &&
-    Number.isFinite(expiresAtMs) &&
-    expiresAtMs < Date.now() + 60_000
-  );
+  // Missing access expiry → refresh proactively (avoid serving potentially stale tokens).
+  const needsRefresh = options?.forceRefresh === true ||
+    expiresAtMs == null ||
+    !Number.isFinite(expiresAtMs) ||
+    expiresAtMs < Date.now() + 60_000;
 
   if (!needsRefresh) {
     try {
@@ -93,7 +111,8 @@ export async function getTikTokShopAccessToken(
       : String(tokenRow.refresh_token_enc);
     const accessExpires = tokenExpiresAtIsoFromTikTokField(refreshed.access_token_expire_in)
       ?? tokenRow.access_token_expires_at;
-    const refreshExpires = tokenExpiresAtIsoFromTikTokField(refreshed.refresh_token_expire_in);
+    const refreshExpires = tokenExpiresAtIsoFromTikTokField(refreshed.refresh_token_expire_in)
+      ?? tokenRow.refresh_token_expires_at;
 
     await admin.from("organization_tiktok_shop_connection_tokens").update({
       access_token_enc: accessEnc,

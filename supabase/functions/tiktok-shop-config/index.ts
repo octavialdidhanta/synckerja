@@ -36,6 +36,8 @@ type TokenMetaRow = {
   seller_open_id: string;
   seller_name: string | null;
   seller_base_region: string | null;
+  access_token_expires_at?: string | null;
+  refresh_token_expires_at?: string | null;
 };
 
 Deno.serve(async (req: Request) => {
@@ -81,7 +83,9 @@ Deno.serve(async (req: Request) => {
 
     const { data: tokenRows } = await admin
       .from("organization_tiktok_shop_connection_tokens")
-      .select("seller_open_id, seller_name, seller_base_region")
+      .select(
+        "seller_open_id, seller_name, seller_base_region, access_token_expires_at, refresh_token_expires_at",
+      )
       .eq("organization_id", organizationId);
 
     const { data: shopRows } = await admin
@@ -100,16 +104,33 @@ Deno.serve(async (req: Request) => {
       shopsBySeller.set(sid, list);
     }
 
-    const sellers = ((tokenRows ?? []) as TokenMetaRow[]).map((token) => ({
-      seller_open_id: String(token.seller_open_id),
-      seller_name: token.seller_name ?? null,
-      seller_base_region: token.seller_base_region ?? null,
-      shops: shopsBySeller.get(String(token.seller_open_id)) ?? [],
-    }));
+    const nowMs = Date.now();
+    const sellers = ((tokenRows ?? []) as TokenMetaRow[]).map((token) => {
+      const refreshExpiresAt = token.refresh_token_expires_at
+        ? String(token.refresh_token_expires_at)
+        : null;
+      const refreshExpired = refreshExpiresAt
+        ? new Date(refreshExpiresAt).getTime() < nowMs
+        : false;
+      return {
+        seller_open_id: String(token.seller_open_id),
+        seller_name: token.seller_name ?? null,
+        seller_base_region: token.seller_base_region ?? null,
+        access_token_expires_at: token.access_token_expires_at
+          ? String(token.access_token_expires_at)
+          : null,
+        refresh_token_expires_at: refreshExpiresAt,
+        needs_reconnect: refreshExpired,
+        shops: shopsBySeller.get(String(token.seller_open_id)) ?? [],
+      };
+    });
+
+    const needsReconnect = sellers.some((s) => s.needs_reconnect);
 
     return tiktokShopJson({
       connection: connection ?? null,
       oauthConnected: (tokenRows ?? []).length > 0,
+      needsReconnect,
       sellers,
       serverConfigured: isTikTokShopPlatformConfigured(),
     }, 200);

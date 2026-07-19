@@ -11,6 +11,8 @@ export type TikTokShopOrderRow = {
   currency: string;
   units_sold: number;
   buyer_message?: string | null;
+  /** Same as TTS Create Conversation `buyer_user_id`. */
+  buyer_user_id?: string | null;
 };
 
 export type TikTokShopOrdersSummary = {

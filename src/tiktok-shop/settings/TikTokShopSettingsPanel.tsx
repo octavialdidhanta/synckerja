@@ -47,6 +47,8 @@ export function TikTokShopSettingsPanel({
   } = useTikTokShopSettings(organizationId, { enabled: Boolean(organizationId) && enabled });
 
   const oauthConnected = data?.oauthConnected ?? false;
+  const needsReconnect = data?.needsReconnect === true ||
+    (data?.sellers ?? []).some((s) => s.needs_reconnect);
   const serverConfigured = data?.serverConfigured !== false;
   const sellers = data?.sellers ?? [];
   const connection = data?.connection;
@@ -79,7 +81,12 @@ export function TikTokShopSettingsPanel({
               "digitalMarketing.tiktokShop.oauthErrorGeneric",
               "Sign-in failed while saving TikTok Shop tokens. Please try Connect again.",
             )
-          : oauthError;
+          : oauthError === "auth_denied"
+            ? t(
+                "digitalMarketing.tiktokShop.oauthAuthDenied",
+                "Authorization was denied. Connect again and approve access.",
+              )
+            : oauthError;
       toast.error(
         t("digitalMarketing.tiktokShop.oauthErrorToast", {
           message: displayMessage,
@@ -111,6 +118,23 @@ export function TikTokShopSettingsPanel({
             {t(
               "digitalMarketing.tiktokShop.serverNotConfiguredDesc",
               "Set TIKTOK_SHOP_APP_KEY, TIKTOK_SHOP_APP_SECRET, and TIKTOK_SHOP_SERVICE_ID in Supabase Edge Function secrets.",
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {oauthConnected && needsReconnect && (
+        <Alert variant="destructive">
+          <AlertTitle>
+            {t(
+              "digitalMarketing.tiktokShop.reconnectRequiredTitle",
+              "Reconnect required",
+            )}
+          </AlertTitle>
+          <AlertDescription>
+            {t(
+              "digitalMarketing.tiktokShop.reconnectRequiredBody",
+              "A seller refresh token has expired. Disconnect is not required — use Connect seller to re-authorize and restore automatic API access.",
             )}
           </AlertDescription>
         </Alert>
@@ -182,6 +206,21 @@ export function TikTokShopSettingsPanel({
                     {seller.seller_base_region && (
                       <p className="text-xs text-muted-foreground">{seller.seller_base_region}</p>
                     )}
+                    {seller.needs_reconnect ? (
+                      <p className="mt-0.5 text-xs text-destructive">
+                        {t(
+                          "digitalMarketing.tiktokShop.sellerNeedsReconnect",
+                          "Refresh token expired — reconnect this seller.",
+                        )}
+                      </p>
+                    ) : seller.refresh_token_expires_at ? (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {t("digitalMarketing.tiktokShop.refreshExpires", {
+                          date: new Date(seller.refresh_token_expires_at).toLocaleString(),
+                          defaultValue: `Refresh valid until ${new Date(seller.refresh_token_expires_at).toLocaleString()}`,
+                        })}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-1">
                     <Button

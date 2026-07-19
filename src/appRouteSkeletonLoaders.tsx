@@ -389,6 +389,18 @@ export const StockManagementDashboardSkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const EcommerceChatPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-ecommerce-chat/skeletons/EcommerceChatPageSkeleton").then((m) => ({
+    default: m.EcommerceChatPageSkeleton,
+  })),
+);
+
+export const BlibliOrdersPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-blibli-orders/skeletons/BlibliOrdersPageSkeleton").then((m) => ({
+    default: m.BlibliOrdersPageSkeleton,
+  })),
+);
+
 export const SocialMediaPerformanceHubPageSkeleton = createDeferredSkeleton(() =>
   import("@/6-0-social-media-performance/skeletons/SocialMediaPerformanceHubPageSkeleton").then(
     (m) => ({

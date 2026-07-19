@@ -45,19 +45,30 @@ type OAuthStateRow = {
 
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
-  const authCode = url.searchParams.get("auth_code")?.trim() ??
+  const authCodeRaw = url.searchParams.get("auth_code")?.trim() ??
     url.searchParams.get("code")?.trim() ?? "";
+  const authCode = authCodeRaw && authCodeRaw.toLowerCase() !== "null" ? authCodeRaw : "";
   const state = url.searchParams.get("state")?.trim() ?? "";
   const oauthError = url.searchParams.get("error")?.trim() ?? "";
 
   const redirectDefault = (query: string, returnPath?: string | null) =>
     redirectToAppPath(resolveOAuthReturnPath(returnPath), query);
 
+  // Seller denied authorization (code may be null).
+  if (oauthError === "auth_denied" || oauthError.toLowerCase().includes("denied")) {
+    return redirectDefault(`?oauth_error=${encodeURIComponent(oauthError || "auth_denied")}`);
+  }
   if (oauthError) {
     return redirectDefault(`?oauth_error=${encodeURIComponent(oauthError)}`);
   }
-  if (!authCode || !state) {
+  if (!authCode && !state) {
     return redirectDefault("?oauth_error=missing_code_or_state");
+  }
+  if (!authCode) {
+    return redirectDefault("?oauth_error=auth_denied");
+  }
+  if (!state) {
+    return redirectDefault("?oauth_error=missing_state");
   }
 
   const oauth = readPlatformTikTokShopOAuth();
@@ -73,32 +84,17 @@ Deno.serve(async (req: Request) => {
 
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
-  const [stateRes, tokenResult] = await Promise.all([
-    admin
-      .from("tiktok_shop_oauth_states")
-      .select("id, organization_id, user_id, expires_at, return_path")
-      .eq("state_token", state)
-      .maybeSingle(),
-    exchangeTikTokShopAuthCode(oauth, authCode).then(
-      (data) => ({ ok: true as const, data }),
-      (e) => ({ ok: false as const, error: e }),
-    ),
-  ]);
+  // Validate CSRF state BEFORE exchanging auth_code (one-time, 30 min TTL at TikTok).
+  const stateRes = await admin
+    .from("tiktok_shop_oauth_states")
+    .select("id, organization_id, user_id, expires_at, return_path")
+    .eq("state_token", state)
+    .maybeSingle();
 
   const stateRow = stateRes.data as OAuthStateRow | null;
   const oauthReturnPath = resolveOAuthReturnPath(
     stateRow?.return_path != null ? String(stateRow.return_path) : null,
   );
-
-  if (!tokenResult.ok) {
-    const msg = sanitizeOAuthError(
-      tokenResult.error instanceof Error ? tokenResult.error.message : "token_exchange_failed",
-    );
-    console.error("tiktok-shop-oauth-callback:", msg);
-    return redirectDefault(`?oauth_error=${encodeURIComponent(msg)}`, oauthReturnPath);
-  }
-
-  const tokenData = tokenResult.data;
 
   if (stateRes.error || !stateRow?.id) {
     return redirectDefault("?oauth_error=invalid_state", oauthReturnPath);
@@ -111,6 +107,15 @@ Deno.serve(async (req: Request) => {
   }
 
   await admin.from("tiktok_shop_oauth_states").delete().eq("id", stateRow.id);
+
+  let tokenData;
+  try {
+    tokenData = await exchangeTikTokShopAuthCode(oauth, authCode);
+  } catch (e) {
+    const msg = sanitizeOAuthError(e instanceof Error ? e.message : "token_exchange_failed");
+    console.error("tiktok-shop-oauth-callback:", msg);
+    return redirectDefault(`?oauth_error=${encodeURIComponent(msg)}`, oauthReturnPath);
+  }
 
   const organizationId = String(stateRow.organization_id);
   const sellerOpenId = tokenData.seller_open_id;

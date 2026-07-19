@@ -204,10 +204,28 @@ verify_jwt = false
 [functions.tiktok-shop-config]
 verify_jwt = false
 
+[functions.blibli-seller-config]
+verify_jwt = false
+
+[functions.blibli-seller-chat]
+verify_jwt = false
+
+[functions.blibli-seller-orders]
+verify_jwt = false
+
 [functions.tiktok-shop-metrics]
 verify_jwt = false
 
 [functions.tiktok-shop-catalog]
+verify_jwt = false
+
+[functions.tiktok-shop-customer-service]
+verify_jwt = false
+
+[functions.tiktok-shop-token-refresh]
+verify_jwt = false
+
+[functions.tiktok-shop-webhook]
 verify_jwt = false
 
 [functions.stock-management-api]

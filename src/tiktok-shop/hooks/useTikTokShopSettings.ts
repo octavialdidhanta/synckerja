@@ -21,6 +21,9 @@ export type TikTokShopSellerRow = {
   seller_open_id: string;
   seller_name: string | null;
   seller_base_region: string | null;
+  access_token_expires_at?: string | null;
+  refresh_token_expires_at?: string | null;
+  needs_reconnect?: boolean;
   shops: TikTokShopAccountRow[];
 };
 
@@ -37,6 +40,7 @@ export type TikTokShopConnectionRow = {
 type SettingsResponse = {
   connection: TikTokShopConnectionRow | null;
   oauthConnected: boolean;
+  needsReconnect?: boolean;
   sellers: TikTokShopSellerRow[];
   serverConfigured?: boolean;
 };

@@ -31,9 +31,26 @@ export type TikTokShopAuthorizedShop = {
   seller_type?: string;
 };
 
-function throwApiError(prefix: string, message?: string, code?: number): never {
+export class TikTokShopApiError extends Error {
+  code?: number;
+  requestId?: string;
+
+  constructor(prefix: string, message?: string, code?: number, requestId?: string) {
   const detail = message?.trim() || (code != null ? `code ${code}` : "unknown");
-  throw new Error(`${prefix}: ${detail}`);
+    super(`${prefix}: ${detail}`);
+    this.name = "TikTokShopApiError";
+    this.code = code;
+    this.requestId = requestId;
+  }
+}
+
+function throwApiError(
+  prefix: string,
+  message?: string,
+  code?: number,
+  requestId?: string,
+): never {
+  throw new TikTokShopApiError(prefix, message, code, requestId);
 }
 
 function parseEnvelope<T>(
@@ -43,14 +60,15 @@ function parseEnvelope<T>(
 ): T {
   const code = json.code;
   const message = json.message?.trim() ?? "";
+  const requestId = json.request_id;
   if (code !== 0 && code !== undefined) {
-    throwApiError(prefix, message, code);
+    throwApiError(prefix, message, code, requestId);
   }
   if (json.data === undefined || json.data === null) {
     if (options?.allowEmptyData) {
       return {} as T;
     }
-    throwApiError(prefix, message || "empty data");
+    throwApiError(prefix, message || "empty data", code, requestId);
   }
   return json.data;
 }
@@ -178,6 +196,8 @@ export type TikTokShopOrderRow = {
   currency: string;
   units_sold: number;
   buyer_message?: string | null;
+  /** Same as TTS Create Conversation `buyer_user_id` (`data.orders.user_id`). */
+  buyer_user_id?: string | null;
 };
 
 export type TikTokShopOrderSearchResult = {
@@ -282,6 +302,11 @@ function normalizeTikTokShopOrder(raw: Record<string, unknown>): TikTokShopOrder
   const payment = raw.payment ?? raw.payment_info;
   const { gmv, currency } = parseOrderAmount(payment);
   const units = parseOrderUnits(raw.line_items ?? raw.line_item_list ?? raw.items);
+  const buyerUserRaw = raw.user_id ?? raw.buyer_user_id;
+  const buyerUserId =
+    buyerUserRaw != null && String(buyerUserRaw).trim()
+      ? String(buyerUserRaw).trim()
+      : null;
   return {
     order_id: orderId,
     status,
@@ -290,6 +315,7 @@ function normalizeTikTokShopOrder(raw: Record<string, unknown>): TikTokShopOrder
     currency,
     units_sold: units,
     buyer_message: raw.buyer_message != null ? String(raw.buyer_message) : null,
+    buyer_user_id: buyerUserId,
   };
 }
 
@@ -912,7 +938,12 @@ function buildSignedQueryParams(
   return params;
 }
 
-export async function signedTikTokShopRequest<T>(
+export type TikTokShopSignedResult<T> = {
+  data: T;
+  requestId?: string;
+};
+
+export async function signedTikTokShopRequestFull<T>(
   oauth: TikTokShopPlatformOAuth,
   accessToken: string,
   method: "GET" | "POST",
@@ -922,7 +953,7 @@ export async function signedTikTokShopRequest<T>(
     body?: Record<string, unknown>;
     allowEmptyData?: boolean;
   },
-): Promise<T> {
+): Promise<TikTokShopSignedResult<T>> {
   const path = apiPath.startsWith("/") ? apiPath : `/${apiPath}`;
   const bodyObj = options?.body ?? {};
   const bodyStr = method === "GET" ? "" : JSON.stringify(bodyObj);
@@ -954,11 +985,437 @@ export async function signedTikTokShopRequest<T>(
 
   const json = await res.json().catch(() => ({})) as TikTokShopApiEnvelope<T>;
   if (!res.ok) {
-    throwApiError("tiktok_shop_api", json.message, json.code ?? res.status);
+    throwApiError("tiktok_shop_api", json.message, json.code ?? res.status, json.request_id);
   }
-  return parseEnvelope(json, "tiktok_shop_api", {
+  return {
+    data: parseEnvelope(json, "tiktok_shop_api", {
     allowEmptyData: options?.allowEmptyData,
+    }),
+    requestId: json.request_id,
+  };
+}
+
+/**
+ * Multipart POST for TikTok Shop. Sign with empty body (Partner rule for multipart/form-data).
+ */
+export async function signedTikTokShopMultipartRequest<T>(
+  oauth: TikTokShopPlatformOAuth,
+  accessToken: string,
+  apiPath: string,
+  form: FormData,
+  options?: {
+    query?: Record<string, string>;
+    allowEmptyData?: boolean;
+  },
+): Promise<TikTokShopSignedResult<T>> {
+  const path = apiPath.startsWith("/") ? apiPath : `/${apiPath}`;
+  const queryParams = buildSignedQueryParams(oauth, path, options?.query);
+
+  const sign = await computeTikTokShopSign({
+    path,
+    queryParams,
+    body: "",
+    appSecret: oauth.appSecret,
   });
+
+  const urlParams = new URLSearchParams({
+    ...queryParams,
+    sign,
+    access_token: accessToken,
+  });
+  const url = `${tiktokShopApiBase()}${path}?${urlParams.toString()}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "x-tts-access-token": accessToken,
+      // Do not set Content-Type — fetch sets multipart boundary.
+    },
+    body: form,
+  });
+
+  const json = await res.json().catch(() => ({})) as TikTokShopApiEnvelope<T>;
+  if (!res.ok) {
+    throwApiError("tiktok_shop_api", json.message, json.code ?? res.status, json.request_id);
+  }
+  return {
+    data: parseEnvelope(json, "tiktok_shop_api", {
+      allowEmptyData: options?.allowEmptyData,
+    }),
+    requestId: json.request_id,
+  };
+}
+
+export type TikTokShopBuyerMessageImage = {
+  url: string;
+  width: number;
+  height: number;
+};
+
+export async function uploadTikTokShopBuyerMessageImage(
+  oauth: TikTokShopPlatformOAuth,
+  accessToken: string,
+  params: {
+    shop_cipher: string;
+    bytes: Uint8Array;
+    content_type: string;
+    filename: string;
+  },
+): Promise<TikTokShopSignedResult<TikTokShopBuyerMessageImage>> {
+  const cipher = String(params.shop_cipher ?? "").trim();
+  if (!cipher) throw new Error("tiktok_shop_api: missing shop_cipher");
+
+  const contentType = String(params.content_type ?? "").trim().toLowerCase();
+  const filename = String(params.filename ?? "").trim() || "image.jpg";
+  if (!params.bytes?.length) throw new Error("tiktok_shop_api: missing image bytes");
+
+  const form = new FormData();
+  form.append(
+    "data",
+    new File([params.bytes], filename, {
+      type: contentType || "application/octet-stream",
+    }),
+  );
+
+  const result = await signedTikTokShopMultipartRequest<{
+    url?: string;
+    width?: number;
+    height?: number;
+  }>(oauth, accessToken, "/customer_service/202309/images/upload", form, {
+    query: { shop_cipher: cipher },
+  });
+
+  const url = String(result.data.url ?? "").trim();
+  if (!url) throw new Error("tiktok_shop_api: missing image url in upload response");
+
+  return {
+    data: {
+      url,
+      width: Number(result.data.width) || 0,
+      height: Number(result.data.height) || 0,
+    },
+    requestId: result.requestId,
+  };
+}
+
+export async function signedTikTokShopRequest<T>(
+  oauth: TikTokShopPlatformOAuth,
+  accessToken: string,
+  method: "GET" | "POST",
+  apiPath: string,
+  options?: {
+    query?: Record<string, string>;
+    body?: Record<string, unknown>;
+    allowEmptyData?: boolean;
+  },
+): Promise<T> {
+  const result = await signedTikTokShopRequestFull<T>(oauth, accessToken, method, apiPath, options);
+  return result.data;
+}
+
+export type TikTokShopConversationParticipant = {
+  im_user_id?: string;
+  avatar?: string;
+  user_id?: string;
+  role?: string;
+  nickname?: string;
+  buyer_platform?: string;
+};
+
+export type TikTokShopConversationMessage = {
+  id?: string;
+  type?: string;
+  content?: string;
+  create_time?: number;
+  is_visible?: boolean;
+  sender?: {
+    im_user_id?: string;
+    avatar?: string;
+    role?: string;
+    nickname?: string;
+  };
+  index?: string;
+  data?: string;
+  plaintext?: string;
+};
+
+export type TikTokShopConversation = {
+  id: string;
+  participant_count?: number;
+  can_send_message?: boolean;
+  unread_count?: number;
+  create_time?: number;
+  participants?: TikTokShopConversationParticipant[];
+  latest_message?: TikTokShopConversationMessage;
+  cur_session_id?: string;
+};
+
+export type TikTokShopConversationsList = {
+  next_page_token?: string;
+  conversations: TikTokShopConversation[];
+};
+
+export type TikTokShopConversationMessagesList = {
+  next_page_token?: string;
+  unsupported_msg_tips?: string;
+  messages: TikTokShopConversationMessage[];
+};
+
+export async function listTikTokShopConversations(
+  oauth: TikTokShopPlatformOAuth,
+  accessToken: string,
+  params: {
+    shop_cipher: string;
+    page_size?: number;
+    page_token?: string;
+    locale?: string;
+  },
+): Promise<TikTokShopSignedResult<TikTokShopConversationsList>> {
+  const cipher = String(params.shop_cipher ?? "").trim();
+  if (!cipher) throw new Error("tiktok_shop_api: missing shop_cipher");
+
+  let pageSize = Number(params.page_size ?? 20);
+  if (!Number.isFinite(pageSize) || pageSize < 1) pageSize = 20;
+  if (pageSize > 20) pageSize = 20;
+
+  const locale = String(params.locale ?? "en").trim() || "en";
+  const query: Record<string, string> = {
+    shop_cipher: cipher,
+    page_size: String(pageSize),
+    locale,
+    need_session_id: "false",
+    need_session_info: "false",
+  };
+  const pageToken = String(params.page_token ?? "").trim();
+  if (pageToken) query.page_token = pageToken;
+
+  const result = await signedTikTokShopRequestFull<{
+    next_page_token?: string;
+    conversations?: TikTokShopConversation[];
+  }>(oauth, accessToken, "GET", "/customer_service/202309/conversations", { query });
+
+  const conversations = (result.data.conversations ?? [])
+    .map((c) => ({
+      ...c,
+      id: String(c.id ?? "").trim(),
+    }))
+    .filter((c) => Boolean(c.id));
+
+  return {
+    data: {
+      next_page_token: String(result.data.next_page_token ?? ""),
+      conversations,
+    },
+    requestId: result.requestId,
+  };
+}
+
+export async function listTikTokShopConversationMessages(
+  oauth: TikTokShopPlatformOAuth,
+  accessToken: string,
+  params: {
+    conversation_id: string;
+    shop_cipher: string;
+    page_size?: number;
+    page_token?: string;
+    locale?: string;
+    sort_order?: string;
+    sort_field?: string;
+    need_plaintext?: boolean;
+    need_data?: boolean;
+    time_zone?: string;
+  },
+): Promise<TikTokShopSignedResult<TikTokShopConversationMessagesList>> {
+  const conversationId = String(params.conversation_id ?? "").trim();
+  if (!conversationId) throw new Error("tiktok_shop_api: missing conversation_id");
+
+  const cipher = String(params.shop_cipher ?? "").trim();
+  if (!cipher) throw new Error("tiktok_shop_api: missing shop_cipher");
+
+  let pageSize = Number(params.page_size ?? 10);
+  if (!Number.isFinite(pageSize) || pageSize < 1) pageSize = 10;
+  if (pageSize > 10) pageSize = 10;
+
+  const locale = String(params.locale ?? "en").trim() || "en";
+  const sortOrder = String(params.sort_order ?? "DESC").trim().toUpperCase() === "ASC"
+    ? "ASC"
+    : "DESC";
+  const sortField = String(params.sort_field ?? "create_time").trim() || "create_time";
+  const needPlaintext = params.need_plaintext !== false;
+  const needData = params.need_data === true;
+  const timeZone = String(params.time_zone ?? "Asia/Jakarta").trim() || "Asia/Jakarta";
+
+  const query: Record<string, string> = {
+    shop_cipher: cipher,
+    page_size: String(pageSize),
+    locale,
+    sort_order: sortOrder,
+    sort_field: sortField,
+    need_plaintext: needPlaintext ? "true" : "false",
+    need_data: needData ? "true" : "false",
+    time_zone: timeZone,
+  };
+  const pageToken = String(params.page_token ?? "").trim();
+  if (pageToken) query.page_token = pageToken;
+
+  const path =
+    `/customer_service/202309/conversations/${encodeURIComponent(conversationId)}/messages`;
+
+  const result = await signedTikTokShopRequestFull<{
+    next_page_token?: string;
+    unsupported_msg_tips?: string;
+    messages?: TikTokShopConversationMessage[];
+  }>(oauth, accessToken, "GET", path, { query });
+
+  const messages = (result.data.messages ?? [])
+    .map((m) => ({
+      ...m,
+      id: String(m.id ?? "").trim(),
+    }))
+    .filter((m) => Boolean(m.id));
+
+  return {
+    data: {
+      next_page_token: String(result.data.next_page_token ?? ""),
+      unsupported_msg_tips: result.data.unsupported_msg_tips != null
+        ? String(result.data.unsupported_msg_tips)
+        : undefined,
+      messages,
+    },
+    requestId: result.requestId,
+  };
+}
+
+export type TikTokShopSendMessageResult = {
+  message_id: string;
+};
+
+export type TikTokShopCreateConversationResult = {
+  conversation_id: string;
+};
+
+export async function createTikTokShopConversation(
+  oauth: TikTokShopPlatformOAuth,
+  accessToken: string,
+  params: {
+    shop_cipher: string;
+    buyer_user_id: string;
+  },
+): Promise<TikTokShopSignedResult<TikTokShopCreateConversationResult>> {
+  const cipher = String(params.shop_cipher ?? "").trim();
+  if (!cipher) throw new Error("tiktok_shop_api: missing shop_cipher");
+
+  const buyerUserId = String(params.buyer_user_id ?? "").trim();
+  if (!buyerUserId) throw new Error("tiktok_shop_api: missing buyer_user_id");
+
+  const result = await signedTikTokShopRequestFull<{ conversation_id?: string }>(
+    oauth,
+    accessToken,
+    "POST",
+    "/customer_service/202309/conversations",
+    {
+      query: { shop_cipher: cipher },
+      body: { buyer_user_id: buyerUserId },
+    },
+  );
+
+  const conversationId = String(result.data.conversation_id ?? "").trim();
+  if (!conversationId) {
+    throw new Error("tiktok_shop_api: missing conversation_id in response");
+  }
+
+  return {
+    data: { conversation_id: conversationId },
+    requestId: result.requestId,
+  };
+}
+
+export async function sendTikTokShopConversationMessage(
+  oauth: TikTokShopPlatformOAuth,
+  accessToken: string,
+  params: {
+    conversation_id: string;
+    shop_cipher: string;
+    type: string;
+    content: string;
+    sender_role?: string;
+  },
+): Promise<TikTokShopSignedResult<TikTokShopSendMessageResult>> {
+  const conversationId = String(params.conversation_id ?? "").trim();
+  if (!conversationId) throw new Error("tiktok_shop_api: missing conversation_id");
+
+  const cipher = String(params.shop_cipher ?? "").trim();
+  if (!cipher) throw new Error("tiktok_shop_api: missing shop_cipher");
+
+  const type = String(params.type ?? "").trim().toUpperCase();
+  if (!type) throw new Error("tiktok_shop_api: missing message type");
+
+  const content = String(params.content ?? "").trim();
+  if (!content) throw new Error("tiktok_shop_api: missing message content");
+
+  const senderRole = String(params.sender_role ?? "CUSTOMER_SERVICE").trim() ||
+    "CUSTOMER_SERVICE";
+
+  const path =
+    `/customer_service/202606/conversations/${encodeURIComponent(conversationId)}/messages`;
+
+  const result = await signedTikTokShopRequestFull<{ message_id?: string }>(
+    oauth,
+    accessToken,
+    "POST",
+    path,
+    {
+      query: { shop_cipher: cipher },
+      body: {
+        type,
+        content,
+        sender_role: senderRole,
+      },
+    },
+  );
+
+  const messageId = String(result.data.message_id ?? "").trim();
+  if (!messageId) throw new Error("tiktok_shop_api: missing message_id in response");
+
+  return {
+    data: { message_id: messageId },
+    requestId: result.requestId,
+  };
+}
+
+export async function readTikTokShopConversationMessages(
+  oauth: TikTokShopPlatformOAuth,
+  accessToken: string,
+  params: {
+    conversation_id: string;
+    shop_cipher: string;
+  },
+): Promise<TikTokShopSignedResult<Record<string, never>>> {
+  const conversationId = String(params.conversation_id ?? "").trim();
+  if (!conversationId) throw new Error("tiktok_shop_api: missing conversation_id");
+
+  const cipher = String(params.shop_cipher ?? "").trim();
+  if (!cipher) throw new Error("tiktok_shop_api: missing shop_cipher");
+
+  const path =
+    `/customer_service/202309/conversations/${encodeURIComponent(conversationId)}/messages/read`;
+
+  const result = await signedTikTokShopRequestFull<Record<string, unknown>>(
+    oauth,
+    accessToken,
+    "POST",
+    path,
+    {
+      query: { shop_cipher: cipher },
+      body: {},
+      allowEmptyData: true,
+    },
+  );
+
+  return {
+    data: {},
+    requestId: result.requestId,
+  };
 }
 
 export async function getTikTokShopAuthorizedShops(

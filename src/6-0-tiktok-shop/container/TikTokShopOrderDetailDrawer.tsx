@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Loader2, MessageSquare } from "lucide-react";
+import { toast } from "sonner";
 import {
   Sheet,
   SheetContent,
@@ -8,8 +10,11 @@ import {
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
+import { Button } from "@/shared/components/ui/button";
 import { useTikTokShopOrderDetailQuery } from "@/tiktok-shop/hooks/useTikTokShopPeriodSummaryQuery";
 import { formatTikTokShopMoney } from "@/tiktok-shop/lib/formatTikTokShopMoney";
+import { useTikTokShopCreateConversation } from "@/6-0-ecommerce-chat/hooks/useTikTokShopCreateConversation";
+import { tiktokEcommerceChatConversationPath } from "@/6-0-ecommerce-chat/lib/ecommerceChatPaths";
 
 type Props = {
   open: boolean;
@@ -28,6 +33,45 @@ function formatTime(raw: number | null): string {
   }).format(new Date(ms));
 }
 
+function mapCreateConversationError(
+  code: string | undefined,
+  fallback: string,
+  t: (k: string, d?: string) => string,
+): string {
+  switch (code) {
+    case "MISSING_BUYER_USER_ID":
+      return t(
+        "digitalMarketing.tiktokShop.dashboard.messageBuyerMissingBuyer",
+        "This order has no buyer ID, so a chat cannot be started.",
+      );
+    case "TTS_CREATE_CONVERSATION_CRITERIA":
+      return t(
+        "digitalMarketing.tiktokShop.dashboard.messageBuyerCriteria",
+        "Unable to create a conversation: TikTok criteria for initiating chats were not met.",
+      );
+    case "TTS_CONVERSATION_RULE":
+      return t(
+        "operations.ecommerceChat.tiktok.createConversation.errors.conversationRule",
+        "Unable to create a conversation due to TikTok conversation rules.",
+      );
+    case "RATE_LIMIT":
+      return t("operations.ecommerceChat.tiktok.errors.rateLimit");
+    case "TTS_DAILY_QUOTA":
+      return t("operations.ecommerceChat.tiktok.errors.dailyQuota");
+    case "NOT_CONNECTED":
+    case "TOKEN_ERROR":
+      return t("operations.ecommerceChat.tiktok.errors.notConnected");
+    default:
+      return (
+        fallback ||
+        t(
+          "digitalMarketing.tiktokShop.dashboard.messageBuyerError",
+          "Could not start a chat with this buyer.",
+        )
+      );
+  }
+}
+
 export function TikTokShopOrderDetailDrawer({
   open,
   onOpenChange,
@@ -36,6 +80,8 @@ export function TikTokShopOrderDetailDrawer({
   orderId,
 }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const createConversation = useTikTokShopCreateConversation();
   const { data, isPending, error } = useTikTokShopOrderDetailQuery({
     organizationId,
     shopAccountId,
@@ -44,6 +90,39 @@ export function TikTokShopOrderDetailDrawer({
   });
 
   const order = data?.orders?.[0] ?? null;
+
+  const handleMessageBuyer = () => {
+    if (!organizationId || !orderId || !shopAccountId) return;
+
+    createConversation.mutate(
+      {
+        organizationId,
+        accountId: shopAccountId,
+        orderId,
+      },
+      {
+        onSuccess: (result) => {
+          toast.success(
+            t(
+              "digitalMarketing.tiktokShop.dashboard.messageBuyerSuccess",
+              "Chat created. Opening inbox…",
+            ),
+          );
+          onOpenChange(false);
+          navigate(
+            tiktokEcommerceChatConversationPath({
+              accountId: result.account?.id ?? shopAccountId,
+              conversationId: result.conversation_id,
+            }),
+          );
+        },
+        onError: (err) => {
+          const e = err as Error & { code?: string };
+          toast.error(mapCreateConversationError(e.code, e.message, t));
+        },
+      },
+    );
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -214,6 +293,32 @@ export function TikTokShopOrderDetailDrawer({
             </div>
           )}
         </div>
+
+        {order && organizationId ? (
+          <div className="flex-shrink-0 border-t border-border pt-3">
+            <Button
+              type="button"
+              className="w-full"
+              disabled={createConversation.isPending}
+              onClick={handleMessageBuyer}
+            >
+              {createConversation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <MessageSquare className="mr-2 h-4 w-4" aria-hidden />
+              )}
+              {createConversation.isPending
+                ? t(
+                    "digitalMarketing.tiktokShop.dashboard.messageBuyerLoading",
+                    "Starting chat…",
+                  )
+                : t(
+                    "digitalMarketing.tiktokShop.dashboard.messageBuyer",
+                    "Message buyer",
+                  )}
+            </Button>
+          </div>
+        ) : null}
       </SheetContent>
     </Sheet>
   );
