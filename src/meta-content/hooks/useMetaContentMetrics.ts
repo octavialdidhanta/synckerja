@@ -45,7 +45,7 @@ export function useMetaContentMetricsQuery(args: {
   return useQuery({
     queryKey: [
       'meta-content-metrics',
-      'v15',
+      'v16',
       organizationId,
       platform,
       accountId,

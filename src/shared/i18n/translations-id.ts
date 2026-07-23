@@ -700,6 +700,7 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.metaContent.summaryAvgEngagement": "Rata-rata engagement",
   "digitalMarketing.metaContent.colEngagement": "Engagement",
   "digitalMarketing.metaContent.colAvgWatchTime": "Rata-rata tonton",
+  "digitalMarketing.metaContent.colSaved": "Disimpan",
   "digitalMarketing.metaContent.colPosted": "Diposting",
   "digitalMarketing.metaContent.noPosts": "Tidak ada postingan.",
   "digitalMarketing.metaContent.metaDateHint": "Ringkasan dan tabel menampilkan posting yang dipublikasikan dalam rentang tanggal yang dipilih. Metrik per posting adalah total lifetime dari Meta.",

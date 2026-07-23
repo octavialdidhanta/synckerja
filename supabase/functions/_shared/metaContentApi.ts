@@ -384,6 +384,14 @@ async function fetchInstagramMediaInsightsSingleMerged(
     );
   }
 
+  Object.assign(
+    merged,
+    await fetchIgMediaInsightMetrics(mediaId, accessToken, {
+      metric: "saved",
+      metric_type: "total_value",
+    }),
+  );
+
   if (isReels) {
     Object.assign(
       merged,
@@ -457,6 +465,10 @@ async function fetchInstagramMediaInsightsMap(
   await mergeIgInsightBatchPass(needShares, accessToken, mergedById, (post) =>
     igInsightsRelativeUrl(post.id, { metric: "shares", metric_type: "total_value" }));
 
+  // Separate pass so saved failures do not wipe views/reach.
+  await mergeIgInsightBatchPass(posts, accessToken, mergedById, (post) =>
+    igInsightsRelativeUrl(post.id, { metric: "saved", metric_type: "total_value" }));
+
   // Separate pass so avg watch time failures do not wipe views/reach.
   const reelsOnly = posts.filter((post) =>
     isInstagramReelsMedia(post.media_type, post.media_product_type),
@@ -512,6 +524,9 @@ async function fetchInstagramMediaInsightsMap(
       views,
       total_interactions: merged.total_interactions ?? merged.engagement ?? 0,
       shares: merged.shares ?? 0,
+      save_count: Object.prototype.hasOwnProperty.call(merged, "saved")
+        ? Number(merged.saved) || 0
+        : null,
       avg_watch_time_ms: isReels && Object.prototype.hasOwnProperty.call(merged, "ig_reels_avg_watch_time")
         ? Number(merged.ig_reels_avg_watch_time) || 0
         : null,
@@ -905,6 +920,8 @@ export type FacebookMetricsPostRow = {
   engagement_rate: number | null;
   /** Instagram Reels `ig_reels_avg_watch_time` in milliseconds; null when unavailable. */
   avg_watch_time_ms: number | null;
+  /** Instagram media `saved` insight; null when unavailable (e.g. Facebook). */
+  save_count: number | null;
   caption: string | null;
   media_url: string | null;
   thumbnail_url: string | null;
@@ -940,6 +957,7 @@ export async function buildFacebookMetricsPostRows(
       engagement_rate: computeInstagramEngagementRateFromApi(m.total_interactions, m.view_count)
         ?? computeMetaEngagementRate(m.like_count, m.comment_count, m.view_count, m.share_count),
       avg_watch_time_ms: null,
+      save_count: null,
       caption: p.caption,
       media_url: p.media_url ?? p.thumbnail_url,
       thumbnail_url: p.thumbnail_url ?? p.media_url,
@@ -962,6 +980,7 @@ export async function buildInstagramMetricsPostRows(
       views: 0,
       total_interactions: 0,
       shares: 0,
+      save_count: null,
       avg_watch_time_ms: null,
     };
     const viewCount = mediaInsights.views;
@@ -982,6 +1001,7 @@ export async function buildInstagramMetricsPostRows(
       total_interactions: totalInteractions,
       engagement_rate: computeInstagramEngagementRateFromApi(totalInteractions, viewCount),
       avg_watch_time_ms: mediaInsights.avg_watch_time_ms,
+      save_count: mediaInsights.save_count,
       caption: p.caption,
       media_url: pickInstagramPostPreviewUrl(p),
       thumbnail_url: pickInstagramPostPreviewUrl(p),
@@ -1421,6 +1441,8 @@ export type InstagramMediaInsights = {
   views: number;
   total_interactions: number;
   shares: number;
+  /** Media insight `saved`; null if the metric was not returned. */
+  save_count: number | null;
   /** Reels-only avg watch time in ms; null if unavailable / non-Reel. */
   avg_watch_time_ms: number | null;
 };
@@ -1487,6 +1509,7 @@ export async function fetchInstagramMediaInsights(
     views: 0,
     total_interactions: 0,
     shares: 0,
+    save_count: null,
     avg_watch_time_ms: null,
   };
 }

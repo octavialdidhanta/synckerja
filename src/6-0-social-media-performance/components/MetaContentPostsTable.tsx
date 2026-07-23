@@ -17,6 +17,7 @@ type MetricSortKey =
   | 'comments'
   | 'reach'
   | 'shares'
+  | 'saves'
   | 'engagement'
   | 'avgWatchTime';
 
@@ -24,6 +25,11 @@ type SortDir = 'asc' | 'desc';
 
 function formatCount(n: number): string {
   if (!Number.isFinite(n)) return '—';
+  return n.toLocaleString();
+}
+
+function formatOptionalCount(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—';
   return n.toLocaleString();
 }
 
@@ -136,6 +142,9 @@ function compareRows(
     case 'shares':
       cmp = a.share_count - b.share_count;
       break;
+    case 'saves':
+      cmp = compareNullableNumber(a.save_count, b.save_count);
+      break;
     case 'avgWatchTime':
       cmp = compareNullableNumber(a.avg_watch_time_ms, b.avg_watch_time_ms);
       break;
@@ -215,7 +224,7 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
 
   return (
     <div className="h-full min-h-0 overflow-auto">
-      <table className="w-full min-w-[1360px] table-fixed text-sm">
+      <table className="w-full min-w-[1440px] table-fixed text-sm">
         <colgroup>
           <col className="w-[168px]" />
           <col className="w-[160px]" />
@@ -227,6 +236,7 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
           <col className="w-[96px]" />
           <col className="w-[64px]" />
           <col className="w-[80px]" />
+          <col className="w-[64px]" />
           <col className="w-[64px]" />
           <col className="w-[88px]" />
         </colgroup>
@@ -285,6 +295,13 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
             <SortableMetricHeader
               label={t('digitalMarketing.metaContent.colShares', 'Shares')}
               sortKey="shares"
+              activeSortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+            <SortableMetricHeader
+              label={t('digitalMarketing.metaContent.colSaved', 'Saved')}
+              sortKey="saves"
               activeSortKey={sortKey}
               sortDir={sortDir}
               onSort={handleSort}
@@ -350,6 +367,9 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.like_count)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.comment_count)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.share_count)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {formatOptionalCount(row.save_count)}
+                </td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   {formatPercent(row.engagement_rate)}
                 </td>

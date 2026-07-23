@@ -707,6 +707,7 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.metaContent.summaryAvgEngagement": "Avg. engagement",
   "digitalMarketing.metaContent.colEngagement": "Engagement",
   "digitalMarketing.metaContent.colAvgWatchTime": "Avg. watch time",
+  "digitalMarketing.metaContent.colSaved": "Saved",
   "digitalMarketing.metaContent.colPosted": "Posted",
   "digitalMarketing.metaContent.noPosts": "No posts found.",
   "digitalMarketing.metaContent.metaDateHint": "Summary and table show posts published in the selected date range. Per-post metrics are lifetime totals from Meta.",

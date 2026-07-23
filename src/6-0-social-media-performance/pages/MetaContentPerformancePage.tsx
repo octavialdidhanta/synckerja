@@ -123,7 +123,7 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
     const rangeKeyEnd = allTime ? 'all_time' : (dateEnd ?? 'all_time');
     const queryKey = [
       'meta-content-metrics',
-      'v15',
+      'v16',
       organizationId,
       platform,
       accountId,

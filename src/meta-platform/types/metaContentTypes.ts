@@ -78,6 +78,8 @@ export type MetaContentMetricsPayload = {
     engagement_rate: number | null;
     /** Instagram Reels avg watch time in ms; null when unavailable. */
     avg_watch_time_ms?: number | null;
+    /** Instagram media saved insight; null when unavailable. */
+    save_count?: number | null;
     caption: string | null;
     media_url: string | null;
     thumbnail_url?: string | null;
