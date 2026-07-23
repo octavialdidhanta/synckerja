@@ -212,6 +212,8 @@ Deno.serve(async (req: Request) => {
     const title = body.title != null ? String(body.title) : null;
     const accountLabel = body.account_label != null ? String(body.account_label) : "";
     const driveLink = plan.google_drive_link?.trim() ?? "";
+    const privacyLevelRaw = body.privacy_level != null ? String(body.privacy_level).trim().toUpperCase() : "";
+    const privacyLevel = privacyLevelRaw || DEFAULT_PRIVACY_LEVEL;
 
     await cancelPendingSchedulesForPlatformAccount(admin, planId, "TikTok", openId);
 
@@ -235,7 +237,7 @@ Deno.serve(async (req: Request) => {
         media_url_snapshot: driveLink,
         caption,
         title,
-        privacy_level: DEFAULT_PRIVACY_LEVEL,
+        privacy_level: privacyLevel,
         provider_config: providerConfig,
         platform_account_id: openId,
         scheduled_by: userId,

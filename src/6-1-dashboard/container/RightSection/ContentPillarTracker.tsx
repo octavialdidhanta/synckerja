@@ -251,8 +251,8 @@ export const ContentPillarTracker: React.FC<ContentPillarTrackerProps> = ({ sele
         </div>
       </div>
 
-      {/* Konten daftar pillar — scroll di TabsContent (sama seperti tab Reminders), satu scroll per panel */}
-      <div className="px-2 pb-2">
+      {/* Konten daftar pillar — scroll di dalam panel; header + funnel tabs tetap terlihat */}
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="mb-3 mt-3 rounded-[5px] px-3 py-2 text-sm font-medium" style={{
         backgroundColor: selectedConfig.bgColor,
         color: selectedConfig.color

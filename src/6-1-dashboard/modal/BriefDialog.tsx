@@ -22,6 +22,7 @@ import { devLog } from '@/shared/lib/logger';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { validateRequiredFields } from '../container/table/cells/ValidationHelper';
 import type { ContentPlan } from '../types/social-media';
+import { useBriefStoryboardImages } from '../hook/useBriefStoryboardImages';
 
 interface BriefDialogProps {
   isOpen: boolean;
@@ -87,6 +88,17 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
     addComment,
     deleteComment
   } = useLinkComments(socialMediaPlanId || '', 'brief');
+  const {
+    rowImagesMap,
+    uploadMany,
+    remove,
+    removeAllForPlan,
+    insertRow,
+    deleteRow,
+    uploadingRowIndex,
+    deletingImageId,
+    isWorking: isStoryboardImagesBusy,
+  } = useBriefStoryboardImages(isOpen ? socialMediaPlanId : undefined);
 
   // Sync form from props only when dialog first opens or when switching to another plan.
   // Do not overwrite while modal is open for the same plan (avoids refetch/realtime wiping user edits).
@@ -244,6 +256,10 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
       const now = new Date().toISOString();
       const trimmedBrief = briefText.trim();
       const briefIsEmpty = trimmedBrief === '';
+
+      if (briefIsEmpty) {
+        await removeAllForPlan();
+      }
 
       const planRowUpdate: Record<string, unknown> = briefIsEmpty
         ? {
@@ -852,6 +868,15 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                   onSave={handleTableSave}
                                   storyboardToolbar
                                   onEditingChange={setIsStoryboardTableEditing}
+                                  planId={socialMediaPlanId}
+                                  rowImagesMap={rowImagesMap}
+                                  onUploadImages={uploadMany}
+                                  onDeleteImage={remove}
+                                  onInsertRowImages={insertRow}
+                                  onDeleteRowImages={deleteRow}
+                                  mediaBusy={isStoryboardImagesBusy}
+                                  uploadingRowIndex={uploadingRowIndex}
+                                  deletingImageId={deletingImageId}
                                   className="!my-1"
                                 />
                                 </div>
@@ -994,7 +1019,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                     variant="outline"
                     size="sm"
                     onClick={handleRequestRevision}
-                    disabled={isUpdatingStatus}
+                    disabled={isUpdatingStatus || isStoryboardImagesBusy}
                     className="text-orange-600 border-orange-600 hover:bg-orange-50"
                   >
                     <RotateCcw className="h-4 w-4 mr-2" />
@@ -1004,7 +1029,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                     variant="outline"
                     size="sm"
                     onClick={handleApproved}
-                    disabled={isUpdatingStatus}
+                    disabled={isUpdatingStatus || isStoryboardImagesBusy}
                     className="text-green-600 border-green-600 hover:bg-green-50"
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
@@ -1019,12 +1044,12 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
               <Button
                 variant="outline"
                 onClick={handleCancel}
-                disabled={isStoryboardTableEditing}
+                disabled={isStoryboardTableEditing || isStoryboardImagesBusy}
                 className="px-6"
               >
                 {t('briefDialog.cancel', 'Cancel')}
               </Button>
-              <Button onClick={handleSave} disabled={isStoryboardTableEditing} className="px-6">
+              <Button onClick={handleSave} disabled={isStoryboardTableEditing || isStoryboardImagesBusy} className="px-6">
                 {t('briefDialog.saveBrief', 'Save Brief')}
               </Button>
             </div>

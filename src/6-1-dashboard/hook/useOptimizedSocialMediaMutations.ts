@@ -11,6 +11,7 @@ import { ContentPlan } from '../types/social-media';
 import { toast } from 'sonner';
 import { devLog } from '@/shared/lib/logger';
 import { triggerPlanAutoSchedule } from '@/6-1-scheduled-posts/lib/triggerPlanAutoSchedule';
+import { removeAllBriefStoryboardImagesForPlan } from './useBriefStoryboardImages';
 
 /** Allowed columns for social_media_plans table (no link_url - that column does not exist). */
 const SOCIAL_MEDIA_PLANS_UPDATE_KEYS = new Set([
@@ -349,6 +350,7 @@ export const useOptimizedSocialMediaMutations = () => {
   // Delete content plan mutation
   const deleteContentPlanMutation = useMutation({
     mutationFn: async (id: string) => {
+      await removeAllBriefStoryboardImagesForPlan(id);
       const { error } = await supabase
         .from('social_media_plans')
         .delete()

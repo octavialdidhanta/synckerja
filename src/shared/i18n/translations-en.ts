@@ -1181,8 +1181,11 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.rateLimitQueueToast":
     "Waiting in publish queue — retrying automatically.",
   "digitalMarketing.scheduledPosts.tiktokPrivacySelfOnly": "Only me",
+  "digitalMarketing.scheduledPosts.tiktokPrivacy.public": "Public",
+  "digitalMarketing.scheduledPosts.tiktokPrivacy.followers": "Followers",
+  "digitalMarketing.scheduledPosts.tiktokPrivacy.friends": "Friends",
   "digitalMarketing.scheduledPosts.tiktokUnauditedHint":
-    "Sandbox: TikTok posts are Only me until App Review. Use a private TikTok account or complete TikTok App Review for public posting.",
+    "Until Direct Post audit is approved, use Only me and set the TikTok account to Private. After approval, Public/Followers work.",
   "digitalMarketing.scheduledPosts.scheduledFor": "TikTok scheduled for {{time}} WIB",
   "digitalMarketing.scheduledPosts.published": "Post published",
   "digitalMarketing.scheduledPosts.publishedTikTok": "TikTok post published",

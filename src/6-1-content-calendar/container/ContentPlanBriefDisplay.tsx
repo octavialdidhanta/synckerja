@@ -10,6 +10,7 @@ import {
 } from '@/shared/utils/briefUtils';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useSocialMediaMutations } from '@/6-1-dashboard/hook/useOptimizedSocialMediaState';
+import { useBriefStoryboardImages } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
 
 /** Match BriefDialog markdown styling for consistency with brief content modal */
 const briefMarkdownComponents = {
@@ -49,6 +50,16 @@ export interface ContentPlanBriefDisplayProps {
 export const ContentPlanBriefDisplay: React.FC<ContentPlanBriefDisplayProps> = ({ planId, brief }) => {
   const { t } = useAppTranslation();
   const { updateContentPlan } = useSocialMediaMutations();
+  const {
+    rowImagesMap,
+    uploadMany,
+    remove,
+    insertRow,
+    deleteRow,
+    uploadingRowIndex,
+    deletingImageId,
+    isWorking: isStoryboardImagesBusy,
+  } = useBriefStoryboardImages(planId);
   const briefText = brief?.trim() ?? '';
 
   const parsedTable = useMemo(() => {
@@ -91,6 +102,15 @@ export const ContentPlanBriefDisplay: React.FC<ContentPlanBriefDisplayProps> = (
         <EditableBriefTable
           tableData={parsedTable.table}
           controlsPlacement="taggingColumn"
+          planId={planId}
+          rowImagesMap={rowImagesMap}
+          onUploadImages={uploadMany}
+          onDeleteImage={remove}
+          onInsertRowImages={insertRow}
+          onDeleteRowImages={deleteRow}
+          mediaBusy={isStoryboardImagesBusy}
+          uploadingRowIndex={uploadingRowIndex}
+          deletingImageId={deletingImageId}
           onSave={(newTableData) => {
             if (!canUpdate) return;
             const newTableMarkdown = stringifyMarkdownTable(newTableData);

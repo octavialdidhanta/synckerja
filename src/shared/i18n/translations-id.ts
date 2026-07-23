@@ -1180,8 +1180,11 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.rateLimitQueueToast":
     "Menunggu antrian publish — mencoba ulang otomatis.",
   "digitalMarketing.scheduledPosts.tiktokPrivacySelfOnly": "Hanya saya",
+  "digitalMarketing.scheduledPosts.tiktokPrivacy.public": "Publik",
+  "digitalMarketing.scheduledPosts.tiktokPrivacy.followers": "Pengikut",
+  "digitalMarketing.scheduledPosts.tiktokPrivacy.friends": "Teman",
   "digitalMarketing.scheduledPosts.tiktokUnauditedHint":
-    "Sandbox: posting TikTok hanya Hanya saya sampai App Review lolos. Gunakan akun TikTok privat sementara, atau selesaikan TikTok App Review untuk posting publik.",
+    "Sampai audit Direct Post disetujui, pakai Hanya saya dan set akun TikTok ke Private. Setelah approval, Publik/Pengikut berfungsi.",
   "digitalMarketing.scheduledPosts.scheduledFor": "TikTok dijadwalkan pukul {{time}} WIB",
   "digitalMarketing.scheduledPosts.published": "Posting berhasil dipublikasikan",
   "digitalMarketing.scheduledPosts.publishedTikTok": "Posting TikTok berhasil",

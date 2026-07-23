@@ -54,7 +54,7 @@ function matchContentAppId(clientId: string): {
   if (id === TIKTOK_DEVELOPERS_CONTENT_APP_ID) {
     return {
       matched_app: "developers_content",
-      matched_app_label: "Synkerja Content Insight (developers.tiktok.com)",
+      matched_app_label: "Synckerja Office (developers.tiktok.com — Login Kit / Direct Post)",
     };
   }
   return { matched_app: "unknown", matched_app_label: null };
@@ -94,7 +94,7 @@ function buildContentRecommendation(matched: TikTokContentAppMatch): string | nu
     return `Salah slot — pindahkan Synkerja Office (${TIKTOK_BUSINESS_ADS_APP_ID}) ke TIKTOK_ADS_*. CONTENT harus Synkerja Content Insight (${TIKTOK_BUSINESS_CONTENT_APP_ID}).`;
   }
   if (matched === "developers_content") {
-    return "Ini app developers.tiktok.com — cocok untuk Direct Post setelah App Review. Untuk organic/komentar gunakan Synkerja Content Insight di business-api.";
+    return "Ini app developers.tiktok.com (Synckerja Office) — cocok untuk Direct Post setelah App Review + Direct Post audit. Untuk organic/komentar gunakan Synkerja Content Insight di business-api.";
   }
   if (matched === "unknown") {
     return "Client key tidak cocok dengan App ID Synckerja yang dikenal. Cek Supabase secrets vs TikTok portal.";
@@ -151,13 +151,13 @@ function matchPublishAppId(clientId: string): {
   if (id === TIKTOK_DEVELOPERS_CONTENT_APP_ID) {
     return {
       matched_app: "developers_content",
-      matched_app_label: "Synkerja Content Insight (developers.tiktok.com)",
+      matched_app_label: "Synckerja Office (developers.tiktok.com — Login Kit / Direct Post)",
     };
   }
   if (looksLikeDevelopersLoginKitClientKey(id)) {
     return {
       matched_app: "developers_content",
-      matched_app_label: "Login Kit client key (developers.tiktok.com)",
+      matched_app_label: "Synckerja Office Login Kit client key (developers.tiktok.com)",
     };
   }
   return { matched_app: "unknown", matched_app_label: null };
@@ -165,7 +165,7 @@ function matchPublishAppId(clientId: string): {
 
 function buildPublishRecommendation(matched: TikTokContentAppMatch, configured: boolean): string | null {
   if (matched === "developers_content") {
-    return "Benar — developers.tiktok.com untuk Login Kit / Direct Post (video.upload, video.publish).";
+    return "Benar — Synckerja Office (developers.tiktok.com) untuk Login Kit / Direct Post (video.upload, video.publish).";
   }
   if (matched === "business_content") {
     return `Salah slot — gunakan developers app (App ID portal ${TIKTOK_DEVELOPERS_CONTENT_APP_ID}), bukan Synkerja Content Insight business-api.`;

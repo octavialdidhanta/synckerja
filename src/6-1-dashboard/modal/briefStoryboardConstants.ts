@@ -1,7 +1,7 @@
 export const DEFAULT_BRIEF_STORYBOARD_HEADERS = [
   'Timing',
-  'VO (Voice Over)',
   'Visual',
+  'VO (Voice Over)',
   'Element Lainnya',
   'Tagging',
 ] as const;

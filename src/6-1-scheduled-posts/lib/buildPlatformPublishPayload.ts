@@ -1,5 +1,6 @@
 import type { PlatformPublishFunction } from '../hooks/usePlatformScheduleMutations';
 import { DEFAULT_YOUTUBE_SCHEDULE_PRIVACY } from './youtubeSchedulePrivacy';
+import { DEFAULT_TIKTOK_SCHEDULE_PRIVACY } from './tiktokSchedulePrivacy';
 
 export function getEdgeFunctionForPlatform(platform: string): PlatformPublishFunction {
   switch (platform.trim()) {
@@ -46,6 +47,7 @@ export function buildPlatformPublishPayload(
       return {
         ...base,
         open_id: args.accountId,
+        privacy_level: args.privacyLevel ?? DEFAULT_TIKTOK_SCHEDULE_PRIVACY,
         ...(args.scheduledAtIso ? { scheduled_at: args.scheduledAtIso } : {}),
       };
     case 'YouTube':

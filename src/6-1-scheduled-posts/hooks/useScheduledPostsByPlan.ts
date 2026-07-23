@@ -91,6 +91,7 @@ export function useSchedulePostMutation() {
       caption: string;
       title?: string;
       employeeId?: string;
+      privacyLevel?: string;
     }) => {
       return invokePublish({
         action: 'schedule',
@@ -102,6 +103,7 @@ export function useSchedulePostMutation() {
         caption: args.caption,
         title: args.title ?? null,
         employee_id: args.employeeId ?? null,
+        privacy_level: args.privacyLevel ?? null,
       });
     },
     onSuccess: (_data, vars) => {
@@ -125,6 +127,7 @@ export function usePostNowMutation() {
       caption: string;
       title?: string;
       employeeId?: string;
+      privacyLevel?: string;
     }) => {
       return invokePublish({
         action: 'post_now',
@@ -135,6 +138,7 @@ export function usePostNowMutation() {
         caption: args.caption,
         title: args.title ?? null,
         employee_id: args.employeeId ?? null,
+        privacy_level: args.privacyLevel ?? null,
       });
     },
     onSuccess: (_data, vars) => {

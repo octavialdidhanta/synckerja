@@ -39,6 +39,7 @@ import {
   SCHEDULE_TABLE_VISIBILITY_CELL_CLASS,
 } from './scheduleTableColumnStyles';
 import { DEFAULT_YOUTUBE_SCHEDULE_PRIVACY } from '../lib/youtubeSchedulePrivacy';
+import { DEFAULT_TIKTOK_SCHEDULE_PRIVACY } from '../lib/tiktokSchedulePrivacy';
 import { useUpsertPlanScheduleManualLock } from '../hooks/usePlanScheduleManualLocks';
 
 type Props = {
@@ -134,8 +135,12 @@ export function UnifiedAutoScheduleSection({
     setPrivacyByRowId((prev) => {
       const next = { ...prev };
       for (const target of targets) {
-        if (target.platform === 'YouTube' && !next[target.requiredPlatformRowId]) {
-          next[target.requiredPlatformRowId] = DEFAULT_YOUTUBE_SCHEDULE_PRIVACY;
+        if (!next[target.requiredPlatformRowId]) {
+          if (target.platform === 'YouTube') {
+            next[target.requiredPlatformRowId] = DEFAULT_YOUTUBE_SCHEDULE_PRIVACY;
+          } else if (target.platform === 'TikTok') {
+            next[target.requiredPlatformRowId] = DEFAULT_TIKTOK_SCHEDULE_PRIVACY;
+          }
         }
       }
       return next;
@@ -159,7 +164,11 @@ export function UnifiedAutoScheduleSection({
   );
 
   const getPrivacyLevel = useCallback(
-    (rowId: string) => privacyByRowId[rowId] ?? DEFAULT_YOUTUBE_SCHEDULE_PRIVACY,
+    (rowId: string, platform?: string) => {
+      if (privacyByRowId[rowId]) return privacyByRowId[rowId];
+      if (platform === 'TikTok') return DEFAULT_TIKTOK_SCHEDULE_PRIVACY;
+      return DEFAULT_YOUTUBE_SCHEDULE_PRIVACY;
+    },
     [privacyByRowId],
   );
 
@@ -218,7 +227,9 @@ export function UnifiedAutoScheduleSection({
         title: planTitle ?? undefined,
         employeeId,
         privacyLevel:
-          target.platform === 'YouTube' ? getPrivacyLevel(target.requiredPlatformRowId) : undefined,
+          target.platform === 'YouTube' || target.platform === 'TikTok'
+            ? getPrivacyLevel(target.requiredPlatformRowId, target.platform)
+            : undefined,
       };
 
       try {
@@ -460,7 +471,7 @@ export function UnifiedAutoScheduleSection({
                       onTimeChange={(value) =>
                         setTimeWibByRowId((prev) => ({ ...prev, [rowBusyId]: value }))
                       }
-                      privacyLevel={getPrivacyLevel(rowBusyId)}
+                      privacyLevel={getPrivacyLevel(rowBusyId, target.platform)}
                       onPrivacyChange={(value) =>
                         setPrivacyByRowId((prev) => ({ ...prev, [rowBusyId]: value }))
                       }

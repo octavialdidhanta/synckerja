@@ -98,14 +98,22 @@ function parseRowLine(line: string): string[] {
     .map((p) => p.trim());
 }
 
-/** True if this row of cells looks like the table header (Timing | VO | Visual | ...) */
+/** True if this row of cells looks like the table header (Timing | Visual | VO | ...) */
 function isTableHeaderRow(cells: string[]): boolean {
   if (cells.length === 0) return false;
   const first = (cells[0] ?? '').trim().toLowerCase();
   if (first === 'timing') return true;
   const second = (cells[1] ?? '').trim().toLowerCase();
-  if (second.includes('voice over') || second === 'vo') return true;
+  if (second === 'visual' || second.includes('voice over') || second === 'vo') return true;
   return false;
+}
+
+function findVoColumnIndex(headers: string[]): number {
+  const idx = headers.findIndex((header) => {
+    const h = String(header ?? '').trim().toLowerCase();
+    return h === 'vo' || h.includes('voice over');
+  });
+  return idx >= 0 ? idx : Math.min(2, Math.max(headers.length - 1, 0));
 }
 
 /**
@@ -140,12 +148,13 @@ export function mergeTableRowRevision(
       break;
     }
   }
-  // Fallback: AI returned plain text without table format - use as VO cell (column 1)
+  // Fallback: AI returned plain text without table format - use as VO cell by header name
   if (newCells.length === 0 && revisedRowMarkdown.trim()) {
     const existingRow = baseTable[rowIndex] ?? [];
+    const headerRow = baseTable[0] ?? [];
     if (existingRow.length > 0) {
       newCells = [...existingRow];
-      const voCol = existingRow.length > 1 ? 1 : 0;
+      const voCol = findVoColumnIndex(headerRow);
       newCells[voCol] = revisedRowMarkdown.trim();
     }
   }

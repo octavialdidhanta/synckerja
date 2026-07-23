@@ -28,6 +28,10 @@ import type { ScheduledPost } from '../../types/scheduled-post';
 import { GoogleDriveFilePreview } from '@/6-1-dashboard/modal/GoogleDriveInAppFilePreview';
 import { validateGoogleDriveVideoLink } from '../../lib/validateGoogleDriveVideoLink';
 import { notifyPublishMutationError } from '../../lib/notifyPublishMutationError';
+import {
+  DEFAULT_TIKTOK_SCHEDULE_PRIVACY,
+  TIKTOK_SCHEDULE_PRIVACY_LEVELS,
+} from '../../lib/tiktokSchedulePrivacy';
 
 const QUICK_TIMES = ['12:00', '15:00', '18:00', '20:00'];
 
@@ -70,6 +74,7 @@ export function TikTokAutoScheduleSection({
   const defaultAccount = accounts.find((a) => a.is_default) ?? accounts[0];
   const [openId, setOpenId] = useState(defaultAccount?.open_id ?? '');
   const [timeWib, setTimeWib] = useState(defaultTime ?? '18:00');
+  const [privacyLevel, setPrivacyLevel] = useState(DEFAULT_TIKTOK_SCHEDULE_PRIVACY);
 
   useEffect(() => {
     if (defaultAccount?.open_id && !openId) setOpenId(defaultAccount.open_id);
@@ -126,6 +131,7 @@ export function TikTokAutoScheduleSection({
           caption,
           title: planTitle ?? undefined,
           employeeId,
+          privacyLevel,
         });
         toast.success(t('digitalMarketing.scheduledPosts.scheduledFor', { time: timeWib }));
       } else {
@@ -137,6 +143,7 @@ export function TikTokAutoScheduleSection({
           caption,
           title: planTitle ?? undefined,
           employeeId,
+          privacyLevel,
         });
         toast.success(t('digitalMarketing.scheduledPosts.publishedTikTok'));
       }
@@ -247,6 +254,43 @@ export function TikTokAutoScheduleSection({
                   })}
                 </p>
               ) : null}
+            </div>
+
+            <div className="space-y-1">
+              <Label className={fieldLabel}>
+                {t('digitalMarketing.scheduledPosts.privacyLabel', 'Visibility')}
+              </Label>
+              <Select
+                value={privacyLevel}
+                onValueChange={(v) =>
+                  setPrivacyLevel(
+                    (TIKTOK_SCHEDULE_PRIVACY_LEVELS as readonly string[]).includes(v)
+                      ? (v as typeof DEFAULT_TIKTOK_SCHEDULE_PRIVACY)
+                      : DEFAULT_TIKTOK_SCHEDULE_PRIVACY,
+                  )
+                }
+                disabled={Boolean(activeTikTokSchedule)}
+              >
+                <SelectTrigger
+                  className="h-9 w-full text-sm"
+                  title={t('digitalMarketing.scheduledPosts.tiktokUnauditedHint')}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIKTOK_SCHEDULE_PRIVACY_LEVELS.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {value === 'PUBLIC_TO_EVERYONE'
+                        ? t('digitalMarketing.scheduledPosts.tiktokPrivacy.public', 'Public')
+                        : value === 'FOLLOWER_OF_CREATOR'
+                          ? t('digitalMarketing.scheduledPosts.tiktokPrivacy.followers', 'Followers')
+                          : value === 'MUTUAL_FOLLOW_FRIENDS'
+                            ? t('digitalMarketing.scheduledPosts.tiktokPrivacy.friends', 'Friends')
+                            : t('digitalMarketing.scheduledPosts.tiktokPrivacySelfOnly', 'Only me')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1">

@@ -168,7 +168,7 @@ const ReminderTab: React.FC<ReminderTabProps> = ({ selectedMonth, serviceFilter 
           </TabsList>
           
           {/* Scrollable Content Area — sama untuk ketiga tab: TabsContent = scroll container (overflow-y-auto) */}
-          <TabsContent value="funnel" className="flex-1 p-0 m-0 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain">
+          <TabsContent value="funnel" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden p-0">
             <ContentPillarTracker selectedMonth={selectedMonth} serviceFilter={serviceFilter} />
           </TabsContent>
 

@@ -37,6 +37,10 @@ import {
   DEFAULT_YOUTUBE_SCHEDULE_PRIVACY,
   YOUTUBE_SCHEDULE_PRIVACY_LEVELS,
 } from '../lib/youtubeSchedulePrivacy';
+import {
+  DEFAULT_TIKTOK_SCHEDULE_PRIVACY,
+  TIKTOK_SCHEDULE_PRIVACY_LEVELS,
+} from '../lib/tiktokSchedulePrivacy';
 
 const QUICK_TIMES = ['12:00', '15:00', '18:00', '20:00'];
 
@@ -92,11 +96,18 @@ export function RequiredPlatformScheduleRow({
   const lockedPrivacyLevel = activeSchedule?.privacy_level
     ? String(activeSchedule.privacy_level).trim().toUpperCase()
     : null;
-  const displayPrivacyLevel =
+
+  const youtubeDisplayPrivacy =
     lockedPrivacyLevel &&
     (YOUTUBE_SCHEDULE_PRIVACY_LEVELS as readonly string[]).includes(lockedPrivacyLevel)
       ? lockedPrivacyLevel
       : privacyLevel;
+
+  const tiktokDisplayPrivacy =
+    lockedPrivacyLevel &&
+    (TIKTOK_SCHEDULE_PRIVACY_LEVELS as readonly string[]).includes(lockedPrivacyLevel)
+      ? lockedPrivacyLevel
+      : privacyLevel || DEFAULT_TIKTOK_SCHEDULE_PRIVACY;
 
   const privacyOptions = useMemo(
     () =>
@@ -108,6 +119,22 @@ export function RequiredPlatformScheduleRow({
             : value === 'UNLISTED'
               ? t('digitalMarketing.youtubeContent.privacy.unlisted', 'Unlisted')
               : t('digitalMarketing.youtubeContent.privacy.private', 'Private'),
+      })),
+    [t],
+  );
+
+  const tiktokPrivacyOptions = useMemo(
+    () =>
+      TIKTOK_SCHEDULE_PRIVACY_LEVELS.map((value) => ({
+        value,
+        label:
+          value === 'PUBLIC_TO_EVERYONE'
+            ? t('digitalMarketing.scheduledPosts.tiktokPrivacy.public', 'Public')
+            : value === 'FOLLOWER_OF_CREATOR'
+              ? t('digitalMarketing.scheduledPosts.tiktokPrivacy.followers', 'Followers')
+              : value === 'MUTUAL_FOLLOW_FRIENDS'
+                ? t('digitalMarketing.scheduledPosts.tiktokPrivacy.friends', 'Friends')
+                : t('digitalMarketing.scheduledPosts.tiktokPrivacySelfOnly', 'Only me'),
       })),
     [t],
   );
@@ -170,7 +197,7 @@ export function RequiredPlatformScheduleRow({
         <div className={SCHEDULE_TABLE_VISIBILITY_CELL_CLASS}>
           {platform === 'YouTube' ? (
             <Select
-              value={displayPrivacyLevel}
+              value={youtubeDisplayPrivacy}
               onValueChange={onPrivacyChange}
               disabled={controlsLocked}
             >
@@ -186,12 +213,25 @@ export function RequiredPlatformScheduleRow({
               </SelectContent>
             </Select>
           ) : platform === 'TikTok' ? (
-            <span
-              className="text-xs text-muted-foreground"
-              title={t('digitalMarketing.scheduledPosts.tiktokUnauditedHint')}
+            <Select
+              value={tiktokDisplayPrivacy}
+              onValueChange={onPrivacyChange}
+              disabled={controlsLocked}
             >
-              {t('digitalMarketing.scheduledPosts.tiktokPrivacySelfOnly')}
-            </span>
+              <SelectTrigger
+                className="h-8 w-[7.5rem] text-xs"
+                title={t('digitalMarketing.scheduledPosts.tiktokUnauditedHint')}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {tiktokPrivacyOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ) : (
             <span className="text-xs text-muted-foreground">—</span>
           )}

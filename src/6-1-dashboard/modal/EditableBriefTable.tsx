@@ -4,6 +4,8 @@ import { Pencil, Check, X, MoreVertical, Trash2, Plus, Columns3 } from 'lucide-r
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 import { toast } from 'sonner';
+import { BriefStoryboardImageCell } from './BriefStoryboardImageCell';
+import type { BriefStoryboardImageWithUrl } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +18,7 @@ import {
 /** Fixed storyboard column widths (px). */
 const BRIEF_COLUMN_WIDTH_PX = {
   timing: 80,
-  /** Middle columns (Pembahasan, VO, Visual, …) — fixed when table scrolls horizontally. */
+  /** Middle columns (Visual, VO, Element Lainnya, …) — fixed when table scrolls horizontally. */
   content: 360,
   actions: 72,
   /** At most this many visible columns (data + actions) before horizontal scroll. */
@@ -110,6 +112,16 @@ interface EditableBriefTableProps {
   storyboardToolbar?: boolean;
   /** Notified when inline edit mode toggles (e.g. disable dialog footer actions) */
   onEditingChange?: (isEditing: boolean) => void;
+  planId?: string;
+  imageColumnIndex?: number;
+  rowImagesMap?: Record<number, BriefStoryboardImageWithUrl[]>;
+  onUploadImages?: (rowIndex: number, files: File[]) => Promise<unknown>;
+  onDeleteImage?: (imageId: string) => Promise<unknown>;
+  onInsertRowImages?: (insertAtRowIndex: number) => Promise<unknown>;
+  onDeleteRowImages?: (rowIndex: number) => Promise<unknown>;
+  mediaBusy?: boolean;
+  uploadingRowIndex?: number | null;
+  deletingImageId?: string | null;
   className?: string;
 }
 
@@ -122,6 +134,16 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   controlsPlacement = 'actionsColumn',
   storyboardToolbar = false,
   onEditingChange,
+  planId,
+  imageColumnIndex = 1,
+  rowImagesMap = {},
+  onUploadImages,
+  onDeleteImage,
+  onInsertRowImages,
+  onDeleteRowImages,
+  mediaBusy = false,
+  uploadingRowIndex = null,
+  deletingImageId = null,
   className = '',
 }) => {
   const { t } = useAppTranslation();
@@ -156,9 +178,16 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     });
   };
 
+  const sanitizeStoryboardData = (rows: string[][]): string[][] => {
+    return rows.map((row, rowIdx) => row.map((cell, colIdx) => {
+      if (rowIdx > 0 && colIdx === imageColumnIndex) return '';
+      return cell;
+    }));
+  };
+
   const persistTable = (newData: string[][]) => {
     const finalColCount = Math.max(...newData.map((r) => r.length), 1);
-    const padded = padTable(newData, finalColCount);
+    const padded = sanitizeStoryboardData(padTable(newData, finalColCount));
     onSave?.(padded);
     return padded;
   };
@@ -191,10 +220,11 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     }, 0);
   };
 
-  const handleDeleteRow = (rowIdx: number) => {
+  const handleDeleteRow = async (rowIdx: number) => {
     const tableColCount = Math.max(...tableData.map((r) => r.length), 1);
     const headerRow = (tableData[0] ?? displayData[0] ?? []).slice(0, tableColCount);
     const body = isEditing ? editData : displayData.slice(1);
+    await onDeleteRowImages?.(rowIdx);
     const newBody = body.filter((_, i) => i !== rowIdx).map((row) => {
       const a = [...row];
       while (a.length < tableColCount) a.push('');
@@ -206,11 +236,15 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     }
   };
 
-  const handleAddRow = (rowIdx: number) => {
+  const handleAddRow = async (rowIdx: number) => {
     const tableColCount = Math.max(...tableData.map((r) => r.length), 1);
     const headerRow = (tableData[0] ?? displayData[0] ?? []).slice(0, tableColCount);
     const body = isEditing ? editData : displayData.slice(1);
     const emptyRow = Array.from({ length: tableColCount }, () => '');
+    if (tableColCount > imageColumnIndex) {
+      emptyRow[imageColumnIndex] = '';
+    }
+    await onInsertRowImages?.(rowIdx + 1);
     const newBody = [...body.slice(0, rowIdx + 1), emptyRow, ...body.slice(rowIdx + 1)].map((row) => {
       const a = [...row];
       while (a.length < tableColCount) a.push('');
@@ -222,13 +256,13 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     }
   };
 
-  const handleAppendRow = () => {
+  const handleAppendRow = async () => {
     const body = isEditing ? editData : displayData.slice(1);
     if (body.length === 0) {
-      handleAddRow(-1);
+      await handleAddRow(-1);
       return;
     }
-    handleAddRow(body.length - 1);
+    await handleAddRow(body.length - 1);
   };
 
   const handleAddColumn = () => {
@@ -247,11 +281,18 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   };
 
   const isColumnUnused = (colIdx: number, data: string[][]): boolean => {
+    if (colIdx === imageColumnIndex) {
+      return Object.values(rowImagesMap).flat().length === 0;
+    }
     const body = data.slice(1);
     return body.every((row) => (row[colIdx] ?? '').trim() === '');
   };
 
   const handleRemoveColumn = (colIdx: number) => {
+    if (colIdx === imageColumnIndex) {
+      toast.error(t('briefDialog.storyboard.columnRequired', 'This column is required'));
+      return;
+    }
     const source = normalizeBriefTableRows(isEditing ? [displayData[0] ?? [], ...editData] : displayData);
     const currentColCount = Math.max(...source.map((r) => r.length), 1);
     if (currentColCount <= 1) return;
@@ -264,6 +305,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   };
 
   const updateCell = (rowIdx: number, cellIdx: number, value: string) => {
+    if (cellIdx === imageColumnIndex) return;
     if (alwaysEditable && onChange) {
       const tableColCount = Math.max(...tableData.map((r) => r.length), 1);
       const newData = tableData.map((r, i) => {
@@ -313,6 +355,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             variant="ghost"
             size="sm"
             onClick={saveEdit}
+            disabled={mediaBusy}
             className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
             title={t('common.save', 'Save')}
           >
@@ -322,6 +365,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             variant="ghost"
             size="sm"
             onClick={cancelEdit}
+            disabled={mediaBusy}
             className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
             title={t('common.cancel', 'Cancel')}
           >
@@ -335,6 +379,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
         variant="ghost"
         size="sm"
         onClick={startEdit}
+        disabled={mediaBusy}
         className="h-8 w-8 p-0 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
         title={t('common.edit', 'Edit')}
       >
@@ -373,7 +418,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             <Plus className="mr-1 h-3.5 w-3.5" />
             {t('briefDialog.storyboard.addColumn', 'Add column')}
           </Button>
-          <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={handleAppendRow}>
+          <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => void handleAppendRow()}>
             <Plus className="mr-1 h-3.5 w-3.5" />
             {t('briefDialog.addRow', 'Add row')}
           </Button>
@@ -416,6 +461,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={saveEdit}
+                disabled={mediaBusy}
                 className="h-8 gap-1 text-xs text-green-600 hover:bg-green-50 hover:text-green-700"
               >
                 <Check className="h-4 w-4" />
@@ -426,6 +472,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={cancelEdit}
+                disabled={mediaBusy}
                 className="h-8 gap-1 text-xs text-gray-600 hover:bg-gray-100"
               >
                 <X className="h-4 w-4" />
@@ -438,6 +485,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
               variant="outline"
               size="sm"
               onClick={startEdit}
+              disabled={mediaBusy}
               className="h-8 gap-1 text-xs"
             >
               <Pencil className="h-3.5 w-3.5" />
@@ -527,6 +575,10 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
           <tbody className="bg-white">
             {bodyRows.map((row, rowIdx) => {
               const displayRow = padRow(row);
+              const rowImages = rowImagesMap[rowIdx] ?? [];
+              const isRowUploading = uploadingRowIndex === rowIdx;
+              const isRowDeleting = rowImages.some((image) => image.id === deletingImageId);
+              const isStructureBusy = mediaBusy && uploadingRowIndex === null && deletingImageId === null;
               return (
                 <tr
                   key={rowIdx}
@@ -537,7 +589,18 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                       key={cellIdx}
                       className={briefTableCellClass}
                     >
-                      {(isEditing || alwaysEditable) ? (
+                      {cellIdx === imageColumnIndex ? (
+                        <BriefStoryboardImageCell
+                          rowIndex={rowIdx}
+                          images={rowImages}
+                          editable={Boolean((isEditing || alwaysEditable) && planId && !readOnly)}
+                          disabled={!planId || isStructureBusy || isRowUploading || isRowDeleting}
+                          isUploading={isRowUploading}
+                          isDeleting={isRowDeleting}
+                          onUploadFiles={onUploadImages}
+                          onDeleteImage={onDeleteImage}
+                        />
+                      ) : (isEditing || alwaysEditable) ? (
                         <AutoResizeTextarea
                           value={cell}
                           onChange={(e) => updateCell(rowIdx, cellIdx, e.target.value)}
@@ -563,6 +626,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                               type="button"
                               variant="ghost"
                               size="sm"
+                              disabled={mediaBusy}
                               className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                               title={t('common.actions', 'Actions')}
                             >
@@ -571,14 +635,14 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
-                              onClick={() => handleAddRow(rowIdx)}
+                              onClick={() => void handleAddRow(rowIdx)}
                               className="gap-2"
                             >
                               <Plus className="h-4 w-4" />
                               {t('briefDialog.addRow', 'Add row')}
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => handleDeleteRow(rowIdx)}
+                              onClick={() => void handleDeleteRow(rowIdx)}
                               className="gap-2 text-red-600 focus:text-red-600"
                             >
                               <Trash2 className="h-4 w-4" />

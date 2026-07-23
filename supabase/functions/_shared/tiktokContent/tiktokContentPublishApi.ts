@@ -33,7 +33,7 @@ function formatTikTokApiErrorDetail(
   const logSuffix = logId ? ` [log_id=${logId}]` : "";
 
   if (code === "unaudited_client_can_only_post_to_private_accounts") {
-    return `${prefix}: TikTok app belum lolos App Review — posting sandbox hanya didukung dengan visibility Only me (SELF_ONLY) pada akun yang memenuhi syarat. Set akun TikTok ke Private sementara, atau selesaikan TikTok App Review untuk Direct Post.${logSuffix}`;
+    return `${prefix}: Direct Post audit belum disetujui — TikTok hanya mengizinkan posting Only me (SELF_ONLY) ke akun Private. Set akun TikTok ke Private + visibility Only me, atau tunggu Direct Post Audit approved untuk posting publik.${logSuffix}`;
   }
   if (code === "privacy_level_option_mismatch") {
     return `${prefix}: Visibility tidak valid untuk akun TikTok ini. Gunakan opsi dari creator_info (biasanya Only me / SELF_ONLY untuk app belum diaudit).${logSuffix}`;
