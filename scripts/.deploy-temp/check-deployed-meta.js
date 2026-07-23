@@ -1,0 +1,10 @@
+﻿const fs=require("fs");
+const j=JSON.parse(fs.readFileSync("C:/Users/Asus/.cursor/projects/d-Synckerja-Office-11-Juni-2026-synckerja/agent-tools/5380732f-bb0a-4be2-bcc9-fca53fe52f4b.txt","utf8"));
+console.log("version", j.version, "verify_jwt", j.verify_jwt);
+const api=j.files.find(f=>String(f.name).includes("metaContentApi"));
+const idx=j.files.find(f=>String(f.name).includes("index.ts") && String(f.name).includes("meta-content-metrics"));
+console.log("has Always include", api.content.includes("Always include total_views"));
+const m=api.content.match(/metric: "reach,views[^"]+"/);
+console.log("primary metric", m && m[0]);
+const s=idx.content.match(/metrics_schema_version:[^\n]+/);
+console.log("schema", s && s[0]);

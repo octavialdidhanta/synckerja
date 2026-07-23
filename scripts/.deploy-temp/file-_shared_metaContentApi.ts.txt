@@ -188,28 +188,14 @@ function resolveInstagramMediaViewCount(
   fieldViews = 0,
 ): number {
   const totalViews = Number(merged.total_views ?? 0) || 0;
+  if (totalViews > 0) return totalViews;
   const views = Number(merged.views ?? 0) || 0;
+  if (views > 0) return views;
   const crossposted = Number(merged.crossposted_views ?? 0) || 0;
-  const modern = Math.max(totalViews, views, crossposted, Number(fieldViews) || 0);
-  if (modern > 0) return modern;
+  if (crossposted > 0) return crossposted;
+  if (fieldViews > 0) return fieldViews;
   // Legacy impressions only when modern views are unavailable (pre-July 2024 media).
   return Number(merged.impressions ?? 0) || 0;
-}
-
-/** Instagram Professional Dashboard "Views" = average of the last N posts. */
-export function averageInstagramViewsLastN(
-  posts: Array<{ view_count: number; posted_at?: string | null }>,
-  n = 3,
-): number {
-  if (!posts.length || n <= 0) return 0;
-  const sorted = [...posts].sort((a, b) => {
-    const ta = a.posted_at ? Date.parse(a.posted_at) : 0;
-    const tb = b.posted_at ? Date.parse(b.posted_at) : 0;
-    return tb - ta;
-  });
-  const slice = sorted.slice(0, Math.min(n, sorted.length));
-  const sum = slice.reduce((acc, p) => acc + (Number(p.view_count) || 0), 0);
-  return Math.round(sum / slice.length);
 }
 
 function hasResolvedInstagramViews(merged: Record<string, number>): boolean {
@@ -231,11 +217,7 @@ function parseBatchMediaViewFieldsBody(body: string): number {
       view_count?: number;
       views_count?: number;
       total_views_count?: number;
-      error?: { message?: string };
     };
-    if (parsed.error) return 0;
-    // Prefer total_views_count (matches Instagram app / boosted). Do not require view_count —
-    // requesting view_count outside Business Discovery fails the whole fields call.
     return Number(parsed.total_views_count ?? parsed.views_count ?? parsed.view_count ?? 0) || 0;
   } catch {
     return 0;
@@ -294,8 +276,7 @@ async function mergeIgMediaViewFieldsBatchPass(
     const chunk = posts.slice(i, i + GRAPH_BATCH_LIMIT);
     const batchResults = await graphBatchGetResilient(
       accessToken,
-      // Only total_views_count — view_count is Business Discovery-only and fails the whole request.
-      chunk.map((post) => `${post.id}?fields=total_views_count`),
+      chunk.map((post) => `${post.id}?fields=view_count,views_count,total_views_count`),
     );
     chunk.forEach((post, idx) => {
       const item = batchResults[idx];
@@ -315,23 +296,24 @@ async function fetchInstagramMediaInsightsSingleMerged(
   const merged: Record<string, number> = {};
   const isReels = isInstagramReelsMedia(mediaType, mediaProductType);
 
-  // Always request total_views with organic views. Skipping total_views when organic
-  // views > 0 left boosted Reels stuck on organic counts (Instagram app shows total_views).
   Object.assign(
     merged,
     await fetchIgMediaInsightMetrics(mediaId, accessToken, {
-      metric: "reach,views,total_views,total_interactions,shares",
+      metric: "reach,views,total_interactions,shares",
       metric_type: "total_value",
     }),
   );
 
-  Object.assign(
-    merged,
-    await fetchIgMediaInsightMetrics(mediaId, accessToken, {
-      metric: "total_views",
-      metric_type: "total_value",
-    }),
-  );
+  // total_views matches Instagram app better (includes boosted) when available via FB Login.
+  if (!hasResolvedInstagramViews(merged)) {
+    Object.assign(
+      merged,
+      await fetchIgMediaInsightMetrics(mediaId, accessToken, {
+        metric: "total_views",
+        metric_type: "total_value",
+      }),
+    );
+  }
 
   // Legacy impressions only as last resort (deprecated for media after July 2024).
   if (!hasResolvedInstagramViews(merged)) {
@@ -384,16 +366,6 @@ async function fetchInstagramMediaInsightsSingleMerged(
     );
   }
 
-  if (isReels) {
-    Object.assign(
-      merged,
-      await fetchIgMediaInsightMetrics(mediaId, accessToken, {
-        metric: "ig_reels_avg_watch_time",
-        metric_type: "total_value",
-      }),
-    );
-  }
-
   if (!hasResolvedInstagramViews(merged)) {
     const fieldViews = await fetchInstagramMediaViewCountFromFields(mediaId, accessToken);
     if (fieldViews > 0) merged.views = fieldViews;
@@ -415,16 +387,16 @@ async function fetchInstagramMediaInsightsMap(
     (post) => !isInstagramReelsMedia(post.media_type, post.media_product_type),
   );
 
-  // Always include total_views (boosted/promoted + organic). Do not gate on organic
-  // views already being present — that skipped total_views and under-counted Reels.
+  // Primary modern metrics (align with Instagram app: views, not deprecated impressions).
   await mergeIgInsightBatchPass(posts, accessToken, mergedById, (post) =>
     igInsightsRelativeUrl(post.id, {
-      metric: "reach,views,total_views,total_interactions,shares",
+      metric: "reach,views,total_interactions,shares",
       metric_type: "total_value",
     }));
 
-  // Dedicated total_views pass for every post (covers partial/failed combined batches).
-  await mergeIgInsightBatchPass(posts, accessToken, mergedById, (post) =>
+  // total_views (FB Login) includes boosted/promoted — closer to Instagram app UI.
+  const needTotalViews = posts.filter((post) => !hasResolvedInstagramViews(mergedById.get(post.id) ?? {}));
+  await mergeIgInsightBatchPass(needTotalViews, accessToken, mergedById, (post) =>
     igInsightsRelativeUrl(post.id, {
       metric: "total_views",
       metric_type: "total_value",
@@ -457,31 +429,9 @@ async function fetchInstagramMediaInsightsMap(
   await mergeIgInsightBatchPass(needShares, accessToken, mergedById, (post) =>
     igInsightsRelativeUrl(post.id, { metric: "shares", metric_type: "total_value" }));
 
-  // Separate pass so avg watch time failures do not wipe views/reach.
-  const reelsOnly = posts.filter((post) =>
-    isInstagramReelsMedia(post.media_type, post.media_product_type),
-  );
-  await mergeIgInsightBatchPass(reelsOnly, accessToken, mergedById, (post) =>
-    igInsightsRelativeUrl(post.id, {
-      metric: "ig_reels_avg_watch_time",
-      metric_type: "total_value",
-    }));
-
-  // Media object fields — ALWAYS fetch total_views_count (matches app; works when insights throttle).
-  // Must not request view_count here: that field is Business Discovery-only and fails the batch item.
   const viewCountById = new Map<string, number>();
-  await mergeIgMediaViewFieldsBatchPass(posts, accessToken, viewCountById);
-
-  // If insights left total_views empty but media field has a count, seed it for resolve().
-  for (const post of posts) {
-    const fieldViews = viewCountById.get(post.id) ?? 0;
-    if (fieldViews <= 0) continue;
-    const merged = mergedById.get(post.id) ?? {};
-    if ((merged.total_views ?? 0) < fieldViews) {
-      merged.total_views = fieldViews;
-      mergedById.set(post.id, merged);
-    }
-  }
+  const needViewFields = posts.filter((post) => !hasResolvedInstagramViews(mergedById.get(post.id) ?? {}));
+  await mergeIgMediaViewFieldsBatchPass(needViewFields, accessToken, viewCountById);
 
   const needIndividual = posts.filter((post) => {
     const merged = mergedById.get(post.id) ?? {};
@@ -494,27 +444,18 @@ async function fetchInstagramMediaInsightsMap(
       post.media_type,
       post.media_product_type,
     );
-    const fieldViews = await fetchInstagramMediaViewCountFromFields(post.id, accessToken);
-    if (fieldViews > 0) {
-      merged.total_views = Math.max(merged.total_views ?? 0, fieldViews);
-    }
     mergedById.set(post.id, { ...(mergedById.get(post.id) ?? {}), ...merged });
-    if (fieldViews > 0) viewCountById.set(post.id, fieldViews);
   });
 
   const out = new Map<string, InstagramMediaInsights>();
   for (const post of posts) {
     const merged = mergedById.get(post.id) ?? {};
     const views = resolveInstagramMediaViewCount(merged, viewCountById.get(post.id) ?? 0);
-    const isReels = isInstagramReelsMedia(post.media_type, post.media_product_type);
     out.set(post.id, {
       reach: merged.reach ?? 0,
       views,
       total_interactions: merged.total_interactions ?? merged.engagement ?? 0,
       shares: merged.shares ?? 0,
-      avg_watch_time_ms: isReels && Object.prototype.hasOwnProperty.call(merged, "ig_reels_avg_watch_time")
-        ? Number(merged.ig_reels_avg_watch_time) || 0
-        : null,
     });
   }
   return out;
@@ -903,8 +844,6 @@ export type FacebookMetricsPostRow = {
   /** Meta insights `total_interactions` (or legacy `engagement`) — not derived from likes/comments. */
   total_interactions: number;
   engagement_rate: number | null;
-  /** Instagram Reels `ig_reels_avg_watch_time` in milliseconds; null when unavailable. */
-  avg_watch_time_ms: number | null;
   caption: string | null;
   media_url: string | null;
   thumbnail_url: string | null;
@@ -939,7 +878,6 @@ export async function buildFacebookMetricsPostRows(
       total_interactions: m.total_interactions,
       engagement_rate: computeInstagramEngagementRateFromApi(m.total_interactions, m.view_count)
         ?? computeMetaEngagementRate(m.like_count, m.comment_count, m.view_count, m.share_count),
-      avg_watch_time_ms: null,
       caption: p.caption,
       media_url: p.media_url ?? p.thumbnail_url,
       thumbnail_url: p.thumbnail_url ?? p.media_url,
@@ -962,7 +900,6 @@ export async function buildInstagramMetricsPostRows(
       views: 0,
       total_interactions: 0,
       shares: 0,
-      avg_watch_time_ms: null,
     };
     const viewCount = mediaInsights.views;
     const likeCount = p.like_count;
@@ -981,7 +918,6 @@ export async function buildInstagramMetricsPostRows(
       reach: mediaInsights.reach,
       total_interactions: totalInteractions,
       engagement_rate: computeInstagramEngagementRateFromApi(totalInteractions, viewCount),
-      avg_watch_time_ms: mediaInsights.avg_watch_time_ms,
       caption: p.caption,
       media_url: pickInstagramPostPreviewUrl(p),
       thumbnail_url: pickInstagramPostPreviewUrl(p),
@@ -1421,8 +1357,6 @@ export type InstagramMediaInsights = {
   views: number;
   total_interactions: number;
   shares: number;
-  /** Reels-only avg watch time in ms; null if unavailable / non-Reel. */
-  avg_watch_time_ms: number | null;
 };
 
 async function fetchInstagramMediaViewCountFromFields(
@@ -1430,14 +1364,15 @@ async function fetchInstagramMediaViewCountFromFields(
   accessToken: string,
 ): Promise<number> {
   try {
-    // view_count is Business Discovery-only; requesting it fails the call for owned media.
     const data = await graphGet<{
+      view_count?: number;
+      views_count?: number;
       total_views_count?: number;
     }>(
-      graphUrl(mediaId, { fields: "total_views_count" }),
+      graphUrl(mediaId, { fields: "view_count,views_count,total_views_count" }),
       accessToken,
     );
-    return Number(data.total_views_count ?? 0) || 0;
+    return Number(data.total_views_count ?? data.views_count ?? data.view_count ?? 0) || 0;
   } catch {
     return 0;
   }
@@ -1482,13 +1417,7 @@ export async function fetchInstagramMediaInsights(
     } as MetaContentPost],
     accessToken,
   );
-  return map.get(mediaId) ?? {
-    reach: 0,
-    views: 0,
-    total_interactions: 0,
-    shares: 0,
-    avg_watch_time_ms: null,
-  };
+  return map.get(mediaId) ?? { reach: 0, views: 0, total_interactions: 0, shares: 0 };
 }
 
 export async function fetchFacebookPageInsights(

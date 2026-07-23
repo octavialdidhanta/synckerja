@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { parseEdgeFunctionError } from '@/tiktok-ads/lib/parseEdgeFunctionError';
 import { supabase } from '@/shared/lib/supabaseClient';
 import type { MetaContentMetricsPayload, MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
@@ -43,7 +43,15 @@ export function useMetaContentMetricsQuery(args: {
   const rangeKeyEnd = allTime ? 'all_time' : (dateEnd ?? 'all_time');
 
   return useQuery({
-    queryKey: ['meta-content-metrics', organizationId, platform, accountId, rangeKeyStart, rangeKeyEnd],
+    queryKey: [
+      'meta-content-metrics',
+      'v15',
+      organizationId,
+      platform,
+      accountId,
+      rangeKeyStart,
+      rangeKeyEnd,
+    ],
     enabled: Boolean(organizationId && accountId && enabled),
     queryFn: () =>
       fetchMetaContentMetrics({
@@ -54,9 +62,9 @@ export function useMetaContentMetricsQuery(args: {
         dateEnd,
         allTime,
       }),
-    staleTime: 5 * 60 * 1000,
-    refetchOnMount: false,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
-    placeholderData: keepPreviousData,
   });
 }

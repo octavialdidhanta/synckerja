@@ -62,12 +62,18 @@ export function MetaContentSummaryBar({
   const totals = aggregateMetaContentPostRows(posts);
 
   const reach = totals.reach;
-  const views = totals.views;
+  // Instagram Professional Dashboard "Views" = avg of last 3 posts (from edge).
+  const useIgAvgLast3 =
+    account?.platform === 'instagram' &&
+    (account.views_mode === 'avg_last_3' || account.avg_views_last_3 != null);
+  const views = useIgAvgLast3
+    ? Number(account?.avg_views_last_3 ?? account?.total_views ?? totals.views) || 0
+    : totals.views;
   const engagement = totals.engagement;
   const postCount = totals.postCount;
   const avgEngagementRate =
     account?.avg_engagement_rate ??
-    (engagement > 0 && views > 0 ? (engagement / views) * 100 : null);
+    (engagement > 0 && totals.views > 0 ? (engagement / totals.views) * 100 : null);
 
   const cards: {
     key: string;
@@ -75,6 +81,7 @@ export function MetaContentSummaryBar({
     value: string;
     metric?: InsightTargetMetric;
     audienceHint?: boolean;
+    viewsHint?: boolean;
   }[] = [
     {
       key: 'audience',
@@ -91,8 +98,11 @@ export function MetaContentSummaryBar({
     {
       key: 'views',
       metric: 'views',
-      label: t('digitalMarketing.metaContent.summaryViews', 'Views'),
+      label: useIgAvgLast3
+        ? t('digitalMarketing.metaContent.summaryViewsAvgLast3', 'Views (avg last 3)')
+        : t('digitalMarketing.metaContent.summaryViews', 'Views'),
       value: formatCount(views),
+      viewsHint: useIgAvgLast3,
     },
     {
       key: 'engagement',
@@ -159,6 +169,15 @@ export function MetaContentSummaryBar({
                   {t(
                     'digitalMarketing.socialMediaInsightReport.audienceSnapshotHint',
                     'Audience uses current follower/subscriber totals from the API.',
+                  )}
+                </p>
+              ) : null}
+
+              {card.viewsHint ? (
+                <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                  {t(
+                    'digitalMarketing.metaContent.summaryViewsAvgLast3Hint',
+                    'Matches Instagram: average views of your last 3 posts.',
                   )}
                 </p>
               ) : null}

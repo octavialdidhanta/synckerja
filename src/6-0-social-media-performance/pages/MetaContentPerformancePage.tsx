@@ -121,7 +121,15 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
     if (!organizationId || !accountId) return;
     const rangeKeyStart = allTime ? 'all_time' : (dateStart ?? 'all_time');
     const rangeKeyEnd = allTime ? 'all_time' : (dateEnd ?? 'all_time');
-    const queryKey = ['meta-content-metrics', organizationId, platform, accountId, rangeKeyStart, rangeKeyEnd] as const;
+    const queryKey = [
+      'meta-content-metrics',
+      'v15',
+      organizationId,
+      platform,
+      accountId,
+      rangeKeyStart,
+      rangeKeyEnd,
+    ] as const;
     try {
       await queryClient.invalidateQueries({ queryKey });
       const fresh = await fetchMetaContentMetrics({

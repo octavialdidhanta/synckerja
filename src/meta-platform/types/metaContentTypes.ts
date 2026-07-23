@@ -52,6 +52,10 @@ export type MetaContentMetricsPayload = {
     audience_label?: 'followers' | 'subscribers' | null;
     content_count: number;
     total_views: number;
+    /** Instagram Professional Dashboard: average views of last 3 posts. */
+    avg_views_last_3?: number | null;
+    /** How account.total_views / summary Views should be interpreted. */
+    views_mode?: 'avg_last_3' | 'sum';
     total_likes: number;
     total_comments: number;
     total_shares: number;
@@ -72,6 +76,8 @@ export type MetaContentMetricsPayload = {
     reach: number;
     total_interactions: number;
     engagement_rate: number | null;
+    /** Instagram Reels avg watch time in ms; null when unavailable. */
+    avg_watch_time_ms?: number | null;
     caption: string | null;
     media_url: string | null;
     thumbnail_url?: string | null;

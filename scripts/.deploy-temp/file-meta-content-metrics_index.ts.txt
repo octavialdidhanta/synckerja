@@ -2,13 +2,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  averageInstagramViewsLastN,
   buildFacebookMetricsPostRows,
   buildInstagramMetricsPostRows,
   buildMetaContentSummaryFromPosts,
   computeMetaEngagementRate,
   computeInstagramEngagementRateFromApi,
-  fetchInstagramMedia,
   fetchMetaAudienceCount,
   META_CONTENT_ALL_TIME_MAX_POSTS,
   META_CONTENT_DATED_MAX_POSTS,
@@ -160,28 +158,8 @@ Deno.serve(async (req: Request) => {
 
         const totalShares = postRows.reduce((s, r) => s + r.share_count, 0);
 
-        // Instagram Professional Dashboard "Views" = average of last 3 published posts
-        // (not the sum of posts inside the date filter).
-        let avgViewsLast3: number | null = null;
-        let viewsForAccountSummary = summary.views;
-        if (platform === "instagram" && resolved.igBusinessAccountId) {
-          const viewById = new Map(postRows.map((r) => [r.content_id, r.view_count]));
-          const latestThree = await fetchInstagramMedia(resolved.igBusinessAccountId, token, 3);
-          const missing = latestThree.filter((p) => !viewById.has(p.id));
-          if (missing.length > 0) {
-            const missingRows = await buildInstagramMetricsPostRows(missing, token, accountId);
-            for (const row of missingRows) viewById.set(row.content_id, row.view_count);
-          }
-          const last3ForAvg = latestThree.map((p) => ({
-            view_count: viewById.get(p.id) ?? 0,
-            posted_at: p.timestamp,
-          }));
-          avgViewsLast3 = averageInstagramViewsLastN(last3ForAvg, 3);
-          viewsForAccountSummary = avgViewsLast3;
-        }
-
         return metaContentJson({
-          metrics_schema_version: platform === "facebook" ? 7 : 15,
+          metrics_schema_version: platform === "facebook" ? 7 : 10,
           metrics_mode: platform === "facebook" ? "facebook_dated_posts" : "instagram_dated_posts",
           date_start: dateStart,
           date_end: dateEnd,
@@ -195,9 +173,7 @@ Deno.serve(async (req: Request) => {
             audience_hidden: false,
             audience_label: "followers",
             content_count: postRows.length,
-            total_views: viewsForAccountSummary,
-            avg_views_last_3: avgViewsLast3,
-            views_mode: platform === "instagram" ? "avg_last_3" : "sum",
+            total_views: summary.views,
             total_likes: summary.totalLikes,
             total_comments: summary.totalComments,
             total_shares: totalShares,
@@ -218,7 +194,7 @@ Deno.serve(async (req: Request) => {
                 totalShares,
               ),
             reach: summary.reach,
-            impressions: viewsForAccountSummary,
+            impressions: summary.views,
             engagement: summary.engagement,
           },
           posts: postRows,

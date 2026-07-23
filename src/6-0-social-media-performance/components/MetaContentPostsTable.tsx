@@ -11,7 +11,14 @@ type MetaContentPostsTableProps = {
   rows: MetaContentPostRow[];
 };
 
-type MetricSortKey = 'views' | 'likes' | 'comments' | 'reach' | 'shares' | 'engagement';
+type MetricSortKey =
+  | 'views'
+  | 'likes'
+  | 'comments'
+  | 'reach'
+  | 'shares'
+  | 'engagement'
+  | 'avgWatchTime';
 
 type SortDir = 'asc' | 'desc';
 
@@ -23,6 +30,24 @@ function formatCount(n: number): string {
 function formatPercent(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return '—';
   return `${n.toFixed(2)}%`;
+}
+
+/** Instagram returns avg watch time in ms; display like the app (`11s`). */
+function formatWatchTime(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return '—';
+  return `${Math.round(ms / 1000)}s`;
+}
+
+function compareNullableNumber(
+  a: number | null | undefined,
+  b: number | null | undefined,
+): number {
+  const aMissing = a == null || !Number.isFinite(a);
+  const bMissing = b == null || !Number.isFinite(b);
+  if (aMissing && bMissing) return 0;
+  if (aMissing) return 1;
+  if (bMissing) return -1;
+  return (a as number) - (b as number);
 }
 
 function PostThumbnail({ row }: { row: MetaContentPostRow }) {
@@ -70,6 +95,24 @@ function formatDate(iso: string | null): string {
   }
 }
 
+/** Prefer caption; never fall back to raw Graph media id. */
+function resolvePostLabel(row: MetaContentPostRow): string {
+  const caption = row.caption?.trim();
+  if (caption) return caption;
+
+  const permalink = row.permalink?.trim() ?? '';
+  const shortcode =
+    permalink.match(/\/(?:reel|reels|p|tv)\/([^/?#]+)/i)?.[1] ??
+    permalink.match(/instagram\.com\/([^/?#]+)/i)?.[1];
+  if (shortcode && shortcode !== 'reel' && shortcode !== 'p') return shortcode;
+
+  if (row.posted_at) {
+    return `${formatDate(row.posted_at)}`;
+  }
+
+  return '—';
+}
+
 function compareRows(
   a: MetaContentPostRow,
   b: MetaContentPostRow,
@@ -93,15 +136,11 @@ function compareRows(
     case 'shares':
       cmp = a.share_count - b.share_count;
       break;
+    case 'avgWatchTime':
+      cmp = compareNullableNumber(a.avg_watch_time_ms, b.avg_watch_time_ms);
+      break;
     case 'engagement': {
-      const av = a.engagement_rate;
-      const bv = b.engagement_rate;
-      const aMissing = av == null || !Number.isFinite(av);
-      const bMissing = bv == null || !Number.isFinite(bv);
-      if (aMissing && bMissing) cmp = 0;
-      else if (aMissing) cmp = 1;
-      else if (bMissing) cmp = -1;
-      else cmp = av - bv;
+      cmp = compareNullableNumber(a.engagement_rate, b.engagement_rate);
       break;
     }
   }
@@ -176,7 +215,7 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
 
   return (
     <div className="h-full min-h-0 overflow-auto">
-      <table className="w-full min-w-[1280px] table-fixed text-sm">
+      <table className="w-full min-w-[1360px] table-fixed text-sm">
         <colgroup>
           <col className="w-[168px]" />
           <col className="w-[160px]" />
@@ -184,9 +223,10 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
           <col className="w-[96px]" />
           <col className="w-[88px]" />
           <col className="w-[72px]" />
+          <col className="w-[72px]" />
+          <col className="w-[96px]" />
           <col className="w-[64px]" />
           <col className="w-[80px]" />
-          <col className="w-[72px]" />
           <col className="w-[64px]" />
           <col className="w-[88px]" />
         </colgroup>
@@ -215,6 +255,20 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
               onSort={handleSort}
             />
             <SortableMetricHeader
+              label={t('metaPlatform.performance.reach', 'Reach')}
+              sortKey="reach"
+              activeSortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+            <SortableMetricHeader
+              label={t('digitalMarketing.metaContent.colAvgWatchTime', 'Avg. watch time')}
+              sortKey="avgWatchTime"
+              activeSortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+            <SortableMetricHeader
               label={t('metaPlatform.performance.likes', 'Likes')}
               sortKey="likes"
               activeSortKey={sortKey}
@@ -224,13 +278,6 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
             <SortableMetricHeader
               label={t('metaPlatform.performance.comments', 'Comments')}
               sortKey="comments"
-              activeSortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-            />
-            <SortableMetricHeader
-              label={t('metaPlatform.performance.reach', 'Reach')}
-              sortKey="reach"
               activeSortKey={sortKey}
               sortDir={sortDir}
               onSort={handleSort}
@@ -253,7 +300,7 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
         </thead>
         <tbody>
           {sortedRows.map((row) => {
-            const caption = row.caption?.trim() || row.content_id;
+            const label = resolvePostLabel(row);
             return (
               <tr key={row.content_id} className="border-b border-gray-100 hover:bg-gray-50/50">
                 <td className="max-w-[168px] overflow-hidden px-3 py-2">
@@ -262,8 +309,8 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
                       key={`${row.content_id}:${resolveMetaPostThumbnailUrl(row) ?? ''}`}
                       row={row}
                     />
-                    <p className="truncate font-medium text-gray-900" title={caption}>
-                      {caption}
+                    <p className="truncate font-medium text-gray-900" title={label}>
+                      {label}
                     </p>
                   </div>
                 </td>
@@ -296,9 +343,12 @@ export function MetaContentPostsTable({ rows }: MetaContentPostsTableProps) {
                 </td>
                 <td className="px-3 py-2 text-muted-foreground">{formatDate(row.posted_at)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.view_count)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.reach)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {formatWatchTime(row.avg_watch_time_ms)}
+                </td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.like_count)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.comment_count)}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.reach)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.share_count)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   {formatPercent(row.engagement_rate)}
