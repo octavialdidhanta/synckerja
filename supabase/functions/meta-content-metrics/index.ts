@@ -181,7 +181,7 @@ Deno.serve(async (req: Request) => {
         }
 
         return metaContentJson({
-          metrics_schema_version: platform === "facebook" ? 7 : 16,
+          metrics_schema_version: platform === "facebook" ? 7 : 17,
           metrics_mode: platform === "facebook" ? "facebook_dated_posts" : "instagram_dated_posts",
           date_start: dateStart,
           date_end: dateEnd,

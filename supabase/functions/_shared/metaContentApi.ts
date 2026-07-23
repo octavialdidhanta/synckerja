@@ -108,8 +108,9 @@ async function graphPost<T>(url: string, accessToken: string, body: Record<strin
 }
 
 const GRAPH_BATCH_LIMIT = 50;
-const GRAPH_BATCH_RETRY_CHUNK = 8;
-const GRAPH_BATCH_INTER_CHUNK_DELAY_MS = 300;
+const GRAPH_BATCH_RETRY_CHUNK = 10;
+/** Keep low — many sequential passes previously burned the edge worker (~150s → 546). */
+const GRAPH_BATCH_INTER_CHUNK_DELAY_MS = 50;
 
 type GraphBatchItemResult = { code: number; body: string };
 
@@ -151,7 +152,7 @@ async function graphBatchGetResilient(
   accessToken: string,
   relativeUrls: string[],
 ): Promise<GraphBatchItemResult[]> {
-  const attempts = 3;
+  const attempts = 2;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       const results = await graphBatchGet(accessToken, relativeUrls);
@@ -315,25 +316,24 @@ async function fetchInstagramMediaInsightsSingleMerged(
   const merged: Record<string, number> = {};
   const isReels = isInstagramReelsMedia(mediaType, mediaProductType);
 
-  // Always request total_views with organic views. Skipping total_views when organic
-  // views > 0 left boosted Reels stuck on organic counts (Instagram app shows total_views).
   Object.assign(
     merged,
     await fetchIgMediaInsightMetrics(mediaId, accessToken, {
-      metric: "reach,views,total_views,total_interactions,shares",
+      metric: "reach,views,total_views,total_interactions,shares,saved",
       metric_type: "total_value",
     }),
   );
 
-  Object.assign(
-    merged,
-    await fetchIgMediaInsightMetrics(mediaId, accessToken, {
-      metric: "total_views",
-      metric_type: "total_value",
-    }),
-  );
+  if (isReels) {
+    Object.assign(
+      merged,
+      await fetchIgMediaInsightMetrics(mediaId, accessToken, {
+        metric: "ig_reels_avg_watch_time",
+        metric_type: "total_value",
+      }),
+    );
+  }
 
-  // Legacy impressions only as last resort (deprecated for media after July 2024).
   if (!hasResolvedInstagramViews(merged)) {
     Object.assign(
       merged,
@@ -350,54 +350,6 @@ async function fetchInstagramMediaInsightsSingleMerged(
       await fetchIgMediaInsightMetrics(mediaId, accessToken, {
         metric: "impressions,reach,engagement",
         period: "lifetime",
-      }),
-    );
-  }
-
-  if ((merged.reach ?? 0) === 0) {
-    Object.assign(
-      merged,
-      await fetchIgMediaInsightMetrics(mediaId, accessToken, {
-        metric: "reach",
-        period: "lifetime",
-      }),
-    );
-  }
-
-  if ((merged.total_interactions ?? 0) === 0 && (merged.engagement ?? 0) === 0) {
-    Object.assign(
-      merged,
-      await fetchIgMediaInsightMetrics(mediaId, accessToken, {
-        metric: "engagement",
-        period: "lifetime",
-      }),
-    );
-  }
-
-  if ((merged.shares ?? 0) === 0) {
-    Object.assign(
-      merged,
-      await fetchIgMediaInsightMetrics(mediaId, accessToken, {
-        metric: "shares",
-        metric_type: "total_value",
-      }),
-    );
-  }
-
-  Object.assign(
-    merged,
-    await fetchIgMediaInsightMetrics(mediaId, accessToken, {
-      metric: "saved",
-      metric_type: "total_value",
-    }),
-  );
-
-  if (isReels) {
-    Object.assign(
-      merged,
-      await fetchIgMediaInsightMetrics(mediaId, accessToken, {
-        metric: "ig_reels_avg_watch_time",
-        metric_type: "total_value",
       }),
     );
   }
@@ -422,97 +374,81 @@ async function fetchInstagramMediaInsightsMap(
   const nonReels = posts.filter(
     (post) => !isInstagramReelsMedia(post.media_type, post.media_product_type),
   );
-
-  // Always include total_views (boosted/promoted + organic). Do not gate on organic
-  // views already being present — that skipped total_views and under-counted Reels.
-  await mergeIgInsightBatchPass(posts, accessToken, mergedById, (post) =>
-    igInsightsRelativeUrl(post.id, {
-      metric: "reach,views,total_views,total_interactions,shares",
-      metric_type: "total_value",
-    }));
-
-  // Dedicated total_views pass for every post (covers partial/failed combined batches).
-  await mergeIgInsightBatchPass(posts, accessToken, mergedById, (post) =>
-    igInsightsRelativeUrl(post.id, {
-      metric: "total_views",
-      metric_type: "total_value",
-    }));
-
-  // Legacy impressions only when modern views are missing (older media / API gaps).
-  const needImpressions = posts.filter((post) => !hasResolvedInstagramViews(mergedById.get(post.id) ?? {}));
-  await mergeIgInsightBatchPass(needImpressions, accessToken, mergedById, (post) =>
-    igInsightsRelativeUrl(post.id, { metric: "impressions", period: "lifetime" }));
-
-  const needLegacyBundle = nonReels.filter((post) => !hasResolvedInstagramViews(mergedById.get(post.id) ?? {}));
-  await mergeIgInsightBatchPass(needLegacyBundle, accessToken, mergedById, (post) =>
-    igInsightsRelativeUrl(post.id, {
-      metric: "impressions,reach,engagement",
-      period: "lifetime",
-    }));
-
-  const needReach = posts.filter((post) => (mergedById.get(post.id)?.reach ?? 0) === 0);
-  await mergeIgInsightBatchPass(needReach, accessToken, mergedById, (post) =>
-    igInsightsRelativeUrl(post.id, { metric: "reach", period: "lifetime" }));
-
-  const needEngagement = posts.filter((post) => {
-    const merged = mergedById.get(post.id) ?? {};
-    return (merged.total_interactions ?? 0) === 0 && (merged.engagement ?? 0) === 0;
-  });
-  await mergeIgInsightBatchPass(needEngagement, accessToken, mergedById, (post) =>
-    igInsightsRelativeUrl(post.id, { metric: "engagement", period: "lifetime" }));
-
-  const needShares = posts.filter((post) => (mergedById.get(post.id)?.shares ?? 0) === 0);
-  await mergeIgInsightBatchPass(needShares, accessToken, mergedById, (post) =>
-    igInsightsRelativeUrl(post.id, { metric: "shares", metric_type: "total_value" }));
-
-  // Separate pass so saved failures do not wipe views/reach.
-  await mergeIgInsightBatchPass(posts, accessToken, mergedById, (post) =>
-    igInsightsRelativeUrl(post.id, { metric: "saved", metric_type: "total_value" }));
-
-  // Separate pass so avg watch time failures do not wipe views/reach.
   const reelsOnly = posts.filter((post) =>
     isInstagramReelsMedia(post.media_type, post.media_product_type),
   );
+
+  // One primary pass: views + engagement + saved (FEED & REELS). Avoid many sequential rounds.
+  await mergeIgInsightBatchPass(posts, accessToken, mergedById, (post) =>
+    igInsightsRelativeUrl(post.id, {
+      metric: "reach,views,total_views,total_interactions,shares,saved",
+      metric_type: "total_value",
+    }));
+
+  // Reels-only avg watch time (unsupported on FEED — keep separate).
   await mergeIgInsightBatchPass(reelsOnly, accessToken, mergedById, (post) =>
     igInsightsRelativeUrl(post.id, {
       metric: "ig_reels_avg_watch_time",
       metric_type: "total_value",
     }));
 
-  // Media object fields — ALWAYS fetch total_views_count (matches app; works when insights throttle).
-  // Must not request view_count here: that field is Business Discovery-only and fails the batch item.
-  const viewCountById = new Map<string, number>();
-  await mergeIgMediaViewFieldsBatchPass(posts, accessToken, viewCountById);
+  // Legacy impressions only for posts still missing modern views.
+  const needImpressions = posts.filter(
+    (post) => !hasResolvedInstagramViews(mergedById.get(post.id) ?? {}),
+  );
+  if (needImpressions.length > 0) {
+    await mergeIgInsightBatchPass(needImpressions, accessToken, mergedById, (post) =>
+      igInsightsRelativeUrl(post.id, { metric: "impressions", period: "lifetime" }));
+  }
 
-  // If insights left total_views empty but media field has a count, seed it for resolve().
-  for (const post of posts) {
-    const fieldViews = viewCountById.get(post.id) ?? 0;
-    if (fieldViews <= 0) continue;
-    const merged = mergedById.get(post.id) ?? {};
-    if ((merged.total_views ?? 0) < fieldViews) {
-      merged.total_views = fieldViews;
-      mergedById.set(post.id, merged);
+  const needLegacyBundle = nonReels.filter(
+    (post) => !hasResolvedInstagramViews(mergedById.get(post.id) ?? {}),
+  );
+  if (needLegacyBundle.length > 0) {
+    await mergeIgInsightBatchPass(needLegacyBundle, accessToken, mergedById, (post) =>
+      igInsightsRelativeUrl(post.id, {
+        metric: "impressions,reach,engagement",
+        period: "lifetime",
+      }));
+  }
+
+  // total_views_count field only when views still unresolved (not for every post).
+  const viewCountById = new Map<string, number>();
+  const needViewFields = posts.filter(
+    (post) => !hasResolvedInstagramViews(mergedById.get(post.id) ?? {}),
+  );
+  if (needViewFields.length > 0) {
+    await mergeIgMediaViewFieldsBatchPass(needViewFields, accessToken, viewCountById);
+    for (const post of needViewFields) {
+      const fieldViews = viewCountById.get(post.id) ?? 0;
+      if (fieldViews <= 0) continue;
+      const merged = mergedById.get(post.id) ?? {};
+      if ((merged.total_views ?? 0) < fieldViews) {
+        merged.total_views = fieldViews;
+        mergedById.set(post.id, merged);
+      }
     }
   }
 
-  const needIndividual = posts.filter((post) => {
-    const merged = mergedById.get(post.id) ?? {};
-    return resolveInstagramMediaViewCount(merged, viewCountById.get(post.id) ?? 0) === 0;
-  });
-  await mapWithConcurrency(needIndividual, 4, async (post) => {
-    const merged = await fetchInstagramMediaInsightsSingleMerged(
-      post.id,
-      accessToken,
-      post.media_type,
-      post.media_product_type,
-    );
-    const fieldViews = await fetchInstagramMediaViewCountFromFields(post.id, accessToken);
-    if (fieldViews > 0) {
-      merged.total_views = Math.max(merged.total_views ?? 0, fieldViews);
-    }
-    mergedById.set(post.id, { ...(mergedById.get(post.id) ?? {}), ...merged });
-    if (fieldViews > 0) viewCountById.set(post.id, fieldViews);
-  });
+  // Last resort: individual fetch only for unresolved views.
+  // Hard-cap to avoid WORKER_RESOURCE_LIMIT on large all-time syncs.
+  const needIndividual = posts
+    .filter((post) => {
+      const merged = mergedById.get(post.id) ?? {};
+      return resolveInstagramMediaViewCount(merged, viewCountById.get(post.id) ?? 0) === 0;
+    })
+    .slice(0, 25);
+  if (needIndividual.length > 0) {
+    await mapWithConcurrency(needIndividual, 3, async (post) => {
+      const merged = await fetchInstagramMediaInsightsSingleMerged(
+        post.id,
+        accessToken,
+        post.media_type,
+        post.media_product_type,
+      );
+      mergedById.set(post.id, { ...(mergedById.get(post.id) ?? {}), ...merged });
+    });
+  }
 
   const out = new Map<string, InstagramMediaInsights>();
   for (const post of posts) {
@@ -535,9 +471,9 @@ async function fetchInstagramMediaInsightsMap(
   return out;
 }
 
-/** Max posts returned when paginating all-time (IG/FB publish list). */
-export const META_CONTENT_ALL_TIME_MAX_POSTS = 500;
-export const META_CONTENT_ALL_TIME_MAX_PAGES = 40;
+/** Cap keeps insights enrichment under the edge worker resource limit (~150s). */
+export const META_CONTENT_ALL_TIME_MAX_POSTS = 250;
+export const META_CONTENT_ALL_TIME_MAX_PAGES = 20;
 export const META_CONTENT_DATED_MAX_POSTS = 50;
 
 const IG_MEDIA_LIST_FIELDS =
