@@ -182,4 +182,20 @@ export async function refreshLeadClientIfPlaceholder(
     .update({ client: next, updated_at: new Date().toISOString() })
     .eq("id", leadId)
     .eq("organization_id", args.organizationId);
+
+  // Keep floating draft submission name in sync so Client Profile is not stuck on stubs.
+  const { data: subs } = await admin
+    .from("lead_submissions")
+    .select("id, name")
+    .eq("lead_id", leadId)
+    .eq("organization_id", args.organizationId)
+    .eq("is_active", true)
+    .limit(5);
+  for (const sub of subs ?? []) {
+    if (!isPlaceholderLeadClientName(sub.name as string | null)) continue;
+    await admin
+      .from("lead_submissions")
+      .update({ name: next, updated_at: new Date().toISOString() })
+      .eq("id", sub.id);
+  }
 }

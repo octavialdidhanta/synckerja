@@ -1692,7 +1692,12 @@ export default function LeadsTableNew({
           leadId={selectedClientLead.id}
           clientName={selectedClientLead.client}
           organizationId={organizationId}
-          initialPhoneNumber={(selectedClientLead as { _customerWaId?: string })._customerWaId ?? ''}
+          initialPhoneNumber={
+            (selectedClientLead as { _customerWaId?: string; phone_number?: string | null })
+              ._customerWaId ||
+            (selectedClientLead as { phone_number?: string | null }).phone_number ||
+            ''
+          }
           onSave={() => {
             // Optional: refresh data if needed
             if (onRefreshLeads) {

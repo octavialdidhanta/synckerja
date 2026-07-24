@@ -30,17 +30,6 @@ export type LeadSubmissionProfileRow = {
 
 export type ClientProfileCompleteness = 'full' | 'partial' | 'empty';
 
-const PROFILE_FIELD_KEYS = [
-  'name',
-  'code',
-  'gender',
-  'age',
-  'occupation',
-  'location',
-  'phone_number',
-  'email',
-] as const;
-
 function rowSortKey(r: LeadSubmissionProfileRow): string {
   const submitted = r.submitted_at ?? '';
   const updated = r.updated_at ?? '';
@@ -70,17 +59,94 @@ export function pickLeadSubmissionForProfile(
   return draft[0] ?? null;
 }
 
+/** Channel / floating-stub labels that must not replace a real CRM contact name. */
+const PLACEHOLDER_CLIENT_NAMES = new Set(
+  [
+    'whatsapp floating click',
+    'website visitor',
+    'whatsapp button',
+    'whatsapp',
+    'instagram contact',
+    'instagram',
+    'messenger contact',
+    'messenger',
+    'facebook contact',
+    'facebook',
+    'lead',
+    'floating wa click',
+  ].map((s) => s.toLowerCase()),
+);
+
+export function isPlaceholderLeadClientName(name: string | null | undefined): boolean {
+  const trimmed = String(name ?? '').trim();
+  if (!trimmed) return true;
+  return PLACEHOLDER_CLIENT_NAMES.has(trimmed.toLowerCase());
+}
+
+export type LeadContactDisplayFallback = {
+  client?: string | null;
+  phone_number?: string | null;
+  email?: string | null;
+};
+
+/**
+ * Merge submission + lead/channel fields for Client Profile display.
+ * Floating WA stubs often keep placeholder name and null phone after ticket merge.
+ */
+export function resolveClientProfileContactFields(args: {
+  submission?: Pick<LeadSubmissionProfileRow, 'name' | 'phone_number' | 'email'> | null;
+  lead?: LeadContactDisplayFallback | null;
+  clientNameProp?: string | null;
+  initialPhoneNumber?: string | null;
+}): { name: string; phone_number: string; email: string } {
+  const subName = String(args.submission?.name ?? '').trim();
+  const leadClient = String(args.lead?.client ?? '').trim();
+  const propClient = String(args.clientNameProp ?? '').trim();
+
+  const name =
+    (!isPlaceholderLeadClientName(subName) ? subName : '') ||
+    (!isPlaceholderLeadClientName(leadClient) ? leadClient : '') ||
+    (!isPlaceholderLeadClientName(propClient) ? propClient : '') ||
+    leadClient ||
+    propClient ||
+    subName ||
+    '';
+
+  const phone =
+    String(args.submission?.phone_number ?? '').trim() ||
+    String(args.lead?.phone_number ?? '').trim() ||
+    String(args.initialPhoneNumber ?? '').trim() ||
+    '';
+
+  const email =
+    String(args.submission?.email ?? '').trim() ||
+    String(args.lead?.email ?? '').trim() ||
+    '';
+
+  return { name, phone_number: phone, email };
+}
+
 export function clientCompletenessFromSubmission(
   row: LeadSubmissionProfileRow | null | undefined,
+  leadFallback?: LeadContactDisplayFallback | null,
 ): ClientProfileCompleteness {
-  if (!row) return 'empty';
-
-  const values = PROFILE_FIELD_KEYS.map((k) => {
-    const v = row[k];
-    if (v == null) return '';
-    return String(v).trim();
+  const resolved = resolveClientProfileContactFields({
+    submission: row,
+    lead: leadFallback,
   });
-  const filled = values.filter((v) => v !== '').length;
+
+  const values = [
+    resolved.name,
+    row?.code != null ? String(row.code).trim() : '',
+    row?.gender != null ? String(row.gender).trim() : '',
+    row?.age != null ? String(row.age).trim() : '',
+    row?.occupation != null ? String(row.occupation).trim() : '',
+    row?.location != null ? String(row.location).trim() : '',
+    resolved.phone_number,
+    resolved.email,
+  ];
+  const filled = values.filter((v) => v !== '' && !isPlaceholderLeadClientName(v)).length;
+  // name alone from channel (without other profile fields) still counts as partial
   if (filled === 0) return 'empty';
   if (filled === values.length) return 'full';
   return 'partial';
@@ -515,10 +581,10 @@ export async function upsertLeadSubmissionEmailForResolve(args: {
 export async function fetchLeadDisplayFallback(
   leadId: string,
   organizationId: string,
-): Promise<{ client: string | null; phone_number: string | null } | null> {
+): Promise<{ client: string | null; phone_number: string | null; email: string | null } | null> {
   const { data, error } = await supabase
     .from('leads')
-    .select('client, phone_number')
+    .select('client, phone_number, email, ticket_id')
     .eq('id', leadId)
     .eq('organization_id', organizationId)
     .maybeSingle();
@@ -527,5 +593,33 @@ export async function fetchLeadDisplayFallback(
     console.error('fetchLeadDisplayFallback:', error);
     return null;
   }
-  return data;
+  if (!data) return null;
+
+  let phone = data.phone_number != null ? String(data.phone_number).trim() : '';
+  let client = data.client != null ? String(data.client).trim() : '';
+  const email = data.email != null ? String(data.email).trim() : '';
+  const ticketId = data.ticket_id != null ? String(data.ticket_id).trim() : '';
+
+  // Floating stub may still have empty phone/name on submission while WA conversation is linked.
+  if ((!phone || isPlaceholderLeadClientName(client)) && ticketId.toUpperCase().startsWith('WA-')) {
+    const { data: conv } = await supabase
+      .from('whatsapp_conversations')
+      .select('customer_name, customer_wa_id')
+      .eq('organization_id', organizationId)
+      .eq('ticket_id', ticketId)
+      .maybeSingle();
+    if (conv) {
+      if (!phone && conv.customer_wa_id) phone = String(conv.customer_wa_id).trim();
+      const convName = String(conv.customer_name ?? '').trim();
+      if (isPlaceholderLeadClientName(client) && convName && !isPlaceholderLeadClientName(convName)) {
+        client = convName;
+      }
+    }
+  }
+
+  return {
+    client: client || null,
+    phone_number: phone || null,
+    email: email || null,
+  };
 }

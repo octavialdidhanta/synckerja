@@ -11,6 +11,8 @@ import { Loader2, Edit, Save, X, User, Phone, Mail, Hash, Briefcase, MapPin, Meg
 import {
   fetchLeadDisplayFallback,
   fetchLeadSubmissionForProfile,
+  isPlaceholderLeadClientName,
+  resolveClientProfileContactFields,
   updateLeadSubmissionProfile,
 } from '@/shared/lib/leadSubmissionProfile';
 
@@ -187,6 +189,14 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
       }
 
       const submission = await fetchLeadSubmissionForProfile(leadId, organizationId);
+      const fallback = await fetchLeadDisplayFallback(leadId, organizationId);
+      const resolved = resolveClientProfileContactFields({
+        submission,
+        lead: fallback,
+        clientNameProp: clientName,
+        initialPhoneNumber,
+      });
+
       if (submission) {
         setCanEditSubmission(true);
         setFormData(normalizeFormDataRecord(submission.form_data));
@@ -210,28 +220,77 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
         setProfile({
           submissionId: submission.id,
           lead_id: leadId,
-          name: submission.name?.trim() || clientName,
+          name: resolved.name,
           code: submission.code || '',
           gender: (submission.gender || '') as ClientProfile['gender'],
           age: submission.age ?? '',
           occupation: submission.occupation || '',
           location: submission.location || '',
-          phone_number: submission.phone_number || '',
-          email: submission.email || ''
+          phone_number: resolved.phone_number,
+          email: resolved.email,
         });
+
+        // Heal floating stubs that still store placeholder name / empty phone after WA merge.
+        const healPatch: Record<string, string> = {};
+        if (
+          isPlaceholderLeadClientName(submission.name) &&
+          resolved.name &&
+          !isPlaceholderLeadClientName(resolved.name)
+        ) {
+          healPatch.name = resolved.name;
+        }
+        if (!String(submission.phone_number ?? '').trim() && resolved.phone_number) {
+          healPatch.phone_number = resolved.phone_number;
+        }
+        if (!String(submission.email ?? '').trim() && resolved.email) {
+          healPatch.email = resolved.email;
+        }
+        if (Object.keys(healPatch).length > 0) {
+          void supabase
+            .from('lead_submissions')
+            .update({ ...healPatch, updated_at: new Date().toISOString() })
+            .eq('id', submission.id)
+            .then(({ error }) => {
+              if (error) console.warn('ClientProfile heal submission:', error.message);
+            });
+        }
+
+        if (
+          fallback &&
+          ((isPlaceholderLeadClientName(fallback.client) &&
+            resolved.name &&
+            !isPlaceholderLeadClientName(resolved.name)) ||
+            (!String(fallback.phone_number ?? '').trim() && resolved.phone_number))
+        ) {
+          void supabase
+            .from('leads')
+            .update({
+              ...(isPlaceholderLeadClientName(fallback.client) && resolved.name
+                ? { client: resolved.name }
+                : {}),
+              ...(!String(fallback.phone_number ?? '').trim() && resolved.phone_number
+                ? { phone_number: resolved.phone_number }
+                : {}),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', leadId)
+            .eq('organization_id', organizationId)
+            .then(({ error }) => {
+              if (error) console.warn('ClientProfile heal lead:', error.message);
+            });
+        }
       } else {
-        const fallback = await fetchLeadDisplayFallback(leadId, organizationId);
         setFormData(null);
         setProfile({
           lead_id: leadId,
-          name: fallback?.client?.trim() || clientName,
+          name: resolved.name || clientName,
           code: '',
           gender: '' as ClientProfile['gender'],
           age: '',
           occupation: '',
           location: '',
-          phone_number: fallback?.phone_number?.trim() || '',
-          email: ''
+          phone_number: resolved.phone_number,
+          email: resolved.email,
         });
       }
     } catch (error) {
@@ -306,6 +365,16 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
         }
       } else if (profile.submissionId) {
         await updateLeadSubmissionProfile(profile.submissionId, baseData);
+        await supabase
+          .from('leads')
+          .update({
+            client: baseData.name,
+            phone_number: baseData.phone_number,
+            email: baseData.email,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', leadId)
+          .eq('organization_id', organizationId);
       } else {
         toast({
           title: "Cannot save",

@@ -631,6 +631,25 @@ async function ensureLeadForNewConversation(
           lead_id: floatingStubId,
           ticket_id: ticketId,
         });
+        if (safeClient && !isPlaceholderLeadClientName(safeClient)) {
+          await supabase
+            .from("lead_submissions")
+            .update({
+              name: safeClient,
+              ...(phoneNumber ? { phone_number: phoneNumber } : {}),
+              updated_at: now,
+            })
+            .eq("lead_id", floatingStubId)
+            .eq("organization_id", orgId)
+            .eq("is_active", true);
+        } else if (phoneNumber) {
+          await supabase
+            .from("lead_submissions")
+            .update({ phone_number: phoneNumber, updated_at: now })
+            .eq("lead_id", floatingStubId)
+            .eq("organization_id", orgId)
+            .eq("is_active", true);
+        }
       }
       return floatingStubId;
     }

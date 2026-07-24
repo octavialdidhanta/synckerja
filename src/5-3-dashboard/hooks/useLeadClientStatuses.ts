@@ -89,7 +89,14 @@ export function useLeadClientStatuses(leads: NewLead[]) {
 
           const submission = submissionByLead.get(lead.id) ?? null;
           profileMap[lead.id] = submission;
-          statusMap[lead.id] = clientCompletenessFromSubmission(submission);
+          statusMap[lead.id] = clientCompletenessFromSubmission(submission, {
+            client: lead.client,
+            phone_number:
+              (lead as NewLead & { phone_number?: string | null }).phone_number ??
+              (lead as NewLead & { _customerWaId?: string })._customerWaId ??
+              null,
+            email: (lead as NewLead & { email?: string | null }).email ?? null,
+          });
         } catch (error) {
           console.error('Failed to fetch client profile for lead', lead.id, error);
           statusMap[lead.id] = 'empty';
