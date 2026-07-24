@@ -1,5 +1,14 @@
 import type { LucideIcon } from "lucide-react";
-import { ClipboardList, Code2, Magnet, Megaphone, Target, Timer, Users } from "lucide-react";
+import {
+  BookUser,
+  ClipboardList,
+  Code2,
+  Magnet,
+  Megaphone,
+  Target,
+  Timer,
+  Users,
+} from "lucide-react";
 import { FlowBuilderIcon } from "@/5-3-dashboard/omnichannel-settings/components/icons/FlowBuilderIcon";
 
 export type OmnichannelSettingsSectionId =
@@ -9,6 +18,7 @@ export type OmnichannelSettingsSectionId =
   | "flow"
   | "target"
   | "offline-conversion"
+  | "google-contacts"
   | "api-integration"
   | "lead-magnet";
 
@@ -69,6 +79,14 @@ export const OMNICHANNEL_SETTINGS_SECTIONS: OmnichannelSettingsSectionMeta[] = [
     icon: Megaphone,
     titleKey: "omnichannel.settings.offlineConversion.sidebarTitle",
     descriptionKey: "omnichannel.settings.offlineConversion.sidebarDescription",
+    status: "active",
+  },
+  {
+    id: "google-contacts",
+    urlSlug: "google-contacts",
+    icon: BookUser,
+    titleKey: "omnichannel.settings.googleContacts.sidebarTitle",
+    descriptionKey: "omnichannel.settings.googleContacts.sidebarDescription",
     status: "active",
   },
   {

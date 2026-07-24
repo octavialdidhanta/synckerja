@@ -31,6 +31,8 @@ import { useGoogleAdsConnected } from '@/google-ads/hooks/useGoogleAdsConnected'
 import { useGoogleAdsIntegrationEnabled } from '@/google-ads/hooks/useGoogleAdsIntegrationEnabled';
 import { useMetaAdsConnected } from '@/meta-ads/hooks/useMetaAdsConnected';
 import { useMetaAdsIntegrationEnabled } from '@/meta-ads/hooks/useMetaAdsIntegrationEnabled';
+import { useGoogleContactsConnected } from '@/google-contacts/hooks/useGoogleContactsConnected';
+import { useGoogleContactsSyncLinksMap } from '@/5-3-dashboard/hooks/useGoogleContactsSyncLinksMap';
 import { CustomerSurveyHistoryDialog } from '@/5-3-dashboard/components/leads/dialogs/CustomerSurveyHistoryDialog';
 
 interface ConsultantsTableViewContentProps {
@@ -67,6 +69,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
   const { data: googleAdsIntegrationEnabled = false } = useGoogleAdsIntegrationEnabled(organizationId);
   const { data: metaAdsConnected = false } = useMetaAdsConnected(organizationId);
   const { data: metaAdsIntegrationEnabled = false } = useMetaAdsIntegrationEnabled(organizationId);
+  const { data: googleContactsConnected = false } = useGoogleContactsConnected(organizationId);
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads();
   const { getSyncForLead, isLoading: googleAdsSyncLoading } = useGoogleAdsConversionUploadsMap(
     organizationId,
@@ -74,6 +77,8 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
   );
   const { getSyncForLead: getMetaSyncForLead, isLoading: metaAdsSyncLoading } =
     useMetaAdsConversionUploadsMap(organizationId, leads);
+  const { getSyncForLead: getGoogleContactsSyncForLead, isLoading: googleContactsSyncLoading } =
+    useGoogleContactsSyncLinksMap(organizationId, leads);
   const {
     surveyTableProps,
     matchesSurveyRatingFilter,
@@ -454,6 +459,9 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
                   getMetaAdsSyncForLead={getMetaSyncForLead}
                   metaAdsSyncLoading={metaAdsSyncLoading}
                   metaAdsUploadsEnabled={metaAdsIntegrationEnabled}
+                  showGoogleContactsSyncColumn={googleContactsConnected}
+                  getGoogleContactsSyncForLead={getGoogleContactsSyncForLead}
+                  googleContactsSyncLoading={googleContactsSyncLoading}
                   {...surveyTableProps}
                 />
               </div>

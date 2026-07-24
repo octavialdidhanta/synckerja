@@ -20,6 +20,10 @@ import { canonicalFacebookPostMediaId } from "../_shared/leadMagnet/facebookPost
 import { runLeadMagnetRuntime } from "../_shared/leadMagnet/runLeadMagnetRuntime.ts";
 import { LEAD_MAGNET_PAYLOAD_PREFIX } from "../_shared/leadMagnet/types.ts";
 import { resolveLeadMagnetPostbackDisplayBody } from "../_shared/leadMagnet/leadMagnetLivechatDisplay.ts";
+import {
+  isPlaceholderLeadClientName,
+  refreshLeadClientIfPlaceholder,
+} from "../_shared/omnichannelLeadClientName.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -244,8 +248,22 @@ async function ensureLeadForNewInstagramConversation(
   createdByDisplayName: string
 ): Promise<void> {
   const ticketId = "IG-" + String(convId).replace(/-/g, "").slice(0, 8).toUpperCase();
-  const { data: existing } = await supabase.from("leads").select("id").eq("ticket_id", ticketId).maybeSingle();
-  if (existing) return;
+  const { data: existing } = await supabase
+    .from("leads")
+    .select("id, client")
+    .eq("ticket_id", ticketId)
+    .maybeSingle();
+  if (existing) {
+    const incoming = (clientName && String(clientName).trim()) || "";
+    if (incoming && !isPlaceholderLeadClientName(incoming)) {
+      await refreshLeadClientIfPlaceholder(supabase, {
+        organizationId: orgId,
+        leadId: String(existing.id),
+        clientName: incoming,
+      });
+    }
+    return;
+  }
 
   const { data: unreadStatus } = await supabase
     .from("lead_statuses")
@@ -265,9 +283,12 @@ async function ensureLeadForNewInstagramConversation(
     return;
   }
 
-  const safeClient = (clientName && String(clientName).trim()) || "Instagram";
+  const trimmedName = String(clientName ?? "").trim();
+  const safeClient =
+    trimmedName && !isPlaceholderLeadClientName(trimmedName) ? trimmedName : "Instagram";
   const safeTitle = (title && String(title).trim().slice(0, 100)) || "Instagram";
 
+  // Prefer real profile name; never seed CRM with "Instagram contact" stub.
   const { error } = await supabase.from("leads").insert({
     ticket_id: ticketId,
     client: safeClient,
@@ -1661,9 +1682,19 @@ Deno.serve(async (req: Request) => {
               ...(customerName && !existingName ? { customer_name: customerName } : {}),
             })
             .eq("id", existingConvResolved.id)
-            .select("id, first_inbound_at")
+            .select("id, first_inbound_at, ticket_id")
             .single();
           conv = updated;
+          if (customerName) {
+            const igTicket =
+              String((updated as { ticket_id?: string | null } | null)?.ticket_id ?? "").trim() ||
+              ("IG-" + String(existingConvResolved.id).replace(/-/g, "").slice(0, 8).toUpperCase());
+            await refreshLeadClientIfPlaceholder(supabase, {
+              organizationId: orgId,
+              ticketId: igTicket,
+              clientName: customerName,
+            });
+          }
         } else {
           const newConvId = crypto.randomUUID();
           const ticketId = "IG-" + newConvId.replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -1740,7 +1771,7 @@ Deno.serve(async (req: Request) => {
               supabase,
               orgId,
               conv!.id,
-              customerName || "Instagram contact",
+              customerName || "",
               lastBody || "Instagram",
               senderId,
               createdByDisplayName

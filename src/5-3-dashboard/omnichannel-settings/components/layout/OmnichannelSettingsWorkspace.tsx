@@ -17,6 +17,7 @@ import { SlaManagementSection } from "@/5-3-dashboard/omnichannel-settings/compo
 import { CustomerSurveySettingsShell } from "@/features/customer-survey/settings/CustomerSurveySettingsShell";
 import { CustomerSurveyTargetSettingsShell } from "@/features/customer-survey/settings/CustomerSurveyTargetSettingsShell";
 import { OfflineConversionSettingsShell } from "@/meta-ads/settings/OfflineConversionSettingsShell";
+import { GoogleContactsSettingsShell } from "@/google-contacts/settings/GoogleContactsSettingsShell";
 import { ApiIntegrationSection } from "@/5-3-dashboard/omnichannel-settings/components/api-integration/ApiIntegrationSection";
 import { FlowBuilderSettingsShell } from "@/5-3-dashboard/omnichannel-settings/components/flow-builder/FlowBuilderSettingsShell";
 import { LeadMagnetOmnichannelSettingsPage } from "@/6-1-lead-magnet/pages/LeadMagnetOmnichannelSettingsPage";
@@ -104,6 +105,7 @@ export function OmnichannelSettingsWorkspace() {
               {activeSection === "flow" ? <FlowBuilderSettingsShell /> : null}
               {activeSection === "target" ? <CustomerSurveyTargetSettingsShell /> : null}
               {activeSection === "offline-conversion" ? <OfflineConversionSettingsShell /> : null}
+              {activeSection === "google-contacts" ? <GoogleContactsSettingsShell /> : null}
               {activeSection === "api-integration" ? <ApiIntegrationSection /> : null}
               {activeSection === "lead-magnet" ? <LeadMagnetOmnichannelSettingsPage /> : null}
             </div>

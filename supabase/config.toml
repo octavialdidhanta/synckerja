@@ -143,6 +143,19 @@ verify_jwt = false
 [functions.google-ads-metrics]
 verify_jwt = false
 
+# Google Contacts (People API) per-tenant: user JWT validated inside; OAuth callback has no JWT.
+[functions.google-contacts-oauth-start]
+verify_jwt = false
+
+[functions.google-contacts-oauth-callback]
+verify_jwt = false
+
+[functions.google-contacts-config]
+verify_jwt = false
+
+[functions.google-contacts-sync]
+verify_jwt = false
+
 # Meta Ads per-tenant: user JWT validated inside; OAuth callback has no JWT.
 [functions.meta-ads-upload-conversion]
 verify_jwt = false

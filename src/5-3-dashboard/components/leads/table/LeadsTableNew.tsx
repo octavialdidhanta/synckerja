@@ -54,8 +54,10 @@ import {
 } from "@/5-3-dashboard/components/leads/table/LeadSurveyTableCells";
 import { LeadGoogleAdsSyncCell } from "@/5-3-dashboard/components/leads/table/LeadGoogleAdsSyncCell";
 import { LeadMetaAdsSyncCell } from "@/5-3-dashboard/components/leads/table/LeadMetaAdsSyncCell";
+import { LeadGoogleContactsSyncCell } from "@/5-3-dashboard/components/leads/table/LeadGoogleContactsSyncCell";
 import type { GoogleAdsSyncUploadRecord } from "@/5-3-dashboard/hooks/useGoogleAdsConversionUploadsMap";
 import type { MetaAdsSyncUploadRecord } from "@/5-3-dashboard/hooks/useMetaAdsConversionUploadsMap";
+import type { GoogleContactsSyncLinkRecord } from "@/5-3-dashboard/hooks/useGoogleContactsSyncLinksMap";
 
 type CategoryColumnFilterConfig = {
   value: string;
@@ -192,6 +194,9 @@ interface LeadsTableNewProps {
   getMetaAdsSyncForLead?: (lead: NewLead) => MetaAdsSyncUploadRecord | null;
   metaAdsSyncLoading?: boolean;
   metaAdsUploadsEnabled?: boolean;
+  showGoogleContactsSyncColumn?: boolean;
+  getGoogleContactsSyncForLead?: (lead: NewLead) => GoogleContactsSyncLinkRecord | null;
+  googleContactsSyncLoading?: boolean;
 }
 
 const ASSIGNEE_SELECT_UNASSIGNED = "__lead_assignee_unassigned__";
@@ -244,6 +249,9 @@ export default function LeadsTableNew({
   getMetaAdsSyncForLead,
   metaAdsSyncLoading = false,
   metaAdsUploadsEnabled = true,
+  showGoogleContactsSyncColumn = false,
+  getGoogleContactsSyncForLead,
+  googleContactsSyncLoading = false,
 }: LeadsTableNewProps) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
@@ -602,6 +610,15 @@ export default function LeadsTableNew({
             },
           ]
         : []),
+      ...(showGoogleContactsSyncColumn && !pickerSelection
+        ? [
+            {
+              key: "google_contacts_sync",
+              label: t("leadsManagement.table.googleContactsSync", "Sync Contacts"),
+              width: "w-[110px]",
+            },
+          ]
+        : []),
       {
         key: "resolve_outcome",
         label: t("leadsManagement.table.isResolve", "Is Resolve?"),
@@ -617,7 +634,7 @@ export default function LeadsTableNew({
       { key: "survey_comment", label: t("leadsManagement.table.surveyComment", "Keterangan"), width: "w-[160px] max-w-[200px]" },
       ...(pickerSelection ? [] : [{ key: "actions" as const, label: "Actions", width: "w-[100px]" }]),
     ];
-  }, [pickerSelection, showGoogleAdsSyncColumn, showMetaAdsSyncColumn, t]);
+  }, [pickerSelection, showGoogleAdsSyncColumn, showMetaAdsSyncColumn, showGoogleContactsSyncColumn, t]);
 
   const tableColCount = tableHeaders.length;
 
@@ -1548,6 +1565,15 @@ export default function LeadsTableNew({
                         sync={getMetaAdsSyncForLead?.(lead) ?? null}
                         loading={metaAdsSyncLoading}
                         uploadsEnabled={metaAdsUploadsEnabled}
+                      />
+                    </TableCell>
+                  ) : null}
+                  {showGoogleContactsSyncColumn && !pickerSelection ? (
+                    <TableCell className="whitespace-nowrap px-1">
+                      <LeadGoogleContactsSyncCell
+                        sync={getGoogleContactsSyncForLead?.(lead) ?? null}
+                        loading={googleContactsSyncLoading}
+                        connected={showGoogleContactsSyncColumn}
                       />
                     </TableCell>
                   ) : null}

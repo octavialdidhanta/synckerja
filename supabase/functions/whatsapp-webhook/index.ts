@@ -9,6 +9,10 @@ import { syncOmnichannelWhatsAppDelivery } from "../_shared/omnichannelPublicApi
 import { handleLeadMagnetWhatsAppDeliveryFailed } from "../_shared/leadMagnet/delivery/handleLeadMagnetWhatsAppDeliveryFailed.ts";
 import { extractInboundWhatsAppBody } from "../_shared/omnichannelFlow/sendMessageRuntime.ts";
 import { persistWaFlowSubmissionToLead } from "../_shared/omnichannelFlow/persistWaFlowSubmission.ts";
+import {
+  isPlaceholderLeadClientName,
+  refreshLeadClientIfPlaceholder,
+} from "../_shared/omnichannelLeadClientName.ts";
 
 /** Declare Deno global for IDE when edge-runtime.d.ts is not resolved */
 declare const Deno: {
@@ -537,8 +541,22 @@ async function ensureLeadForNewConversation(
   phoneNumberId?: string | null,
 ): Promise<string | null> {
   const ticketId = WA_TICKET_PREFIX + String(convId).replace(/-/g, "").slice(0, 8).toUpperCase();
-  const { data: existing } = await supabase.from("leads").select("id").eq("ticket_id", ticketId).maybeSingle();
-  if (existing?.id) return String(existing.id);
+  const { data: existing } = await supabase
+    .from("leads")
+    .select("id, client")
+    .eq("ticket_id", ticketId)
+    .maybeSingle();
+  if (existing?.id) {
+    const incoming = (client && String(client).trim()) || "";
+    if (incoming && !isPlaceholderLeadClientName(incoming)) {
+      await refreshLeadClientIfPlaceholder(supabase, {
+        organizationId: orgId,
+        leadId: String(existing.id),
+        clientName: incoming,
+      });
+    }
+    return String(existing.id);
+  }
 
   const { data: unreadStatus } = await supabase
     .from("lead_statuses")
@@ -1420,6 +1438,15 @@ Deno.serve(async (req: Request) => {
                     account.display_phone_number,
                     phoneNumberId,
                   );
+                }
+
+                if (conv && customerName) {
+                  const waTicketId = WA_TICKET_PREFIX + String(conv.id).replace(/-/g, "").slice(0, 8).toUpperCase();
+                  await refreshLeadClientIfPlaceholder(supabase, {
+                    organizationId: orgId,
+                    ticketId: waTicketId,
+                    clientName: customerName,
+                  });
                 }
 
                 if (!conv) {
