@@ -218,22 +218,28 @@ const Sidebar = React.forwardRef<
       data-variant={variant}
       data-side={side}
     >
-      {/* This is what handles the sidebar gap on desktop */}
+      {/*
+        Sidebar gap on desktop. For `icon` collapsible the gap is pinned to the collapsed rail so
+        expanding overlays the page instead of relayouting all page content on every frame.
+      */}
       <div
         className={cn(
-          "relative h-svh w-[--sidebar-width] bg-transparent",
-          "transition-[width] duration-300 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
-          "group-data-[collapsible=offcanvas]:w-0",
-          "group-data-[side=right]:rotate-180",
-          variant === "floating" || variant === "inset"
-            ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]"
-            : "group-data-[collapsible=icon]:w-[--sidebar-width-icon]",
+          "relative h-svh bg-transparent group-data-[side=right]:rotate-180",
+          collapsible === "icon"
+            ? variant === "floating" || variant === "inset"
+              ? "w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]"
+              : "w-[--sidebar-width-icon]"
+            : cn(
+                "w-[--sidebar-width]",
+                "transition-[width] duration-300 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+                "group-data-[collapsible=offcanvas]:w-0",
+              ),
         )}
       />
       <div
         className={cn(
           "fixed inset-y-0 z-10 hidden h-svh w-[--sidebar-width] overflow-hidden md:flex",
-          "transform-gpu [backface-visibility:hidden] [will-change:width]",
+          "transform-gpu [backface-visibility:hidden] [contain:layout_paint]",
           "transition-[width,left,right] duration-300 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"

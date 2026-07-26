@@ -139,6 +139,8 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { state: sidebarState } = useSidebar();
+  const railExpanded = sidebarState === "expanded";
   const currentPath = location.pathname;
   const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
   const { isModuleGatingActive, isModuleEnabled } = useEffectiveModuleAccess();
@@ -426,15 +428,21 @@ export function AppSidebar() {
           onMouseEnter={handleSubSidebarMouseEnter}
           onMouseLeave={handleSubSidebarMouseLeave}
           className={cn(
-            "absolute left-full top-0 z-50 h-full w-64 overflow-hidden",
+            // Parent is pinned to the collapsed rail, so track the expanded rail edge with a
+            // GPU transform that matches the rail's own width timing.
+            "absolute left-full top-0 z-50 h-full w-64 overflow-hidden transform-gpu",
+            "transition-transform duration-300 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+            railExpanded
+              ? "translate-x-[calc(var(--sidebar-width)-var(--sidebar-width-icon))]"
+              : "translate-x-0",
             subSidebarMeasuredOpen ? "pointer-events-auto" : "pointer-events-none",
           )}
         >
           <div
             onTransitionEnd={handleSubSidebarPanelTransitionEnd}
             className={cn(
-              "h-full w-64 transform-gpu [will-change:transform] [backface-visibility:hidden]",
-              "transition-transform duration-300 ease-out motion-reduce:transition-none",
+              "h-full w-64 transform-gpu [backface-visibility:hidden]",
+              "transition-transform duration-300 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
               subSidebarMeasuredOpen ? "translate-x-0" : "-translate-x-full",
             )}
           >
