@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/shared/components/ui/dialog";
 import { Button } from "@/shared/components/ui/button";
@@ -119,18 +119,63 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
   const isEmail = leadId.startsWith('email-');
   const conversationId = isWhatsApp ? leadId.replace(/^wa-/, '') : null;
 
+  // Guards in-flight silent refreshes so they never overwrite an edit draft.
+  const isEditingRef = useRef(isEditing);
+  useEffect(() => {
+    isEditingRef.current = isEditing;
+  }, [isEditing]);
+
   useEffect(() => {
     if (open && leadId) {
       loadClientProfile();
     }
   }, [open, leadId]);
 
-  const loadClientProfile = async () => {
-    setLoading(true);
-    setCanEditSubmission(false);
-    setFormData(null);
-    setLeadMagnetCampaignName(null);
-    setLeadMagnetTargetMarket(null);
+  // Silent refresh in view mode when backend auto-fills the profile
+  // (e.g. email detected in an inbound livechat message).
+  useEffect(() => {
+    if (!open || isEditing || isEmail || !leadId) return;
+
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleSilentRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        loadClientProfile({ silent: true });
+      }, 400);
+    };
+
+    const channel = supabase
+      .channel(`client-profile-popup-${leadId}`)
+      .on(
+        'postgres_changes',
+        isWhatsApp && conversationId
+          ? {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'whatsapp_conversations',
+              filter: `id=eq.${conversationId}`,
+            }
+          : { event: 'UPDATE', schema: 'public', table: 'leads', filter: `id=eq.${leadId}` },
+        scheduleSilentRefresh,
+      )
+      .subscribe();
+
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isEditing, leadId]);
+
+  const loadClientProfile = async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) {
+      setLoading(true);
+      setCanEditSubmission(false);
+      setFormData(null);
+      setLeadMagnetCampaignName(null);
+      setLeadMagnetTargetMarket(null);
+    }
     try {
       if (isEmail) {
         setProfile({
@@ -155,6 +200,7 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
           .eq('organization_id', organizationId)
           .maybeSingle();
         if (error) throw error;
+        if (silent && isEditingRef.current) return;
         setCanEditSubmission(true);
         if (data) {
           const savedPhone = (data as { phone_number?: string }).phone_number || '';
@@ -190,6 +236,7 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
 
       const submission = await fetchLeadSubmissionForProfile(leadId, organizationId);
       const fallback = await fetchLeadDisplayFallback(leadId, organizationId);
+      if (silent && isEditingRef.current) return;
       const resolved = resolveClientProfileContactFields({
         submission,
         lead: fallback,
@@ -295,13 +342,15 @@ export const ClientProfilePopup: React.FC<ClientProfilePopupProps> = ({
       }
     } catch (error) {
       console.error('Error loading client profile:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load client profile",
-        variant: "destructive"
-      });
+      if (!silent) {
+        toast({
+          title: "Error",
+          description: "Failed to load client profile",
+          variant: "destructive"
+        });
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 

@@ -40,6 +40,8 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
+import { cn } from '@/shared/lib/utils';
+import { useToolsModuleMobileViewport } from '@/shared/hooks/useToolsModuleMobileViewport';
 import {
   Check,
   CheckCheck,
@@ -59,6 +61,7 @@ import {
   Smile,
 } from 'lucide-react';
 import { messageContainsContactRequest } from '../../constants/contactRequestBlockPhrases';
+import { maskEmailsForDisplay } from '../../utils/maskEmailForDisplay';
 import {
   agentFacingSurveyBody,
   isSystemCustomerSurveyMessage,
@@ -848,7 +851,7 @@ function LeadMagnetButtonChips({
 function MediaPreview({
   messageType,
   mediaUrl,
-  body,
+  body: rawBody,
   rawMetadata,
   isOutbound,
   messageId,
@@ -873,6 +876,9 @@ function MediaPreview({
   onMediaClick?: (url: string, type: string) => void;
 }) {
   const { t } = useAppTranslation();
+  // Alamat email di percakapan ditampilkan ter-mask "*****" (display-only).
+  // Teks asli tetap tersimpan & terkirim; masking hanya untuk tampilan.
+  const body = maskEmailsForDisplay(rawBody) ?? null;
   const canResolve =
     !mediaUrl &&
     messageId &&
@@ -1024,7 +1030,7 @@ function MediaPreview({
   }
 
   if (!mediaUrl) {
-    const fallbackCaption = direction === 'inbound' ? getCaptionFromRawMetadata(rawMetadata) : null;
+    const fallbackCaption = direction === 'inbound' ? maskEmailsForDisplay(getCaptionFromRawMetadata(rawMetadata)) ?? null : null;
     const placeholderBody =
       body && isMediaMessageType(body.replace(/^\[|\]$/g, '')) ? formatWhatsAppMediaPreviewLabel(body, messageType) : null;
     const displayBody =
@@ -1077,7 +1083,7 @@ function MediaPreview({
   // Caption: dari body (jika bukan placeholder), atau dari raw_metadata untuk pesan masuk lama
   const isPlaceholder = body && MEDIA_TYPES.some((t) => body === `[${t}]`);
   const captionFromBody = body && !isPlaceholder ? body : null;
-  const captionFromRaw = direction === 'inbound' ? getCaptionFromRawMetadata(rawMetadata) : null;
+  const captionFromRaw = direction === 'inbound' ? maskEmailsForDisplay(getCaptionFromRawMetadata(rawMetadata)) ?? null : null;
   const caption = captionFromBody ?? captionFromRaw ?? null;
 
   const textCls = isOutbound ? 'text-white/90' : 'text-gray-600';
@@ -1185,6 +1191,7 @@ export function ChatThread({
   keyboardOpen,
   waAccounts: waAccountsProp,
 }: ChatThreadProps) {
+  const isMobileViewport = useToolsModuleMobileViewport();
   const [text, setText] = useState('');
   const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
   type OptimisticEntry = {
@@ -2826,7 +2833,7 @@ export function ChatThread({
                             </span>
                           )}
                           <span className={msg.direction === 'outbound' ? 'text-white/90' : 'text-gray-600'}>
-                            {msg.reply_to_body?.slice(0, 120) ?? (MEDIA_TYPES.includes((msg.reply_to_message_type ?? '').toLowerCase()) ? `[${(msg.reply_to_message_type ?? 'media').toLowerCase()}]` : '[Pesan]')}
+                            {maskEmailsForDisplay(msg.reply_to_body)?.slice(0, 120) ?? (MEDIA_TYPES.includes((msg.reply_to_message_type ?? '').toLowerCase()) ? `[${(msg.reply_to_message_type ?? 'media').toLowerCase()}]` : '[Pesan]')}
                             {(msg.reply_to_body?.length ?? 0) > 120 ? '...' : ''}
                           </span>
                         </div>
@@ -3098,7 +3105,7 @@ export function ChatThread({
                       </span>
                     )}
                     <span className={replyTo.body ? 'truncate flex-1 min-w-0' : 'flex-1 min-w-0 text-gray-500'}>
-                      {replyTo.body?.slice(0, 80) ?? (replyTo.message_type && MEDIA_TYPES.includes(replyTo.message_type.toLowerCase()) ? `[${replyTo.message_type}]` : '[Pesan]')}
+                      {maskEmailsForDisplay(replyTo.body)?.slice(0, 80) ?? (replyTo.message_type && MEDIA_TYPES.includes(replyTo.message_type.toLowerCase()) ? `[${replyTo.message_type}]` : '[Pesan]')}
                       {(replyTo.body?.length ?? 0) > 80 ? '...' : ''}
                     </span>
                   </div>
@@ -3187,14 +3194,21 @@ export function ChatThread({
           waAccounts={waAccounts}
         />
       ) : null}
-      {/* Image / video: immersive dark overlay */}
+      {/* Image / video: immersive dark overlay (full screen on mobile app / mobile browser) */}
       <Dialog
         open={!!mediaViewer && (mediaViewer.type === 'image' || mediaViewer.type === 'video')}
         onOpenChange={(open) => !open && setMediaViewer(null)}
       >
         <DialogContent
-          className="max-w-[95vw] max-h-[90vh] w-auto gap-0 overflow-hidden border-0 bg-black/95 p-0"
           hideCloseButton
+          fullscreenAnimation={isMobileViewport}
+          overlayClassName={isMobileViewport ? 'bg-black' : undefined}
+          className={cn(
+            'gap-0 overflow-hidden border-0 bg-black p-0 shadow-none',
+            isMobileViewport
+              ? 'fixed inset-0 left-0 right-0 top-0 flex h-dvh max-h-none w-full max-w-none translate-x-0 translate-y-0 rounded-none'
+              : 'max-h-[90vh] w-auto max-w-[95vw] bg-black/95',
+          )}
         >
           <DialogTitle className="sr-only">
             {mediaViewer?.type === 'image'
@@ -3202,23 +3216,49 @@ export function ChatThread({
               : t('whatsappInbox.videoPreview', 'Video preview')}
           </DialogTitle>
           {mediaViewer && (mediaViewer.type === 'image' || mediaViewer.type === 'video') && (
-            <div className="relative flex min-h-[200px] max-h-[90vh] items-center justify-center p-2">
+            <div
+              className={cn(
+                'relative flex items-center justify-center',
+                isMobileViewport
+                  ? 'h-full min-h-0 w-full p-0'
+                  : 'min-h-[200px] max-h-[90vh] p-2',
+              )}
+            >
               <button
                 type="button"
                 onClick={() => setMediaViewer(null)}
                 aria-label={t('whatsappInbox.close', 'Tutup')}
-                className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-md bg-white text-gray-800 shadow-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black/50"
+                className={cn(
+                  'absolute z-10 flex h-9 w-9 items-center justify-center rounded-md bg-white text-gray-800 shadow-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black/50',
+                  isMobileViewport
+                    ? 'right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))]'
+                    : 'right-3 top-3',
+                )}
               >
                 <X className="h-5 w-5" />
               </button>
               {mediaViewer.type === 'image' ? (
-                <img src={mediaViewer.url} alt="" className="max-h-[85vh] max-w-full rounded object-contain" />
+                <img
+                  src={mediaViewer.url}
+                  alt=""
+                  className={cn(
+                    'object-contain',
+                    isMobileViewport
+                      ? 'h-full max-h-full w-full max-w-full'
+                      : 'max-h-[85vh] max-w-full rounded',
+                  )}
+                />
               ) : (
                 <video
                   src={mediaViewer.url}
                   controls
                   autoPlay
-                  className="max-h-[85vh] max-w-full rounded"
+                  className={cn(
+                    'object-contain',
+                    isMobileViewport
+                      ? 'h-full max-h-full w-full max-w-full'
+                      : 'max-h-[85vh] max-w-full rounded',
+                  )}
                 />
               )}
             </div>

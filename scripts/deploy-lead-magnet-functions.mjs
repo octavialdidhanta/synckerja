@@ -56,6 +56,7 @@ const bundles = {
   ],
   "instagram-webhook": [
     "supabase/functions/instagram-webhook/index.ts",
+    "supabase/functions/_shared/livechat/fillClientProfileEmailFromInbound.ts",
     "supabase/functions/_shared/metaContentApi.ts",
     "supabase/functions/_shared/metaContentAuth.ts",
     "supabase/functions/_shared/metaPlatformScopes.ts",

@@ -3,6 +3,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as webpush from "jsr:@negrel/webpush@0.5.0";
+import { maskEmailsForDisplay } from "../_shared/livechat/maskEmailForDisplay.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -31,8 +32,9 @@ function ticketIdFromConversationId(conversationId: string, table: string): stri
   return `WA-${raw}`;
 }
 
-function previewText(body: string | null | undefined, maxLen: number): string {
-  const s = (body ?? "").trim().replace(/\s+/g, " ");
+function previewText(body: string | null | undefined, maxLen: number, maskEmails: boolean): string {
+  const raw = (body ?? "").trim().replace(/\s+/g, " ");
+  const s = maskEmails ? maskEmailsForDisplay(raw) : raw;
   if (s.length <= maxLen) return s;
   return s.slice(0, maxLen) + "…";
 }
@@ -258,7 +260,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const bodyText = (record.body as string) ?? (record.caption as string) ?? "";
-    const bodyPreview = previewText(bodyText, 72);
+    const bodyPreview = previewText(bodyText, 72, table !== "email_messages");
     const channelLabel = channelLabelFromTable(table);
     const title = `[${channelLabel}] ${senderName}`;
 

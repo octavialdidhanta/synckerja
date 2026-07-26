@@ -10,6 +10,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { devLog } from '@/shared/lib/logger';
 import { playNotificationSound } from '@/lib/notificationSound';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { maskEmailsForDisplay } from '@/5-3-whatsapp/utils/maskEmailForDisplay';
 
 function showInboundNotification(
   title: string,
@@ -41,11 +42,13 @@ function getChannelLabel(table: InboundTable): string {
   return 'Email';
 }
 
-function getMessagePreview(row: Record<string, unknown>): string {
+function getMessagePreview(row: Record<string, unknown>, table: InboundTable): string {
   const body = (row.body as string) ?? (row.caption as string) ?? (row.text as string) ?? (row.snippet as string) ?? '';
   const str = typeof body === 'string' ? body.trim() : '';
-  if (str.length <= 48) return str;
-  return str.slice(0, 45) + '…';
+  // Channel email: jangan mask isi email thread. WA/IG/FB: mask alamat email di preview.
+  const masked = table === 'email_messages' ? str : (maskEmailsForDisplay(str) ?? str);
+  if (masked.length <= 48) return masked;
+  return masked.slice(0, 45) + '…';
 }
 
 type TFunction = (key: string, fallback: string) => string;
@@ -97,7 +100,7 @@ export function useLiveChatInboundNotification(currentConversationId: string | n
       if (currentConversationId === conversationId) return;
 
       const channelLabel = getChannelLabel(table);
-      const messagePreview = getMessagePreview((payload?.new ?? {}) as Record<string, unknown>);
+      const messagePreview = getMessagePreview((payload?.new ?? {}) as Record<string, unknown>, table);
       const isNative = Capacitor.isNativePlatform();
       // Native: only FCM triggers sound + banner; Realtime shows toast without sound
       showInboundToast(channelLabel, messagePreview || newMessageLabel, t, !isNative);

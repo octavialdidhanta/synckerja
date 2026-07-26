@@ -15,6 +15,7 @@ import { devLog } from '@/shared/lib/logger';
 import { isResolvedStatus } from '../../constants/leadStatus';
 import { stripSurveyLinksFromText } from '@/features/customer-survey/utils/customerSurveyAgentVisibility';
 import { formatWhatsAppMediaPreviewLabel } from '../../utils/whatsappLivechatMedia';
+import { maskEmailsForDisplay } from '../../utils/maskEmailForDisplay';
 
 /** Ikon platform chat (akun terconnect). WhatsApp, Instagram, atau Email. */
 function ChannelIcon({ channel = 'whatsapp', className }: { channel?: string; className?: string }) {
@@ -711,7 +712,10 @@ export function ConversationList({
                         }
                       }
                       const subject = isEmail ? (conv as { thread_subject?: string | null }).thread_subject?.trim() ?? '' : '';
-                      const displayText = preview !== '' ? preview : (subject !== '' ? subject : '');
+                      // Livechat (non-email): mask alamat email jadi "*****" di preview.
+                      const displayText = isEmail
+                        ? (preview !== '' ? preview : (subject !== '' ? subject : ''))
+                        : (maskEmailsForDisplay(preview !== '' ? preview : (subject !== '' ? subject : '')) ?? '');
                       const showSomething = (conv.last_message_body != null && conv.last_message_body !== '' && preview !== '') || (isEmail && subject !== '');
                       return showSomething ? (
                         <span className="text-xs text-gray-500 truncate flex-1 min-w-0" title={displayText}>

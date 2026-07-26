@@ -1,7 +1,10 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { metaGraphVersion } from "../_shared/metaPlatformScopes.ts";
+
+function metaGraphVersion(): string {
+  return Deno.env.get("META_GRAPH_API_VERSION")?.trim() || "v22.0";
+}
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -65,7 +68,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: conv, error: convError } = await supabaseAdmin
       .from("instagram_conversations")
-      .select("organization_id, instagram_business_account_id, customer_ig_id, customer_name")
+      .select("organization_id, instagram_business_account_id, customer_ig_id, customer_name, ticket_id")
       .eq("id", conversationId)
       .single();
 
@@ -137,6 +140,47 @@ Deno.serve(async (req: Request) => {
         .from("instagram_conversations")
         .update({ customer_name: displayName, updated_at: new Date().toISOString() })
         .eq("id", conversationId);
+    }
+
+    // Profile hydration often resolves the username a few seconds after the
+    // webhook created its lead with the "Instagram" placeholder. Propagate the
+    // real username to CRM (and its active submissions) as soon as it is known.
+    if (displayName) {
+      const ticketId =
+        String(conv.ticket_id ?? "").trim() ||
+        `IG-${conversationId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+      const { data: lead } = await supabaseAdmin
+        .from("leads")
+        .select("id, client")
+        .eq("organization_id", conv.organization_id)
+        .eq("ticket_id", ticketId)
+        .maybeSingle();
+      if (
+        lead?.id &&
+        placeholderNames.has(String(lead.client ?? "").trim().toLowerCase())
+      ) {
+        const now = new Date().toISOString();
+        await supabaseAdmin
+          .from("leads")
+          .update({ client: displayName, updated_at: now })
+          .eq("id", lead.id)
+          .eq("organization_id", conv.organization_id);
+
+        const { data: submissions } = await supabaseAdmin
+          .from("lead_submissions")
+          .select("id, name")
+          .eq("lead_id", lead.id)
+          .eq("organization_id", conv.organization_id)
+          .eq("is_active", true);
+        for (const submission of submissions ?? []) {
+          const submissionName = String(submission.name ?? "").trim().toLowerCase();
+          if (!placeholderNames.has(submissionName) && submissionName !== "lead") continue;
+          await supabaseAdmin
+            .from("lead_submissions")
+            .update({ name: displayName, updated_at: now })
+            .eq("id", submission.id);
+        }
+      }
     }
 
     if (!graphRes.ok || !profileUrl) {

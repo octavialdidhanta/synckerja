@@ -24,6 +24,25 @@ function extractEmailCandidate(text: string): string | null {
   return EMAIL_RE.test(email) ? email : null;
 }
 
+const MAX_EMAIL_LENGTH = 254;
+
+/**
+ * Extract the first email found anywhere in free-form text.
+ * Unlike parseContactReply this is email-only (never prefers phone) and strips
+ * surrounding punctuation, so "email saya user@domain.com." yields "user@domain.com".
+ */
+export function extractEmailFromMessageBody(text: string | null | undefined): string | null {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(
+    /[^\s@,;:<>()[\]{}"']+@[^\s@,;:<>()[\]{}"']+\.[^\s@,;:<>()[\]{}"']+/,
+  );
+  if (!match) return null;
+  const email = match[0].replace(/[.,;:!?]+$/, "").trim().toLowerCase();
+  if (email.length < 5 || email.length > MAX_EMAIL_LENGTH) return null;
+  return EMAIL_RE.test(email) ? email : null;
+}
+
 function extractPhoneCandidate(text: string): string | null {
   const digitRuns = text.match(/(?:\+?\d[\d\s().-]{6,}\d|\d{8,18})/g);
   if (!digitRuns?.length) return null;

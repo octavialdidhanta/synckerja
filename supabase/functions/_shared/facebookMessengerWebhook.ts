@@ -6,6 +6,7 @@ import {
   resolveLeadMagnetFacebookTextPayload,
   runLeadMagnetFacebookPostbackIfResolved,
 } from "./leadMagnet/facebookLeadMagnetInbound.ts";
+import { fillClientProfileEmailFromInboundMessage } from "./livechat/fillClientProfileEmailFromInbound.ts";
 
 const META_GRAPH_VERSION = "v21.0";
 const MEDIA_BUCKET = "whatsapp-media";
@@ -541,6 +542,14 @@ export async function processFacebookMessengerEvents(
     if (existingConv) {
       await reopenFacebookConversationIfNeeded(supabase, orgId, conv.id, ts);
     }
+
+    // Auto-fill Client Profile email when the inbound message contains one (fill-empty only; never throws).
+    await fillClientProfileEmailFromInboundMessage(supabase, {
+      channel: "facebook",
+      organizationId: orgId,
+      conversationId: conv.id,
+      messageBody: bodyText,
+    });
 
     processedCount += 1;
   }

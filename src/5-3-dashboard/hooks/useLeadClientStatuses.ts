@@ -14,8 +14,26 @@ export function useLeadClientStatuses(leads: NewLead[]) {
   const [clientStatuses, setClientStatuses] = useState<Record<string, ClientStatus>>({});
   const [clientProfiles, setClientProfiles] = useState<Record<string, LeadSubmissionProfileRow | null>>({});
 
+  // Include contact fields so backend auto-fill (e.g. email detected in livechat)
+  // silently re-derives statuses when the realtime `leads` refetch lands.
   const leadIdsKey = useMemo(
-    () => leads.map((l) => l.id).sort().join(','),
+    () =>
+      leads
+        .map((l) => {
+          const withContact = l as NewLead & {
+            email?: string | null;
+            phone_number?: string | null;
+            _customerWaId?: string | null;
+          };
+          return [
+            l.id,
+            String(withContact.email ?? ''),
+            String(withContact.phone_number ?? withContact._customerWaId ?? ''),
+            String(l.client ?? ''),
+          ].join('|');
+        })
+        .sort()
+        .join(','),
     [leads],
   );
 

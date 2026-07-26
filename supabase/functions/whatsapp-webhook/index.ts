@@ -13,6 +13,7 @@ import {
   isPlaceholderLeadClientName,
   refreshLeadClientIfPlaceholder,
 } from "../_shared/omnichannelLeadClientName.ts";
+import { fillClientProfileEmailFromInboundMessage } from "../_shared/livechat/fillClientProfileEmailFromInbound.ts";
 
 /** Declare Deno global for IDE when edge-runtime.d.ts is not resolved */
 declare const Deno: {
@@ -107,22 +108,22 @@ async function scheduleFlowRuntimeInvoke(
 
 /** Frasa + kata satuan yang mengindikasikan permintaan kontak. On/off via env WHATSAPP_BLOCK_CONTACT_REQUESTS. */
 const CONTACT_REQUEST_PHRASES: readonly string[] = [
-  "nomor", "wa", "whatsapp", "hp", "telepon", "telpon", "tlp", "tlpn", "telephone", "email", "kontak", "contact",
+  // Catatan: permintaan email SENGAJA diizinkan (tidak diblokir). Alamat email
+  // yang muncul di percakapan di-mask "*****" saat ditampilkan di dashboard.
+  "nomor", "wa", "whatsapp", "hp", "telepon", "telpon", "tlp", "tlpn", "telephone", "kontak", "contact",
   "nomor hp", "nomor telepon", "nomor wa", "nomor whatsapp", "no hp", "no telepon", "no wa", "no whatsapp",
   "number wa", "whatsapp number", "hp kamu", "telepon kamu", "wa kamu", "kirim nomor", "beri nomor", "bagi nomor",
   "share nomor", "kontak kamu", "kontak anda", "nomor kontak", "no kontak", "bisa wa", "bisa chat wa", "chat wa dong",
   "wa saja", "hubungi wa", "whatsapp saja", "dm wa", "invite wa", "add wa", "nomor untuk dihubungi",
   "nomor yang bisa dihubungi", "no yang bisa dihubungi",
-  "email kamu", "email anda", "alamat email", "e-mail", "kirim email", "beri email", "bagi email", "share email",
-  "kontak email", "email untuk konfirmasi", "email untuk dihubungi", "dm email", "send email", "your email", "email address",
   "cara menghubungi", "cara hubungi", "bagaimana menghubungi", "how to contact", "contact you", "hubungi kamu",
-  "nomor atau email", "no atau email", "line kamu", "id line", "telegram", "ig kamu", "instagram kamu", "sosmed", "media sosial",
+  "line kamu", "id line", "telegram", "ig kamu", "instagram kamu", "sosmed", "media sosial",
   "minta nomor wa", "minta nomor", "berapa nomor", "apa nomor", "bisa minta nomor", "boleh minta nomor", "bisa minta kontak", "boleh minta kontak",
-  "bisa minta email", "boleh minta email", "bisa kasih nomor", "boleh kasih nomor", "bisa share nomor", "boleh share nomor",
-  "what's your number", "what's your email", "whatsapp number", "phone number", "contact number",
-  "can i get your number", "can i get your email", "give me your number", "give me your email",
-  "send me your number", "send me your email", "share your number", "share your email",
-  "drop your number", "drop your email", "dm your number", "dm your email",
+  "bisa kasih nomor", "boleh kasih nomor", "bisa share nomor", "boleh share nomor",
+  "what's your number", "whatsapp number", "phone number", "contact number",
+  "can i get your number", "give me your number",
+  "send me your number", "share your number",
+  "drop your number", "dm your number",
 ];
 
 function contactPhraseMatches(normalized: string, phrase: string): boolean {
@@ -915,6 +916,14 @@ async function runInboundMessageSideEffects(
   } else if (isResolved && !openStatusId) {
     console.warn("Cannot reopen: lead_statuses has no row with name 'Open' or 'Unread' (org or global). Add Open or Unread status in DB.");
   }
+
+  // Auto-fill Client Profile email when the inbound message contains one (fill-empty only; never throws).
+  await fillClientProfileEmailFromInboundMessage(supabase, {
+    channel: "whatsapp",
+    organizationId: orgId,
+    conversationId: convId,
+    messageBody: typeof insertPayload.body === "string" ? insertPayload.body : null,
+  });
 }
 
 async function notifyLivechatInboundPush(

@@ -18,6 +18,7 @@ import {
 } from "../_shared/leadMagnet/webhookBridge.ts";
 import { canonicalFacebookPostMediaId } from "../_shared/leadMagnet/facebookPostMediaId.ts";
 import { runLeadMagnetRuntime } from "../_shared/leadMagnet/runLeadMagnetRuntime.ts";
+import { fillClientProfileEmailFromInboundMessage } from "../_shared/livechat/fillClientProfileEmailFromInbound.ts";
 import { LEAD_MAGNET_PAYLOAD_PREFIX } from "../_shared/leadMagnet/types.ts";
 import { resolveLeadMagnetPostbackDisplayBody } from "../_shared/leadMagnet/leadMagnetLivechatDisplay.ts";
 import {
@@ -1953,6 +1954,15 @@ Deno.serve(async (req: Request) => {
             console.error("[instagram-webhook] lead magnet inbound contact error", lmErr);
           }
         }
+
+        // Auto-fill Client Profile email when the inbound message contains one.
+        // Runs after Lead Magnet runtime so the contact gate stays the first writer (fill-empty only; never throws).
+        await fillClientProfileEmailFromInboundMessage(supabase, {
+          channel: "instagram",
+          organizationId: orgId,
+          conversationId: conv.id,
+          messageBody: bodyText,
+        });
 
         processedCount += 1;
       }

@@ -12,6 +12,16 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import type { LiveChatConversation, WhatsAppConversation } from '../../types';
 import type { EmailConversation } from '../../types';
 import { stripHtmlForPreview } from './ConversationList';
+import { maskEmailsForDisplay } from '../../utils/maskEmailForDisplay';
+
+/** Preview teks livechat: mask alamat email (channel email tidak di-mask). */
+function livechatDisplayPreview(
+  text: string,
+  isEmailChannel: boolean,
+): string {
+  if (isEmailChannel) return text;
+  return maskEmailsForDisplay(text) ?? text;
+}
 
 /** WhatsApp icon for platform label */
 function WhatsAppIcon({ className }: { className?: string }) {
@@ -201,7 +211,10 @@ export function SearchConversationPopup({
       {messageResults.map((row) => {
         const conv = convById[row.conversation_id];
         const displayName = conv ? (conv.source === 'instagram' && !conv.customer_name?.trim() ? t('whatsappInbox.instagramContact', 'Kontak Instagram') : (conv.customer_name || maskPhoneLast4(conv.source === 'instagram' ? (conv as { customer_ig_id?: string }).customer_ig_id : conv.customer_wa_id) || 'Unknown')) : '—';
-        const body = stripHtmlForPreview(row.body ?? '');
+        const body = livechatDisplayPreview(
+          stripHtmlForPreview(row.body ?? ''),
+          conv?.source === 'email',
+        );
         const isOutbound = row.direction === 'outbound';
         return (
           <li
@@ -249,7 +262,10 @@ export function SearchConversationPopup({
           const displayName = conv.source === 'instagram' && !conv.customer_name?.trim() ? t('whatsappInbox.instagramContact', 'Kontak Instagram') : (conv.customer_name || maskPhoneLast4(conv.source === 'instagram' ? (conv as { customer_ig_id?: string }).customer_ig_id : conv.customer_wa_id) || 'Unknown');
           const isSelected = selectedId === conv.id;
           const lastBodyRaw = conv.last_message_body ?? '';
-          const lastBody = stripHtmlForPreview(lastBodyRaw);
+          const lastBody = livechatDisplayPreview(
+            stripHtmlForPreview(lastBodyRaw),
+            conv.source === 'email',
+          );
           const subject = conv.source === 'email' ? (conv as EmailConversation).thread_subject?.trim() ?? '' : '';
           const displayText = lastBody !== '' ? lastBody : subject;
           const showHighlight = searchQuery.trim() && displayText.toLowerCase().includes(searchQuery.trim().toLowerCase());
@@ -316,7 +332,10 @@ export function SearchConversationPopup({
       {messageResults.map((row) => {
         const conv = convById[row.conversation_id];
         const displayName = conv ? (conv.source === 'instagram' && !conv.customer_name?.trim() ? t('whatsappInbox.instagramContact', 'Kontak Instagram') : (conv.customer_name || maskPhoneLast4(conv.source === 'instagram' ? (conv as { customer_ig_id?: string }).customer_ig_id : conv.customer_wa_id) || 'Unknown')) : '—';
-        const body = stripHtmlForPreview(row.body ?? '');
+        const body = livechatDisplayPreview(
+          stripHtmlForPreview(row.body ?? ''),
+          conv?.source === 'email',
+        );
         const isOutbound = row.direction === 'outbound';
         return (
           <li
@@ -352,7 +371,10 @@ export function SearchConversationPopup({
         const displayName = conv.channel === 'instagram' && !conv.customer_name?.trim() ? t('whatsappInbox.instagramContact', 'Kontak Instagram') : (conv.customer_name || maskPhoneLast4(conv.customer_wa_id) || 'Unknown');
         const isSelected = selectedId === conv.id;
         const lastBodyRaw = conv.last_message_body ?? '';
-        const lastBody = stripHtmlForPreview(lastBodyRaw);
+        const lastBody = livechatDisplayPreview(
+          stripHtmlForPreview(lastBodyRaw),
+          conv.source === 'email',
+        );
         const subject = conv.source === 'email' ? (conv as EmailConversation).thread_subject?.trim() ?? '' : '';
         const displayText = lastBody !== '' ? lastBody : subject;
         const showHighlight = searchQuery.trim() && displayText.toLowerCase().includes(searchQuery.trim().toLowerCase());
