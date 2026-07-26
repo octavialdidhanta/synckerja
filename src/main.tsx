@@ -5,42 +5,81 @@ import { initI18n } from "@/shared/i18n/index.ts";
 import { RouteSkeletonBootShell } from "@/shared/components/route-loading/createDeferredSkeleton";
 import "./index.css";
 
-const App = lazy(() => import("./App.tsx"));
+const ASSET_RELOAD_KEY = "sj-asset-reload";
 
-const SurveyPublicApp = lazy(() =>
-  import("@/features/customer-survey/public/SurveyPublicApp.tsx").then((m) => ({
-    default: m.SurveyPublicApp,
-  })),
+const App = lazy(() =>
+  import("./App.tsx").then((m) => {
+    sessionStorage.removeItem(ASSET_RELOAD_KEY);
+    return m;
+  }),
 );
 
-function deferRegisterServiceWorker() {
-  if (!("serviceWorker" in navigator)) return;
+const SurveyPublicApp = lazy(() =>
+  import("@/features/customer-survey/public/SurveyPublicApp.tsx").then((m) => {
+    sessionStorage.removeItem(ASSET_RELOAD_KEY);
+    return { default: m.SurveyPublicApp };
+  }),
+);
 
-  const register = () => {
-    import("virtual:pwa-register")
-      .then(({ registerSW }) => {
-        registerSW({ immediate: false });
-      })
-      .catch(() => undefined);
+/** Setelah deploy, chunk hash lama bisa 404/HTML — satu kali clear SW/cache lalu reload. */
+function setupAssetLoadRecovery() {
+  const reloadOnce = async () => {
+    if (sessionStorage.getItem(ASSET_RELOAD_KEY) === "1") return;
+    sessionStorage.setItem(ASSET_RELOAD_KEY, "1");
+    try {
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch {
+      // ignore — tetap reload
+    }
+    window.location.reload();
   };
 
+  window.addEventListener("vite:preloadError", (event) => {
+    event.preventDefault();
+    void reloadOnce();
+  });
+
+  // Script tag di index.html (bukan dynamic import) — MIME text/html setelah deploy.
   window.addEventListener(
-    "load",
-    () => {
-      if ("requestIdleCallback" in window) {
-        (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => void }).requestIdleCallback(
-          register,
-          { timeout: 2000 },
-        );
-      } else {
-        window.setTimeout(register, 800);
-      }
+    "error",
+    (event) => {
+      const el = event.target;
+      if (!(el instanceof HTMLScriptElement)) return;
+      const src = el.src || "";
+      if (!src.includes("/assets/")) return;
+      void reloadOnce();
     },
-    { once: true },
+    true,
   );
 }
 
-deferRegisterServiceWorker();
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+
+  void import("virtual:pwa-register")
+    .then(({ registerSW }) => {
+      registerSW({
+        immediate: true,
+        onRegisteredSW(_swUrl, registration) {
+          if (!registration) return;
+          window.setInterval(() => {
+            void registration.update();
+          }, 60 * 60 * 1000);
+        },
+      });
+    })
+    .catch(() => undefined);
+}
+
+setupAssetLoadRecovery();
+registerServiceWorker();
 
 const surveyHost = import.meta.env.VITE_PUBLIC_SURVEY_HOSTNAME?.trim();
 const rootEl = document.getElementById("root")!;

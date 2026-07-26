@@ -154,13 +154,18 @@ export default defineConfig(({ mode }) => {
         ],
         globIgnores: ["**/node_modules/**"],
         navigateFallback: "/index.html",
+        /** Jangan fallback HTML untuk /assets/* atau URL berkestensi (cegah MIME text/html pada .js). */
+        navigateFallbackDenylist: [/^\/assets\//, /\/[^/?]+\.[^/]+$/],
         runtimeCaching: [
           {
-            urlPattern: ({ request }) => request.destination === "script" || request.destination === "style",
-            handler: "StaleWhileRevalidate",
+            /** Hanya hashed build assets — jangan SWR semua script (bisa cache HTML sebagai JS). */
+            urlPattern: ({ url, sameOrigin }) =>
+              sameOrigin && /\/assets\/.+\.(?:js|mjs|css|wasm)$/i.test(url.pathname),
+            handler: "CacheFirst",
             options: {
-              cacheName: "synckerja-assets",
-              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheName: "synckerja-build-assets",
+              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [200] },
             },
           },
           {
