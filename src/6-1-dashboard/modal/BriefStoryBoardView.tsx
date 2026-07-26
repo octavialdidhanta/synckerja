@@ -28,6 +28,7 @@ export interface BriefStoryBoardViewProps {
   onUploadImages?: (rowIndex: number, files: File[]) => Promise<unknown>;
   onDeleteImage?: (imageId: string) => Promise<unknown>;
   onAddRow?: (rowIndex: number) => void;
+  onAddSequenceAfterRow?: (rowIndex: number) => void;
   onDeleteRow?: (rowIndex: number) => void;
   onSceneCharacterIdsChange?: (rowIndex: number, characterIds: string[]) => void;
   onRenameSequence?: (sequenceId: string, name: string) => void;
@@ -56,6 +57,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
   onUploadImages,
   onDeleteImage,
   onAddRow,
+  onAddSequenceAfterRow,
   onDeleteRow,
   onSceneCharacterIdsChange,
   onRenameSequence,
@@ -137,6 +139,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
                       onUploadImages={onUploadImages}
                       onDeleteImage={onDeleteImage}
                       onAddRow={onAddRow}
+                      onAddSequenceAfterRow={onAddSequenceAfterRow}
                       onDeleteRow={onDeleteRow}
                       canMoveToPreviousSequence={Boolean(
                         isFirstInSequence && seqIndex > 0 && onMoveToPreviousSequence,

@@ -16,7 +16,7 @@ import { stripBriefIntroductorySentence, extractBriefTitle, removeBriefTitleFrom
 import { EditableBriefTable } from './EditableBriefTable';
 import { BriefStoryboardEmptyState } from './BriefStoryboardEmptyState';
 import { CreateBriefTableDialog } from './CreateBriefTableDialog';
-import { DEFAULT_BRIEF_STORYBOARD_HEADERS } from './briefStoryboardConstants';
+import { DEFAULT_BRIEF_STORYBOARD_HEADERS, isBriefStoryboardTableCanonical, normalizeBriefStoryboardTable } from './briefStoryboardConstants';
 import { useLinkComments } from '../hook/useLinkComments';
 import { useBriefExtended } from '../hook/useBriefExtended';
 import { formatDistanceToNow } from 'date-fns';
@@ -547,7 +547,15 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
     }
   };
 
-  const parsedTable = useMemo(() => parseMarkdownTable(briefText), [briefText]);
+  const parsedTable = useMemo(() => {
+    const parsed = parseMarkdownTable(briefText);
+    if (!parsed?.table?.length) return parsed;
+    if (isBriefStoryboardTableCanonical(parsed.table)) return parsed;
+    return {
+      ...parsed,
+      table: normalizeBriefStoryboardTable(parsed.table),
+    };
+  }, [briefText]);
   const briefTitle = useMemo(
     () =>
       extractBriefTitle(

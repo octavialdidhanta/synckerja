@@ -16,6 +16,7 @@ import {
   adjustSequencesForDeleteRow,
   adjustSequencesForInsertRow,
   createBriefSequence,
+  findSequenceIndexForRow,
   getSequenceRowRanges,
   normalizeBriefSequences,
   parseBriefSequencesFromMarkdown,
@@ -43,6 +44,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/components/ui/tooltip';
+import { findBriefImageColumnIndex } from './briefStoryboardConstants';
 
 /** Fixed storyboard column widths (px). */
 const BRIEF_COLUMN_WIDTH_PX = {
@@ -170,7 +172,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   sequencesSource,
   onEditingChange,
   planId,
-  imageColumnIndex = 1,
+  imageColumnIndex: imageColumnIndexProp,
   rowImagesMap = {},
   onUploadImages,
   onDeleteImage,
@@ -202,6 +204,8 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   sequencesRef.current = sequences;
   const sceneMetaRef = useRef(sceneMeta);
   sceneMetaRef.current = sceneMeta;
+  /** Avoid clobbering a just-saved sequence split when parent briefText hydrates one tick later. */
+  const skipNextSequencesHydrationRef = useRef(false);
 
   const handleLayoutModeChange = (mode: BriefLayoutMode) => {
     if (isEditing || mode === layoutMode) return;
@@ -221,11 +225,24 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
 
   const normalizedTableData = normalizeBriefTableRows(tableData);
   const displayData = trimTrailingEmptyColumns(normalizedTableData);
+  /**
+   * Prefer Visual-by-name so Timing|VO|Visual tables do not treat VO as the paste slot.
+   * Without planId (e.g. AI script manual edit), skip image column so all cells stay text.
+   */
+  const imageColumnIndex = !planId
+    ? -1
+    : typeof imageColumnIndexProp === 'number'
+      ? imageColumnIndexProp
+      : findBriefImageColumnIndex(displayData[0] ?? []);
   const bodyRowCount = Math.max(0, displayData.length - 1);
   const defaultSequenceName = t('briefDialog.layout.defaultSequence', 'Sequence 1');
 
   useEffect(() => {
     if (!storyboardToolbar || isEditing) return;
+    if (skipNextSequencesHydrationRef.current) {
+      skipNextSequencesHydrationRef.current = false;
+      return;
+    }
     setSequences(
       normalizeBriefSequences(
         parseBriefSequencesFromMarkdown(sequencesSource ?? ''),
@@ -764,12 +781,17 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   };
 
   const persistSequencesOnly = (nextSequences: BriefSequence[]) => {
+    const bodyCount = isEditing ? Math.max(editData.length, bodyRowCount) : bodyRowCount;
     const normalized = normalizeBriefSequences(
       nextSequences,
-      isEditing ? editData.length : bodyRowCount,
+      bodyCount,
       defaultSequenceName,
     );
+    sequencesRef.current = normalized;
     setSequences(normalized);
+    if (!isEditing) {
+      skipNextSequencesHydrationRef.current = true;
+    }
     onSave?.(getCurrentTableForPersist(), {
       sequences: normalized,
       sceneMeta: sceneMetaRef.current,
@@ -779,15 +801,19 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   const handleSceneCharacterIdsChange = (rowIndex: number, characterIds: string[]) => {
     const nextMeta = setSceneCharacterIds(sceneMetaRef.current, rowIndex, characterIds);
     setSceneMeta(nextMeta);
+    const bodyCount = isEditing ? Math.max(editData.length, bodyRowCount) : bodyRowCount;
     onSave?.(getCurrentTableForPersist(), {
       sequences: normalizeBriefSequences(
         sequencesRef.current,
-        isEditing ? editData.length : bodyRowCount,
+        bodyCount,
         defaultSequenceName,
       ),
       sceneMeta: nextMeta,
     });
   };
+
+  const nextSequenceLabel = (sequenceCount: number) =>
+    t('briefDialog.layout.newSequenceNumber', 'Sequence {{n}}', { n: sequenceCount });
 
   const handleRenameSequence = (sequenceId: string, name: string) => {
     persistSequencesOnly(
@@ -796,8 +822,43 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   };
 
   const handleAddSequenceBelow = () => {
-    const label = t('briefDialog.layout.newSequence', 'New Sequence');
-    persistSequencesOnly([...sequencesRef.current, createBriefSequence(label, 0)]);
+    persistSequencesOnly([
+      ...sequencesRef.current,
+      createBriefSequence(nextSequenceLabel(sequencesRef.current.length + 1), 0),
+    ]);
+  };
+
+  const handleAddSequenceAfterRow = async (rowIndex: number) => {
+    const current = sequencesRef.current.map((sequence) => ({ ...sequence }));
+    const sequenceIndex = findSequenceIndexForRow(current, rowIndex);
+    const ranges = getSequenceRowRanges(current);
+    const range = ranges[sequenceIndex];
+    if (!range) return;
+
+    const keepCount = rowIndex - range.startRow + 1;
+    const moveCount = Math.max(0, current[sequenceIndex].rowCount - keepCount);
+    current[sequenceIndex] = {
+      ...current[sequenceIndex],
+      rowCount: keepCount,
+    };
+
+    const label = nextSequenceLabel(current.length + 1);
+
+    if (moveCount > 0) {
+      current.splice(sequenceIndex + 1, 0, createBriefSequence(label, moveCount));
+      persistSequencesOnly(current);
+      return;
+    }
+
+    // Selected row is last in its sequence: create a new sequence and add one blank scene into it.
+    current.splice(sequenceIndex + 1, 0, createBriefSequence(label, 0));
+    const bodyCount = isEditing ? Math.max(editData.length, bodyRowCount) : bodyRowCount;
+    sequencesRef.current = normalizeBriefSequences(current, bodyCount, defaultSequenceName);
+    setSequences(sequencesRef.current);
+    if (!isEditing) {
+      skipNextSequencesHydrationRef.current = true;
+    }
+    await handleAddRow(rowIndex);
   };
 
   const handleDeleteSequence = (sequenceId: string) => {
@@ -933,6 +994,13 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                     <Plus className="h-4 w-4" />
                     {t('briefDialog.addRow', 'Add row')}
                   </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleAddSequenceAfterRow(rowIdx)}
+                    className="gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t('briefDialog.layout.addSequence', 'Add sequence')}
+                  </DropdownMenuItem>
                   {canMovePrev ? (
                     <DropdownMenuItem
                       onClick={() => handleMoveToPreviousSequence(rowIdx)}
@@ -996,6 +1064,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             onUploadImages={onUploadImages}
             onDeleteImage={onDeleteImage}
             onAddRow={(rowIdx) => void handleAddRow(rowIdx)}
+            onAddSequenceAfterRow={handleAddSequenceAfterRow}
             onDeleteRow={(rowIdx) => void handleDeleteRow(rowIdx)}
             onSceneCharacterIdsChange={handleSceneCharacterIdsChange}
             onRenameSequence={handleRenameSequence}

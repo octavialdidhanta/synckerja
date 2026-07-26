@@ -6,6 +6,15 @@ import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { parseAIScriptOutput } from '../utils/parseAIScriptOutput';
 import { getCaptionFallback } from '../utils/parseScriptSections';
 import { stripBreakdownScriptLabel, stripScriptKontenDigitalMarketing } from '@/shared/utils/briefUtils';
+import {
+  isBriefStoryboardTableCanonical,
+  normalizeBriefStoryboardTable,
+} from '@/6-1-dashboard/modal/briefStoryboardConstants';
+import {
+  parseMarkdownTable,
+  replaceTableInMarkdown,
+  stringifyMarkdownTable,
+} from '@/6-1-dashboard/utils/markdownTableUtils';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { toast } from 'sonner';
 
@@ -40,6 +49,16 @@ function isNewPlanDataComplete(data: NewPlanData | undefined): data is NewPlanDa
   );
 }
 
+/** Ensure Timing|Visual|VO order so Brief paste column does not land on VO. */
+function normalizeBriefMarkdownForSave(brief: string): string {
+  const parsed = parseMarkdownTable(brief);
+  if (!parsed?.table?.length) return brief;
+  if (isBriefStoryboardTableCanonical(parsed.table)) return brief;
+  const normalized = normalizeBriefStoryboardTable(parsed.table);
+  const tableMarkdown = stringifyMarkdownTable(normalized);
+  return replaceTableInMarkdown(brief, tableMarkdown, parsed.startIndex, parsed.endIndex);
+}
+
 export function useSaveToPlan() {
   const queryClient = useQueryClient();
   const { t } = useAppTranslation();
@@ -69,6 +88,10 @@ export function useSaveToPlan() {
       // Fallback: jika parser mengembalikan brief kosong (mis. format AI tidak standar), pakai seluruh script sebagai brief
       if (saveBrief && !brief.trim() && script.trim()) {
         brief = stripScriptKontenDigitalMarketing(stripBreakdownScriptLabel(script.trim()));
+      }
+
+      if (saveBrief && brief.trim()) {
+        brief = normalizeBriefMarkdownForSave(brief);
       }
 
       // Use caption from parseAIScriptOutput, fallback to getCaptionFallback when format differs

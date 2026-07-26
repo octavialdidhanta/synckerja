@@ -4,6 +4,10 @@ import remarkGfm from 'remark-gfm';
 import { parseMarkdownTable, replaceTableInMarkdown, stringifyMarkdownTable } from '@/6-1-dashboard/utils/markdownTableUtils';
 import { EditableBriefTable } from '@/6-1-dashboard/modal/EditableBriefTable';
 import {
+  isBriefStoryboardTableCanonical,
+  normalizeBriefStoryboardTable,
+} from '@/6-1-dashboard/modal/briefStoryboardConstants';
+import {
   stripBreakdownScriptLabel,
   removeBriefTitleFromStart,
   makeBriefSectionsInline,
@@ -64,7 +68,13 @@ export const ContentPlanBriefDisplay: React.FC<ContentPlanBriefDisplayProps> = (
 
   const parsedTable = useMemo(() => {
     if (!briefText) return null;
-    return parseMarkdownTable(briefText);
+    const parsed = parseMarkdownTable(briefText);
+    if (!parsed?.table?.length) return parsed;
+    if (isBriefStoryboardTableCanonical(parsed.table)) return parsed;
+    return {
+      ...parsed,
+      table: normalizeBriefStoryboardTable(parsed.table),
+    };
   }, [briefText]);
 
   if (!briefText) {

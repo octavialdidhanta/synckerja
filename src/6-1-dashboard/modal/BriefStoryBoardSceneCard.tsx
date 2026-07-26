@@ -116,6 +116,7 @@ export interface BriefStoryBoardSceneCardProps {
   onUploadImages?: (rowIndex: number, files: File[]) => Promise<unknown>;
   onDeleteImage?: (imageId: string) => Promise<unknown>;
   onAddRow?: (rowIndex: number) => void;
+  onAddSequenceAfterRow?: (rowIndex: number) => void;
   onDeleteRow?: (rowIndex: number) => void;
   onMoveToPreviousSequence?: (rowIndex: number) => void;
   onMoveToNextSequence?: (rowIndex: number) => void;
@@ -141,6 +142,7 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
   onUploadImages,
   onDeleteImage,
   onAddRow,
+  onAddSequenceAfterRow,
   onDeleteRow,
   onMoveToPreviousSequence,
   onMoveToNextSequence,
@@ -229,9 +231,13 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
     }
   };
 
+  const hasSceneText = textColumns.some(({ colIdx }) =>
+    String(row[colIdx] ?? '').trim(),
+  );
+
   const canGenerate =
     Boolean(isEditing && planId && onUploadImages) &&
-    characterIds.length > 0 &&
+    hasSceneText &&
     !mediaBusy &&
     !isUploading &&
     !isDeleting &&
@@ -266,6 +272,13 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
               <DropdownMenuItem onClick={() => onAddRow?.(rowIndex)} className="gap-2">
                 <Plus className="h-4 w-4" />
                 {t('briefDialog.addRow', 'Add row')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onAddSequenceAfterRow?.(rowIndex)}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                {t('briefDialog.layout.addSequence', 'Add sequence')}
               </DropdownMenuItem>
               {canMoveToPreviousSequence ? (
                 <DropdownMenuItem onClick={() => onMoveToPreviousSequence?.(rowIndex)} className="gap-2">
@@ -329,36 +342,36 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
           </Button>
         ) : null}
 
-        {textColumns.map(({ header, colIdx }) => {
-          const value = row[colIdx] ?? '';
-          return (
-            <div key={colIdx} className="flex min-w-0 items-start gap-1.5">
-              <span className="shrink-0 pt-0.5 text-[11px] font-semibold text-gray-500">
-                {header}:
-              </span>
-              {isEditing ? (
-                <AutoResizeTextarea
-                  value={value}
-                  minRows={1}
-                  onChange={(e) => onUpdateCell(rowIndex, colIdx, e.target.value)}
-                  className="min-w-0 flex-1 resize-none rounded border border-gray-200 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
-                />
-              ) : (
-                <StoryBoardFieldValue
-                  value={value}
-                  label={header}
-                  viewFullLabel={t('briefDialog.layout.viewFull', 'View full')}
-                />
-              )}
-            </div>
-          );
-        })}
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-1.5">
+          {textColumns.map(({ header, colIdx }) => {
+            const value = row[colIdx] ?? '';
+            return (
+              <React.Fragment key={colIdx}>
+                <span className="whitespace-nowrap pt-0.5 text-[11px] font-semibold text-gray-500">
+                  {header}:
+                </span>
+                {isEditing ? (
+                  <AutoResizeTextarea
+                    value={value}
+                    minRows={1}
+                    onChange={(e) => onUpdateCell(rowIndex, colIdx, e.target.value)}
+                    className="min-w-0 w-full resize-none rounded border border-gray-200 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
+                  />
+                ) : (
+                  <StoryBoardFieldValue
+                    value={value}
+                    label={header}
+                    viewFullLabel={t('briefDialog.layout.viewFull', 'View full')}
+                  />
+                )}
+              </React.Fragment>
+            );
+          })}
 
-        <div className="flex min-w-0 items-start gap-1.5">
-          <span className="shrink-0 pt-0.5 text-[11px] font-semibold text-gray-500">
+          <span className="whitespace-nowrap pt-0.5 text-[11px] font-semibold text-gray-500">
             {t('briefDialog.layout.character', 'Character')}:
           </span>
-          <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="min-w-0 space-y-1.5">
             {selectedCharacters.length === 0 ? (
               <span className="text-sm text-gray-400">—</span>
             ) : (
