@@ -26,47 +26,40 @@ interface SubSidebarPanelProps {
   isSubItemLocked?: (item: NavSubItem) => boolean;
 }
 
-/** Logo + label: same `/pwa-192.png` expanded/collapsed; label animates when rail expands (mobile sheet always shows label). */
+/** Logo + label: icon column matches collapsed rail so logo stays centered while width animates. */
 function SidebarBrandHeader() {
   const { t } = useTranslation();
   const { state, isMobile } = useSidebar();
   const showBrandText = isMobile || state === "expanded";
 
   return (
-    <div className="flex min-h-[3.25rem] shrink-0 items-center border-b border-slate-300 px-2 py-2 dark:border-slate-600">
+    <div className="flex min-h-[3.25rem] shrink-0 items-center border-b border-slate-300 dark:border-slate-600">
       <Link
         to="/"
         className={cn(
-          "flex h-full min-h-0 w-full min-w-0 items-center overflow-hidden rounded-lg px-1 py-0 outline-none ring-offset-background",
-          "transition-[justify-content] duration-300 ease-out motion-reduce:transition-none",
+          "flex h-full min-h-0 w-full min-w-0 items-center overflow-hidden outline-none ring-offset-background",
           "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-          showBrandText ? "justify-start" : "justify-center",
         )}
       >
-        <img
-          src={SYNCKERJA_BRAND_LOGO_SRC}
-          alt={t("layout.appName")}
-          width={192}
-          height={192}
-          loading="eager"
-          decoding="sync"
-          draggable={false}
-          className={cn(
-            "shrink-0 object-contain select-none transform-gpu",
-            "transition-[width,height] duration-300 ease-out motion-reduce:transition-none",
-            // Icon rail: sedikit lebih besar saat collapse agar downscale dari 192px lebih tajam di DPR tinggi
-            showBrandText ? "h-8 w-8" : "h-9 w-9 max-h-[2.75rem] max-w-[2.75rem]",
-          )}
-          sizes={showBrandText ? "32px" : "40px"}
-        />
+        <span className="flex h-full w-[--sidebar-width-icon] shrink-0 items-center justify-center">
+          <img
+            src={SYNCKERJA_BRAND_LOGO_SRC}
+            alt={t("layout.appName")}
+            width={192}
+            height={192}
+            loading="eager"
+            decoding="sync"
+            draggable={false}
+            className="h-8 w-8 object-contain select-none"
+            sizes="32px"
+          />
+        </span>
         <span
           aria-hidden
           className={cn(
-            "select-none truncate text-sm font-semibold leading-none tracking-tight text-foreground",
-            "transition-[max-width,opacity,transform,margin] duration-300 ease-out motion-reduce:transition-none",
-            showBrandText
-              ? "ml-2 max-w-[min(14rem,calc(100%-2.5rem))] translate-x-0 opacity-100"
-              : "ml-0 max-w-0 -translate-x-2 opacity-0 overflow-hidden",
+            "min-w-0 flex-1 truncate pr-2 text-sm font-semibold leading-none tracking-tight text-foreground",
+            "transition-opacity duration-150 ease-out motion-reduce:transition-none",
+            showBrandText ? "opacity-100" : "opacity-0",
           )}
         >
           {t("layout.appName")}
@@ -254,7 +247,7 @@ export function AppSidebar() {
 
   const handleSubSidebarPanelTransitionEnd = (e: TransitionEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
-    if (e.propertyName !== "width") return;
+    if (e.propertyName !== "transform") return;
     if (!subSidebarOpen && !subSidebarPaintOpen) {
       setSubMenuSnapshot(null);
     }
@@ -302,19 +295,16 @@ export function AppSidebar() {
       >
         <Sidebar
           collapsible="icon"
-          className={cn(
-            "fixed left-0 top-16 z-40 h-full border-r-2 border-slate-300 bg-card shadow-none dark:border-slate-600",
-            "transition-[width] duration-300 ease-out motion-reduce:transition-none",
-          )}
+          className="fixed left-0 top-16 z-40 h-full border-r-2 border-slate-300 bg-card shadow-none dark:border-slate-600"
           style={{
             fontFamily: "system-ui, -apple-system, sans-serif",
             height: "calc(100vh - 4rem)",
           }}
         >
-          <SidebarContent className="flex w-full min-w-0 flex-col gap-0 overflow-hidden p-0">
+          <SidebarContent className="flex w-[--sidebar-width] min-w-[--sidebar-width] flex-col gap-0 overflow-hidden p-0">
             <SidebarBrandHeader />
-            <div className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto seamless-scroll pb-4 pt-1">
-              <div className="w-full min-w-0 space-y-0.5 px-0">
+            <div className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto seamless-scroll pb-4 pt-1">
+              <div className="w-full space-y-0.5 px-0">
                 {visibleNavItems.map((item) => {
                   const localizedTitle = t(item.titleKey);
                   const hasSub = Boolean(item.subItems && item.subItems.length > 0);
@@ -322,10 +312,10 @@ export function AppSidebar() {
                   const moduleLocked = isNavModuleLocked(item.id);
 
                   return (
-                    <div key={item.id} className="w-full min-w-0">
+                    <div key={item.id} className="w-full">
                       <div
                         onMouseEnter={() => handleMenuItemHover(item.id, hasSub)}
-                        className="group/item relative w-full min-w-0"
+                        className="group/item relative w-full"
                       >
                         {item.path && item.path !== "#" ? (
                           <button
@@ -334,91 +324,90 @@ export function AppSidebar() {
                             onFocus={() => prefetchAppRoute(item.path!)}
                             onClick={() => navigate(item.path!)}
                             className={cn(
-                              "group relative flex h-11 w-full min-w-0 transform-none items-center justify-between rounded-none border-l-4 border-transparent px-2 text-left text-sm font-medium leading-none",
-                              "text-foreground transition-[background-color,color] duration-200 ease-in-out motion-reduce:transition-none",
+                              "group relative flex h-11 w-full items-center rounded-none text-left text-sm font-medium leading-none",
+                              "text-foreground transition-[background-color,color] duration-150 ease-out motion-reduce:transition-none",
                               "hover:bg-brand-blue/10 hover:text-brand-blue",
-                              "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
-                              parentActive && "border-l-brand-blue bg-brand-blue/10 text-brand-blue",
+                              parentActive && "bg-brand-blue/10 text-brand-blue",
                             )}
                           >
-                            <div className="flex min-w-0 items-center">
-                              <item.icon
-                                className={cn(
-                                  "mr-3 h-4 w-4 shrink-0 transform-none transition-colors duration-200 ease-in-out motion-reduce:transition-none",
-                                  "group-data-[collapsible=icon]:mx-auto",
-                                )}
-                              />
-                              <span
-                                className={cn(
-                                  "w-auto whitespace-nowrap text-sm font-medium leading-none opacity-100",
-                                  "transition-[max-width,opacity,margin] duration-300 ease-out motion-reduce:transition-none",
-                                  "group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:max-w-0 group-data-[collapsible=icon]:overflow-hidden group-data-[collapsible=icon]:opacity-0",
-                                )}
-                              >
+                            {/* Fixed icon rail = collapsed width → icon stays centered while sidebar expands/collapses */}
+                            <span className="flex h-full w-[--sidebar-width-icon] shrink-0 items-center justify-center">
+                              <item.icon className="h-4 w-4 shrink-0 transition-colors duration-150 ease-out motion-reduce:transition-none" />
+                            </span>
+                            <span
+                              className={cn(
+                                "flex min-w-0 flex-1 items-center justify-between pr-2",
+                                "transition-opacity duration-150 ease-out motion-reduce:transition-none",
+                                "group-data-[collapsible=icon]:opacity-0",
+                              )}
+                            >
+                              <span className="truncate whitespace-nowrap text-sm font-medium leading-none">
                                 {localizedTitle}
                               </span>
-                            </div>
-                            {(hasSub || moduleLocked) && (
-                              <div className="ml-auto flex shrink-0 items-center gap-1 group-data-[collapsible=icon]:hidden">
-                                {moduleLocked ? (
-                                  <Lock className="h-3 w-3 text-amber-700" aria-hidden />
-                                ) : null}
-                                {hasSub ? (
-                                  <ChevronRight
-                                    className={cn(
-                                      "h-3 w-3 shrink-0 transform-none text-muted-foreground opacity-60 transition-[color,opacity] duration-200 ease-in-out motion-reduce:transition-none",
-                                      parentActive && "text-brand-blue opacity-100",
-                                      "group-hover:text-brand-blue group-hover:opacity-100",
-                                    )}
-                                  />
-                                ) : null}
-                              </div>
-                            )}
+                              {(hasSub || moduleLocked) && (
+                                <span className="ml-auto flex shrink-0 items-center gap-1">
+                                  {moduleLocked ? (
+                                    <Lock className="h-3 w-3 text-amber-700" aria-hidden />
+                                  ) : null}
+                                  {hasSub ? (
+                                    <ChevronRight
+                                      className={cn(
+                                        "h-3 w-3 shrink-0 text-muted-foreground opacity-60 transition-[color,opacity] duration-150 ease-out motion-reduce:transition-none",
+                                        parentActive && "text-brand-blue opacity-100",
+                                        "group-hover:text-brand-blue group-hover:opacity-100",
+                                      )}
+                                    />
+                                  ) : null}
+                                </span>
+                              )}
+                            </span>
+                            {parentActive ? (
+                              <span className="absolute bottom-0 left-0 top-0 w-1 bg-brand-blue" aria-hidden />
+                            ) : null}
                           </button>
                         ) : (
                           <div
                             className={cn(
-                              "group relative flex h-11 w-full min-w-0 transform-none cursor-default items-center justify-between rounded-none border-l-4 border-transparent px-2 text-sm font-medium leading-none",
-                              "text-foreground transition-[background-color,color] duration-200 ease-in-out motion-reduce:transition-none",
+                              "group relative flex h-11 w-full cursor-default items-center rounded-none text-sm font-medium leading-none",
+                              "text-foreground transition-[background-color,color] duration-150 ease-out motion-reduce:transition-none",
                               "hover:bg-brand-blue/10 hover:text-brand-blue",
-                              "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
                               (activeSubSidebar === item.id || parentActive) &&
-                                "border-l-brand-blue bg-brand-blue/10 text-brand-blue",
+                                "bg-brand-blue/10 text-brand-blue",
                             )}
                           >
-                            <div className="flex min-w-0 items-center">
-                              <item.icon
-                                className={cn(
-                                  "mr-3 h-4 w-4 shrink-0 transform-none transition-colors duration-200 ease-in-out motion-reduce:transition-none",
-                                  "group-data-[collapsible=icon]:mx-auto",
-                                )}
-                              />
-                              <span
-                                className={cn(
-                                  "w-auto whitespace-nowrap text-sm font-medium leading-none opacity-100",
-                                  "transition-[max-width,opacity,margin] duration-300 ease-out motion-reduce:transition-none",
-                                  "group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:max-w-0 group-data-[collapsible=icon]:overflow-hidden group-data-[collapsible=icon]:opacity-0",
-                                )}
-                              >
+                            <span className="flex h-full w-[--sidebar-width-icon] shrink-0 items-center justify-center">
+                              <item.icon className="h-4 w-4 shrink-0 transition-colors duration-150 ease-out motion-reduce:transition-none" />
+                            </span>
+                            <span
+                              className={cn(
+                                "flex min-w-0 flex-1 items-center justify-between pr-2",
+                                "transition-opacity duration-150 ease-out motion-reduce:transition-none",
+                                "group-data-[collapsible=icon]:opacity-0",
+                              )}
+                            >
+                              <span className="truncate whitespace-nowrap text-sm font-medium leading-none">
                                 {localizedTitle}
                               </span>
-                            </div>
-                            {(hasSub || moduleLocked) && (
-                              <div className="ml-auto flex shrink-0 items-center gap-1 group-data-[collapsible=icon]:hidden">
-                                {moduleLocked ? (
-                                  <Lock className="h-3 w-3 text-amber-700" aria-hidden />
-                                ) : null}
-                                {hasSub ? (
-                                  <ChevronRight
-                                    className={cn(
-                                      "h-3 w-3 shrink-0 transform-none text-muted-foreground opacity-60 transition-[color,opacity] duration-200 ease-in-out motion-reduce:transition-none",
-                                      parentActive && "text-brand-blue opacity-100",
-                                      "group-hover:text-brand-blue group-hover:opacity-100",
-                                    )}
-                                  />
-                                ) : null}
-                              </div>
-                            )}
+                              {(hasSub || moduleLocked) && (
+                                <span className="ml-auto flex shrink-0 items-center gap-1">
+                                  {moduleLocked ? (
+                                    <Lock className="h-3 w-3 text-amber-700" aria-hidden />
+                                  ) : null}
+                                  {hasSub ? (
+                                    <ChevronRight
+                                      className={cn(
+                                        "h-3 w-3 shrink-0 text-muted-foreground opacity-60 transition-[color,opacity] duration-150 ease-out motion-reduce:transition-none",
+                                        parentActive && "text-brand-blue opacity-100",
+                                        "group-hover:text-brand-blue group-hover:opacity-100",
+                                      )}
+                                    />
+                                  ) : null}
+                                </span>
+                              )}
+                            </span>
+                            {activeSubSidebar === item.id || parentActive ? (
+                              <span className="absolute bottom-0 left-0 top-0 w-1 bg-brand-blue" aria-hidden />
+                            ) : null}
                           </div>
                         )}
                       </div>
@@ -436,22 +425,28 @@ export function AppSidebar() {
           aria-hidden={!subSidebarOpen}
           onMouseEnter={handleSubSidebarMouseEnter}
           onMouseLeave={handleSubSidebarMouseLeave}
-          onTransitionEnd={handleSubSidebarPanelTransitionEnd}
           className={cn(
-            "pointer-events-none absolute left-full top-0 z-50 overflow-hidden",
-            "h-full w-0 transform-gpu",
-            "transition-[width] duration-300 ease-out motion-reduce:transition-none",
-            subSidebarMeasuredOpen ? "pointer-events-auto w-64" : "w-0",
+            "absolute left-full top-0 z-50 h-full w-64 overflow-hidden",
+            subSidebarMeasuredOpen ? "pointer-events-auto" : "pointer-events-none",
           )}
         >
-          {panelContentMenu?.subItems && (
-            <SubSidebarPanel
-              key={panelContentMenu.id}
-              items={panelContentMenu.subItems}
-              titleKey={panelContentMenu.titleKey}
-              isSubItemLocked={isSubItemLocked}
-            />
-          )}
+          <div
+            onTransitionEnd={handleSubSidebarPanelTransitionEnd}
+            className={cn(
+              "h-full w-64 transform-gpu [will-change:transform] [backface-visibility:hidden]",
+              "transition-transform duration-300 ease-out motion-reduce:transition-none",
+              subSidebarMeasuredOpen ? "translate-x-0" : "-translate-x-full",
+            )}
+          >
+            {panelContentMenu?.subItems && (
+              <SubSidebarPanel
+                key={panelContentMenu.id}
+                items={panelContentMenu.subItems}
+                titleKey={panelContentMenu.titleKey}
+                isSubItemLocked={isSubItemLocked}
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>

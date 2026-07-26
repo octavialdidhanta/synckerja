@@ -300,20 +300,10 @@ function SettingsBody() {
                   {Array.from({ length: 8 }).map((_, i) => (
                     <div
                       key={i}
-                      className={cn(
-                        "w-full rounded-md p-3",
-                        i === 0
-                          ? "border-2 border-primary/50 bg-accent shadow-sm"
-                          : "border border-border bg-card",
-                      )}
+                      className="w-full rounded-md border border-border bg-card p-3"
                     >
                       <div className="flex items-start space-x-3">
-                        <Skeleton
-                          className={cn(
-                            "h-9 w-9 shrink-0 rounded-md",
-                            i === 0 ? "bg-primary/15" : "bg-muted",
-                          )}
-                        />
+                        <Skeleton className="h-9 w-9 shrink-0 rounded-md bg-muted" />
                         <div className="min-w-0 flex-1 space-y-2">
                           <div className="flex items-center justify-between gap-2">
                             <Skeleton className="h-4 w-36 max-w-[85%]" />

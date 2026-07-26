@@ -1,5 +1,6 @@
 
-import { useState, type ElementType } from "react";
+import { useMemo, type ElementType } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   MapPin,
   Calendar,
@@ -45,100 +46,139 @@ const SETTINGS_CARD_TITLE_CLASS =
   "m-0 truncate text-sm font-semibold leading-tight text-foreground";
 const SETTINGS_CARD_SUBTITLE_CLASS = "mb-0 mt-1 text-xs leading-snug text-muted-foreground";
 
+const SETTINGS_SECTION_IDS = [
+  "work-schedule",
+  "shift-settings",
+  "attendance-rules",
+  "penalty-settings",
+  "office-locations",
+  "client-management",
+  "visit-scheduling",
+  "ip-address-settings",
+] as const;
+
+type SettingsSectionId = (typeof SETTINGS_SECTION_IDS)[number];
+
+function isSettingsSectionId(value: string | null): value is SettingsSectionId {
+  return SETTINGS_SECTION_IDS.includes(value as SettingsSectionId);
+}
+
 export const AttendanceSettingsLayout = ({ children }: AttendanceSettingsLayoutProps) => {
   const { t } = useAppTranslation();
-  const [activeSection, setActiveSection] = useState("work-schedule");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sectionParam = searchParams.get("section");
+  const activeSection: SettingsSectionId = isSettingsSectionId(sectionParam)
+    ? sectionParam
+    : "work-schedule";
 
-  const settingsSections: SettingsSection[] = [
-    {
-      id: "work-schedule",
-      title: t("attendanceSettings.workSchedule.title", "Work Schedule"),
-      description: t(
-        "attendanceSettings.workSchedule.description",
-        "Configure working days, working hours, and holidays",
-      ),
-      icon: Calendar,
-      status: "active",
-      component: <WorkScheduleSettings />,
-    },
-    {
-      id: "shift-settings",
-      title: t("attendanceSettings.shiftSettings.title", "Shift Settings"),
-      description: t(
-        "attendanceSettings.shiftSettings.description",
-        "Manage work shifts and employee assignments",
-      ),
-      icon: UserCog,
-      status: "active",
-      component: <ShiftSettings />,
-    },
-    {
-      id: "attendance-rules",
-      title: t("attendanceSettings.attendanceRules.title", "Attendance Rules"),
-      description: t(
-        "attendanceSettings.attendanceRules.description",
-        "Configure validation and attendance requirements",
-      ),
-      icon: ClipboardList,
-      status: "active",
-      component: <AttendanceRulesSettings />,
-    },
-    {
-      id: "penalty-settings",
-      title: t("attendanceSettings.penaltySettings.title", "Penalty Settings"),
-      description: t(
-        "attendanceSettings.penaltySettings.description",
-        "Complete configuration of late penalty system",
-      ),
-      icon: DollarSign,
-      status: "active",
-      component: <ComprehensivePenaltySettings />,
-    },
-    {
-      id: "office-locations",
-      title: t("attendanceSettings.officeLocations.title", "Office Locations"),
-      description: t(
-        "attendanceSettings.officeLocations.description",
-        "Manage office locations with interactive map",
-      ),
-      icon: MapPin,
-      status: "active",
-      component: <OptimizedOfficeLocationsList />,
-    },
-    {
-      id: "client-management",
-      title: t("attendanceSettings.clientManagement.title", "Client Management"),
-      description: t(
-        "attendanceSettings.clientManagement.description",
-        "Manage clients and their locations",
-      ),
-      icon: Building,
-      status: "active",
-      component: <ClientManagement />,
-    },
-    {
-      id: "visit-scheduling",
-      title: t("attendanceSettings.visitScheduling.title", "Visit Scheduling"),
-      description: t(
-        "attendanceSettings.visitScheduling.description",
-        "Schedule and track employee visits",
-      ),
-      icon: Calendar,
-      status: "active",
-      component: <VisitScheduling />,
-    },
-    {
-      id: "ip-address-settings",
-      title: t("attendanceSettings.ipAddressSettings.title", "IP Address Settings"),
-      description: t(
-        "attendanceSettings.ipAddressSettings.description",
-        "Manage list of allowed IP addresses for attendance",
-      ),
-      icon: Wifi,
-      status: "active",
-      component: <IPAddressSettings />,
-    },
-  ];
+  const setActiveSection = (id: SettingsSectionId) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (id === "work-schedule") {
+          next.delete("section");
+        } else {
+          next.set("section", id);
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  const settingsSections: SettingsSection[] = useMemo(
+    () => [
+      {
+        id: "work-schedule",
+        title: t("attendanceSettings.workSchedule.title", "Work Schedule"),
+        description: t(
+          "attendanceSettings.workSchedule.description",
+          "Configure working days, working hours, and holidays",
+        ),
+        icon: Calendar,
+        status: "active",
+        component: <WorkScheduleSettings />,
+      },
+      {
+        id: "shift-settings",
+        title: t("attendanceSettings.shiftSettings.title", "Shift Settings"),
+        description: t(
+          "attendanceSettings.shiftSettings.description",
+          "Manage work shifts and employee assignments",
+        ),
+        icon: UserCog,
+        status: "active",
+        component: <ShiftSettings />,
+      },
+      {
+        id: "attendance-rules",
+        title: t("attendanceSettings.attendanceRules.title", "Attendance Rules"),
+        description: t(
+          "attendanceSettings.attendanceRules.description",
+          "Configure validation and attendance requirements",
+        ),
+        icon: ClipboardList,
+        status: "active",
+        component: <AttendanceRulesSettings />,
+      },
+      {
+        id: "penalty-settings",
+        title: t("attendanceSettings.penaltySettings.title", "Penalty Settings"),
+        description: t(
+          "attendanceSettings.penaltySettings.description",
+          "Complete configuration of late penalty system",
+        ),
+        icon: DollarSign,
+        status: "active",
+        component: <ComprehensivePenaltySettings />,
+      },
+      {
+        id: "office-locations",
+        title: t("attendanceSettings.officeLocations.title", "Office Locations"),
+        description: t(
+          "attendanceSettings.officeLocations.description",
+          "Manage office locations with interactive map",
+        ),
+        icon: MapPin,
+        status: "active",
+        component: <OptimizedOfficeLocationsList />,
+      },
+      {
+        id: "client-management",
+        title: t("attendanceSettings.clientManagement.title", "Client Management"),
+        description: t(
+          "attendanceSettings.clientManagement.description",
+          "Manage clients and their locations",
+        ),
+        icon: Building,
+        status: "active",
+        component: <ClientManagement />,
+      },
+      {
+        id: "visit-scheduling",
+        title: t("attendanceSettings.visitScheduling.title", "Visit Scheduling"),
+        description: t(
+          "attendanceSettings.visitScheduling.description",
+          "Schedule and track employee visits",
+        ),
+        icon: Calendar,
+        status: "active",
+        component: <VisitScheduling />,
+      },
+      {
+        id: "ip-address-settings",
+        title: t("attendanceSettings.ipAddressSettings.title", "IP Address Settings"),
+        description: t(
+          "attendanceSettings.ipAddressSettings.description",
+          "Manage list of allowed IP addresses for attendance",
+        ),
+        icon: Wifi,
+        status: "active",
+        component: <IPAddressSettings />,
+      },
+    ],
+    [t],
+  );
 
   const getStatusLabel = (status?: string) => {
     switch (status) {
@@ -196,7 +236,7 @@ export const AttendanceSettingsLayout = ({ children }: AttendanceSettingsLayoutP
                       <button
                         key={section.id}
                         type="button"
-                        onClick={() => setActiveSection(section.id)}
+                        onClick={() => setActiveSection(section.id as SettingsSectionId)}
                         className={cn(
                           "group w-full rounded-md p-3 text-left transition-all duration-200 ease-out",
                           isActive

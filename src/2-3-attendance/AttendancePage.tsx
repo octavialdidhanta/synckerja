@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { HeaderAndTab } from "./section/HeaderAndTab";
 import { DashboardOverview } from "@/2-3-dashboard";
@@ -34,6 +34,8 @@ function AttendancePageContent() {
 
   const activeTab = attendanceTabFromPathname(location.pathname);
   const [settingsSkeletonVisible, setSettingsSkeletonVisible] = useState(true);
+  /** After first settings paint, section switches must not re-cover the nav with a full-page skeleton. */
+  const settingsEverReadyRef = useRef(false);
 
   /** Navigation is performed inside `HeaderAndTab` via `navigate()`; tab state is URL-derived. */
   const handleTabChange = useCallback((_tab: string) => {}, []);
@@ -48,16 +50,21 @@ function AttendancePageContent() {
 
   useEffect(() => {
     if (!isSettingsRoute) {
+      settingsEverReadyRef.current = false;
       setSettingsSkeletonVisible(true);
       return;
     }
 
     if (rawLoading) {
-      setSettingsSkeletonVisible(true);
+      // Keep nav/selection visible when switching Shift Settings etc. — only block first entry.
+      if (!settingsEverReadyRef.current) {
+        setSettingsSkeletonVisible(true);
+      }
       return;
     }
 
     const timer = window.setTimeout(() => {
+      settingsEverReadyRef.current = true;
       setSettingsSkeletonVisible(false);
     }, 180);
 
