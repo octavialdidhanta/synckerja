@@ -18,6 +18,19 @@ export interface DigitalAssetCharacter {
   updated_at?: string;
 }
 
+export interface DigitalAssetCharacterImage {
+  id: string;
+  organization_id: string;
+  character_id: string;
+  storage_path: string;
+  pose_key: string;
+  label_custom: string | null;
+  sort_order: number;
+  is_primary: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface DigitalAssetObject {
   id: string;
   organization_id: string;

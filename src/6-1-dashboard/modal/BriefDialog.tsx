@@ -6,6 +6,12 @@ import { Button } from '@/shared/components/ui/button';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { MessageCircle, Send, Trash2, FileText, Globe, RotateCcw, CheckCircle, ExternalLink, CircleCheck } from 'lucide-react';
 import { parseMarkdownTable, stringifyMarkdownTable, replaceTableInMarkdown } from '../utils/markdownTableUtils';
+import { upsertBriefSequencesInMarkdown, stripBriefSequencesComment, type BriefSequence } from './briefSequences';
+import {
+  upsertBriefSceneMetaInMarkdown,
+  stripBriefSceneMetaComment,
+  type BriefSceneMeta,
+} from './briefSceneMeta';
 import { stripBriefIntroductorySentence, extractBriefTitle, removeBriefTitleFromStart, stripBreakdownScriptLabel, makeBriefSectionsInline } from '@/shared/utils/briefUtils';
 import { EditableBriefTable } from './EditableBriefTable';
 import { BriefStoryboardEmptyState } from './BriefStoryboardEmptyState';
@@ -61,7 +67,6 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   const [newComment, setNewComment] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [accordionOpen, setAccordionOpen] = useState<string>('brief');
-  const [briefViewMode, setBriefViewMode] = useState<'rendered' | 'raw'>('rendered');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [showApprovalButtons, setShowApprovalButtons] = useState(false);
   const [createTableOpen, setCreateTableOpen] = useState(false);
@@ -111,7 +116,6 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
       setNewComment('');
       setShowPreview(false);
       setAccordionOpen('brief');
-      setBriefViewMode('rendered');
       setCreateTableOpen(false);
       setIsStoryboardTableEditing(false);
       prevOpenedRef.current = { isOpen: false };
@@ -544,14 +548,28 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   };
 
   const parsedTable = useMemo(() => parseMarkdownTable(briefText), [briefText]);
-  const briefTitle = useMemo(() => extractBriefTitle(briefText), [briefText]);
+  const briefTitle = useMemo(
+    () =>
+      extractBriefTitle(
+        stripBriefSceneMetaComment(stripBriefSequencesComment(briefText)),
+      ),
+    [briefText],
+  );
   const briefProseBeforeTable = useMemo(() => {
     if (!parsedTable || parsedTable.startIndex <= 0) return '';
     return makeBriefSectionsInline(
       stripBreakdownScriptLabel(
-        removeBriefTitleFromStart(briefText.slice(0, parsedTable.startIndex)),
+        removeBriefTitleFromStart(
+          stripBriefSceneMetaComment(
+            stripBriefSequencesComment(briefText.slice(0, parsedTable.startIndex)),
+          ),
+        ),
       ),
     ).trim();
+  }, [briefText, parsedTable]);
+  const briefProseAfterTable = useMemo(() => {
+    if (!parsedTable || parsedTable.endIndex >= briefText.length) return '';
+    return stripBriefSceneMetaComment(stripBriefSequencesComment(briefText.slice(parsedTable.endIndex))).trim();
   }, [briefText, parsedTable]);
 
   const normalizeTableDataForSave = (
@@ -598,13 +616,24 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
     return `${trimmed}\n\n${newTableMarkdown}`;
   };
 
-  const handleTableSave = (newTableData: string[][]) => {
-    setBriefText((prev) => applyTableToBrief(prev, newTableData, parseMarkdownTable(prev)));
+  const handleTableSave = (
+    newTableData: string[][],
+    meta?: { sequences: BriefSequence[]; sceneMeta?: BriefSceneMeta[] },
+  ) => {
+    setBriefText((prev) => {
+      let next = applyTableToBrief(prev, newTableData, parseMarkdownTable(prev));
+      if (meta?.sequences) {
+        next = upsertBriefSequencesInMarkdown(next, meta.sequences);
+      }
+      if (meta?.sceneMeta) {
+        next = upsertBriefSceneMetaInMarkdown(next, meta.sceneMeta);
+      }
+      return next;
+    });
   };
 
   const handleCreateStoryboardTable = (tableData: string[][]) => {
     setBriefText((prev) => applyTableToBrief(prev, tableData, null));
-    setBriefViewMode('rendered');
     setCreateTableOpen(false);
   };
 
@@ -799,39 +828,17 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                     >
                       <AccordionItem value="brief" className="border border-gray-200 rounded-lg px-4 bg-white flex flex-col flex-shrink-0 data-[state=open]:flex-1 data-[state=open]:min-h-[calc(100dvh-10rem)]">
                         <AccordionTrigger className="flex-shrink-0 py-3 text-sm font-medium text-gray-800 hover:no-underline [&>svg]:ml-2">
-                          <div className="flex min-w-0 flex-1 items-center justify-between gap-3 pr-1">
-                            <span className="flex min-w-0 items-center gap-2">
-                              {briefText.trim() ? (
-                                <CircleCheck className="h-4 w-4 shrink-0 text-green-600" aria-hidden />
-                              ) : (
-                                <span className="h-4 w-4 shrink-0 rounded-full border-2 border-gray-300" aria-hidden />
-                              )}
-                              <span className="min-w-0 truncate text-left whitespace-nowrap">
-                                {t('briefDialog.sectionBriefContent', 'Brief Content')}
-                                {briefTitle ? (
-                                  <span className="font-semibold text-gray-900">{` - ${briefTitle}`}</span>
-                                ) : null}
-                              </span>
-                            </span>
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              className="shrink-0 cursor-pointer rounded px-1 py-0.5 text-xs text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setBriefViewMode(briefViewMode === 'rendered' ? 'raw' : 'rendered');
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setBriefViewMode(briefViewMode === 'rendered' ? 'raw' : 'rendered');
-                                }
-                              }}
-                            >
-                              {briefViewMode === 'rendered'
-                                ? t('briefDialog.editFullMarkdown', 'Edit full markdown')
-                                : t('briefDialog.viewRendered', 'View rendered')}
+                          <div className="flex min-w-0 flex-1 items-center gap-2 pr-1">
+                            {briefText.trim() ? (
+                              <CircleCheck className="h-4 w-4 shrink-0 text-green-600" aria-hidden />
+                            ) : (
+                              <span className="h-4 w-4 shrink-0 rounded-full border-2 border-gray-300" aria-hidden />
+                            )}
+                            <span className="min-w-0 truncate text-left whitespace-nowrap">
+                              {t('briefDialog.sectionBriefContent', 'Brief Content')}
+                              {briefTitle ? (
+                                <span className="font-semibold text-gray-900">{` - ${briefTitle}`}</span>
+                              ) : null}
                             </span>
                           </div>
                         </AccordionTrigger>
@@ -843,14 +850,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                             className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain max-h-[calc(100dvh-12rem)]"
                             style={{ overflowAnchor: 'none' } as React.CSSProperties}
                           >
-                            {briefViewMode === 'raw' ? (
-                              <Textarea
-                                value={briefText}
-                                onChange={(e) => setBriefText(e.target.value)}
-                                placeholder={t('briefDialog.placeholderBrief', 'Enter brief content here...')}
-                                className="w-full h-full min-h-[240px] resize-none border-gray-200 text-sm"
-                              />
-                            ) : parsedTable ? (
+                            {parsedTable ? (
                               <>
                                 {briefProseBeforeTable ? (
                                   <div className="prose prose-sm max-w-none mb-1 prose-p:my-0.5 prose-headings:mt-1 prose-headings:mb-0.5 prose-ul:my-0.5 prose-ol:my-0.5 flex-shrink-0">
@@ -867,6 +867,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                   tableData={parsedTable.table}
                                   onSave={handleTableSave}
                                   storyboardToolbar
+                                  sequencesSource={briefText}
                                   onEditingChange={setIsStoryboardTableEditing}
                                   planId={socialMediaPlanId}
                                   rowImagesMap={rowImagesMap}
@@ -880,32 +881,37 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                   className="!my-1"
                                 />
                                 </div>
-                                {parsedTable.endIndex < briefText.length && (
+                                {briefProseAfterTable ? (
                                   <div className="prose prose-sm max-w-none mt-1 flex-shrink-0 prose-p:my-0.5 prose-headings:mt-1 prose-headings:mb-0.5">
                                     <ReactMarkdown
                                       remarkPlugins={[remarkGfm]}
                                       components={briefMarkdownComponents}
                                     >
-                                      {briefText.slice(parsedTable.endIndex)}
+                                      {briefProseAfterTable}
                                     </ReactMarkdown>
                                   </div>
-                                )}
+                                ) : null}
                               </>
                             ) : (
                               <>
-                                {briefText.trim() ? (
+                                {stripBriefSceneMetaComment(stripBriefSequencesComment(briefText)).trim() ? (
                                   <div className="prose prose-sm max-w-none">
                                     <ReactMarkdown
                                       remarkPlugins={[remarkGfm]}
                                       components={briefMarkdownComponents}
                                     >
-                                      {makeBriefSectionsInline(stripBreakdownScriptLabel(removeBriefTitleFromStart(briefText)))}
+                                      {makeBriefSectionsInline(
+                                        stripBreakdownScriptLabel(
+                                          removeBriefTitleFromStart(
+                                            stripBriefSceneMetaComment(stripBriefSequencesComment(briefText)),
+                                          ),
+                                        ),
+                                      )}
                                     </ReactMarkdown>
                                   </div>
                                 ) : null}
                                 <BriefStoryboardEmptyState
                                   onCreateTable={() => setCreateTableOpen(true)}
-                                  onEditMarkdown={() => setBriefViewMode('raw')}
                                 />
                               </>
                             )}

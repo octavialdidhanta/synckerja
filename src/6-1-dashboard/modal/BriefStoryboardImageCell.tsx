@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ImagePlus, Loader2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ImagePlus, Loader2, Upload, X } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import type { BriefStoryboardImageWithUrl } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
+import { Button } from '@/shared/components/ui/button';
 
 interface BriefStoryboardImageCellProps {
   rowIndex: number;
@@ -12,6 +13,11 @@ interface BriefStoryboardImageCellProps {
   isDeleting?: boolean;
   onUploadFiles?: (rowIndex: number, files: File[]) => Promise<unknown>;
   onDeleteImage?: (imageId: string) => Promise<unknown>;
+  /** 16:9 frame for Story Board cards */
+  aspectVideo?: boolean;
+  /** Explicit Upload button (Story Board discoverability) */
+  showUploadButton?: boolean;
+  uploadButtonLabel?: string;
 }
 
 const acceptedMimeTypes = ['image/png', 'image/jpeg', 'image/webp'];
@@ -29,17 +35,25 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
   isDeleting = false,
   onUploadFiles,
   onDeleteImage,
+  aspectVideo = false,
+  showUploadButton = false,
+  uploadButtonLabel = 'Upload',
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const singleClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [showThumbnails, setShowThumbnails] = useState(false);
 
   useEffect(() => {
     if (activeIndex > images.length - 1) {
       setActiveIndex(Math.max(0, images.length - 1));
     }
   }, [activeIndex, images.length]);
+
+  useEffect(() => {
+    if (images.length <= 1) setShowThumbnails(false);
+  }, [images.length]);
 
   useEffect(() => {
     return () => {
@@ -121,7 +135,7 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
 
   return (
     <div
-      tabIndex={editable ? 0 : undefined}
+      tabIndex={editable || images.length > 1 ? 0 : undefined}
       onPaste={handlePaste}
       onDrop={handleDrop}
       onDragEnter={(event) => {
@@ -139,23 +153,25 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
         setIsDragActive(false);
       }}
       onKeyDown={(event) => {
+        if (event.key === 'ArrowLeft' && images.length > 1) {
+          event.preventDefault();
+          setActiveIndex((prev) => Math.max(0, prev - 1));
+          return;
+        }
+        if (event.key === 'ArrowRight' && images.length > 1) {
+          event.preventDefault();
+          setActiveIndex((prev) => Math.min(images.length - 1, prev + 1));
+          return;
+        }
         if (!canInteract) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           openFilePicker();
         }
-        if (event.key === 'ArrowLeft' && images.length > 1) {
-          event.preventDefault();
-          setActiveIndex((prev) => Math.max(0, prev - 1));
-        }
-        if (event.key === 'ArrowRight' && images.length > 1) {
-          event.preventDefault();
-          setActiveIndex((prev) => Math.min(images.length - 1, prev + 1));
-        }
       }}
       className={cn(
         'group relative w-full rounded-lg border border-dashed border-gray-300 bg-gray-50 p-2 outline-none transition-colors',
-        canInteract && 'focus:ring-2 focus:ring-blue-500',
+        (canInteract || images.length > 1) && 'focus:ring-2 focus:ring-blue-500',
         isDragActive && 'border-blue-500 bg-blue-50',
       )}
     >
@@ -181,23 +197,35 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
           'relative w-full overflow-hidden rounded-md border border-gray-200 bg-white',
           canInteract && 'cursor-pointer',
           images.length > 1 && 'cursor-ew-resize',
-          !activeImage && 'flex min-h-[160px] items-center justify-center',
+          aspectVideo && 'aspect-video',
+          !activeImage && !aspectVideo && 'flex min-h-[160px] items-center justify-center',
+          !activeImage && aspectVideo && 'flex items-center justify-center',
         )}
       >
         {activeImage ? (
-          <div className="max-h-[480px] w-full overflow-hidden">
+          <div className={cn('w-full overflow-hidden', aspectVideo ? 'absolute inset-0' : 'max-h-[480px]')}>
             <img
               src={activeImage.publicUrl}
               alt={activeImage.file_name || `Storyboard image ${activeIndex + 1}`}
-              className="block h-auto w-full object-cover object-center"
+              className={cn(
+                'block w-full object-cover object-center',
+                aspectVideo ? 'h-full' : 'h-auto',
+              )}
               loading="lazy"
               draggable={false}
             />
           </div>
         ) : (
-          <div className="flex h-full min-h-[160px] w-full flex-col items-center justify-center gap-2 px-4 py-6 text-center text-sm text-gray-500">
-            <ImagePlus className="h-6 w-6 text-gray-400" />
-            <span>Double-click, paste, atau drag gambar ke sini</span>
+          <div
+            className={cn(
+              'flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center text-sm text-gray-500',
+              aspectVideo ? 'py-3' : 'min-h-[160px] px-4 py-6',
+            )}
+          >
+            <ImagePlus className={cn('text-gray-400', aspectVideo ? 'h-5 w-5' : 'h-6 w-6')} />
+            <span className={cn(aspectVideo && 'text-xs leading-snug')}>
+              Double-click, paste, atau drag gambar ke sini
+            </span>
             <span className="text-xs text-gray-400">PNG, JPG, WEBP sampai 5MB</span>
           </div>
         )}
@@ -218,26 +246,67 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
         ) : null}
 
         {images.length > 1 ? (
-          <div
-            className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex items-center justify-center gap-1.5"
-            aria-hidden
-          >
-            {images.map((image, index) => (
+          <>
+            {activeIndex > 0 ? (
               <button
-                key={image.id}
                 type="button"
-                title={`Image ${index + 1}`}
+                title="Previous image"
+                aria-label="Previous image"
                 onClick={(event) => {
                   event.stopPropagation();
-                  setActiveIndex(index);
+                  setActiveIndex((prev) => Math.max(0, prev - 1));
                 }}
                 className={cn(
-                  'pointer-events-auto h-1.5 w-1.5 rounded-full shadow-sm transition-all',
-                  index === activeIndex ? 'w-3 bg-white' : 'bg-white/55 hover:bg-white/80',
+                  'absolute left-1.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full',
+                  'bg-black/45 text-white shadow-sm transition-opacity hover:bg-black/65',
+                  'opacity-80 group-hover:opacity-100',
                 )}
-              />
-            ))}
-          </div>
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            ) : null}
+            {activeIndex < images.length - 1 ? (
+              <button
+                type="button"
+                title="Next image"
+                aria-label="Next image"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setActiveIndex((prev) => Math.min(images.length - 1, prev + 1));
+                }}
+                className={cn(
+                  'absolute right-1.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full',
+                  'bg-black/45 text-white shadow-sm transition-opacity hover:bg-black/65',
+                  'opacity-80 group-hover:opacity-100',
+                )}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            ) : null}
+            <div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex items-center justify-center gap-1.5">
+              {images.map((image, index) => (
+                <button
+                  key={image.id}
+                  type="button"
+                  title={`Image ${index + 1}`}
+                  aria-label={`Show image ${index + 1}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (showThumbnails && index === activeIndex) {
+                      setShowThumbnails(false);
+                      return;
+                    }
+                    setActiveIndex(index);
+                    setShowThumbnails(true);
+                  }}
+                  className={cn(
+                    'pointer-events-auto h-1.5 w-1.5 rounded-full shadow-sm transition-all',
+                    index === activeIndex ? 'w-3 bg-white' : 'bg-white/55 hover:bg-white/80',
+                  )}
+                />
+              ))}
+            </div>
+          </>
         ) : null}
 
         {(isUploading || isDeleting) && (
@@ -246,6 +315,56 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
           </div>
         )}
       </div>
+
+      {showThumbnails && images.length > 1 ? (
+        <div
+          className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {images.map((image, index) => (
+            <button
+              key={image.id}
+              type="button"
+              title={image.file_name || `Image ${index + 1}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setActiveIndex(index);
+              }}
+              className={cn(
+                'h-12 w-12 shrink-0 overflow-hidden rounded border bg-white transition-shadow',
+                index === activeIndex
+                  ? 'border-blue-500 ring-2 ring-blue-200'
+                  : 'border-gray-200 hover:border-gray-300',
+              )}
+            >
+              <img
+                src={image.publicUrl}
+                alt={image.file_name || `Thumbnail ${index + 1}`}
+                className="h-full w-full object-cover"
+                loading="lazy"
+                draggable={false}
+              />
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {showUploadButton && canInteract ? (        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-2 h-7 w-full gap-1 text-xs"
+          onClick={(event) => {
+            event.stopPropagation();
+            openFilePicker();
+          }}
+          disabled={disabled}
+        >
+          <Upload className="h-3.5 w-3.5" />
+          {uploadButtonLabel}
+        </Button>
+      ) : null}
     </div>
   );
 };

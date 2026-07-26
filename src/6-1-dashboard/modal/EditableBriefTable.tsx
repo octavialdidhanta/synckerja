@@ -5,6 +5,29 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 import { toast } from 'sonner';
 import { BriefStoryboardImageCell } from './BriefStoryboardImageCell';
+import { BriefStoryBoardView } from './BriefStoryBoardView';
+import { BriefSequenceHeader } from './BriefSequenceHeader';
+import {
+  readBriefLayoutMode,
+  writeBriefLayoutMode,
+  type BriefLayoutMode,
+} from './briefLayoutMode';
+import {
+  adjustSequencesForDeleteRow,
+  adjustSequencesForInsertRow,
+  createBriefSequence,
+  getSequenceRowRanges,
+  normalizeBriefSequences,
+  parseBriefSequencesFromMarkdown,
+  type BriefSequence,
+} from './briefSequences';
+import {
+  adjustSceneMetaForDeleteRow,
+  adjustSceneMetaForInsertRow,
+  parseBriefSceneMetaFromMarkdown,
+  setSceneCharacterIds,
+  type BriefSceneMeta,
+} from './briefSceneMeta';
 import type { BriefStoryboardImageWithUrl } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
 import {
   DropdownMenu,
@@ -14,6 +37,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/components/ui/tooltip';
 
 /** Fixed storyboard column widths (px). */
 const BRIEF_COLUMN_WIDTH_PX = {
@@ -100,7 +129,10 @@ function AutoResizeTextarea({
 
 interface EditableBriefTableProps {
   tableData: string[][];
-  onSave?: (newTableData: string[][]) => void;
+  onSave?: (
+    newTableData: string[][],
+    meta?: { sequences: BriefSequence[]; sceneMeta?: BriefSceneMeta[] },
+  ) => void;
   onChange?: (newTableData: string[][]) => void;
   /** When true, table is always editable (no Edit button), onChange called on every cell change */
   alwaysEditable?: boolean;
@@ -110,6 +142,8 @@ interface EditableBriefTableProps {
   controlsPlacement?: 'actionsColumn' | 'taggingColumn';
   /** BriefDialog storyboard toolbar: Add column/row, Columns menu, Edit/Save/Cancel above table */
   storyboardToolbar?: boolean;
+  /** Brief markdown used to hydrate Story Board sequences (HTML comment metadata). */
+  sequencesSource?: string;
   /** Notified when inline edit mode toggles (e.g. disable dialog footer actions) */
   onEditingChange?: (isEditing: boolean) => void;
   planId?: string;
@@ -133,6 +167,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   readOnly = false,
   controlsPlacement = 'actionsColumn',
   storyboardToolbar = false,
+  sequencesSource,
   onEditingChange,
   planId,
   imageColumnIndex = 1,
@@ -149,7 +184,30 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   const { t } = useAppTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<string[][]>([]);
+  const [layoutMode, setLayoutMode] = useState<BriefLayoutMode>(() => readBriefLayoutMode());
+  const [editingColumnIndex, setEditingColumnIndex] = useState<number | null>(null);
+  const [columnNameDraft, setColumnNameDraft] = useState('');
+  const [sequences, setSequences] = useState<BriefSequence[]>(() =>
+    normalizeBriefSequences(
+      parseBriefSequencesFromMarkdown(sequencesSource ?? ''),
+      Math.max(0, (tableData?.length ?? 1) - 1),
+      t('briefDialog.layout.defaultSequence', 'Sequence 1'),
+    ),
+  );
+  const [sceneMeta, setSceneMeta] = useState<BriefSceneMeta[]>(() =>
+    parseBriefSceneMetaFromMarkdown(sequencesSource ?? ''),
+  );
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const sequencesRef = useRef(sequences);
+  sequencesRef.current = sequences;
+  const sceneMetaRef = useRef(sceneMeta);
+  sceneMetaRef.current = sceneMeta;
+
+  const handleLayoutModeChange = (mode: BriefLayoutMode) => {
+    if (isEditing || mode === layoutMode) return;
+    setLayoutMode(mode);
+    writeBriefLayoutMode(mode);
+  };
 
   useEffect(() => {
     onEditingChange?.(isEditing);
@@ -163,6 +221,21 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
 
   const normalizedTableData = normalizeBriefTableRows(tableData);
   const displayData = trimTrailingEmptyColumns(normalizedTableData);
+  const bodyRowCount = Math.max(0, displayData.length - 1);
+  const defaultSequenceName = t('briefDialog.layout.defaultSequence', 'Sequence 1');
+
+  useEffect(() => {
+    if (!storyboardToolbar || isEditing) return;
+    setSequences(
+      normalizeBriefSequences(
+        parseBriefSequencesFromMarkdown(sequencesSource ?? ''),
+        bodyRowCount,
+        defaultSequenceName,
+      ),
+    );
+    setSceneMeta(parseBriefSceneMetaFromMarkdown(sequencesSource ?? ''));
+  }, [storyboardToolbar, sequencesSource, bodyRowCount, isEditing, defaultSequenceName]);
+
   const colCount = Math.max(...displayData.map((r) => r.length), 1);
   const padRow = (row: string[]) => {
     const r = [...row];
@@ -185,10 +258,23 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     }));
   };
 
-  const persistTable = (newData: string[][]) => {
+  const persistTable = (
+    newData: string[][],
+    nextSequences?: BriefSequence[],
+    nextSceneMeta?: BriefSceneMeta[],
+  ) => {
     const finalColCount = Math.max(...newData.map((r) => r.length), 1);
     const padded = sanitizeStoryboardData(padTable(newData, finalColCount));
-    onSave?.(padded);
+    const nextBodyCount = Math.max(0, padded.length - 1);
+    const normalizedSequences = normalizeBriefSequences(
+      nextSequences ?? sequencesRef.current,
+      nextBodyCount,
+      defaultSequenceName,
+    );
+    const meta = nextSceneMeta ?? sceneMetaRef.current;
+    setSequences(normalizedSequences);
+    setSceneMeta(meta);
+    onSave?.(padded, { sequences: normalizedSequences, sceneMeta: meta });
     return padded;
   };
 
@@ -230,7 +316,9 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       while (a.length < tableColCount) a.push('');
       return a.slice(0, tableColCount);
     });
-    persistTable([headerRow, ...newBody]);
+    const nextSequences = adjustSequencesForDeleteRow(sequencesRef.current, rowIdx);
+    const nextSceneMeta = adjustSceneMetaForDeleteRow(sceneMetaRef.current, rowIdx);
+    persistTable([headerRow, ...newBody], nextSequences, nextSceneMeta);
     if (isEditing) {
       setEditData(newBody);
     }
@@ -244,13 +332,16 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     if (tableColCount > imageColumnIndex) {
       emptyRow[imageColumnIndex] = '';
     }
-    await onInsertRowImages?.(rowIdx + 1);
-    const newBody = [...body.slice(0, rowIdx + 1), emptyRow, ...body.slice(rowIdx + 1)].map((row) => {
+    const insertAt = rowIdx + 1;
+    await onInsertRowImages?.(insertAt);
+    const newBody = [...body.slice(0, insertAt), emptyRow, ...body.slice(insertAt)].map((row) => {
       const a = [...row];
       while (a.length < tableColCount) a.push('');
       return a.slice(0, tableColCount);
     });
-    persistTable([headerRow, ...newBody]);
+    const nextSequences = adjustSequencesForInsertRow(sequencesRef.current, insertAt);
+    const nextSceneMeta = adjustSceneMetaForInsertRow(sceneMetaRef.current, insertAt);
+    persistTable([headerRow, ...newBody], nextSequences, nextSceneMeta);
     if (isEditing) {
       setEditData(newBody);
     }
@@ -280,12 +371,21 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     }
   };
 
-  const isColumnUnused = (colIdx: number, data: string[][]): boolean => {
-    if (colIdx === imageColumnIndex) {
-      return Object.values(rowImagesMap).flat().length === 0;
-    }
-    const body = data.slice(1);
-    return body.every((row) => (row[colIdx] ?? '').trim() === '');
+  const handleRenameColumn = (colIdx: number, name: string) => {
+    const nextName = name.trim();
+    const source = normalizeBriefTableRows(
+      isEditing ? [displayData[0] ?? [], ...editData] : displayData,
+    );
+    const currentHeader = (source[0]?.[colIdx] ?? '').trim();
+    if (!nextName || nextName === currentHeader) return;
+    const tableColCount = Math.max(...source.map((r) => r.length), 1);
+    const newData = source.map((row, rowIdx) => {
+      const a = [...row];
+      while (a.length < tableColCount) a.push('');
+      if (rowIdx === 0) a[colIdx] = nextName;
+      return a.slice(0, tableColCount);
+    });
+    persistTable(newData);
   };
 
   const handleRemoveColumn = (colIdx: number) => {
@@ -388,10 +488,6 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     );
   };
 
-  const unusedColumnIndices = headerRow
-    .map((_, colIdx) => colIdx)
-    .filter((colIdx) => isColumnUnused(colIdx, displayData));
-
   const contentColumnCount = Math.max(headerRow.length - 1, 0);
   const totalVisibleColumns = headerRow.length + (showRowActionsColumn ? 1 : 0);
   const useHorizontalScrollLayout =
@@ -411,9 +507,56 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   const renderStoryboardToolbar = () => {
     if (!storyboardToolbar || alwaysEditable || readOnly || !onSave) return null;
 
+    const layoutToggle = (
+      <div
+        className="mr-1 flex items-center rounded-md border border-gray-200 bg-gray-50 p-0.5"
+        role="group"
+        aria-label={t('briefDialog.layout.toggleLabel', 'Layout mode')}
+      >
+        {([
+          ['storyline', t('briefDialog.layout.storyLine', 'Story Line')],
+          ['storyboard', t('briefDialog.layout.storyBoard', 'Story Board')],
+        ] as const).map(([mode, label]) => (
+          <Button
+            key={mode}
+            type="button"
+            variant={layoutMode === mode ? 'default' : 'ghost'}
+            size="sm"
+            disabled={isEditing}
+            className={cn(
+              'h-7 px-2.5 text-xs',
+              layoutMode === mode
+                ? 'shadow-sm'
+                : 'text-gray-600 hover:bg-white hover:text-gray-900',
+            )}
+            onClick={() => handleLayoutModeChange(mode)}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
+    );
+
     return (
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1">
+          {isEditing ? (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">{layoutToggle}</span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-xs">
+                  {t(
+                    'briefDialog.layout.switchBlocked',
+                    'Save or cancel editing before switching layout',
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            layoutToggle
+          )}
           <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={handleAddColumn}>
             <Plus className="mr-1 h-3.5 w-3.5" />
             {t('briefDialog.storyboard.addColumn', 'Add column')}
@@ -422,34 +565,136 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             <Plus className="mr-1 h-3.5 w-3.5" />
             {t('briefDialog.addRow', 'Add row')}
           </Button>
-          <DropdownMenu>
+          <DropdownMenu
+            onOpenChange={(open) => {
+              if (!open) {
+                setEditingColumnIndex(null);
+                setColumnNameDraft('');
+              }
+            }}
+          >
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="outline" size="sm" className="h-8 text-xs">
                 <Columns3 className="mr-1 h-3.5 w-3.5" />
                 {t('briefDialog.storyboard.columns', 'Columns')}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                {t('briefDialog.storyboard.removeUnusedColumns', 'Remove unused columns')}
+            <DropdownMenuContent align="start" className="w-72 p-2" onCloseAutoFocus={(e) => e.preventDefault()}>
+              <DropdownMenuLabel className="px-1 text-xs font-normal text-muted-foreground">
+                {t('briefDialog.storyboard.manageColumns', 'Manage columns')}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {unusedColumnIndices.length === 0 ? (
-                <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                  {t('briefDialog.storyboard.noUnusedColumns', 'No unused columns')}
-                </DropdownMenuItem>
-              ) : (
-                unusedColumnIndices.map((colIdx) => (
-                  <DropdownMenuItem
-                    key={colIdx}
-                    onClick={() => handleRemoveColumn(colIdx)}
-                    className="gap-2 text-red-600 focus:text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {headerRow[colIdx] || t('briefDialog.storyboard.columnPlaceholder', 'Column {{n}}', { n: colIdx + 1 })}
-                  </DropdownMenuItem>
-                ))
-              )}
+              <div className="space-y-1.5 py-1">
+                {headerRow.map((header, colIdx) => {
+                  const label =
+                    header ||
+                    t('briefDialog.storyboard.columnPlaceholder', 'Column {{n}}', { n: colIdx + 1 });
+                  const canDelete = colIdx !== imageColumnIndex && headerRow.length > 1;
+                  const isColumnEditing = editingColumnIndex === colIdx;
+
+                  return (
+                    <div
+                      key={colIdx}
+                      className="flex items-center gap-1 rounded-md border border-gray-200 bg-white px-1.5 py-1"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {isColumnEditing ? (
+                        <input
+                          type="text"
+                          value={columnNameDraft}
+                          autoFocus
+                          onChange={(e) => setColumnNameDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleRenameColumn(colIdx, columnNameDraft);
+                              setEditingColumnIndex(null);
+                              setColumnNameDraft('');
+                            }
+                            if (e.key === 'Escape') {
+                              e.preventDefault();
+                              setEditingColumnIndex(null);
+                              setColumnNameDraft('');
+                            }
+                            e.stopPropagation();
+                          }}
+                          className="h-7 min-w-0 flex-1 rounded border border-blue-300 bg-white px-1.5 text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          aria-label={t('briefDialog.storyboard.renameColumn', 'Rename column')}
+                        />
+                      ) : (
+                        <span className="min-w-0 flex-1 truncate px-1.5 text-xs text-gray-800">{label}</span>
+                      )}
+                      <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 shrink-0 p-0 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                            title={t('common.actions', 'Actions')}
+                          >
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          {isColumnEditing ? (
+                            <>
+                              <DropdownMenuItem
+                                className="gap-2 text-green-700 focus:text-green-700"
+                                onClick={() => {
+                                  handleRenameColumn(colIdx, columnNameDraft);
+                                  setEditingColumnIndex(null);
+                                  setColumnNameDraft('');
+                                }}
+                              >
+                                <Check className="h-4 w-4" />
+                                {t('common.save', 'Save')}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="gap-2"
+                                onClick={() => {
+                                  setEditingColumnIndex(null);
+                                  setColumnNameDraft('');
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                                {t('common.cancel', 'Cancel')}
+                              </DropdownMenuItem>
+                            </>
+                          ) : (
+                            <DropdownMenuItem
+                              className="gap-2"
+                              onClick={() => {
+                                setEditingColumnIndex(colIdx);
+                                setColumnNameDraft(label);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                              {t('briefDialog.edit', 'Edit')}
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            disabled={!canDelete}
+                            className="gap-2 text-red-600 focus:text-red-600"
+                            onClick={() => {
+                              if (!canDelete) return;
+                              handleRemoveColumn(colIdx);
+                              if (editingColumnIndex === colIdx) {
+                                setEditingColumnIndex(null);
+                                setColumnNameDraft('');
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            {t('briefDialog.storyboard.removeColumn', 'Remove column')}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  );
+                })}
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -497,6 +742,229 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     );
   };
 
+  const useStoryBoardLayout = storyboardToolbar && layoutMode === 'storyboard';
+  const normalizedSequences = normalizeBriefSequences(
+    sequences,
+    bodyRows.length,
+    defaultSequenceName,
+  );
+  const sequenceRanges = getSequenceRowRanges(normalizedSequences);
+  const canManageSequences = Boolean(storyboardToolbar && showRowActionsColumn && onSave);
+  const tableColSpan = headerRow.length + (showRowActionsColumn ? 1 : 0);
+
+  const getCurrentTableForPersist = (): string[][] => {
+    const tableColCount = Math.max(...tableData.map((r) => r.length), 1);
+    const header = (tableData[0] ?? displayData[0] ?? []).slice(0, tableColCount);
+    const body = (isEditing ? editData : displayData.slice(1)).map((row) => {
+      const a = [...row];
+      while (a.length < tableColCount) a.push('');
+      return a.slice(0, tableColCount);
+    });
+    return [header, ...body];
+  };
+
+  const persistSequencesOnly = (nextSequences: BriefSequence[]) => {
+    const normalized = normalizeBriefSequences(
+      nextSequences,
+      isEditing ? editData.length : bodyRowCount,
+      defaultSequenceName,
+    );
+    setSequences(normalized);
+    onSave?.(getCurrentTableForPersist(), {
+      sequences: normalized,
+      sceneMeta: sceneMetaRef.current,
+    });
+  };
+
+  const handleSceneCharacterIdsChange = (rowIndex: number, characterIds: string[]) => {
+    const nextMeta = setSceneCharacterIds(sceneMetaRef.current, rowIndex, characterIds);
+    setSceneMeta(nextMeta);
+    onSave?.(getCurrentTableForPersist(), {
+      sequences: normalizeBriefSequences(
+        sequencesRef.current,
+        isEditing ? editData.length : bodyRowCount,
+        defaultSequenceName,
+      ),
+      sceneMeta: nextMeta,
+    });
+  };
+
+  const handleRenameSequence = (sequenceId: string, name: string) => {
+    persistSequencesOnly(
+      sequencesRef.current.map((seq) => (seq.id === sequenceId ? { ...seq, name } : seq)),
+    );
+  };
+
+  const handleAddSequenceBelow = () => {
+    const label = t('briefDialog.layout.newSequence', 'New Sequence');
+    persistSequencesOnly([...sequencesRef.current, createBriefSequence(label, 0)]);
+  };
+
+  const handleDeleteSequence = (sequenceId: string) => {
+    const current = sequencesRef.current;
+    if (current.length <= 1) return;
+    const idx = current.findIndex((seq) => seq.id === sequenceId);
+    if (idx < 0) return;
+    const target = current[idx];
+    const next = current.filter((_, i) => i !== idx).map((seq) => ({ ...seq }));
+    if (target.rowCount > 0) {
+      const mergeIdx = idx > 0 ? idx - 1 : 0;
+      next[mergeIdx] = {
+        ...next[mergeIdx],
+        rowCount: next[mergeIdx].rowCount + target.rowCount,
+      };
+    }
+    persistSequencesOnly(next);
+  };
+
+  const handleAddRowInSequence = async (sequenceId: string) => {
+    const ranges = getSequenceRowRanges(sequencesRef.current);
+    const range = ranges.find((item) => item.sequence.id === sequenceId);
+    if (!range) return;
+    const insertAfter = range.rowCount === 0 ? range.startRow - 1 : range.endRow - 1;
+    await handleAddRow(insertAfter);
+  };
+
+  const handleMoveToNextSequence = (rowIndex: number) => {
+    const current = sequencesRef.current.map((seq) => ({ ...seq }));
+    const ranges = getSequenceRowRanges(current);
+    const seqIdx = ranges.findIndex(
+      (item) => rowIndex >= item.startRow && rowIndex < item.endRow,
+    );
+    if (seqIdx < 0 || seqIdx >= current.length - 1) return;
+    if (rowIndex !== ranges[seqIdx].endRow - 1) return;
+    if (current[seqIdx].rowCount <= 0) return;
+    current[seqIdx] = { ...current[seqIdx], rowCount: current[seqIdx].rowCount - 1 };
+    current[seqIdx + 1] = { ...current[seqIdx + 1], rowCount: current[seqIdx + 1].rowCount + 1 };
+    persistSequencesOnly(current);
+  };
+
+  const handleMoveToPreviousSequence = (rowIndex: number) => {
+    const current = sequencesRef.current.map((seq) => ({ ...seq }));
+    const ranges = getSequenceRowRanges(current);
+    const seqIdx = ranges.findIndex(
+      (item) => rowIndex >= item.startRow && rowIndex < item.endRow,
+    );
+    if (seqIdx <= 0) return;
+    if (rowIndex !== ranges[seqIdx].startRow) return;
+    if (current[seqIdx].rowCount <= 0) return;
+    current[seqIdx] = { ...current[seqIdx], rowCount: current[seqIdx].rowCount - 1 };
+    current[seqIdx - 1] = { ...current[seqIdx - 1], rowCount: current[seqIdx - 1].rowCount + 1 };
+    persistSequencesOnly(current);
+  };
+
+  const renderStoryLineBodyRow = (
+    rowIdx: number,
+    sequenceMeta?: {
+      isFirstInSequence: boolean;
+      isLastInSequence: boolean;
+      seqIndex: number;
+    },
+  ) => {
+    const row = bodyRows[rowIdx];
+    if (!row) return null;
+    const displayRow = padRow(row);
+    const rowImages = rowImagesMap[rowIdx] ?? [];
+    const isRowUploading = uploadingRowIndex === rowIdx;
+    const isRowDeleting = rowImages.some((image) => image.id === deletingImageId);
+    const isStructureBusy = mediaBusy && uploadingRowIndex === null && deletingImageId === null;
+    const canMovePrev = Boolean(
+      sequenceMeta?.isFirstInSequence &&
+        (sequenceMeta.seqIndex ?? 0) > 0 &&
+        storyboardToolbar,
+    );
+    const canMoveNext = Boolean(
+      sequenceMeta?.isLastInSequence &&
+        sequenceMeta.seqIndex >= 0 &&
+        sequenceMeta.seqIndex < sequenceRanges.length - 1 &&
+        storyboardToolbar,
+    );
+
+    return (
+      <tr key={rowIdx} className="hover:bg-gray-50/80 transition-colors">
+        {displayRow.map((cell, cellIdx) => (
+          <td key={cellIdx} className={briefTableCellClass}>
+            {cellIdx === imageColumnIndex ? (
+              <BriefStoryboardImageCell
+                rowIndex={rowIdx}
+                images={rowImages}
+                editable={Boolean((isEditing || alwaysEditable) && planId && !readOnly)}
+                disabled={!planId || isStructureBusy || isRowUploading || isRowDeleting}
+                isUploading={isRowUploading}
+                isDeleting={isRowDeleting}
+                onUploadFiles={onUploadImages}
+                onDeleteImage={onDeleteImage}
+              />
+            ) : (isEditing || alwaysEditable) ? (
+              <AutoResizeTextarea
+                value={cell}
+                onChange={(e) => updateCell(rowIdx, cellIdx, e.target.value)}
+                className="box-border w-full max-w-full min-h-[60px] resize-none overflow-hidden rounded border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 [overflow-wrap:anywhere] [word-break:break-word]"
+                minRows={2}
+              />
+            ) : (
+              <span className="block whitespace-pre-wrap">{cell}</span>
+            )}
+          </td>
+        ))}
+        {showRowActionsColumn && (
+          <td
+            className={cn(
+              briefTableCellClass,
+              'overflow-hidden whitespace-nowrap border-l border-gray-300 px-2 align-middle',
+            )}
+          >
+            {onSave && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={mediaBusy}
+                    className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                    title={t('common.actions', 'Actions')}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => void handleAddRow(rowIdx)} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    {t('briefDialog.addRow', 'Add row')}
+                  </DropdownMenuItem>
+                  {canMovePrev ? (
+                    <DropdownMenuItem
+                      onClick={() => handleMoveToPreviousSequence(rowIdx)}
+                      className="gap-2"
+                    >
+                      {t('briefDialog.layout.moveToPreviousSequence', 'Move to previous sequence')}
+                    </DropdownMenuItem>
+                  ) : null}
+                  {canMoveNext ? (
+                    <DropdownMenuItem
+                      onClick={() => handleMoveToNextSequence(rowIdx)}
+                      className="gap-2"
+                    >
+                      {t('briefDialog.layout.moveToNextSequence', 'Move to next sequence')}
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem
+                    onClick={() => void handleDeleteRow(rowIdx)}
+                    className="gap-2 text-red-600 focus:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {t('briefDialog.deleteRow', 'Delete row')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </td>
+        )}
+      </tr>
+    );
+  };
+
   return (
     <div className={cn('flex min-h-0 flex-col', storyboardToolbar && 'flex-1')}>
       {renderStoryboardToolbar()}
@@ -505,159 +973,178 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
         className={cn(
           'my-1 min-h-0 overflow-x-auto overflow-y-auto rounded-lg border-2 border-gray-300 scrollbar-hide seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
           storyboardToolbar ? 'max-h-[calc(100dvh-16rem)] flex-1' : 'max-h-[min(720px,78vh)]',
+          useStoryBoardLayout && 'overflow-y-auto',
           className,
         )}
         style={{ overflowAnchor: 'none' } as React.CSSProperties}
       >
-        <table
-          key={tableLayoutKey}
-          className={cn(
-            'table-fixed border-collapse text-sm',
-            !useHorizontalScrollLayout && 'w-full',
-          )}
-          style={
-            useHorizontalScrollLayout
-              ? { width: scrollTableWidthPx, minWidth: scrollTableWidthPx }
-              : undefined
-          }
-        >
-          <colgroup>
-            {headerRow.map((header, j) => (
-              <col
-                key={j}
-                style={
-                  isTimingColumn(header, j)
-                    ? { width: BRIEF_COLUMN_WIDTH_PX.timing }
-                    : useHorizontalScrollLayout
-                      ? { width: BRIEF_COLUMN_WIDTH_PX.content }
-                      : { width: sharedContentWidth }
-                }
-              />
-            ))}
-            {showRowActionsColumn ? <col style={{ width: BRIEF_COLUMN_WIDTH_PX.actions }} /> : null}
-          </colgroup>
-          <thead className="sticky top-0 z-20 bg-gray-100">
-            <tr>
-              {headerRow.map((cell, j) => {
-                const shouldRenderControlsInThisHeader =
-                  showHeaderControls && controlsPlacement === 'taggingColumn' && j === taggingHeaderIndex;
-
-                return (
-                  <th
-                    key={j}
-                    className={briefTableHeaderClass}
-                  >
-                    {shouldRenderControlsInThisHeader ? (
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate">{cell}</span>
-                        {renderHeaderControls()}
-                      </div>
-                    ) : (
-                      <span className="block truncate" title={cell}>
-                        {cell}
-                      </span>
-                    )}
-                  </th>
-                );
-              })}
-              {showRowActionsColumn && (
-                <th
-                  className={cn(
-                    briefTableHeaderClass,
-                    'overflow-hidden whitespace-nowrap border-l border-gray-300 px-2',
-                  )}
-                >
-                  {showHeaderControls && controlsPlacement === 'actionsColumn' ? renderHeaderControls() : null}
-                </th>
+        {useStoryBoardLayout ? (
+          <BriefStoryBoardView
+            headers={headerRow}
+            bodyRows={bodyRows}
+            imageColumnIndex={imageColumnIndex}
+            rowImagesMap={rowImagesMap}
+            sequences={normalizedSequences}
+            sceneMeta={sceneMeta}
+            isEditing={isEditing || alwaysEditable}
+            showRowActions={Boolean(showRowActionsColumn && onSave)}
+            planId={planId}
+            mediaBusy={mediaBusy}
+            uploadingRowIndex={uploadingRowIndex}
+            deletingImageId={deletingImageId}
+            onUpdateCell={updateCell}
+            onUploadImages={onUploadImages}
+            onDeleteImage={onDeleteImage}
+            onAddRow={(rowIdx) => void handleAddRow(rowIdx)}
+            onDeleteRow={(rowIdx) => void handleDeleteRow(rowIdx)}
+            onSceneCharacterIdsChange={handleSceneCharacterIdsChange}
+            onRenameSequence={handleRenameSequence}
+            onAddSequenceBelow={handleAddSequenceBelow}
+            onDeleteSequence={handleDeleteSequence}
+            onAddRowInSequence={(sequenceId) => void handleAddRowInSequence(sequenceId)}
+            onMoveToPreviousSequence={handleMoveToPreviousSequence}
+            onMoveToNextSequence={handleMoveToNextSequence}
+          />
+        ) : (
+          <div className={cn(storyboardToolbar && 'flex min-h-0 flex-col gap-2')}>
+            <table
+              key={tableLayoutKey}
+              className={cn(
+                'table-fixed border-collapse text-sm',
+                !useHorizontalScrollLayout && 'w-full',
               )}
-            </tr>
-          </thead>
-          <tbody className="bg-white">
-            {bodyRows.map((row, rowIdx) => {
-              const displayRow = padRow(row);
-              const rowImages = rowImagesMap[rowIdx] ?? [];
-              const isRowUploading = uploadingRowIndex === rowIdx;
-              const isRowDeleting = rowImages.some((image) => image.id === deletingImageId);
-              const isStructureBusy = mediaBusy && uploadingRowIndex === null && deletingImageId === null;
-              return (
-                <tr
-                  key={rowIdx}
-                  className="hover:bg-gray-50/80 transition-colors"
-                >
-                  {displayRow.map((cell, cellIdx) => (
-                    <td
-                      key={cellIdx}
-                      className={briefTableCellClass}
-                    >
-                      {cellIdx === imageColumnIndex ? (
-                        <BriefStoryboardImageCell
-                          rowIndex={rowIdx}
-                          images={rowImages}
-                          editable={Boolean((isEditing || alwaysEditable) && planId && !readOnly)}
-                          disabled={!planId || isStructureBusy || isRowUploading || isRowDeleting}
-                          isUploading={isRowUploading}
-                          isDeleting={isRowDeleting}
-                          onUploadFiles={onUploadImages}
-                          onDeleteImage={onDeleteImage}
-                        />
-                      ) : (isEditing || alwaysEditable) ? (
-                        <AutoResizeTextarea
-                          value={cell}
-                          onChange={(e) => updateCell(rowIdx, cellIdx, e.target.value)}
-                          className="box-border w-full max-w-full min-h-[60px] resize-none overflow-hidden rounded border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 [overflow-wrap:anywhere] [word-break:break-word]"
-                          minRows={2}
-                        />
-                      ) : (
-                        <span className="block whitespace-pre-wrap">{cell}</span>
-                      )}
-                    </td>
-                  ))}
+              style={
+                useHorizontalScrollLayout
+                  ? { width: scrollTableWidthPx, minWidth: scrollTableWidthPx }
+                  : undefined
+              }
+            >
+              <colgroup>
+                {headerRow.map((header, j) => (
+                  <col
+                    key={j}
+                    style={
+                      isTimingColumn(header, j)
+                        ? { width: BRIEF_COLUMN_WIDTH_PX.timing }
+                        : useHorizontalScrollLayout
+                          ? { width: BRIEF_COLUMN_WIDTH_PX.content }
+                          : { width: sharedContentWidth }
+                    }
+                  />
+                ))}
+                {showRowActionsColumn ? <col style={{ width: BRIEF_COLUMN_WIDTH_PX.actions }} /> : null}
+              </colgroup>
+              <thead className="sticky top-0 z-20 bg-gray-100">
+                <tr>
+                  {headerRow.map((cell, j) => {
+                    const shouldRenderControlsInThisHeader =
+                      showHeaderControls &&
+                      controlsPlacement === 'taggingColumn' &&
+                      j === taggingHeaderIndex;
+
+                    return (
+                      <th key={j} className={briefTableHeaderClass}>
+                        {shouldRenderControlsInThisHeader ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate">{cell}</span>
+                            {renderHeaderControls()}
+                          </div>
+                        ) : (
+                          <span className="block truncate" title={cell}>
+                            {cell}
+                          </span>
+                        )}
+                      </th>
+                    );
+                  })}
                   {showRowActionsColumn && (
-                    <td
+                    <th
                       className={cn(
-                        briefTableCellClass,
-                        'overflow-hidden whitespace-nowrap border-l border-gray-300 px-2 align-middle',
+                        briefTableHeaderClass,
+                        'overflow-hidden whitespace-nowrap border-l border-gray-300 px-2',
                       )}
                     >
-                      {onSave && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              disabled={mediaBusy}
-                              className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                              title={t('common.actions', 'Actions')}
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => void handleAddRow(rowIdx)}
-                              className="gap-2"
-                            >
-                              <Plus className="h-4 w-4" />
-                              {t('briefDialog.addRow', 'Add row')}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => void handleDeleteRow(rowIdx)}
-                              className="gap-2 text-red-600 focus:text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              {t('briefDialog.deleteRow', 'Delete row')}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </td>
+                      {showHeaderControls && controlsPlacement === 'actionsColumn'
+                        ? renderHeaderControls()
+                        : null}
+                    </th>
                   )}
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+              {storyboardToolbar ? (
+                sequenceRanges.map(({ sequence, startRow, endRow }, seqIndex) => {
+                  const rowIndexes = Array.from(
+                    { length: Math.max(0, endRow - startRow) },
+                    (_, i) => startRow + i,
+                  );
+                  return (
+                    <tbody key={sequence.id} className="bg-white">
+                      <tr>
+                        <td
+                          colSpan={tableColSpan}
+                          className="border-b border-gray-300 p-0"
+                        >
+                          <BriefSequenceHeader
+                            className="rounded-none border-x-0 border-t-0 border-b border-blue-100"
+                            name={sequence.name}
+                            canRename={canManageSequences}
+                            canDelete={Boolean(canManageSequences && normalizedSequences.length > 1)}
+                            onRename={(name) => handleRenameSequence(sequence.id, name)}
+                            onDelete={() => handleDeleteSequence(sequence.id)}
+                            onAddRow={
+                              canManageSequences
+                                ? () => void handleAddRowInSequence(sequence.id)
+                                : undefined
+                            }
+                          />
+                        </td>
+                      </tr>
+                      {rowIndexes.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={tableColSpan}
+                            className="border-b border-gray-200 px-3 py-4 text-xs text-gray-500"
+                          >
+                            {t(
+                              'briefDialog.layout.emptySequence',
+                              'No scenes in this sequence yet.',
+                            )}
+                          </td>
+                        </tr>
+                      ) : (
+                        rowIndexes.map((rowIdx, localIdx) =>
+                          renderStoryLineBodyRow(rowIdx, {
+                            isFirstInSequence: localIdx === 0,
+                            isLastInSequence: localIdx === rowIndexes.length - 1,
+                            seqIndex,
+                          }),
+                        )
+                      )}
+                    </tbody>
+                  );
+                })
+              ) : (
+                <tbody className="bg-white">
+                  {bodyRows.map((_, rowIdx) => renderStoryLineBodyRow(rowIdx))}
+                </tbody>
+              )}
+            </table>
+            {canManageSequences ? (
+              <div className="flex shrink-0 px-2 pb-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1 text-xs"
+                  onClick={handleAddSequenceBelow}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {t('briefDialog.layout.addSequenceBelow', 'Add Sequence below')}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        )}
       </div>
     </div>
   );

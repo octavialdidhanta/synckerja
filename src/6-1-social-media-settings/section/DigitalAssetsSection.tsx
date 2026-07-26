@@ -10,7 +10,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useStorageSignedImageUrl } from '@/shared/hooks/useStorageSignedImageUrl';
 import { storageUploadOptions } from '@/shared/lib/storageCacheControl';
 import { toast } from 'sonner';
-import { Plus, Check, Pencil, Trash2, User, Box, Lightbulb, ImageIcon, Download, Copy, Palette, Building2 } from 'lucide-react';
+import { Plus, Check, Pencil, Trash2, User, Box, Lightbulb, ImageIcon, Copy, Palette, Building2 } from 'lucide-react';
 import type {
   DigitalAssetCharacter,
   DigitalAssetObject,
@@ -27,6 +27,7 @@ import {
   digitalAssetBrandColorsKey,
   digitalAssetCompanyLogosKey,
 } from '../hooks/useDigitalAssetsListQueries';
+import { CharacterPoseGallery } from './CharacterPoseGallery';
 
 export type {
   DigitalAssetCharacter,
@@ -130,6 +131,53 @@ function CompanyLogoRow({
   );
 }
 
+function CharacterRow({
+  character,
+  onEdit,
+  onDelete,
+}: {
+  character: DigitalAssetCharacter;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  // Raw signed URL (no transform) — image transform often 404s if not enabled on the project
+  const { data: thumbUrl } = useStorageSignedImageUrl({
+    bucket: "digital-asset-character-images",
+    path: character.reference_image_path,
+  });
+  return (
+    <li className="flex items-center justify-between gap-2 p-3 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100">
+      <div className="min-w-0 flex-1 flex items-center gap-2">
+        {thumbUrl ? (
+          <img
+            src={thumbUrl}
+            alt=""
+            className="h-10 w-10 object-cover rounded border border-gray-200 flex-shrink-0 bg-white"
+          />
+        ) : (
+          <div className="h-10 w-10 rounded border border-gray-200 flex-shrink-0 bg-gray-200 flex items-center justify-center">
+            <User className="h-5 w-5 text-gray-500" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-gray-900 truncate">{character.name || '—'}</p>
+          <p className="text-xs text-gray-600">
+            {[character.gender, character.age].filter(Boolean).join(' - ') || '—'}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <Button variant="ghost" size="sm" onClick={onEdit} className="h-8 w-8 p-0 text-primary">
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onDelete} className="h-8 w-8 p-0 text-red-600">
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </li>
+  );
+}
+
 export const DigitalAssetsSection: React.FC<{ onNavigateToDetectImage?: () => void }> = ({ onNavigateToDetectImage }) => {
   const { organizationId } = useCurrentOrg();
   const queryClient = useQueryClient();
@@ -144,7 +192,6 @@ export const DigitalAssetsSection: React.FC<{ onNavigateToDetectImage?: () => vo
   const [characterForm, setCharacterForm] = useState<Partial<DigitalAssetCharacter>>(emptyCharacterForm());
   const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
   const [characterSaving, setCharacterSaving] = useState(false);
-  const [characterReferenceImageUrl, setCharacterReferenceImageUrl] = useState<string | null>(null);
 
   const [objectForm, setObjectForm] = useState<Partial<DigitalAssetObject>>(emptyObjectForm());
   const [editingObjectId, setEditingObjectId] = useState<string | null>(null);
@@ -163,6 +210,9 @@ export const DigitalAssetsSection: React.FC<{ onNavigateToDetectImage?: () => vo
   const invalidateCharacters = useCallback(() => {
     if (organizationId) {
       queryClient.invalidateQueries({ queryKey: digitalAssetCharactersKey(organizationId) });
+      queryClient.invalidateQueries({
+        queryKey: ['digital_asset_character_images', organizationId],
+      });
     }
   }, [organizationId, queryClient]);
 
@@ -196,20 +246,9 @@ export const DigitalAssetsSection: React.FC<{ onNavigateToDetectImage?: () => vo
     setCompanyLogoPreviewUrl(companyLogoPreviewSignedUrl ?? null);
   }, [companyLogoFile, companyLogoPreviewSignedUrl]);
 
-  const { data: characterReferenceSignedUrl } = useStorageSignedImageUrl({
-    bucket: "digital-asset-character-images",
-    path: characterForm.reference_image_path,
-    transform: { width: 200, height: 200, resize: "contain", quality: 80 },
-  });
-
-  useEffect(() => {
-    setCharacterReferenceImageUrl(characterReferenceSignedUrl ?? null);
-  }, [characterReferenceSignedUrl]);
-
   const handleCharacterCreateNew = () => {
     setCharacterForm(emptyCharacterForm());
     setEditingCharacterId(null);
-    setCharacterReferenceImageUrl(null);
   };
 
   const handleCharacterSave = async () => {
@@ -238,13 +277,18 @@ export const DigitalAssetsSection: React.FC<{ onNavigateToDetectImage?: () => vo
           .eq('id', editingCharacterId);
         if (error) throw error;
         toast.success(t('digitalAssets.saveSuccess', 'Saved successfully.'));
-        setEditingCharacterId(null);
-        setCharacterForm(emptyCharacterForm());
       } else {
-        const { error } = await supabase.from('digital_asset_characters').insert(payload);
+        const { data: inserted, error } = await supabase
+          .from('digital_asset_characters')
+          .insert(payload)
+          .select('id')
+          .single();
         if (error) throw error;
         toast.success(t('digitalAssets.saveSuccess', 'Saved successfully.'));
-        setCharacterForm(emptyCharacterForm());
+        // Stay in edit mode so user can add pose photos
+        if (inserted?.id) {
+          setEditingCharacterId(inserted.id);
+        }
       }
       invalidateCharacters();
     } catch (err) {
@@ -277,8 +321,19 @@ export const DigitalAssetsSection: React.FC<{ onNavigateToDetectImage?: () => vo
   const handleCharacterDelete = async (id: string) => {
     if (!window.confirm('Delete this character?')) return;
     try {
+      // Best-effort remove storage objects for this character
+      const { data: imgs } = await supabase
+        .from('digital_asset_character_images')
+        .select('storage_path')
+        .eq('character_id', id);
+      const paths = ((imgs as { storage_path: string }[] | null) ?? [])
+        .map((r) => r.storage_path)
+        .filter(Boolean);
       const { error } = await supabase.from('digital_asset_characters').delete().eq('id', id);
       if (error) throw error;
+      if (paths.length) {
+        await supabase.storage.from('digital-asset-character-images').remove(paths);
+      }
       toast.success(t('digitalAssets.deleteSuccess', 'Deleted successfully.'));
       if (editingCharacterId === id) {
         setEditingCharacterId(null);
@@ -600,38 +655,7 @@ export const DigitalAssetsSection: React.FC<{ onNavigateToDetectImage?: () => vo
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Character form */}
             <div className="space-y-4 border border-gray-200 rounded-lg bg-white p-4">
-              {/* Reference image (from Detect from Image) */}
-              {characterForm.reference_image_path ? (
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-2">{t('digitalAssets.referenceImage', 'Reference Image')}</h4>
-                  {characterReferenceImageUrl ? (
-                    <div className="space-y-2">
-                      <img
-                        src={characterReferenceImageUrl}
-                        alt={t('digitalAssets.referenceImage', 'Reference Image')}
-                        className="max-w-full min-w-[240px] max-h-80 rounded-md border border-gray-200 object-contain bg-gray-50"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="border-gray-300 text-gray-700"
-                        onClick={() => characterReferenceImageUrl && window.open(characterReferenceImageUrl, '_blank', 'noopener')}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        {t('digitalAssets.downloadImage', 'Download')}
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">{t('digitalAssets.loadingImage', 'Loading image...')}</p>
-                  )}
-                </div>
-              ) : editingCharacterId ? (
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-2">{t('digitalAssets.referenceImage', 'Reference Image')}</h4>
-                  <p className="text-sm text-gray-500">{t('digitalAssets.noReferenceImage', 'No reference image')}</p>
-                </div>
-              ) : null}
+              <CharacterPoseGallery characterId={editingCharacterId} />
               <div>
                 <h4 className="text-sm font-semibold text-gray-900 mb-2">{t('digitalAssets.basicInfo', 'Basic Info')}</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -796,25 +820,12 @@ export const DigitalAssetsSection: React.FC<{ onNavigateToDetectImage?: () => vo
               ) : (
                 <ul className="space-y-2">
                   {characters.map((c) => (
-                    <li
+                    <CharacterRow
                       key={c.id}
-                      className="flex items-center justify-between gap-2 p-3 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-gray-900 truncate">{c.name || '—'}</p>
-                        <p className="text-xs text-gray-600">
-                          {[c.gender, c.age].filter(Boolean).join(' - ') || '—'}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <Button variant="ghost" size="sm" onClick={() => handleCharacterEdit(c)} className="h-8 w-8 p-0 text-primary">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleCharacterDelete(c.id)} className="h-8 w-8 p-0 text-red-600">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </li>
+                      character={c}
+                      onEdit={() => handleCharacterEdit(c)}
+                      onDelete={() => handleCharacterDelete(c.id)}
+                    />
                   ))}
                 </ul>
               )}

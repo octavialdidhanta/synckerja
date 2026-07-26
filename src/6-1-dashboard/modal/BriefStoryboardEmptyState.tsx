@@ -5,12 +5,10 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 interface BriefStoryboardEmptyStateProps {
   onCreateTable: () => void;
-  onEditMarkdown: () => void;
 }
 
 export const BriefStoryboardEmptyState: React.FC<BriefStoryboardEmptyStateProps> = ({
   onCreateTable,
-  onEditMarkdown,
 }) => {
   const { t } = useAppTranslation();
 
@@ -19,7 +17,7 @@ export const BriefStoryboardEmptyState: React.FC<BriefStoryboardEmptyStateProps>
       <p className="text-sm text-gray-500">
         {t(
           'briefDialog.storyboard.noTableYet',
-          'No storyboard table yet. Create a custom table or write the brief in markdown.',
+          'No storyboard table yet. Create a custom table to start the brief.',
         )}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -27,13 +25,6 @@ export const BriefStoryboardEmptyState: React.FC<BriefStoryboardEmptyStateProps>
           <Table2 className="h-4 w-4" />
           {t('briefDialog.storyboard.createTable', 'Create table')}
         </Button>
-        <button
-          type="button"
-          onClick={onEditMarkdown}
-          className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded px-1 py-0.5"
-        >
-          {t('briefDialog.editFullMarkdown', 'Edit full markdown')}
-        </button>
       </div>
     </div>
   );

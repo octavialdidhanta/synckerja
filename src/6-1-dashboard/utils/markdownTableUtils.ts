@@ -9,6 +9,16 @@ function isAlignmentRow(cells: string[]): boolean {
   return cells.every((cell) => /^[\s:\-]+$/.test(cell.trim()));
 }
 
+/** Encode newlines so multi-line cell text survives markdown table serialization. */
+function encodeCellNewlines(value: string): string {
+  return String(value ?? '').replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
+}
+
+/** Restore newlines stored as <br> (and variants) when parsing markdown tables. */
+function decodeCellNewlines(value: string): string {
+  return String(value ?? '').replace(/<br\s*\/?>/gi, '\n');
+}
+
 /**
  * Parse a single table row into cells.
  * Handles | a | b | c | format.
@@ -17,7 +27,7 @@ function parseTableRow(line: string): string[] {
   const parts = line.split('|');
   return parts
     .slice(1, -1)
-    .map((p) => p.trim());
+    .map((p) => decodeCellNewlines(p.trim()));
 }
 
 /**
@@ -110,9 +120,7 @@ export function stringifyMarkdownTable(
     return a;
   };
 
-  const escapeCell = (s: string) => {
-    return String(s ?? '').replace(/\n/g, ' ');
-  };
+  const escapeCell = (s: string) => encodeCellNewlines(s);
 
   const padded = trimmedRows.map((r) => pad(r.map(escapeCell)));
   const header = padded[0];

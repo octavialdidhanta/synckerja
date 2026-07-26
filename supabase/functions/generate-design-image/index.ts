@@ -162,6 +162,43 @@ Deno.serve(async (req: Request) => {
         : "image/jpeg";
       characterReferences.push({ imageBase64: b64, mimeType: mt });
     }
+
+    type CharacterPoseRefItem = {
+      characterId: string;
+      poseKey: string;
+      label: string;
+      imageBase64: string;
+      mimeType: string;
+      isPrimary: boolean;
+    };
+    const characterPoseReferences: CharacterPoseRefItem[] = [];
+    const characterPoseReferencesRaw = body.characterPoseReferences;
+    if (Array.isArray(characterPoseReferencesRaw) && characterPoseReferencesRaw.length > 0) {
+      for (const item of characterPoseReferencesRaw) {
+        const b64 = item?.imageBase64 != null ? String(item.imageBase64).trim() : "";
+        if (b64 === "") continue;
+        const mt =
+          item?.mimeType != null && String(item.mimeType).trim() !== ""
+            ? String(item.mimeType).trim()
+            : "image/jpeg";
+        characterPoseReferences.push({
+          characterId: item?.characterId != null ? String(item.characterId) : "",
+          poseKey: item?.poseKey != null ? String(item.poseKey) : "custom",
+          label: item?.label != null && String(item.label).trim() !== "" ? String(item.label).trim() : "Pose",
+          imageBase64: b64,
+          mimeType: mt,
+          isPrimary: Boolean(item?.isPrimary),
+        });
+      }
+    }
+    // Prefer labeled pose refs when provided (multi-angle consistency)
+    if (characterPoseReferences.length > 0) {
+      characterReferences.length = 0;
+      for (const pose of characterPoseReferences) {
+        characterReferences.push({ imageBase64: pose.imageBase64, mimeType: pose.mimeType });
+      }
+    }
+
     const companyLogoBase64 =
       body.companyLogoBase64 != null ? String(body.companyLogoBase64).trim() : "";
     const companyLogoMimeType =
@@ -298,13 +335,55 @@ Deno.serve(async (req: Request) => {
         },
       });
     }
-    for (const ref of characterReferences) {
+    if (characterPoseReferences.length > 0) {
+      // Group by characterId so multi-character scenes keep distinct identities
+      const groups = new Map<string, CharacterPoseRefItem[]>();
+      for (const pose of characterPoseReferences) {
+        const key = pose.characterId || `__anon_${groups.size}`;
+        const list = groups.get(key) ?? [];
+        list.push(pose);
+        groups.set(key, list);
+      }
+      const groupEntries = [...groups.entries()];
+      const multiCharacter = groupEntries.length > 1;
+
       parts.push({
-        inlineData: {
-          mimeType: ref.mimeType,
-          data: ref.imageBase64,
-        },
+        text: multiCharacter
+          ? `CHARACTER IDENTITY (MULTI-CHARACTER, MULTI-POSE): There are ${groupEntries.length} DIFFERENT people. Do NOT mix faces between characters. For each character below, the listed images are the SAME person from different camera angles / expressions — keep that person's face, hair, skin, and identity consistent. Distinct characters must remain visually distinct.\n\n`
+          : "CHARACTER IDENTITY (MULTI-POSE): The following images are the SAME person from different camera angles / expressions. Keep face shape, hair, skin, and identity consistent across the design. Use all angles as identity anchors.\n\n",
       });
+
+      let characterOrdinal = 0;
+      for (const [, poses] of groupEntries) {
+        characterOrdinal += 1;
+        const displayLabel = poses[0]?.label?.split("—")[0]?.trim() || `Character ${characterOrdinal}`;
+        if (multiCharacter) {
+          parts.push({
+            text: `=== Character ${characterOrdinal}: ${displayLabel} ===\nAll pose images under this heading are the SAME person (${displayLabel}). Do not confuse with other characters.\n`,
+          });
+        }
+        for (const pose of poses) {
+          const primaryNote = pose.isPrimary ? " (PRIMARY reference)" : "";
+          const samePersonNote = multiCharacter
+            ? ` Same person as other poses for Character ${characterOrdinal} only.`
+            : " Same person as other pose references.";
+          parts.push({
+            text: `Character pose reference — ${pose.label}${primaryNote} [pose=${pose.poseKey}].${samePersonNote}\n`,
+          });
+          parts.push({
+            inlineData: { mimeType: pose.mimeType, data: pose.imageBase64 },
+          });
+        }
+      }
+    } else {
+      for (const ref of characterReferences) {
+        parts.push({
+          inlineData: {
+            mimeType: ref.mimeType,
+            data: ref.imageBase64,
+          },
+        });
+      }
     }
     for (let i = 0; i < characterStructuredReferences.length; i++) {
       const n = i + 1;

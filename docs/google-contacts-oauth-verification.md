@@ -1,6 +1,6 @@
 # Synckerja – Google Contacts (People API) OAuth Verification
 
-Panduan agar scope sensitif Contacts bisa dipakai **semua customer Synckerja** (bukan hanya 100 test user).
+**Status: Approved** (2026-07-26). Sensitive scopes `contacts` and `contacts.other.readonly` are verified for project **profitloop** (`909034086376`). All Synckerja customers can connect Google Contacts without the unverified-app / 100-test-user Testing cap (once OAuth consent publishing status is **In production**).
 
 | | |
 |---|---|
@@ -13,21 +13,24 @@ Panduan agar scope sensitif Contacts bisa dipakai **semua customer Synckerja** (
 | **Redirect URI** | `https://wqdzqqshoifwyrltzgvx.supabase.co/functions/v1/google-contacts-oauth-callback` |
 | **Scopes** | `https://www.googleapis.com/auth/contacts`, `https://www.googleapis.com/auth/contacts.other.readonly` |
 | **API** | Google People API (`people.googleapis.com`) |
+| **GCP project** | `profitloop` (`909034086376`) |
+| **Demo video** | https://youtu.be/7rCTRDpgGvw |
 
 > Credentials: **reuse** client Web **Synckerja** (sama dengan Google Drive). Jangan pakai client Ads atau YouTube.
 
 ---
 
-## 1. Checklist sebelum submit
+## 1. Checklist (completed)
 
 - [x] People API enabled
 - [x] Scopes ditambahkan di OAuth consent screen
 - [x] Redirect URI Edge Contacts ditambahkan ke client Synckerja
-- [ ] Privacy Policy menyebut Google Contacts / People API (deploy halaman `/policy/privacy`)
-- [ ] Isi justifikasi “How will the scopes be used?” di Cloud Console
-- [ ] Connect Google Contacts berhasil di Testing mode (test users)
-- [ ] Demo video 2–3 menit
-- [ ] Submit verification / Prepare for verification
+- [x] Privacy Policy menyebut Google Contacts / People API (deploy halaman `/policy/privacy`)
+- [x] Isi justifikasi “How will the scopes be used?” di Cloud Console
+- [x] Connect Google Contacts berhasil di Testing mode (test users)
+- [x] Demo video 2–3 menit — https://youtu.be/7rCTRDpgGvw
+- [x] Submit verification / Prepare for verification
+- [x] **Verification approved** (2026-07-26) — `contacts` + `contacts.other.readonly`
 
 ---
 
@@ -53,6 +56,8 @@ Used only to search “Other contacts” by phone or email before creating a new
 6. Edit lead: tambahkan email → tunjukkan kontak Google ter-update.
 7. Klik **Putuskan** di settings → jelaskan sync berhenti.
 
+Published demo: https://youtu.be/7rCTRDpgGvw
+
 ---
 
 ## 4. Edge secrets / deploy
@@ -75,6 +80,20 @@ Apply migration: `20260930130000_organization_google_contacts_per_tenant.sql`
 
 ---
 
-## 5. Testing mode
+## 5. Production (post-approval)
 
-Tambahkan email admin org ke **Test users** di OAuth consent screen sampai verification disetujui.
+- OAuth consent screen **Publishing status** should be **In production** so refresh tokens are not limited to the Testing-mode 7-day expiry.
+- **Test users** are no longer required for external customers to connect Google Contacts.
+- If you add new sensitive/restricted scopes or materially change the consent screen, submit a **new** verification — approval for Contacts does not cover other scopes.
+
+---
+
+## 6. AI/ML Limited Use (verification follow-up)
+
+During review, Google asked for clarification that Workspace / People API data is not used to train foundational AI models.
+
+**Response (confirmed in code + privacy):**
+
+- Google Contacts / People API data is used only for one-way CRM lead sync into the admin’s Google Contacts. It is **not** sent to third-party AI providers.
+- Separate Synckerja AI features (script/receipt tooling) may use **Google Gemini API** (pay-as-you-go), **Groq** (free tier), and **Fireworks AI** (free tier) on user-provided content only — not on People API / Contacts data.
+- Public disclosure: https://office.synckerja.com/policy/privacy (Google API Limited Use + Google Contacts / People API sections).

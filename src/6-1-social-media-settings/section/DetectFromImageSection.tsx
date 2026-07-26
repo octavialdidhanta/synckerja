@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/shared/components/ui/button';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
@@ -9,6 +10,7 @@ import { Lightbulb, ImageIcon, Copy, User, Box, Layout, Download, Trash2, Rectan
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/shared/components/ui/command';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
+import { digitalAssetCharactersKey } from '../hooks/useDigitalAssetsListQueries';
 
 export type DesignResult = {
   headline?: string;
@@ -48,6 +50,21 @@ export type CharacterSlot = {
 const CHAR_AI = '__ai__';
 /** Sentinel for Radix Select (no empty string value). */
 const SELECT_NONE = '__none__';
+/** Double-click vs single-click discrimination (ms). */
+const CLICK_VS_DBLCLICK_MS = 300;
+
+/** Clipboard often puts text/html before image/* — scan all items. */
+function getImageFileFromClipboardData(data: DataTransfer | null | undefined): File | null {
+  const items = data?.items;
+  if (!items?.length) return null;
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      return item.getAsFile();
+    }
+  }
+  return null;
+}
 
 const EXPRESSION_OPTIONS: { value: string; labelKey: string }[] = [
   { value: 'happy', labelKey: 'detectFromImage.expressionHappy' },
@@ -322,8 +339,11 @@ function buildSceneAnalysisSuperPrompt(params: {
 export const DetectFromImageSection: React.FC = () => {
   const { organizationId } = useCurrentOrg();
   const { t } = useAppTranslation();
+  const queryClient = useQueryClient();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
+  const mainPasteLockRef = useRef(false);
   const [mode, setMode] = useState<'scene' | 'character' | 'design'>('scene');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [artisticDescription, setArtisticDescription] = useState('');
@@ -411,16 +431,22 @@ export const DetectFromImageSection: React.FC = () => {
     }).catch(() => null);
   }, []);
 
-  const clearPreview = useCallback(() => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
+  const replacePreviewUrl = useCallback((next: string | null) => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
     }
-  }, [previewUrl]);
+    previewUrlRef.current = next;
+    setPreviewUrl(next);
+  }, []);
 
   useEffect(() => {
-    return () => clearPreview();
-  }, [clearPreview]);
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
+    };
+  }, []);
 
   const [layoutCompositionUrls, setLayoutCompositionUrls] = useState<(string | null)[]>(() =>
     Array.from({ length: MAX_LAYOUT_COMPOSITION_IMAGES }, () => null)
@@ -521,7 +547,8 @@ export const DetectFromImageSection: React.FC = () => {
 
   const setFile = useCallback(
     (file: File | null) => {
-      clearPreview();
+      // Swap preview in one update — avoid null flash between revoke and new URL
+      replacePreviewUrl(file ? URL.createObjectURL(file) : null);
       setSelectedFile(file);
       setArtisticDescription('');
       setCharacterResult(null);
@@ -537,44 +564,45 @@ export const DetectFromImageSection: React.FC = () => {
       setSceneAnalysisImported(false);
       setSceneAnalysisCharacterMasters({});
       setSceneAnalysisCharacterNarasi({});
-      if (file) {
-        setPreviewUrl(URL.createObjectURL(file));
-      }
     },
-    [clearPreview]
+    [replacePreviewUrl]
   );
 
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const item = e.clipboardData?.items?.[0];
-      if (item?.kind === 'file' && item.type.startsWith('image/')) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        if (file) setFile(file);
-      }
+  const applyMainPastedFile = useCallback(
+    (file: File) => {
+      // Document + React onPaste can both fire for one Ctrl+V
+      if (mainPasteLockRef.current) return;
+      mainPasteLockRef.current = true;
+      setFile(file);
+      queueMicrotask(() => {
+        mainPasteLockRef.current = false;
+      });
     },
     [setFile]
   );
 
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const file = getImageFileFromClipboardData(e.clipboardData);
+      if (file) {
+        e.preventDefault();
+        e.stopPropagation();
+        applyMainPastedFile(file);
+      }
+    },
+    [applyMainPastedFile]
+  );
+
   const handleSlotPaste = useCallback((i: number) => (e: React.ClipboardEvent) => {
     e.stopPropagation();
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (let idx = 0; idx < items.length; idx++) {
-      const item = items[idx];
-      if (item.kind === 'file' && item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file) {
-          e.preventDefault();
-          setLayoutCompositionSlots((prev) => {
-            const next = [...prev];
-            next[i] = file;
-            return next;
-          });
-        }
-        return;
-      }
-    }
+    const file = getImageFileFromClipboardData(e.clipboardData);
+    if (!file) return;
+    e.preventDefault();
+    setLayoutCompositionSlots((prev) => {
+      const next = [...prev];
+      next[i] = file;
+      return next;
+    });
   }, []);
 
   const handleSlotDrop = useCallback((i: number) => (e: React.DragEvent) => {
@@ -596,7 +624,7 @@ export const DetectFromImageSection: React.FC = () => {
       readClipboardAsFile().then((file) => {
         if (file) setLayoutCompositionSlots((prev) => { const next = [...prev]; next[i] = file; return next; });
       });
-    }, 5000);
+    }, CLICK_VS_DBLCLICK_MS);
   }, [readClipboardAsFile]);
 
   const handleSlotDoubleClick = useCallback((i: number) => () => {
@@ -660,7 +688,7 @@ export const DetectFromImageSection: React.FC = () => {
         readClipboardAsFile().then((file) => {
           if (file) setCharacterStructuredRefFile(slotIndex, category, subIndex, file);
         });
-      }, 5000);
+      }, CLICK_VS_DBLCLICK_MS);
     },
     [readClipboardAsFile, setCharacterStructuredRefFile]
   );
@@ -680,11 +708,10 @@ export const DetectFromImageSection: React.FC = () => {
   const handleCharacterStructuredPaste = useCallback(
     (slotIndex: number, category: 'head' | 'clothes' | 'logo' | 'foot' | 'accessories', subIndex: number) =>
       (e: React.ClipboardEvent) => {
-        const item = e.clipboardData?.items?.[0];
-        if (item?.kind === 'file' && item.type.startsWith('image/')) {
+        const file = getImageFileFromClipboardData(e.clipboardData);
+        if (file) {
           e.preventDefault();
-          const file = item.getAsFile();
-          if (file) setCharacterStructuredRefFile(slotIndex, category, subIndex, file);
+          setCharacterStructuredRefFile(slotIndex, category, subIndex, file);
         }
       },
     [setCharacterStructuredRefFile]
@@ -743,20 +770,25 @@ export const DetectFromImageSection: React.FC = () => {
   /* Paste image (Ctrl+V) tanpa perlu klik area upload dulu */
   useEffect(() => {
     const onDocumentPaste = (e: ClipboardEvent) => {
-      const target = e.target as Node;
-      if (target && (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target as HTMLElement).isContentEditable)) {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target.isContentEditable ||
+          target.closest('[data-clipboard-image-slot]'))
+      ) {
         return;
       }
-      const item = e.clipboardData?.items?.[0];
-      if (item?.kind === 'file' && item.type.startsWith('image/')) {
+      const file = getImageFileFromClipboardData(e.clipboardData);
+      if (file) {
         e.preventDefault();
-        const file = item.getAsFile();
-        if (file) setFile(file);
+        applyMainPastedFile(file);
       }
     };
     document.addEventListener('paste', onDocumentPaste);
     return () => document.removeEventListener('paste', onDocumentPaste);
-  }, [setFile]);
+  }, [applyMainPastedFile]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -1064,9 +1096,7 @@ export const DetectFromImageSection: React.FC = () => {
       try {
         const { data: signedData } = await supabase.storage
           .from('digital-asset-character-images')
-          .createSignedUrl(refPath, 60 * 60 * 24, {
-            transform: { width: 400, height: 400, resize: "contain", quality: 80 },
-          });
+          .createSignedUrl(refPath, 60 * 60 * 24);
         signedUrl = signedData?.signedUrl ?? null;
       } catch {
         // keep signedUrl null; panel can still show name/refs
@@ -1101,7 +1131,14 @@ export const DetectFromImageSection: React.FC = () => {
 
   const handleGenerateDesignImage = async () => {
     const characterReferences: { imageBase64: string; mimeType: string }[] = [];
-    const slotsWithCharacter = characterSlots.filter((s) => s.characterId != null && s.characterId !== '');
+    const characterPoseReferences: Array<{
+      characterId: string;
+      poseKey: string;
+      label: string;
+      imageBase64: string;
+      mimeType: string;
+      isPrimary: boolean;
+    }> = [];
     type CharacterRow = {
       slotIndex: number;
       id: string;
@@ -1149,44 +1186,46 @@ export const DetectFromImageSection: React.FC = () => {
         accessories: row.accessories ?? null,
         additional_details: row.additional_details ?? null,
       });
-      const refPath = row.reference_image_path;
-      if (!refPath || String(refPath).trim() === '') {
-        toast.error(
-          t(
-            'detectFromImage.errorCharacterNoReferencePhoto',
-            'Selected character has no reference photo. Add one in Digital Assets > Character.'
-          ) + (row.name ? ` (${row.name})` : '')
-        );
-        return;
-      }
+    }
+
+    if (characterRows.length > 0) {
       try {
-        const { data: signedData, error: signedError } = await supabase.storage
-          .from('digital-asset-character-images')
-          .createSignedUrl(refPath, 60 * 60 * 24, {
-            transform: { width: 400, height: 400, resize: "contain", quality: 80 },
-          });
-        if (signedError || !signedData?.signedUrl) {
+        const { loadPoseReferencesForCharacters } = await import(
+          '../lib/loadCharacterPoseReferences'
+        );
+        const { refs, summary } = await loadPoseReferencesForCharacters(
+          characterRows.map((r) => r.id),
+          { t },
+        );
+        if (refs.length === 0) {
           toast.error(
-            t('detectFromImage.errorCharacterReferenceLoadFailed', 'Failed to load character reference photo.')
+            t(
+              'detectFromImage.errorCharacterNoReferencePhoto',
+              'Selected character has no reference photo. Add one in Digital Assets > Character.',
+            ),
           );
           return;
         }
-        const res = await fetch(signedData.signedUrl);
-        if (!res.ok) {
-          toast.error(
-            t('detectFromImage.errorCharacterReferenceLoadFailed', 'Failed to load character reference photo.')
-          );
-          return;
+        for (const ref of refs) {
+          characterPoseReferences.push(ref);
+          characterReferences.push({ imageBase64: ref.imageBase64, mimeType: ref.mimeType });
         }
-        const blob = await res.blob();
-        const mime = blob.type?.startsWith('image/') ? blob.type : 'image/jpeg';
-        const file = new File([blob], 'character-reference.jpg', { type: mime });
-        const { base64, mimeType } = await getCompressedImageBase64(file, 400, 0.6);
-        characterReferences.push({ imageBase64: base64, mimeType });
+        const truncated = summary.some((s) => s.included < s.totalAvailable);
+        if (truncated) {
+          const included = summary.reduce((n, s) => n + s.included, 0);
+          const total = summary.reduce((n, s) => n + s.totalAvailable, 0);
+          toast.message(
+            t(
+              'detectFromImage.poseRefsTruncated',
+              'Sending {{included}} of {{total}} pose photo(s) (payload limit).',
+              { included, total },
+            ),
+          );
+        }
       } catch (err) {
         console.error(err);
         toast.error(
-          t('detectFromImage.errorCharacterReferenceLoadFailed', 'Failed to load character reference photo.')
+          t('detectFromImage.errorCharacterReferenceLoadFailed', 'Failed to load character reference photo.'),
         );
         return;
       }
@@ -1346,6 +1385,14 @@ export const DetectFromImageSection: React.FC = () => {
         referenceImageBase64?: string;
         referenceImageMimeType?: string;
         characterReferences?: { imageBase64: string; mimeType: string }[];
+        characterPoseReferences?: Array<{
+          characterId: string;
+          poseKey: string;
+          label: string;
+          imageBase64: string;
+          mimeType: string;
+          isPrimary?: boolean;
+        }>;
         characterStructuredReferences?: Array<{
           head?: { imageBase64: string; mimeType: string; description?: string };
           clothes?: Array<{ imageBase64: string; mimeType: string; description?: string }>;
@@ -1397,6 +1444,9 @@ export const DetectFromImageSection: React.FC = () => {
       if (characterReferences.length > 0) {
         body.characterReferences = characterReferences;
       }
+      if (characterPoseReferences.length > 0) {
+        body.characterPoseReferences = characterPoseReferences;
+      }
       if (characterStructuredReferences.length > 0) {
         body.characterStructuredReferences = characterStructuredReferences;
       }
@@ -1422,6 +1472,7 @@ export const DetectFromImageSection: React.FC = () => {
         let n = (b.prompt?.length ?? 0) + (b.elementsText?.length ?? 0) + (b.layoutStyleText?.length ?? 0) + 5000;
         if (b.referenceImageBase64) n += b.referenceImageBase64.length;
         for (const r of b.characterReferences ?? []) n += (r.imageBase64?.length ?? 0);
+        for (const r of b.characterPoseReferences ?? []) n += (r.imageBase64?.length ?? 0);
         for (const s of b.characterStructuredReferences ?? []) {
           if (s.head?.imageBase64) n += s.head.imageBase64.length;
           for (const c of s.clothes ?? []) n += (c.imageBase64?.length ?? 0);
@@ -1800,8 +1851,9 @@ export const DetectFromImageSection: React.FC = () => {
       if (!characterId) throw new Error('No id returned');
 
       if (selectedFile) {
+        const imageId = crypto.randomUUID();
         const ext = selectedFile.name?.match(/\.[a-zA-Z0-9]+$/)?.[0] ?? '.jpg';
-        const path = `${organizationId}/${characterId}${ext}`;
+        const path = `${organizationId}/${characterId}/${imageId}${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('digital-asset-character-images')
           .upload(
@@ -1811,6 +1863,28 @@ export const DetectFromImageSection: React.FC = () => {
           );
         if (uploadError) {
           console.error(uploadError);
+          if (organizationId) {
+            void queryClient.invalidateQueries({ queryKey: digitalAssetCharactersKey(organizationId) });
+          }
+          toast.success(t('detectFromImage.successSaveCharacter', 'Saved to Character successfully.'));
+          toast.error(t('detectFromImage.imageUploadFailed', 'Character saved but image upload failed.'));
+          return;
+        }
+        const { error: imageRowError } = await supabase.from('digital_asset_character_images').insert({
+          id: imageId,
+          organization_id: organizationId,
+          character_id: characterId,
+          storage_path: path,
+          pose_key: 'front_closeup',
+          label_custom: null,
+          sort_order: 0,
+          is_primary: true,
+        });
+        if (imageRowError) {
+          console.error(imageRowError);
+          if (organizationId) {
+            void queryClient.invalidateQueries({ queryKey: digitalAssetCharactersKey(organizationId) });
+          }
           toast.success(t('detectFromImage.successSaveCharacter', 'Saved to Character successfully.'));
           toast.error(t('detectFromImage.imageUploadFailed', 'Character saved but image upload failed.'));
           return;
@@ -1821,10 +1895,19 @@ export const DetectFromImageSection: React.FC = () => {
           .eq('id', characterId);
         if (updateError) {
           console.error(updateError);
+          if (organizationId) {
+            void queryClient.invalidateQueries({ queryKey: digitalAssetCharactersKey(organizationId) });
+          }
           toast.success(t('detectFromImage.successSaveCharacter', 'Saved to Character successfully.'));
           toast.error(t('detectFromImage.imageUploadFailed', 'Character saved but image upload failed.'));
           return;
         }
+      }
+      if (organizationId) {
+        void queryClient.invalidateQueries({ queryKey: digitalAssetCharactersKey(organizationId) });
+        void queryClient.invalidateQueries({
+          queryKey: ['digital_asset_character_images', organizationId],
+        });
       }
       toast.success(t('detectFromImage.successSaveCharacter', 'Saved to Character successfully.'));
     } catch (err) {
@@ -1863,13 +1946,14 @@ export const DetectFromImageSection: React.FC = () => {
             <div
               role="button"
               tabIndex={0}
+              data-clipboard-image-slot
               onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
               onClick={() => {
                 if (uploadClickTimeoutRef.current) clearTimeout(uploadClickTimeoutRef.current);
                 uploadClickTimeoutRef.current = setTimeout(() => {
                   uploadClickTimeoutRef.current = null;
                   readClipboardAsFile().then((file) => { if (file) setFile(file); });
-                }, 5000);
+                }, CLICK_VS_DBLCLICK_MS);
               }}
               onDoubleClick={() => {
                 if (uploadClickTimeoutRef.current) {
@@ -1885,7 +1969,12 @@ export const DetectFromImageSection: React.FC = () => {
             >
               {previewUrl ? (
                 <div className="space-y-2 w-full flex-1 flex flex-col min-h-0">
-                  <img src={previewUrl} alt="Preview" className="w-full max-h-[320px] min-h-[200px] mx-auto rounded object-contain flex-1" />
+                  <img
+                    src={previewUrl}
+                    alt="Preview"
+                    decoding="async"
+                    className="w-full max-h-[320px] min-h-[200px] mx-auto rounded object-contain flex-1"
+                  />
                   <p className="font-medium text-gray-900 truncate px-2 text-sm">{selectedFile?.name}</p>
                   <p className="text-xs">{t('detectFromImage.pasteOrDrop', 'Paste image here (Ctrl+V) or click to change file')}</p>
                 </div>
@@ -2533,6 +2622,7 @@ export const DetectFromImageSection: React.FC = () => {
                           {layoutCompositionSlots[i] == null ? (
                             <div
                               data-layout-composition-zone
+                              data-clipboard-image-slot
                               role="button"
                               tabIndex={0}
                               onPaste={handleSlotPaste(i)}
@@ -2743,6 +2833,7 @@ export const DetectFromImageSection: React.FC = () => {
                                       <div
                                         role="button"
                                         tabIndex={0}
+                                        data-clipboard-image-slot
                                         onPaste={handleCharacterStructuredPaste(index, cat, sub)}
                                         onDrop={handleCharacterStructuredDrop(index, cat, sub)}
                                         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}

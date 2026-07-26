@@ -8,6 +8,8 @@ export function extractBriefTitle(text: string): string | null {
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i].trim();
     if (!t) continue;
+    // Skip HTML comments (e.g. sequence metadata) and alignment-only noise
+    if (t.startsWith('<!--') || t.endsWith('-->')) continue;
     if (/^##\s+Format|^Format\s*&?\s*Style/i.test(t)) break;
     const h2Match = t.match(/^##\s+(.+?)\s*(?:##\s*)?$/);
     if (h2Match) {

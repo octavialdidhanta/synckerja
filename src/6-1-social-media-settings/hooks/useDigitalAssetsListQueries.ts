@@ -3,6 +3,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import type {
   DigitalAssetCharacter,
+  DigitalAssetCharacterImage,
   DigitalAssetObject,
   DigitalAssetBrandColor,
   DigitalAssetCompanyLogo,
@@ -10,6 +11,21 @@ import type {
 
 export const digitalAssetCharactersKey = (organizationId: string | null | undefined) =>
   ['digital_asset_characters', organizationId] as const;
+
+export const digitalAssetCharacterImagesKey = (
+  organizationId: string | null | undefined,
+  characterId: string | null | undefined,
+) => ['digital_asset_character_images', organizationId, characterId] as const;
+
+export const digitalAssetCharacterPoseCountsKey = (
+  organizationId: string | null | undefined,
+  characterIds: string[],
+) =>
+  [
+    'digital_asset_character_pose_counts',
+    organizationId,
+    [...characterIds].sort().join(','),
+  ] as const;
 
 export const digitalAssetObjectsKey = (organizationId: string | null | undefined) =>
   ['digital_asset_objects', organizationId] as const;
@@ -35,6 +51,53 @@ export function useDigitalAssetCharactersListQuery() {
       return (data as DigitalAssetCharacter[]) || [];
     },
     enabled: !!organizationId,
+    staleTime: 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useDigitalAssetCharacterImagesQuery(characterId: string | null | undefined) {
+  const { organizationId } = useCurrentOrg();
+  return useQuery({
+    queryKey: digitalAssetCharacterImagesKey(organizationId, characterId),
+    queryFn: async (): Promise<DigitalAssetCharacterImage[]> => {
+      if (!organizationId || !characterId) return [];
+      const { data, error } = await supabase
+        .from('digital_asset_character_images')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .eq('character_id', characterId)
+        .order('is_primary', { ascending: false })
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return (data as DigitalAssetCharacterImage[]) || [];
+    },
+    enabled: !!organizationId && !!characterId,
+    staleTime: 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** Total pose image rows across multiple characters (for Brief scene hint). */
+export function useDigitalAssetCharacterPoseCountQuery(characterIds: string[]) {
+  const { organizationId } = useCurrentOrg();
+  const ids = [...new Set(characterIds.filter(Boolean))];
+  return useQuery({
+    queryKey: digitalAssetCharacterPoseCountsKey(organizationId, ids),
+    queryFn: async (): Promise<number> => {
+      if (!organizationId || ids.length === 0) return 0;
+      const { count, error } = await supabase
+        .from('digital_asset_character_images')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', organizationId)
+        .in('character_id', ids);
+      if (error) throw error;
+      return count ?? 0;
+    },
+    enabled: !!organizationId && ids.length > 0,
     staleTime: 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
