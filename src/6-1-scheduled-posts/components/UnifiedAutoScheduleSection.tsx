@@ -26,6 +26,7 @@ import { DeletePublishedConfirmDialog } from './DeletePublishedConfirmDialog';
 import { useDeletePublishedPost } from '../hooks/useDeletePublishedPost';
 import { useSocialMediaLinks } from '@/6-1-dashboard/hook/useSocialMediaLinks';
 import { canDeletePublishedPlatformRow } from '../lib/canDeletePublishedPlatformRow';
+import { resolveTikTokPublishedVideoUrl } from '../lib/resolveTikTokPublishedVideoUrl';
 import {
   SCHEDULE_TABLE_ACTIONS_HEAD_CLASS,
   SCHEDULE_TABLE_CONNECTION_CELL_CLASS,
@@ -578,6 +579,19 @@ export function UnifiedAutoScheduleSection({
           deleteTarget?.platform === 'TikTok'
             ? t('digitalMarketing.scheduledPosts.deleteFromPlatformTikTokNote')
             : undefined
+        }
+        publishedVideoUrl={
+          deleteTarget?.platform === 'TikTok'
+            ? resolveTikTokPublishedVideoUrl({
+                accountId: deleteTarget.accountId,
+                schedule: pickAccountScheduleForModal(
+                  scheduleRows,
+                  deleteTarget.platform,
+                  deleteTarget.accountId,
+                ),
+                links: planLinks,
+              })
+            : null
         }
         isPending={deletePublishedMutation.isPending}
         onConfirm={() => {

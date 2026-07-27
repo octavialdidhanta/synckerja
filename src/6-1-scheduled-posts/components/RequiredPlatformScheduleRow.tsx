@@ -318,7 +318,12 @@ export function RequiredPlatformScheduleRow({
                 {isDeletePending ? (
                   <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
                 ) : null}
-                {t('digitalMarketing.scheduledPosts.deleteFromPlatform')}
+                {platform === 'TikTok'
+                  ? t(
+                      'digitalMarketing.scheduledPosts.deleteFromPlatformTikTokMenu',
+                      'Clear Synckerja link',
+                    )
+                  : t('digitalMarketing.scheduledPosts.deleteFromPlatform')}
               </DropdownMenuItem>
             ) : (
               <>
