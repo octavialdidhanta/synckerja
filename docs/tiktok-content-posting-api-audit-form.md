@@ -4,16 +4,16 @@ Dokumen ini adalah panduan melanjutkan atau mengulang form **Application to requ
 
 > Ini **Direct Post Audit**, bukan App Review ulang. App Synckerja Office sudah Live. Audit ini diperlukan agar Direct Post dapat memublikasikan video ke akun TikTok Public dengan visibility Public/Followers.
 
-## Status terakhir — 21 Juli 2026
+## Status terakhir — 27 Juli 2026
 
 - App TikTok Developer: **Synckerja Office**
 - App ID portal: `7654513562417039368`
-- Organization website: `https://office.synckerja.com`
-- Secret publishing Supabase sudah diperbaiki memakai Client key/secret **Synckerja Office**
-- OAuth **Authorize publishing** sudah berhasil dan consent menampilkan **Synckerja Office**
-- Form audit sudah sampai **Step 3 — Supporting documents**
-- Form belum disubmit karena pengerjaan dihentikan sementara
-- Public Direct Post masih ditolak dengan error `unaudited_client_can_only_post_to_private_accounts` sampai audit disetujui
+- Environment: **Production** · App status: **Live**
+- **Direct Post: Approved** (provisioned access for users)
+- Upload to TikTok (draft inbox) tetap enabled by default
+- `push_by_file` / `FILE_UPLOAD`: siap dipakai (implementasi Synckerja)
+- `pull_by_url` / `PULL_FROM_URL`: butuh **Verify domains** di portal (belum wajib — kita pakai FILE_UPLOAD)
+- Default visibility di app: **PUBLIC_TO_EVERYONE** (tetap dihormati lewat `creator_info.privacy_level_options`)
 
 ## Sebelum mulai lagi
 
@@ -148,13 +148,13 @@ Sebelum submit, periksa:
 
 Klik **Submit** dan simpan screenshot status submission.
 
-## Setelah submit
+## Setelah Direct Post Approved (27 Juli 2026)
 
-1. Tunggu status Direct Post Audit menjadi approved.
-2. Selama belum approved, Public Direct Post akan ditolak oleh TikTok.
-3. Setelah approved, lakukan **Authorize publishing** ulang jika TikTok meminta consent baru.
-4. Uji **Post Now** dengan akun TikTok Public dan visibility Public.
-5. Uji Schedule dan pastikan status menjadi Published.
+1. ~~Tunggu status Direct Post Audit menjadi approved.~~ **Done — Approved.**
+2. Uji **Post Now** dengan akun TikTok Public dan visibility **Public** (`PUBLIC_TO_EVERYONE`).
+3. Uji Schedule dan pastikan status menjadi Published.
+4. Jika token publish lama (dari masa pre-approval), org admin boleh **Authorize publishing** ulang.
+5. Domain verification untuk `pull_by_url` opsional — pipeline produksi memakai `FILE_UPLOAD`.
 
 ## Catatan penting
 

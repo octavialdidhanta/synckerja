@@ -1188,7 +1188,7 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.tiktokPrivacy.followers": "Pengikut",
   "digitalMarketing.scheduledPosts.tiktokPrivacy.friends": "Teman",
   "digitalMarketing.scheduledPosts.tiktokUnauditedHint":
-    "Sampai audit Direct Post disetujui, pakai Hanya saya dan set akun TikTok ke Private. Setelah approval, Publik/Pengikut berfungsi.",
+    "Visibilitas mengikuti opsi yang TikTok izinkan untuk creator ini (Publik, Pengikut, Teman, atau Hanya saya).",
   "digitalMarketing.scheduledPosts.scheduledFor": "TikTok dijadwalkan pukul {{time}} WIB",
   "digitalMarketing.scheduledPosts.published": "Posting berhasil dipublikasikan",
   "digitalMarketing.scheduledPosts.publishedTikTok": "Posting TikTok berhasil",

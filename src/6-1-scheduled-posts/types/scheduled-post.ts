@@ -11,7 +11,7 @@ export type ScheduledPostStatus = (typeof SCHEDULED_POST_STATUSES)[number];
 export const DELIVERY_MODES = ['api_auto', 'manual_only'] as const;
 export type DeliveryMode = (typeof DELIVERY_MODES)[number];
 
-export const DEFAULT_PRIVACY_LEVEL = 'SELF_ONLY';
+export const DEFAULT_PRIVACY_LEVEL = 'PUBLIC_TO_EVERYONE';
 export const DEFAULT_TIMEZONE = 'Asia/Jakarta';
 
 export type TikTokProviderConfig = {

@@ -33,10 +33,10 @@ function formatTikTokApiErrorDetail(
   const logSuffix = logId ? ` [log_id=${logId}]` : "";
 
   if (code === "unaudited_client_can_only_post_to_private_accounts") {
-    return `${prefix}: Direct Post audit belum disetujui — TikTok hanya mengizinkan posting Only me (SELF_ONLY) ke akun Private. Set akun TikTok ke Private + visibility Only me, atau tunggu Direct Post Audit approved untuk posting publik.${logSuffix}`;
+    return `${prefix}: TikTok menolak Direct Post publik untuk client ini — pastikan Direct Post Approved di Production, akun creator eligible, dan visibility cocok dengan creator_info.privacy_level_options.${logSuffix}`;
   }
   if (code === "privacy_level_option_mismatch") {
-    return `${prefix}: Visibility tidak valid untuk akun TikTok ini. Gunakan opsi dari creator_info (biasanya Only me / SELF_ONLY untuk app belum diaudit).${logSuffix}`;
+    return `${prefix}: Visibility tidak valid untuk akun TikTok ini. Pilih opsi yang dikembalikan creator_info (Public / Followers / Friends / Only me).${logSuffix}`;
   }
 
   if (msg && msg !== "ok") {
@@ -74,19 +74,31 @@ export type TikTokCreatorInfo = {
   max_video_post_duration_sec?: number;
 };
 
-/** Pick a privacy level allowed for this creator (unaudited apps → SELF_ONLY). */
+const TIKTOK_PRIVACY_FALLBACK_ORDER = [
+  "PUBLIC_TO_EVERYONE",
+  "FOLLOWER_OF_CREATOR",
+  "MUTUAL_FOLLOW_FRIENDS",
+  "SELF_ONLY",
+] as const;
+
+/** Pick a privacy level allowed for this creator (from creator_info after Direct Post approval). */
 export function resolveTikTokPublishPrivacyLevel(
   requested: string | null | undefined,
   creatorInfo: Pick<TikTokCreatorInfo, "privacy_level_options">,
 ): string {
   const options = (creatorInfo.privacy_level_options ?? []).filter(Boolean);
-  const wanted = String(requested ?? "").trim() || "SELF_ONLY";
+  const wanted = String(requested ?? "").trim() || "PUBLIC_TO_EVERYONE";
 
   if (options.includes(wanted)) return wanted;
-  if (options.includes("SELF_ONLY")) return "SELF_ONLY";
+
+  for (const candidate of TIKTOK_PRIVACY_FALLBACK_ORDER) {
+    if (options.includes(candidate)) return candidate;
+  }
+
+  if (options.length > 0) return options[0]!;
 
   throw new Error(
-    `privacy_level_option_mismatch: Only me (SELF_ONLY) required for unaudited TikTok apps; available options: ${options.join(", ") || "none"}`,
+    `privacy_level_option_mismatch: no privacy_level_options from creator_info; requested=${wanted}`,
   );
 }
 

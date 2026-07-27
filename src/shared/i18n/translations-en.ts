@@ -1189,7 +1189,7 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.tiktokPrivacy.followers": "Followers",
   "digitalMarketing.scheduledPosts.tiktokPrivacy.friends": "Friends",
   "digitalMarketing.scheduledPosts.tiktokUnauditedHint":
-    "Until Direct Post audit is approved, use Only me and set the TikTok account to Private. After approval, Public/Followers work.",
+    "Visibility follows what TikTok allows for this creator (Public, Followers, Friends, or Only me).",
   "digitalMarketing.scheduledPosts.scheduledFor": "TikTok scheduled for {{time}} WIB",
   "digitalMarketing.scheduledPosts.published": "Post published",
   "digitalMarketing.scheduledPosts.publishedTikTok": "TikTok post published",

@@ -12,6 +12,7 @@ Runbook untuk app **developers.tiktok.com → Synckerja Office** (Login Kit + Co
 | **developers app** | Synckerja Office (Login Kit / Direct Post) |
 | **business-api app** | Synkerja Content Insight (organic insights + comments) |
 | **Redirect URI** | `https://wqdzqqshoifwyrltzgvx.supabase.co/functions/v1/tiktok-content-oauth-callback` |
+| **Direct Post** | **Approved** (Production · 27 Juli 2026) |
 
 > Dual-app model: **business-api** untuk Connect (insights/comments); **developers** untuk “Authorize publishing” (video.upload / video.publish).  
 > Referensi format: [`docs/youtube-content-oauth-verification.md`](./youtube-content-oauth-verification.md), [`docs/meta-content-publish-app-review.md`](./meta-content-publish-app-review.md)
@@ -102,6 +103,8 @@ Runbook untuk app **developers.tiktok.com → Synckerja Office** (Login Kit + Co
 
 Until Direct Post audit is approved, API only allows **SELF_ONLY** (Only me) on eligible private accounts.
 
+> **Update 27 Juli 2026:** Direct Post status di portal = **Approved**. Default visibility di Synckerja sekarang `PUBLIC_TO_EVERYONE`; runtime tetap mengikuti `creator_info.privacy_level_options`.
+
 Domain **Verify** for `PULL_FROM_URL` is **not required** for current production path (Google Drive → **FILE_UPLOAD**).
 
 ---
@@ -160,7 +163,7 @@ Scheduler migrations (if not yet applied): see [`supabase/functions/social-media
 ## 7. Setelah App Review + Direct Post audit approved
 
 1. Set `SCHEDULER_PUBLISH_DRY_RUN` off (atau unset).
-2. Setiap org admin: **Disconnect** → **Connect** → **Authorize publishing** (token lama tidak otomatis dapat scope baru).
+2. Setiap org admin: **Disconnect** → **Connect** → **Authorize publishing** jika token lama dari masa pre-approval.
 3. Smoke test **Post Now** dengan visibility **PUBLIC_TO_EVERYONE** atau **FOLLOWER_OF_CREATOR** (opsi dari `creator_info`).
 4. Smoke test **Schedule** → cron publish dalam ~1 menit.
 5. Verifikasi metrics sync setelah publish.
@@ -179,11 +182,11 @@ GROUP BY 1, 2
 ORDER BY 1, 2;
 ```
 
-### Pre-approval (sandbox) smoke
+### Status Direct Post (27 Juli 2026)
 
-- Connect + Authorize publishing OK
-- Post Now dengan **SELF_ONLY** sukses
-- Tidak expect public posting sampai Direct Post audit lolos
+- Direct Post: **Approved** di Production
+- Smoke: Post Now / Schedule dengan **PUBLIC_TO_EVERYONE**
+- Domain verify untuk `pull_by_url` tidak wajib (pipeline memakai `FILE_UPLOAD`)
 
 ---
 

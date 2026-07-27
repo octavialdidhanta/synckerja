@@ -94,7 +94,7 @@ function buildContentRecommendation(matched: TikTokContentAppMatch): string | nu
     return `Salah slot — pindahkan Synkerja Office (${TIKTOK_BUSINESS_ADS_APP_ID}) ke TIKTOK_ADS_*. CONTENT harus Synkerja Content Insight (${TIKTOK_BUSINESS_CONTENT_APP_ID}).`;
   }
   if (matched === "developers_content") {
-    return "Ini app developers.tiktok.com (Synckerja Office) — cocok untuk Direct Post setelah App Review + Direct Post audit. Untuk organic/komentar gunakan Synkerja Content Insight di business-api.";
+    return "Ini app developers.tiktok.com (Synckerja Office) — Direct Post Approved; cocok untuk video.upload / video.publish. Untuk organic/komentar gunakan Synkerja Content Insight di business-api.";
   }
   if (matched === "unknown") {
     return "Client key tidak cocok dengan App ID Synckerja yang dikenal. Cek Supabase secrets vs TikTok portal.";

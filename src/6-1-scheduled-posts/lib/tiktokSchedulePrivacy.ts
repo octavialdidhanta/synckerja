@@ -1,17 +1,17 @@
 export const TIKTOK_SCHEDULE_PRIVACY_LEVELS = [
-  'SELF_ONLY',
   'PUBLIC_TO_EVERYONE',
   'FOLLOWER_OF_CREATOR',
   'MUTUAL_FOLLOW_FRIENDS',
+  'SELF_ONLY',
 ] as const;
 
 export type TikTokSchedulePrivacyLevel = (typeof TIKTOK_SCHEDULE_PRIVACY_LEVELS)[number];
 
 /**
- * Default while Direct Post audit is pending.
- * Unaudited apps can only post SELF_ONLY to Private TikTok accounts.
+ * Default after Direct Post audit approval (Synckerja Office — Live).
+ * Runtime still respects creator_info.privacy_level_options from TikTok.
  */
-export const DEFAULT_TIKTOK_SCHEDULE_PRIVACY: TikTokSchedulePrivacyLevel = 'SELF_ONLY';
+export const DEFAULT_TIKTOK_SCHEDULE_PRIVACY: TikTokSchedulePrivacyLevel = 'PUBLIC_TO_EVERYONE';
 
 export function isTikTokSchedulePrivacyLevel(value: unknown): value is TikTokSchedulePrivacyLevel {
   const level = String(value ?? '').trim().toUpperCase();
