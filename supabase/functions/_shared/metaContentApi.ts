@@ -716,8 +716,6 @@ function applyFbInsightMetrics(
   const reach = insight.post_total_media_view_unique ?? insight.post_impressions_unique ?? 0;
   if (views > 0) metrics.view_count = Math.max(metrics.view_count, views);
   if (reach > 0) metrics.reach = Math.max(metrics.reach, reach);
-  const engaged = insight.post_engaged_users ?? 0;
-  if (engaged > 0) metrics.total_interactions = Math.max(metrics.total_interactions, engaged);
 }
 
 async function mergeFbPostFieldsBatchPass(
@@ -792,12 +790,15 @@ async function fetchFacebookPostMetricsMap(
     return !metrics || metrics.view_count === 0 || metrics.reach === 0;
   });
 
+  // Graph API rejects the whole /insights call with #100 if any metric is invalid,
+  // so keep these lists free of metrics Meta has removed (e.g. post_engaged_users).
   await mergeFbInsightsBatchPass(needInsights(), accessToken, metricsById, {
-    metric: "post_media_view,post_total_media_view_unique,post_engaged_users",
+    metric: "post_media_view,post_total_media_view_unique",
     period: "lifetime",
   });
+  // Viewer-based unique metrics have no data for older posts; impressions still do (until Jun 2026).
   await mergeFbInsightsBatchPass(needInsights(), accessToken, metricsById, {
-    metric: "post_impressions,post_impressions_unique,post_engaged_users",
+    metric: "post_impressions,post_impressions_unique",
     period: "lifetime",
   });
   await mergeFbInsightsBatchPass(needInsights(), accessToken, metricsById, {
