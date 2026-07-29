@@ -13,9 +13,11 @@ import {
 } from "../_shared/youtubeContentAuth.ts";
 import { youtubeContentScopesIncludeDelete } from "../_shared/youtubeContent/youtubeContentDeleteScopes.ts";
 import { deleteYouTubePublishedPost } from "../_shared/scheduledPosts/deletePublished/deleteYouTubePublishedPost.ts";
-import { cancelScheduleById, cancelPendingSchedulesForPlatformAccount } from "../_shared/scheduledPosts/scheduledPostCancel.ts";
+import { cancelScheduleById } from "../_shared/scheduledPosts/scheduledPostCancel.ts";
 import { assertPlatformCanSchedule } from "../_shared/scheduledPosts/platformRegistry.ts";
 import { runScheduledPostJob } from "../_shared/scheduledPosts/runScheduledPostJob.ts";
+import { runPostNowInBackground } from "../_shared/scheduledPosts/schedulePostNowAsync.ts";
+import { insertPlatformScheduleForTarget } from "../_shared/scheduledPosts/createPlatformScheduleRow.ts";
 import {
   getPlanEligibilityMissingReasons,
   isPlanEligibleForYouTubeAutoSchedule,
@@ -24,8 +26,6 @@ import {
   DEFAULT_YOUTUBE_SCHEDULE_PRIVACY,
   normalizeYouTubeSchedulePrivacy,
 } from "../_shared/scheduledPosts/normalizeYouTubeSchedulePrivacy.ts";
-import { DEFAULT_TIMEZONE } from "../_shared/scheduledPosts/scheduledPostTypes.ts";
-import type { YouTubeProviderConfig } from "../_shared/scheduledPosts/scheduledPostTypes.ts";
 
 async function loadPlanForPublish(
   admin: ReturnType<typeof createClient>,
@@ -48,6 +48,16 @@ async function loadPlanForPublish(
     google_drive_link: string | null;
     content_type?: { name?: string } | null;
   };
+}
+
+function mapScheduleInsertError(msg: string): { body: Record<string, unknown>; status: number } {
+  if (msg === "upload_scopes_not_granted" || msg === "publish_scopes_not_granted") {
+    return { body: { error: msg }, status: 403 };
+  }
+  if (msg === "invalid_scheduled_at" || msg === "invalid_target") {
+    return { body: { error: msg }, status: 400 };
+  }
+  return { body: { error: "Failed to create schedule" }, status: 500 };
 }
 
 Deno.serve(async (req: Request) => {
@@ -189,39 +199,10 @@ Deno.serve(async (req: Request) => {
     const channelId = String(body.channel_id ?? "").trim();
     if (!channelId) return youtubeContentJson({ error: "Missing channel_id" }, 400);
 
-    const { data: tokenRow } = await admin
-      .from("organization_youtube_content_connection_tokens")
-      .select("oauth_scopes")
-      .eq("organization_id", organizationId)
-      .eq("channel_id", channelId)
-      .maybeSingle();
-
-    if (!youtubeContentScopesIncludeUpload(parseYouTubeOAuthScopes(tokenRow?.oauth_scopes))) {
-      return youtubeContentJson({ error: "upload_scopes_not_granted" }, 403);
-    }
-
     const scheduledAtRaw = action === "post_now"
       ? new Date().toISOString()
       : String(body.scheduled_at ?? "").trim();
     if (!scheduledAtRaw) return youtubeContentJson({ error: "Missing scheduled_at" }, 400);
-
-    const scheduledAt = new Date(scheduledAtRaw);
-    if (Number.isNaN(scheduledAt.getTime())) {
-      return youtubeContentJson({ error: "Invalid scheduled_at" }, 400);
-    }
-
-    const caption = body.caption != null ? String(body.caption) : null;
-    const title = body.title != null ? String(body.title) : null;
-    const accountLabel = body.account_label != null ? String(body.account_label) : "";
-    const driveLink = plan.google_drive_link?.trim() ?? "";
-
-    await cancelPendingSchedulesForPlatformAccount(admin, planId, "YouTube", channelId);
-
-    const providerConfig: YouTubeProviderConfig = {
-      channel_id: channelId,
-      account_label: accountLabel,
-      ...(body.employee_id ? { employee_id: String(body.employee_id) } : {}),
-    };
 
     if (body.privacy_level != null && !normalizeYouTubeSchedulePrivacy(body.privacy_level)) {
       return youtubeContentJson({ error: "invalid_privacy_level" }, 400);
@@ -230,35 +211,46 @@ Deno.serve(async (req: Request) => {
     const privacyLevel =
       normalizeYouTubeSchedulePrivacy(body.privacy_level) ?? DEFAULT_YOUTUBE_SCHEDULE_PRIVACY;
 
-    const { data: inserted, error: insertErr } = await admin
-      .from("social_media_scheduled_posts")
-      .insert({
-        organization_id: organizationId,
-        social_media_plan_id: planId,
-        platform: "YouTube",
-        delivery_mode: "api_auto",
-        status: action === "post_now" ? "publishing" : "pending",
-        scheduled_at: scheduledAt.toISOString(),
-        timezone: DEFAULT_TIMEZONE,
-        media_source: "google_drive_link",
-        media_url_snapshot: driveLink,
+    const caption = body.caption != null ? String(body.caption) : null;
+    const title = body.title != null ? String(body.title) : null;
+    const accountLabel = body.account_label != null ? String(body.account_label) : "";
+    const driveLink = plan.google_drive_link?.trim() ?? "";
+
+    let inserted;
+    try {
+      inserted = await insertPlatformScheduleForTarget(admin, {
+        organizationId,
+        planId,
+        driveLink,
         caption,
         title,
-        privacy_level: privacyLevel,
-        provider_config: providerConfig,
-        platform_account_id: channelId,
-        scheduled_by: userId,
-      })
-      .select("*")
-      .single();
-
-    if (insertErr || !inserted) {
-      console.error("youtube schedule insert:", insertErr?.message);
-      return youtubeContentJson({ error: "Failed to create schedule" }, 500);
+        employeeId: body.employee_id != null ? String(body.employee_id) : null,
+        userId,
+        action: action as "schedule" | "post_now",
+        scheduledAtIso: scheduledAtRaw,
+        target: {
+          platform: "YouTube",
+          account_id: channelId,
+          account_label: accountLabel,
+          privacy_level: privacyLevel,
+        },
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "schedule_insert_failed";
+      console.error("youtube schedule insert:", msg);
+      const mapped = mapScheduleInsertError(msg);
+      return youtubeContentJson(mapped.body, mapped.status);
     }
 
     if (action === "post_now") {
-      const job = await runScheduledPostJob(admin, inserted.id, { skipPublishingTransition: true });
+      const job = await runPostNowInBackground(admin, inserted.id);
+      if ("processing" in job && job.processing) {
+        return youtubeContentJson({
+          ok: true,
+          processing: true,
+          schedule: inserted,
+        }, 200);
+      }
       if (!job.ok) {
         return youtubeContentJson(
           { error: job.error ?? "publish_failed", stub_code: job.stubCode },

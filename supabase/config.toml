@@ -103,6 +103,9 @@ verify_jwt = false
 [functions.google-drive-file-thumbnail]
 verify_jwt = false
 
+[functions.google-drive-resumable-upload]
+verify_jwt = false
+
 # Browser calls with user JWT (ES256); auth enforced inside (getUser + service role).
 [functions.whatsapp-message-templates]
 verify_jwt = false
@@ -205,6 +208,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.social-media-scheduler]
+verify_jwt = false
+
+[functions.social-media-plan-publish]
+verify_jwt = false
+wall_clock_duration = 400
+
+[functions.share-caption-suggest]
 verify_jwt = false
 
 # TikTok Shop: user JWT validated inside; OAuth callback has no JWT.

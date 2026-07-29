@@ -79,3 +79,35 @@ export function buildPlatformPublishPayload(
       throw new Error(`unsupported_platform:${platform}`);
   }
 }
+
+export type BulkPostNowTargetPayload = {
+  platform: string;
+  account_id: string;
+  account_label: string;
+  privacy_level?: string;
+};
+
+export function buildBulkPostNowTargetsPayload(
+  targets: Array<{
+    platform: string;
+    accountId: string;
+    accountLabel: string;
+    requiredPlatformRowId: string;
+  }>,
+  getPrivacyLevel?: (rowId: string, platform?: string) => string | undefined,
+): BulkPostNowTargetPayload[] {
+  return targets.map((target) => {
+    const privacyLevel =
+      getPrivacyLevel &&
+      (target.platform === 'YouTube' || target.platform === 'TikTok')
+        ? getPrivacyLevel(target.requiredPlatformRowId, target.platform)
+        : undefined;
+
+    return {
+      platform: target.platform,
+      account_id: target.accountId,
+      account_label: target.accountLabel,
+      ...(privacyLevel ? { privacy_level: privacyLevel } : {}),
+    };
+  });
+}

@@ -46,4 +46,5 @@ export type ScheduledPost = {
   scheduled_by: string | null;
   created_at: string;
   updated_at: string;
+  platform_account_id?: string | null;
 };

@@ -176,6 +176,11 @@ public class PhotoPickerPlugin extends Plugin {
             }
         }
 
-        return new ShareIntentStore.PendingItem(outFile.getAbsolutePath(), displayName, mime);
+        return new ShareIntentStore.PendingItem(
+            outFile.getAbsolutePath(),
+            displayName,
+            mime,
+            outFile.length()
+        );
     }
 }

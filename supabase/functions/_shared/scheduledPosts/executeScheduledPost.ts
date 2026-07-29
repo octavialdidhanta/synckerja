@@ -12,15 +12,18 @@ import { executeFacebookScheduledPost } from "./platforms/facebook.ts";
 import { executeYouTubeScheduledPost } from "./platforms/youtube.ts";
 import { executeLinkedInScheduledPost } from "./platforms/linkedin.ts";
 import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
+import type { SharedPublishContext } from "./sharedPublishContext.ts";
 
 export type ExecuteScheduledPostResult = {
   published_url: string;
   external_post_id: string;
+  tiktok_publish_path?: "pull" | "file_upload";
 };
 
 export async function executeScheduledPost(
   admin: SupabaseClient,
   schedule: ScheduledPostRow,
+  sharedCtx?: SharedPublishContext,
 ): Promise<ExecuteScheduledPostResult> {
   const platform = normalizeSchedulePlatform(schedule.platform);
   const capability = getPlatformScheduleCapability(platform);
@@ -43,15 +46,15 @@ export async function executeScheduledPost(
 
   switch (platform) {
     case "TikTok":
-      return executeTikTokScheduledPost(admin, schedule);
+      return executeTikTokScheduledPost(admin, schedule, sharedCtx);
     case "Instagram":
-      return executeInstagramScheduledPost(admin, schedule);
+      return executeInstagramScheduledPost(admin, schedule, sharedCtx);
     case "Facebook":
-      return executeFacebookScheduledPost(admin, schedule);
+      return executeFacebookScheduledPost(admin, schedule, sharedCtx);
     case "YouTube":
-      return executeYouTubeScheduledPost(admin, schedule);
+      return executeYouTubeScheduledPost(admin, schedule, sharedCtx);
     case "LinkedIn":
-      return executeLinkedInScheduledPost(admin, schedule);
+      return executeLinkedInScheduledPost(admin, schedule, sharedCtx);
     default:
       throw new Error(
         buildScheduleStubError("not_implemented", platform, schedule.delivery_mode ?? "unknown"),

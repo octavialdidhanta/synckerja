@@ -10,6 +10,10 @@ const config: CapacitorConfig = {
     backgroundColor: "#ffffff",
   },
   plugins: {
+  CapacitorHttp: {
+    /** Native HTTP for Blob PUT (Drive resumable upload) — WebView fetch + Blob fails on Android. */
+    enabled: true,
+  },
     StatusBar: {
       overlaysWebView: false,
       backgroundColor: "#ffffff",

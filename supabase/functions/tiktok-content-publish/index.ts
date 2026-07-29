@@ -8,18 +8,18 @@ import {
   requireTikTokContentPlatformConfigured,
   tiktokContentCorsHeaders,
   tiktokContentJson,
-  tiktokContentScopesIncludePublish,
 } from "../_shared/tiktokContentAuth.ts";
 import { deleteTikTokPublishedPost } from "../_shared/scheduledPosts/deletePublished/deleteTikTokPublishedPost.ts";
-import { cancelScheduleById, cancelPendingSchedulesForPlatformAccount } from "../_shared/scheduledPosts/scheduledPostCancel.ts";
+import { cancelScheduleById } from "../_shared/scheduledPosts/scheduledPostCancel.ts";
 import { assertPlatformCanSchedule } from "../_shared/scheduledPosts/platformRegistry.ts";
 import { runScheduledPostJob } from "../_shared/scheduledPosts/runScheduledPostJob.ts";
+import { runPostNowInBackground } from "../_shared/scheduledPosts/schedulePostNowAsync.ts";
+import { insertPlatformScheduleForTarget } from "../_shared/scheduledPosts/createPlatformScheduleRow.ts";
 import {
   getPlanEligibilityMissingReasons,
   isPlanEligibleForTikTokAutoSchedule,
 } from "../_shared/scheduledPosts/scheduledPostEligibility.ts";
-import { DEFAULT_PRIVACY_LEVEL, DEFAULT_TIMEZONE } from "../_shared/scheduledPosts/scheduledPostTypes.ts";
-import type { TikTokProviderConfig } from "../_shared/scheduledPosts/scheduledPostTypes.ts";
+import { DEFAULT_PRIVACY_LEVEL } from "../_shared/scheduledPosts/scheduledPostTypes.ts";
 
 async function loadPlanForPublish(
   admin: ReturnType<typeof createClient>,
@@ -42,6 +42,25 @@ async function loadPlanForPublish(
     google_drive_link: string | null;
     content_type?: { name?: string } | null;
   };
+}
+
+function mapScheduleInsertError(msg: string): { body: Record<string, unknown>; status: number } {
+  if (msg === "publish_login_kit_token_missing") {
+    return {
+      body: {
+        error: msg,
+        message: "Authorize TikTok publishing in Digital Marketing settings",
+      },
+      status: 403,
+    };
+  }
+  if (msg === "publish_scopes_not_granted" || msg === "upload_scopes_not_granted") {
+    return { body: { error: msg }, status: 403 };
+  }
+  if (msg === "invalid_scheduled_at" || msg === "invalid_target") {
+    return { body: { error: msg }, status: 400 };
+  }
+  return { body: { error: "Failed to create schedule" }, status: 500 };
 }
 
 Deno.serve(async (req: Request) => {
@@ -176,37 +195,10 @@ Deno.serve(async (req: Request) => {
     const openId = String(body.open_id ?? "").trim();
     if (!openId) return tiktokContentJson({ error: "Missing open_id" }, 400);
 
-    const { data: tokenRow } = await admin
-      .from("organization_tiktok_content_connection_tokens")
-      .select("oauth_scopes, publish_oauth_scopes, publish_access_token_enc")
-      .eq("organization_id", organizationId)
-      .eq("open_id", openId)
-      .maybeSingle();
-
-    const scopeForPublish = (tokenRow?.publish_oauth_scopes as string | null) ??
-      (tokenRow?.oauth_scopes as string | null);
-    const hasPublishToken = Boolean(tokenRow?.publish_access_token_enc);
-
-    if (!hasPublishToken) {
-      return tiktokContentJson({
-        error: "publish_login_kit_token_missing",
-        message: "Authorize TikTok publishing in Digital Marketing settings",
-      }, 403);
-    }
-
-    if (!tiktokContentScopesIncludePublish(scopeForPublish)) {
-      return tiktokContentJson({ error: "publish_scopes_not_granted" }, 403);
-    }
-
     const scheduledAtRaw = action === "post_now"
       ? new Date().toISOString()
       : String(body.scheduled_at ?? "").trim();
     if (!scheduledAtRaw) return tiktokContentJson({ error: "Missing scheduled_at" }, 400);
-
-    const scheduledAt = new Date(scheduledAtRaw);
-    if (Number.isNaN(scheduledAt.getTime())) {
-      return tiktokContentJson({ error: "Invalid scheduled_at" }, 400);
-    }
 
     const caption = body.caption != null ? String(body.caption) : null;
     const title = body.title != null ? String(body.title) : null;
@@ -215,43 +207,41 @@ Deno.serve(async (req: Request) => {
     const privacyLevelRaw = body.privacy_level != null ? String(body.privacy_level).trim().toUpperCase() : "";
     const privacyLevel = privacyLevelRaw || DEFAULT_PRIVACY_LEVEL;
 
-    await cancelPendingSchedulesForPlatformAccount(admin, planId, "TikTok", openId);
-
-    const providerConfig: TikTokProviderConfig & { employee_id?: string } = {
-      open_id: openId,
-      account_label: accountLabel,
-      ...(body.employee_id ? { employee_id: String(body.employee_id) } : {}),
-    };
-
-    const { data: inserted, error: insertErr } = await admin
-      .from("social_media_scheduled_posts")
-      .insert({
-        organization_id: organizationId,
-        social_media_plan_id: planId,
-        platform: "TikTok",
-        delivery_mode: "api_auto",
-        status: action === "post_now" ? "publishing" : "pending",
-        scheduled_at: scheduledAt.toISOString(),
-        timezone: DEFAULT_TIMEZONE,
-        media_source: "google_drive_link",
-        media_url_snapshot: driveLink,
+    let inserted;
+    try {
+      inserted = await insertPlatformScheduleForTarget(admin, {
+        organizationId,
+        planId,
+        driveLink,
         caption,
         title,
-        privacy_level: privacyLevel,
-        provider_config: providerConfig,
-        platform_account_id: openId,
-        scheduled_by: userId,
-      })
-      .select("*")
-      .single();
-
-    if (insertErr || !inserted) {
-      console.error("schedule insert:", insertErr?.message);
-      return tiktokContentJson({ error: "Failed to create schedule" }, 500);
+        employeeId: body.employee_id != null ? String(body.employee_id) : null,
+        userId,
+        action: action as "schedule" | "post_now",
+        scheduledAtIso: scheduledAtRaw,
+        target: {
+          platform: "TikTok",
+          account_id: openId,
+          account_label: accountLabel,
+          privacy_level: privacyLevel,
+        },
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "schedule_insert_failed";
+      console.error("schedule insert:", msg);
+      const mapped = mapScheduleInsertError(msg);
+      return tiktokContentJson(mapped.body, mapped.status);
     }
 
     if (action === "post_now") {
-      const job = await runScheduledPostJob(admin, inserted.id, { skipPublishingTransition: true });
+      const job = await runPostNowInBackground(admin, inserted.id);
+      if ("processing" in job && job.processing) {
+        return tiktokContentJson({
+          ok: true,
+          processing: true,
+          schedule: inserted,
+        }, 200);
+      }
       if (!job.ok) {
         return tiktokContentJson(
           { error: job.error ?? "publish_failed", stub_code: job.stubCode },

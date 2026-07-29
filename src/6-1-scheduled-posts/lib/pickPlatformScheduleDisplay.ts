@@ -14,6 +14,8 @@ export function getAccountIdFromProviderConfig(
       return String(cfg.channel_id ?? '').trim() || null;
     case 'Instagram':
       return String(cfg.instagram_business_account_id ?? '').trim() || null;
+    case 'Facebook':
+      return String(cfg.facebook_page_id ?? '').trim() || null;
     case 'LinkedIn':
       return String(cfg.page_id ?? '').trim() || null;
     default:
@@ -30,7 +32,9 @@ export function pickAccountScheduleForModal(
   const filtered = rows
     .filter((s) => {
       if (s.platform !== platform || s.status === 'cancelled') return false;
-      const rowAccountId = getAccountIdFromProviderConfig(platform, s.provider_config);
+      const rowAccountId =
+        String(s.platform_account_id ?? '').trim() ||
+        getAccountIdFromProviderConfig(platform, s.provider_config);
       return rowAccountId === accountTrim;
     })
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));

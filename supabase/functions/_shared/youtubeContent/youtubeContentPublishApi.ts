@@ -226,15 +226,42 @@ export async function assertYouTubeVideoOwnedByChannel(
   };
 }
 
+export async function assertYouTubeVideoOwnedByChannelWithRetry(
+  accessToken: string,
+  videoId: string,
+  channelId: string,
+  maxAttempts = 15,
+  delayMs = 2000,
+): Promise<YouTubeVerifiedVideo> {
+  let lastError: Error | null = null;
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      return await assertYouTubeVideoOwnedByChannel(accessToken, videoId, channelId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes("youtube_video_not_found")) throw e;
+      lastError = e instanceof Error ? e : new Error(msg);
+      if (i < maxAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  throw lastError ?? new Error("youtube_video_not_found: video not visible after retries");
+}
+
 export async function pollYouTubeVideoUntilProcessed(
   accessToken: string,
   videoId: string,
-  maxAttempts = 30,
-  delayMs = 3000,
+  maxAttempts = 45,
+  delayMs = 2000,
 ): Promise<void> {
   for (let i = 0; i < maxAttempts; i++) {
     const status = await fetchYouTubeVideoProcessingStatus(accessToken, videoId);
     if (!status.found) {
+      if (i < maxAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
       throw new Error("youtube_video_not_found: video id not returned by YouTube Data API");
     }
     const processing = String(status.processingStatus ?? "").toLowerCase();

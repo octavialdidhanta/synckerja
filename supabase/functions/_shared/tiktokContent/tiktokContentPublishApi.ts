@@ -81,6 +81,13 @@ const TIKTOK_PRIVACY_FALLBACK_ORDER = [
   "SELF_ONLY",
 ] as const;
 
+export type TikTokPublishStatus = {
+  status: string;
+  fail_reason?: string;
+  publicaly_available_post_id?: string[];
+  uploaded_bytes?: number;
+};
+
 /** Pick a privacy level allowed for this creator (from creator_info after Direct Post approval). */
 export function resolveTikTokPublishPrivacyLevel(
   requested: string | null | undefined,
@@ -100,6 +107,35 @@ export function resolveTikTokPublishPrivacyLevel(
   throw new Error(
     `privacy_level_option_mismatch: no privacy_level_options from creator_info; requested=${wanted}`,
   );
+}
+
+export function assertTikTokPublicPrivacyAvailable(
+  requested: string | null | undefined,
+  creatorInfo: Pick<TikTokCreatorInfo, "privacy_level_options">,
+): void {
+  const wanted = String(requested ?? "").trim() || "PUBLIC_TO_EVERYONE";
+  if (wanted !== "PUBLIC_TO_EVERYONE") return;
+  const options = (creatorInfo.privacy_level_options ?? []).filter(Boolean);
+  if (!options.includes("PUBLIC_TO_EVERYONE")) {
+    throw new Error(
+      "tiktok_public_privacy_unavailable: TikTok account cannot post publicly. Check Direct Post audit status.",
+    );
+  }
+}
+
+export function isValidTikTokPublicVideoId(id: string | null | undefined): boolean {
+  const trimmed = String(id ?? "").trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith("v_pub_")) return false;
+  return /^\d+$/.test(trimmed);
+}
+
+export function extractTikTokPublicPostId(status: TikTokPublishStatus): string | null {
+  for (const raw of status.publicaly_available_post_id ?? []) {
+    const id = String(raw ?? "").trim();
+    if (isValidTikTokPublicVideoId(id)) return id;
+  }
+  return null;
 }
 
 export function deriveTikTokPostInteractionFromCreator(
@@ -311,13 +347,6 @@ export async function initTikTokVideoPublishPullFromUrl(
   return json.data;
 }
 
-export type TikTokPublishStatus = {
-  status: string;
-  fail_reason?: string;
-  publicaly_available_post_id?: string[];
-  uploaded_bytes?: number;
-};
-
 export async function fetchTikTokPublishStatus(
   accessToken: string,
   publishId: string,
@@ -353,6 +382,40 @@ export async function pollTikTokPublishUntilComplete(
       throw new Error(`publish_failed: ${status.fail_reason ?? "unknown"}`);
     }
     await new Promise((r) => setTimeout(r, delayMs));
+  }
+  throw new Error("publish_timeout: TikTok publish did not complete in time");
+}
+
+/** Wait for PUBLISH_COMPLETE and a real public numeric video id (not v_pub_*). */
+export async function pollTikTokPublishUntilPublicPostId(
+  accessToken: string,
+  publishId: string,
+  options?: { maxAttempts?: number; delayMs?: number },
+): Promise<{ status: TikTokPublishStatus; publicPostId: string }> {
+  const maxAttempts = options?.maxAttempts ?? 45;
+  const delayMs = options?.delayMs ?? 2000;
+  let lastComplete: TikTokPublishStatus | null = null;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    const status = await fetchTikTokPublishStatus(accessToken, publishId);
+    const s = String(status.status ?? "").toUpperCase();
+    if (s === "FAILED") {
+      throw new Error(`publish_failed: ${status.fail_reason ?? "unknown"}`);
+    }
+    if (s === "PUBLISH_COMPLETE") {
+      lastComplete = status;
+      const publicPostId = extractTikTokPublicPostId(status);
+      if (publicPostId) {
+        return { status, publicPostId };
+      }
+    }
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+
+  if (lastComplete) {
+    throw new Error(
+      "tiktok_public_post_id_timeout: TikTok publish completed but public video id was not returned",
+    );
   }
   throw new Error("publish_timeout: TikTok publish did not complete in time");
 }

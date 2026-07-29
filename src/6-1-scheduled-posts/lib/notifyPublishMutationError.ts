@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import { toast } from 'sonner';
+import { resolvePublishErrorKey } from './resolvePublishErrorKey';
 
 export function isPublishRateLimitMessage(message: string): boolean {
   return message.startsWith('rate_limited:');
@@ -42,5 +43,6 @@ export function notifyPublishMutationError(
     return;
   }
 
-  toast.error(raw);
+  const key = resolvePublishErrorKey(raw);
+  toast.error(t(key, raw));
 }

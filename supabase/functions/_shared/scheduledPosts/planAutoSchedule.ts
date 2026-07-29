@@ -319,13 +319,13 @@ export async function runPlanAutoSchedule(
 
   const { data: briefRow } = await admin
     .from("brief_captions")
-    .select("caption")
+    .select("content")
     .eq("social_media_plan_id", opts.planId)
     .maybeSingle();
 
   const caption = buildScheduleCaption(
     planRow.title as string | null,
-    (briefRow?.caption as string | null) ?? null,
+    (briefRow?.content as string | null) ?? null,
   );
 
   const { data: requiredRows } = await admin

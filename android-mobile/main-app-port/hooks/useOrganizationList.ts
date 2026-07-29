@@ -113,6 +113,16 @@ export function useOrganizationList() {
         setCurrentOrgCacheForUser(user.id, organizationId);
         window.dispatchEvent(new CustomEvent("organization-switched", { detail: { organizationId } }));
 
+        // Optimistic UI: label/checkmarks update before profile refetch settles.
+        queryClient.setQueryData(queryKey, (prev: {
+          organizations: OrganizationItem[];
+          activeOrganizationId: string | null;
+        } | undefined) =>
+          prev
+            ? { ...prev, activeOrganizationId: organizationId }
+            : { organizations, activeOrganizationId: organizationId },
+        );
+
         await syncAfterOrganizationSwitch(queryClient, organizationId);
         await queryClient.invalidateQueries({ queryKey });
 

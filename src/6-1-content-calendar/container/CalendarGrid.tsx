@@ -15,6 +15,8 @@ interface CalendarGridProps {
   onPlanClick?: (date: Date, plan: any) => void; // Optional: handler for clicking individual plan card
   /** Production Need Review (grey) & Production Revision (red): open Google Drive preview modal */
   onOpenPreview?: (plan: any) => void;
+  variant?: 'default' | 'share-picker';
+  isPlanSelected?: (plan: any) => boolean;
 }
 
 export const CalendarGrid: React.FC<CalendarGridProps> = ({
@@ -22,7 +24,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   getDayInfo,
   onDayClick,
   onPlanClick,
-  onOpenPreview
+  onOpenPreview,
+  variant = 'default',
+  isPlanSelected,
 }) => {
   const { t } = useAppTranslation();
   // Extract plan IDs for green cards (done = true) to fetch links
@@ -162,11 +166,17 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
   /** Kolom header selaras dengan grid: index 0 = Min (Minggu) … sama dengan Date#getDay(). */
   const todayWeekdayIndex = new Date().getDay();
+  const isSharePicker = variant === 'share-picker';
 
   return (
     <div className="relative">
       {/* Days of week header - Fixed positioning */}
-      <div className="-mt-4 mb-2 grid grid-cols-7 gap-1 py-2 sticky -top-4 z-20 bg-white dark:bg-slate-950">
+      <div
+        className={cn(
+          "mb-2 grid grid-cols-7 gap-1 py-2",
+          isSharePicker ? "" : "-mt-4 sticky -top-4 z-20 bg-white dark:bg-slate-950",
+        )}
+      >
         {indonesianDays.map((day, columnIndex) => {
           const isTodayWeekdayColumn = todayWeekdayIndex === columnIndex;
           return (
@@ -196,10 +206,10 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
               key={index}
               onClick={() => onDayClick(date, dayInfo)}
               className={`
-                aspect-square p-2 border border-slate-200 dark:border-slate-700 flex flex-col text-xs relative cursor-pointer transition-colors overflow-hidden
+                ${isSharePicker ? "min-h-[124px]" : "aspect-square"} p-2 border border-slate-200 dark:border-slate-700 flex flex-col text-xs relative cursor-pointer transition-colors overflow-hidden
                 ${!isCurrentMonth ? 'text-slate-400 bg-slate-50 dark:bg-slate-900' : 'bg-white dark:bg-slate-800'}
                 ${isToday ? 'ring-2 ring-primary' : ''}
-                hover:shadow-md hover:scale-105 transition-all duration-200
+                ${isSharePicker ? "shadow-sm" : "hover:shadow-md hover:scale-105"} transition-all duration-200
               `}
             >
               {/* Content count badge - shown when more than 1 content */}
@@ -214,7 +224,14 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
               </div>
               
               {dayInfo.count > 0 ? (
-                <div className="flex-1 min-h-0 space-y-1 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain">
+                <div
+                  className={cn(
+                    "flex-1 min-h-0 space-y-1 overflow-x-hidden",
+                    isSharePicker
+                      ? ""
+                      : "overflow-y-auto seamless-scroll nested-scroll-touch-chain",
+                  )}
+                >
                   {dayInfo.plans.map((plan: any, planIndex: number) => {
                     // Determine individual plan color based on status
                     const approved = plan?.approved === true;
@@ -250,6 +267,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                                              productionApproved && 
                                              plan?.google_drive_link &&
                                              isValidUrl(plan.google_drive_link);
+                    const selected = isPlanSelected?.(plan) === true;
                     
                     return (
                       <div 
@@ -262,7 +280,11 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                             onPlanClick(date, plan);
                           }
                         }}
-                        className={`text-xs space-y-0.5 p-1.5 rounded shadow-sm cursor-pointer hover:opacity-90 hover:shadow-md transition-all ${cardShellClass(cardTone)}`}
+                        className={cn(
+                          `text-xs space-y-0.5 p-1.5 rounded shadow-sm cursor-pointer transition-all ${cardShellClass(cardTone)}`,
+                          selected ? "ring-2 ring-primary ring-offset-1 ring-offset-white dark:ring-offset-slate-800" : "",
+                          isSharePicker ? "" : "hover:opacity-90 hover:shadow-md",
+                        )}
                       >
                         {/* Late Status Text - Show if plan is green with late status */}
                         {planStatus === 'green' && hasLateStatus && onTimeStatus && (
@@ -294,7 +316,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                           ].filter(Boolean).join(' • ')}
                         </div>
 
-                        {(cardTone === 'prod-need-review' || cardTone === 'prod-request-revision') &&
+                        {!isSharePicker &&
+                          (cardTone === 'prod-need-review' || cardTone === 'prod-request-revision') &&
                           onOpenPreview && (
                           <>
                             <button
@@ -339,7 +362,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                         )}
                         
                         {/* NEW: Green cards - Display all social media links */}
-                        {planStatus === 'green' && planLinks.length > 0 && (
+                        {!isSharePicker && planStatus === 'green' && planLinks.length > 0 && (
                           <div className="mt-1.5 pt-1.5 border-t border-white/20">
                             <div className="text-[9px] font-semibold text-emerald-50 mb-0.5">
                               Links:
@@ -376,7 +399,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                         )}
                         
                         {/* NEW: Yellow cards - Display google_drive_link */}
-                        {hasGoogleDriveLink && (
+                        {!isSharePicker && hasGoogleDriveLink && (
                           <div
                             className={`mt-1.5 pt-1.5 border-t ${
                               cardTone === 'yellow'
@@ -417,7 +440,12 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                   })}
                 </div>
               ) : isCurrentMonth ? (
-                <div className="flex-1 flex items-center justify-center opacity-20 hover:opacity-60 transition-opacity">
+                <div
+                  className={cn(
+                    "flex-1 flex items-center justify-center transition-opacity",
+                    isSharePicker ? "opacity-10" : "opacity-20 hover:opacity-60",
+                  )}
+                >
                   <Plus className="h-4 w-4" />
                 </div>
               ) : null}

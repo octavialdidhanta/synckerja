@@ -24,6 +24,7 @@ export function isTransientScheduledPublishError(message: string): boolean {
     /\bhttp\s*504\b/.test(m) ||
     /\bhttp\s*429\b/.test(m) ||
     m.includes("publish_timeout") ||
+    m.includes("tiktok_public_post_id_timeout") ||
     m.includes("econnreset") ||
     m.includes("network error")
   );
@@ -36,7 +37,8 @@ export function isTransientYouTubePublishError(message: string): boolean {
     m.includes("quotaexceeded") ||
     m.includes("uploadtimeout") ||
     m.includes("processing_timeout") ||
-    m.includes("backenderror")
+    m.includes("backenderror") ||
+    m.includes("youtube_video_not_found")
   );
 }
 
@@ -48,6 +50,9 @@ export function isTransientMetaPublishError(message: string): boolean {
     m.includes("(#4)") ||
     m.includes("(#613)") ||
     m.includes("media_not_ready") ||
+    m.includes("media id is not available") ||
+    m.includes("media is not ready") ||
+    m.includes("not ready for publishing") ||
     m.includes("transient")
   );
 }

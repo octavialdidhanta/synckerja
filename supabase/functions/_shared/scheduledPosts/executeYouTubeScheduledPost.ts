@@ -6,7 +6,7 @@ import {
 import { getYouTubeContentAccessToken } from "../youtubeContentOrgResolver.ts";
 import {
   appendShortsHashtag,
-  assertYouTubeVideoOwnedByChannel,
+  assertYouTubeVideoOwnedByChannelWithRetry,
   buildYouTubePublishedUrl,
   computeYouTubeUploadChunkPlan,
   initYouTubeResumableUpload,
@@ -20,6 +20,7 @@ import {
   isReelContentType,
   shouldCancelScheduleDueToDriveMismatch,
 } from "./scheduledPostEligibility.ts";
+import { resolveVideoBytesForUpload, type SharedPublishContext } from "./sharedPublishContext.ts";
 import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import type { ScheduledPostRow, YouTubeProviderConfig } from "./scheduledPostTypes.ts";
 import { DEFAULT_YOUTUBE_SCHEDULE_PRIVACY } from "./normalizeYouTubeSchedulePrivacy.ts";
@@ -171,6 +172,7 @@ async function finalizeYouTubePublish(
 export async function executeYouTubeScheduledPost(
   admin: SupabaseClient,
   schedule: ScheduledPostRow,
+  sharedCtx?: SharedPublishContext,
 ): Promise<{ published_url: string; external_post_id: string | null }> {
   const plan = await loadPlan(admin, schedule.social_media_plan_id);
   if (!plan) throw new Error("plan_not_found");
@@ -211,7 +213,7 @@ export async function executeYouTubeScheduledPost(
   let providerConfig = { ...(schedule.provider_config as Record<string, unknown>) };
 
   if (cfg.youtube_video_id) {
-    const verified = await assertYouTubeVideoOwnedByChannel(
+    const verified = await assertYouTubeVideoOwnedByChannelWithRetry(
       accessToken,
       cfg.youtube_video_id,
       channelId,
@@ -239,7 +241,7 @@ export async function executeYouTubeScheduledPost(
   );
 
   const driveUrl = plan.google_drive_link?.trim() ?? schedule.media_url_snapshot;
-  const { bytes: videoBytes, mimeType } = await downloadGoogleDriveVideo(driveUrl);
+  const { bytes: videoBytes, mimeType } = await resolveVideoBytesForUpload(driveUrl, sharedCtx);
   const chunkPlan = computeYouTubeUploadChunkPlan(videoBytes.byteLength);
 
   let uploadUrl = String(cfg.youtube_upload_url ?? "").trim();
@@ -277,7 +279,7 @@ export async function executeYouTubeScheduledPost(
     youtube_video_id: videoId,
   });
 
-  const verified = await assertYouTubeVideoOwnedByChannel(accessToken, videoId, channelId);
+  const verified = await assertYouTubeVideoOwnedByChannelWithRetry(accessToken, videoId, channelId);
   await pollYouTubeVideoUntilProcessed(accessToken, videoId);
 
   return finalizeYouTubePublish(admin, schedule, plan, channelId, videoId, cfg, verified);

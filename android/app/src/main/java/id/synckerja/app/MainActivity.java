@@ -41,6 +41,10 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
 
     private static final String TAG = "MainActivity";
     private static final long MAX_SHARE_BYTES = 10L * 1024 * 1024;
+    /**
+     * CapCut / Gallery exports often exceed 128MB. Align with Drive upload + download helpers (512MB).
+     */
+    private static final long MAX_SHARE_VIDEO_BYTES = 512L * 1024 * 1024;
 
     public static final String LIVECHAT_CHANNEL_ID = "livechat";
     public static final String NOTIFICATIONS_CHANNEL_ID = "notifications";
@@ -69,6 +73,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         registerPlugin(NotificationLaunchPlugin.class);
         // Sebelum Bridge/WebView: paksa nav bar opaque hitam (cold start / API 35 edge-to-edge).
         applyBlackSystemNavigationBar();
+        ShareIntentStore.init(this);
         super.onCreate(savedInstanceState);
         // Solid black system navigation bar (3-button / gesture strip) + light icons — re-apply after Bridge.
         applyBlackSystemNavigationBar();
@@ -232,10 +237,136 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
             return;
         }
 
+        final String intentType = intent.getType();
+        Log.i(TAG, "Share intent action=" + action + " type=" + intentType);
+
+        ArrayList<Uri> uris = collectShareUris(intent, action);
+
+        if (uris.isEmpty()) {
+            Log.w(TAG, "Share intent: no stream URIs (extras keys="
+                + (intent.getExtras() != null ? intent.getExtras().keySet() : "null") + ")");
+            // Still open publish for non-image/pdf SEND so user is not dumped on Home.
+            String typeLowerEmpty = intentType != null ? intentType.toLowerCase() : "";
+            boolean likelyReceiptEmpty =
+                typeLowerEmpty.startsWith("image/") || "application/pdf".equals(typeLowerEmpty);
+            if (!likelyReceiptEmpty) {
+                final String routeFallback = "/share/publish";
+                ShareIntentStore.setPendingRoute(routeFallback);
+                scheduleShareRouteUntilAck(routeFallback);
+            }
+            return;
+        }
+
+        String typeLower = intentType != null ? intentType.toLowerCase() : "";
+        boolean likelyReceipt =
+            typeLower.startsWith("image/") || "application/pdf".equals(typeLower);
+        // Navigate immediately so user never lands on home while copy runs.
+        final String route = likelyReceipt ? "/share/receipt-validation" : "/share/publish";
+        ShareIntentStore.setPendingRoute(route);
+        ShareIntentStore.setPendingError(null);
+        Log.i(TAG, "Share intent: immediate route=" + route + " uriCount=" + uris.size());
+        scheduleShareRouteUntilAck(route);
+
+        // Open streams on the UI thread while the share grant is still valid, then copy off-thread.
+        final ContentResolver cr = getContentResolver();
+        final ArrayList<OpenedShareStream> opened = new ArrayList<>();
+        for (int i = 0; i < uris.size() && opened.size() < 20; i++) {
+            Uri uri = uris.get(i);
+            try {
+                InputStream in = cr.openInputStream(uri);
+                if (in == null) {
+                    Log.w(TAG, "openInputStream null on UI thread for " + uri);
+                    continue;
+                }
+                String displayName = resolveDisplayName(uri, cr);
+                String mime = null;
+                try {
+                    mime = cr.getType(uri);
+                } catch (Exception ignored) {
+                }
+                opened.add(new OpenedShareStream(uri, in, displayName, mime));
+                Log.i(TAG, "opened share stream on UI: " + displayName + " mime=" + mime);
+            } catch (Exception e) {
+                Log.e(TAG, "openInputStream failed on UI for " + uri, e);
+            }
+        }
+
+        if (opened.isEmpty()) {
+            Log.w(TAG, "Share intent: could not open any streams on UI thread");
+            return;
+        }
+
+        new Thread(() -> {
+            List<ShareIntentStore.PendingItem> items = new ArrayList<>();
+            for (OpenedShareStream openedStream : opened) {
+                try {
+                    ShareIntentStore.PendingItem item =
+                        copyOpenedStreamToCache(openedStream, intentType);
+                    if (item != null) items.add(item);
+                } catch (Exception e) {
+                    Log.e(TAG, "copyOpenedStreamToCache failed for " + openedStream.uri, e);
+                } finally {
+                    try {
+                        openedStream.inputStream.close();
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+            if (items.isEmpty()) {
+                Log.w(TAG, "Share intent: all URIs skipped after background copy");
+                if (ShareIntentStore.peekPendingError() == null) {
+                    ShareIntentStore.setPendingError("share.publish.errors.copyFailed");
+                }
+                runOnUiThread(() -> {
+                    ShareIntentPlugin.notifyShareIntentReceived();
+                    requestJsShareNavigation(route);
+                });
+                return;
+            }
+            Log.i(TAG, "Share intent: pending files=" + items.size()
+                + " firstMime=" + items.get(0).mimeType
+                + " firstName=" + items.get(0).name);
+            ShareIntentStore.setPending(items);
+            ShareIntentStore.setPendingRoute(route);
+            runOnUiThread(() -> {
+                ShareIntentPlugin.notifyShareIntentReceived();
+                requestJsShareNavigation(route);
+                getWindow().getDecorView().postDelayed(
+                    () -> {
+                        ShareIntentPlugin.notifyShareIntentReceived();
+                        requestJsShareNavigation(route);
+                    },
+                    500
+                );
+            });
+        }, "share-intent-copy").start();
+    }
+
+    private static final class OpenedShareStream {
+        final Uri uri;
+        final InputStream inputStream;
+        final String displayName;
+        final String resolverMime;
+
+        OpenedShareStream(Uri uri, InputStream inputStream, String displayName, String resolverMime) {
+            this.uri = uri;
+            this.inputStream = inputStream;
+            this.displayName = displayName;
+            this.resolverMime = resolverMime;
+        }
+    }
+
+    private ArrayList<Uri> collectShareUris(Intent intent, String action) {
         ArrayList<Uri> uris = new ArrayList<>();
         if (Intent.ACTION_SEND.equals(action)) {
             Uri stream = getSendStreamUri(intent);
             if (stream != null) uris.add(stream);
+            try {
+                @SuppressWarnings("deprecation")
+                Uri legacy = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+                if (legacy != null && !uris.contains(legacy)) uris.add(legacy);
+            } catch (Exception ignored) {
+            }
             if (intent.getData() != null && !uris.contains(intent.getData())) {
                 uris.add(intent.getData());
             }
@@ -250,27 +381,64 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
             for (Uri u : getSendMultipleStreams(intent)) {
                 if (u != null) uris.add(u);
             }
-        }
-
-        if (uris.isEmpty()) {
-            Log.w(TAG, "Share intent: no stream URIs");
-            return;
-        }
-
-        final int maxFiles = 20;
-        ContentResolver cr = getContentResolver();
-        List<ShareIntentStore.PendingItem> items = new ArrayList<>();
-        for (int i = 0; i < uris.size() && items.size() < maxFiles; i++) {
             try {
-                ShareIntentStore.PendingItem item = copyUriToCache(uris.get(i), cr);
-                if (item != null) items.add(item);
-            } catch (IOException e) {
-                Log.e(TAG, "copyUriToCache failed", e);
+                @SuppressWarnings("deprecation")
+                ArrayList<Uri> legacyMulti = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+                if (legacyMulti != null) {
+                    for (Uri u : legacyMulti) {
+                        if (u != null && !uris.contains(u)) uris.add(u);
+                    }
+                }
+            } catch (Exception ignored) {
             }
         }
-        if (items.isEmpty()) return;
-        ShareIntentStore.setPending(items);
-        ShareIntentPlugin.notifyShareIntentReceived();
+        return uris;
+    }
+
+    /**
+     * Keep asking JS to navigate via React Router (custom event only — do NOT touch
+     * history.replaceState; that desyncs BrowserRouter and leaves the user on Home).
+     */
+    private void scheduleShareRouteUntilAck(String path) {
+        try {
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                getBridge().getWebView().evaluateJavascript(
+                    "window.__SYNCKERJA_SHARE_ROUTE_ACK__=undefined;",
+                    null
+                );
+            }
+        } catch (Exception ignored) {
+        }
+        requestJsShareNavigation(path);
+        final long[] delaysMs = new long[] {300, 700, 1200, 2000, 3500, 5000, 8000, 12000, 16000};
+        for (long delay : delaysMs) {
+            getWindow().getDecorView().postDelayed(() -> requestJsShareNavigation(path), delay);
+        }
+    }
+
+    /**
+     * Signal React ({@code ShareIntentRouteSync}) — never mutate history directly.
+     */
+    private void requestJsShareNavigation(String path) {
+        try {
+            if (getBridge() == null || getBridge().getWebView() == null) {
+                Log.w(TAG, "requestJsShareNavigation: bridge not ready for " + path);
+                return;
+            }
+            String safe = path.replace("'", "");
+            String js =
+                "(function(){try{"
+                    + "if(window.__SYNCKERJA_SHARE_ROUTE_ACK__==='" + safe + "')return;"
+                    + "window.__SYNCKERJA_SHARE_ROUTE__='" + safe + "';"
+                    + "window.dispatchEvent(new CustomEvent('synckerja-share-route',{detail:{path:'" + safe + "'}}));"
+                    + "}catch(e){console.error('synckerja share nav',e);}})();";
+            getBridge().getWebView().post(
+                () -> getBridge().getWebView().evaluateJavascript(js, null)
+            );
+            Log.i(TAG, "requestJsShareNavigation: " + path);
+        } catch (Exception e) {
+            Log.e(TAG, "requestJsShareNavigation failed", e);
+        }
     }
 
     private String resolveDisplayName(Uri uri, ContentResolver cr) {
@@ -295,49 +463,158 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return ".jpg";
         if (lower.endsWith(".webp")) return ".webp";
         if (lower.endsWith(".gif")) return ".gif";
+        if (lower.endsWith(".mp4")) return ".mp4";
+        if (lower.endsWith(".mov")) return ".mov";
+        if (lower.endsWith(".webm")) return ".webm";
+        if (lower.endsWith(".m4v")) return ".m4v";
         String m = mime != null ? mime.toLowerCase() : "";
         if ("application/pdf".equals(m)) return ".pdf";
         if ("image/png".equals(m)) return ".png";
         if ("image/webp".equals(m)) return ".webp";
         if ("image/gif".equals(m)) return ".gif";
-        return ".jpg";
+        if ("video/mp4".equals(m)) return ".mp4";
+        if ("video/quicktime".equals(m)) return ".mov";
+        if ("video/webm".equals(m)) return ".webm";
+        if (m.startsWith("video/")) return ".mp4";
+        if (m.startsWith("image/")) return ".jpg";
+        return ".mp4";
     }
 
-    private ShareIntentStore.PendingItem copyUriToCache(Uri uri, ContentResolver cr) throws IOException {
-        String mime = cr.getType(uri);
-        if (mime == null) mime = "application/octet-stream";
+    private ShareIntentStore.PendingItem copyOpenedStreamToCache(
+        OpenedShareStream opened,
+        String intentType
+    ) throws IOException {
+        String mime = opened.resolverMime;
+        String intentTypeSafe = intentType != null ? intentType.trim() : "";
+        String intentLower = intentTypeSafe.toLowerCase();
+
+        if (mime == null
+            || mime.isEmpty()
+            || "application/octet-stream".equalsIgnoreCase(mime)
+            || "*/*".equals(mime)) {
+            if (!intentTypeSafe.isEmpty()
+                && !"*/*".equals(intentLower)
+                && !"application/octet-stream".equals(intentLower)) {
+                mime = intentTypeSafe;
+            } else if (mime == null || mime.isEmpty()) {
+                mime = "application/octet-stream";
+            }
+        }
+
         String ml = mime.toLowerCase();
-        if (!ml.startsWith("image/") && !"application/pdf".equals(ml)) {
-            Log.w(TAG, "skip mime: " + mime);
+        String displayName = opened.displayName != null ? opened.displayName : "shared";
+        String nameLower = displayName.toLowerCase();
+        boolean videoByExt =
+            nameLower.endsWith(".mp4")
+                || nameLower.endsWith(".mov")
+                || nameLower.endsWith(".webm")
+                || nameLower.endsWith(".m4v")
+                || nameLower.endsWith(".mkv")
+                || nameLower.endsWith(".3gp");
+        boolean intentSaysVideo = intentLower.startsWith("video/");
+        boolean intentWildcard =
+            intentLower.isEmpty()
+                || "*/*".equals(intentLower)
+                || "application/octet-stream".equals(intentLower);
+        boolean isReceipt = ml.startsWith("image/") || "application/pdf".equals(ml);
+        boolean isVideo = ml.startsWith("video/") || videoByExt || intentSaysVideo;
+
+        if (!isVideo && !isReceipt && intentWildcard) {
+            isVideo = true;
+            mime = "video/mp4";
+            ml = mime;
+            Log.i(TAG, "Treating wildcard share as video: " + displayName);
+        }
+
+        if (!isVideo && !isReceipt) {
+            Log.w(TAG, "skip mime: resolver=" + mime + " intent=" + intentType);
             return null;
         }
 
-        String displayName = resolveDisplayName(uri, cr);
+        if (isVideo && !ml.startsWith("video/")) {
+            if (nameLower.endsWith(".mov")) mime = "video/quicktime";
+            else if (nameLower.endsWith(".webm")) mime = "video/webm";
+            else mime = "video/mp4";
+            ml = mime;
+        }
+
+        if (isVideo && (displayName == null || "shared".equals(displayName) || !displayName.contains("."))) {
+            displayName = "shared-video.mp4";
+        }
+
+        long maxBytes = isVideo ? MAX_SHARE_VIDEO_BYTES : MAX_SHARE_BYTES;
+
         String ext = extensionForMime(mime, displayName);
         File dir = new File(getCacheDir(), "incoming_share");
         if (!dir.exists() && !dir.mkdirs()) return null;
         String base = "share_" + System.currentTimeMillis() + "_" + (int) (Math.random() * 1_000_000_000);
         File outFile = new File(dir, base + ext);
 
-        try (InputStream in = cr.openInputStream(uri);
-             FileOutputStream out = new FileOutputStream(outFile)) {
-            if (in == null) return null;
+        try (FileOutputStream out = new FileOutputStream(outFile)) {
             byte[] buf = new byte[8192];
             long total = 0;
             int read;
-            while ((read = in.read(buf)) != -1) {
+            while ((read = opened.inputStream.read(buf)) != -1) {
                 total += read;
-                if (total > MAX_SHARE_BYTES) {
+                if (total > maxBytes) {
                     out.close();
                     //noinspection ResultOfMethodCallIgnored
                     outFile.delete();
-                    Log.w(TAG, "skip file larger than max");
+                    Log.w(TAG, "skip file larger than max bytes=" + total);
+                    ShareIntentStore.setPendingError("share.publish.errors.videoTooLarge");
                     return null;
                 }
                 out.write(buf, 0, read);
             }
+            Log.i(TAG, "copied share file bytes=" + total + " mime=" + mime + " name=" + displayName);
         }
 
-        return new ShareIntentStore.PendingItem(outFile.getAbsolutePath(), displayName, mime);
+        long fileLen = outFile.length();
+        if (fileLen < 10 * 1024) {
+            //noinspection ResultOfMethodCallIgnored
+            outFile.delete();
+            Log.w(TAG, "skip video too small bytes=" + fileLen);
+            ShareIntentStore.setPendingError("share.publish.errors.invalidVideoFile");
+            return null;
+        }
+
+        String lowerName = displayName.toLowerCase();
+        if (!lowerName.endsWith(".mp4")
+            && !lowerName.endsWith(".mov")
+            && !lowerName.endsWith(".webm")
+            && !lowerName.endsWith(".m4v")) {
+            displayName = displayName + ext;
+        }
+
+        return new ShareIntentStore.PendingItem(
+            outFile.getAbsolutePath(),
+            displayName,
+            mime,
+            fileLen
+        );
+    }
+
+    private ShareIntentStore.PendingItem copyUriToCache(
+        Uri uri,
+        ContentResolver cr,
+        String intentType
+    ) throws IOException {
+        String mime = null;
+        try {
+            mime = cr.getType(uri);
+        } catch (Exception e) {
+            Log.w(TAG, "getType failed", e);
+        }
+        String displayName = resolveDisplayName(uri, cr);
+        try (InputStream in = cr.openInputStream(uri)) {
+            if (in == null) {
+                Log.w(TAG, "openInputStream returned null for " + uri);
+                return null;
+            }
+            return copyOpenedStreamToCache(
+                new OpenedShareStream(uri, in, displayName, mime),
+                intentType
+            );
+        }
     }
 }

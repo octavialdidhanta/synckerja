@@ -49,6 +49,10 @@ const fns = [
   "tiktok-content-metrics",
   "tiktok-content-comments",
   "tiktok-content-publish",
+  "social-media-plan-publish",
+  "youtube-content-publish",
+  "meta-content-publish",
+  "linkedin-content-publish",
   "social-media-scheduler",
   "tiktok-content-scheduler",
 ];

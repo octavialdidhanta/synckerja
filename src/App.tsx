@@ -24,6 +24,7 @@ import { ShareIntentRouteSync } from "@/shared/native/ShareIntentRouteSync";
 import { AdaptiveAppLayout } from "@/shared/layouts";
 import NotFound from "@/shared/pages/NotFound";
 import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
+import ShareToPublishWizardPageSkeleton from "@/mobile/2-share/share-to-publish/pages/ShareToPublishWizardPageSkeleton";
 import { HomePageRouteLoadingShell } from "@/shared/components/mobile/HomePageRouteLoadingShell";
 import { AppRoutesSuspenseFallback } from "@/shared/components/AppRoutesSuspenseFallback";
 import { StandardRouteLoadingShell } from "@/shared/components/StandardRouteLoadingShell";
@@ -609,6 +610,11 @@ const ShareReceiptValidationRouteElement = lazy(() =>
     default: m.ShareReceiptValidationRouteElement,
   })),
 );
+const ShareToPublishRouteElement = lazy(() =>
+  import("@/shared/components/mobile/shareToPublishRouteElement").then((m) => ({
+    default: m.ShareToPublishRouteElement,
+  })),
+);
 
 function AppRoutes() {
   const location = useLocation();
@@ -832,6 +838,18 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard requiresPermissions={false}>
                     <ShareReceiptValidationRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/share/publish"
+                element={
+                  <PageAccessGuard
+                    requiresPermissions={false}
+                    loadingShell={<ShareToPublishWizardPageSkeleton />}
+                    loadingShellWrapperClassName="min-h-dvh h-dvh bg-gray-100"
+                  >
+                    <ShareToPublishRouteElement />
                   </PageAccessGuard>
                 }
               />
@@ -2837,6 +2855,18 @@ const App = () => (
                           element={
                             <PageAccessGuard requiresPermissions={false}>
                               <ShareReceiptValidationRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/share/publish"
+                          element={
+                            <PageAccessGuard
+                              requiresPermissions={false}
+                              loadingShell={<ShareToPublishWizardPageSkeleton />}
+                              loadingShellWrapperClassName="min-h-dvh h-dvh bg-gray-100"
+                            >
+                              <ShareToPublishRouteElement />
                             </PageAccessGuard>
                           }
                         />

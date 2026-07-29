@@ -57,7 +57,7 @@ export default function ShareReceiptValidationPage() {
   useStatusBarStyle("light");
   const { t } = useAppTranslation();
   const navigate = useNavigate();
-  const { activeOrganization, loading: orgLoading } = useOrganizationList();
+  const { activeOrganization, organizations, loading: orgLoading } = useOrganizationList();
   const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
   const { updateRecurringBillAfterPayNow } = useExpenses();
   const { debts, isLoading: debtsLoading, refetch: refetchDebts } = useDebts();
@@ -85,7 +85,12 @@ export default function ShareReceiptValidationPage() {
   const [debtAnalysisRequestId, setDebtAnalysisRequestId] = useState(0);
   const [isDebtPaymentSubmitting, setIsDebtPaymentSubmitting] = useState(false);
 
-  const activeOrgName = activeOrganization?.company_name ?? "—";
+  const activeOrgName =
+    (organizationId
+      ? organizations.find((o) => o.id === organizationId)?.company_name
+      : null) ??
+    activeOrganization?.company_name ??
+    "—";
   const payableDebts = useMemo(() => getPayableDebts(debts), [debts]);
   const hasPayableDebts = payableDebts.length > 0;
 

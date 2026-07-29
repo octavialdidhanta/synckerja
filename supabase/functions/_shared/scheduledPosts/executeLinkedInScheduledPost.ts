@@ -14,6 +14,7 @@ import {
   isPlanEligibleForLinkedInAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
 } from "./scheduledPostEligibility.ts";
+import { resolveVideoBytesForUpload, type SharedPublishContext } from "./sharedPublishContext.ts";
 import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import type { LinkedInProviderConfig, ScheduledPostRow } from "./scheduledPostTypes.ts";
 
@@ -116,6 +117,7 @@ async function upsertLinkedInLink(
 export async function executeLinkedInScheduledPost(
   admin: SupabaseClient,
   schedule: ScheduledPostRow,
+  sharedCtx?: SharedPublishContext,
 ): Promise<{ published_url: string; external_post_id: string | null }> {
   const plan = await loadPlan(admin, schedule.social_media_plan_id);
   if (!plan) throw new Error("plan_not_found");
@@ -174,7 +176,7 @@ export async function executeLinkedInScheduledPost(
   let uploadInstructions = (cfg.linkedin_upload_instructions ?? {}) as Record<string, unknown>;
 
   const driveUrl = plan.google_drive_link?.trim() ?? schedule.media_url_snapshot;
-  const { bytes: videoBytes, mimeType } = await downloadGoogleDriveVideo(driveUrl);
+  const { bytes: videoBytes, mimeType } = await resolveVideoBytesForUpload(driveUrl, sharedCtx);
 
   if (!uploadUrn) {
     const init = await initializeLinkedInVideoUpload(

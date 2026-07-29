@@ -2,19 +2,25 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { tiktokContentScopesIncludePublish } from "../tiktokContentAuth.ts";
 import { getTikTokPublishAccessToken } from "../tiktokContentOrgResolver.ts";
 import {
+  assertTikTokPublicPrivacyAvailable,
   computeTikTokFileUploadChunkPlan,
   deriveTikTokPostInteractionFromCreator,
   initTikTokVideoPublishFileUpload,
-  pollTikTokPublishUntilComplete,
+  initTikTokVideoPublishPullFromUrl,
+  pollTikTokPublishUntilPublicPostId,
   queryTikTokCreatorInfo,
   resolveTikTokPublishPrivacyLevel,
   uploadTikTokVideoChunks,
 } from "../tiktokContent/tiktokContentPublishApi.ts";
-import { downloadGoogleDriveVideo } from "../scheduledPosts/googleDriveVideoDownload.ts";
 import {
   isPlanEligibleForTikTokAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
 } from "../scheduledPosts/scheduledPostEligibility.ts";
+import {
+  isTikTokPullFromUrlEnabled,
+  resolveVideoBytesForUpload,
+  type SharedPublishContext,
+} from "../scheduledPosts/sharedPublishContext.ts";
 import { syncPlanCompletionStateForPlan } from "../scheduledPosts/syncPlanCompletionStateDb.ts";
 import type { ScheduledPostRow } from "../scheduledPosts/scheduledPostTypes.ts";
 import { DEFAULT_PRIVACY_LEVEL } from "../scheduledPosts/scheduledPostTypes.ts";
@@ -36,6 +42,7 @@ type TikTokProviderConfigExt = {
   employee_id?: string;
   tiktok_publish_id?: string;
   tiktok_upload_completed?: boolean;
+  tiktok_privacy_level_used?: string;
 };
 
 async function loadPlan(admin: SupabaseClient, planId: string): Promise<PlanRow | null> {
@@ -132,7 +139,6 @@ async function finalizeTikTokPublish(
   schedule: ScheduledPostRow,
   plan: PlanRow,
   openId: string,
-  publishAccessToken: string,
   externalPostId: string,
   creatorUsername?: string,
 ): Promise<{ published_url: string; external_post_id: string }> {
@@ -166,10 +172,69 @@ async function finalizeTikTokPublish(
   return { published_url: publishedUrl, external_post_id: externalPostId };
 }
 
+async function publishTikTokViaFileUpload(
+  admin: SupabaseClient,
+  schedule: ScheduledPostRow,
+  plan: PlanRow,
+  openId: string,
+  publishAccessToken: string,
+  providerConfig: Record<string, unknown>,
+  videoBytes: Uint8Array,
+  mimeType: string,
+  caption: string,
+  privacyLevel: string,
+  interaction: ReturnType<typeof deriveTikTokPostInteractionFromCreator>,
+  creatorUsername?: string,
+): Promise<{ published_url: string; external_post_id: string }> {
+  const chunkPlan = computeTikTokFileUploadChunkPlan(videoBytes.byteLength);
+  const initResult = await initTikTokVideoPublishFileUpload(publishAccessToken, {
+    videoSize: videoBytes.byteLength,
+    chunkSize: chunkPlan.chunkSize,
+    totalChunkCount: chunkPlan.totalChunkCount,
+    caption,
+    privacyLevel,
+    disableComment: interaction.disableComment,
+    disableDuet: interaction.disableDuet,
+    disableStitch: interaction.disableStitch,
+  });
+
+  providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
+    tiktok_publish_id: initResult.publish_id,
+    tiktok_upload_completed: false,
+    tiktok_privacy_level_used: privacyLevel,
+  });
+
+  await uploadTikTokVideoChunks(
+    String(initResult.upload_url),
+    videoBytes,
+    chunkPlan,
+    mimeType,
+  );
+
+  providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
+    tiktok_upload_completed: true,
+  });
+
+  const { publicPostId } = await pollTikTokPublishUntilPublicPostId(
+    publishAccessToken,
+    initResult.publish_id,
+  );
+
+  return finalizeTikTokPublish(
+    admin,
+    schedule,
+    plan,
+    openId,
+    publicPostId,
+    creatorUsername,
+  );
+}
+
 export async function executeTikTokScheduledPost(
   admin: SupabaseClient,
   schedule: ScheduledPostRow,
-): Promise<{ published_url: string; external_post_id: string | null }> {
+  sharedCtx?: SharedPublishContext,
+): Promise<{ published_url: string; external_post_id: string | null; tiktok_publish_path?: "pull" | "file_upload" }> {
   const plan = await loadPlan(admin, schedule.social_media_plan_id);
   if (!plan) throw new Error("plan_not_found");
 
@@ -212,14 +277,10 @@ export async function executeTikTokScheduledPost(
   let providerConfig = { ...(schedule.provider_config as Record<string, unknown>) };
 
   if (cfg.tiktok_publish_id && cfg.tiktok_upload_completed) {
-    const publishStatus = await pollTikTokPublishUntilComplete(
+    const { publicPostId } = await pollTikTokPublishUntilPublicPostId(
       publishAccessToken,
       cfg.tiktok_publish_id,
     );
-    const postIds = publishStatus.publicaly_available_post_id ?? [];
-    const externalPostId = postIds.length > 0
-      ? String(postIds[0])
-      : cfg.tiktok_publish_id;
 
     let creatorUsername: string | undefined;
     try {
@@ -234,8 +295,7 @@ export async function executeTikTokScheduledPost(
       schedule,
       plan,
       openId,
-      publishAccessToken,
-      externalPostId,
+      publicPostId,
       creatorUsername,
     );
   }
@@ -245,59 +305,78 @@ export async function executeTikTokScheduledPost(
   }
 
   const driveUrl = plan.google_drive_link?.trim() ?? schedule.media_url_snapshot;
-  const { bytes: videoBytes, mimeType } = await downloadGoogleDriveVideo(driveUrl);
-
   const creatorInfo = await queryTikTokCreatorInfo(publishAccessToken);
-  const privacyLevel = resolveTikTokPublishPrivacyLevel(
-    schedule.privacy_level ?? DEFAULT_PRIVACY_LEVEL,
-    creatorInfo,
-  );
-
+  const requestedPrivacy = schedule.privacy_level ?? DEFAULT_PRIVACY_LEVEL;
+  assertTikTokPublicPrivacyAvailable(requestedPrivacy, creatorInfo);
+  const privacyLevel = resolveTikTokPublishPrivacyLevel(requestedPrivacy, creatorInfo);
   const caption = schedule.caption?.trim() || schedule.title?.trim() || " ";
-  const chunkPlan = computeTikTokFileUploadChunkPlan(videoBytes.byteLength);
   const interaction = deriveTikTokPostInteractionFromCreator(creatorInfo);
-  const initResult = await initTikTokVideoPublishFileUpload(publishAccessToken, {
-    videoSize: videoBytes.byteLength,
-    chunkSize: chunkPlan.chunkSize,
-    totalChunkCount: chunkPlan.totalChunkCount,
-    caption,
-    privacyLevel,
-    disableComment: interaction.disableComment,
-    disableDuet: interaction.disableDuet,
-    disableStitch: interaction.disableStitch,
-  });
 
-  providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
-    tiktok_publish_id: initResult.publish_id,
-    tiktok_upload_completed: false,
-  });
+  const pullUrl = sharedCtx?.drivePublicDownloadUrl ?? null;
+  const pullEnabled = isTikTokPullFromUrlEnabled();
 
-  await uploadTikTokVideoChunks(
-    String(initResult.upload_url),
-    videoBytes,
-    chunkPlan,
-    mimeType,
-  );
+  if (pullEnabled && pullUrl) {
+    try {
+      const initResult = await initTikTokVideoPublishPullFromUrl(publishAccessToken, {
+        videoUrl: pullUrl,
+        caption,
+        privacyLevel,
+        disableComment: interaction.disableComment,
+        disableDuet: interaction.disableDuet,
+        disableStitch: interaction.disableStitch,
+      });
 
-  providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
-    tiktok_upload_completed: true,
-  });
+      providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
+        tiktok_publish_id: initResult.publish_id,
+        tiktok_upload_completed: true,
+        tiktok_privacy_level_used: privacyLevel,
+      });
 
-  const publishStatus = await pollTikTokPublishUntilComplete(
-    publishAccessToken,
-    initResult.publish_id,
-  );
+      const { publicPostId } = await pollTikTokPublishUntilPublicPostId(
+        publishAccessToken,
+        initResult.publish_id,
+      );
 
-  const postIds = publishStatus.publicaly_available_post_id ?? [];
-  const externalPostId = postIds.length > 0 ? String(postIds[0]) : initResult.publish_id;
+      console.info(
+        `tiktok_publish_path=pull scheduleId=${schedule.id} publishId=${initResult.publish_id}`,
+      );
 
-  return finalizeTikTokPublish(
+      return {
+        ...await finalizeTikTokPublish(
+          admin,
+          schedule,
+          plan,
+          openId,
+          publicPostId,
+          creatorInfo.creator_username,
+        ),
+        tiktok_publish_path: "pull",
+      };
+    } catch (pullErr) {
+      const reason = pullErr instanceof Error ? pullErr.message : String(pullErr);
+      console.warn(
+        `tiktok_pull_from_url_fallback scheduleId=${schedule.id} reason=${reason.slice(0, 180)}`,
+      );
+    }
+  }
+
+  const { bytes: videoBytes, mimeType } = await resolveVideoBytesForUpload(driveUrl, sharedCtx);
+  console.info(`tiktok_publish_path=file_upload scheduleId=${schedule.id} bytes=${videoBytes.byteLength}`);
+
+  const fileUploadResult = await publishTikTokViaFileUpload(
     admin,
     schedule,
     plan,
     openId,
     publishAccessToken,
-    externalPostId,
+    providerConfig,
+    videoBytes,
+    mimeType,
+    caption,
+    privacyLevel,
+    interaction,
     creatorInfo.creator_username,
   );
+
+  return { ...fileUploadResult, tiktok_publish_path: "file_upload" };
 }

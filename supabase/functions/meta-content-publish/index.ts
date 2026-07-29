@@ -6,27 +6,19 @@ import {
   metaContentCorsHeaders,
   metaContentJson,
   requireActiveOrg,
-  resolveMetaContentAccount,
 } from "../_shared/metaContentAuth.ts";
-import {
-  facebookPublishScopesOk,
-  instagramPublishScopesOk,
-} from "../_shared/metaPlatformScopes.ts";
-import { cancelScheduleById, cancelPendingSchedulesForPlatformAccount } from "../_shared/scheduledPosts/scheduledPostCancel.ts";
+import { cancelScheduleById } from "../_shared/scheduledPosts/scheduledPostCancel.ts";
 import { deleteFacebookPublishedPost } from "../_shared/scheduledPosts/deletePublished/deleteFacebookPublishedPost.ts";
 import { deleteInstagramPublishedPost } from "../_shared/scheduledPosts/deletePublished/deleteInstagramPublishedPost.ts";
 import { assertPlatformCanSchedule } from "../_shared/scheduledPosts/platformRegistry.ts";
 import { runScheduledPostJob } from "../_shared/scheduledPosts/runScheduledPostJob.ts";
+import { runPostNowInBackground } from "../_shared/scheduledPosts/schedulePostNowAsync.ts";
+import { insertPlatformScheduleForTarget } from "../_shared/scheduledPosts/createPlatformScheduleRow.ts";
 import {
   getPlanEligibilityMissingReasons,
   isPlanEligibleForFacebookAutoSchedule,
   isPlanEligibleForInstagramAutoSchedule,
 } from "../_shared/scheduledPosts/scheduledPostEligibility.ts";
-import { DEFAULT_PRIVACY_LEVEL, DEFAULT_TIMEZONE } from "../_shared/scheduledPosts/scheduledPostTypes.ts";
-import type {
-  FacebookProviderConfig,
-  InstagramProviderConfig,
-} from "../_shared/scheduledPosts/scheduledPostTypes.ts";
 
 type PublishPlatform = "Instagram" | "Facebook";
 
@@ -56,6 +48,45 @@ function resolvePublishPlatform(body: Record<string, unknown>): PublishPlatform 
   if (String(body.facebook_page_id ?? "").trim()) return "Facebook";
   if (String(body.instagram_business_account_id ?? "").trim()) return "Instagram";
   return null;
+}
+
+function mapScheduleInsertError(msg: string): { body: Record<string, unknown>; status: number } {
+  if (msg === "publish_scopes_not_granted" || msg === "upload_scopes_not_granted") {
+    return { body: { error: msg }, status: 403 };
+  }
+  if (msg === "instagram_account_not_found" || msg === "facebook_page_not_found") {
+    return { body: { error: msg }, status: 404 };
+  }
+  if (msg === "invalid_scheduled_at" || msg === "invalid_target") {
+    return { body: { error: msg }, status: 400 };
+  }
+  return { body: { error: "Failed to create schedule" }, status: 500 };
+}
+
+async function handlePostNowResponse(
+  admin: ReturnType<typeof createClient>,
+  inserted: { id: string },
+) {
+  const job = await runPostNowInBackground(admin, inserted.id);
+  if ("processing" in job && job.processing) {
+    return metaContentJson({
+      ok: true,
+      processing: true,
+      schedule: inserted,
+    }, 200);
+  }
+  if (!job.ok) return metaContentJson({ error: job.error ?? "publish_failed" }, 500);
+  const { data: publishedRow } = await admin
+    .from("social_media_scheduled_posts")
+    .select("*")
+    .eq("id", inserted.id)
+    .maybeSingle();
+  return metaContentJson({
+    ok: true,
+    schedule: publishedRow ?? inserted,
+    published_url: job.published_url,
+    external_post_id: job.external_post_id,
+  }, 200);
 }
 
 Deno.serve(async (req: Request) => {
@@ -184,158 +215,46 @@ Deno.serve(async (req: Request) => {
     const scheduledAtRaw = action === "post_now"
       ? new Date().toISOString()
       : String(body.scheduled_at ?? "").trim();
-    const scheduledAt = new Date(scheduledAtRaw);
-    if (Number.isNaN(scheduledAt.getTime())) {
-      return metaContentJson({ error: "Invalid scheduled_at" }, 400);
-    }
+    if (!scheduledAtRaw) return metaContentJson({ error: "Missing scheduled_at" }, 400);
 
     const driveLink = plan.google_drive_link?.trim() ?? "";
+    const accountId = platform === "Instagram"
+      ? String(body.instagram_business_account_id ?? "").trim()
+      : String(body.facebook_page_id ?? "").trim();
+    if (!accountId) {
+      return metaContentJson({
+        error: platform === "Instagram"
+          ? "Missing instagram_business_account_id"
+          : "Missing facebook_page_id",
+      }, 400);
+    }
 
-    if (platform === "Instagram") {
-      const instagramBusinessAccountId = String(body.instagram_business_account_id ?? "").trim();
-      if (!instagramBusinessAccountId) {
-        return metaContentJson({ error: "Missing instagram_business_account_id" }, 400);
-      }
-
-      const account = await resolveMetaContentAccount(
-        admin,
+    let inserted;
+    try {
+      inserted = await insertPlatformScheduleForTarget(admin, {
         organizationId,
-        "instagram",
-        instagramBusinessAccountId,
-      );
-      if (!account) return metaContentJson({ error: "instagram_account_not_found" }, 404);
-      if (!instagramPublishScopesOk(account.grantedScopes)) {
-        return metaContentJson({ error: "publish_scopes_not_granted" }, 403);
-      }
-
-      await cancelPendingSchedulesForPlatformAccount(
-        admin,
         planId,
-        "Instagram",
-        instagramBusinessAccountId,
-      );
-
-      const providerConfig: InstagramProviderConfig = {
-        instagram_business_account_id: instagramBusinessAccountId,
-        facebook_page_id: account.pageId,
-        account_label: body.account_label != null ? String(body.account_label) : account.accountLabel,
-        ...(body.employee_id ? { employee_id: String(body.employee_id) } : {}),
-      };
-
-      const { data: inserted, error: insertErr } = await admin
-        .from("social_media_scheduled_posts")
-        .insert({
-          organization_id: organizationId,
-          social_media_plan_id: planId,
-          platform: "Instagram",
-          delivery_mode: "api_auto",
-          status: action === "post_now" ? "publishing" : "pending",
-          scheduled_at: scheduledAt.toISOString(),
-          timezone: DEFAULT_TIMEZONE,
-          media_source: "google_drive_link",
-          media_url_snapshot: driveLink,
-          caption: body.caption != null ? String(body.caption) : null,
-          title: body.title != null ? String(body.title) : null,
-          privacy_level: DEFAULT_PRIVACY_LEVEL,
-          provider_config: providerConfig,
-          platform_account_id: instagramBusinessAccountId,
-          scheduled_by: userId,
-        })
-        .select("*")
-        .single();
-
-      if (insertErr || !inserted) {
-        return metaContentJson({ error: "Failed to create schedule" }, 500);
-      }
-
-      if (action === "post_now") {
-        const job = await runScheduledPostJob(admin, inserted.id, { skipPublishingTransition: true });
-        if (!job.ok) return metaContentJson({ error: job.error ?? "publish_failed" }, 500);
-        const { data: publishedRow } = await admin
-          .from("social_media_scheduled_posts")
-          .select("*")
-          .eq("id", inserted.id)
-          .maybeSingle();
-        return metaContentJson({
-          ok: true,
-          schedule: publishedRow ?? inserted,
-          published_url: job.published_url,
-          external_post_id: job.external_post_id,
-        }, 200);
-      }
-
-      return metaContentJson({ ok: true, schedule: inserted }, 200);
-    }
-
-    const facebookPageId = String(body.facebook_page_id ?? "").trim();
-    if (!facebookPageId) {
-      return metaContentJson({ error: "Missing facebook_page_id" }, 400);
-    }
-
-    const account = await resolveMetaContentAccount(
-      admin,
-      organizationId,
-      "facebook",
-      facebookPageId,
-    );
-    if (!account) return metaContentJson({ error: "facebook_page_not_found" }, 404);
-    if (!facebookPublishScopesOk(account.grantedScopes)) {
-      return metaContentJson({ error: "publish_scopes_not_granted" }, 403);
-    }
-
-    await cancelPendingSchedulesForPlatformAccount(
-      admin,
-      planId,
-      "Facebook",
-      facebookPageId,
-    );
-
-    const providerConfig: FacebookProviderConfig = {
-      facebook_page_id: facebookPageId,
-      account_label: body.account_label != null ? String(body.account_label) : account.accountLabel,
-      ...(body.employee_id ? { employee_id: String(body.employee_id) } : {}),
-    };
-
-    const { data: inserted, error: insertErr } = await admin
-      .from("social_media_scheduled_posts")
-      .insert({
-        organization_id: organizationId,
-        social_media_plan_id: planId,
-        platform: "Facebook",
-        delivery_mode: "api_auto",
-        status: action === "post_now" ? "publishing" : "pending",
-        scheduled_at: scheduledAt.toISOString(),
-        timezone: DEFAULT_TIMEZONE,
-        media_source: "google_drive_link",
-        media_url_snapshot: driveLink,
+        driveLink,
         caption: body.caption != null ? String(body.caption) : null,
         title: body.title != null ? String(body.title) : null,
-        privacy_level: DEFAULT_PRIVACY_LEVEL,
-        provider_config: providerConfig,
-        platform_account_id: facebookPageId,
-        scheduled_by: userId,
-      })
-      .select("*")
-      .single();
-
-    if (insertErr || !inserted) {
-      return metaContentJson({ error: "Failed to create schedule" }, 500);
+        employeeId: body.employee_id != null ? String(body.employee_id) : null,
+        userId,
+        action: action as "schedule" | "post_now",
+        scheduledAtIso: scheduledAtRaw,
+        target: {
+          platform,
+          account_id: accountId,
+          account_label: body.account_label != null ? String(body.account_label) : "",
+        },
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "schedule_insert_failed";
+      const mapped = mapScheduleInsertError(msg);
+      return metaContentJson(mapped.body, mapped.status);
     }
 
     if (action === "post_now") {
-      const job = await runScheduledPostJob(admin, inserted.id, { skipPublishingTransition: true });
-      if (!job.ok) return metaContentJson({ error: job.error ?? "publish_failed" }, 500);
-      const { data: publishedRow } = await admin
-        .from("social_media_scheduled_posts")
-        .select("*")
-        .eq("id", inserted.id)
-        .maybeSingle();
-      return metaContentJson({
-        ok: true,
-        schedule: publishedRow ?? inserted,
-        published_url: job.published_url,
-        external_post_id: job.external_post_id,
-      }, 200);
+      return await handlePostNowResponse(admin, inserted);
     }
 
     return metaContentJson({ ok: true, schedule: inserted }, 200);

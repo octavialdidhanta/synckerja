@@ -6,6 +6,8 @@ export * from './lib/syncPlanCompletionStateClient';
 export * from './lib/derivePlanPostMetadata';
 export * from './lib/resolveScheduledAtUtc';
 export * from './lib/validateGoogleDriveVideoLink';
+export * from './lib/planAutoScheduleEligibility';
+export * from './lib/resolvePublishErrorKey';
 export * from './lib/buildTikTokCaption';
 export * from './lib/platformSupportsAutoSchedule';
 export * from './components/AutoScheduleSection';

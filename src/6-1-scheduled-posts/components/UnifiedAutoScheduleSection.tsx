@@ -11,6 +11,7 @@ import { useOrgDefaultPostTime } from '../hooks/useOrgDefaultPostTime';
 import { useConnectedPlatformAccounts } from '../hooks/useConnectedPlatformAccounts';
 import { useScheduledPostsByPlan } from '../hooks/useScheduledPostsByPlan';
 import { useUnifiedScheduleMutations } from '../hooks/useUnifiedScheduleMutations';
+import { usePlanBulkPublish } from '../hooks/usePlanBulkPublish';
 import { listAllAutoScheduleTargets } from '../lib/resolveRequiredPlatformTargets';
 import type { RequiredPlatformAutoTarget } from '../lib/resolveRequiredPlatformTargets';
 import { resolveScheduledAtUtc } from '../lib/resolveScheduledAtUtc';
@@ -96,6 +97,7 @@ export function UnifiedAutoScheduleSection({
   const { data: schedules } = useScheduledPostsByPlan(planId);
   const { links: planLinks } = useSocialMediaLinks(planId);
   const { scheduleMutation, postNowMutation, cancelMutation } = useUnifiedScheduleMutations();
+  const { runBulkPublish, publishOneTarget } = usePlanBulkPublish();
   const deletePublishedMutation = useDeletePublishedPost();
   const upsertManualLock = useUpsertPlanScheduleManualLock();
   const [deleteTarget, setDeleteTarget] = useState<RequiredPlatformAutoTarget | null>(null);
@@ -210,54 +212,45 @@ export function UnifiedAutoScheduleSection({
       }
 
       const timeWib = getTimeWib(target.requiredPlatformRowId);
-      const scheduledAtIso =
-        action === 'post_now' ? new Date().toISOString() : resolveScheduledAtUtc(postDateYmd, timeWib);
-      if (!scheduledAtIso && action === 'schedule') {
-        const error = 'Invalid schedule time';
-        if (!silent) toast.error(error);
-        return { ok: false, error };
-      }
-
-      const args = {
-        platform: target.platform,
+      const result = await publishOneTarget(target, {
+        action,
+        targets,
+        schedules: scheduleRows,
         organizationId,
         planId,
-        accountId: target.accountId,
-        accountLabel: target.accountLabel,
         caption,
         title: planTitle ?? undefined,
         employeeId,
-        privacyLevel:
-          target.platform === 'YouTube' || target.platform === 'TikTok'
-            ? getPrivacyLevel(target.requiredPlatformRowId, target.platform)
-            : undefined,
-      };
+        postDateYmd,
+        getTimeWib,
+        getPrivacyLevel,
+        onTargetSuccess: lockAccount,
+      });
 
-      try {
-        if (action === 'schedule') {
-          await scheduleMutation.mutateAsync({
-            ...args,
-            scheduledAtIso: scheduledAtIso!,
-          });
-          lockAccount(target);
-          if (!silent) {
+      if (result.ok) {
+        if (!silent) {
+          if (action === 'schedule') {
             toast.success(t('digitalMarketing.scheduledPosts.scheduledFor', { time: timeWib }));
-          }
-        } else {
-          await postNowMutation.mutateAsync(args);
-          lockAccount(target);
-          if (!silent) {
+          } else if (result.processing) {
+            toast.info(
+              t(
+                'digitalMarketing.scheduledPosts.publishingPlatform',
+                'Publishing {{platform}} — status will update shortly.',
+                { platform: target.platform },
+              ),
+            );
+          } else {
             toast.success(
               t('digitalMarketing.scheduledPosts.publishedPlatform', { platform: target.platform }),
             );
           }
         }
         return { ok: true };
-      } catch (e) {
-        const error = e instanceof Error ? e.message : t('digitalMarketing.scheduledPosts.publishFailed');
-        if (!silent) notifyPublishMutationError(e, t);
-        return { ok: false, error };
       }
+
+      const error = result.error ?? t('digitalMarketing.scheduledPosts.publishFailed');
+      if (!silent) notifyPublishMutationError(new Error(error), t);
+      return { ok: false, error };
     },
     [
       t,
@@ -269,21 +262,22 @@ export function UnifiedAutoScheduleSection({
       caption,
       planTitle,
       employeeId,
-      scheduleMutation,
-      postNowMutation,
+      targets,
+      scheduleRows,
+      publishOneTarget,
       lockAccount,
     ],
   );
 
-  const runBulkPublish = useCallback(
+  const runBulkPublishHandler = useCallback(
     async (action: 'schedule' | 'post_now') => {
-      const { eligible: eligibleTargets, skipped } = getBulkEligibleTargets(targets, scheduleRows);
-
       if (!postDateYmd) {
         toast.error('Post date is required');
         return;
       }
-      if (eligibleTargets.length === 0) {
+
+      const preview = getBulkEligibleTargets(targets, scheduleRows);
+      if (preview.eligible.length === 0) {
         toast.info(t('digitalMarketing.scheduledPosts.bulkNoneReady'));
         return;
       }
@@ -291,11 +285,30 @@ export function UnifiedAutoScheduleSection({
       setIsBulkRunning(true);
       let succeeded = 0;
       let failed = 0;
+      let processing = 0;
 
       try {
-        for (const target of eligibleTargets) {
-          const result = await runPublish(target, action, { silent: true });
-          if (result.ok) {
+        const { results, skipped } = await runBulkPublish({
+          action,
+          targets,
+          schedules: scheduleRows,
+          organizationId,
+          planId,
+          caption,
+          title: planTitle ?? undefined,
+          employeeId,
+          postDateYmd,
+          getTimeWib,
+          getPrivacyLevel,
+          parallelPostNow: action === 'post_now',
+          onTargetSuccess: lockAccount,
+        });
+
+        for (const result of results) {
+          if (result.ok && result.processing) {
+            processing += 1;
+            succeeded += 1;
+          } else if (result.ok) {
             succeeded += 1;
           } else {
             failed += 1;
@@ -308,6 +321,14 @@ export function UnifiedAutoScheduleSection({
           if (action === 'schedule') {
             toast.success(
               t('digitalMarketing.scheduledPosts.bulkScheduleSuccess', { count: succeeded }),
+            );
+          } else if (processing > 0 && processing === succeeded) {
+            toast.info(
+              t(
+                'digitalMarketing.scheduledPosts.bulkPublishing',
+                'Publishing {{count}} platform(s) — status will update shortly.',
+                { count: processing },
+              ),
             );
           } else {
             toast.success(
@@ -338,7 +359,21 @@ export function UnifiedAutoScheduleSection({
         setIsBulkRunning(false);
       }
     },
-    [targets, scheduleRows, postDateYmd, runPublish, t],
+    [
+      targets,
+      scheduleRows,
+      postDateYmd,
+      runBulkPublish,
+      organizationId,
+      planId,
+      caption,
+      planTitle,
+      employeeId,
+      getTimeWib,
+      getPrivacyLevel,
+      lockAccount,
+      t,
+    ],
   );
 
   const handleCancel = async (target: RequiredPlatformAutoTarget, scheduleId: string) => {
@@ -516,7 +551,7 @@ export function UnifiedAutoScheduleSection({
                 className="h-8"
                 disabled={bulkDisabled}
                 onClick={() => {
-                  void runBulkPublish('schedule');
+                  void runBulkPublishHandler('schedule');
                 }}
               >
                 {isBulkRunning ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
@@ -532,7 +567,7 @@ export function UnifiedAutoScheduleSection({
                 className="h-8"
                 disabled={bulkDisabled}
                 onClick={() => {
-                  void runBulkPublish('post_now');
+                  void runBulkPublishHandler('post_now');
                 }}
               >
                 {isBulkRunning ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
@@ -545,7 +580,7 @@ export function UnifiedAutoScheduleSection({
             <p className="text-[11px] text-muted-foreground">
               {t(
                 'digitalMarketing.scheduledPosts.bulkActionHint',
-                'Only ready platforms without an active schedule are included.',
+                'Only ready platforms without an active schedule or published post are included.',
               )}
             </p>
           </div>

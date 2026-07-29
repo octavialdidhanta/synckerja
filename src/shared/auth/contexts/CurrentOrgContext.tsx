@@ -39,20 +39,22 @@ export function CurrentOrgProvider({ children }: { children: React.ReactNode }) 
     return () => window.removeEventListener('organization-switched', handler as EventListener);
   }, []);
 
+  // Only clear override once central data has caught up to the same org (or no override).
   useEffect(() => {
-    if (userData?.active_organization_id) {
+    if (!overrideOrgId) return;
+    if (userData?.active_organization_id === overrideOrgId) {
       setOverrideOrgId(null);
     }
-  }, [userData?.active_organization_id]);
+  }, [userData?.active_organization_id, overrideOrgId]);
 
   useEffect(() => {
     if (user?.id && userData?.active_organization_id) {
-      setCurrentOrgCacheForUser(user.id, userData.active_organization_id);
+      setCurrentOrgCacheForUser(user.id, overrideOrgId ?? userData.active_organization_id);
     }
     if (!user?.id) {
       setOverrideOrgId(null);
     }
-  }, [user?.id, userData?.active_organization_id]);
+  }, [user?.id, userData?.active_organization_id, overrideOrgId]);
 
   const organizationId = overrideOrgId ?? userData?.active_organization_id ?? null;
   const loading = Boolean(user?.id) && (centralLoading || !centralProfileHydrated);

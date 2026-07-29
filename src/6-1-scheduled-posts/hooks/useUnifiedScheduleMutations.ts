@@ -15,7 +15,7 @@ async function invokePlatformPublish(
     body: { action, ...body },
   });
   if (error) throw await parseEdgeFunctionError(error, data);
-  const payload = data as { error?: string };
+  const payload = data as { error?: string; processing?: boolean; ok?: boolean };
   if (payload?.error) throw await parseEdgeFunctionError(null, payload);
   return data;
 }

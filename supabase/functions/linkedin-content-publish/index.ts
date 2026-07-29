@@ -5,22 +5,19 @@ import {
   getUserFromBearer,
   linkedinContentJson,
   linkedinContentCorsHeaders,
-  missingLinkedInScopesForFeature,
-  parseLinkedInGrantedScopes,
   requireActiveOrg,
   requireOrgAdmin,
   requireLinkedInContentPlatformConfigured,
 } from "../_shared/linkedinContentAuth.ts";
-import { buildOrganizationUrn } from "../_shared/linkedinContentApi.ts";
-import { cancelScheduleById, cancelPendingSchedulesForPlatformAccount } from "../_shared/scheduledPosts/scheduledPostCancel.ts";
+import { cancelScheduleById } from "../_shared/scheduledPosts/scheduledPostCancel.ts";
 import { assertPlatformCanSchedule } from "../_shared/scheduledPosts/platformRegistry.ts";
 import { runScheduledPostJob } from "../_shared/scheduledPosts/runScheduledPostJob.ts";
+import { runPostNowInBackground } from "../_shared/scheduledPosts/schedulePostNowAsync.ts";
+import { insertPlatformScheduleForTarget } from "../_shared/scheduledPosts/createPlatformScheduleRow.ts";
 import {
   getPlanEligibilityMissingReasons,
   isPlanEligibleForLinkedInAutoSchedule,
 } from "../_shared/scheduledPosts/scheduledPostEligibility.ts";
-import { DEFAULT_PRIVACY_LEVEL, DEFAULT_TIMEZONE } from "../_shared/scheduledPosts/scheduledPostTypes.ts";
-import type { LinkedInProviderConfig } from "../_shared/scheduledPosts/scheduledPostTypes.ts";
 
 async function loadPlanForPublish(admin: ReturnType<typeof createClient>, planId: string) {
   const { data, error } = await admin
@@ -40,6 +37,19 @@ async function loadPlanForPublish(admin: ReturnType<typeof createClient>, planId
     google_drive_link: string | null;
     content_type?: { name?: string } | null;
   };
+}
+
+function mapScheduleInsertError(msg: string): { body: Record<string, unknown>; status: number } {
+  if (msg === "publish_scopes_not_granted" || msg === "upload_scopes_not_granted") {
+    return { body: { error: msg }, status: 403 };
+  }
+  if (msg === "linkedin_account_not_found") {
+    return { body: { error: msg }, status: 404 };
+  }
+  if (msg === "invalid_scheduled_at" || msg === "invalid_target") {
+    return { body: { error: msg }, status: 400 };
+  }
+  return { body: { error: "Failed to create schedule" }, status: 500 };
 }
 
 Deno.serve(async (req: Request) => {
@@ -130,69 +140,46 @@ Deno.serve(async (req: Request) => {
     const pageId = String(body.page_id ?? "").trim();
     if (!pageId) return linkedinContentJson({ error: "Missing page_id" }, 400);
 
-    const { data: accountRow } = await admin
-      .from("organization_linkedin_content_accounts")
-      .select("label, display_name, granted_scopes")
-      .eq("organization_id", organizationId)
-      .eq("page_id", pageId)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (!accountRow) return linkedinContentJson({ error: "linkedin_account_not_found" }, 404);
-
-    const granted = parseLinkedInGrantedScopes(accountRow.granted_scopes);
-    if (missingLinkedInScopesForFeature(granted, "publish").length > 0) {
-      return linkedinContentJson({ error: "publish_scopes_not_granted" }, 403);
-    }
-
     const scheduledAtRaw = action === "post_now"
       ? new Date().toISOString()
       : String(body.scheduled_at ?? "").trim();
-    const scheduledAt = new Date(scheduledAtRaw);
-    if (Number.isNaN(scheduledAt.getTime())) {
-      return linkedinContentJson({ error: "Invalid scheduled_at" }, 400);
-    }
+    if (!scheduledAtRaw) return linkedinContentJson({ error: "Missing scheduled_at" }, 400);
 
     const driveLink = plan.google_drive_link?.trim() ?? "";
-    await cancelPendingSchedulesForPlatformAccount(admin, planId, "LinkedIn", pageId);
 
-    const providerConfig: LinkedInProviderConfig = {
-      page_id: pageId,
-      organization_urn: buildOrganizationUrn(pageId),
-      account_label: body.account_label != null
-        ? String(body.account_label)
-        : String(accountRow.display_name ?? accountRow.label ?? "LinkedIn"),
-      ...(body.employee_id ? { employee_id: String(body.employee_id) } : {}),
-    };
-
-    const { data: inserted, error: insertErr } = await admin
-      .from("social_media_scheduled_posts")
-      .insert({
-        organization_id: organizationId,
-        social_media_plan_id: planId,
-        platform: "LinkedIn",
-        delivery_mode: "api_auto",
-        status: action === "post_now" ? "publishing" : "pending",
-        scheduled_at: scheduledAt.toISOString(),
-        timezone: DEFAULT_TIMEZONE,
-        media_source: "google_drive_link",
-        media_url_snapshot: driveLink,
+    let inserted;
+    try {
+      inserted = await insertPlatformScheduleForTarget(admin, {
+        organizationId,
+        planId,
+        driveLink,
         caption: body.caption != null ? String(body.caption) : null,
         title: body.title != null ? String(body.title) : null,
-        privacy_level: DEFAULT_PRIVACY_LEVEL,
-        provider_config: providerConfig,
-        platform_account_id: pageId,
-        scheduled_by: userId,
-      })
-      .select("*")
-      .single();
-
-    if (insertErr || !inserted) {
-      return linkedinContentJson({ error: "Failed to create schedule" }, 500);
+        employeeId: body.employee_id != null ? String(body.employee_id) : null,
+        userId,
+        action: action as "schedule" | "post_now",
+        scheduledAtIso: scheduledAtRaw,
+        target: {
+          platform: "LinkedIn",
+          account_id: pageId,
+          account_label: body.account_label != null ? String(body.account_label) : "",
+        },
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "schedule_insert_failed";
+      const mapped = mapScheduleInsertError(msg);
+      return linkedinContentJson(mapped.body, mapped.status);
     }
 
     if (action === "post_now") {
-      const job = await runScheduledPostJob(admin, inserted.id, { skipPublishingTransition: true });
+      const job = await runPostNowInBackground(admin, inserted.id);
+      if ("processing" in job && job.processing) {
+        return linkedinContentJson({
+          ok: true,
+          processing: true,
+          schedule: inserted,
+        }, 200);
+      }
       if (!job.ok) return linkedinContentJson({ error: job.error ?? "publish_failed" }, 500);
       const { data: publishedRow } = await admin
         .from("social_media_scheduled_posts")

@@ -3,6 +3,7 @@ import { AppShellLayout } from "@/shared/layouts/AppShellLayout";
 import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
 import { useToolsModuleMobileViewport } from "@/shared/hooks/useToolsModuleMobileViewport";
 import { SHARE_RECEIPT_VALIDATION_PATH } from "@/shared/native/shareReceiptValidationPath";
+import { SHARE_TO_PUBLISH_PATH } from "@/shared/native/shareToPublishPath";
 import { MobileSubscriptionExpiryBannerHost } from "@/10-subscription/shared/MobileSubscriptionExpiryBannerHost";
 
 /** Bottom-nav parity routes render full-screen chrome inside the page (no desktop AppHeader / sidebar). */
@@ -47,6 +48,8 @@ function AdaptiveAppLayoutContent() {
     pathname === "/subscription/management";
   /** Gallery share → validate receipt: halaman punya header mobile sendiri (bukan `AppHeader` desktop). */
   const isMobileShareReceiptValidationPath = pathname === SHARE_RECEIPT_VALIDATION_PATH;
+  /** CapCut/Edits share video → Share-to-Publish wizard (shell sendiri). */
+  const isMobileShareToPublishPath = pathname === SHARE_TO_PUBLISH_PATH;
   /** Security settings mobile (`android-mobile/1-settings`) membawa shell sendiri seperti `/profile`. */
   const isMobileSettingsPath = pathname === "/settings" || pathname.startsWith("/settings/");
 
@@ -58,6 +61,7 @@ function AdaptiveAppLayoutContent() {
       isMobileHabitsTrackerPath ||
       isMobileWebTrafficPath ||
       isMobileShareReceiptValidationPath ||
+      isMobileShareToPublishPath ||
       isMobileSettingsPath)
   ) {
     return <Outlet />;

@@ -1193,6 +1193,25 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.published": "Posting berhasil dipublikasikan",
   "digitalMarketing.scheduledPosts.publishedTikTok": "Posting TikTok berhasil",
   "digitalMarketing.scheduledPosts.publishedPlatform": "Posting {{platform}} berhasil",
+  "digitalMarketing.scheduledPosts.publishingPlatform":
+    "Mempublikasikan {{platform}} — status akan diperbarui sebentar lagi.",
+  "digitalMarketing.scheduledPosts.bulkPublishing":
+    "Mempublikasikan {{count}} platform — status akan diperbarui sebentar lagi.",
+  "digitalMarketing.scheduledPosts.errors.publishFailed": "Gagal memublikasikan",
+  "digitalMarketing.scheduledPosts.errors.youtubeNotIndexed":
+    "YouTube masih memproses upload. Tunggu sebentar dan coba Post now lagi.",
+  "digitalMarketing.scheduledPosts.errors.youtubeProcessing":
+    "YouTube menolak atau masih memproses video ini. Coba lagi dalam beberapa menit.",
+  "digitalMarketing.scheduledPosts.errors.tiktokPublicIdTimeout":
+    "TikTok selesai upload tetapi belum mengembalikan id video yang bisa diputar. Coba Post now lagi sebentar lagi.",
+  "digitalMarketing.scheduledPosts.errors.tiktokPublicPrivacy":
+    "Akun TikTok tidak bisa posting publik. Periksa pengaturan Direct Post di Digital Marketing.",
+  "digitalMarketing.scheduledPosts.errors.invalidVideoFile":
+    "File yang diunduh bukan video MP4/MOV yang valid. Ekspor ulang sebagai MP4 dan simpan ke plan lagi.",
+  "digitalMarketing.scheduledPosts.errors.driveNotPublic":
+    "File Google Drive tidak dapat diakses publik. Buka file di Drive dan set sharing ke Siapa saja dengan link.",
+  "digitalMarketing.scheduledPosts.errors.oauthOrScopes":
+    "Akun platform tidak terhubung atau izin publish belum lengkap.",
   "digitalMarketing.scheduledPosts.publishFailed": "Gagal memposting ke TikTok",
   "digitalMarketing.scheduledPosts.scheduleCancelled": "Jadwal dibatalkan",
   "digitalMarketing.scheduledPosts.deleteFromPlatform": "Hapus dari platform",
@@ -1234,7 +1253,7 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.captionLabel": "Caption",
   "digitalMarketing.scheduledPosts.scheduleAll": "Jadwalkan semua ({{count}})",
   "digitalMarketing.scheduledPosts.postNowToAll": "Posting sekarang ke semua ({{count}})",
-  "digitalMarketing.scheduledPosts.bulkActionHint": "Hanya platform siap tanpa jadwal aktif yang diproses.",
+  "digitalMarketing.scheduledPosts.bulkActionHint": "Hanya platform siap yang belum punya jadwal aktif dan belum published.",
   "digitalMarketing.scheduledPosts.tablePlatformAccount": "Platform / Akun",
   "digitalMarketing.scheduledPosts.tableStatus": "Status",
   "digitalMarketing.scheduledPosts.tableConnection": "Koneksi",
@@ -3820,6 +3839,172 @@ export const idTranslations: TranslationDictionary = {
   "shareReceipt.leaveTitle": "Batalkan berbagi?",
   "shareReceipt.leaveDescription": "Berkas yang dibagikan akan dibuang dari alur ini.",
   "shareReceipt.leaveConfirm": "Keluar",
+  "share.publish.title": "Bagikan untuk publish",
+  "share.publish.selectedPlan": "Plan terpilih",
+  "share.publish.badges.productionApproved": "Production approved",
+  "share.publish.badges.awaitingProduction": "Menunggu production",
+  "share.publish.fields.postDate": "Tanggal upload",
+  "share.publish.fields.contentType": "Content type",
+  "share.publish.fields.service": "Service",
+  "share.publish.fields.subService": "Sub service",
+  "share.publish.fields.contentPillar": "Content pillar",
+  "share.publish.fields.title": "Title",
+  "share.publish.fields.brief": "Brief",
+  "share.publish.caption.label": "Caption",
+  "share.publish.caption.placeholder":
+    "Tulis caption… Pakai # untuk hashtag dan @ untuk handle",
+  "share.publish.caption.hashtagSuggest": "Saran hashtag",
+  "share.publish.caption.mentionEmpty":
+    "Ketik handle (mis. @prabowo). Handle yang pernah dipakai akan muncul di sini.",
+  "share.publish.caption.suggestLoading": "Memuat…",
+  "share.publish.caption.suggestError":
+    "Gagal memuat saran. Anda tetap bisa mengetik @handle secara bebas.",
+  "share.publish.caption.platformTip":
+    "Instagram & TikTok biasanya mem-parse @handle dan #hashtag di teks caption. Mention YouTube/LinkedIn terbatas — utamakan hashtag. Tag Facebook Reels lemah di caption biasa.",
+  "share.publish.brief.title": "Brief content",
+  "share.publish.brief.storyline": "Storyline",
+  "share.publish.brief.storyboard": "Storyboard",
+  "share.publish.brief.emptyStoryline": "Belum ada storyline.",
+  "share.publish.brief.emptyStoryboard": "Belum ada storyboard.",
+  "share.publish.calendar.hint": "Ketuk kartu untuk memilih plan",
+  "share.publish.picker.stripHint": "Pilih tanggal, lalu pilih kartu plan",
+  "share.publish.picker.sectionTitle": "Content plan",
+  "share.publish.picker.count": "{{count}} plan",
+  "share.publish.picker.emptyDay": "Kosong",
+  "share.publish.picker.today": "Hari ini",
+  "share.publish.picker.noPlansForDate":
+    "Tidak ada plan untuk tanggal ini. Buat plan baru untuk melanjutkan.",
+  "share.publish.picker.revisionCount": "Rev {{count}}",
+  "share.publish.picker.status.completed": "Selesai",
+  "share.publish.picker.status.uploaded": "Sudah diupload",
+  "share.publish.picker.status.readyProduction": "Siap publish",
+  "share.publish.picker.status.inProduction": "Produksi",
+  "share.publish.picker.status.needApproval": "Butuh approval",
+  "share.publish.picker.status.needReview": "Butuh review",
+  "share.publish.picker.status.revision": "Request revision",
+  "share.publish.picker.status.draft": "Draft",
+  "share.publish.create.cta": "Buat plan baru",
+  "share.publish.create.title": "Buat plan baru",
+  "share.publish.create.titlePlaceholder": "Judul plan",
+  "share.publish.create.servicePlaceholder": "Pilih service",
+  "share.publish.create.subServicePlaceholder": "Pilih sub service",
+  "share.publish.create.contentPillarPlaceholder": "Pilih content pillar",
+  "share.publish.create.contentTypePlaceholder": "Pilih content type",
+  "share.publish.create.briefHint":
+    "Brief akan memakai judul sebagai storyline plus tabel storyboard Timing | Visual | VO kosong (sama seperti desktop). Edit lanjut di Brief di desktop.",
+  "share.publish.create.pic": "PIC",
+  "share.publish.create.picFallback": "Pengguna saat ini",
+  "share.publish.create.submit": "Buat plan",
+  "share.publish.create.cancel": "Batal",
+  "share.publish.create.toasts.created": "Content plan dibuat",
+  "share.publish.create.errors.titleRequired": "Judul wajib diisi",
+  "share.publish.create.errors.serviceRequired": "Service wajib dipilih",
+  "share.publish.create.errors.subServiceRequired": "Sub service wajib dipilih",
+  "share.publish.create.errors.contentPillarRequired": "Content pillar wajib dipilih",
+  "share.publish.create.errors.contentTypeRequired": "Content type wajib dipilih",
+  "share.publish.create.errors.postDateRequired": "Tanggal post wajib diisi",
+  "share.publish.create.errors.orgRequired": "Organisasi wajib dipilih",
+  "share.publish.create.errors.createFailed": "Gagal membuat plan",
+  "share.publish.create.errors.loadMaster":
+    "Gagal memuat service atau content type. Coba lagi.",
+  "share.publish.scheduleTime.title": "Jadwalkan posting",
+  "share.publish.scheduleTime.dateLabel": "Tanggal post",
+  "share.publish.scheduleTime.timeLabel": "Jam (WIB)",
+  "share.publish.scheduleTime.confirm": "Jadwalkan",
+  "share.publish.scheduleTime.cancel": "Batal",
+  "share.publish.waitingApprovalHint":
+    "Setelah production approval di desktop, Anda bisa schedule atau post dari dashboard social media.",
+  "share.publish.actions.saveToPlan": "Simpan video ke plan",
+  "share.publish.actions.schedule": "Jadwalkan",
+  "share.publish.actions.postNow": "Post sekarang",
+  "share.publish.actions.close": "Tutup",
+  "share.publish.eligibility.title": "Kesiapan publish",
+  "share.publish.eligibility.ready": "Siap dijadwalkan / dipost sekarang",
+  "share.publish.eligibility.waiting":
+    "Video bisa disimpan; schedule/post menunggu semua aturan terpenuhi",
+  "share.publish.eligibility.postDate": "Post date belum diisi",
+  "share.publish.eligibility.approved": "Concept belum di-approve",
+  "share.publish.eligibility.productionApproved": "Production belum di-approve",
+  "share.publish.eligibility.reel": "Content type harus Reel",
+  "share.publish.eligibility.driveLink": "Link Google Drive belum ada",
+  "share.publish.eligibility.driveFileLink": "Link Google Drive harus link file langsung (bukan folder)",
+  "share.publish.eligibility.service": "Service belum diisi",
+  "share.publish.eligibility.targets": "{{count}} akun platform wajib",
+  "share.publish.eligibility.ownerBypassHint":
+    "Sebagai Owner, approval concept dan production otomatis saat Anda schedule atau post.",
+  "share.publish.results.title": "Hasil publish",
+  "share.publish.results.ok": "OK",
+  "share.publish.results.processing": "Memproses",
+  "share.publish.results.processingHint":
+    "Beberapa platform masih memproses — status diperbarui otomatis.",
+  "share.publish.results.bulkProcessingHint":
+    "Publish berjalan di background — YouTube/TikTok bisa selesai di waktu berbeda.",
+  "share.publish.results.failed": "Gagal",
+  "share.publish.media.usingExisting": "Menggunakan video yang sudah ada di plan ini",
+  "share.publish.media.replaceVideo": "Ganti dengan video yang dibagikan",
+  "share.publish.media.uploadingToDrive": "Mengunggah ke Google Drive…",
+  "share.publish.media.readyToPublish": "Video tersimpan — siap dipublish",
+  "share.publish.errors.nativeOnly": "Buka dari aplikasi Android untuk membagikan video.",
+  "share.publish.errors.noVideo":
+    "Tidak ada video yang dibagikan. Bagikan video dari CapCut atau Edits ke Synckerja Office.",
+  "share.publish.errors.videoTooLarge":
+    "Video terlalu besar (maks. 512 MB). Ekspor file lebih kecil dari CapCut/Edits lalu bagikan lagi.",
+  "share.publish.errors.copyFailed":
+    "Tidak bisa membaca video yang dibagikan. Coba bagikan lagi, atau ekspor lalu bagikan dari Gallery.",
+  "share.publish.errors.loadTimeout": "Gagal memuat video (timeout). Coba bagikan lagi.",
+  "share.publish.errors.pickPlan": "Pilih content plan terlebih dahulu",
+  "share.publish.errors.confirmReelRequired": "Konfirmasi perubahan ke Reel diperlukan",
+  "share.publish.errors.notEligible": "Plan belum memenuhi syarat publish",
+  "share.publish.errors.invalidScheduleTime": "Waktu jadwal tidak valid",
+  "share.publish.errors.driveUploadFailed":
+    "Upload Google Drive gagal. Ketuk Simpan video ke plan lagi.",
+  "share.publish.errors.driveUploadResume":
+    "Upload hampir selesai tapi Drive belum mengonfirmasi. Ketuk Simpan video ke plan lagi untuk melanjutkan.",
+  "share.publish.errors.driveUploadNetwork":
+    "Upload terputus. Periksa koneksi lalu ketuk Simpan video ke plan lagi.",
+  "share.publish.errors.googleNotConnected":
+    "Google Drive belum terhubung. Hubungkan Google Drive di aplikasi, lalu coba lagi.",
+  "share.publish.errors.drivePermissionDenied":
+    "Google Drive menolak upload. Hubungkan Google Drive lagi di Synckerja, lalu coba lagi.",
+  "share.publish.errors.driveStorageQuotaExceeded":
+    "Penyimpanan Google Drive penuh. Kosongkan ruang Drive atau pakai akun Google lain yang terhubung, lalu coba lagi.",
+  "share.publish.errors.driveLinkNotPersisted":
+    "Upload selesai, tetapi link Google Drive belum tersimpan ke plan. Coba simpan lagi.",
+  "share.publish.errors.driveNotPublicTitle": "Link Google Drive belum publik",
+  "share.publish.errors.driveNotPublic":
+    "Buka file di Drive, atur berbagi ke Anyone with the link, lalu simpan video ke plan ini lagi sebelum publish.",
+  "share.publish.errors.youtubeNotIndexed":
+    "YouTube masih memproses upload. Tunggu sebentar lalu coba Post now lagi.",
+  "share.publish.errors.youtubeProcessing":
+    "YouTube menolak atau masih memproses video ini. Coba lagi dalam beberapa menit.",
+  "share.publish.errors.tiktokPublicIdTimeout":
+    "TikTok selesai upload tapi belum mengembalikan video id yang bisa diputar. Coba Post now lagi sebentar lagi.",
+  "share.publish.errors.tiktokPublicPrivacy":
+    "Akun TikTok tidak bisa post publik. Periksa pengaturan Direct Post di Digital Marketing.",
+  "share.publish.errors.invalidVideoFile":
+    "File yang diunduh bukan video MP4/MOV valid. Export ulang sebagai MP4 dan simpan ke plan lagi.",
+  "share.publish.errors.oauthOrScopes":
+    "Akun platform belum terhubung atau izin publish belum lengkap.",
+  "share.publish.errors.publishFailed": "Publish gagal",
+  "share.publish.toasts.saved": "Video disimpan ke plan. Menunggu approval jika diperlukan.",
+  "share.publish.toasts.savedOwner": "Video disimpan ke plan.",
+  "share.publish.toasts.saveFailed": "Gagal menyimpan video",
+  "share.publish.toasts.drivePermissionWarning":
+    "Video terunggah, tapi berbagi publik Drive tidak bisa diaktifkan. Buka link di Drive dan atur Anyone with the link jika perlu.",
+  "share.publish.toasts.googleConnectRetry":
+    "Hubungkan Google Drive, lalu ketuk Simpan video ke plan lagi.",
+  "share.publish.toasts.scheduled": "Dijadwalkan di {{count}} platform",
+  "share.publish.toasts.posted": "Dipost di {{count}} platform",
+  "share.publish.toasts.publishFailed": "Publish gagal",
+  "share.publish.leave.title": "Keluar dari alur share?",
+  "share.publish.leave.body": "Draf video yang dibagikan akan dibuang.",
+  "share.publish.leave.cancel": "Tetap di sini",
+  "share.publish.leave.confirm": "Keluar",
+  "share.publish.reelConfirm.title": "Ubah content type menjadi Reel?",
+  "share.publish.reelConfirm.body":
+    "Video portrait terdeteksi. Auto-post membutuhkan content type Reel. Perbarui plan ini ke Reel?",
+  "share.publish.reelConfirm.cancel": "Batal",
+  "share.publish.reelConfirm.confirm": "Gunakan Reel",
   "expenses.receiptPhotoTaken": "Foto kwitansi berhasil diambil",
   "expenses.receiptCameraOrGallery": "Kamera atau galeri",
   "expenses.takePhoto": "Ambil foto",

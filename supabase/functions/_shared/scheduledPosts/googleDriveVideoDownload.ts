@@ -1,12 +1,8 @@
 import { resolveGoogleDrivePublicVideoUrl } from "./googleDrivePublicVideoUrl.ts";
+import { resolveValidatedVideoMimeType } from "./validateDownloadedVideo.ts";
 
-const MAX_VIDEO_BYTES = 128 * 1024 * 1024;
-
-function normalizeVideoMimeType(contentType: string | null): string {
-  const raw = String(contentType ?? "").split(";")[0].trim().toLowerCase();
-  if (raw.startsWith("video/")) return raw;
-  return "video/mp4";
-}
+/** Keep in sync with Android share copy limit and googleDriveResumableUploadClient. */
+const MAX_VIDEO_BYTES = 512 * 1024 * 1024;
 
 function isHtmlResponse(contentType: string | null, bytes: Uint8Array): boolean {
   const type = String(contentType ?? "").toLowerCase();
@@ -40,12 +36,13 @@ export async function downloadGoogleDriveVideo(
     throw new Error(`drive_video_too_large: ${bytes.byteLength} bytes (max ${MAX_VIDEO_BYTES})`);
   }
 
-  const mimeType = normalizeVideoMimeType(res.headers.get("content-type"));
   if (isHtmlResponse(res.headers.get("content-type"), bytes)) {
     throw new Error(
       "drive_download_failed: Google Drive returned HTML instead of video. Ensure the file is shared as Anyone with the link can view.",
     );
   }
+
+  const mimeType = resolveValidatedVideoMimeType(bytes, res.headers.get("content-type"));
 
   return { bytes, mimeType };
 }

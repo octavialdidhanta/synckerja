@@ -1194,6 +1194,25 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.published": "Post published",
   "digitalMarketing.scheduledPosts.publishedTikTok": "TikTok post published",
   "digitalMarketing.scheduledPosts.publishedPlatform": "{{platform}} post published",
+  "digitalMarketing.scheduledPosts.publishingPlatform":
+    "Publishing {{platform}} — status will update shortly.",
+  "digitalMarketing.scheduledPosts.bulkPublishing":
+    "Publishing {{count}} platform(s) — status will update shortly.",
+  "digitalMarketing.scheduledPosts.errors.publishFailed": "Publish failed",
+  "digitalMarketing.scheduledPosts.errors.youtubeNotIndexed":
+    "YouTube is still processing the upload. Wait a moment and try Post now again.",
+  "digitalMarketing.scheduledPosts.errors.youtubeProcessing":
+    "YouTube rejected or is still processing this video. Try again in a few minutes.",
+  "digitalMarketing.scheduledPosts.errors.tiktokPublicIdTimeout":
+    "TikTok finished uploading but did not return a playable video id yet. Try Post now again shortly.",
+  "digitalMarketing.scheduledPosts.errors.tiktokPublicPrivacy":
+    "TikTok account cannot post publicly. Check Direct Post settings in Digital Marketing.",
+  "digitalMarketing.scheduledPosts.errors.invalidVideoFile":
+    "Downloaded file is not a valid MP4/MOV video. Re-export as MP4 and save to the plan again.",
+  "digitalMarketing.scheduledPosts.errors.driveNotPublic":
+    "Google Drive file is not publicly accessible. Open the file in Drive and set sharing to Anyone with the link.",
+  "digitalMarketing.scheduledPosts.errors.oauthOrScopes":
+    "Platform account is not connected or missing publish permissions.",
   "digitalMarketing.scheduledPosts.publishFailed": "TikTok publish failed",
   "digitalMarketing.scheduledPosts.scheduleCancelled": "Schedule cancelled",
   "digitalMarketing.scheduledPosts.deleteFromPlatform": "Delete from platform",
@@ -1235,7 +1254,7 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.scheduledPosts.captionLabel": "Caption",
   "digitalMarketing.scheduledPosts.scheduleAll": "Schedule all ({{count}})",
   "digitalMarketing.scheduledPosts.postNowToAll": "Post now to all ({{count}})",
-  "digitalMarketing.scheduledPosts.bulkActionHint": "Only ready platforms without an active schedule are included.",
+  "digitalMarketing.scheduledPosts.bulkActionHint": "Only ready platforms without an active schedule or published post are included.",
   "digitalMarketing.scheduledPosts.tablePlatformAccount": "Platform / Account",
   "digitalMarketing.scheduledPosts.tableStatus": "Status",
   "digitalMarketing.scheduledPosts.tableConnection": "Connection",
@@ -3820,6 +3839,172 @@ export const enTranslations: TranslationDictionary = {
   "shareReceipt.leaveTitle": "Cancel sharing?",
   "shareReceipt.leaveDescription": "Shared files will be discarded from this flow.",
   "shareReceipt.leaveConfirm": "Leave",
+  "share.publish.title": "Share to publish",
+  "share.publish.selectedPlan": "Selected plan",
+  "share.publish.badges.productionApproved": "Production approved",
+  "share.publish.badges.awaitingProduction": "Awaiting production",
+  "share.publish.fields.postDate": "Planned upload date",
+  "share.publish.fields.contentType": "Content type",
+  "share.publish.fields.service": "Service",
+  "share.publish.fields.subService": "Sub service",
+  "share.publish.fields.contentPillar": "Content pillar",
+  "share.publish.fields.title": "Title",
+  "share.publish.fields.brief": "Brief",
+  "share.publish.caption.label": "Caption",
+  "share.publish.caption.placeholder":
+    "Write caption… Use # for hashtags and @ for handles",
+  "share.publish.caption.hashtagSuggest": "Suggested hashtags",
+  "share.publish.caption.mentionEmpty":
+    "Type a handle (e.g. @prabowo). Recent handles will appear here.",
+  "share.publish.caption.suggestLoading": "Loading…",
+  "share.publish.caption.suggestError":
+    "Could not load suggestions. You can still type @handles freely.",
+  "share.publish.caption.platformTip":
+    "Instagram & TikTok usually parse @handles and #hashtags in caption text. YouTube/LinkedIn mentions are limited — prefer hashtags there. Facebook Reels tagging is weak in plain caption.",
+  "share.publish.brief.title": "Brief content",
+  "share.publish.brief.storyline": "Storyline",
+  "share.publish.brief.storyboard": "Storyboard",
+  "share.publish.brief.emptyStoryline": "No storyline available.",
+  "share.publish.brief.emptyStoryboard": "No storyboard table available.",
+  "share.publish.calendar.hint": "Tap a card to choose a plan",
+  "share.publish.picker.stripHint": "Choose a date, then pick a plan card",
+  "share.publish.picker.sectionTitle": "Content plan",
+  "share.publish.picker.count": "{{count}} plan",
+  "share.publish.picker.emptyDay": "No plan",
+  "share.publish.picker.today": "Today",
+  "share.publish.picker.noPlansForDate":
+    "No plans for this date. Create a new plan to continue.",
+  "share.publish.picker.revisionCount": "Rev {{count}}",
+  "share.publish.picker.status.completed": "Completed",
+  "share.publish.picker.status.uploaded": "Uploaded",
+  "share.publish.picker.status.readyProduction": "Ready to publish",
+  "share.publish.picker.status.inProduction": "In production",
+  "share.publish.picker.status.needApproval": "Need approval",
+  "share.publish.picker.status.needReview": "Need review",
+  "share.publish.picker.status.revision": "Request revision",
+  "share.publish.picker.status.draft": "Draft",
+  "share.publish.create.cta": "Create new plan",
+  "share.publish.create.title": "Create new plan",
+  "share.publish.create.titlePlaceholder": "Plan title",
+  "share.publish.create.servicePlaceholder": "Select service",
+  "share.publish.create.subServicePlaceholder": "Select sub service",
+  "share.publish.create.contentPillarPlaceholder": "Select content pillar",
+  "share.publish.create.contentTypePlaceholder": "Select content type",
+  "share.publish.create.briefHint":
+    "Brief will use your title as storyline plus an empty Timing | Visual | VO storyboard table (same as desktop). Edit later in Brief on desktop.",
+  "share.publish.create.pic": "PIC",
+  "share.publish.create.picFallback": "Current user",
+  "share.publish.create.submit": "Create plan",
+  "share.publish.create.cancel": "Cancel",
+  "share.publish.create.toasts.created": "Content plan created",
+  "share.publish.create.errors.titleRequired": "Title is required",
+  "share.publish.create.errors.serviceRequired": "Service is required",
+  "share.publish.create.errors.subServiceRequired": "Sub service is required",
+  "share.publish.create.errors.contentPillarRequired": "Content pillar is required",
+  "share.publish.create.errors.contentTypeRequired": "Content type is required",
+  "share.publish.create.errors.postDateRequired": "Post date is required",
+  "share.publish.create.errors.orgRequired": "Organization is required",
+  "share.publish.create.errors.createFailed": "Failed to create plan",
+  "share.publish.create.errors.loadMaster":
+    "Could not load services or content types. Try again.",
+  "share.publish.scheduleTime.title": "Schedule post",
+  "share.publish.scheduleTime.dateLabel": "Post date",
+  "share.publish.scheduleTime.timeLabel": "Time (WIB)",
+  "share.publish.scheduleTime.confirm": "Schedule",
+  "share.publish.scheduleTime.cancel": "Cancel",
+  "share.publish.waitingApprovalHint":
+    "After production approval on desktop, you can schedule or post from the social media dashboard.",
+  "share.publish.actions.saveToPlan": "Save video to plan",
+  "share.publish.actions.schedule": "Schedule",
+  "share.publish.actions.postNow": "Post now",
+  "share.publish.actions.close": "Close",
+  "share.publish.eligibility.title": "Publish readiness",
+  "share.publish.eligibility.ready": "Ready to schedule / post now",
+  "share.publish.eligibility.waiting":
+    "Video can be saved; schedule/post waits until all rules pass",
+  "share.publish.eligibility.postDate": "Post date is missing",
+  "share.publish.eligibility.approved": "Concept is not approved yet",
+  "share.publish.eligibility.productionApproved": "Production is not approved yet",
+  "share.publish.eligibility.reel": "Content type must be Reel",
+  "share.publish.eligibility.driveLink": "Google Drive link is missing",
+  "share.publish.eligibility.driveFileLink": "Google Drive link must be a direct file link (not a folder)",
+  "share.publish.eligibility.service": "Service is missing",
+  "share.publish.eligibility.targets": "{{count}} required platform account(s)",
+  "share.publish.eligibility.ownerBypassHint":
+    "As Owner, concept and production approval are applied automatically when you schedule or post.",
+  "share.publish.results.title": "Publish results",
+  "share.publish.results.ok": "OK",
+  "share.publish.results.processing": "Processing",
+  "share.publish.results.processingHint":
+    "Some platforms are still publishing — status updates automatically.",
+  "share.publish.results.bulkProcessingHint":
+    "Publishing in background — YouTube/TikTok may finish at different times.",
+  "share.publish.results.failed": "Failed",
+  "share.publish.media.usingExisting": "Using the video already saved on this plan",
+  "share.publish.media.replaceVideo": "Replace with shared video",
+  "share.publish.media.uploadingToDrive": "Uploading to Google Drive…",
+  "share.publish.media.readyToPublish": "Video saved — ready to publish",
+  "share.publish.errors.nativeOnly": "Open the Android app to share a video.",
+  "share.publish.errors.noVideo":
+    "No shared video found. Share a video from CapCut or Edits to Synckerja Office.",
+  "share.publish.errors.videoTooLarge":
+    "Video is too large (max 512 MB). Export a smaller file from CapCut/Edits and share again.",
+  "share.publish.errors.copyFailed":
+    "Could not read the shared video. Try sharing again, or export the file and share from Gallery.",
+  "share.publish.errors.loadTimeout": "Failed to load video (timeout). Try sharing again.",
+  "share.publish.errors.pickPlan": "Pick a content plan first",
+  "share.publish.errors.confirmReelRequired": "Confirm changing to Reel is required",
+  "share.publish.errors.notEligible": "Plan is not eligible to publish yet",
+  "share.publish.errors.invalidScheduleTime": "Invalid schedule time",
+  "share.publish.errors.driveUploadFailed":
+    "Google Drive upload failed. Tap Save video to plan again.",
+  "share.publish.errors.driveUploadResume":
+    "Upload almost finished but Drive did not confirm. Tap Save video to plan again to resume.",
+  "share.publish.errors.driveUploadNetwork":
+    "Upload interrupted. Check connection and tap Save video to plan again.",
+  "share.publish.errors.googleNotConnected":
+    "Google Drive is not connected. Connect Google Drive in the app, then try again.",
+  "share.publish.errors.drivePermissionDenied":
+    "Google Drive blocked the upload. Connect Google Drive again in Synckerja, then retry.",
+  "share.publish.errors.driveStorageQuotaExceeded":
+    "Google Drive storage is full. Free up Drive space or use another connected Google account, then try again.",
+  "share.publish.errors.driveLinkNotPersisted":
+    "Upload finished, but the Google Drive link was not saved to the plan. Try saving again.",
+  "share.publish.errors.driveNotPublicTitle": "Google Drive link is not public",
+  "share.publish.errors.driveNotPublic":
+    "Open the Drive file, set sharing to Anyone with the link, then save the video to this plan again before publishing.",
+  "share.publish.errors.youtubeNotIndexed":
+    "YouTube is still processing the upload. Wait a moment and try Post now again.",
+  "share.publish.errors.youtubeProcessing":
+    "YouTube rejected or is still processing this video. Try again in a few minutes.",
+  "share.publish.errors.tiktokPublicIdTimeout":
+    "TikTok finished uploading but did not return a playable video id yet. Try Post now again shortly.",
+  "share.publish.errors.tiktokPublicPrivacy":
+    "TikTok account cannot post publicly. Check Direct Post settings in Digital Marketing.",
+  "share.publish.errors.invalidVideoFile":
+    "Downloaded file is not a valid MP4/MOV video. Re-export as MP4 and save to the plan again.",
+  "share.publish.errors.oauthOrScopes":
+    "Platform account is not connected or missing publish permissions.",
+  "share.publish.errors.publishFailed": "Publish failed",
+  "share.publish.toasts.saved": "Video saved to plan. Awaiting approval if required.",
+  "share.publish.toasts.savedOwner": "Video saved to plan.",
+  "share.publish.toasts.saveFailed": "Failed to save video",
+  "share.publish.toasts.drivePermissionWarning":
+    "Video uploaded, but public Drive sharing could not be enabled. Open the link in Drive and set Anyone with the link if needed.",
+  "share.publish.toasts.googleConnectRetry":
+    "Connect Google Drive, then tap Save video to plan again.",
+  "share.publish.toasts.scheduled": "Scheduled on {{count}} platform(s)",
+  "share.publish.toasts.posted": "Posted on {{count}} platform(s)",
+  "share.publish.toasts.publishFailed": "Publish failed",
+  "share.publish.leave.title": "Leave share flow?",
+  "share.publish.leave.body": "The shared video draft will be discarded.",
+  "share.publish.leave.cancel": "Stay",
+  "share.publish.leave.confirm": "Leave",
+  "share.publish.reelConfirm.title": "Change content type to Reel?",
+  "share.publish.reelConfirm.body":
+    "Portrait video detected. Auto-post requires content type Reel. Update this plan to Reel?",
+  "share.publish.reelConfirm.cancel": "Cancel",
+  "share.publish.reelConfirm.confirm": "Use Reel",
   "expenses.receiptPhotoTaken": "Receipt photo captured",
   "expenses.receiptCameraOrGallery": "Camera or gallery",
   "expenses.takePhoto": "Take photo",

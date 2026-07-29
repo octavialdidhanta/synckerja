@@ -6,12 +6,13 @@ import {
   fetchInstagramMediaPermalink,
   publishInstagramReelsContainer,
   uploadInstagramReelsVideo,
+  waitForInstagramReelsContainerReady,
 } from "../metaContent/metaReelsPublishApi.ts";
-import { downloadGoogleDriveVideo } from "./googleDriveVideoDownload.ts";
 import {
   isPlanEligibleForInstagramAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
 } from "./scheduledPostEligibility.ts";
+import { resolveVideoBytesForUpload, type SharedPublishContext } from "./sharedPublishContext.ts";
 import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import type { InstagramProviderConfig, ScheduledPostRow } from "./scheduledPostTypes.ts";
 
@@ -69,6 +70,56 @@ async function persistInstagramProviderConfig(
   return next;
 }
 
+async function clearInstagramUploadState(
+  admin: SupabaseClient,
+  scheduleId: string,
+  base: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const next = { ...base };
+  delete next.ig_container_id;
+  delete next.ig_upload_phase;
+  delete next.ig_upload_session_id;
+  await admin
+    .from("social_media_scheduled_posts")
+    .update({ provider_config: next, updated_at: new Date().toISOString() })
+    .eq("id", scheduleId);
+  return next;
+}
+
+function isFatalInstagramContainerError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("meta_reels_container_error") ||
+    m.includes("meta_reels_container_expired")
+  );
+}
+
+async function publishInstagramContainerWhenReady(
+  admin: SupabaseClient,
+  scheduleId: string,
+  providerConfig: Record<string, unknown>,
+  args: {
+    igAccountId: string;
+    pageAccessToken: string;
+    containerId: string;
+  },
+): Promise<{ mediaId: string }> {
+  try {
+    await waitForInstagramReelsContainerReady(args.containerId, args.pageAccessToken);
+    return await publishInstagramReelsContainer(
+      args.igAccountId,
+      args.pageAccessToken,
+      args.containerId,
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (isFatalInstagramContainerError(message)) {
+      await clearInstagramUploadState(admin, scheduleId, providerConfig);
+    }
+    throw err;
+  }
+}
+
 async function upsertInstagramLink(
   admin: SupabaseClient,
   plan: PlanRow,
@@ -114,6 +165,7 @@ async function upsertInstagramLink(
 export async function executeInstagramScheduledPost(
   admin: SupabaseClient,
   schedule: ScheduledPostRow,
+  sharedCtx?: SharedPublishContext,
 ): Promise<{ published_url: string; external_post_id: string | null }> {
   const plan = await loadPlan(admin, schedule.social_media_plan_id);
   if (!plan) throw new Error("plan_not_found");
@@ -143,16 +195,11 @@ export async function executeInstagramScheduledPost(
 
   let providerConfig = { ...(schedule.provider_config as Record<string, unknown>) };
   const caption = schedule.caption?.trim() || schedule.title?.trim() || "";
+  const accountLabel = String(cfg.account_label ?? account.accountLabel ?? "Instagram");
 
-  if (cfg.ig_container_id && cfg.ig_upload_phase === "uploaded") {
-    const { mediaId } = await publishInstagramReelsContainer(
-      igAccountId,
-      account.pageAccessToken,
-      cfg.ig_container_id,
-    );
+  const finishPublished = async (mediaId: string) => {
     const permalink = await fetchInstagramMediaPermalink(mediaId, account.pageAccessToken);
     const publishedUrl = permalink ?? buildInstagramReelsFallbackUrl(mediaId);
-    const accountLabel = String(cfg.account_label ?? account.accountLabel ?? "Instagram");
     await upsertInstagramLink(admin, plan, {
       url: publishedUrl,
       accountId: igAccountId,
@@ -161,10 +208,24 @@ export async function executeInstagramScheduledPost(
       employeeId: cfg.employee_id,
     });
     return { published_url: publishedUrl, external_post_id: mediaId };
+  };
+
+  if (cfg.ig_container_id && cfg.ig_upload_phase === "uploaded") {
+    const { mediaId } = await publishInstagramContainerWhenReady(
+      admin,
+      schedule.id,
+      providerConfig,
+      {
+        igAccountId,
+        pageAccessToken: account.pageAccessToken,
+        containerId: cfg.ig_container_id,
+      },
+    );
+    return finishPublished(mediaId);
   }
 
   const driveUrl = plan.google_drive_link?.trim() ?? schedule.media_url_snapshot;
-  const { bytes: videoBytes } = await downloadGoogleDriveVideo(driveUrl);
+  const { bytes: videoBytes } = await resolveVideoBytesForUpload(driveUrl, sharedCtx);
 
   let containerId = String(cfg.ig_container_id ?? "").trim();
   let uploadUri = "";
@@ -179,6 +240,7 @@ export async function executeInstagramScheduledPost(
     uploadUri = container.uploadUri;
     providerConfig = await persistInstagramProviderConfig(admin, schedule.id, providerConfig, {
       ig_container_id: containerId,
+      ig_upload_session_id: uploadUri,
       ig_upload_phase: "created",
     });
   }
@@ -208,22 +270,15 @@ export async function executeInstagramScheduledPost(
     });
   }
 
-  const { mediaId } = await publishInstagramReelsContainer(
-    igAccountId,
-    account.pageAccessToken,
-    containerId,
+  const { mediaId } = await publishInstagramContainerWhenReady(
+    admin,
+    schedule.id,
+    providerConfig,
+    {
+      igAccountId,
+      pageAccessToken: account.pageAccessToken,
+      containerId,
+    },
   );
-  const permalink = await fetchInstagramMediaPermalink(mediaId, account.pageAccessToken);
-  const publishedUrl = permalink ?? buildInstagramReelsFallbackUrl(mediaId);
-  const accountLabel = String(cfg.account_label ?? account.accountLabel ?? "Instagram");
-
-  await upsertInstagramLink(admin, plan, {
-    url: publishedUrl,
-    accountId: igAccountId,
-    accountLabel,
-    externalPostId: mediaId,
-    employeeId: cfg.employee_id,
-  });
-
-  return { published_url: publishedUrl, external_post_id: mediaId };
+  return finishPublished(mediaId);
 }

@@ -18,6 +18,7 @@ import {
   resolveScheduleStatusAfterFailure,
 } from "./scheduledPostRetry.ts";
 import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
+import type { SharedPublishContext } from "./sharedPublishContext.ts";
 
 export type RunScheduledPostJobResult = {
   id: string;
@@ -27,6 +28,7 @@ export type RunScheduledPostJobResult = {
   stubCode?: "manual_only" | "not_implemented";
   published_url?: string;
   external_post_id?: string;
+  tiktok_publish_path?: "pull" | "file_upload";
   retry_count?: number;
   skipped?: "already_published" | "already_claimed";
   deferred?: "rate_limit" | "rate_limit_global";
@@ -39,6 +41,8 @@ export type RunScheduledPostJobOptions = {
   skipPublishingTransition?: boolean;
   preloadedRow?: ScheduledPostRow;
   schedulerConfig?: SchedulerConfig;
+  /** Shared Drive download for plan bulk orchestrator */
+  sharedPublishContext?: SharedPublishContext;
 };
 
 
@@ -190,7 +194,7 @@ export async function runScheduledPostJob(
   }
 
   try {
-    const result = await executeScheduledPost(admin, row);
+    const result = await executeScheduledPost(admin, row, options?.sharedPublishContext);
     const cleanedConfig = stripPublishResumeFlags(platform, row.provider_config ?? {});
     await admin
       .from("social_media_scheduled_posts")
@@ -214,6 +218,7 @@ export async function runScheduledPostJob(
       platform,
       published_url: result.published_url,
       external_post_id: result.external_post_id,
+      tiktok_publish_path: result.tiktok_publish_path,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "publish_failed";
