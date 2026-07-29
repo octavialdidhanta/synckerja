@@ -195,7 +195,16 @@ export async function runScheduledPostJob(
 
   try {
     const result = await executeScheduledPost(admin, row, options?.sharedPublishContext);
-    const cleanedConfig = stripPublishResumeFlags(platform, row.provider_config ?? {});
+    // Executors persist publish metadata mid-run, so strip from the latest row, not the stale one.
+    const { data: latest } = await admin
+      .from("social_media_scheduled_posts")
+      .select("provider_config")
+      .eq("id", scheduleId)
+      .maybeSingle();
+    const cleanedConfig = stripPublishResumeFlags(
+      platform,
+      (latest?.provider_config as Record<string, unknown> | null) ?? row.provider_config ?? {},
+    );
     await admin
       .from("social_media_scheduled_posts")
       .update({

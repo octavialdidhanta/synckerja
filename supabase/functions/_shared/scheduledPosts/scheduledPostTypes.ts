@@ -53,6 +53,8 @@ export type FacebookProviderConfig = {
   fb_video_id?: string;
   fb_upload_url?: string;
   fb_upload_phase?: string;
+  /** Kept after publish (unlike `fb_video_id`) so delete can target the video node. */
+  fb_published_video_id?: string;
 };
 
 export type LinkedInProviderConfig = {

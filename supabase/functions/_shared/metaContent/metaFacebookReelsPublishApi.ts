@@ -125,11 +125,33 @@ export function buildFacebookReelFallbackUrl(pageId: string, videoId: string): s
   return `https://www.facebook.com/${encodeURIComponent(pageId)}/videos/${encodeURIComponent(videoId)}/`;
 }
 
-export async function deleteFacebookReelVideo(
-  videoId: string,
+/** Reel permalinks carry the video id, the only delete target that survives resume cleanup. */
+export function extractFacebookVideoIdFromUrl(url: string | null | undefined): string | null {
+  const raw = String(url ?? "").trim();
+  if (!raw) return null;
+  const patterns = [
+    /\/videos\/(?:[^/?#]+\/)?(\d{5,})/,
+    /\/reels?\/(\d{5,})/,
+    /[?&]v=(\d{5,})/,
+  ];
+  for (const pattern of patterns) {
+    const match = raw.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+  return null;
+}
+
+type GraphDeleteAttempt = {
+  ok: boolean;
+  missingObject: boolean;
+  error?: string;
+};
+
+async function graphDeleteObject(
+  objectId: string,
   pageAccessToken: string,
-): Promise<{ ok: boolean; alreadyDeleted: boolean; error?: string }> {
-  const url = graphUrl(videoId);
+): Promise<GraphDeleteAttempt> {
+  const url = graphUrl(encodeURIComponent(objectId));
   const res = await fetch(`${url}?access_token=${encodeURIComponent(pageAccessToken)}`, {
     method: "DELETE",
   });
@@ -139,16 +161,54 @@ export async function deleteFacebookReelVideo(
   };
 
   if (res.ok && json.success !== false) {
-    return { ok: true, alreadyDeleted: false };
+    return { ok: true, missingObject: false };
   }
 
   const code = json.error?.code;
-  const msg = json.error?.message ?? "";
-  if (code === 100 || msg.toLowerCase().includes("not exist")) {
+  const message = json.error?.message ?? `http_${res.status}`;
+  const lower = message.toLowerCase();
+  const missingObject = code === 100 && lower.includes("does not exist");
+
+  return { ok: false, missingObject, error: message };
+}
+
+export type FacebookDeleteContentResult = {
+  ok: boolean;
+  alreadyDeleted: boolean;
+  deletedTarget?: string;
+  error?: string;
+};
+
+/**
+ * Graph rejects a bare Page post id with error #12 (singular statuses API deprecated),
+ * so try every known id shape (video node, `{page}_{post}`, raw id) before failing.
+ */
+export async function deleteFacebookPublishedContent(
+  candidateIds: readonly string[],
+  pageAccessToken: string,
+): Promise<FacebookDeleteContentResult> {
+  const attempted = new Set<string>();
+  const failures: string[] = [];
+  let missingObject = false;
+
+  for (const candidate of candidateIds) {
+    const target = candidate.trim();
+    if (!target || attempted.has(target)) continue;
+    attempted.add(target);
+
+    const attempt = await graphDeleteObject(target, pageAccessToken);
+    if (attempt.ok) {
+      return { ok: true, alreadyDeleted: false, deletedTarget: target };
+    }
+    if (attempt.missingObject) missingObject = true;
+    failures.push(`${target}: ${attempt.error ?? "unknown"}`);
+  }
+
+  if (attempted.size === 0 || missingObject) {
     return { ok: true, alreadyDeleted: true };
   }
 
-  return { ok: false, alreadyDeleted: false, error: msg || `http_${res.status}` };
+  return { ok: false, alreadyDeleted: false, error: failures.join(" | ") };
 }
 
 export async function deleteInstagramMedia(

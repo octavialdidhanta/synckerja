@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveMetaContentAccount } from "../../metaContentAuth.ts";
-import { deleteFacebookReelVideo } from "../../metaContent/metaFacebookReelsPublishApi.ts";
+import {
+  deleteFacebookPublishedContent,
+  extractFacebookVideoIdFromUrl,
+} from "../../metaContent/metaFacebookReelsPublishApi.ts";
 import { clearMetaPlanPublishState } from "./clearMetaPlanPublishState.ts";
 
 export type DeleteFacebookPublishedPostResult =
@@ -32,11 +35,29 @@ type LinkRow = {
   platform_account_open_id: string | null;
 };
 
-async function resolveVideoId(
+/** Video node ids delete reliably; bare post ids must be prefixed with the Page id. */
+function buildDeleteCandidates(
+  pageId: string,
+  videoIds: string[],
+  postIds: string[],
+): string[] {
+  const prefixed = postIds
+    .filter((id) => !id.includes("_"))
+    .map((id) => `${pageId}_${id}`);
+  const alreadyPrefixed = postIds.filter((id) => id.includes("_"));
+  const bare = postIds.filter((id) => !id.includes("_"));
+
+  return [...videoIds, ...alreadyPrefixed, ...prefixed, ...bare];
+}
+
+async function resolveDeleteCandidates(
   admin: SupabaseClient,
   planId: string,
   pageId: string,
-): Promise<string | null> {
+): Promise<string[]> {
+  const videoIds: string[] = [];
+  const postIds: string[] = [];
+
   const { data: scheduleRows } = await admin
     .from("social_media_scheduled_posts")
     .select("id, status, external_post_id, provider_config, platform_account_id, created_at")
@@ -49,9 +70,13 @@ async function resolveVideoId(
       String(row.platform_account_id ?? "").trim()
       || String(row.provider_config?.facebook_page_id ?? "").trim();
     if (rowAccount && rowAccount !== pageId) continue;
-    const fromSchedule = String(row.external_post_id ?? "").trim()
+
+    const videoId = String(row.provider_config?.fb_published_video_id ?? "").trim()
       || String(row.provider_config?.fb_video_id ?? "").trim();
-    if (fromSchedule) return fromSchedule;
+    if (videoId) videoIds.push(videoId);
+
+    const postId = String(row.external_post_id ?? "").trim();
+    if (postId) postIds.push(postId);
   }
 
   const { data: linkRows } = await admin
@@ -63,11 +88,15 @@ async function resolveVideoId(
   for (const link of (linkRows ?? []) as LinkRow[]) {
     const openId = String(link.platform_account_open_id ?? "").trim();
     if (openId && openId !== pageId) continue;
-    const fromLink = String(link.external_post_id ?? "").trim();
-    if (fromLink) return fromLink;
+
+    const videoIdFromUrl = extractFacebookVideoIdFromUrl(link.url);
+    if (videoIdFromUrl) videoIds.push(videoIdFromUrl);
+
+    const postId = String(link.external_post_id ?? "").trim();
+    if (postId) postIds.push(postId);
   }
 
-  return null;
+  return buildDeleteCandidates(pageId, videoIds, postIds);
 }
 
 export async function deleteFacebookPublishedPost(
@@ -96,10 +125,10 @@ export async function deleteFacebookPublishedPost(
     return { ok: false, error: "plan_not_found" };
   }
 
-  const videoId = await resolveVideoId(admin, planId, pageId);
+  const candidates = await resolveDeleteCandidates(admin, planId, pageId);
   let alreadyDeleted = false;
 
-  if (videoId) {
+  if (candidates.length > 0) {
     const account = await resolveMetaContentAccount(
       admin,
       organizationId,
@@ -110,7 +139,10 @@ export async function deleteFacebookPublishedPost(
       return { ok: false, error: "facebook_page_not_found" };
     }
 
-    const deleteResult = await deleteFacebookReelVideo(videoId, account.pageAccessToken);
+    const deleteResult = await deleteFacebookPublishedContent(
+      candidates,
+      account.pageAccessToken,
+    );
     if (!deleteResult.ok) {
       return { ok: false, error: deleteResult.error ?? "delete_failed" };
     }
@@ -126,7 +158,7 @@ export async function deleteFacebookPublishedPost(
   return {
     ok: true,
     already_deleted: alreadyDeleted,
-    nothing_to_delete_on_platform: !videoId,
+    nothing_to_delete_on_platform: candidates.length === 0,
     cleanup,
   };
 }

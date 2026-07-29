@@ -155,6 +155,10 @@ export async function executeFacebookScheduledPost(
     const externalPostId = finished.postId ?? videoId;
     const accountLabel = String(cfg.account_label ?? account.accountLabel ?? "Facebook");
 
+    await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
+      fb_published_video_id: videoId,
+    });
+
     await upsertFacebookLink(admin, plan, {
       url: publishedUrl,
       accountId: pageId,
@@ -198,6 +202,7 @@ export async function executeFacebookScheduledPost(
 
   await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
     fb_upload_phase: "published",
+    fb_published_video_id: videoId,
   });
 
   await upsertFacebookLink(admin, plan, {
