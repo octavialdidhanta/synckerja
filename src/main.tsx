@@ -21,7 +21,25 @@ const SurveyPublicApp = lazy(() =>
   }),
 );
 
-/** Setelah deploy, chunk hash lama bisa 404/HTML — satu kali clear SW/cache lalu reload. */
+function isStaleAssetFailure(reason: unknown): boolean {
+  const message =
+    reason instanceof Error
+      ? reason.message
+      : typeof reason === "string"
+        ? reason
+        : reason && typeof reason === "object" && "message" in reason
+          ? String((reason as { message: unknown }).message)
+          : String(reason ?? "");
+  return (
+    /Failed to fetch dynamically imported module/i.test(message) ||
+    /error loading dynamically imported module/i.test(message) ||
+    /Loading chunk [\w-]+ failed/i.test(message) ||
+    /Importing a module script failed/i.test(message) ||
+    /no-response/i.test(message)
+  );
+}
+
+/** Setelah deploy, chunk hash lama / SW no-response — satu kali clear SW/cache lalu reload. */
 function setupAssetLoadRecovery() {
   const reloadOnce = async () => {
     if (sessionStorage.getItem(ASSET_RELOAD_KEY) === "1") return;
@@ -58,6 +76,13 @@ function setupAssetLoadRecovery() {
     },
     true,
   );
+
+  // Dynamic import / Workbox no-response sering muncul sebagai unhandledrejection, bukan vite:preloadError.
+  window.addEventListener("unhandledrejection", (event) => {
+    if (!isStaleAssetFailure(event.reason)) return;
+    event.preventDefault();
+    void reloadOnce();
+  });
 }
 
 function registerServiceWorker() {
@@ -68,6 +93,8 @@ function registerServiceWorker() {
       registerSW({
         immediate: true,
         onRegisteredSW(_swUrl, registration) {
+          // Buang cache runtime lama yang pernah CacheFirst /assets — bisa memutus fetch.
+          void caches.delete("synckerja-build-assets");
           if (!registration) return;
           window.setInterval(() => {
             void registration.update();

@@ -157,17 +157,11 @@ export default defineConfig(({ mode }) => {
         /** Jangan fallback HTML untuk /assets/* atau URL berkestensi (cegah MIME text/html pada .js). */
         navigateFallbackDenylist: [/^\/assets\//, /\/[^/?]+\.[^/]+$/],
         runtimeCaching: [
-          {
-            /** Hanya hashed build assets — jangan SWR semua script (bisa cache HTML sebagai JS). */
-            urlPattern: ({ url, sameOrigin }) =>
-              sameOrigin && /\/assets\/.+\.(?:js|mjs|css|wasm)$/i.test(url.pathname),
-            handler: "CacheFirst",
-            options: {
-              cacheName: "synckerja-build-assets",
-              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 30 },
-              cacheableResponse: { statuses: [200] },
-            },
-          },
+          /**
+           * Jangan CacheFirst / intercept /assets/*.(js|css).
+           * SW yang gagal network (no-response) memutus dynamic import setelah deploy,
+           * sementara Vercel sudah kirim Cache-Control immutable untuk /assets/*.
+           */
           {
             urlPattern: ({ url }) =>
               url.hostname.endsWith(".supabase.co") && url.pathname.includes("/storage/v1/"),
