@@ -91,6 +91,9 @@ export async function resolveMetaContentAccount(
     };
   }
 
+  // Facebook Content / Messenger pages come only from organization_facebook_pages.
+  // Do not treat Instagram-linked page ids as connected Facebook accounts — disconnecting
+  // a Page removes the FB row while the IG row may remain for Instagram DM.
   const { data } = await admin
     .from("organization_facebook_pages")
     .select("*")
@@ -98,43 +101,18 @@ export async function resolveMetaContentAccount(
     .eq("facebook_page_id", accountId)
     .eq("is_active", true)
     .maybeSingle();
-  if (data) {
-    const row = data as Record<string, unknown>;
-    const token = String(row.page_access_token ?? "").trim();
-    if (!token) return null;
-    return {
-      platform: "facebook",
-      accountId,
-      accountLabel: String(row.page_name ?? accountId),
-      pageId: accountId,
-      pageAccessToken: token,
-      igBusinessAccountId: null,
-      grantedScopes: parseScopes(row.granted_scopes),
-    };
-  }
-
-  // Page linked to Instagram Business — token lives on organization_instagram_accounts.
-  const { data: igLinked } = await admin
-    .from("organization_instagram_accounts")
-    .select("*")
-    .eq("organization_id", organizationId)
-    .eq("facebook_page_id", accountId)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (!igLinked) return null;
-  const igRow = igLinked as Record<string, unknown>;
-  const token = String(igRow.page_access_token ?? "").trim();
+  if (!data) return null;
+  const row = data as Record<string, unknown>;
+  const token = String(row.page_access_token ?? "").trim();
   if (!token) return null;
   return {
     platform: "facebook",
     accountId,
-    accountLabel: String(
-      igRow.facebook_page_name ?? igRow.instagram_username ?? igRow.instagram_name ?? accountId,
-    ),
+    accountLabel: String(row.page_name ?? accountId),
     pageId: accountId,
     pageAccessToken: token,
-    igBusinessAccountId: String(igRow.instagram_business_account_id ?? "") || null,
-    grantedScopes: parseScopes(igRow.granted_scopes),
+    igBusinessAccountId: null,
+    grantedScopes: parseScopes(row.granted_scopes),
   };
 }
 
@@ -176,7 +154,7 @@ export async function listMetaContentAccounts(
     };
   });
 
-  const fbOnlyAccounts = (fbRes.data ?? []).map((row) => {
+  const fbAccounts = (fbRes.data ?? []).map((row) => {
     const r = row as Record<string, unknown>;
     return {
       platform: "facebook" as const,
@@ -187,31 +165,6 @@ export async function listMetaContentAccounts(
       avatar_url: null,
     };
   });
-
-  // Pages with linked IG are stored in organization_instagram_accounts but also power Facebook insights/posts.
-  const fbFromLinkedIg = (igRes.data ?? [])
-    .map((row) => {
-      const r = row as Record<string, unknown>;
-      const pageId = String(r.facebook_page_id ?? "").trim();
-      if (!pageId) return null;
-      return {
-        platform: "facebook" as const,
-        account_id: pageId,
-        account_label: String(
-          r.facebook_page_name ?? r.instagram_username ?? r.instagram_name ?? pageId,
-        ),
-        page_id: pageId,
-        granted_scopes: parseScopes(r.granted_scopes),
-        avatar_url: null,
-      };
-    })
-    .filter((row): row is NonNullable<typeof row> => row != null);
-
-  const fbPageIds = new Set(fbOnlyAccounts.map((a) => a.account_id));
-  const fbAccounts = [
-    ...fbOnlyAccounts,
-    ...fbFromLinkedIg.filter((a) => !fbPageIds.has(a.account_id)),
-  ];
 
   return [...igAccounts, ...fbAccounts];
 }

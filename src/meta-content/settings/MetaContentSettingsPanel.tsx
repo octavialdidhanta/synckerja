@@ -8,15 +8,14 @@ import { Skeleton } from '@/shared/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { cn } from '@/shared/lib/utils';
 import { useInstagramAccounts } from '@/5-3-whatsapp/hooks/useInstagramAccounts';
+import { useFacebookPages } from '@/5-3-whatsapp/hooks/useFacebookPages';
 import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatusCards';
 import { notifyMetaOAuthExchangeWarnings } from '@/meta-platform/lib/notifyMetaOAuthExchangeResult';
 import { useMetaOAuthConnect } from '@/meta-platform/hooks/useMetaOAuthConnect';
 import type { MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
 import type { MetaContentOAuthReturnPath } from '@/meta-content/settings/metaContentSettingsPaths';
-import { useMetaContentConfig } from '@/meta-content/hooks/useMetaContentConfig';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { supabase } from '@/shared/lib/supabaseClient';
 
 export type MetaContentSettingsPanelProps = {
   platform: MetaContentPlatform;
@@ -74,22 +73,24 @@ export function MetaContentSettingsPanel({
     isDisconnecting: isDisconnectingInstagram,
   } = useInstagramAccounts();
 
-  const metaConfig = useMetaContentConfig(organizationId);
-  const facebookAccounts = useMemo(
-    () => (metaConfig.data?.accounts ?? []).filter((acc) => acc.platform === 'facebook'),
-    [metaConfig.data?.accounts],
-  );
+  const {
+    pages: facebookPages,
+    isLoading: facebookLoading,
+    refetch: refetchFacebook,
+    disconnectPage: disconnectFacebookPage,
+    isDisconnecting: isDisconnectingFacebookPages,
+  } = useFacebookPages();
 
   const scopeCardAccounts = useMemo(() => {
     if (platform === 'instagram') {
       return instagramAccounts.map((acc) => ({ granted_scopes: acc.granted_scopes }));
     }
-    return facebookAccounts.map((acc) => ({ granted_scopes: acc.granted_scopes }));
-  }, [platform, instagramAccounts, facebookAccounts]);
+    return facebookPages.map((page) => ({ granted_scopes: page.granted_scopes }));
+  }, [platform, instagramAccounts, facebookPages]);
 
-  const isLoading = platform === 'instagram' ? instagramLoading : metaConfig.isPending;
+  const isLoading = platform === 'instagram' ? instagramLoading : facebookLoading;
   const connectedCount =
-    platform === 'instagram' ? instagramAccounts.length : facebookAccounts.length;
+    platform === 'instagram' ? instagramAccounts.length : facebookPages.length;
 
   const PlatformIcon = platform === 'instagram' ? Instagram : Facebook;
 
@@ -104,6 +105,7 @@ export function MetaContentSettingsPanel({
     flow: platform,
     onExchangeComplete: async (resData) => {
       await refetchInstagram();
+      await refetchFacebook();
       queryClient.invalidateQueries({ queryKey: ['meta-content-config', organizationId] });
       const synced = typeof resData.accounts_synced === 'number' ? resData.accounts_synced : 0;
       if (synced > 0) {
@@ -161,16 +163,12 @@ export function MetaContentSettingsPanel({
     }
   };
 
-  const handleDisconnectFacebook = async (pageId: string) => {
+  const handleDisconnectFacebook = async (pageRowId: string) => {
     if (!organizationId) return;
     setIsDisconnectingFb(true);
     try {
-      const { error } = await supabase
-        .from('organization_facebook_pages')
-        .delete()
-        .eq('organization_id', organizationId)
-        .eq('facebook_page_id', pageId);
-      if (error) throw error;
+      await disconnectFacebookPage(pageRowId);
+      await refetchFacebook();
       queryClient.invalidateQueries({ queryKey: ['meta-content-config', organizationId] });
       toast.success(t('digitalMarketing.metaContent.disconnectedToast', 'Account disconnected.'));
     } catch (e) {
@@ -276,21 +274,21 @@ export function MetaContentSettingsPanel({
         </div>
       )}
 
-      {platform === 'facebook' && facebookAccounts.length > 0 && (
+      {platform === 'facebook' && facebookPages.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {t('digitalMarketing.metaContent.connectedAccounts', 'Connected accounts')}
           </p>
-          {facebookAccounts.map((acc) => (
+          {facebookPages.map((page) => (
             <div
-              key={acc.account_id}
+              key={page.id}
               className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2"
             >
               <div className="flex min-w-0 items-center gap-2">
                 <PlatformIcon className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{acc.account_label}</p>
-                  <p className="truncate text-xs text-muted-foreground">{acc.page_id}</p>
+                  <p className="truncate text-sm font-medium">{page.page_name ?? page.facebook_page_id}</p>
+                  <p className="truncate text-xs text-muted-foreground">{page.facebook_page_id}</p>
                 </div>
               </div>
               <Button
@@ -298,8 +296,8 @@ export function MetaContentSettingsPanel({
                 size="icon"
                 variant="ghost"
                 aria-label={t('digitalMarketing.metaContent.removeAccount', 'Remove account')}
-                disabled={isDisconnectingFb}
-                onClick={() => void handleDisconnectFacebook(acc.account_id)}
+                disabled={isDisconnectingFb || isDisconnectingFacebookPages}
+                onClick={() => void handleDisconnectFacebook(page.id)}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
