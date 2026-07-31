@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildLeadMagnetButtonsMetadata } from "./leadMagnetLivechatDisplay.ts";
 import type { LeadMagnetFirstDmMethod, LeadMagnetPlatform } from "./types.ts";
+import {
+  extractInstagramHandle,
+  formatInstagramCustomerName,
+} from "../instagramAccountDedupe.ts";
 
 const META_GRAPH_VERSION = "v21.0";
 
@@ -232,6 +236,9 @@ async function upsertInstagramConversation(
     participantUsername: string | null;
   },
 ): Promise<string | null> {
+  const customerName = formatInstagramCustomerName(args.participantUsername);
+  const usernameHandle = extractInstagramHandle(args.participantUsername);
+
   const { data: existing } = await admin
     .from("instagram_conversations")
     .select("id")
@@ -242,7 +249,43 @@ async function upsertInstagramConversation(
     .limit(1)
     .maybeSingle();
 
-  if (existing?.id) return existing.id as string;
+  if (existing?.id) {
+    if (customerName) {
+      await admin
+        .from("instagram_conversations")
+        .update({ customer_name: customerName, updated_at: new Date().toISOString() })
+        .eq("id", existing.id);
+    }
+    return existing.id as string;
+  }
+
+  if (usernameHandle) {
+    const { data: byNameCandidates } = await admin
+      .from("instagram_conversations")
+      .select("id, customer_name")
+      .eq("organization_id", args.organizationId)
+      .eq("instagram_business_account_id", args.accountId)
+      .order("updated_at", { ascending: false })
+      .limit(100);
+
+    const byUsername = (byNameCandidates ?? []).find(
+      (row) => extractInstagramHandle((row as { customer_name?: string | null }).customer_name) === usernameHandle,
+    );
+    if (byUsername?.id) {
+      if (customerName) {
+        await admin
+          .from("instagram_conversations")
+          .update({
+            customer_name: customerName,
+            customer_ig_id: args.participantScopedId,
+            customer_external_id: args.participantScopedId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", byUsername.id);
+      }
+      return byUsername.id as string;
+    }
+  }
 
   const convId = crypto.randomUUID();
   const ticketId = "IG-" + convId.replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -258,7 +301,7 @@ async function upsertInstagramConversation(
       instagram_business_account_id: args.accountId,
       customer_ig_id: args.participantScopedId,
       customer_external_id: args.participantScopedId,
-      ...(args.participantUsername ? { customer_name: args.participantUsername } : {}),
+      ...(customerName ? { customer_name: customerName } : {}),
       ticket_id: ticketId,
       lead_status_id: openSt?.id ?? null,
       last_message_at: now,

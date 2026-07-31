@@ -16,15 +16,35 @@ export function normalizeInstagramUsername(username: string | null | undefined):
   return (username ?? "").trim().replace(/^@+/i, "").toLowerCase();
 }
 
+/**
+ * Extract an Instagram handle from customer_name.
+ * Accepts "@fiqri_fox" and bare "fiqri_fox" (Lead Magnet often stores bare usernames).
+ * Rejects display names with spaces and pure-numeric IDs.
+ */
+export function extractInstagramHandle(customerName: string | null | undefined): string {
+  const stripped = normalizeInstagramUsername(customerName);
+  if (!stripped) return "";
+  // Instagram usernames: 1–30 chars of letters, digits, periods, underscores.
+  if (!/^[a-z0-9._]{1,30}$/.test(stripped)) return "";
+  // Must contain a letter so we never treat numeric PSIDs/IGSIDs as usernames.
+  if (!/[a-z]/.test(stripped)) return "";
+  return stripped;
+}
+
+/** Format handle for storage/display: "@username". */
+export function formatInstagramCustomerName(username: string | null | undefined): string | null {
+  const handle = extractInstagramHandle(username) || normalizeInstagramUsername(username);
+  if (!handle || !/^[a-z0-9._]{1,30}$/.test(handle) || !/[a-z]/.test(handle)) return null;
+  return `@${handle}`;
+}
+
 /** Stable customer identity: @username > external (webhook sender) > ig id. Username survives Meta ID drift. */
 export function instagramConversationCustomerDedupeKey(
   customerIgId: string | null | undefined,
   customerExternalId: string | null | undefined,
   customerName: string | null | undefined,
 ): string {
-  const username = normalizeInstagramUsername(
-    (customerName ?? "").trim().startsWith("@") ? customerName : null,
-  );
+  const username = extractInstagramHandle(customerName);
   if (username) return username;
 
   const external = (customerExternalId ?? "").trim().toLowerCase();
@@ -46,8 +66,8 @@ export function instagramCustomerIdentityTokens(
   const ext = (customerExternalId ?? "").trim().toLowerCase();
   if (ig) tokens.add(ig);
   if (ext) tokens.add(ext);
-  const name = (customerName ?? "").trim();
-  if (name.startsWith("@")) tokens.add(`@${name.slice(1).toLowerCase()}`);
+  const username = extractInstagramHandle(customerName);
+  if (username) tokens.add(`@${username}`);
   return tokens;
 }
 
@@ -92,7 +112,9 @@ function pickBestMessagingCustomerId(ids: string[]): string {
 
 function scoreInstagramConvKeeper(row: InstagramConvMergeRow): number {
   let score = 0;
-  if (row.customer_name?.trim()) score += 20;
+  const name = row.customer_name?.trim() ?? "";
+  if (name.startsWith("@")) score += 25;
+  else if (name) score += 20;
   if (row.customer_external_id?.trim()) score += 10;
   if (!isLikelyInstagramBusinessAccountId(row.customer_ig_id)) score += 5;
   if (row.last_message_at) score += 1;
@@ -138,7 +160,10 @@ export async function mergeInstagramConversationDuplicates(
 
   const allIgIds = sorted.map((r) => r.customer_ig_id);
   const allExternal = sorted.map((r) => r.customer_external_id ?? "");
-  const bestName = sorted.find((r) => r.customer_name?.trim())?.customer_name ?? keeper.customer_name;
+  const bestName =
+    sorted.find((r) => r.customer_name?.trim().startsWith("@"))?.customer_name ??
+    sorted.find((r) => r.customer_name?.trim())?.customer_name ??
+    keeper.customer_name;
   const messagingId = pickBestMessagingCustomerId(allIgIds);
   const externalId =
     allExternal.map((v) => v.trim()).find(Boolean) ??

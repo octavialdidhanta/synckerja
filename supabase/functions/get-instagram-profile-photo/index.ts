@@ -87,7 +87,24 @@ Deno.serve(async (req: Request) => {
       .eq("is_active", true)
       .maybeSingle();
 
-    const accessToken = (igAcc?.page_access_token ?? "").trim();
+    let accessToken = (igAcc?.page_access_token ?? "").trim();
+    // Orphaned threads (inbox disconnected) still need a token to resolve profile pics.
+    if (!accessToken) {
+      const { data: fallbackAccs } = await supabaseAdmin
+        .from("organization_instagram_accounts")
+        .select("page_access_token")
+        .eq("organization_id", conv.organization_id)
+        .eq("is_active", true)
+        .not("page_access_token", "is", null)
+        .limit(5);
+      for (const row of fallbackAccs ?? []) {
+        const token = String((row as { page_access_token?: string | null }).page_access_token ?? "").trim();
+        if (token) {
+          accessToken = token;
+          break;
+        }
+      }
+    }
     if (!accessToken) {
       return new Response(JSON.stringify({ error: "No token for this conversation" }), {
         status: 404,

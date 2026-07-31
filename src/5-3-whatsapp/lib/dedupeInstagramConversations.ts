@@ -4,9 +4,21 @@ function normalizeUsername(name: string | null | undefined): string {
   return (name ?? '').trim().replace(/^@+/i, '').toLowerCase();
 }
 
-/** Match server instagramConversationCustomerDedupeKey (@username > external > ig id). */
+/**
+ * Instagram handle from customer_name — accepts "@user" and bare "user"
+ * (Lead Magnet often stores bare usernames). Rejects spaces and pure numeric IDs.
+ */
+function extractHandle(customerName: string | null | undefined): string {
+  const stripped = normalizeUsername(customerName);
+  if (!stripped) return '';
+  if (!/^[a-z0-9._]{1,30}$/.test(stripped)) return '';
+  if (!/[a-z]/.test(stripped)) return '';
+  return stripped;
+}
+
+/** Match server instagramConversationCustomerDedupeKey (username > external > ig id). */
 function customerDedupeKey(conv: InstagramConversation): string {
-  const username = normalizeUsername(conv.customer_name?.trim().startsWith('@') ? conv.customer_name : null);
+  const username = extractHandle(conv.customer_name);
   if (username) return username;
 
   const external = (conv as { customer_external_id?: string | null }).customer_external_id?.trim().toLowerCase();
@@ -24,7 +36,7 @@ function customerIdentityTokens(conv: InstagramConversation): Set<string> {
   const ext = (conv as { customer_external_id?: string | null }).customer_external_id?.trim().toLowerCase();
   if (ig) tokens.add(ig);
   if (ext) tokens.add(ext);
-  const username = normalizeUsername(conv.customer_name?.trim().startsWith('@') ? conv.customer_name : null);
+  const username = extractHandle(conv.customer_name);
   if (username) tokens.add(`@${username}`);
   return tokens;
 }
@@ -35,8 +47,8 @@ function identitiesOverlap(a: InstagramConversation, b: InstagramConversation): 
   for (const t of ta) {
     if (tb.has(t)) return true;
   }
-  const aUser = normalizeUsername(a.customer_name?.trim().startsWith('@') ? a.customer_name : null);
-  const bUser = normalizeUsername(b.customer_name?.trim().startsWith('@') ? b.customer_name : null);
+  const aUser = extractHandle(a.customer_name);
+  const bUser = extractHandle(b.customer_name);
   if (aUser && bUser && aUser === bUser) return true;
   return false;
 }
@@ -44,7 +56,9 @@ function identitiesOverlap(a: InstagramConversation, b: InstagramConversation): 
 function pickKeeper(a: InstagramConversation, b: InstagramConversation): InstagramConversation {
   const score = (c: InstagramConversation) => {
     let s = 0;
-    if (c.customer_name?.trim()) s += 20;
+    const name = c.customer_name?.trim() ?? '';
+    if (name.startsWith('@')) s += 25;
+    else if (name) s += 20;
     if ((c as { customer_external_id?: string | null }).customer_external_id?.trim()) s += 10;
     if (c.last_message_at) s += 1;
     return s;
@@ -56,7 +70,7 @@ function pickKeeper(a: InstagramConversation, b: InstagramConversation): Instagr
   return bt >= at ? b : a;
 }
 
-/** Hide duplicate IG threads (IGSID vs business account id drift) per inbox. */
+/** Hide duplicate IG threads (IGSID vs business account id drift / bare vs @username) per inbox. */
 export function dedupeInstagramConversations(conversations: InstagramConversation[]): InstagramConversation[] {
   const groups: InstagramConversation[][] = [];
 
@@ -71,7 +85,13 @@ export function dedupeInstagramConversations(conversations: InstagramConversatio
     for (const group of groups) {
       const sample = group[0];
       if ((sample.instagram_business_account_id ?? '').trim() !== inboxId) continue;
-      if (identitiesOverlap(conv, sample) || customerDedupeKey(conv) === customerDedupeKey(sample)) {
+      const key = customerDedupeKey(conv);
+      const matches = group.some((existing) => {
+        if (identitiesOverlap(conv, existing)) return true;
+        const existingKey = customerDedupeKey(existing);
+        return Boolean(key && existingKey && key === existingKey);
+      });
+      if (matches) {
         group.push(conv);
         placed = true;
         break;

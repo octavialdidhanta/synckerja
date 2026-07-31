@@ -3989,6 +3989,8 @@ export const idTranslations: TranslationDictionary = {
   "share.publish.toasts.saved": "Video disimpan ke plan. Menunggu approval jika diperlukan.",
   "share.publish.toasts.savedOwner": "Video disimpan ke plan.",
   "share.publish.toasts.saveFailed": "Gagal menyimpan video",
+  "share.cancelledSignedOut":
+    "Berbagi dibatalkan karena kamu belum login. Login dulu, lalu bagikan videonya lagi.",
   "share.publish.toasts.drivePermissionWarning":
     "Video terunggah, tapi berbagi publik Drive tidak bisa diaktifkan. Buka link di Drive dan atur Anyone with the link jika perlu.",
   "share.publish.toasts.googleConnectRetry":

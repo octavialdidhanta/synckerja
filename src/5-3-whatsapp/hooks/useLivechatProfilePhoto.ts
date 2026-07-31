@@ -1,25 +1,28 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 
 /**
- * Profile picture for livechat header — WhatsApp (disabled until edge deployed) or Instagram via Graph API.
+ * Profile picture for livechat — Instagram via Graph API stream.
+ * Caches the Blob in React Query (stable across remounts) and creates a
+ * fresh object URL per mount so mobile list↔chat swaps don't poison the cache.
  */
 export function useLivechatProfilePhoto(
   conversationId: string | null | undefined,
-  options: { source?: 'whatsapp' | 'email' | 'instagram'; channel?: string } = {}
+  options: { source?: 'whatsapp' | 'email' | 'instagram'; channel?: string } = {},
 ) {
   const { source = 'whatsapp', channel } = options;
   const isInstagram = source === 'instagram';
   const isWhatsApp = source === 'whatsapp' && channel !== 'instagram';
-  const blobUrlRef = useRef<string | null>(null);
 
-  const { data: profileUrl, isLoading, error } = useQuery({
+  const { data: photoBlob, isLoading, error } = useQuery({
     queryKey: ['livechat-profile-photo', source, conversationId],
     enabled: isInstagram && Boolean(conversationId),
-    queryFn: async (): Promise<string | null> => {
+    queryFn: async (): Promise<Blob | null> => {
       if (!conversationId) return null;
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session?.access_token) return null;
       const endpoint = isInstagram
         ? `${SUPABASE_URL}/functions/v1/get-instagram-profile-photo`
@@ -35,31 +38,29 @@ export function useLivechatProfilePhoto(
       if (!res.ok) return null;
       const data = await res.blob();
       if (!data || data.size === 0 || data.type?.includes('json')) return null;
-      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-      const url = URL.createObjectURL(data);
-      blobUrlRef.current = url;
-      return url;
+      return data;
     },
     staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
     retry: false,
   });
 
   // WhatsApp profile photo remains disabled (Cloud API limitation).
   void isWhatsApp;
 
+  const [profileUrl, setProfileUrl] = useState<string | null>(null);
+
   useEffect(() => {
+    if (!photoBlob) {
+      setProfileUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(photoBlob);
+    setProfileUrl(url);
     return () => {
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
-      }
+      URL.revokeObjectURL(url);
     };
-  }, []);
+  }, [photoBlob]);
 
-  useEffect(() => {
-    if (profileUrl && profileUrl.startsWith('blob:')) return;
-    blobUrlRef.current = null;
-  }, [profileUrl]);
-
-  return { profileUrl: profileUrl ?? null, isLoading, error };
+  return { profileUrl, isLoading, error };
 }

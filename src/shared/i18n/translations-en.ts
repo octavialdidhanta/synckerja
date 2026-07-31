@@ -3989,6 +3989,8 @@ export const enTranslations: TranslationDictionary = {
   "share.publish.toasts.saved": "Video saved to plan. Awaiting approval if required.",
   "share.publish.toasts.savedOwner": "Video saved to plan.",
   "share.publish.toasts.saveFailed": "Failed to save video",
+  "share.cancelledSignedOut":
+    "Share cancelled because you are not signed in. Sign in first, then share the video again.",
   "share.publish.toasts.drivePermissionWarning":
     "Video uploaded, but public Drive sharing could not be enabled. Open the link in Drive and set Anyone with the link if needed.",
   "share.publish.toasts.googleConnectRetry":

@@ -9,6 +9,7 @@ import {
   instagramConversationCustomerDedupeKey,
   instagramCustomerIdentitiesOverlap,
   mergeInstagramConversationDuplicates,
+  extractInstagramHandle,
   normalizeInstagramUsername,
 } from "../_shared/instagramAccountDedupe.ts";
 import { syncMetaManageCommentsInboundComments } from "../_shared/metaManageCommentsInboxState.ts";
@@ -593,9 +594,7 @@ async function findExistingInstagramConversation(
     senderId,
     customerName,
   );
-  const usernameKey = normalizeInstagramUsername(
-    customerName?.trim().startsWith("@") ? customerName : null,
-  );
+  const usernameKey = extractInstagramHandle(customerName);
 
   const { data: candidates } = await supabase
     .from("instagram_conversations")
@@ -629,9 +628,7 @@ async function findExistingInstagramConversation(
     }
 
     if (usernameKey) {
-      const rowUsername = normalizeInstagramUsername(
-        r.customer_name?.trim().startsWith("@") ? r.customer_name : null,
-      );
+      const rowUsername = extractInstagramHandle(r.customer_name);
       if (rowUsername && rowUsername === usernameKey) {
         matches.set(r.id, r);
       }

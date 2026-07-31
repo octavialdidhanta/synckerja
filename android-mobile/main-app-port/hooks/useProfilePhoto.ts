@@ -3,6 +3,42 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useProfile } from '@/mobile-app/hooks/useProfile';
 
+async function syncProfilePhotoUrl(userId: string, photoUrl: string | null) {
+  const { error: employeeError } = await supabase
+    .from('employees')
+    .update({
+      profile_photo_url: photoUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId);
+
+  if (employeeError) throw employeeError;
+
+  const { error: detailsError } = await supabase.from('user_profile_details').upsert(
+    {
+      profile_id: userId,
+      profile_photo_url: photoUrl,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'profile_id' },
+  );
+
+  if (detailsError) throw detailsError;
+
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({
+      profile_photo_url: photoUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId);
+
+  // Non-fatal: header may still resolve photo from employees / user_profile_details.
+  if (profileError) {
+    console.warn('profiles.profile_photo_url update failed:', profileError);
+  }
+}
+
 export const useProfilePhoto = () => {
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -13,62 +49,50 @@ export const useProfilePhoto = () => {
     try {
       setUploading(true);
 
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         throw new Error('File harus berupa gambar');
       }
 
-      // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         throw new Error('Ukuran file maksimal 5MB');
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error('User tidak ditemukan');
 
-      // Delete existing photo if any
       if (profile?.photo_url) {
-        await deletePhoto(false); // Don't show success toast for deletion during upload
+        await deletePhoto(false);
       }
 
-      // Create unique filename
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
-      // Upload to storage
       const { error: uploadError } = await supabase.storage
         .from('employee-profiles')
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('employee-profiles')
-        .getPublicUrl(fileName);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('employee-profiles').getPublicUrl(fileName);
 
-      // Update employee table
-      const { error: updateError } = await supabase
-        .from('employees')
-        .update({ photo_url: publicUrl })
-        .eq('user_id', user.id);
-
-      if (updateError) throw updateError;
-
-      // Refresh profile data
+      await syncProfilePhotoUrl(user.id, publicUrl);
       await refetch();
 
       toast({
-        title: "Berhasil",
-        description: "Foto profil berhasil diupload"
+        title: 'Berhasil',
+        description: 'Foto profil berhasil diupload',
       });
 
       return publicUrl;
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: 'Error',
         description: error.message,
-        variant: "destructive"
+        variant: 'destructive',
       });
       throw error;
     } finally {
@@ -80,53 +104,45 @@ export const useProfilePhoto = () => {
     try {
       if (showToast) setDeleting(true);
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error('User tidak ditemukan');
 
       if (!profile?.photo_url) {
         if (showToast) {
           toast({
-            title: "Info",
-            description: "Tidak ada foto untuk dihapus"
+            title: 'Info',
+            description: 'Tidak ada foto untuk dihapus',
           });
         }
         return;
       }
 
-      // Extract file path from URL
       const url = new URL(profile.photo_url);
-      const filePath = url.pathname.split('/').slice(-2).join('/'); // user_id/filename
+      const filePath = url.pathname.split('/').slice(-2).join('/');
 
-      // Delete from storage
       const { error: deleteError } = await supabase.storage
         .from('employee-profiles')
         .remove([filePath]);
 
       if (deleteError) throw deleteError;
 
-      // Update employee table
-      const { error: updateError } = await supabase
-        .from('employees')
-        .update({ photo_url: null })
-        .eq('user_id', user.id);
-
-      if (updateError) throw updateError;
-
-      // Refresh profile data
+      await syncProfilePhotoUrl(user.id, null);
       await refetch();
 
       if (showToast) {
         toast({
-          title: "Berhasil",
-          description: "Foto profil berhasil dihapus"
+          title: 'Berhasil',
+          description: 'Foto profil berhasil dihapus',
         });
       }
     } catch (error: any) {
       if (showToast) {
         toast({
-          title: "Error",
+          title: 'Error',
           description: error.message,
-          variant: "destructive"
+          variant: 'destructive',
         });
       }
       throw error;
@@ -139,6 +155,6 @@ export const useProfilePhoto = () => {
     uploadPhoto,
     deletePhoto,
     uploading,
-    deleting
+    deleting,
   };
 };

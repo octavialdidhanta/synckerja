@@ -35,8 +35,8 @@ export const EmployeeDetailSidebar = ({
 
   // Update local photo URL when employee data changes
   useEffect(() => {
-    setCurrentPhotoUrl(employee.photo_url);
-  }, [employee.photo_url]);
+    setCurrentPhotoUrl(employee.profile_photo_url);
+  }, [employee.profile_photo_url]);
 
   const handlePhotoUpload = (photoUrl: string | undefined) => {
     console.log('Photo uploaded:', photoUrl);
@@ -47,7 +47,7 @@ export const EmployeeDetailSidebar = ({
     // Update the employee record
     updateEmployee({
       id: employee.id,
-      data: { photo_url: photoUrl }
+      data: { profile_photo_url: photoUrl }
     }, {
       onSuccess: () => {
         console.log('Employee photo updated successfully');
@@ -67,8 +67,8 @@ export const EmployeeDetailSidebar = ({
     return `https://najgdwffjhnqlogfrlqa.supabase.co/storage/v1/object/public/employee-documents/${photoPath}`;
   };
 
-  // Use currentPhotoUrl for display, fallback to employee.photo_url
-  const displayPhotoUrl = getPhotoUrl(currentPhotoUrl || employee.photo_url);
+  // Use currentPhotoUrl for display, fallback to employee.profile_photo_url
+  const displayPhotoUrl = getPhotoUrl(currentPhotoUrl || employee.profile_photo_url);
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-primary/5 to-white">
@@ -81,7 +81,7 @@ export const EmployeeDetailSidebar = ({
                 src={displayPhotoUrl}
                 alt={employee.full_name}
                 className="object-cover"
-                key={currentPhotoUrl || employee.photo_url} // Force re-render when photo changes
+                key={currentPhotoUrl || employee.profile_photo_url} // Force re-render when photo changes
               />
             ) : null}
             <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-lg">
@@ -103,7 +103,7 @@ export const EmployeeDetailSidebar = ({
             <FileUpload
               id="employee-photo"
               label="Upload Photo"
-              value={currentPhotoUrl || employee.photo_url || undefined}
+              value={currentPhotoUrl || employee.profile_photo_url || undefined}
               onChange={handlePhotoUpload}
               accept=".jpg,.jpeg,.png"
               maxSize={2 * 1024 * 1024} // 2MB

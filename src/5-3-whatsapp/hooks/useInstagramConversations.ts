@@ -68,11 +68,31 @@ export function useInstagramConversations() {
     enabled: !!organizationId,
     queryFn: async (): Promise<InstagramConversation[]> => {
       if (!organizationId) return [];
-      const { data, error } = await supabase.rpc('get_instagram_conversations_with_preview', {
-        p_organization_id: organizationId,
-      });
+      const [{ data, error }, { data: accounts, error: accountsError }] = await Promise.all([
+        supabase.rpc('get_instagram_conversations_with_preview', {
+          p_organization_id: organizationId,
+        }),
+        supabase
+          .from('organization_instagram_accounts')
+          .select('instagram_business_account_id')
+          .eq('organization_id', organizationId)
+          .eq('is_active', true),
+      ]);
       if (error) throw error;
-      return dedupeInstagramConversations((data ?? []) as InstagramConversation[]);
+      if (accountsError) throw accountsError;
+
+      // Hide threads from disconnected IG inboxes (no token → no photo, looks like "ghost" duplicates).
+      const activeInboxIds = new Set(
+        (accounts ?? [])
+          .map((a) => (a.instagram_business_account_id ?? '').trim())
+          .filter(Boolean),
+      );
+      const connectedOnly = ((data ?? []) as InstagramConversation[]).filter((conv) => {
+        const inboxId = (conv.instagram_business_account_id ?? '').trim();
+        return inboxId !== '' && activeInboxIds.has(inboxId);
+      });
+
+      return dedupeInstagramConversations(connectedOnly);
     },
     refetchInterval: 20000,
     refetchOnWindowFocus: false,
