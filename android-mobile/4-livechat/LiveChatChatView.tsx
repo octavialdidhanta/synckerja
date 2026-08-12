@@ -73,7 +73,7 @@ export function LiveChatChatView({
   const waConv = selectedConversation as WhatsAppConversation;
   const channel = isInstagram ? 'instagram' : isFacebook ? 'facebook' : (waConv.channel ?? 'whatsapp');
   const { profileUrl } = useLivechatProfilePhoto(selectedConversation.id, {
-    source: selectedConversation.source,
+    source: isInstagram ? 'instagram' : isEmail ? 'email' : isFacebook ? 'facebook' : 'whatsapp',
     channel: isEmail ? 'email' : channel,
   });
 

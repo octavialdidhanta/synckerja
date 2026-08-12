@@ -51,6 +51,18 @@ export const REPORT_SUMMARY_DEFAULT_SLOT_KEYS: ReportTableMetricKey[] = [
   "impressions",
 ];
 
+/** Mobile report summary uses a 2×3 grid (6 slots). */
+export const REPORT_SUMMARY_MOBILE_SLOT_COUNT = 6;
+
+export const REPORT_SUMMARY_MOBILE_DEFAULT_SLOT_KEYS: ReportTableMetricKey[] = [
+  "cost",
+  "impressions",
+  "clicks",
+  "ctr",
+  "cpc",
+  "converted_leads",
+];
+
 export type ReportSummaryTotals = {
   costByCurrency: { currency: string; amount: number }[];
   impressions: number;

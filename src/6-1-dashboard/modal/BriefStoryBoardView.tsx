@@ -37,6 +37,7 @@ export interface BriefStoryBoardViewProps {
   onAddRowInSequence?: (sequenceId: string) => void;
   onMoveToPreviousSequence?: (rowIndex: number) => void;
   onMoveToNextSequence?: (rowIndex: number) => void;
+  density?: 'desktop' | 'mobile-2col';
   className?: string;
 }
 
@@ -66,6 +67,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
   onAddRowInSequence,
   onMoveToPreviousSequence,
   onMoveToNextSequence,
+  density = 'desktop',
   className,
 }) => {
   const { t } = useAppTranslation();
@@ -75,7 +77,8 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
   return (
     <div
       className={cn(
-        'flex min-h-0 flex-1 flex-col gap-3 overflow-x-auto overflow-y-auto p-2',
+        'flex min-h-0 flex-1 flex-col gap-3 overflow-x-auto overflow-y-auto',
+        density === 'mobile-2col' ? 'gap-2 p-0' : 'p-2',
         'scrollbar-hide seamless-scroll nested-scroll-touch-chain',
         '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         className,
@@ -89,7 +92,12 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
         return (
           <section
             key={sequence.id}
-            className="min-w-0 shrink-0 rounded-lg border border-dashed border-blue-200 bg-blue-50/20 p-2"
+            className={cn(
+              '@container/seq min-w-0 w-full shrink-0 border-dashed border-blue-200 bg-blue-50/20',
+              density === 'mobile-2col'
+                ? 'rounded-none border-x-0 border-y px-2 py-2'
+                : 'rounded-lg border p-2',
+            )}
           >
             <BriefSequenceHeader
               className="mb-2"
@@ -133,6 +141,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
                       isUploading={isRowUploading}
                       isDeleting={isRowDeleting}
                       planId={planId}
+                      density={density}
                       characterIds={getSceneCharacterIds(sceneMeta, rowIdx)}
                       onCharacterIdsChange={onSceneCharacterIdsChange}
                       onUpdateCell={onUpdateCell}

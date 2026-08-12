@@ -69,6 +69,11 @@ export function usesInlineSubscriptionBannerSlot(pathname: string): boolean {
   if (pathname === "/expenses" || pathname.startsWith("/expenses/")) return true;
   if (pathname === "/incomes" || pathname.startsWith("/incomes/")) return true;
   if (pathname === "/digital-marketing/traffic") return true;
+  if (pathname === "/digital-marketing/google-ads") return true;
+  if (pathname === "/digital-marketing/meta-ads") return true;
+  if (pathname === "/digital-marketing/tiktok-ads") return true;
+  if (pathname === "/digital-marketing/report") return true;
+  if (pathname === "/digital-marketing/social-media/content-calendar") return true;
   if (pathname === "/tools/habits-tracker") return true;
   if (
     pathname === "/tools/daily-task" ||
@@ -107,6 +112,12 @@ export function isMobileBypassRoute(
   const isMobileIncomesPath = pathname === "/incomes" || pathname.startsWith("/incomes/");
   const isMobileHabitsTrackerPath = pathname === "/tools/habits-tracker";
   const isMobileWebTrafficPath = pathname === "/digital-marketing/traffic";
+  const isMobileGoogleAdsPath = pathname === "/digital-marketing/google-ads";
+  const isMobileMetaAdsPath = pathname === "/digital-marketing/meta-ads";
+  const isMobileTikTokAdsPath = pathname === "/digital-marketing/tiktok-ads";
+  const isMobileReportPath = pathname === "/digital-marketing/report";
+  const isMobileContentCalendarPath =
+    pathname === "/digital-marketing/social-media/content-calendar";
   const isMobileDailyTaskToolsPath = pathname === "/tools/daily-task";
   const isMobileDailyTaskReportPath = pathname === "/tools/daily-task-report";
   const isMobileMeetingNotesPath = pathname === "/tools/meeting-notes";
@@ -126,6 +137,11 @@ export function isMobileBypassRoute(
     isMobileIncomesPath ||
     isMobileHabitsTrackerPath ||
     isMobileWebTrafficPath ||
+    isMobileGoogleAdsPath ||
+    isMobileMetaAdsPath ||
+    isMobileTikTokAdsPath ||
+    isMobileReportPath ||
+    isMobileContentCalendarPath ||
     isMobileShareReceiptValidationPath
   ) {
     return true;

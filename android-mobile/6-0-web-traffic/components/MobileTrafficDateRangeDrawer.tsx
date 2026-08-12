@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
+import { cn } from "@/shared/lib/utils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import {
   Drawer,
@@ -47,6 +48,10 @@ type MobileTrafficDateRangeDrawerProps = {
   allTimeHint?: string;
   calendarYearFilterHint?: string;
   onCustomClick: () => void;
+  /** Optional field label shown above the value (desktop-style filter chip). */
+  fieldLabel?: string;
+  /** Optional override for the period trigger button. */
+  triggerClassName?: string;
 };
 
 export function MobileTrafficDateRangeDrawer({
@@ -58,12 +63,15 @@ export function MobileTrafficDateRangeDrawer({
   allTimeHint,
   calendarYearFilterHint,
   onCustomClick,
+  fieldLabel,
+  triggerClassName,
 }: MobileTrafficDateRangeDrawerProps) {
   const { t } = useAppTranslation();
   const [periodDrawerOpen, setPeriodDrawerOpen] = useState(false);
   const [yearDrawerOpen, setYearDrawerOpen] = useState(false);
 
   const periodLabel = formatGoogleAdsPickerButtonLabel(value);
+  const ariaLabel = fieldLabel ?? t("traffic.mobile.dateRange", "Tanggal");
 
   const applyPreset = useCallback(
     (preset: GoogleAdsDatePresetId) => {
@@ -113,7 +121,16 @@ export function MobileTrafficDateRangeDrawer({
   }, [calendarYearPresetYears]);
 
   if (!filtersHydrated) {
-    return <div className="h-9 w-full animate-pulse rounded-md bg-muted" aria-hidden />;
+    return (
+      <div
+        className={cn(
+          "w-full animate-pulse rounded-md bg-muted",
+          fieldLabel ? "h-auto min-h-9" : "h-9",
+          triggerClassName,
+        )}
+        aria-hidden
+      />
+    );
   }
 
   return (
@@ -123,17 +140,30 @@ export function MobileTrafficDateRangeDrawer({
           <Button
             variant="outline"
             size="sm"
-            className="h-9 w-full min-w-0 gap-2 justify-between text-xs"
+            className={cn(
+              "h-9 w-full min-w-0 gap-2 justify-between text-xs",
+              fieldLabel && "h-auto min-h-9 flex-col items-start gap-0 py-1.5",
+              triggerClassName,
+            )}
             title={periodLabel}
-            aria-label={t("traffic.mobile.dateRange", "Tanggal")}
+            aria-label={ariaLabel}
           >
-            <span className="min-w-0 flex-1 truncate text-left">{periodLabel}</span>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
+            {fieldLabel ? (
+              <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {fieldLabel}
+              </span>
+            ) : null}
+            <span className="flex w-full min-w-0 items-center gap-1">
+              <span className="min-w-0 flex-1 truncate text-left text-xs font-medium text-foreground">
+                {periodLabel}
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
+            </span>
           </Button>
         </DrawerTrigger>
         <DrawerContent className="max-h-[80dvh]">
           <DrawerHeader className="text-left safe-area-top pb-2">
-            <DrawerTitle>{t("traffic.mobile.dateRange", "Tanggal")}</DrawerTitle>
+            <DrawerTitle>{ariaLabel}</DrawerTitle>
           </DrawerHeader>
           <div className="overflow-y-auto px-4 pb-4">
             <div className="grid gap-2">

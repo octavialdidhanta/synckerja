@@ -269,6 +269,30 @@ const MobileWebTrafficPage = lazy(() => import("@/mobile/6-0-web-traffic/pages/M
 const MobileWebTrafficPageSkeleton = lazy(
   () => import("@/mobile/6-0-web-traffic/pages/MobileWebTrafficPageSkeleton"),
 );
+const MobileGoogleAdsPage = lazy(() => import("@/mobile/6-0-google-ads/pages/MobileGoogleAdsPage"));
+const MobileGoogleAdsPageSkeleton = lazy(
+  () => import("@/mobile/6-0-google-ads/pages/MobileGoogleAdsPageSkeleton"),
+);
+const MobileMetaAdsPage = lazy(() => import("@/mobile/6-0-meta-ads/pages/MobileMetaAdsPage"));
+const MobileMetaAdsPageSkeleton = lazy(
+  () => import("@/mobile/6-0-meta-ads/pages/MobileMetaAdsPageSkeleton"),
+);
+const MobileTikTokAdsPage = lazy(() => import("@/mobile/6-0-tiktok-ads/pages/MobileTikTokAdsPage"));
+const MobileTikTokAdsPageSkeleton = lazy(
+  () => import("@/mobile/6-0-tiktok-ads/pages/MobileTikTokAdsPageSkeleton"),
+);
+const MobileDigitalMarketingReportPage = lazy(
+  () => import("@/mobile/6-0-report/pages/MobileDigitalMarketingReportPage"),
+);
+const MobileDigitalMarketingReportPageSkeleton = lazy(
+  () => import("@/mobile/6-0-report/pages/MobileDigitalMarketingReportPageSkeleton"),
+);
+const MobileContentCalendarPage = lazy(
+  () => import("@/mobile/6-1-content-calendar/pages/MobileContentCalendarPage"),
+);
+const MobileContentCalendarPageSkeleton = lazy(
+  () => import("@/mobile/6-1-content-calendar/pages/MobileContentCalendarPageSkeleton"),
+);
 const ReviewRouteGate = lazy(() =>
   import("@/6-1-dashboard/routes/ReviewRouteGate").then((m) => ({ default: m.ReviewRouteGate })),
 );
@@ -2081,44 +2105,154 @@ function TrafficMobileAwareRouteElement() {
   );
 }
 
+function GoogleAdsMobileAwareLoadingShell() {
+  const { isDesktop } = useAuthSurface();
+  if (isDesktop) return <GoogleAdsMetricsPageSkeleton />;
+  return (
+    <Suspense fallback={<GoogleAdsMetricsPageSkeleton />}>
+      <MobileGoogleAdsPageSkeleton />
+    </Suspense>
+  );
+}
+
+function MetaAdsMobileAwareLoadingShell() {
+  const { isDesktop } = useAuthSurface();
+  if (isDesktop) return <MetaAdsMetricsPageSkeleton />;
+  return (
+    <Suspense fallback={<MetaAdsMetricsPageSkeleton />}>
+      <MobileMetaAdsPageSkeleton />
+    </Suspense>
+  );
+}
+
+function TikTokAdsMobileAwareLoadingShell() {
+  const { isDesktop } = useAuthSurface();
+  if (isDesktop) return <TikTokAdsMetricsPageSkeleton />;
+  return (
+    <Suspense fallback={<TikTokAdsMetricsPageSkeleton />}>
+      <MobileTikTokAdsPageSkeleton />
+    </Suspense>
+  );
+}
+
+function ReportMobileAwareLoadingShell() {
+  const { isDesktop } = useAuthSurface();
+  if (isDesktop) return <DigitalMarketingReportPageSkeleton />;
+  return (
+    <Suspense fallback={<DigitalMarketingReportPageSkeleton />}>
+      <MobileDigitalMarketingReportPageSkeleton />
+    </Suspense>
+  );
+}
+
+function ContentCalendarMobileAwareLoadingShell() {
+  const { isDesktop } = useAuthSurface();
+  if (isDesktop) return <ContentCalendarPageSkeleton />;
+  return (
+    <Suspense fallback={<ContentCalendarPageSkeleton />}>
+      <MobileContentCalendarPageSkeleton />
+    </Suspense>
+  );
+}
+
 function GoogleAdsMetricsPageRouteElement() {
+  const { isDesktop } = useAuthSurface();
+  const location = useLocation();
+  const isSettingsView = location.pathname.includes("/settings");
+  const useMobileShell = !isDesktop && !isSettingsView;
+
   return (
     <Suspense
       fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <GoogleAdsMetricsPageSkeleton />
+        <div
+          className={
+            useMobileShell
+              ? "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-muted/70"
+              : "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100"
+          }
+          aria-busy
+        >
+          {useMobileShell ? <GoogleAdsMobileAwareLoadingShell /> : <GoogleAdsMetricsPageSkeleton />}
         </div>
       }
     >
-      <GoogleAdsMetricsPage />
+      {useMobileShell ? <MobileGoogleAdsPage /> : <GoogleAdsMetricsPage />}
     </Suspense>
   );
 }
 
 function MetaAdsMetricsPageRouteElement() {
+  const { isDesktop } = useAuthSurface();
+  const location = useLocation();
+  const isSettingsView = location.pathname.includes("/settings");
+  const useMobileShell = !isDesktop && !isSettingsView;
+
   return (
     <Suspense
       fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <MetaAdsMetricsPageSkeleton />
+        <div
+          className={
+            useMobileShell
+              ? "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-muted/70"
+              : "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100"
+          }
+          aria-busy
+        >
+          {useMobileShell ? <MetaAdsMobileAwareLoadingShell /> : <MetaAdsMetricsPageSkeleton />}
         </div>
       }
     >
-      <MetaAdsMetricsPage />
+      {useMobileShell ? <MobileMetaAdsPage /> : <MetaAdsMetricsPage />}
     </Suspense>
   );
 }
 
 function TikTokAdsMetricsPageRouteElement() {
+  const { isDesktop } = useAuthSurface();
+  const location = useLocation();
+  const isSettingsView = location.pathname.includes("/settings");
+  const useMobileShell = !isDesktop && !isSettingsView;
+
   return (
     <Suspense
       fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <TikTokAdsMetricsPageSkeleton />
+        <div
+          className={
+            useMobileShell
+              ? "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-muted/70"
+              : "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100"
+          }
+          aria-busy
+        >
+          {useMobileShell ? <TikTokAdsMobileAwareLoadingShell /> : <TikTokAdsMetricsPageSkeleton />}
         </div>
       }
     >
-      <TikTokAdsMetricsPage />
+      {useMobileShell ? <MobileTikTokAdsPage /> : <TikTokAdsMetricsPage />}
+    </Suspense>
+  );
+}
+
+function ContentCalendarPageRouteElement() {
+  const { isDesktop } = useAuthSurface();
+  const useMobileShell = !isDesktop;
+
+  return (
+    <Suspense
+      fallback={
+        <div
+          className={
+            useMobileShell
+              ? "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-muted/70"
+              : "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100"
+          }
+          aria-busy
+        >
+          {useMobileShell ? <ContentCalendarMobileAwareLoadingShell /> : <ContentCalendarPageSkeleton />}
+        </div>
+      }
+    >
+      {useMobileShell ? <MobileContentCalendarPage /> : <SocialMediaContentCalendarPage />}
     </Suspense>
   );
 }
@@ -2474,15 +2608,31 @@ function ThreadsManageCommentsPageRouteElement() {
 }
 
 function DigitalMarketingReportPageRouteElement() {
+  const { isDesktop } = useAuthSurface();
+  const location = useLocation();
+  const isTargetsView = location.pathname.includes("/targets");
+  const useMobileShell = !isDesktop && !isTargetsView;
+
   return (
     <Suspense
       fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <DigitalMarketingReportPageSkeleton />
+        <div
+          className={
+            useMobileShell
+              ? "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-muted/70"
+              : "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100"
+          }
+          aria-busy
+        >
+          {useMobileShell ? (
+            <ReportMobileAwareLoadingShell />
+          ) : (
+            <DigitalMarketingReportPageSkeleton />
+          )}
         </div>
       }
     >
-      <DigitalMarketingReportPage />
+      {useMobileShell ? <MobileDigitalMarketingReportPage /> : <DigitalMarketingReportPage />}
     </Suspense>
   );
 }
@@ -2530,19 +2680,6 @@ const SocialMediaSettingsSuspense = ({ children }: { children: ReactNode }) => (
     fallback={
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-muted/40" aria-busy>
         <SocialMediaSettingsPageSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-/** Rute content calendar — skeleton selaras layout halaman (bukan shell dashboard generik). */
-const ContentCalendarSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-        <ContentCalendarPageSkeleton />
       </div>
     }
   >
@@ -3781,12 +3918,10 @@ const App = () => (
                             <PageAccessGuard
                               pagePath="/digital-marketing/social-media"
                               preserveAppChromeOnDeny
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                              loadingShell={<ContentCalendarMobileAwareLoadingShell />}
                               loadingShellWrapperClassName="bg-gray-100"
                             >
-                              <ContentCalendarSuspense>
-                                <SocialMediaContentCalendarPage />
-                              </ContentCalendarSuspense>
+                              <ContentCalendarPageRouteElement />
                             </PageAccessGuard>
                           }
                         />
@@ -3929,7 +4064,7 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/google-ads"
-                                loadingShell={<GoogleAdsMetricsPageSkeleton />}
+                                loadingShell={<GoogleAdsMobileAwareLoadingShell />}
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <GoogleAdsMetricsPageRouteElement />
@@ -3953,7 +4088,7 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/meta-ads"
-                                loadingShell={<MetaAdsMetricsPageSkeleton />}
+                                loadingShell={<MetaAdsMobileAwareLoadingShell />}
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <MetaAdsMetricsPageRouteElement />
@@ -3977,7 +4112,7 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/tiktok-ads"
-                                loadingShell={<TikTokAdsMetricsPageSkeleton />}
+                                loadingShell={<TikTokAdsMobileAwareLoadingShell />}
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <TikTokAdsMetricsPageRouteElement />
@@ -4405,7 +4540,7 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/report"
-                                loadingShell={<DigitalMarketingReportPageSkeleton />}
+                                loadingShell={<ReportMobileAwareLoadingShell />}
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <DigitalMarketingReportPageRouteElement />

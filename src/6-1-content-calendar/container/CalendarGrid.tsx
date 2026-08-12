@@ -16,6 +16,8 @@ interface CalendarGridProps {
   /** Production Need Review (grey) & Production Revision (red): open Google Drive preview modal */
   onOpenPreview?: (plan: any) => void;
   variant?: 'default' | 'share-picker';
+  /** Desktop = 7-col grid; mobile-h-scroll = ~2 cols visible, scroll for rest */
+  layout?: 'desktop' | 'mobile-h-scroll';
   isPlanSelected?: (plan: any) => boolean;
 }
 
@@ -26,6 +28,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   onPlanClick,
   onOpenPreview,
   variant = 'default',
+  layout = 'desktop',
   isPlanSelected,
 }) => {
   const { t } = useAppTranslation();
@@ -167,158 +170,169 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   /** Kolom header selaras dengan grid: index 0 = Min (Minggu) … sama dengan Date#getDay(). */
   const todayWeekdayIndex = new Date().getDay();
   const isSharePicker = variant === 'share-picker';
+  const isMobileHScroll = layout === 'mobile-h-scroll';
 
-  return (
-    <div className="relative">
-      {/* Days of week header - Fixed positioning */}
-      <div
-        className={cn(
-          "mb-2 grid grid-cols-7 gap-1 py-2",
-          isSharePicker ? "" : "-mt-4 sticky -top-4 z-20 bg-white dark:bg-slate-950",
-        )}
-      >
-        {indonesianDays.map((day, columnIndex) => {
-          const isTodayWeekdayColumn = todayWeekdayIndex === columnIndex;
-          return (
-            <div
-              key={day}
-              className={cn(
-                'rounded-md p-2 text-center text-sm font-medium',
-                isTodayWeekdayColumn
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-              )}
-            >
-              {day}
-            </div>
-          );
-        })}
-      </div>
+  const weekdayHeader = (
+    <div
+      className={cn(
+        'mb-2 grid grid-cols-7 gap-1 py-2',
+        isSharePicker || isMobileHScroll ? '' : '-mt-4 sticky -top-4 z-20 bg-white dark:bg-slate-950',
+        isMobileHScroll && 'mb-1 w-full',
+      )}
+    >
+      {indonesianDays.map((day, columnIndex) => {
+        const isTodayWeekdayColumn = todayWeekdayIndex === columnIndex;
+        return (
+          <div
+            key={day}
+            className={cn(
+              'rounded-md p-2 text-center text-sm font-medium',
+              isTodayWeekdayColumn
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+            )}
+          >
+            {day}
+          </div>
+        );
+      })}
+    </div>
+  );
 
-      {/* Calendar days with padding top to account for sticky header */}
-      <div className="grid grid-cols-7 gap-1 pt-2">
-        {calendarDays.map(({ date, isCurrentMonth }, index) => {
-          const dayInfo = getDayInfo(date);
-          const isToday = isSameDay(date, new Date());
-          
-          return (
-            <div
-              key={index}
-              onClick={() => onDayClick(date, dayInfo)}
-              className={`
-                ${isSharePicker ? "min-h-[124px]" : "aspect-square"} p-2 border border-slate-200 dark:border-slate-700 flex flex-col text-xs relative cursor-pointer transition-colors overflow-hidden
+  const dayCells = (
+    <div
+      className={cn(
+        'grid grid-cols-7 gap-1',
+        isMobileHScroll ? 'pt-0' : 'pt-2',
+        isMobileHScroll && 'w-full',
+      )}
+    >
+      {calendarDays.map(({ date, isCurrentMonth }, index) => {
+        const dayInfo = getDayInfo(date);
+        const isToday = isSameDay(date, new Date());
+
+        return (
+          <div
+            key={index}
+            onClick={() => onDayClick(date, dayInfo)}
+            className={`
+                ${
+                  isSharePicker
+                    ? 'min-h-[124px]'
+                    : isMobileHScroll
+                      ? 'min-h-[160px]'
+                      : 'aspect-square'
+                } p-2 border border-slate-200 dark:border-slate-700 flex flex-col text-xs relative cursor-pointer transition-colors overflow-hidden
                 ${!isCurrentMonth ? 'text-slate-400 bg-slate-50 dark:bg-slate-900' : 'bg-white dark:bg-slate-800'}
                 ${isToday ? 'ring-2 ring-primary' : ''}
-                ${isSharePicker ? "shadow-sm" : "hover:shadow-md hover:scale-105"} transition-all duration-200
+                ${isSharePicker || isMobileHScroll ? 'shadow-sm' : 'hover:shadow-md hover:scale-105'} transition-all duration-200
               `}
-            >
-              {/* Content count badge - shown when more than 1 content */}
-              {dayInfo.count > 1 && (
-                <div className="absolute top-1.5 right-0.5 z-10 bg-red-600 text-white text-[11px] font-bold rounded-md min-w-[20px] h-[20px] flex items-center justify-center px-1.5 shadow-lg ring-2 ring-red-400/30 transform hover:scale-110 transition-transform">
-                  <span className="drop-shadow-sm">{dayInfo.count}</span>
-                </div>
-              )}
-              
-              <div className="font-medium text-sm mb-1">
-                {date.getDate()}
+          >
+            {/* Content count badge - shown when more than 1 content */}
+            {dayInfo.count > 1 && (
+              <div className="absolute top-1.5 right-0.5 z-10 bg-red-600 text-white text-[11px] font-bold rounded-md min-w-[20px] h-[20px] flex items-center justify-center px-1.5 shadow-lg ring-2 ring-red-400/30 transform hover:scale-110 transition-transform">
+                <span className="drop-shadow-sm">{dayInfo.count}</span>
               </div>
-              
-              {dayInfo.count > 0 ? (
-                <div
-                  className={cn(
-                    "flex-1 min-h-0 space-y-1 overflow-x-hidden",
-                    isSharePicker
-                      ? ""
-                      : "overflow-y-auto seamless-scroll nested-scroll-touch-chain",
-                  )}
-                >
-                  {dayInfo.plans.map((plan: any, planIndex: number) => {
-                    // Determine individual plan color based on status
-                    const approved = plan?.approved === true;
-                    const productionApproved = plan?.production_approved === true;
-                    const done = plan?.done === true;
-                    const onTimeStatus = plan?.on_time_status;
-                    
-                    // Check if on_time_status is not "Ontime" and not NULL/Empty
-                    const hasLateStatus = onTimeStatus && 
-                                         typeof onTimeStatus === 'string' &&
-                                         onTimeStatus.trim() !== '' && 
-                                         onTimeStatus !== 'Ontime' &&
-                                         onTimeStatus.toLowerCase().includes('late');
-                    
-                    let planStatus = 'blue';
-                    if (!approved && !productionApproved && !done) {
-                      planStatus = 'red';
-                    } else if (approved && !productionApproved && !done) {
-                      planStatus = 'orange';
-                    } else if (approved && productionApproved && !done) {
-                      planStatus = 'yellow';
-                    } else if (approved && productionApproved && done) {
-                      planStatus = 'green';
-                    }
+            )}
 
-                    const cardTone = getCalendarPlanCardTone(plan);
-                    
-                    // Get links for green cards (with null safety)
-                    const planLinks = (plan?.id && linksByPlanId[plan.id]) || [];
-                    
-                    // Check yellow card for google_drive_link (with validation)
-                    const hasGoogleDriveLink = planStatus === 'yellow' && 
-                                             productionApproved && 
-                                             plan?.google_drive_link &&
-                                             isValidUrl(plan.google_drive_link);
-                    const selected = isPlanSelected?.(plan) === true;
-                    
-                    return (
-                      <div 
-                        key={planIndex} 
-                        onClick={(e) => {
-                          // Stop propagation to prevent day click handler
-                          e.stopPropagation();
-                          // If onPlanClick is provided, call it to open only this specific plan
-                          if (onPlanClick) {
-                            onPlanClick(date, plan);
-                          }
-                        }}
-                        className={cn(
-                          `text-xs space-y-0.5 p-1.5 rounded shadow-sm cursor-pointer transition-all ${cardShellClass(cardTone)}`,
-                          selected ? "ring-2 ring-primary ring-offset-1 ring-offset-white dark:ring-offset-slate-800" : "",
-                          isSharePicker ? "" : "hover:opacity-90 hover:shadow-md",
-                        )}
-                      >
-                        {/* Late Status Text - Show if plan is green with late status */}
-                        {planStatus === 'green' && hasLateStatus && onTimeStatus && (
-                          <div className="text-[10px] font-bold text-white mb-0.5 bg-red-500 px-1 py-0.5 rounded shadow-sm">
-                            {onTimeStatus}
-                          </div>
-                        )}
-                        
-                        {/* Service - Sub Service - Pillar */}
-                        <div className={`truncate text-[10px] ${cardMetaLineClass(cardTone)}`}>
-                          {[
-                            plan?.service?.name,
-                            plan?.sub_service?.name,
-                            plan?.content_pillar?.name
-                          ].filter(Boolean).join(' - ') || 'No Service'}
-                        </div>
-                        
-                        {/* Title */}
-                        <div className={`font-semibold truncate ${cardTitleClass(cardTone)}`}>
-                          {plan?.title || 'Untitled'}
-                        </div>
-                        
-                        {/* PIC, Content Type, Pillar */}
-                        <div className={`truncate text-[10px] ${cardSubMetaClass(cardTone)}`}>
-                          {[
-                            getPicName(plan),
-                            plan?.content_type?.name,
-                            plan?.content_pillar?.name
-                          ].filter(Boolean).join(' • ')}
-                        </div>
+            <div className="font-medium text-sm mb-1">{date.getDate()}</div>
 
-                        {!isSharePicker &&
-                          (cardTone === 'prod-need-review' || cardTone === 'prod-request-revision') &&
-                          onOpenPreview && (
+            {dayInfo.count > 0 ? (
+              <div
+                className={cn(
+                  'flex-1 min-h-0 space-y-1 overflow-x-hidden',
+                  isSharePicker
+                    ? ''
+                    : 'overflow-y-auto seamless-scroll nested-scroll-touch-chain',
+                )}
+              >
+                {dayInfo.plans.map((plan: any, planIndex: number) => {
+                  // Determine individual plan color based on status
+                  const approved = plan?.approved === true;
+                  const productionApproved = plan?.production_approved === true;
+                  const done = plan?.done === true;
+                  const onTimeStatus = plan?.on_time_status;
+
+                  // Check if on_time_status is not "Ontime" and not NULL/Empty
+                  const hasLateStatus =
+                    onTimeStatus &&
+                    typeof onTimeStatus === 'string' &&
+                    onTimeStatus.trim() !== '' &&
+                    onTimeStatus !== 'Ontime' &&
+                    onTimeStatus.toLowerCase().includes('late');
+
+                  let planStatus = 'blue';
+                  if (!approved && !productionApproved && !done) {
+                    planStatus = 'red';
+                  } else if (approved && !productionApproved && !done) {
+                    planStatus = 'orange';
+                  } else if (approved && productionApproved && !done) {
+                    planStatus = 'yellow';
+                  } else if (approved && productionApproved && done) {
+                    planStatus = 'green';
+                  }
+
+                  const cardTone = getCalendarPlanCardTone(plan);
+
+                  // Get links for green cards (with null safety)
+                  const planLinks = (plan?.id && linksByPlanId[plan.id]) || [];
+
+                  // Check yellow card for google_drive_link (with validation)
+                  const hasGoogleDriveLink =
+                    planStatus === 'yellow' &&
+                    productionApproved &&
+                    plan?.google_drive_link &&
+                    isValidUrl(plan.google_drive_link);
+                  const selected = isPlanSelected?.(plan) === true;
+
+                  return (
+                    <div
+                      key={planIndex}
+                      onClick={(e) => {
+                        // Stop propagation to prevent day click handler
+                        e.stopPropagation();
+                        // If onPlanClick is provided, call it to open only this specific plan
+                        if (onPlanClick) {
+                          onPlanClick(date, plan);
+                        }
+                      }}
+                      className={cn(
+                        `text-xs space-y-0.5 p-1.5 rounded shadow-sm cursor-pointer transition-all ${cardShellClass(cardTone)}`,
+                        selected
+                          ? 'ring-2 ring-primary ring-offset-1 ring-offset-white dark:ring-offset-slate-800'
+                          : '',
+                        isSharePicker ? '' : 'hover:opacity-90 hover:shadow-md',
+                      )}
+                    >
+                      {/* Late Status Text - Show if plan is green with late status */}
+                      {planStatus === 'green' && hasLateStatus && onTimeStatus && (
+                        <div className="text-[10px] font-bold text-white mb-0.5 bg-red-500 px-1 py-0.5 rounded shadow-sm">
+                          {onTimeStatus}
+                        </div>
+                      )}
+
+                      {/* Service - Sub Service - Pillar */}
+                      <div className={`truncate text-[10px] ${cardMetaLineClass(cardTone)}`}>
+                        {[plan?.service?.name, plan?.sub_service?.name, plan?.content_pillar?.name]
+                          .filter(Boolean)
+                          .join(' - ') || 'No Service'}
+                      </div>
+
+                      {/* Title */}
+                      <div className={`font-semibold truncate ${cardTitleClass(cardTone)}`}>
+                        {plan?.title || 'Untitled'}
+                      </div>
+
+                      {/* PIC, Content Type, Pillar */}
+                      <div className={`truncate text-[10px] ${cardSubMetaClass(cardTone)}`}>
+                        {[getPicName(plan), plan?.content_type?.name, plan?.content_pillar?.name]
+                          .filter(Boolean)
+                          .join(' • ')}
+                      </div>
+
+                      {!isSharePicker &&
+                        (cardTone === 'prod-need-review' || cardTone === 'prod-request-revision') &&
+                        onOpenPreview && (
                           <>
                             <button
                               type="button"
@@ -348,9 +362,11 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                           </>
                         )}
 
-                        {/* Fallback: non-preview cards tetap tampilkan Rev badge jika ada revision */}
-                        {!(cardTone === 'prod-need-review' || cardTone === 'prod-request-revision') &&
-                          Number(plan?.production_revision_count || 0) > 0 && (
+                      {/* Fallback: non-preview cards tetap tampilkan Rev badge jika ada revision */}
+                      {!(
+                        cardTone === 'prod-need-review' || cardTone === 'prod-request-revision'
+                      ) &&
+                        Number(plan?.production_revision_count || 0) > 0 && (
                           <div className="mt-1">
                             <span
                               className={revisionBadgeClass()}
@@ -360,18 +376,18 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                             </span>
                           </div>
                         )}
-                        
-                        {/* NEW: Green cards - Display all social media links */}
-                        {!isSharePicker && planStatus === 'green' && planLinks.length > 0 && (
-                          <div className="mt-1.5 pt-1.5 border-t border-white/20">
-                            <div className="text-[9px] font-semibold text-emerald-50 mb-0.5">
-                              Links:
-                            </div>
-                            <div className="space-y-0.5">
-                              {planLinks
-                                .filter(link => link?.url && isValidUrl(link.url)) // Filter invalid URLs
-                                .slice(0, 3) // Limit to 3 links to prevent overflow
-                                .map((link) => (
+
+                      {/* NEW: Green cards - Display all social media links */}
+                      {!isSharePicker && planStatus === 'green' && planLinks.length > 0 && (
+                        <div className="mt-1.5 pt-1.5 border-t border-white/20">
+                          <div className="text-[9px] font-semibold text-emerald-50 mb-0.5">
+                            Links:
+                          </div>
+                          <div className="space-y-0.5">
+                            {planLinks
+                              .filter((link) => link?.url && isValidUrl(link.url)) // Filter invalid URLs
+                              .slice(0, 3) // Limit to 3 links to prevent overflow
+                              .map((link) => (
                                 <a
                                   key={link.id}
                                   href={link.url}
@@ -385,74 +401,106 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                                 >
                                   <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
                                   <span className="truncate">
-                                    {link.platform || 'Link'}: {link.url.length > 25 ? link.url.substring(0, 25) + '...' : link.url}
+                                    {link.platform || 'Link'}:{' '}
+                                    {link.url.length > 25
+                                      ? link.url.substring(0, 25) + '...'
+                                      : link.url}
                                   </span>
                                 </a>
                               ))}
-                              {planLinks.filter(link => link?.url && isValidUrl(link.url)).length > 3 && (
-                                <div className="text-[8px] text-emerald-200">
-                                  +{planLinks.filter(link => link?.url && isValidUrl(link.url)).length - 3} more
-                                </div>
-                              )}
-                            </div>
+                            {planLinks.filter((link) => link?.url && isValidUrl(link.url)).length >
+                              3 && (
+                              <div className="text-[8px] text-emerald-200">
+                                +
+                                {planLinks.filter((link) => link?.url && isValidUrl(link.url))
+                                  .length - 3}{' '}
+                                more
+                              </div>
+                            )}
                           </div>
-                        )}
-                        
-                        {/* NEW: Yellow cards - Display google_drive_link */}
-                        {!isSharePicker && hasGoogleDriveLink && (
+                        </div>
+                      )}
+
+                      {/* NEW: Yellow cards - Display google_drive_link */}
+                      {!isSharePicker && hasGoogleDriveLink && (
+                        <div
+                          className={`mt-1.5 pt-1.5 border-t ${
+                            cardTone === 'yellow' ? 'border-amber-300/20' : 'border-white/25'
+                          }`}
+                        >
                           <div
-                            className={`mt-1.5 pt-1.5 border-t ${
-                              cardTone === 'yellow'
-                                ? 'border-amber-300/20'
-                                : 'border-white/25'
+                            className={`text-[9px] font-semibold mb-0.5 ${
+                              cardTone === 'yellow' ? 'text-gray-800' : 'text-white/90'
                             }`}
                           >
-                            <div
-                              className={`text-[9px] font-semibold mb-0.5 ${
-                                cardTone === 'yellow' ? 'text-gray-800' : 'text-white/90'
-                              }`}
-                            >
-                              Preview:
-                            </div>
-                            <a
-                              href={plan.google_drive_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => {
-                                e.stopPropagation(); // Only stop on link click, not card click
-                              }}
-                              className={`flex items-center gap-1 text-[9px] truncate hover:underline ${
-                                cardTone === 'yellow'
-                                  ? 'text-gray-700 hover:text-gray-900'
-                                  : 'text-white/85 hover:text-white'
-                              }`}
-                              title={plan.google_drive_link}
-                            >
-                              <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
-                              <span className="truncate">
-                                {plan.google_drive_link.length > 30 ? plan.google_drive_link.substring(0, 30) + '...' : plan.google_drive_link}
-                              </span>
-                            </a>
+                            Preview:
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : isCurrentMonth ? (
-                <div
-                  className={cn(
-                    "flex-1 flex items-center justify-center transition-opacity",
-                    isSharePicker ? "opacity-10" : "opacity-20 hover:opacity-60",
-                  )}
-                >
-                  <Plus className="h-4 w-4" />
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+                          <a
+                            href={plan.google_drive_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.stopPropagation(); // Only stop on link click, not card click
+                            }}
+                            className={`flex items-center gap-1 text-[9px] truncate hover:underline ${
+                              cardTone === 'yellow'
+                                ? 'text-gray-700 hover:text-gray-900'
+                                : 'text-white/85 hover:text-white'
+                            }`}
+                            title={plan.google_drive_link}
+                          >
+                            <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
+                            <span className="truncate">
+                              {plan.google_drive_link.length > 30
+                                ? plan.google_drive_link.substring(0, 30) + '...'
+                                : plan.google_drive_link}
+                            </span>
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : isCurrentMonth ? (
+              <div
+                className={cn(
+                  'flex-1 flex items-center justify-center transition-opacity',
+                  isSharePicker ? 'opacity-10' : 'opacity-20 hover:opacity-60',
+                )}
+              >
+                <Plus className="h-4 w-4" />
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  if (isMobileHScroll) {
+    return (
+      <div className="relative">
+        <div
+          className={cn(
+            'scrollbar-hide seamless-scroll min-w-0 overflow-x-auto overflow-y-hidden',
+            '[touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          )}
+        >
+          {/* content-box + px so Min has left inset and Sab has right inset at scroll ends */}
+          <div className="box-content w-[calc(100%*7/2)] min-w-[calc(100%*7/2)] px-2">
+            {weekdayHeader}
+            {dayCells}
+          </div>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      {weekdayHeader}
+      {dayCells}
     </div>
   );
 };

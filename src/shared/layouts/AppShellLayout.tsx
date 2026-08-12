@@ -5,7 +5,6 @@ import { AppHeader } from "@/shared/layouts/header/AppHeader";
 import { AppSidebar } from "@/shared/layouts/sidebar/AppSidebar";
 import { useHeaderUserProfile } from "@/shared/hooks/useHeaderUserProfile";
 import { usePreferredLocaleSync } from "@/shared/hooks/usePreferredLocaleSync";
-import { OmnichannelStaffPresenceProvider } from "@/5-3-dashboard/hooks/useOmnichannelStaffPresence";
 import { SubscriptionExpiryBannerSlot } from "@/10-subscription/shared/SubscriptionExpiryBannerSlot";
 
 export function AppShellLayout() {
@@ -34,9 +33,7 @@ export function AppShellLayout() {
             >
               <SubscriptionExpiryBannerSlot className="sticky top-0 z-20" placement="sticky" />
               <div className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col">
-                <OmnichannelStaffPresenceProvider>
-                  <Outlet />
-                </OmnichannelStaffPresenceProvider>
+                <Outlet />
               </div>
             </div>
           </div>

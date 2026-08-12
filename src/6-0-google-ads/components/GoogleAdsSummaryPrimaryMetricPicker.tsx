@@ -16,9 +16,9 @@ import { formatMetricValue } from "@/google-ads/metrics/formatMetricValue";
 import {
   findSummaryMetricOption,
   summaryMetricGroups,
-  type GoogleAdsSummaryMetricOption,
 } from "@/google-ads/metrics/googleAdsSummaryMetricOptions";
-import type { GoogleAdsMetricsSummaryTotals } from "@/google-ads/metrics/types";
+import { summaryValueForKey } from "@/google-ads/metrics/summaryValueForKey";
+import type { GoogleAdsMetricsSummaryTotals, GoogleAdsSummaryMetricOption } from "@/google-ads/metrics/types";
 import type { DmReportTargetProgress } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
 import { ProgressBar } from "@/shared/components/ProgressBar";
 import { Skeleton } from "@/shared/components/ui/skeleton";
@@ -35,23 +35,6 @@ type Props = {
   targetsLoading?: boolean;
   progressRatioText?: string | null;
 };
-
-function summaryValueForKey(
-  totals: GoogleAdsMetricsSummaryTotals | null | undefined,
-  key: string,
-  valueKind: GoogleAdsSummaryMetricOption["valueKind"],
-): number | null {
-  if (!totals) return null;
-  if (totals.by_key && key in totals.by_key) {
-    return totals.by_key[key] ?? null;
-  }
-  if (key === "spent") return totals.spent;
-  if (key === "impressions") return totals.impressions;
-  if (key === "clicks") return totals.clicks;
-  if (key === "ctr") return totals.ctr;
-  if (key === "conversions") return totals.conversions;
-  return null;
-}
 
 export function GoogleAdsSummaryPrimaryMetricPicker({
   selectedKey,

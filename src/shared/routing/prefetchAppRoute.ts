@@ -9,12 +9,22 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/6-1-dashboard/pages/SocialMediaDashboardPage"),
   },
   {
+    prefix: "/digital-marketing/social-media/content-calendar",
+    prefetch: () =>
+      import("@/6-1-content-calendar/ContentCalendarPage").then(() =>
+        import("@/mobile/6-1-content-calendar/pages/MobileContentCalendarPage"),
+      ),
+  },
+  {
     prefix: "/digital-marketing/traffic",
     prefetch: () => import("@/6-0-traffic/pages/TrafficPage"),
   },
   {
     prefix: "/digital-marketing/google-ads",
-    prefetch: () => import("@/6-0-google-ads/pages/GoogleAdsMetricsPage"),
+    prefetch: () =>
+      import("@/6-0-google-ads/pages/GoogleAdsMetricsPage").then(() =>
+        import("@/mobile/6-0-google-ads/pages/MobileGoogleAdsPage"),
+      ),
   },
   {
     prefix: "/digital-marketing/meta-ads",
@@ -22,7 +32,10 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
   },
   {
     prefix: "/digital-marketing/tiktok-ads",
-    prefetch: () => import("@/6-0-tiktok-ads/pages/TikTokAdsMetricsPage"),
+    prefetch: () =>
+      import("@/6-0-tiktok-ads/pages/TikTokAdsMetricsPage").then(() =>
+        import("@/mobile/6-0-tiktok-ads/pages/MobileTikTokAdsPage"),
+      ),
   },
   {
     prefix: "/digital-marketing/social-media-performance/manage-comments/tiktok",
@@ -67,7 +80,10 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
   },
   {
     prefix: "/digital-marketing/report",
-    prefetch: () => import("@/6-0-report/pages/DigitalMarketingReportPage"),
+    prefetch: () =>
+      import("@/6-0-report/pages/DigitalMarketingReportPage").then(() =>
+        import("@/mobile/6-0-report/pages/MobileDigitalMarketingReportPage"),
+      ),
   },
   {
     prefix: "/kol-management/dashboard",
@@ -350,7 +366,10 @@ function prefetchCompanyModuleTabs(): void {
 function prefetchSocialMediaModuleTabs(): void {
   const fns: PrefetchFn[] = [
     () => import("@/6-1-dashboard/pages/SocialMediaDashboardPage"),
-    () => import("@/6-1-content-calendar/ContentCalendarPage"),
+    () =>
+      import("@/6-1-content-calendar/ContentCalendarPage").then(() =>
+        import("@/mobile/6-1-content-calendar/pages/MobileContentCalendarPage"),
+      ),
     () => import("@/6-1-product-knowledge/ProductKnowledgePage"),
     () => import("@/6-1-script-generator/ScriptGeneratorPage"),
     () => import("@/6-1-social-media-settings/SettingsPage"),

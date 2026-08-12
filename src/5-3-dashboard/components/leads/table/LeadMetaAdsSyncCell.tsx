@@ -53,22 +53,48 @@ export function LeadMetaAdsSyncCell({
   }
 
   if (sync.status === 'success') {
+    const kind = sync.upload_kind;
+    const label =
+      kind === 'ctwa'
+        ? t('leadsManagement.metaAdsSync.successCtwa', 'CTWA')
+        : kind === 'both'
+          ? t('leadsManagement.metaAdsSync.successBoth', 'Both')
+          : t('leadsManagement.metaAdsSync.success', 'OK');
+    const hint =
+      kind === 'ctwa'
+        ? t(
+            'leadsManagement.metaAdsSync.successCtwaHint',
+            'Click-to-WhatsApp offline conversion sent to Meta',
+          )
+        : kind === 'both'
+          ? t(
+              'leadsManagement.metaAdsSync.successBothHint',
+              'Meta Pixel and Click-to-WhatsApp conversions sent',
+            )
+          : t('leadsManagement.metaAdsSync.successHint', 'Offline conversion sent to Meta Ads');
     return (
       <Badge
         className="w-[100px] justify-center rounded-sm border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800"
-        title={t('leadsManagement.metaAdsSync.successHint', 'Offline conversion sent to Meta Ads')}
+        title={hint}
       >
-        {t('leadsManagement.metaAdsSync.success', 'OK')}
+        {label}
       </Badge>
     );
   }
 
   if (sync.status === 'skipped') {
     const reason = sync.skip_reason?.trim() || '';
+    const skippedHint =
+      reason === 'no_ctwa_or_fbclid_or_contact'
+        ? t(
+            'leadsManagement.metaAdsSync.skippedNoAttributionHint',
+            'Skipped (no fbclid, CTWA click ID, or contact)',
+          )
+        : reason || t('leadsManagement.metaAdsSync.skippedHint', 'Skipped (no fbclid/contact)');
     return (
       <Badge
         className="w-[100px] justify-center rounded-sm border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600"
-        title={reason || t('leadsManagement.metaAdsSync.skippedHint', 'Skipped (no fbclid/contact)')}
+        title={skippedHint}
       >
         {t('leadsManagement.metaAdsSync.skipped', 'Skip')}
       </Badge>

@@ -5,6 +5,7 @@ import { useToolsModuleMobileViewport } from "@/shared/hooks/useToolsModuleMobil
 import { SHARE_RECEIPT_VALIDATION_PATH } from "@/shared/native/shareReceiptValidationPath";
 import { SHARE_TO_PUBLISH_PATH } from "@/shared/native/shareToPublishPath";
 import { MobileSubscriptionExpiryBannerHost } from "@/10-subscription/shared/MobileSubscriptionExpiryBannerHost";
+import { OmnichannelStaffPresenceProvider } from "@/5-3-dashboard/hooks/useOmnichannelStaffPresence";
 
 /** Bottom-nav parity routes render full-screen chrome inside the page (no desktop AppHeader / sidebar). */
 const MOBILE_MAIN_TAB_PATHS = new Set([
@@ -25,8 +26,14 @@ function AdaptiveAppLayoutContent() {
   const isMobileIncomesPath = pathname === "/incomes" || pathname.startsWith("/incomes/");
   /** Habit tracker mobile (`android-mobile/1-habits`) uses fixed viewport shell + own header/footer — must not sit inside AppShell scroll/header. */
   const isMobileHabitsTrackerPath = pathname === "/tools/habits-tracker";
-  /** Web traffic mobile (`android-mobile/6-0-web-traffic`) brings its own header/footer — must bypass AppShellLayout header. */
+  /** Web traffic / Google Ads / Meta Ads / TikTok Ads / Report mobile shells bring their own header/footer — must bypass AppShellLayout header. */
   const isMobileWebTrafficPath = pathname === "/digital-marketing/traffic";
+  const isMobileGoogleAdsPath = pathname === "/digital-marketing/google-ads";
+  const isMobileMetaAdsPath = pathname === "/digital-marketing/meta-ads";
+  const isMobileTikTokAdsPath = pathname === "/digital-marketing/tiktok-ads";
+  const isMobileReportPath = pathname === "/digital-marketing/report";
+  const isMobileContentCalendarPath =
+    pathname === "/digital-marketing/social-media/content-calendar";
   /**
    * Daily task / initiative / job desc mobile (`5-daily-task`) membawa `AppSidebar` + header sendiri.
    * Tanpa bypass ini, `AppShellLayout` tetap merender `AppHeader` (PT Synckerja, notifikasi, profil) di atas shell mobile.
@@ -60,6 +67,11 @@ function AdaptiveAppLayoutContent() {
       isMobileIncomesPath ||
       isMobileHabitsTrackerPath ||
       isMobileWebTrafficPath ||
+      isMobileGoogleAdsPath ||
+      isMobileMetaAdsPath ||
+      isMobileTikTokAdsPath ||
+      isMobileReportPath ||
+      isMobileContentCalendarPath ||
       isMobileShareReceiptValidationPath ||
       isMobileShareToPublishPath ||
       isMobileSettingsPath)
@@ -103,7 +115,9 @@ export function AdaptiveAppLayout() {
   return (
     <>
       <MobileSubscriptionExpiryBannerHost />
-      <AdaptiveAppLayoutContent />
+      <OmnichannelStaffPresenceProvider>
+        <AdaptiveAppLayoutContent />
+      </OmnichannelStaffPresenceProvider>
     </>
   );
 }

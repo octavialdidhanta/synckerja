@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { TooltipProvider } from '@/shared/components/ui/tooltip';
@@ -50,14 +51,19 @@ export const TaskList = () => {
     deleteTask,
     reorderTaskSteps,
     highlightedTask,
+    setHighlightedTask,
     requestDeadlineExtension,
     departmentMap,
+    isLoading,
+    setPendingStepCommentFocus,
   } = useDailyTask();
   const { user } = useCurrentUser();
   const currentUserId = user?.id;
   const { data: currentEmployee } = useCurrentEmployee();
   const { toast } = useToast();
   const { t } = useAppTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const appliedStepCommentNavRef = useRef(false);
 
   // Gunakan daftar terfilter dari context (satu sumber kebenaran: termasuk filter plan date / custom month)
   const filteredTasks = effectiveFilteredTasks;
@@ -81,6 +87,58 @@ export const TaskList = () => {
       getVisibleSteps,
       calculateProgress: calculateAssignedStepsProgress,
     });
+
+  /** FCM deep link: /tools/daily-task?task_id=&task_step_id=&open_step_comment=1 */
+  useEffect(() => {
+    if (isLoading || tasks.length === 0 || appliedStepCommentNavRef.current) return;
+
+    const legacyTaskId = searchParams.get('taskId');
+    const legacyStepId = searchParams.get('stepId');
+    const taskIdParam = searchParams.get('task_id') ?? legacyTaskId;
+    const stepId = searchParams.get('task_step_id') ?? legacyStepId;
+    const openStepComment = searchParams.get('open_step_comment') === '1';
+
+    if (!openStepComment || !stepId) return;
+
+    const resolveParentTaskId = (id: string): string | null => {
+      for (const task of tasks) {
+        if (task.steps?.some((s) => s.id === id)) return task.id;
+      }
+      return null;
+    };
+
+    const focusTaskId = taskIdParam ?? resolveParentTaskId(stepId);
+    if (!focusTaskId) return;
+
+    appliedStepCommentNavRef.current = true;
+    openTaskModal(focusTaskId);
+    setHighlightedTask(focusTaskId);
+    setTimeout(() => setHighlightedTask(null), 3000);
+    setTimeout(() => {
+      setPendingStepCommentFocus({ taskId: focusTaskId, stepId });
+    }, 400);
+
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('task_id');
+        next.delete('task_step_id');
+        next.delete('open_step_comment');
+        next.delete('taskId');
+        next.delete('stepId');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [
+    isLoading,
+    tasks,
+    searchParams,
+    openTaskModal,
+    setHighlightedTask,
+    setPendingStepCommentFocus,
+    setSearchParams,
+  ]);
 
   const { taskRefs } = useAutoScroll({ highlightedTaskId: highlightedTask });
   const { blockerCountByTask } = useBlockerCounts({ filteredTasks });

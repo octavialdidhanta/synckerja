@@ -59,7 +59,57 @@ POST meta-ads-upload-conversion
 
 Account resolution: `leads.meta_ads_account_id` → org default account → skip `meta_ads_not_configured`.
 
-Skip reasons: `uploads_disabled`, `pixel_not_configured`, `no_fbclid_or_contact`.
+Skip reasons: `uploads_disabled`, `pixel_not_configured`, `no_fbclid_or_contact`, `no_ctwa_or_fbclid_or_contact`.
+
+## Click-to-WhatsApp (CTWA) offline conversions
+
+When a customer opens WhatsApp from a **Click-to-WhatsApp ad**, Meta includes a `referral` object on the **first inbound message** webhook payload:
+
+```json
+{
+  "messages": [{
+    "referral": {
+      "source_url": "...",
+      "source_id": "...",
+      "source_type": "ad",
+      "headline": "...",
+      "ctwa_clid": "<click-id>"
+    }
+  }]
+}
+```
+
+Synckerja captures `ctwa_clid` in `whatsapp-webhook` (first-touch on conversation) and **syncs idempotently** to `leads.ctwa_clid` via `_shared/ctwaLeadSync.ts` (after lead creation, form-lead reconcile, and on Converted self-heal). Migration `20260812140000_ctwa_lead_backfill.sql` backfills historical rows.
+
+When the CRM lead becomes **Converted**, `meta-ads-upload-conversion` sends a Conversions API event. If a prior upload succeeded with only `fbclid` or only `ctwa`, a later kick sends the missing channel and updates `upload_kind` to `both`.
+
+| Field | Value |
+|-------|--------|
+| Endpoint | `POST /{pixel_id}/events` (same as fbclid CAPI) |
+| Token | Meta Ads OAuth token (`organization_meta_ads_connection_tokens`) |
+| `action_source` | `business_messaging` |
+| `messaging_channel` | `whatsapp` |
+| `user_data.ctwa_clid` | captured click ID |
+| `user_data.em` / `ph` | SHA-256 hashed (optional boost) |
+| `event_id` | `lead_{uuid}:ctwa` (dedupe; fbclid uses `lead_{uuid}`) |
+
+If both `fbclid` and `ctwa_clid` exist on the lead, **two events** are sent in one API call (`upload_kind = both`).
+
+**Prerequisites (customer Business Manager):**
+
+- Meta Ads connected with Pixel configured (same as fbclid CAPI)
+- WhatsApp Business account connected in Synckerja
+- WABA linked to the ad account / dataset in Meta Business Settings
+- App Review: `ads_management` + recommended `whatsapp_business_manage_events`
+
+**Settings:** same toggle `organization_meta_ads_connections.is_active` at `/omnichannel/settings/offline-conversion` (Meta tab).
+
+**Unit tests (CTWA helpers):**
+
+```bash
+npm run test:deno:ctwa
+# or: deno test supabase/functions/_shared/ctwaReferral.test.ts supabase/functions/_shared/ctwaLeadSync.test.ts
+```
 
 ## Encryption key
 

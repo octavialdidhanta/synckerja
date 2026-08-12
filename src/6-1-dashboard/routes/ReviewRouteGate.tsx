@@ -20,7 +20,6 @@ export const ReviewRouteGate: React.FC = () => {
   const isViewportMobile = useIsMobile();
   const isMobileUserAgent = typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent);
   const isMobile = isViewportMobile || isMobileUserAgent;
-  const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
   useEffect(() => {
     if (!token?.trim()) {
@@ -62,7 +61,8 @@ export const ReviewRouteGate: React.FC = () => {
 
   if (hasSession === true && token?.trim()) {
     if (isMobile) {
-      return <PublicContentReviewPage showBackToHome={isAndroid} />;
+      // Logged-in mobile: show back header so Preview can return to Content Calendar / Job Desc.
+      return <PublicContentReviewPage showBackToHome />;
     }
     return (
       <Navigate

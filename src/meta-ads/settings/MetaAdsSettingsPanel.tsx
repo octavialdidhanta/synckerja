@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { CheckCircle2, Loader2, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -23,6 +24,8 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { cn } from "@/shared/lib/utils";
+import { supabase } from "@/shared/lib/supabaseClient";
+import { CONNECT_WHATSAPP_PATH } from "@/5-3-whatsapp/constants/omnichannelIntegrationPaths";
 import { useMetaAdsSettings } from "@/meta-ads/hooks/useMetaAdsSettings";
 import type { MetaAdsOAuthReturnPath } from "@/meta-ads/settings/metaAdsSettingsPaths";
 
@@ -71,6 +74,26 @@ export function MetaAdsSettingsPanel({
   const oauthConnected = data?.oauthConnected ?? false;
   const connection = data?.connection;
   const accounts = data?.accounts ?? [];
+
+  const { data: whatsAppAccountCount = 0 } = useQuery({
+    queryKey: ["meta-ads-settings-wa-accounts", organizationId],
+    queryFn: async () => {
+      if (!organizationId) return 0;
+      const { count, error } = await supabase
+        .from("organization_whatsapp_accounts")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId);
+      if (error) throw error;
+      return count ?? 0;
+    },
+    enabled: Boolean(organizationId) && enabled,
+    staleTime: 60_000,
+  });
+
+  const hasWhatsAppConnected = whatsAppAccountCount > 0;
+  const hasConfiguredPixel = accounts.some(
+    (a) => a.pixel_id && String(a.pixel_id).replace(/\D/g, "") !== "" && String(a.pixel_id) !== "0",
+  );
 
   useEffect(() => {
     const connected = searchParams.get("connected");
@@ -238,6 +261,58 @@ export function MetaAdsSettingsPanel({
                 checked={connection?.is_active ?? false}
                 onCheckedChange={(v) => updateConnection.mutate({ is_active: v })}
               />
+            </div>
+          )}
+
+          {oauthConnected && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4 space-y-3">
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900">
+                  {t("omnichannel.settings.metaAds.ctwaTitle", "Click-to-WhatsApp conversions")}
+                </h4>
+                <p className="text-xs text-slate-600 mt-1">
+                  {t(
+                    "omnichannel.settings.metaAds.ctwaHint",
+                    "When a customer opens WhatsApp from a Meta ad, Synckerja captures the click ID from the first message. On Converted, we send it to Meta using the same offline upload toggle above.",
+                  )}
+                </p>
+              </div>
+              <ul className="space-y-1.5 text-xs">
+                <li className="flex items-center gap-2 text-slate-700">
+                  {hasWhatsAppConnected ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                  )}
+                  {hasWhatsAppConnected
+                    ? t("omnichannel.settings.metaAds.ctwaWhatsAppOk", "WhatsApp Business connected")
+                    : t(
+                        "omnichannel.settings.metaAds.ctwaWhatsAppMissing",
+                        "Connect WhatsApp Business to receive CTWA messages",
+                      )}
+                </li>
+                <li className="flex items-center gap-2 text-slate-700">
+                  {hasConfiguredPixel ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                  )}
+                  {hasConfiguredPixel
+                    ? t("omnichannel.settings.metaAds.ctwaPixelOk", "Meta Pixel configured on an ad account")
+                    : t(
+                        "omnichannel.settings.metaAds.ctwaPixelMissing",
+                        "Add an ad account with a valid Pixel ID below",
+                      )}
+                </li>
+              </ul>
+              {!hasWhatsAppConnected && (
+                <Link
+                  to={CONNECT_WHATSAPP_PATH}
+                  className="inline-flex text-xs font-medium text-[#1877F2] hover:underline"
+                >
+                  {t("omnichannel.settings.metaAds.ctwaOpenWhatsAppSettings", "Open Connect WhatsApp")}
+                </Link>
+              )}
             </div>
           )}
 

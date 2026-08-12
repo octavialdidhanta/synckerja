@@ -1006,7 +1006,12 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
       }
       toast.success(t('publicReview.toast.revisionSuccess', 'Production status updated to Request Revision'));
       if (showBackToHome) {
-        navigate('/tools/daily-task?view=jobdesc', { replace: true });
+        const from = (location.state as { from?: string } | null)?.from;
+        if (from === 'content-calendar') {
+          navigate('/digital-marketing/social-media/content-calendar', { replace: true });
+        } else {
+          navigate('/tools/daily-task?view=jobdesc', { replace: true });
+        }
       }
     } catch (e) {
       devLog.error('Error in handleRevision:', e);
@@ -1014,7 +1019,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
     } finally {
       setApprovalLoading(false);
     }
-  }, [canShowApprovalButtons, commenterDisplayName, comments, content?.social_media_plan_id, token, t, showBackToHome, navigate]);
+  }, [canShowApprovalButtons, commenterDisplayName, comments, content?.social_media_plan_id, token, t, showBackToHome, navigate, location.state]);
 
   const link = content?.google_drive_link ?? content?.link_url ?? '';
   const embedUrl = getEmbedUrl(link);
@@ -1186,18 +1191,31 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
             type="button"
             onClick={() => {
               const state = location.state as { from?: string } | null;
-              const fromNotificationsModal = state?.from === 'notifications-modal';
-              const fromJobDesc = state?.from === 'jobdesc';
-              if (fromNotificationsModal) {
+              const from = state?.from;
+              if (from === 'notifications-modal') {
                 navigate('/', { replace: true, state: { reopenNotifications: true } });
                 return;
               }
-              // On Android (showBackToHome) go to daily-task when from jobdesc; else home
-              const target = showBackToHome ? '/tools/daily-task?view=jobdesc' : (fromJobDesc ? '/tools/daily-task?view=jobdesc' : '/');
-              navigate(target, { replace: true });
+              if (from === 'content-calendar') {
+                navigate('/digital-marketing/social-media/content-calendar', { replace: true });
+                return;
+              }
+              if (from === 'jobdesc') {
+                navigate('/tools/daily-task?view=jobdesc', { replace: true });
+                return;
+              }
+              // Fallback for native/Android review without explicit source
+              navigate(showBackToHome ? '/tools/daily-task?view=jobdesc' : '/', { replace: true });
             }}
             className="flex-shrink-0 p-1 -m-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted touch-manipulation"
-            aria-label={showBackToHome || (location.state as { from?: string } | null)?.from === 'jobdesc' ? 'Back to Job Desc' : 'Back to home'}
+            aria-label={
+              (location.state as { from?: string } | null)?.from === 'content-calendar'
+                ? 'Back to Content Calendar'
+                : showBackToHome ||
+                    (location.state as { from?: string } | null)?.from === 'jobdesc'
+                  ? 'Back to Job Desc'
+                  : 'Back to home'
+            }
           >
             <ArrowLeft className="h-5 w-5" />
           </button>

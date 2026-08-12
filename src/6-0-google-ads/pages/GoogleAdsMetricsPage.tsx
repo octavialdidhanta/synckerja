@@ -18,10 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { Switch } from "@/shared/components/ui/switch";
 import { GoogleAdsCampaignAdGroupFilters } from "@/6-0-google-ads/components/GoogleAdsCampaignAdGroupFilters";
+import { GoogleAdsDeliveryEnabledSwitches } from "@/6-0-google-ads/components/GoogleAdsDeliveryEnabledSwitches";
 import { GoogleAdsEntityNav } from "@/6-0-google-ads/components/GoogleAdsEntityNav";
 import { GoogleAdsDateRangePicker } from "@/6-0-google-ads/components/GoogleAdsDateRangePicker";
+import { useGoogleAdsDeliveryEnabledFilters } from "@/6-0-google-ads/hooks/useGoogleAdsDeliveryEnabledFilters";
 import {
   computePresetRange,
   toGoogleAdsMetricsDateRangePayload,
@@ -38,12 +39,8 @@ import { useOmnichannelSurveySettingsAdmin } from "@/customer-survey/hooks/useOm
 import { useGoogleAdsReportingEnabled } from "@/google-ads/hooks/useGoogleAdsReportingEnabled";
 import { useGoogleAdsConversionActions } from "@/google-ads/hooks/useGoogleAdsConversionActions";
 import { useGoogleAdsUiCustomColumns } from "@/google-ads/hooks/useGoogleAdsUiCustomColumns";
-import {
-  buildSummaryMetricOptions,
-  DEFAULT_SUMMARY_SLOT_KEYS,
-  loadSummarySlotMetrics,
-  saveSummarySlotMetrics,
-} from "@/google-ads/metrics/googleAdsSummaryMetricOptions";
+import { buildSummaryMetricOptions } from "@/google-ads/metrics/googleAdsSummaryMetricOptions";
+import { useGoogleAdsSummarySlotMetrics } from "@/google-ads/hooks/useGoogleAdsSummarySlotMetrics";
 import { useGoogleAdsMetricCatalog } from "@/google-ads/hooks/useGoogleAdsMetricCatalog";
 import {
   buildGoogleAdsMetricsQueryKey,
@@ -53,16 +50,17 @@ import {
 import { useGoogleAdsMetricsPreferences } from "@/google-ads/hooks/useGoogleAdsMetricsPreferences";
 import { GoogleAdsModifyColumnsDialog } from "@/6-0-google-ads/components/GoogleAdsModifyColumnsDialog";
 import { GoogleAdsTrafficWebIdSelect } from "@/6-0-google-ads/components/GoogleAdsTrafficWebIdSelect";
-import { isSynckerjaLeadsMetricKey } from "@/google-ads/metrics/googleAdsSynckerjaLeadsMetrics";
-import { isSynckerjaTrafficMetricKey } from "@/google-ads/metrics/googleAdsSynckerjaTrafficMetrics";
 import {
   GOOGLE_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
   GoogleAdsColumnSetOptionLabel,
 } from "@/google-ads/components/GoogleAdsColumnSetOptionLabel";
 import {
   useGoogleAdsColumnSets,
-  type GoogleAdsColumnSet,
 } from "@/google-ads/hooks/useGoogleAdsColumnSets";
+import {
+  filterGoogleAdsPreferenceMetricKeys,
+  findMatchingGoogleAdsColumnSet,
+} from "@/google-ads/metrics/googleAdsColumnSetMatch";
 import { GoogleAdsMetricsSummaryBar } from "@/6-0-google-ads/components/GoogleAdsMetricsSummaryBar";
 import { GoogleAdsMetricsTable } from "@/6-0-google-ads/components/GoogleAdsMetricsTable";
 import { GoogleAdsMetricsTableFooter } from "@/6-0-google-ads/components/GoogleAdsMetricsTableFooter";
@@ -94,28 +92,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "sonner";
 
-function columnKeysMatch(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((key, index) => key === b[index]);
-}
-
-function columnKeysMatchOrderIndependent(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((key, index) => key === sortedB[index]);
-}
-
-function findMatchingColumnSet(
-  columnSets: GoogleAdsColumnSet[],
-  keys: string[],
-): GoogleAdsColumnSet | null {
-  if (keys.length === 0) return null;
-  return (
-    columnSets.find((set) => columnKeysMatch(set.metric_keys, keys)) ??
-    columnSets.find((set) => columnKeysMatchOrderIndependent(set.metric_keys, keys)) ??
-    null
-  );
-}
+const EMPTY_GOOGLE_ADS_CONVERSION_ACTIONS: Array<{ key: string; label: string }> = [];
 
 function parseMetricsPageOffset(token: string): number {
   const s = token.trim();
@@ -164,22 +141,17 @@ function GoogleAdsMetricsPageContent() {
   const oauthConnected = settings?.oauthConnected ?? false;
 
   const [entity, setEntity] = useState<GoogleAdsMetricEntity>("campaign");
-  const [summarySlotMetricKeys, setSummarySlotMetricKeys] = useState(() =>
-    loadSummarySlotMetrics("campaign"),
-  );
   const { dateSelection, setDateSelection, googleCustomerId, setGoogleCustomerId } =
     useDigitalMarketingPaidAdsFilters();
   const customerId = googleCustomerId;
   const setCustomerId = setGoogleCustomerId;
-  const [onlyRunning, setOnlyRunning] = useState(true);
-  const [enabledOnly, setEnabledOnly] = useState(false);
-
-  /** Keywords tab lists all criteria; Delivery filter hides zero-metric rows. */
-  useEffect(() => {
-    if (entity === "keyword") {
-      setOnlyRunning(false);
-    }
-  }, [entity]);
+  const {
+    onlyRunning,
+    setOnlyRunning,
+    enabledOnly,
+    setEnabledOnly,
+    statusFilter,
+  } = useGoogleAdsDeliveryEnabledFilters(entity);
   const [pageToken, setPageToken] = useState("");
   const [pageTokenHistory, setPageTokenHistory] = useState<string[]>([]);
   const [pageSize, setPageSize] = useState(50);
@@ -366,58 +338,24 @@ function GoogleAdsMetricsPageContent() {
     }
   }, [entity]);
 
-  useEffect(() => {
-    setSummarySlotMetricKeys(loadSummarySlotMetrics(entity));
-  }, [entity]);
-
-  const { data: conversionActions = [] } = useGoogleAdsConversionActions(
+  const { data: conversionActionsData } = useGoogleAdsConversionActions(
     organizationId,
     effectiveCustomerId,
     canManage && reportingEnabled && Boolean(effectiveCustomerId),
   );
+  const conversionActions = conversionActionsData ?? EMPTY_GOOGLE_ADS_CONVERSION_ACTIONS;
 
   const summaryMetricOptions = useMemo(
     () => buildSummaryMetricOptions(entity, catalogData, conversionActions),
     [entity, catalogData, conversionActions],
   );
 
-  const handleSummarySlotMetricChange = (slotIndex: number, key: string) => {
-    setSummarySlotMetricKeys((prev) => {
-      const next = [...prev];
-      next[slotIndex] = key;
-      saveSummarySlotMetrics(entity, next);
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    if (summaryMetricOptions.length === 0) return;
-    setSummarySlotMetricKeys((prev) => {
-      let changed = false;
-      const next = prev.map((key, i) => {
-        const normalized = key === "spent" ? (DEFAULT_SUMMARY_SLOT_KEYS[i] ?? "impressions") : key;
-        if (summaryMetricOptions.some((o) => o.key === normalized)) {
-          if (normalized !== key) changed = true;
-          return normalized;
-        }
-        changed = true;
-        return DEFAULT_SUMMARY_SLOT_KEYS[i] ?? "impressions";
-      });
-      return changed ? next : prev;
-    });
-  }, [summaryMetricOptions]);
+  const { summarySlotMetricKeys, handleSummarySlotMetricChange } =
+    useGoogleAdsSummarySlotMetrics(entity, summaryMetricOptions);
 
   const selectedMetricsForEntity = useMemo(() => {
     if (!validMetricKeys) return selectedMetrics;
-    return selectedMetrics.filter(
-      (k) =>
-        validMetricKeys.has(k) ||
-        k.startsWith("conv_action:") ||
-        k.startsWith("ui_custom:") ||
-        isOptionalIdentityColumnKey(entity, k) ||
-        isSynckerjaTrafficMetricKey(k) ||
-        isSynckerjaLeadsMetricKey(k),
-    );
+    return filterGoogleAdsPreferenceMetricKeys(entity, selectedMetrics, validMetricKeys);
   }, [selectedMetrics, validMetricKeys, entity]);
 
   const apiMetricKeys = useMemo(
@@ -454,7 +392,7 @@ function GoogleAdsMetricsPageContent() {
   }, [catalogData, uiCustomColumnByKey, selectedMetricsForEntity]);
 
   const matchedColumnSet = useMemo(
-    () => findMatchingColumnSet(columnSets, selectedMetricsForEntity),
+    () => findMatchingGoogleAdsColumnSet(columnSets, selectedMetricsForEntity),
     [columnSets, selectedMetricsForEntity],
   );
 
@@ -526,8 +464,6 @@ function GoogleAdsMetricsPageContent() {
     resetPagination();
     void saveSort.mutateAsync(next);
   };
-
-  const statusFilter = enabledOnly ? ("enabled_only" as const) : ("all" as const);
 
   useEffect(() => {
     if (!validMetricKeys || prefsPending) return;
@@ -753,15 +689,7 @@ function GoogleAdsMetricsPageContent() {
     if (matchedColumnSet?.id === setId) return;
     const set = columnSets.find((s) => s.id === setId);
     if (!set) return;
-    const keys = set.metric_keys.filter(
-      (k) =>
-        validMetricKeys?.has(k) ||
-        k.startsWith("conv_action:") ||
-        k.startsWith("ui_custom:") ||
-        isOptionalIdentityColumnKey(entity, k) ||
-        isSynckerjaTrafficMetricKey(k) ||
-        isSynckerjaLeadsMetricKey(k),
-    );
+    const keys = filterGoogleAdsPreferenceMetricKeys(entity, set.metric_keys, validMetricKeys);
     if (keys.length === 0) {
       toast.error(
         t(
@@ -1244,48 +1172,19 @@ function GoogleAdsMetricsPageContent() {
                                     </SelectContent>
                                   </Select>
 
-                                  <div className="flex shrink-0 items-center gap-1.5">
-                                    <Switch
-                                      id="only-running"
-                                      className="scale-90"
-                                      checked={onlyRunning}
-                                      onCheckedChange={(c) => {
-                                        setOnlyRunning(c);
-                                        resetPagination();
-                                      }}
-                                    />
-                                    <Label
-                                      htmlFor="only-running"
-                                      className="cursor-pointer whitespace-nowrap text-xs text-muted-foreground"
-                                      title={t(
-                                        "digitalMarketing.googleAds.onlyRunning",
-                                        "Only keywords/rows with impressions or cost in this date range. Off = closer to Google Ads row count.",
-                                      )}
-                                    >
-                                      {t("digitalMarketing.googleAds.onlyRunningShort", "Delivery")}
-                                    </Label>
-                                  </div>
-                                  <div className="flex shrink-0 items-center gap-1.5">
-                                    <Switch
-                                      id="enabled-only"
-                                      className="scale-90"
-                                      checked={enabledOnly}
-                                      onCheckedChange={(c) => {
-                                        setEnabledOnly(c);
-                                        resetPagination();
-                                      }}
-                                    />
-                                    <Label
-                                      htmlFor="enabled-only"
-                                      className="cursor-pointer whitespace-nowrap text-xs text-muted-foreground"
-                                      title={t(
-                                        "digitalMarketing.googleAds.enabledOnly",
-                                        "Enabled status only",
-                                      )}
-                                    >
-                                      {t("digitalMarketing.googleAds.enabledOnlyShort", "Enabled")}
-                                    </Label>
-                                  </div>
+                                  <GoogleAdsDeliveryEnabledSwitches
+                                    idPrefix="google-ads-desktop"
+                                    onlyRunning={onlyRunning}
+                                    onOnlyRunningChange={(c) => {
+                                      setOnlyRunning(c);
+                                      resetPagination();
+                                    }}
+                                    enabledOnly={enabledOnly}
+                                    onEnabledOnlyChange={(c) => {
+                                      setEnabledOnly(c);
+                                      resetPagination();
+                                    }}
+                                  />
 
                                   <Button
                                     type="button"

@@ -86,10 +86,42 @@ export type MetaCapiEventPayload = {
   event_name: string;
   event_time: number;
   event_id?: string;
-  action_source: "system_generated";
+  action_source: "system_generated" | "business_messaging";
+  messaging_channel?: "whatsapp";
   user_data: Record<string, unknown>;
   custom_data?: Record<string, unknown>;
 };
+
+export type CtwaCapiEventInput = {
+  ctwa_clid: string;
+  event_name: string;
+  event_time: number;
+  event_id: string;
+  hashedUserData: { em?: string[]; ph?: string[] };
+  conversionValue: number;
+  currency: string;
+  leadId: string;
+};
+
+export function buildCtwaCapiEvent(input: CtwaCapiEventInput): MetaCapiEventPayload {
+  const userData: Record<string, unknown> = {
+    ctwa_clid: input.ctwa_clid.trim(),
+    ...input.hashedUserData,
+  };
+  return {
+    event_name: input.event_name,
+    event_time: input.event_time,
+    event_id: input.event_id,
+    action_source: "business_messaging",
+    messaging_channel: "whatsapp",
+    user_data: userData,
+    custom_data: {
+      value: input.conversionValue,
+      currency: input.currency,
+      lead_id: input.leadId,
+    },
+  };
+}
 
 export async function sendMetaCapiEvents(
   pixelId: string,

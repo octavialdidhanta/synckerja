@@ -54,13 +54,17 @@ type Props = {
   bootstrapLoading?: boolean;
   chartPhaseLoading?: boolean;
   monthlySpend: DigitalMarketingReportDataContextValue["monthlySpend"];
+  /** Mobile report: full-bleed card + horizontally scrollable tabs/filter strip. */
+  variant?: "default" | "mobile";
 };
 
 export function DigitalMarketingReportMonthlyChartsSection({
   bootstrapLoading,
   chartPhaseLoading = false,
   monthlySpend,
+  variant = "default",
 }: Props) {
+  const isMobile = variant === "mobile";
   const { t, language } = useAppTranslation();
   const [chartTab, setChartTab] = useState<MonthlyChartTab>("spend");
   const {
@@ -294,6 +298,8 @@ export function DigitalMarketingReportMonthlyChartsSection({
       })
     : chartSubtitleBase;
 
+  const plotClassName = isMobile ? "h-[220px]" : "h-[300px]";
+
   const sharedChartProps = {
     bootstrapLoading,
     channelFilter: monthlyChartChannelFilter,
@@ -304,158 +310,210 @@ export function DigitalMarketingReportMonthlyChartsSection({
     chartLoading,
     chartDateOverlap,
     embedded: true as const,
+    plotClassName,
   };
 
   if (chartPhaseLoading) {
-    return <DigitalMarketingReportChartsSkeleton />;
+    return <DigitalMarketingReportChartsSkeleton variant={variant} />;
   }
 
+  const tabTriggerClass = isMobile ? "shrink-0 text-xs" : "text-sm";
+
+  const channelFilterSelect = (
+    <Select
+      value={monthlyChartChannelFilter}
+      onValueChange={(v) => setMonthlyChartChannelFilter(v as MonthlyChartChannelFilter)}
+    >
+      <SelectTrigger className={CHANNEL_FILTER_TRIGGER_CLASS}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent
+        position="popper"
+        align="start"
+        className={CHANNEL_FILTER_CONTENT_CLASS}
+        style={{ width: CHANNEL_FILTER_WIDTH, minWidth: CHANNEL_FILTER_WIDTH }}
+      >
+        <SelectItem value="all" className={CHANNEL_FILTER_ITEM_CLASS}>
+          {t("digitalMarketing.report.monthlySpendFilterAll", "All channels")}
+        </SelectItem>
+        <SelectItem value="by_channel" className={CHANNEL_FILTER_ITEM_CLASS}>
+          {t("digitalMarketing.report.monthlySpendFilterByChannel", "By channel")}
+        </SelectItem>
+        {googleSeries.connected ? (
+          <SelectItem value="google" className={CHANNEL_FILTER_ITEM_CLASS}>
+            {t("digitalMarketing.report.channelGoogle", "Google Ads")}
+          </SelectItem>
+        ) : null}
+        {metaSeries.connected ? (
+          <SelectItem value="meta" className={CHANNEL_FILTER_ITEM_CLASS}>
+            {t("digitalMarketing.report.channelMeta", "Meta Ads")}
+          </SelectItem>
+        ) : null}
+        {tiktokSeries.connected ? (
+          <SelectItem value="tiktok" className={CHANNEL_FILTER_ITEM_CLASS}>
+            {t("digitalMarketing.report.channelTikTok", "TikTok Ads")}
+          </SelectItem>
+        ) : null}
+      </SelectContent>
+    </Select>
+  );
+
+  const chartTabs = (
+    <TabsList
+      className={
+        isMobile
+          ? "h-9 w-max shrink-0 justify-start bg-gray-100"
+          : "h-9 bg-gray-100"
+      }
+    >
+      <TabsTrigger value="spend" className={tabTriggerClass}>
+        {t("digitalMarketing.report.monthlyChartTabSpend", "Spend")}
+      </TabsTrigger>
+      <TabsTrigger value="cpa" className={tabTriggerClass}>
+        {t("digitalMarketing.report.monthlyChartTabCpa", "CPA")}
+      </TabsTrigger>
+      <TabsTrigger value="leads" className={tabTriggerClass}>
+        {t("digitalMarketing.report.monthlyChartTabLeads", "Conv. leads")}
+      </TabsTrigger>
+      {showServiceBreakdownTabs ? (
+        <>
+          <TabsTrigger value="spend_service" className={tabTriggerClass}>
+            {t("digitalMarketing.report.monthlyChartTabSpendByService", "Spend/Service")}
+          </TabsTrigger>
+          <TabsTrigger value="service_converted" className={tabTriggerClass}>
+            {t(
+              "digitalMarketing.report.monthlyChartTabServiceConverted",
+              "Service Converted",
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="cost_service_converted" className={tabTriggerClass}>
+            {t(
+              "digitalMarketing.report.monthlyChartTabCostServiceConverted",
+              "CPA Service",
+            )}
+          </TabsTrigger>
+        </>
+      ) : null}
+    </TabsList>
+  );
+
+  const chartBody = (
+    <>
+      {chartTab === "spend" ? (
+        <DigitalMarketingReportMonthlySpendChart
+          {...sharedChartProps}
+          chartData={spendChartData}
+        />
+      ) : chartTab === "spend_service" ? (
+        <DigitalMarketingReportMonthlySpendByServiceChart
+          bootstrapLoading={bootstrapLoading}
+          channelFilter={monthlyChartChannelFilter}
+          chartData={spendByServiceChartData}
+          googleSeries={googleSeries}
+          metaSeries={metaSeries}
+          tiktokSeries={tiktokSeries}
+          chartLoading={serviceBreakdownLoading}
+          chartDateOverlap={chartDateOverlap}
+          currency={spendByServiceCurrency}
+          error={serviceBreakdownError}
+          embedded
+        />
+      ) : chartTab === "service_converted" ? (
+        <DigitalMarketingReportMonthlyLeadsByServiceChart
+          bootstrapLoading={bootstrapLoading}
+          channelFilter={monthlyChartChannelFilter}
+          chartData={leadsByServiceChartData}
+          googleSeries={googleSeries}
+          metaSeries={metaSeries}
+          tiktokSeries={tiktokSeries}
+          chartLoading={serviceBreakdownLoading}
+          chartDateOverlap={chartDateOverlap}
+          error={serviceBreakdownError}
+          embedded
+        />
+      ) : chartTab === "cost_service_converted" ? (
+        <DigitalMarketingReportMonthlyCpaByServiceChart
+          bootstrapLoading={bootstrapLoading}
+          channelFilter={monthlyChartChannelFilter}
+          chartData={cpaByServiceChartData}
+          googleSeries={googleSeries}
+          metaSeries={metaSeries}
+          tiktokSeries={tiktokSeries}
+          chartLoading={serviceBreakdownLoading}
+          chartDateOverlap={chartDateOverlap}
+          currency={spendByServiceCurrency}
+          error={serviceBreakdownError}
+          embedded
+        />
+      ) : chartTab === "cpa" ? (
+        <DigitalMarketingReportMonthlyCpaChart
+          {...sharedChartProps}
+          chartData={cpaChartData}
+        />
+      ) : (
+        <DigitalMarketingReportMonthlyLeadsChart
+          {...sharedChartProps}
+          chartData={leadsChartData}
+        />
+      )}
+    </>
+  );
+
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div
+      className={
+        isMobile
+          ? "border-y border-border bg-card"
+          : "overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+      }
+    >
       <Tabs
         value={chartTab}
         onValueChange={(v) => setChartTab(v as MonthlyChartTab)}
         className="flex min-w-0 flex-col"
       >
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <TabsList className="h-9 bg-gray-100">
-              <TabsTrigger value="spend" className="text-sm">
-                {t("digitalMarketing.report.monthlyChartTabSpend", "Spend")}
-              </TabsTrigger>
-              <TabsTrigger value="cpa" className="text-sm">
-                {t("digitalMarketing.report.monthlyChartTabCpa", "CPA")}
-              </TabsTrigger>
-              <TabsTrigger value="leads" className="text-sm">
-                {t("digitalMarketing.report.monthlyChartTabLeads", "Conv. leads")}
-              </TabsTrigger>
-              {showServiceBreakdownTabs ? (
-                <>
-                  <TabsTrigger value="spend_service" className="text-sm">
-                    {t("digitalMarketing.report.monthlyChartTabSpendByService", "Spend/Service")}
-                  </TabsTrigger>
-                  <TabsTrigger value="service_converted" className="text-sm">
-                    {t(
-                      "digitalMarketing.report.monthlyChartTabServiceConverted",
-                      "Service Converted",
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger value="cost_service_converted" className="text-sm">
-                    {t(
-                      "digitalMarketing.report.monthlyChartTabCostServiceConverted",
-                      "CPA Service",
-                    )}
-                  </TabsTrigger>
-                </>
-              ) : null}
-            </TabsList>
-            {chartSubtitle ? (
-              <p className="mt-2 text-xs text-muted-foreground">{chartSubtitle}</p>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 flex-nowrap items-center gap-2">
-            <div className={CHANNEL_FILTER_WRAPPER_CLASS}>
-              <Select
-                value={monthlyChartChannelFilter}
-                onValueChange={(v) =>
-                  setMonthlyChartChannelFilter(v as MonthlyChartChannelFilter)
-                }
-              >
-                <SelectTrigger className={CHANNEL_FILTER_TRIGGER_CLASS}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent
-                  position="popper"
-                  align="start"
-                  className={CHANNEL_FILTER_CONTENT_CLASS}
-                  style={{ width: CHANNEL_FILTER_WIDTH, minWidth: CHANNEL_FILTER_WIDTH }}
-                >
-                  <SelectItem value="all" className={CHANNEL_FILTER_ITEM_CLASS}>
-                    {t("digitalMarketing.report.monthlySpendFilterAll", "All channels")}
-                  </SelectItem>
-                  <SelectItem value="by_channel" className={CHANNEL_FILTER_ITEM_CLASS}>
-                    {t("digitalMarketing.report.monthlySpendFilterByChannel", "By channel")}
-                  </SelectItem>
-                  {googleSeries.connected ? (
-                    <SelectItem value="google" className={CHANNEL_FILTER_ITEM_CLASS}>
-                      {t("digitalMarketing.report.channelGoogle", "Google Ads")}
-                    </SelectItem>
-                  ) : null}
-                  {metaSeries.connected ? (
-                    <SelectItem value="meta" className={CHANNEL_FILTER_ITEM_CLASS}>
-                      {t("digitalMarketing.report.channelMeta", "Meta Ads")}
-                    </SelectItem>
-                  ) : null}
-                  {tiktokSeries.connected ? (
-                    <SelectItem value="tiktok" className={CHANNEL_FILTER_ITEM_CLASS}>
-                      {t("digitalMarketing.report.channelTikTok", "TikTok Ads")}
-                    </SelectItem>
-                  ) : null}
-                </SelectContent>
-              </Select>
+        {isMobile ? (
+          <>
+            <div
+              className={
+                "scrollbar-hide seamless-scroll min-w-0 overflow-x-auto overflow-y-hidden " +
+                "[touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              }
+            >
+              <div className="inline-flex items-center gap-2 pb-0.5 pt-3">
+                <span className="inline-block w-4 shrink-0 grow-0 basis-4" aria-hidden />
+                {chartTabs}
+                <div className={`${CHANNEL_FILTER_WRAPPER_CLASS} shrink-0`}>
+                  {channelFilterSelect}
+                </div>
+                <span className="inline-block w-4 shrink-0 grow-0 basis-4" aria-hidden />
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div className="min-h-[300px] min-w-0" key={chartTab}>
-          {chartTab === "spend" ? (
-            <DigitalMarketingReportMonthlySpendChart
-              {...sharedChartProps}
-              chartData={spendChartData}
-            />
-          ) : chartTab === "spend_service" ? (
-            <DigitalMarketingReportMonthlySpendByServiceChart
-              bootstrapLoading={bootstrapLoading}
-              channelFilter={monthlyChartChannelFilter}
-              chartData={spendByServiceChartData}
-              googleSeries={googleSeries}
-              metaSeries={metaSeries}
-              tiktokSeries={tiktokSeries}
-              chartLoading={serviceBreakdownLoading}
-              chartDateOverlap={chartDateOverlap}
-              currency={spendByServiceCurrency}
-              error={serviceBreakdownError}
-              embedded
-            />
-          ) : chartTab === "service_converted" ? (
-            <DigitalMarketingReportMonthlyLeadsByServiceChart
-              bootstrapLoading={bootstrapLoading}
-              channelFilter={monthlyChartChannelFilter}
-              chartData={leadsByServiceChartData}
-              googleSeries={googleSeries}
-              metaSeries={metaSeries}
-              tiktokSeries={tiktokSeries}
-              chartLoading={serviceBreakdownLoading}
-              chartDateOverlap={chartDateOverlap}
-              error={serviceBreakdownError}
-              embedded
-            />
-          ) : chartTab === "cost_service_converted" ? (
-            <DigitalMarketingReportMonthlyCpaByServiceChart
-              bootstrapLoading={bootstrapLoading}
-              channelFilter={monthlyChartChannelFilter}
-              chartData={cpaByServiceChartData}
-              googleSeries={googleSeries}
-              metaSeries={metaSeries}
-              tiktokSeries={tiktokSeries}
-              chartLoading={serviceBreakdownLoading}
-              chartDateOverlap={chartDateOverlap}
-              currency={spendByServiceCurrency}
-              error={serviceBreakdownError}
-              embedded
-            />
-          ) : chartTab === "cpa" ? (
-            <DigitalMarketingReportMonthlyCpaChart
-              {...sharedChartProps}
-              chartData={cpaChartData}
-            />
-          ) : (
-            <DigitalMarketingReportMonthlyLeadsChart
-              {...sharedChartProps}
-              chartData={leadsChartData}
-            />
-          )}
-        </div>
+            {chartSubtitle ? (
+              <p className="mt-2 px-4 text-xs text-muted-foreground">{chartSubtitle}</p>
+            ) : null}
+            <div className="min-w-0 px-4 pb-3 pt-2 [&_.h-\[300px\]]:!h-[220px]" key={chartTab}>
+              {chartBody}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                {chartTabs}
+                {chartSubtitle ? (
+                  <p className="mt-2 text-xs text-muted-foreground">{chartSubtitle}</p>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 flex-nowrap items-center gap-2">
+                <div className={CHANNEL_FILTER_WRAPPER_CLASS}>{channelFilterSelect}</div>
+              </div>
+            </div>
+            <div className="min-h-[300px] min-w-0" key={chartTab}>
+              {chartBody}
+            </div>
+          </>
+        )}
       </Tabs>
     </div>
   );

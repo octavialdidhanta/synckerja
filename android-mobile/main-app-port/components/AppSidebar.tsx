@@ -1,6 +1,16 @@
 import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, Clock, CreditCard, Home, Lock, MessageCircle, Receipt, UserPlus, Wallet } from "lucide-react";
+import {
+  BarChart3,
+  CalendarDays,
+  Clock,
+  CreditCard,
+  Home,
+  Lock,
+  MessageCircle,
+  Receipt,
+  Wallet,
+} from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 import {
@@ -20,10 +30,7 @@ import { useOrganizationList } from "@/mobile-app/hooks/useOrganizationList";
 import { useOrganizationSwitchCallback } from "@/shared/hooks/useOrganizationSwitchCallback";
 import { OrganizationSelectDrawer } from "@/mobile-app/components/OrganizationSelectDrawer";
 import { TOOLS_DAILY_TASK_PATH } from "@/mobile/5-daily-task/shared/toolsDailyTaskPath";
-import {
-  CONSULTANT_LEADS_MANAGEMENT_PATH,
-  CONSULTANT_LIVECHAT_PATH,
-} from "@/mobile/4-leads-management/shared/consultantCrmNavPaths";
+import { CONSULTANT_LIVECHAT_PATH } from "@/mobile/4-leads-management/shared/consultantCrmNavPaths";
 import { SUBSCRIPTION_OVERVIEW_PATH } from "@/mobile/6-subscription/shared/mobileSubscriptionNavPaths";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
@@ -44,14 +51,19 @@ const menuItems: SidebarNavItem[] = [
   { title: "Expense", url: "/expenses/dashboard", icon: Receipt },
   { title: "Incomes", url: MOBILE_INCOMES_DASHBOARD_PATH, icon: Wallet },
   { title: "CRM", url: CONSULTANT_LIVECHAT_PATH, icon: MessageCircle },
-  {
-    titleKey: "sidebar.operations.leadsManagement.title",
-    titleDefault: "Leads",
-    url: CONSULTANT_LEADS_MANAGEMENT_PATH,
-    icon: UserPlus,
-  },
   { title: "Daily Task", url: TOOLS_DAILY_TASK_PATH, icon: Clock },
-  { title: "Web Traffic", url: "/digital-marketing/traffic", icon: BarChart3 },
+  {
+    titleKey: "sidebar.digitalMarketing.adsPerformance.title",
+    titleDefault: "Ads Performance",
+    url: "/digital-marketing/traffic",
+    icon: BarChart3,
+  },
+  {
+    titleKey: "sidebar.digitalMarketing.socialMedia.title",
+    titleDefault: "Social Media Management",
+    url: "/digital-marketing/social-media/content-calendar",
+    icon: CalendarDays,
+  },
   { title: "Subscription", url: SUBSCRIPTION_OVERVIEW_PATH, icon: CreditCard },
 ];
 

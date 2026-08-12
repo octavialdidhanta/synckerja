@@ -35,20 +35,22 @@ const META_BAR = "hsl(262 55% 52%)";
 const TIKTOK_BAR = "hsl(350 80% 50%)";
 const COMBINED_BAR = "hsl(160 52% 36%)";
 
+const MONTHLY_CATEGORY_MIN_PX = 112;
+
 const WIDE_MONTHLY_BAR_LAYOUT = {
-  barCategoryGap: "1%" as const,
+  barCategoryGap: "8%" as const,
   barGap: 0,
-  combinedBarSize: 94,
-  singleBarSize: 94,
-  groupedBarSize: 34,
+  combinedBarSize: 88,
+  singleBarSize: 88,
+  groupedBarSize: 40,
 };
 
 const GROUPED_MONTHLY_BAR_LAYOUT = {
-  barCategoryGap: "3%" as const,
-  barGap: 5,
-  combinedBarSize: 94,
-  singleBarSize: 94,
-  groupedBarSize: 42,
+  barCategoryGap: "6%" as const,
+  barGap: 6,
+  combinedBarSize: 88,
+  singleBarSize: 88,
+  groupedBarSize: 48,
 };
 
 function formatCpaAxisTick(value: number, currency: string | null): string {
@@ -74,7 +76,15 @@ function formatCpaValue(value: number, currency: string | null): string {
 function formatCpaBarLabel(value: unknown, currency: string | null): string {
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n) || n <= 0) return "";
-  return formatCpaValue(n, currency);
+  const code = (currency ?? "IDR").toUpperCase();
+  if (code === "IDR") {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 1 : 2)}jt`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 100_000 ? 0 : 1)}rb`;
+    return String(Math.round(n));
+  }
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return n.toFixed(0);
 }
 
 function resolveLabelNumericValue(
@@ -671,7 +681,9 @@ export function DigitalMarketingReportMonthlyCpaChart({
           <div className="h-[300px] w-full min-w-0 overflow-x-auto">
             <div
               className="h-full"
-              style={{ minWidth: Math.max(chartData.length * 48, 560) }}
+              style={{
+                minWidth: Math.max(chartData.length * MONTHLY_CATEGORY_MIN_PX, 720),
+              }}
             >
             <ResponsiveContainer width="100%" height="100%">
               <BarChart

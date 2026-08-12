@@ -50,13 +50,20 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     let conversationId: string | null = null;
     let wantStream = false;
+    let wantBase64 = false;
     if (req.method === "GET") {
       conversationId = url.searchParams.get("conversation_id")?.trim() ?? null;
       wantStream = url.searchParams.get("stream") === "1";
+      wantBase64 = url.searchParams.get("base64") === "1";
     } else {
-      const body = await req.json().catch(() => ({})) as { conversation_id?: string; stream?: boolean };
+      const body = await req.json().catch(() => ({})) as {
+        conversation_id?: string;
+        stream?: boolean;
+        base64?: boolean;
+      };
       conversationId = body.conversation_id?.trim() ?? null;
       wantStream = body.stream === true;
+      wantBase64 = body.base64 === true;
     }
 
     if (!conversationId) {
@@ -215,7 +222,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (wantStream) {
+    if (wantStream || wantBase64) {
       const imageRes = await fetch(profileUrl);
       if (!imageRes.ok) {
         return new Response(JSON.stringify({ error: "Failed to fetch image" }), {
@@ -225,6 +232,28 @@ Deno.serve(async (req: Request) => {
       }
       const contentType = imageRes.headers.get("Content-Type") || "image/jpeg";
       const imageBytes = await imageRes.arrayBuffer();
+      if (wantBase64) {
+        const bytes = new Uint8Array(imageBytes);
+        let binary = "";
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+        }
+        const base64 = btoa(binary);
+        return new Response(
+          JSON.stringify({
+            base64,
+            content_type: contentType,
+            username: username || null,
+            name: name || null,
+            display_name: displayName,
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
       return new Response(imageBytes, {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": contentType },

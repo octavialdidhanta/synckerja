@@ -166,7 +166,7 @@ export const mainNavItems: MainNavItem[] = [
         activePathPrefixes: ["/digital-marketing/social-media-performance"],
       },
       {
-        titleKey: "sidebar.digitalMarketing.adsPerformance.title",
+        titleKey: "sidebar.digitalMarketing.webTraffic.title",
         path: "/digital-marketing/traffic",
         activePathPrefixes: [
           "/digital-marketing/traffic",

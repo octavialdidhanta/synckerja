@@ -13,6 +13,7 @@
     "icons:build": "node scripts/generate-synckerja-icons.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:deno:ctwa": "deno test supabase/functions/_shared/ctwaReferral.test.ts supabase/functions/_shared/ctwaLeadSync.test.ts",
     "android:build-web": "npm run build",
     "android:sync": "npx cap sync android",
     "android:open": "npx cap open android",

@@ -185,7 +185,7 @@ export function useOmnichannelStaffPresence() {
   return useContext(OmnichannelStaffPresenceContext);
 }
 
-/** Tracking is handled inside `OmnichannelStaffPresenceProvider` via pathname. */
+/** Tracking is handled inside `OmnichannelStaffPresenceProvider` (mounted in AdaptiveAppLayout). */
 export function useOmnichannelStaffPresenceTracker() {
-  // no-op — mount `OmnichannelStaffPresenceProvider` in app shell
+  // no-op — mount `OmnichannelStaffPresenceProvider` in AdaptiveAppLayout
 }

@@ -43,10 +43,7 @@ import { TikTokAdsMetricsTableFooter } from "@/6-0-tiktok-ads/components/TikTokA
 import { TikTokAdsModifyColumnsDialog } from "@/6-0-tiktok-ads/components/TikTokAdsModifyColumnsDialog";
 import { TikTokAdsDateRangePicker } from "@/6-0-tiktok-ads/components/TikTokAdsDateRangePicker";
 import { useTikTokAdsMetricsPreferences } from "@/tiktok-ads/hooks/useTikTokAdsMetricsPreferences";
-import {
-  useTikTokAdsColumnSets,
-  type TikTokAdsColumnSet,
-} from "@/tiktok-ads/hooks/useTikTokAdsColumnSets";
+import { useTikTokAdsColumnSets } from "@/tiktok-ads/hooks/useTikTokAdsColumnSets";
 import {
   TIKTOK_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
   TikTokAdsColumnSetOptionLabel,
@@ -57,6 +54,10 @@ import {
   getTikTokAdsMetricsForEntity,
   resolveTikTokAdsMetricItems,
 } from "@/tiktok-ads/metrics/tiktokAdsMetricCatalog";
+import {
+  filterTikTokAdsPreferenceMetricKeys,
+  findMatchingTikTokAdsColumnSet,
+} from "@/tiktok-ads/metrics/tiktokAdsColumnSetMatch";
 import {
   TIKTOK_ADS_SUMMARY_DEFAULT_SLOT_KEYS,
   tiktokAdsSummaryValidKeys,
@@ -84,38 +85,6 @@ import {
   resolveCampaignIdFromTikTokMetricsRow,
   useTikTokAdsCampaignServiceMapping,
 } from "@/tiktok-ads/hooks/useTikTokAdsCampaignServiceMapping";
-
-function columnKeysMatch(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((key, index) => key === b[index]);
-}
-
-function columnKeysMatchOrderIndependent(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((key, index) => key === sortedB[index]);
-}
-
-function findMatchingColumnSet(
-  columnSets: TikTokAdsColumnSet[],
-  keys: string[],
-): TikTokAdsColumnSet | null {
-  if (keys.length === 0) return null;
-  const orgMatch =
-    columnSets.find(
-      (set) => set.scope === "org" && columnKeysMatch(set.metric_keys, keys),
-    ) ??
-    columnSets.find(
-      (set) =>
-        set.scope === "org" && columnKeysMatchOrderIndependent(set.metric_keys, keys),
-    );
-  if (orgMatch) return orgMatch;
-  return (
-    columnSets.find((set) => columnKeysMatch(set.metric_keys, keys)) ??
-    columnSets.find((set) => columnKeysMatchOrderIndependent(set.metric_keys, keys)) ??
-    null
-  );
-}
 
 export default function TikTokAdsMetricsPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
@@ -247,7 +216,7 @@ function TikTokAdsMetricsPageContent() {
   );
 
   const matchedColumnSet = useMemo(
-    () => findMatchingColumnSet(columnSets, selectedMetrics),
+    () => findMatchingTikTokAdsColumnSet(columnSets, selectedMetrics),
     [columnSets, selectedMetrics],
   );
 
@@ -359,7 +328,7 @@ function TikTokAdsMetricsPageContent() {
     if (matchedColumnSet?.id === setId) return;
     const set = columnSets.find((s) => s.id === setId);
     if (!set) return;
-    const keys = set.metric_keys.filter((k) => validMetricKeys.has(k));
+    const keys = filterTikTokAdsPreferenceMetricKeys(set.metric_keys, validMetricKeys);
     if (keys.length === 0) {
       toast.error(
         t(

@@ -91,10 +91,9 @@ export function resolveSortForOptions(
 ): TikTokAdsMetricsSort {
   if (options.length === 0) return current;
   if (options.some((o) => o.key === current.field)) {
-    return {
-      field: current.field,
-      direction: current.direction === "asc" ? "asc" : "desc",
-    };
+    const direction = current.direction === "asc" ? "asc" : "desc";
+    if (current.direction === direction) return current;
+    return { field: current.field, direction };
   }
   const firstMetric = options.find((o) => !TEXT_FIELDS.has(o.key));
   const field = firstMetric?.key ?? options[0]?.key ?? "spend";

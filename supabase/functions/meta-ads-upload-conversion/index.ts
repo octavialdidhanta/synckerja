@@ -1,16 +1,20 @@
 /**
  * Upload Meta Conversions API event when a CRM lead becomes Converted.
+ * Supports fbclid (web ads) and ctwa_clid (Click-to-WhatsApp ads).
  *
  * Deploy: supabase functions deploy meta-ads-upload-conversion
  */
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveCtwaClidForLead } from "../_shared/ctwaLeadSync.ts";
 import {
+  buildCtwaCapiEvent,
   buildFbcFromFbclid,
   hashMetaUserData,
   mergeFbclid,
   sendMetaCapiEvents,
+  type MetaCapiEventPayload,
 } from "../_shared/metaAdsCapiHelpers.ts";
 import { metaAdsCorsHeaders, metaGraphVersion } from "../_shared/metaAdsAuth.ts";
 import { resolveOrgMetaAdsForUpload } from "../_shared/metaAdsOrgResolver.ts";
@@ -22,17 +26,26 @@ function json(body: object, status: number): Response {
   });
 }
 
+type UploadKind = "fbclid" | "ctwa" | "both";
+
 type LogRow = {
   organization_id: string;
   lead_id: string;
   sales_activity_id: string | null;
   meta_ads_account_id: string | null;
   fbclid: string | null;
+  ctwa_clid: string | null;
+  upload_kind: UploadKind | null;
   event_name: string | null;
   status: "success" | "failed" | "skipped";
   skip_reason: string | null;
   error_message: string | null;
   meta_response: unknown;
+};
+
+type ExistingLog = {
+  status: string;
+  upload_kind: UploadKind | null;
 };
 
 async function upsertLog(admin: ReturnType<typeof createClient>, row: LogRow): Promise<void> {
@@ -42,6 +55,15 @@ async function upsertLog(admin: ReturnType<typeof createClient>, row: LogRow): P
     { onConflict: "lead_id" },
   );
   if (error) console.error("meta_ads_conversion_uploads upsert:", error);
+}
+
+function isDuplicateSuccess(existingLog: ExistingLog | null, canSendCtwa: boolean, canSendFbclid: boolean): boolean {
+  if (existingLog?.status !== "success") return false;
+  const kind = existingLog.upload_kind;
+  if (kind === "both") return true;
+  if (kind === "fbclid" && canSendCtwa) return false;
+  if (kind === "ctwa" && canSendFbclid) return false;
+  return true;
 }
 
 Deno.serve(async (req: Request) => {
@@ -99,24 +121,24 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const { data: existingLog } = await admin
-    .from("meta_ads_conversion_uploads")
-    .select("status")
-    .eq("lead_id", leadId)
-    .maybeSingle();
-
-  if (existingLog?.status === "success") {
-    return json({ ok: true, duplicate: true }, 200);
-  }
-
   const { data: lead, error: leadErr } = await admin
     .from("leads")
-    .select("id, organization_id, fbclid, converted_at, attribution, meta_ads_account_id")
+    .select(
+      "id, organization_id, ticket_id, fbclid, ctwa_clid, converted_at, attribution, meta_ads_account_id, phone_number",
+    )
     .eq("id", leadId)
     .eq("organization_id", organizationId)
     .maybeSingle();
 
   if (leadErr || !lead?.id) return json({ error: "Lead not found" }, 404);
+
+  const { data: existingLogRaw } = await admin
+    .from("meta_ads_conversion_uploads")
+    .select("status, upload_kind")
+    .eq("lead_id", leadId)
+    .maybeSingle();
+
+  const existingLog = (existingLogRaw ?? null) as ExistingLog | null;
 
   const leadAccountId = lead.meta_ads_account_id != null ? String(lead.meta_ads_account_id) : null;
   const resolved = await resolveOrgMetaAdsForUpload(admin, organizationId, leadAccountId);
@@ -125,6 +147,12 @@ Deno.serve(async (req: Request) => {
     lead.fbclid != null ? String(lead.fbclid) : null,
     lead.attribution,
   );
+  const ctwaClid = await resolveCtwaClidForLead(admin, {
+    organizationId,
+    ticketId: lead.ticket_id != null ? String(lead.ticket_id) : null,
+    leadCtwaClid: lead.ctwa_clid != null ? String(lead.ctwa_clid) : null,
+    attribution: lead.attribution,
+  });
 
   const { data: submission } = await admin
     .from("lead_submissions")
@@ -143,10 +171,15 @@ Deno.serve(async (req: Request) => {
     if (!phone && r.phone_number?.trim()) phone = r.phone_number.trim();
     if (email && phone) break;
   }
+  if (!phone && lead.phone_number?.trim()) {
+    phone = String(lead.phone_number).trim();
+  }
 
   const hashed = await hashMetaUserData(email, phone);
   const hasContact = Boolean(hashed.em?.length || hashed.ph?.length);
   const fbc = buildFbcFromFbclid(fbclid);
+
+  const eventName = resolved?.account.default_event_name?.trim() || "Purchase";
 
   const baseLog: LogRow = {
     organization_id: organizationId,
@@ -154,7 +187,9 @@ Deno.serve(async (req: Request) => {
     sales_activity_id: salesActivityId,
     meta_ads_account_id: resolved?.account.id ?? null,
     fbclid,
-    event_name: resolved?.account.default_event_name ?? "Purchase",
+    ctwa_clid: ctwaClid,
+    upload_kind: null,
+    event_name: eventName,
     status: "skipped",
     skip_reason: null,
     error_message: null,
@@ -180,12 +215,6 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, skipped: true, reason: baseLog.skip_reason }, 200);
   }
 
-  if (!fbc && !hasContact) {
-    baseLog.skip_reason = "no_fbclid_or_contact";
-    await upsertLog(admin, baseLog);
-    return json({ ok: true, skipped: true, reason: baseLog.skip_reason }, 200);
-  }
-
   let conversionValue = 0;
   let currency = "IDR";
   if (salesActivityId) {
@@ -202,20 +231,51 @@ Deno.serve(async (req: Request) => {
 
   const convertedAt = lead.converted_at ? new Date(String(lead.converted_at)) : new Date();
   const eventTime = Math.floor(convertedAt.getTime() / 1000);
-  const eventName = resolved.account.default_event_name?.trim() || "Purchase";
 
-  const userData: Record<string, unknown> = { ...hashed };
-  if (fbc) userData.fbc = fbc;
+  const canSendCtwa = Boolean(ctwaClid);
+  const canSendFbclid = Boolean(fbc || (fbclid && hasContact));
 
-  const eventId = `lead_${leadId}`;
+  if (isDuplicateSuccess(existingLog, canSendCtwa, canSendFbclid)) {
+    return json({ ok: true, duplicate: true }, 200);
+  }
 
-  const capiResult = await sendMetaCapiEvents(
-    pixelId,
-    resolved.accessToken,
-    [{
+  const priorKind = existingLog?.status === "success" ? existingLog.upload_kind : null;
+  const sendCtwaOnly = priorKind === "fbclid" && canSendCtwa;
+  const sendFbclidOnly = priorKind === "ctwa" && canSendFbclid;
+
+  if (!sendCtwaOnly && !sendFbclidOnly && !canSendCtwa && !canSendFbclid) {
+    baseLog.skip_reason = "no_ctwa_or_fbclid_or_contact";
+    await upsertLog(admin, baseLog);
+    return json({ ok: true, skipped: true, reason: baseLog.skip_reason }, 200);
+  }
+
+  const events: MetaCapiEventPayload[] = [];
+
+  const includeCtwa = sendCtwaOnly || (!sendFbclidOnly && canSendCtwa);
+  const includeFbclid = sendFbclidOnly || (!sendCtwaOnly && canSendFbclid);
+
+  if (includeCtwa && ctwaClid) {
+    events.push(
+      buildCtwaCapiEvent({
+        ctwa_clid: ctwaClid,
+        event_name: eventName,
+        event_time: eventTime,
+        event_id: `lead_${leadId}:ctwa`,
+        hashedUserData: hashed,
+        conversionValue,
+        currency,
+        leadId,
+      }),
+    );
+  }
+
+  if (includeFbclid) {
+    const userData: Record<string, unknown> = { ...hashed };
+    if (fbc) userData.fbc = fbc;
+    events.push({
       event_name: eventName,
       event_time: eventTime,
-      event_id: eventId,
+      event_id: `lead_${leadId}`,
       action_source: "system_generated",
       user_data: userData,
       custom_data: {
@@ -223,12 +283,24 @@ Deno.serve(async (req: Request) => {
         currency,
         lead_id: leadId,
       },
-    }],
+    });
+  }
+
+  let uploadKind: UploadKind = "fbclid";
+  if (includeCtwa && includeFbclid) uploadKind = "both";
+  else if (includeCtwa) uploadKind = "ctwa";
+  else if (sendCtwaOnly || sendFbclidOnly) uploadKind = "both";
+
+  const capiResult = await sendMetaCapiEvents(
+    pixelId,
+    resolved.accessToken,
+    events,
     metaGraphVersion(),
   );
 
   if (!capiResult.ok) {
     baseLog.status = "failed";
+    baseLog.upload_kind = uploadKind;
     baseLog.error_message = capiResult.error ?? "capi_failed";
     baseLog.meta_response = capiResult.body;
     await upsertLog(admin, baseLog);
@@ -236,8 +308,8 @@ Deno.serve(async (req: Request) => {
   }
 
   baseLog.status = "success";
-  baseLog.event_name = eventName;
+  baseLog.upload_kind = uploadKind;
   baseLog.meta_response = capiResult.body;
   await upsertLog(admin, baseLog);
-  return json({ ok: true }, 200);
+  return json({ ok: true, upload_kind: uploadKind }, 200);
 });

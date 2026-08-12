@@ -7,6 +7,8 @@ export type MetaAdsSyncUploadRecord = {
   status: 'success' | 'failed' | 'skipped';
   skip_reason: string | null;
   error_message: string | null;
+  upload_kind: 'fbclid' | 'ctwa' | 'both' | null;
+  ctwa_clid: string | null;
 };
 
 type Invalidator = ((organizationId: string) => void) | null;
@@ -61,7 +63,7 @@ export function useMetaAdsConversionUploadsMap(
       if (!organizationId) return [];
       const { data, error } = await supabase
         .from('meta_ads_conversion_uploads')
-        .select('lead_id, status, skip_reason, error_message')
+        .select('lead_id, status, skip_reason, error_message, upload_kind, ctwa_clid')
         .eq('organization_id', organizationId);
       if (error) throw error;
       return (data ?? []) as Array<{
@@ -69,6 +71,8 @@ export function useMetaAdsConversionUploadsMap(
         status: string;
         skip_reason: string | null;
         error_message: string | null;
+        upload_kind: 'fbclid' | 'ctwa' | 'both' | null;
+        ctwa_clid: string | null;
       }>;
     },
     enabled: Boolean(organizationId),
@@ -83,6 +87,8 @@ export function useMetaAdsConversionUploadsMap(
           status: r.status,
           skip_reason: r.skip_reason,
           error_message: r.error_message,
+          upload_kind: r.upload_kind ?? null,
+          ctwa_clid: r.ctwa_clid ?? null,
         });
       }
     }

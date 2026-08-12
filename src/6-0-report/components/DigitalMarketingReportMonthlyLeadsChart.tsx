@@ -33,20 +33,22 @@ const META_BAR = "hsl(262 55% 52%)";
 const TIKTOK_BAR = "hsl(350 80% 50%)";
 const COMBINED_BAR = "hsl(24 75% 48%)";
 
+const MONTHLY_CATEGORY_MIN_PX = 112;
+
 const WIDE_MONTHLY_BAR_LAYOUT = {
-  barCategoryGap: "1%" as const,
+  barCategoryGap: "8%" as const,
   barGap: 0,
-  combinedBarSize: 94,
-  singleBarSize: 94,
-  groupedBarSize: 34,
+  combinedBarSize: 88,
+  singleBarSize: 88,
+  groupedBarSize: 40,
 };
 
 const GROUPED_MONTHLY_BAR_LAYOUT = {
-  barCategoryGap: "3%" as const,
-  barGap: 5,
-  combinedBarSize: 94,
-  singleBarSize: 94,
-  groupedBarSize: 42,
+  barCategoryGap: "6%" as const,
+  barGap: 6,
+  combinedBarSize: 88,
+  singleBarSize: 88,
+  groupedBarSize: 48,
 };
 
 function formatLeadsAxisTick(value: number): string {
@@ -434,7 +436,9 @@ export function DigitalMarketingReportMonthlyLeadsChart({
           <div className="h-[300px] w-full min-w-0 overflow-x-auto">
             <div
               className="h-full"
-              style={{ minWidth: Math.max(chartData.length * 48, 560) }}
+              style={{
+                minWidth: Math.max(chartData.length * MONTHLY_CATEGORY_MIN_PX, 720),
+              }}
             >
             <ResponsiveContainer width="100%" height="100%">
               <BarChart

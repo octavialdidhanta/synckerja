@@ -122,6 +122,7 @@ export interface BriefStoryBoardSceneCardProps {
   onMoveToNextSequence?: (rowIndex: number) => void;
   canMoveToPreviousSequence?: boolean;
   canMoveToNextSequence?: boolean;
+  density?: 'desktop' | 'mobile-2col';
 }
 
 export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> = ({
@@ -148,6 +149,7 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
   onMoveToNextSequence,
   canMoveToPreviousSequence = false,
   canMoveToNextSequence = false,
+  density = 'desktop',
 }) => {
   const { t } = useAppTranslation();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -246,7 +248,10 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
   return (
     <article
       className={cn(
-        'flex w-[360px] shrink-0 flex-col rounded-lg border-2 border-gray-300 bg-white',
+        'flex shrink-0 flex-col rounded-lg border-2 border-gray-300 bg-white',
+        density === 'mobile-2col'
+          ? 'w-[calc((100cqw-0.75rem)/2)] min-w-[calc((100cqw-0.75rem)/2)]'
+          : 'w-[360px]',
         'max-h-[70vh] overflow-y-auto scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
       )}
     >

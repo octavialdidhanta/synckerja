@@ -1232,7 +1232,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                   </div>
                 ) : (
                 <div className="flex items-start gap-1">
-                  <TaskStepSeeMoreEntry
+                      <TaskStepSeeMoreEntry
                       stepId={step.id}
                       stepTitle={step.title}
                       description={step.description ?? ''}
@@ -1247,8 +1247,6 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                       popoverAnchorRef={descriptionPopoverRef}
                       descriptionImageLoupe={descriptionImageLoupe}
                       onImageLoupeChange={setDescriptionImageLoupe}
-                      inlineDescriptionExpand={isMobileExpandableCard}
-                      onInlineDescriptionExpand={() => setCardExpanded(true)}
                     />
                   {step.description?.trim() && (
                   <p

@@ -21,6 +21,11 @@ export const MOBILE_PAGE_PATH = {
   omnichannelLivechat: "/omnichannel/livechat",
   omnichannelLeads: "/omnichannel/leads",
   digitalMarketingTraffic: "/digital-marketing/traffic",
+  digitalMarketingGoogleAds: "/digital-marketing/google-ads",
+  digitalMarketingMetaAds: "/digital-marketing/meta-ads",
+  digitalMarketingTikTokAds: "/digital-marketing/tiktok-ads",
+  digitalMarketingReport: "/digital-marketing/report",
+  digitalMarketingContentCalendar: "/digital-marketing/social-media/content-calendar",
   subscriptionOverview: "/subscription/overview",
   subscriptionPlans: "/subscription/plans",
   subscriptionManagement: "/subscription/management",
@@ -82,6 +87,12 @@ export function mobileSidebarPagePathForUrl(url: string): string {
     "/omnichannel/leads": MOBILE_PAGE_PATH.omnichannelLeads,
     "/tools/daily-task": MOBILE_PAGE_PATH.toolsDailyTask,
     "/digital-marketing/traffic": MOBILE_PAGE_PATH.digitalMarketingTraffic,
+    "/digital-marketing/google-ads": MOBILE_PAGE_PATH.digitalMarketingGoogleAds,
+    "/digital-marketing/meta-ads": MOBILE_PAGE_PATH.digitalMarketingMetaAds,
+    "/digital-marketing/tiktok-ads": MOBILE_PAGE_PATH.digitalMarketingTikTokAds,
+    "/digital-marketing/report": MOBILE_PAGE_PATH.digitalMarketingReport,
+    "/digital-marketing/social-media/content-calendar":
+      MOBILE_PAGE_PATH.digitalMarketingContentCalendar,
     "/subscription/overview": MOBILE_PAGE_PATH.subscriptionOverview,
   };
   if (map[normalized]) return map[normalized];

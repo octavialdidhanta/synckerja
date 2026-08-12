@@ -144,6 +144,8 @@ interface EditableBriefTableProps {
   controlsPlacement?: 'actionsColumn' | 'taggingColumn';
   /** BriefDialog storyboard toolbar: Add column/row, Columns menu, Edit/Save/Cancel above table */
   storyboardToolbar?: boolean;
+  /** Mobile calendar: ~2 content columns / scene cards visible with horizontal scroll */
+  density?: 'desktop' | 'mobile-2col';
   /** Brief markdown used to hydrate Story Board sequences (HTML comment metadata). */
   sequencesSource?: string;
   /** Notified when inline edit mode toggles (e.g. disable dialog footer actions) */
@@ -169,6 +171,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   readOnly = false,
   controlsPlacement = 'actionsColumn',
   storyboardToolbar = false,
+  density = 'desktop',
   sequencesSource,
   onEditingChange,
   planId,
@@ -507,18 +510,27 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
 
   const contentColumnCount = Math.max(headerRow.length - 1, 0);
   const totalVisibleColumns = headerRow.length + (showRowActionsColumn ? 1 : 0);
+  const isMobile2Col = density === 'mobile-2col';
   const useHorizontalScrollLayout =
-    totalVisibleColumns > BRIEF_COLUMN_WIDTH_PX.maxColumnsWithoutScroll;
+    isMobile2Col || totalVisibleColumns > BRIEF_COLUMN_WIDTH_PX.maxColumnsWithoutScroll;
   const fixedSidesPx =
     BRIEF_COLUMN_WIDTH_PX.timing + (showRowActionsColumn ? BRIEF_COLUMN_WIDTH_PX.actions : 0);
   const sharedContentWidth =
     contentColumnCount > 0
       ? `calc((100% - ${fixedSidesPx}px) / ${contentColumnCount})`
       : undefined;
-  const scrollTableWidthPx =
-    BRIEF_COLUMN_WIDTH_PX.timing +
-    contentColumnCount * BRIEF_COLUMN_WIDTH_PX.content +
-    (showRowActionsColumn ? BRIEF_COLUMN_WIDTH_PX.actions : 0);
+  /** ~2 content columns fit in the scroll viewport; remaining columns scroll horizontally. */
+  const mobileContentColCss = 'calc((100cqw - 0.5rem) / 2)';
+  const scrollTableWidthPx = isMobile2Col
+    ? undefined
+    : BRIEF_COLUMN_WIDTH_PX.timing +
+      contentColumnCount * BRIEF_COLUMN_WIDTH_PX.content +
+      (showRowActionsColumn ? BRIEF_COLUMN_WIDTH_PX.actions : 0);
+  const scrollTableWidthCss = isMobile2Col
+    ? `calc(${BRIEF_COLUMN_WIDTH_PX.timing}px + ${contentColumnCount} * ((100cqw - 0.5rem) / 2)${
+        showRowActionsColumn ? ` + ${BRIEF_COLUMN_WIDTH_PX.actions}px` : ''
+      })`
+    : undefined;
   const tableLayoutKey = briefTableColumnKey(headerRow);
 
   const renderStoryboardToolbar = () => {
@@ -555,7 +567,12 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     );
 
     return (
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <div
+        className={cn(
+          'mb-2 flex flex-wrap items-center justify-between gap-2',
+          isMobile2Col && 'px-2',
+        )}
+      >
         <div className="flex flex-wrap items-center gap-1">
           {isEditing ? (
             <TooltipProvider delayDuration={200}>
@@ -1039,8 +1056,13 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       <div
         ref={scrollContainerRef}
         className={cn(
-          'my-1 min-h-0 overflow-x-auto overflow-y-auto rounded-lg border-2 border-gray-300 scrollbar-hide seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-          storyboardToolbar ? 'max-h-[calc(100dvh-16rem)] flex-1' : 'max-h-[min(720px,78vh)]',
+          'min-h-0 overflow-x-auto overflow-y-auto scrollbar-hide seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          isMobile2Col
+            ? '@container/brief my-0 w-full min-w-0 flex-1 rounded-none border-x-0 border-y border-border'
+            : cn(
+                'my-1 rounded-lg border-2 border-gray-300',
+                storyboardToolbar ? 'max-h-[calc(100dvh-16rem)] flex-1' : 'max-h-[min(720px,78vh)]',
+              ),
           useStoryBoardLayout && 'overflow-y-auto',
           className,
         )}
@@ -1057,6 +1079,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             isEditing={isEditing || alwaysEditable}
             showRowActions={Boolean(showRowActionsColumn && onSave)}
             planId={planId}
+            density={density}
             mediaBusy={mediaBusy}
             uploadingRowIndex={uploadingRowIndex}
             deletingImageId={deletingImageId}
@@ -1084,7 +1107,9 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
               )}
               style={
                 useHorizontalScrollLayout
-                  ? { width: scrollTableWidthPx, minWidth: scrollTableWidthPx }
+                  ? isMobile2Col
+                    ? { width: scrollTableWidthCss, minWidth: scrollTableWidthCss }
+                    : { width: scrollTableWidthPx, minWidth: scrollTableWidthPx }
                   : undefined
               }
             >
@@ -1096,7 +1121,9 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                       isTimingColumn(header, j)
                         ? { width: BRIEF_COLUMN_WIDTH_PX.timing }
                         : useHorizontalScrollLayout
-                          ? { width: BRIEF_COLUMN_WIDTH_PX.content }
+                          ? isMobile2Col
+                            ? { width: mobileContentColCss, minWidth: mobileContentColCss }
+                            : { width: BRIEF_COLUMN_WIDTH_PX.content }
                           : { width: sharedContentWidth }
                     }
                   />

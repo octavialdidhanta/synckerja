@@ -41,7 +41,6 @@ import { MetaAdsDateRangePicker } from "@/6-0-meta-ads/components/MetaAdsDateRan
 import { useMetaAdsMetricsPreferences } from "@/meta-ads/hooks/useMetaAdsMetricsPreferences";
 import {
   useMetaAdsColumnSets,
-  type MetaAdsColumnSet,
 } from "@/meta-ads/hooks/useMetaAdsColumnSets";
 import {
   META_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
@@ -51,9 +50,12 @@ import {
   buildMetaAdsMetricCatalogResponse,
   getMetaAdsCatalogMetricKeys,
   getMetaAdsMetricsForEntity,
-  isMetaAdsSynckerjaMetricKey,
   resolveMetaAdsMetricItems,
 } from "@/meta-ads/metrics/metaAdsMetricCatalog";
+import {
+  filterMetaAdsPreferenceMetricKeys,
+  findMatchingMetaAdsColumnSet,
+} from "@/meta-ads/metrics/metaAdsColumnSetMatch";
 import {
   META_ADS_SUMMARY_DEFAULT_SLOT_KEYS,
   metaAdsSummaryValidKeys,
@@ -85,38 +87,6 @@ import {
   resolveCampaignIdFromMetaMetricsRow,
   useMetaAdsCampaignServiceMapping,
 } from "@/meta-ads/hooks/useMetaAdsCampaignServiceMapping";
-
-function columnKeysMatch(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((key, index) => key === b[index]);
-}
-
-function columnKeysMatchOrderIndependent(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((key, index) => key === sortedB[index]);
-}
-
-function findMatchingColumnSet(
-  columnSets: MetaAdsColumnSet[],
-  keys: string[],
-): MetaAdsColumnSet | null {
-  if (keys.length === 0) return null;
-  const orgMatch =
-    columnSets.find(
-      (set) => set.scope === "org" && columnKeysMatch(set.metric_keys, keys),
-    ) ??
-    columnSets.find(
-      (set) =>
-        set.scope === "org" && columnKeysMatchOrderIndependent(set.metric_keys, keys),
-    );
-  if (orgMatch) return orgMatch;
-  return (
-    columnSets.find((set) => columnKeysMatch(set.metric_keys, keys)) ??
-    columnSets.find((set) => columnKeysMatchOrderIndependent(set.metric_keys, keys)) ??
-    null
-  );
-}
 
 export default function MetaAdsMetricsPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
@@ -258,7 +228,7 @@ function MetaAdsMetricsPageContent() {
   );
 
   const matchedColumnSet = useMemo(
-    () => findMatchingColumnSet(columnSets, selectedMetrics),
+    () => findMatchingMetaAdsColumnSet(columnSets, selectedMetrics),
     [columnSets, selectedMetrics],
   );
 
@@ -370,9 +340,7 @@ function MetaAdsMetricsPageContent() {
     if (matchedColumnSet?.id === setId) return;
     const set = columnSets.find((s) => s.id === setId);
     if (!set) return;
-    const keys = set.metric_keys.filter(
-      (k) => validMetricKeys.has(k) || isMetaAdsSynckerjaMetricKey(k),
-    );
+    const keys = filterMetaAdsPreferenceMetricKeys(set.metric_keys, validMetricKeys);
     if (keys.length === 0) {
       toast.error(
         t(

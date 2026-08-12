@@ -18,6 +18,8 @@ import { TaskStepDescriptionImageLoupeFloating } from '@/8-2-DailyTask/component
 import { plainTextPreview } from '@/8-2-DailyTask/lib/taskStepDescription';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
+import { useVisualViewport } from '@/shared/hooks/useVisualViewport';
+import { cn } from '@/shared/lib/utils';
 import { TaskStepCommentPanel } from './TaskStepCommentPanel';
 import { useTaskStepCommentUnread } from '../hooks/useTaskStepCommentUnread';
 import type { StepCommentWriteContext } from '../types';
@@ -39,9 +41,6 @@ interface TaskStepSeeMoreEntryProps {
   popoverAnchorRef: React.RefObject<HTMLDivElement | null>;
   descriptionImageLoupe: ImageLoupeState | null;
   onImageLoupeChange: (state: ImageLoupeState | null) => void;
-  /** Mobile task card: expand description inline instead of opening a dialog */
-  inlineDescriptionExpand?: boolean;
-  onInlineDescriptionExpand?: () => void;
 }
 
 function UnreadBadge({ count }: { count: number }) {
@@ -74,11 +73,10 @@ export function TaskStepSeeMoreEntry({
   popoverAnchorRef,
   descriptionImageLoupe,
   onImageLoupeChange,
-  inlineDescriptionExpand = false,
-  onInlineDescriptionExpand,
 }: TaskStepSeeMoreEntryProps) {
   const { t } = useAppTranslation();
   const isMobile = useIsMobile();
+  const { height, offsetTop, isKeyboardShellOpen } = useVisualViewport();
   const [discussionOpen, setDiscussionOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<SeeMoreTab>('detail');
   const { unreadCount } = useTaskStepCommentUnread(stepId);
@@ -119,11 +117,14 @@ export function TaskStepSeeMoreEntry({
 
   if (!showEntry) return null;
 
+  const showDiscussionTab =
+    discussionOpen || mobileTab === 'discussion' || !hasDescription;
+
   const renderDiscussionPanel = () => (
     <TaskStepCommentPanel
       taskStepId={stepId}
       writeContext={writeContext}
-      isActive={open && (discussionOpen || mobileTab === 'discussion' || !hasDescription)}
+      isActive={open && showDiscussionTab}
       className="min-h-0 h-full flex-1"
       showHeader={false}
     />
@@ -161,14 +162,8 @@ export function TaskStepSeeMoreEntry({
     </div>
   );
 
-  const useInlineDescription = inlineDescriptionExpand && hasLongDescription;
-
   const handleTriggerClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (useInlineDescription && onInlineDescriptionExpand) {
-      onInlineDescriptionExpand();
-      return;
-    }
     onOpenChange(true);
   };
 
@@ -184,18 +179,6 @@ export function TaskStepSeeMoreEntry({
   );
 
   if (isMobile) {
-    const showDiscussionDialog =
-      open &&
-      (!useInlineDescription ||
-        !hasDescription ||
-        mobileTab === 'discussion' ||
-        discussionOpen ||
-        initialTab === 'discussion');
-
-    if (!showDiscussionDialog) {
-      return triggerButton;
-    }
-
     return (
       <>
         {triggerButton}
@@ -207,17 +190,48 @@ export function TaskStepSeeMoreEntry({
           }}
         >
           <DialogContent
-            className="flex max-h-[85vh] w-[min(100vw-2rem,36rem)] flex-col gap-0 overflow-hidden p-0"
-            hideCloseButton={false}
+            fullscreenAnimation
+            overlayClassName="z-[60]"
+            className={cn(
+              'fixed left-0 right-0 top-0 z-[60] m-0 flex w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-none p-0 shadow-xl',
+              !isKeyboardShellOpen && 'modal-above-safe-area h-dvh min-h-0 max-h-none',
+            )}
+            style={
+              isKeyboardShellOpen && height > 0
+                ? {
+                    top: offsetTop,
+                    height,
+                    maxHeight: height,
+                    transform: 'none',
+                  }
+                : undefined
+            }
+            hideCloseButton
             aria-describedby={undefined}
             onClick={(e) => e.stopPropagation()}
           >
             <DialogTitle className="sr-only">{stepTitle}</DialogTitle>
-            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 pr-12 py-3">
-              <h4 className="min-w-0 truncate text-sm font-semibold text-gray-900">{stepTitle}</h4>
-            </div>
+            {!isKeyboardShellOpen ? (
+              <div className="safe-area-top flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+                <h4 className="min-w-0 flex-1 truncate text-sm font-semibold leading-tight text-gray-900">
+                  {stepTitle}
+                </h4>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenChange(false);
+                    onImageLoupeChange(null);
+                  }}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-80 transition-opacity hover:bg-muted hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  aria-label={t('layout.sheetClose', 'Close')}
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+            ) : null}
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              {mobileTab === 'detail' && hasDescription && !useInlineDescription ? (
+              {mobileTab === 'detail' && hasDescription ? (
                 <div className="scrollbar-hide seamless-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
                   <TaskStepDescriptionView value={description} />
                 </div>
@@ -225,11 +239,11 @@ export function TaskStepSeeMoreEntry({
                 renderDiscussionPanel()
               )}
             </div>
-            {hasDescription && !useInlineDescription && (
+            {hasDescription && !isKeyboardShellOpen ? (
               <div className="flex shrink-0 items-center border-t border-border px-4 py-2">
                 {commentFooterButton}
               </div>
-            )}
+            ) : null}
           </DialogContent>
         </Dialog>
       </>

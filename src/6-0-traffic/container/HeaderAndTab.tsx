@@ -1,6 +1,8 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { BarChart3, Facebook, FileText, LineChart } from "lucide-react";
+import { BarChart3, FileText } from "lucide-react";
 import { ModuleTabNavItem } from "@/shared/auth/page-access/ModuleTabNavItem";
+import { GoogleAdsTabIcon } from "@/6-0-traffic/container/GoogleAdsTabIcon";
+import { MetaTabIcon } from "@/6-0-traffic/container/MetaTabIcon";
 import { TikTokTabIcon } from "@/6-0-traffic/container/TikTokTabIcon";
 
 const TRAFFIC_ROUTE = "/digital-marketing/traffic";
@@ -39,7 +41,7 @@ export function HeaderAndTab() {
           <ModuleTabNavItem
             pagePath={GOOGLE_ADS_ROUTE}
             label="Google Ads"
-            icon={LineChart}
+            icon={GoogleAdsTabIcon}
             isActive={isGoogleAds}
             onActivate={() => navigate(GOOGLE_ADS_ROUTE)}
             activeClassName="border-primary text-primary"
@@ -48,7 +50,7 @@ export function HeaderAndTab() {
           <ModuleTabNavItem
             pagePath={META_ADS_ROUTE}
             label="Meta Ads"
-            icon={Facebook}
+            icon={MetaTabIcon}
             isActive={isMetaAds}
             onActivate={() => navigate(META_ADS_ROUTE)}
             activeClassName="border-primary text-primary"

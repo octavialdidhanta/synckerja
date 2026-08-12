@@ -42,6 +42,22 @@
 - [ ] `meta-ads-upload-conversion` invoked (check leads Meta sync cell / edge logs).
 - [ ] Requires Meta Ads connected + Pixel/CAPI configured.
 
+## 6b. Click-to-WhatsApp offline conversion (`ctwa_clid`)
+
+**Prerequisites:** Run migrations `20260812120000_ctwa_conversion_attribution.sql` and `20260812140000_ctwa_lead_backfill.sql`. Deploy `whatsapp-webhook` and `meta-ads-upload-conversion`. Meta Ads connected with Pixel; WhatsApp Business connected at `/omnichannel/integrations/whatsapp`. Offline uploads enabled on `/omnichannel/settings/offline-conversion` (Meta tab).
+
+- [ ] Create or use a **Click to WhatsApp** ad in Meta Ads Manager (test ad account).
+- [ ] From a test device, tap **Send Message** on the ad → first inbound WA message includes `referral.ctwa_clid` in webhook payload.
+- [ ] DB: `whatsapp_conversations.ctwa_clid` and linked `leads.ctwa_clid` populated (first-touch only).
+- [ ] Mark the lead **Converted** in Livechat or Leads Management.
+- [ ] Edge logs: `meta-ads-upload-conversion` sends CAPI with `action_source: business_messaging`, `messaging_channel: whatsapp`, `user_data.ctwa_clid`.
+- [ ] DB: `meta_ads_conversion_uploads.upload_kind` = `ctwa` (or `both` if lead also has `fbclid`).
+- [ ] Leads table Meta sync cell shows **CTWA** (or **Both**) badge on success.
+- [ ] Meta Events Manager → Test Events (optional): verify event received when using test code.
+- [ ] **Negative:** Organic WA chat (no referral) → no `ctwa_clid`; Converted skips CTWA upload silently (`skip_reason` may include `no_ctwa_or_fbclid_or_contact` if no fbclid either).
+- [ ] **Form-lead reconcile:** Customer with existing `LEAD-*` row opens CTWA ad → after webhook reconcile, verify `leads.ctwa_clid` on the merged row (not only on deleted WA stub).
+- [ ] **App Review:** Request `whatsapp_business_manage_events` after sandbox pass. Screencast: CTWA ad click → chat in Synckerja → Converted → success badge / Events Manager.
+
 ## 7. Live Chat (existing)
 
 - [ ] DM to IG Business appears at `/omnichannel/livechat`.

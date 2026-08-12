@@ -12,6 +12,7 @@ import {
 import type { TooltipProps } from "recharts";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
 import { formatMetricValue } from "@/google-ads/metrics/formatMetricValue";
 import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
 import type {
@@ -34,20 +35,23 @@ const META_BAR = "hsl(262 55% 52%)";
 const TIKTOK_BAR = "hsl(350 80% 50%)";
 /** Combined all-channel total — distinct from Google (blue) and Meta (purple). */
 const COMBINED_BAR = "hsl(160 52% 36%)";
+/** Per-month slot width so full spend labels (e.g. IDR amounts) do not collide on scroll charts. */
+const MONTHLY_CATEGORY_MIN_PX = 128;
+
 const WIDE_MONTHLY_BAR_LAYOUT = {
-  barCategoryGap: "1%" as const,
+  barCategoryGap: "8%" as const,
   barGap: 0,
-  combinedBarSize: 94,
-  singleBarSize: 94,
-  groupedBarSize: 34,
+  combinedBarSize: 88,
+  singleBarSize: 88,
+  groupedBarSize: 40,
 };
 
 const GROUPED_MONTHLY_BAR_LAYOUT = {
-  barCategoryGap: "3%" as const,
-  barGap: 5,
-  combinedBarSize: 94,
-  singleBarSize: 94,
-  groupedBarSize: 42,
+  barCategoryGap: "6%" as const,
+  barGap: 6,
+  combinedBarSize: 88,
+  singleBarSize: 88,
+  groupedBarSize: 48,
 };
 
 function formatAxisTick(value: number, currency: string | null): string {
@@ -264,6 +268,8 @@ type Props = {
   chartDateOverlap: boolean;
   /** When true, render chart body only (no card shell or title). */
   embedded?: boolean;
+  /** Plot / empty-state height. Default `h-[300px]`. */
+  plotClassName?: string;
 };
 
 export function DigitalMarketingReportMonthlySpendChart({
@@ -276,6 +282,7 @@ export function DigitalMarketingReportMonthlySpendChart({
   chartLoading,
   chartDateOverlap,
   embedded = false,
+  plotClassName = "h-[300px]",
 }: Props) {
   const { t } = useAppTranslation();
 
@@ -389,7 +396,7 @@ export function DigitalMarketingReportMonthlySpendChart({
 
       {loading ? (
         bootstrapLoading ? null : (
-          <Skeleton className="h-[300px] w-full rounded-md" />
+          <Skeleton className={cn(plotClassName, "w-full rounded-md")} />
         )
       ) : !hasMonthlyChartDisplayableChannel(
           channelFilter,
@@ -397,7 +404,7 @@ export function DigitalMarketingReportMonthlySpendChart({
           metaSeries,
           tiktokSeries,
         ) ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
+        <div className={cn("flex items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground", plotClassName)}>
           {!googleSeries.connected && !metaSeries.connected && !tiktokSeries.connected
             ? t(
                 "digitalMarketing.report.monthlySpendNotConnected",
@@ -406,18 +413,18 @@ export function DigitalMarketingReportMonthlySpendChart({
             : blockingError}
         </div>
       ) : !chartDateOverlap ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
+        <div className={cn("flex items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground", plotClassName)}>
           {t(
             "digitalMarketing.report.monthlySpendNoOverlap",
             "The date filter does not overlap the selected chart year. Adjust the date range or chart year.",
           )}
         </div>
       ) : blockingError ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-red-600">
+        <div className={cn("flex items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-red-600", plotClassName)}>
           {blockingError}
         </div>
       ) : !hasData ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 text-sm text-muted-foreground">
+        <div className={cn("flex items-center justify-center rounded-md bg-gray-50 text-sm text-muted-foreground", plotClassName)}>
           {t("digitalMarketing.report.monthlySpendEmpty", "No spend data for this year.")}
         </div>
       ) : (
@@ -507,10 +514,12 @@ export function DigitalMarketingReportMonthlySpendChart({
               </span>
             ) : null}
           </div>
-          <div className="h-[300px] w-full min-w-0 overflow-x-auto">
+          <div className={cn(plotClassName, "w-full min-w-0 overflow-x-auto")}>
             <div
               className="h-full"
-              style={{ minWidth: Math.max(chartData.length * 48, 560) }}
+              style={{
+                minWidth: Math.max(chartData.length * MONTHLY_CATEGORY_MIN_PX, 720),
+              }}
             >
             <ResponsiveContainer width="100%" height="100%">
               <BarChart

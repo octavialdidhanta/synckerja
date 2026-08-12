@@ -59,10 +59,16 @@ function LivechatAvatar({
   const waConv = conv as WhatsAppConversation;
   const channel = isInstagram ? 'instagram' : isFacebook ? 'facebook' : (waConv.channel ?? 'whatsapp');
 
+  // Pass literal 'instagram' so the photo query cannot stay disabled from a stale/wrong source union.
   const { profileUrl } = useLivechatProfilePhoto(conv.id, {
-    source: conv.source,
+    source: isInstagram ? 'instagram' : isEmail ? 'email' : isFacebook ? 'facebook' : 'whatsapp',
     channel,
   });
+
+  useEffect(() => {
+    if (!isInstagram) return;
+    console.info('[livechat-avatar-mount]', { id: conv.id, source: conv.source, hasPhoto: Boolean(profileUrl) });
+  }, [isInstagram, conv.id, conv.source, profileUrl]);
 
   const initials = displayName
     .trim()

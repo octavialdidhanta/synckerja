@@ -1,15 +1,12 @@
 import type { ReactNode } from "react";
-import {
-  Building2,
-  ImageIcon,
-  KeyRound,
-  LayoutGrid,
-  Megaphone,
-  Settings,
-  type LucideIcon,
-} from "lucide-react";
+import { Building2, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
+import {
+  GOOGLE_ADS_ENTITY_NAV_GROUPS,
+  type GoogleAdsEntityNavGroupDef,
+  type GoogleAdsEntityNavItemDef,
+} from "@/google-ads/metrics/googleAdsEntityNavGroups";
 import type { GoogleAdsMetricEntity } from "@/google-ads/metrics/types";
 
 export type GoogleAdsNavAccount = {
@@ -18,61 +15,6 @@ export type GoogleAdsNavAccount = {
   customer_id: string;
   is_default: boolean | null;
 };
-
-type NavItemDef = {
-  id: GoogleAdsMetricEntity;
-  labelKey: string;
-  defaultLabel: string;
-  icon: LucideIcon;
-};
-
-type NavGroupDef = {
-  id: string;
-  sectionKey: string;
-  sectionDefault: string;
-  items: NavItemDef[];
-};
-
-const NAV_GROUPS: NavGroupDef[] = [
-  {
-    id: "report",
-    sectionKey: "digitalMarketing.googleAds.navSectionCampaigns",
-    sectionDefault: "Campaigns",
-    items: [
-      {
-        id: "campaign",
-        labelKey: "digitalMarketing.googleAds.navCampaigns",
-        defaultLabel: "Campaigns",
-        icon: Megaphone,
-      },
-      {
-        id: "ad_group",
-        labelKey: "digitalMarketing.googleAds.navAdGroups",
-        defaultLabel: "Ad groups",
-        icon: LayoutGrid,
-      },
-      {
-        id: "ad",
-        labelKey: "digitalMarketing.googleAds.navAds",
-        defaultLabel: "Ads",
-        icon: ImageIcon,
-      },
-    ],
-  },
-  {
-    id: "targeting",
-    sectionKey: "digitalMarketing.googleAds.navSectionTargeting",
-    sectionDefault: "Targeting",
-    items: [
-      {
-        id: "keyword",
-        labelKey: "digitalMarketing.googleAds.navKeywords",
-        defaultLabel: "Keywords",
-        icon: KeyRound,
-      },
-    ],
-  },
-];
 
 const ACCOUNT_NAV_MAX_VISIBLE = 5;
 
@@ -175,7 +117,7 @@ function NavGroupSection({
   settingsActive,
   onSettingsSelect,
 }: {
-  group: NavGroupDef;
+  group: GoogleAdsEntityNavGroupDef;
   entity: GoogleAdsMetricEntity;
   onEntityChange: (entity: GoogleAdsMetricEntity) => void;
   showTopBorder?: boolean;
@@ -189,7 +131,7 @@ function NavGroupSection({
     <div className={cn("px-2 py-2", showTopBorder && "border-t border-gray-200")}>
       <SectionLabel>{t(group.sectionKey, group.sectionDefault)}</SectionLabel>
       <ul className="space-y-0.5" role="list">
-        {group.items.map((item) => {
+        {group.items.map((item: GoogleAdsEntityNavItemDef) => {
           const label = t(item.labelKey, item.defaultLabel);
           const isActive = !settingsActive && entity === item.id;
           const Icon = item.icon;
@@ -256,7 +198,7 @@ export function GoogleAdsEntityNav({
         accountsPending={accountsPending}
         onCustomerIdChange={onCustomerIdChange}
       />
-      {NAV_GROUPS.map((group, index) => (
+      {GOOGLE_ADS_ENTITY_NAV_GROUPS.map((group, index) => (
         <NavGroupSection
           key={group.id}
           group={group}

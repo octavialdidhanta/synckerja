@@ -14,6 +14,11 @@ import {
   refreshLeadClientIfPlaceholder,
 } from "../_shared/omnichannelLeadClientName.ts";
 import { fillClientProfileEmailFromInboundMessage } from "../_shared/livechat/fillClientProfileEmailFromInbound.ts";
+import { parseCtwaReferral } from "../_shared/ctwaReferral.ts";
+import {
+  syncCtwaClidToLinkedLead,
+  WA_TICKET_PREFIX,
+} from "../_shared/ctwaLeadSync.ts";
 
 /** Declare Deno global for IDE when edge-runtime.d.ts is not resolved */
 declare const Deno: {
@@ -475,7 +480,48 @@ function waPhonesMatch(a: string | null | undefined, b: string | null | undefine
   return false;
 }
 
-const WA_TICKET_PREFIX = "WA-";
+/** First-touch CTWA referral persist on conversation, then sync to linked lead if present. */
+async function persistCtwaReferralOnConversation(
+  supabase: ReturnType<typeof createClient>,
+  orgId: string,
+  convId: string,
+  referral: unknown,
+): Promise<void> {
+  const snapshot = parseCtwaReferral(referral);
+  if (!snapshot) return;
+
+  const { data: convRow } = await supabase
+    .from("whatsapp_conversations")
+    .select("ctwa_clid")
+    .eq("id", convId)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+
+  if (convRow?.ctwa_clid?.trim()) {
+    await syncCtwaClidToLinkedLead(supabase, { organizationId: orgId, conversationId: convId });
+    return;
+  }
+
+  const capturedAt = new Date().toISOString();
+  const { error: convErr } = await supabase
+    .from("whatsapp_conversations")
+    .update({
+      ctwa_clid: snapshot.ctwa_clid,
+      ctwa_referral: snapshot.raw,
+      ctwa_captured_at: capturedAt,
+      updated_at: capturedAt,
+    })
+    .eq("id", convId)
+    .eq("organization_id", orgId)
+    .is("ctwa_clid", null);
+
+  if (convErr) {
+    console.error("persistCtwaReferralOnConversation: conversation update failed", convErr.message);
+    return;
+  }
+
+  await syncCtwaClidToLinkedLead(supabase, { organizationId: orgId, conversationId: convId });
+}
 
 /**
  * When a website/contact-form lead (ticket_id LEAD-…) already exists for the same number,
@@ -526,6 +572,7 @@ async function reconcileFormLeadWithWaTicket(
     return;
   }
   console.log("reconcileFormLeadWithWaTicket: merged into form lead", { lead_id: formLeadId, ticket_id: ticketId });
+  await syncCtwaClidToLinkedLead(supabase, { organizationId: orgId, conversationId: convId });
 }
 
 /** Insert a lead row when a new WhatsApp conversation is created. Link by ticket_id (WA-xxx). */
@@ -556,6 +603,7 @@ async function ensureLeadForNewConversation(
         clientName: incoming,
       });
     }
+    await syncCtwaClidToLinkedLead(supabase, { organizationId: orgId, conversationId: convId });
     return String(existing.id);
   }
 
@@ -606,6 +654,7 @@ async function ensureLeadForNewConversation(
           ticket_id: ticketId,
         });
       }
+      await syncCtwaClidToLinkedLead(supabase, { organizationId: orgId, conversationId: convId });
       return formLeadId;
     }
   }
@@ -652,6 +701,7 @@ async function ensureLeadForNewConversation(
             .eq("is_active", true);
         }
       }
+      await syncCtwaClidToLinkedLead(supabase, { organizationId: orgId, conversationId: convId });
       return floatingStubId;
     }
   }
@@ -679,6 +729,7 @@ async function ensureLeadForNewConversation(
     return null;
   }
   console.log("ensureLeadForNewConversation: lead created", { ticket_id: ticketId, source });
+  await syncCtwaClidToLinkedLead(supabase, { organizationId: orgId, conversationId: convId });
   return newLeadId;
 }
 
@@ -1481,6 +1532,11 @@ Deno.serve(async (req: Request) => {
                   continue;
                 }
 
+                const msgReferral = (msg as { referral?: unknown }).referral;
+                if (msgReferral) {
+                  await persistCtwaReferralOnConversation(supabase, orgId, conv.id, msgReferral);
+                }
+
                 if (isMetaFormFlowSubmission && extracted.flowResponse) {
                   const ticketId = WA_TICKET_PREFIX + String(conv.id).replace(/-/g, "").slice(0, 8).toUpperCase();
                   const { data: leadRow } = await supabase
@@ -1562,6 +1618,10 @@ Deno.serve(async (req: Request) => {
                 } else {
                   await reconcileFormLead;
                   await vialdiLeadSync;
+                  await syncCtwaClidToLinkedLead(supabase, {
+                    organizationId: orgId,
+                    conversationId: conv.id,
+                  });
                 }
 
                 let mediaUrl: string | null = null;
