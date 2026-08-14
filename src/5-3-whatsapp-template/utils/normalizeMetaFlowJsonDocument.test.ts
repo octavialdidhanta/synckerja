@@ -39,13 +39,25 @@ describe("normalizeMetaFlowJsonDocument", () => {
     }
   });
 
-  it("bumps frozen flow json version 5.0 to supported version", () => {
-    const { flowJson } = buildCustomFormFlowJson({
-      screenTitle: "Test",
-      fields: [{ name: "nama", label: "Nama", inputType: "text", required: true }],
-    });
-    flowJson.version = "5.0";
-    const normalized = normalizeMetaFlowJsonDocument(flowJson);
+  it("migrates legacy TextEntry components to TextInput", () => {
+    const doc = {
+      version: "5.0",
+      screens: [
+        {
+          id: "CUSTOM_FORM_SCREEN",
+          layout: {
+            type: "SingleColumnLayout",
+            children: [{ type: "TextEntry", name: "nama", label: "Nama", required: true }],
+          },
+        },
+      ],
+    };
+    const normalized = normalizeMetaFlowJsonDocument(doc);
+    const children = (
+      (normalized?.screens as Array<{ layout?: { children?: Array<{ type?: string }> } }> | undefined)?.[0]
+        ?.layout?.children ?? []
+    );
+    expect(children[0]?.type).toBe("TextInput");
     expect(normalized?.version).toBe("7.3");
   });
 });

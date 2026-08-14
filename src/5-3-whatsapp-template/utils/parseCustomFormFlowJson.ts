@@ -61,7 +61,7 @@ export function parseCustomFormFlowJson(flowJson: unknown): ParseCustomFormResul
       introText = String(row.text ?? "").trim();
       continue;
     }
-    if (type === "TextEntry") {
+    if (type === "TextInput" || type === "TextEntry") {
       const name = String(row.name ?? "").trim();
       const label = String(row.label ?? "").trim();
       if (!name || !label) continue;
@@ -79,7 +79,7 @@ export function parseCustomFormFlowJson(flowJson: unknown): ParseCustomFormResul
     screenTitle = String(screenObj.title ?? "").trim() || "Form";
   }
   if (fields.length === 0) {
-    return { ok: false, reason: "No TextEntry fields found" };
+    return { ok: false, reason: "No TextInput fields found" };
   }
 
   return {

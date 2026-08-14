@@ -103,13 +103,26 @@ export function useUpdateWhatsAppFlow() {
       const json = (await res.json().catch(() => ({}))) as {
         error?: string;
         details?: unknown;
-        result?: Record<string, unknown>;
+        result?: Record<string, unknown> & { validation_errors?: unknown[]; success?: boolean };
       };
       if (!res.ok) {
         const metaMsg = metaGraphErrorMessage(json?.details);
         throw new Error(metaMsg ?? (typeof json.error === "string" ? json.error : "Failed to update flow"));
       }
-      return json.result ?? {};
+      const result = json.result;
+      const ve = result?.validation_errors;
+      if (Array.isArray(ve) && ve.length > 0) {
+        const veMsg = ve
+          .map((e) => {
+            if (e != null && typeof e === "object" && "message" in e) {
+              return String((e as { message?: string }).message ?? e);
+            }
+            return typeof e === "string" ? e : JSON.stringify(e);
+          })
+          .join(" · ");
+        throw new Error(veMsg ? `Meta validation: ${veMsg}` : "Meta rejected the flow update");
+      }
+      return result ?? {};
     },
     onSuccess: (_data, variables) => {
       if (organizationId) {

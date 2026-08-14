@@ -160,9 +160,6 @@ export function MetaWhatsAppFormFlowsPanel() {
 
   return (
     <>
-      <p className="mb-4 text-sm text-muted-foreground">
-        {t("omnichannel.settings.flowBuilder.tab.form-flows")} — Meta interactive form flows (not Automation Flow).
-      </p>
       <div className="space-y-4">
         <FlowBuilderListingToolbar
           filters={filters}

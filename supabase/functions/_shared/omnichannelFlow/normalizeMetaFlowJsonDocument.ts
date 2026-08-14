@@ -1,4 +1,5 @@
 import { ensureSupportedFlowJsonVersion } from "./flowJsonVersion.ts";
+import { migrateLegacyFlowJsonComponents } from "./migrateLegacyFlowJsonComponents.ts";
 
 /**
  * Meta Flow JSON assets must be `{ version, screens, ... }` at the top level.
@@ -37,5 +38,5 @@ export function normalizeMetaFlowJsonDocument(raw: unknown): Record<string, unkn
     return normalizeMetaFlowJsonDocument(obj.flowJson);
   }
 
-  return ensureSupportedFlowJsonVersion(obj);
+  return migrateLegacyFlowJsonComponents(ensureSupportedFlowJsonVersion(obj));
 }

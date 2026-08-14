@@ -267,14 +267,12 @@ export function MetaFormFlowEditorShell({ flow, initialFlowJson }: MetaFormFlowE
             <ArrowLeft className="mr-1 h-4 w-4" />
             {t("omnichannel.settings.flowBuilder.formFlowsEditor.back")}
           </Button>
-          <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h3 className="truncate text-base font-semibold text-foreground">{flow.name || flow.id}</h3>
-            <div className="mt-0.5 flex items-center gap-2">
-              <FlowBuilderStatusBadge status={flowStatus} label={statusLabel} />
-              {isDirty ? (
-                <span className="text-xs text-amber-600">{t("omnichannel.settings.flowBuilder.formFlowsEditor.unsaved")}</span>
-              ) : null}
-            </div>
+            <FlowBuilderStatusBadge status={flowStatus} label={statusLabel} />
+            {isDirty ? (
+              <span className="text-xs text-amber-600">{t("omnichannel.settings.flowBuilder.formFlowsEditor.unsaved")}</span>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">

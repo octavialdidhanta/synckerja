@@ -68,7 +68,7 @@ export function buildCustomFormFlowJson(model: CustomFormModel): {
   for (const f of model.fields) {
     const label = f.label.trim().slice(0, LABEL_MAX);
     const row: Record<string, unknown> = {
-      type: "TextEntry",
+      type: "TextInput",
       name: f.name.trim(),
       label,
       required: Boolean(f.required),
