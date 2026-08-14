@@ -128,6 +128,29 @@ function metaErrorMessage(json: Record<string, unknown>): string {
   );
 }
 
+/** Meta requires multipart upload to `/{flow-id}/assets` for Flow JSON updates. */
+async function uploadFlowJsonAsset(
+  flowId: string,
+  accessToken: string,
+  flowJsonString: string,
+): Promise<{ ok: true; json: Record<string, unknown> } | { ok: false; error: string; details?: unknown }> {
+  const form = new FormData();
+  form.append("file", new Blob([flowJsonString], { type: "application/json" }), "flow.json");
+  form.append("name", "flow.json");
+  form.append("asset_type", "FLOW_JSON");
+
+  const res = await fetch(`${META_API_BASE}/${encodeURIComponent(flowId)}/assets`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: form,
+  });
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    return { ok: false, error: metaErrorMessage(json), details: json };
+  }
+  return { ok: true, json };
+}
+
 async function downloadFlowJsonAsset(
   flowId: string,
   accessToken: string,
@@ -329,7 +352,16 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const graphBody: Record<string, unknown> = { flow_json: fj.flowJsonString };
+
+      const upload = await uploadFlowJsonAsset(flowId, ctx.accessToken, fj.flowJsonString);
+      if (!upload.ok) {
+        return new Response(JSON.stringify({ error: upload.error, details: upload.details }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const metaBody: Record<string, unknown> = {};
       const updateName = body.name != null ? String(body.name).trim() : "";
       if (updateName) {
         if (!/^[a-z0-9_]{1,128}$/.test(updateName)) {
@@ -341,7 +373,7 @@ Deno.serve(async (req: Request) => {
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
           );
         }
-        graphBody.name = updateName;
+        metaBody.name = updateName;
       }
       if (body.categories != null) {
         const catResult = normalizeCategories(body.categories);
@@ -351,28 +383,30 @@ Deno.serve(async (req: Request) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        graphBody.categories = catResult.categories;
+        metaBody.categories = catResult.categories;
       }
       const endpointUri = body.endpoint_uri != null ? String(body.endpoint_uri).trim() : "";
-      if (endpointUri) graphBody.endpoint_uri = endpointUri;
+      if (endpointUri) metaBody.endpoint_uri = endpointUri;
 
-      const updateUrl = `${META_API_BASE}/${encodeURIComponent(flowId)}`;
-      const res = await fetch(updateUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${ctx.accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(graphBody),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        return new Response(JSON.stringify({ error: metaErrorMessage(json), details: json }), {
-          status: res.status >= 400 && res.status < 600 ? res.status : 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (Object.keys(metaBody).length > 0) {
+        const metaRes = await fetch(`${META_API_BASE}/${encodeURIComponent(flowId)}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${ctx.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(metaBody),
         });
+        const metaJson = await metaRes.json().catch(() => ({}));
+        if (!metaRes.ok) {
+          return new Response(JSON.stringify({ error: metaErrorMessage(metaJson), details: metaJson }), {
+            status: metaRes.status >= 400 && metaRes.status < 600 ? metaRes.status : 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
-      return new Response(JSON.stringify({ success: true, result: json }), {
+
+      return new Response(JSON.stringify({ success: true, result: upload.json }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

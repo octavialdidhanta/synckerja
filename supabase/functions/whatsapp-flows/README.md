@@ -57,6 +57,8 @@ Response: `{ flow: { id, name, status, categories, updated_at }, flow_json: obje
 
 Updates flow JSON (and optional metadata) on Meta. Body: `{ "action": "update", "flow_id": "<ID>", "flow_json": { ... } }`.
 
+Flow JSON is uploaded to Meta via `POST /{flow-id}/assets` (multipart `file` + `name=flow.json` + `asset_type=FLOW_JSON`). Optional `name`, `categories`, or `endpoint_uri` are sent separately to `POST /{flow-id}`.
+
 Editing a published flow returns it to **DRAFT** until published again.
 
 ## Limits
