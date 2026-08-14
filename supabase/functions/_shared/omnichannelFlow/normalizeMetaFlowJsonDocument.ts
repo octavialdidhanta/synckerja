@@ -1,3 +1,5 @@
+import { ensureSupportedFlowJsonVersion } from "./flowJsonVersion.ts";
+
 /**
  * Meta Flow JSON assets must be `{ version, screens, ... }` at the top level.
  * Some flows were saved with API payload wrappers or legacy create bugs.
@@ -13,7 +15,7 @@ export function normalizeMetaFlowJsonDocument(raw: unknown): Record<string, unkn
     try {
       return normalizeMetaFlowJsonDocument(JSON.parse(obj.flow_json.trim()));
     } catch {
-      return obj;
+      return ensureSupportedFlowJsonVersion(obj);
     }
   }
 
@@ -35,5 +37,5 @@ export function normalizeMetaFlowJsonDocument(raw: unknown): Record<string, unkn
     return normalizeMetaFlowJsonDocument(obj.flowJson);
   }
 
-  return obj;
+  return ensureSupportedFlowJsonVersion(obj);
 }

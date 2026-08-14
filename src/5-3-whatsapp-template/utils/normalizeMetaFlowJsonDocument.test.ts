@@ -12,7 +12,7 @@ describe("normalizeMetaFlowJsonDocument", () => {
     });
     const wrapped = { flow_json: flowJson };
     const normalized = normalizeMetaFlowJsonDocument(wrapped);
-    expect(normalized?.version).toBe("5.0");
+    expect(normalized?.version).toBe("7.3");
     expect(Array.isArray(normalized?.screens)).toBe(true);
     expect(parseCustomFormFlowJson(normalized).ok).toBe(true);
   });
@@ -35,7 +35,17 @@ describe("normalizeMetaFlowJsonDocument", () => {
     const result = validateFlowJsonSyntax(JSON.stringify({ flow_json: flowJson }));
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value.version).toBe("5.0");
+      expect(result.value.version).toBe("7.3");
     }
+  });
+
+  it("bumps frozen flow json version 5.0 to supported version", () => {
+    const { flowJson } = buildCustomFormFlowJson({
+      screenTitle: "Test",
+      fields: [{ name: "nama", label: "Nama", inputType: "text", required: true }],
+    });
+    flowJson.version = "5.0";
+    const normalized = normalizeMetaFlowJsonDocument(flowJson);
+    expect(normalized?.version).toBe("7.3");
   });
 });

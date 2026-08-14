@@ -1,11 +1,14 @@
+import { WHATSAPP_FLOW_JSON_VERSION } from "./flowJsonVersion";
+
+export { WHATSAPP_FLOW_JSON_VERSION };
+
 /**
  * Builds WhatsApp Flow JSON for a minimal “custom form” (single screen, navigate + complete).
  * Schema follows Meta Flow JSON reference (components + layout).
  *
- * **Flow JSON version:** `5.0` — bump when Meta deprecates or when you need newer components.
+ * **Flow JSON version:** see `WHATSAPP_FLOW_JSON_VERSION` — bump when Meta deprecates.
  * @see https://developers.facebook.com/docs/whatsapp/flows/reference/flowjson/
  */
-export const WHATSAPP_FLOW_JSON_VERSION = "5.0" as const;
 
 /** Single-screen entry id used for template FLOW `navigate_screen`. */
 export const CUSTOM_FORM_ENTRY_SCREEN_ID = "CUSTOM_FORM_SCREEN" as const;
