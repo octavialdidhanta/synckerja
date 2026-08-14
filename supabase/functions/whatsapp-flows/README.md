@@ -19,7 +19,7 @@ The Meta access token must include **WhatsApp Business Management** permissions 
 
 ### `GET /functions/v1/whatsapp-flows`
 
-Lists flows. Optional query: `fields` (default `id,name,status,categories`).
+Lists flows. Optional query: `fields` (default `id,name,status,categories`). Request `updated_at` for last-modified timestamps (Meta Graph API "UpdatedAt" field).
 
 ### `POST /functions/v1/whatsapp-flows`
 
@@ -36,6 +36,28 @@ Body (JSON):
 | `endpoint_uri` | no | Required for some Flow JSON / `data_exchange` setups |
 
 Response: `{ success: true, result: <Graph response> }` including `id`, `validation_errors`, etc.
+
+### `POST` with `action: "publish"`
+
+Publishes a draft flow. Body: `{ "action": "publish", "flow_id": "<META_FLOW_ID>" }`.
+
+### `POST` with `action: "delete"`
+
+Deletes a draft flow from Meta (only flows in `DRAFT` status). Body: `{ "action": "delete", "flow_id": "<META_FLOW_ID>" }`.
+
+Published flows cannot be deleted via Meta; use Meta’s deprecate API separately if needed.
+
+### `GET` with `flow_id` query
+
+Fetches a single flow plus downloadable `flow_json` asset. Example: `GET /whatsapp-flows?flow_id=123456789`.
+
+Response: `{ flow: { id, name, status, categories, updated_at }, flow_json: object | null }`.
+
+### `POST` with `action: "update"`
+
+Updates flow JSON (and optional metadata) on Meta. Body: `{ "action": "update", "flow_id": "<ID>", "flow_json": { ... } }`.
+
+Editing a published flow returns it to **DRAFT** until published again.
 
 ## Limits
 

@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { normalizeMetaFlowJsonDocument } from "../_shared/omnichannelFlow/normalizeMetaFlowJsonDocument.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -88,7 +89,11 @@ function normalizeFlowJsonString(raw: unknown): { ok: true; flowJsonString: stri
       return { ok: false, error: "flow_json string must be valid JSON" };
     }
   } else if (typeof raw === "object" && !Array.isArray(raw)) {
-    s = JSON.stringify(raw);
+    const normalized = normalizeMetaFlowJsonDocument(raw);
+    if (!normalized) {
+      return { ok: false, error: "flow_json must be a valid Flow JSON object" };
+    }
+    s = JSON.stringify(normalized);
   } else {
     return { ok: false, error: "flow_json must be an object or JSON string" };
   }
@@ -112,6 +117,37 @@ function normalizeCategories(raw: unknown): { ok: true; categories: string[] } |
     out.push(u);
   }
   return { ok: true, categories: out };
+}
+
+function metaErrorMessage(json: Record<string, unknown>): string {
+  const err = json?.error as { error_user_msg?: string; message?: string } | undefined;
+  return (
+    err?.error_user_msg?.trim() ||
+    err?.message?.trim() ||
+    String(json?.error_message ?? "Meta API error")
+  );
+}
+
+async function downloadFlowJsonAsset(
+  flowId: string,
+  accessToken: string,
+): Promise<Record<string, unknown> | null> {
+  const assetsRes = await fetch(`${META_API_BASE}/${encodeURIComponent(flowId)}/assets`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const assetsJson = await assetsRes.json().catch(() => ({}));
+  if (!assetsRes.ok) return null;
+  const items = (assetsJson as { data?: Array<{ asset_type?: string; download_url?: string }> }).data ?? [];
+  const flowJsonAsset = items.find(
+    (a) => a.asset_type === "FLOW_JSON" && typeof a.download_url === "string" && a.download_url.trim(),
+  );
+  if (!flowJsonAsset?.download_url) return null;
+  const jsonRes = await fetch(flowJsonAsset.download_url);
+  const flowJson = await jsonRes.json().catch(() => null);
+  if (flowJson != null && typeof flowJson === "object" && !Array.isArray(flowJson)) {
+    return normalizeMetaFlowJsonDocument(flowJson);
+  }
+  return null;
 }
 
 Deno.serve(async (req: Request) => {
@@ -172,6 +208,35 @@ Deno.serve(async (req: Request) => {
 
     if (req.method === "GET") {
       const urlObj = new URL(req.url);
+      const flowId = urlObj.searchParams.get("flow_id")?.trim() ?? "";
+
+      if (flowId) {
+        const detailFields =
+          urlObj.searchParams.get("fields")?.trim() || "id,name,status,categories,updated_at";
+        const detailUrl = `${META_API_BASE}/${encodeURIComponent(flowId)}?fields=${encodeURIComponent(detailFields)}`;
+        const detailRes = await fetch(detailUrl, {
+          headers: { Authorization: `Bearer ${ctx.accessToken}` },
+        });
+        const detailJson = await detailRes.json().catch(() => ({}));
+        if (!detailRes.ok) {
+          return new Response(JSON.stringify({ error: metaErrorMessage(detailJson), details: detailJson }), {
+            status: detailRes.status >= 400 && detailRes.status < 600 ? detailRes.status : 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const flowJson = await downloadFlowJsonAsset(flowId, ctx.accessToken);
+        return new Response(
+          JSON.stringify({
+            flow: detailJson,
+            flow_json: flowJson,
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
       const fields = urlObj.searchParams.get("fields")?.trim() || "id,name,status,categories";
       const graphUrl = `${META_API_BASE}/${encodeURIComponent(ctx.wabaId)}/flows?fields=${encodeURIComponent(fields)}`;
       const res = await fetch(graphUrl, {
@@ -212,6 +277,97 @@ Deno.serve(async (req: Request) => {
       if (!res.ok) {
         const msg = json?.error?.message ?? json?.error_message ?? "Meta API error";
         return new Response(JSON.stringify({ error: String(msg), details: json }), {
+          status: res.status >= 400 && res.status < 600 ? res.status : 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ success: true, result: json }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "delete") {
+      const flowId = body.flow_id != null ? String(body.flow_id).trim() : "";
+      if (!flowId) {
+        return new Response(JSON.stringify({ error: "flow_id is required", code: "INVALID_BODY" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const deleteUrl = `${META_API_BASE}/${encodeURIComponent(flowId)}`;
+      const res = await fetch(deleteUrl, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${ctx.accessToken}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = metaErrorMessage(json);
+        return new Response(JSON.stringify({ error: String(msg), details: json }), {
+          status: res.status >= 400 && res.status < 600 ? res.status : 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ success: true, result: json }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "update") {
+      const flowId = body.flow_id != null ? String(body.flow_id).trim() : "";
+      if (!flowId) {
+        return new Response(JSON.stringify({ error: "flow_id is required", code: "INVALID_BODY" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const fj = normalizeFlowJsonString(body.flow_json);
+      if (!fj.ok) {
+        return new Response(JSON.stringify({ error: fj.error, code: "INVALID_FLOW_JSON" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const graphBody: Record<string, unknown> = { flow_json: fj.flowJsonString };
+      const updateName = body.name != null ? String(body.name).trim() : "";
+      if (updateName) {
+        if (!/^[a-z0-9_]{1,128}$/.test(updateName)) {
+          return new Response(
+            JSON.stringify({
+              error: "Invalid name (lowercase letters, numbers, underscores only, max 128)",
+              code: "INVALID_NAME",
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        graphBody.name = updateName;
+      }
+      if (body.categories != null) {
+        const catResult = normalizeCategories(body.categories);
+        if (!catResult.ok) {
+          return new Response(JSON.stringify({ error: catResult.error, code: "INVALID_CATEGORIES" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        graphBody.categories = catResult.categories;
+      }
+      const endpointUri = body.endpoint_uri != null ? String(body.endpoint_uri).trim() : "";
+      if (endpointUri) graphBody.endpoint_uri = endpointUri;
+
+      const updateUrl = `${META_API_BASE}/${encodeURIComponent(flowId)}`;
+      const res = await fetch(updateUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${ctx.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(graphBody),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return new Response(JSON.stringify({ error: metaErrorMessage(json), details: json }), {
           status: res.status >= 400 && res.status < 600 ? res.status : 502,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

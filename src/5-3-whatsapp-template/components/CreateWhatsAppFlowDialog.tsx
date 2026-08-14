@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { MoreVertical, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -16,6 +15,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/shared/components/ui/switch";
 import { cn } from "@/shared/lib/utils";
 import { useCreateWhatsAppFlow } from "../hooks/useCreateWhatsAppFlow";
+import { CustomFormFlowPreview } from "@/5-3-whatsapp-template/components/meta-form-flow/CustomFormFlowPreview";
+import {
+  newLocalFieldKey,
+  slugFieldNameFromLabel,
+  type LocalFormField,
+} from "@/5-3-whatsapp-template/components/meta-form-flow/customFormFlowEditorTypes";
 import {
   buildCustomFormFlowJson,
   CUSTOM_FORM_ENTRY_SCREEN_ID,
@@ -26,232 +31,8 @@ import {
 
 type FlowWizardType = "custom" | "survey" | "event" | "signup";
 
-type LocalField = CustomFormField & { localKey: string };
-
-function newLocalKey(): string {
-  return `lf_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-}
-
-function slugFieldName(label: string, index: number): string {
-  const base = toFlowApiName(label).replace(/^_|_$/g, "") || `field_${index + 1}`;
-  return base.length > 64 ? base.slice(0, 64) : base;
-}
-
 const META_WHATSAPP_FLOWS_MANAGER =
   "https://business.facebook.com/latest/whatsapp_manager/flows?nav_ref=whatsapp_manager";
-
-function inputPreviewProps(inputType: CustomFormFieldInputType): { type: string; placeholder: string } {
-  switch (inputType) {
-    case "email":
-      return { type: "email", placeholder: "email@contoh.com" };
-    case "number":
-      return { type: "text", placeholder: "0" };
-    case "phone":
-      return { type: "tel", placeholder: "+62…" };
-    case "text":
-    default:
-      return { type: "text", placeholder: "…" };
-  }
-}
-
-const DRAWER_TOP_MIN = 6;
-const DRAWER_TOP_MAX = 78;
-const DRAWER_TOP_DEFAULT = 14;
-
-function CustomFormFlowPreview({
-  screenTitle,
-  introText,
-  fields,
-}: {
-  screenTitle: string;
-  introText: string;
-  fields: LocalField[];
-}) {
-  const title = screenTitle.trim() || "Judul layar";
-  const shellRef = useRef<HTMLDivElement>(null);
-  const [drawerTopPct, setDrawerTopPct] = useState(DRAWER_TOP_DEFAULT);
-  const dragRef = useRef<{ pointerId: number; startY: number; startTop: number } | null>(null);
-
-  const onDragStart = (e: React.PointerEvent) => {
-    e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    dragRef.current = { pointerId: e.pointerId, startY: e.clientY, startTop: drawerTopPct };
-  };
-
-  const onDragMove = (e: React.PointerEvent) => {
-    const d = dragRef.current;
-    if (!d || e.pointerId !== d.pointerId) return;
-    const shell = shellRef.current;
-    if (!shell) return;
-    const h = shell.getBoundingClientRect().height;
-    if (h < 1) return;
-    const deltaPct = ((e.clientY - d.startY) / h) * 100;
-    const next = Math.min(DRAWER_TOP_MAX, Math.max(DRAWER_TOP_MIN, d.startTop + deltaPct));
-    setDrawerTopPct(next);
-  };
-
-  const onDragEnd = (e: React.PointerEvent) => {
-    const d = dragRef.current;
-    if (!d || e.pointerId !== d.pointerId) return;
-    dragRef.current = null;
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      /* already released */
-    }
-  };
-
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="text-center">
-        <p className="text-xs font-semibold tracking-wide text-slate-700">Preview</p>
-        <p className="text-[10px] text-muted-foreground">
-          Seret <span className="font-medium">handle</span> atau area grip di atas drawer untuk naik/turun
-        </p>
-      </div>
-
-      {/* Device chassis — bezel + rounded screen */}
-      <div
-        className={cn(
-          "relative mx-auto w-[min(100%,300px)] shrink-0",
-          "rounded-[2.85rem] border border-black/50 bg-gradient-to-b from-[#2c3137] via-[#1e2429] to-[#0f1215]",
-          "p-[11px] shadow-[0_28px_56px_-12px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.06)]",
-        )}
-      >
-        {/* Side button hint */}
-        <div
-          className="pointer-events-none absolute -left-[2px] top-[22%] z-10 h-10 w-[3px] rounded-l-sm bg-black/40"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute -right-[2px] top-[28%] z-10 h-14 w-[3px] rounded-r-sm bg-black/35"
-          aria-hidden
-        />
-
-        <div
-          ref={shellRef}
-          className="relative aspect-[9/19] min-h-[420px] w-full overflow-hidden rounded-[2.2rem] bg-black ring-1 ring-black/80"
-        >
-          {/* Chat wallpaper (behind drawer) */}
-          <div
-            className="absolute inset-0 bg-[#e5ddd5]"
-            style={{
-              backgroundImage: `radial-gradient(circle at 1px 1px, rgba(0,0,0,0.045) 1px, transparent 0)`,
-              backgroundSize: "14px 14px",
-            }}
-          />
-          {/* Fake chat row peek */}
-          <div className="absolute left-3 right-3 top-12 z-0 space-y-2 opacity-90">
-            <div className="max-w-[78%] rounded-lg rounded-tl-sm bg-white px-2.5 py-1.5 text-[11px] text-slate-800 shadow-sm">
-              Halo! Ada yang bisa kami bantu?
-            </div>
-            <div className="ml-auto max-w-[72%] rounded-lg rounded-tr-sm bg-[#d9fdd3] px-2.5 py-1.5 text-[11px] text-slate-900 shadow-sm">
-              Saya ingin isi formulir
-            </div>
-          </div>
-
-          {/* Dim overlay — chat stays visible like in-app */}
-          <div className="absolute inset-0 z-10 bg-black/40 backdrop-blur-[0.5px]" aria-hidden />
-
-          {/* Flow drawer — sheet from bottom (above dim); top% adjusted by drag */}
-          <div
-            className="absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-[1.35rem] bg-white shadow-[0_-12px_40px_rgba(0,0,0,0.35)]"
-            style={{ top: `${drawerTopPct}%` }}
-          >
-            {/* Drawer handle — interactive drag (expanded hit area) */}
-            <div
-              className="flex shrink-0 cursor-grab touch-none select-none flex-col items-center border-b border-slate-100/90 bg-white py-3 active:cursor-grabbing"
-              onPointerDown={onDragStart}
-              onPointerMove={onDragMove}
-              onPointerUp={onDragEnd}
-              onPointerCancel={onDragEnd}
-              role="slider"
-              aria-valuenow={Math.round(100 - drawerTopPct)}
-              aria-valuemin={100 - DRAWER_TOP_MAX}
-              aria-valuemax={100 - DRAWER_TOP_MIN}
-              aria-label="Seret untuk mengatur tinggi drawer pratinjau"
-            >
-              <div className="h-1 w-11 shrink-0 rounded-full bg-slate-300/95" />
-              <span className="mt-1 text-[9px] font-medium uppercase tracking-wide text-slate-400">Tarik</span>
-            </div>
-
-            <header className="flex shrink-0 items-center gap-1.5 border-b border-slate-100 px-2.5 py-2.5">
-              <button
-                type="button"
-                className="rounded-full p-1.5 text-slate-500 transition-colors hover:bg-slate-100"
-                aria-hidden
-                tabIndex={-1}
-              >
-                <X className="h-[18px] w-[18px]" strokeWidth={2} />
-              </button>
-              <h3 className="min-w-0 flex-1 truncate text-center text-[15px] font-semibold leading-tight text-slate-900">
-                {title}
-              </h3>
-              <button
-                type="button"
-                className="rounded-full p-1.5 text-slate-500 transition-colors hover:bg-slate-100"
-                aria-hidden
-                tabIndex={-1}
-              >
-                <MoreVertical className="h-[18px] w-[18px]" strokeWidth={2} />
-              </button>
-            </header>
-
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3.5 py-3">
-              <h4 className="text-lg font-bold leading-snug tracking-tight text-slate-900">{title}</h4>
-              {introText.trim() ? (
-                <p className="text-[14px] leading-relaxed text-slate-700 whitespace-pre-wrap">{introText}</p>
-              ) : null}
-              <div className="space-y-3.5 pb-1">
-                {fields.map((f) => {
-                  const label = f.label.trim() || "Label";
-                  const { type, placeholder } = inputPreviewProps(f.inputType);
-                  return (
-                    <div key={f.localKey} className="space-y-1.5">
-                      <label className="block text-[14px] font-medium leading-snug text-slate-900">
-                        {label}
-                        {f.required ? <span className="text-[#ea0038]"> *</span> : null}
-                      </label>
-                      {f.instructions?.trim() ? (
-                        <p className="text-xs leading-relaxed text-slate-500">{f.instructions.trim()}</p>
-                      ) : null}
-                      <input
-                        readOnly
-                        type={type}
-                        placeholder={placeholder}
-                        className="h-11 w-full rounded-md border border-slate-200 bg-[#f8f9fa] px-3 text-[15px] text-slate-800 outline-none ring-0 placeholder:text-slate-400"
-                        aria-hidden
-                        tabIndex={-1}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="shrink-0 border-t border-slate-100 bg-white px-3.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5">
-              <div className="h-11 w-full rounded-md bg-[#00a884] text-center text-[15px] font-medium leading-[2.75rem] text-white shadow-[0_1px_0_rgba(0,0,0,0.08)]">
-                Continue
-              </div>
-              <p className="mt-2 text-center text-[11px] leading-snug text-slate-400">Managed by the business.</p>
-            </div>
-          </div>
-
-          {/* Status / sensor strip — above dim + drawer in the top band */}
-          <div className="pointer-events-none absolute left-0 right-0 top-0 z-30 flex h-8 items-end justify-center pb-1">
-            <div className="flex w-[32%] min-w-[88px] items-center justify-center rounded-full bg-black/85 px-3 py-[5px]">
-              <div className="h-1.5 w-8 rounded-full bg-slate-700/90" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <p className="max-w-[280px] text-center text-[10px] leading-relaxed text-muted-foreground">
-        Isi formulir di pratinjau tetap statis; hanya drawer yang bisa digeser naik/turun seperti bottom sheet.
-      </p>
-    </div>
-  );
-}
 
 export function CreateWhatsAppFlowDialog({
   open,
@@ -271,9 +52,9 @@ export function CreateWhatsAppFlowDialog({
   const [introText, setIntroText] = useState("");
   const [apiName, setApiName] = useState("custom_form");
   const [apiNameTouched, setApiNameTouched] = useState(false);
-  const [fields, setFields] = useState<LocalField[]>(() => [
+  const [fields, setFields] = useState<LocalFormField[]>(() => [
     {
-      localKey: newLocalKey(),
+      localKey: newLocalFieldKey(),
       name: "nama",
       label: "Nama",
       instructions: "",
@@ -294,7 +75,7 @@ export function CreateWhatsAppFlowDialog({
     setApiNameTouched(false);
     setFields([
       {
-        localKey: newLocalKey(),
+        localKey: newLocalFieldKey(),
         name: "nama",
         label: "Nama",
         instructions: "",
@@ -330,7 +111,7 @@ export function CreateWhatsAppFlowDialog({
     setFields((prev) => [
       ...prev,
       {
-        localKey: newLocalKey(),
+        localKey: newLocalFieldKey(),
         name: `field_${idx + 1}`,
         label: "",
         instructions: "",
@@ -536,7 +317,7 @@ export function CreateWhatsAppFlowDialog({
                             <button
                               type="button"
                               className="text-[#1877F2] hover:underline"
-                              onClick={() => updateField(f.localKey, { name: slugFieldName(f.label, index) })}
+                              onClick={() => updateField(f.localKey, { name: slugFieldNameFromLabel(f.label, index) })}
                             >
                               Generate from label
                             </button>

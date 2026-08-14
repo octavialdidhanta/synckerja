@@ -6,6 +6,23 @@ export const FLOW_BUILDER_USAGE_PATH = `${FLOW_BUILDER_SETTINGS_BASE_PATH}/usage
 
 export const FLOW_BUILDER_FORM_FLOWS_PATH = `${FLOW_BUILDER_SETTINGS_BASE_PATH}/form-flows`;
 
+export function metaFormFlowEditPath(flowId: string): string {
+  return `${FLOW_BUILDER_FORM_FLOWS_PATH}/${encodeURIComponent(flowId)}/edit`;
+}
+
+export function parseMetaFormFlowEditId(pathname: string): string | null {
+  const prefix = `${FLOW_BUILDER_FORM_FLOWS_PATH}/`;
+  if (!pathname.startsWith(prefix)) return null;
+  const rest = pathname.slice(prefix.length).replace(/\/+$/, "");
+  const match = rest.match(/^([^/]+)\/edit$/);
+  if (!match?.[1]) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
 export type FlowBuilderTabId = "listing" | "usage" | "form-flows";
 
 export function parseFlowBuilderTabFromPathname(pathname: string): FlowBuilderTabId {

@@ -7,6 +7,7 @@ import {
   FLOW_BUILDER_SETTINGS_BASE_PATH,
   flowBuilderTabPath,
   parseFlowBuilderTabFromPathname,
+  parseMetaFormFlowEditId,
   type FlowBuilderTabId,
 } from "@/5-3-dashboard/omnichannel-settings/constants/flowBuilderPaths";
 import {
@@ -17,6 +18,7 @@ import {
 import { FlowBuilderListingPanel } from "@/5-3-dashboard/omnichannel-settings/components/flow-builder/listing/FlowBuilderListingPanel";
 import { FlowBuilderUsagePanel } from "@/5-3-dashboard/omnichannel-settings/components/flow-builder/FlowBuilderUsagePanel";
 import { MetaWhatsAppFormFlowsPanel } from "@/5-3-dashboard/omnichannel-settings/components/flow-builder/meta-form-flows/MetaWhatsAppFormFlowsPanel";
+import { MetaFormFlowEditorPage } from "@/5-3-dashboard/omnichannel-settings/components/flow-builder/meta-form-flows/MetaFormFlowEditorPage";
 
 const panelScrollClass =
   "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
@@ -33,12 +35,27 @@ export function FlowBuilderSettingsShell() {
     [location.pathname],
   );
 
+  const editFlowId = useMemo(
+    () => parseMetaFormFlowEditId(location.pathname),
+    [location.pathname],
+  );
+
   useEffect(() => {
     const normalized = location.pathname.replace(/\/+$/, "");
     if (normalized === FLOW_BUILDER_SETTINGS_BASE_PATH) {
       navigate(FLOW_BUILDER_LISTING_PATH, { replace: true });
     }
   }, [location.pathname, navigate]);
+
+  if (editFlowId) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className={`${panelScrollClass} flex-1 px-4 pb-4 pt-2`}>
+          <MetaFormFlowEditorPage flowId={editFlowId} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

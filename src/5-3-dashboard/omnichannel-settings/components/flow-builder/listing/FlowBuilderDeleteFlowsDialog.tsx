@@ -16,6 +16,8 @@ type FlowBuilderDeleteFlowsDialogProps = {
   loading: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
+  /** Override default confirm body (e.g. Meta draft-only delete rules). */
+  description?: string;
 };
 
 export function FlowBuilderDeleteFlowsDialog({
@@ -24,6 +26,7 @@ export function FlowBuilderDeleteFlowsDialog({
   loading,
   onOpenChange,
   onConfirm,
+  description,
 }: FlowBuilderDeleteFlowsDialogProps) {
   const { t } = useTranslation();
 
@@ -33,7 +36,7 @@ export function FlowBuilderDeleteFlowsDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>{t("omnichannel.settings.flowBuilder.listing.deleteConfirmTitle")}</AlertDialogTitle>
           <AlertDialogDescription>
-            {t("omnichannel.settings.flowBuilder.listing.deleteConfirmBody", { count })}
+            {description ?? t("omnichannel.settings.flowBuilder.listing.deleteConfirmBody", { count })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

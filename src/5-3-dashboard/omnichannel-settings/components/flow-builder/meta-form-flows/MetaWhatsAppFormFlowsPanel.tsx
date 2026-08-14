@@ -6,14 +6,17 @@ import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { FlowBuilderCreateFlowDialog } from "@/5-3-dashboard/omnichannel-settings/components/flow-builder/listing/FlowBuilderCreateFlowDialog";
+import { FlowBuilderDeleteFlowsDialog } from "@/5-3-dashboard/omnichannel-settings/components/flow-builder/listing/FlowBuilderDeleteFlowsDialog";
 import { FlowBuilderListingToolbar } from "@/5-3-dashboard/omnichannel-settings/components/flow-builder/listing/FlowBuilderListingToolbar";
 import {
   FlowBuilderListingPagination,
   FlowBuilderListingTable,
 } from "@/5-3-dashboard/omnichannel-settings/components/flow-builder/listing/FlowBuilderListingTable";
 import { FLOW_BUILDER_LISTING_PAGE_SIZE } from "@/5-3-dashboard/omnichannel-settings/constants/flowBuilderFilters";
+import { metaFormFlowEditPath } from "@/5-3-dashboard/omnichannel-settings/constants/flowBuilderPaths";
 import { filterFlowRows } from "@/5-3-dashboard/omnichannel-settings/lib/flow-builder/filterFlowRows";
 import { useWhatsAppFlows } from "@/5-3-dashboard/omnichannel-settings/hooks/flow-builder/useWhatsAppFlows";
+import { useDeleteWhatsAppFlows } from "@/5-3-dashboard/omnichannel-settings/hooks/flow-builder/useDeleteWhatsAppFlows";
 import { usePublishWhatsAppFlow } from "@/5-3-dashboard/omnichannel-settings/hooks/flow-builder/usePublishWhatsAppFlow";
 import type {
   FlowBuilderListingFilters,
@@ -53,10 +56,12 @@ export function MetaWhatsAppFormFlowsPanel() {
   const { data: staffRows = [] } = useOrganizationOmnichannelStaff();
   const { data: flows = [], isPending, isError, error } = useWhatsAppFlows();
   const publishMutation = usePublishWhatsAppFlow();
+  const deleteFlows = useDeleteWhatsAppFlows();
   const [filters, setFilters] = useState<FlowBuilderListingFilters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const userOptions = useMemo(() => mapStaffToUserOptions(staffRows), [staffRows]);
   const filteredRows = useMemo(() => filterFlowRows(flows, filters), [flows, filters]);
@@ -68,6 +73,19 @@ export function MetaWhatsAppFormFlowsPanel() {
   );
   const singleSelected = selectedRows.length === 1 ? selectedRows[0] : null;
   const canPublishSingleDraft = singleSelected?.status === "DRAFT";
+  const deletableSelectedRows = useMemo(
+    () => selectedRows.filter((row) => row.status === "DRAFT"),
+    [selectedRows],
+  );
+  const canDeleteSelected = deletableSelectedRows.length > 0;
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const valid = new Set(filteredRows.map((row) => row.id));
+      const next = new Set([...prev].filter((id) => valid.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filteredRows]);
 
   useEffect(() => {
     setPage((current) => Math.min(Math.max(1, current), pageCount));
@@ -105,6 +123,24 @@ export function MetaWhatsAppFormFlowsPanel() {
     }
   };
 
+  const handleConfirmDelete = async () => {
+    const flowIds = deletableSelectedRows.map((row) => row.id);
+    if (flowIds.length === 0) return;
+
+    try {
+      await deleteFlows.mutateAsync(flowIds);
+      setSelectedIds(new Set());
+      setDeleteOpen(false);
+      toast.success(t("omnichannel.settings.flowBuilder.listing.deleteSuccess", { count: flowIds.length }));
+    } catch (deleteError) {
+      toast.error(
+        deleteError instanceof Error
+          ? deleteError.message
+          : t("omnichannel.settings.flowBuilder.listing.deleteFailed"),
+      );
+    }
+  };
+
   if (isPending) {
     return (
       <div className="space-y-4">
@@ -138,14 +174,30 @@ export function MetaWhatsAppFormFlowsPanel() {
           onLastUpdatedDateChange={(lastUpdatedDate) => setFilters((p) => ({ ...p, lastUpdatedDate }))}
           onResetFilters={() => setFilters(DEFAULT_FILTERS)}
           onCreateClick={() => setCreateOpen(true)}
+          selectedCount={canDeleteSelected ? deletableSelectedRows.length : 0}
+          onDeleteClick={canDeleteSelected ? () => setDeleteOpen(true) : undefined}
         />
         {selectedRows.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
             <span className="text-xs text-muted-foreground">
               {selectedRows.length} selected
             </span>
+            {selectedRows.some((row) => row.status !== "DRAFT") ? (
+              <span className="text-xs text-muted-foreground">
+                {t("omnichannel.settings.flowBuilder.formFlows.deleteDraftOnlyHint")}
+              </span>
+            ) : null}
             {singleSelected ? (
               <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => navigate(metaFormFlowEditPath(singleSelected.id))}
+                >
+                  {t("omnichannel.settings.flowBuilder.formFlowsEditor.edit")}
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -176,6 +228,7 @@ export function MetaWhatsAppFormFlowsPanel() {
         <FlowBuilderListingTable
           rows={paginatedRows}
           selectedIds={selectedIds}
+          hideUserColumns
           onToggleRow={(id, checked) =>
             setSelectedIds((prev) => {
               const next = new Set(prev);
@@ -188,6 +241,7 @@ export function MetaWhatsAppFormFlowsPanel() {
             setSelectedIds(checked ? new Set(paginatedRows.map((r) => r.id)) : new Set())
           }
           onViewFlowLog={handleViewFlowLog}
+          onOpenMetaFlow={(row) => navigate(metaFormFlowEditPath(row.id))}
         />
         {filteredRows.length > FLOW_BUILDER_LISTING_PAGE_SIZE ? (
           <FlowBuilderListingPagination page={page} pageCount={pageCount} onPageChange={setPage} />
@@ -196,7 +250,16 @@ export function MetaWhatsAppFormFlowsPanel() {
       <FlowBuilderCreateFlowDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={() => toast.success(t("omnichannel.settings.flowBuilder.listing.createSuccess"))}
+      />
+      <FlowBuilderDeleteFlowsDialog
+        open={deleteOpen}
+        count={deletableSelectedRows.length}
+        loading={deleteFlows.isPending}
+        onOpenChange={setDeleteOpen}
+        onConfirm={() => void handleConfirmDelete()}
+        description={t("omnichannel.settings.flowBuilder.formFlows.deleteConfirmBody", {
+          count: deletableSelectedRows.length,
+        })}
       />
     </>
   );

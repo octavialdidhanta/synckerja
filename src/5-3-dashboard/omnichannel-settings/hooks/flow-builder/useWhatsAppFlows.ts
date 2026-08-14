@@ -16,7 +16,7 @@ async function fetchWhatsAppFlows(): Promise<MetaWhatsAppFlowApiRow[]> {
   } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error("Not authenticated");
 
-  const fields = encodeURIComponent("id,name,status,categories,updated_time");
+  const fields = encodeURIComponent("id,name,status,categories,updated_at");
   const url = `${SUPABASE_URL}/functions/v1/whatsapp-flows?fields=${fields}`;
   const res = await fetch(url, {
     headers: {

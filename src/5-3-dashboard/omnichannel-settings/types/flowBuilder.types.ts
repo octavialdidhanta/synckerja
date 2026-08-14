@@ -39,5 +39,8 @@ export type MetaWhatsAppFlowApiRow = {
   name?: string;
   status?: string;
   categories?: string[];
-  updated_time?: string;
+  /** Meta Graph API field (WhatsApp Flow "UpdatedAt"). */
+  updated_at?: string | number;
+  /** Legacy / mistaken field name — kept for fallback only. */
+  updated_time?: string | number;
 };

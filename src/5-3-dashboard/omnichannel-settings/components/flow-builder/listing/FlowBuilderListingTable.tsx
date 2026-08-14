@@ -23,6 +23,9 @@ type FlowBuilderListingTableProps = {
   onToggleAll: (checked: boolean) => void;
   onViewFlowLog?: (row: FlowBuilderListingRow) => void;
   onOpenFlow?: (row: FlowBuilderListingRow) => void;
+  onOpenMetaFlow?: (row: FlowBuilderListingRow) => void;
+  /** Meta Form Flows have no Synckerja user audit — hide user columns in that tab. */
+  hideUserColumns?: boolean;
 };
 
 function formatUpdatedAt(value: string | null, locale: Locale): string {
@@ -41,6 +44,8 @@ export function FlowBuilderListingTable({
   onToggleAll,
   onViewFlowLog,
   onOpenFlow,
+  onOpenMetaFlow,
+  hideUserColumns = false,
 }: FlowBuilderListingTableProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language === "id" ? idLocale : enUS;
@@ -52,6 +57,8 @@ export function FlowBuilderListingTable({
     if (status === "DRAFT") return t("omnichannel.settings.flowBuilder.status.draft");
     return t("omnichannel.settings.flowBuilder.status.other");
   };
+
+  const colSpan = hideUserColumns ? 5 : 7;
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
@@ -68,15 +75,19 @@ export function FlowBuilderListingTable({
             <TableHead>{t("omnichannel.settings.flowBuilder.listing.colFlowName")}</TableHead>
             <TableHead className="w-[120px]">{t("omnichannel.settings.flowBuilder.listing.colStatus")}</TableHead>
             <TableHead className="w-[120px]">{t("omnichannel.settings.flowBuilder.listing.colFlowLog")}</TableHead>
-            <TableHead className="min-w-[180px]">{t("omnichannel.settings.flowBuilder.listing.colCreatedBy")}</TableHead>
-            <TableHead className="min-w-[180px]">{t("omnichannel.settings.flowBuilder.listing.colLastUpdatedBy")}</TableHead>
+            {hideUserColumns ? null : (
+              <>
+                <TableHead className="min-w-[180px]">{t("omnichannel.settings.flowBuilder.listing.colCreatedBy")}</TableHead>
+                <TableHead className="min-w-[180px]">{t("omnichannel.settings.flowBuilder.listing.colLastUpdatedBy")}</TableHead>
+              </>
+            )}
             <TableHead className="w-[160px]">{t("omnichannel.settings.flowBuilder.listing.colLastUpdated")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="py-14 text-center text-sm text-muted-foreground">
+              <TableCell colSpan={colSpan} className="py-14 text-center text-sm text-muted-foreground">
                 {t("omnichannel.settings.flowBuilder.listing.empty")}
               </TableCell>
             </TableRow>
@@ -99,6 +110,14 @@ export function FlowBuilderListingTable({
                     >
                       {row.name}
                     </button>
+                  ) : row.kind === "meta_form" && onOpenMetaFlow ? (
+                    <button
+                      type="button"
+                      className="text-left text-primary hover:underline"
+                      onClick={() => onOpenMetaFlow(row)}
+                    >
+                      {row.name}
+                    </button>
                   ) : (
                     row.name
                   )}
@@ -118,18 +137,22 @@ export function FlowBuilderListingTable({
                     <FileText className="h-3.5 w-3.5" aria-hidden />
                   </Button>
                 </TableCell>
-                <TableCell>
-                  <FlowBuilderUserCell
-                    user={row.createdBy}
-                    emptyLabel={t("omnichannel.settings.flowBuilder.listing.noUser")}
-                  />
-                </TableCell>
-                <TableCell>
-                  <FlowBuilderUserCell
-                    user={row.lastUpdatedBy}
-                    emptyLabel={t("omnichannel.settings.flowBuilder.listing.noUser")}
-                  />
-                </TableCell>
+                {hideUserColumns ? null : (
+                  <>
+                    <TableCell>
+                      <FlowBuilderUserCell
+                        user={row.createdBy}
+                        emptyLabel={t("omnichannel.settings.flowBuilder.listing.noUser")}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <FlowBuilderUserCell
+                        user={row.lastUpdatedBy}
+                        emptyLabel={t("omnichannel.settings.flowBuilder.listing.noUser")}
+                      />
+                    </TableCell>
+                  </>
+                )}
                 <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                   {formatUpdatedAt(row.lastUpdatedAt, locale)}
                 </TableCell>

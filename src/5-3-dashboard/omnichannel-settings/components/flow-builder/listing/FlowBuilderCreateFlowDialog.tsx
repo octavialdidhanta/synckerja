@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -23,6 +24,7 @@ import {
   buildCustomFormFlowJson,
   toFlowApiName,
 } from "@/5-3-whatsapp-template/utils/buildCustomFormFlowJson";
+import { metaFormFlowEditPath } from "@/5-3-dashboard/omnichannel-settings/constants/flowBuilderPaths";
 
 const FLOW_CATEGORIES = [
   "LEAD_GENERATION",
@@ -43,6 +45,7 @@ export function FlowBuilderCreateFlowDialog({
   onCreated,
 }: FlowBuilderCreateFlowDialogProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const createFlow = useCreateWhatsAppFlow();
   const [displayName, setDisplayName] = useState("");
   const [category, setCategory] = useState<(typeof FLOW_CATEGORIES)[number]>("LEAD_GENERATION");
@@ -62,26 +65,28 @@ export function FlowBuilderCreateFlowDialog({
     }
 
     const apiName = toFlowApiName(trimmed).replace(/^_|_$/g, "") || "new_flow";
+    const { flowJson } = buildCustomFormFlowJson({
+      screenTitle: trimmed,
+      introText: t("omnichannel.settings.flowBuilder.listing.createDefaultIntro"),
+      fields: [
+        {
+          name: "nama",
+          label: "Nama",
+          inputType: "text",
+          required: true,
+        },
+      ],
+    });
     try {
-      await createFlow.mutateAsync({
+      const result = await createFlow.mutateAsync({
         name: apiName,
         categories: [category],
-        flow_json: buildCustomFormFlowJson({
-          screenTitle: trimmed,
-          introText: t("omnichannel.settings.flowBuilder.listing.createDefaultIntro"),
-          fields: [
-            {
-              name: "message",
-              label: t("omnichannel.settings.flowBuilder.listing.createDefaultFieldLabel"),
-              inputType: "text",
-              required: true,
-            },
-          ],
-        }),
+        flow_json: flowJson,
         publish: false,
       });
       onOpenChange(false);
       onCreated?.();
+      navigate(metaFormFlowEditPath(result.id));
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -106,6 +111,9 @@ export function FlowBuilderCreateFlowDialog({
               onChange={(event) => setDisplayName(event.target.value)}
               placeholder={t("omnichannel.settings.flowBuilder.listing.createNamePlaceholder")}
             />
+            <p className="text-xs text-muted-foreground">
+              {t("omnichannel.settings.flowBuilder.listing.createNameHint")}
+            </p>
           </div>
           <div className="space-y-2">
             <Label>{t("omnichannel.settings.flowBuilder.listing.createCategoryLabel")}</Label>

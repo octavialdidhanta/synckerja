@@ -1,5 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/shared/lib/supabaseClient";
+import { whatsAppFlowsQueryKey } from "@/5-3-dashboard/omnichannel-settings/hooks/flow-builder/useWhatsAppFlows";
 
 export type CreateWhatsAppFlowPayload = {
   name: string;
@@ -27,7 +29,18 @@ function formatValidationErrors(result: MetaFlowCreateResult): string | null {
     .join(" · ");
 }
 
+function metaGraphErrorMessage(details: unknown): string | null {
+  const err = (details as { error?: { error_user_msg?: string; message?: string } } | undefined)?.error;
+  const userMsg = err?.error_user_msg?.trim();
+  if (userMsg) return userMsg;
+  const msg = err?.message?.trim();
+  return msg || null;
+}
+
 export function useCreateWhatsAppFlow() {
+  const queryClient = useQueryClient();
+  const { organizationId } = useCurrentOrg();
+
   return useMutation({
     mutationFn: async (payload: CreateWhatsAppFlowPayload) => {
       const {
@@ -51,10 +64,11 @@ export function useCreateWhatsAppFlow() {
         result?: MetaFlowCreateResult;
       };
       if (!res.ok) {
+        const metaMsg = metaGraphErrorMessage(json?.details);
         const msg =
-          typeof json?.error === "string"
-            ? json.error
-            : json?.details?.error?.message ?? "Failed to create WhatsApp flow";
+          metaMsg ??
+          (typeof json?.error === "string" ? json.error : null) ??
+          "Failed to create WhatsApp flow";
         throw new Error(msg);
       }
       const result = json.result as MetaFlowCreateResult | undefined;
@@ -66,6 +80,11 @@ export function useCreateWhatsAppFlow() {
       const id = result.id != null ? String(result.id).trim() : "";
       if (!id) throw new Error("Flow created but no id returned");
       return { ...result, id } as MetaFlowCreateResult & { id: string };
+    },
+    onSuccess: () => {
+      if (organizationId) {
+        void queryClient.invalidateQueries({ queryKey: whatsAppFlowsQueryKey(organizationId) });
+      }
     },
   });
 }
