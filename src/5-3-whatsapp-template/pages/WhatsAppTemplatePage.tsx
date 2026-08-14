@@ -174,9 +174,11 @@ export function WhatsAppTemplatePage() {
   const displayDetailRow = useMemo((): TemplateTableRow | null => {
     if (!detailRow) return null;
     const arr = detailMetaQuery.data?.data;
-    const first = Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
-    if (first) {
-      const mapped = mapMetaTemplateToRow(first as MetaMessageTemplate);
+    const metaMatch = Array.isArray(arr)
+      ? arr.find((t) => String((t as { id?: string }).id ?? "") === detailRow.id)
+      : null;
+    if (metaMatch) {
+      const mapped = mapMetaTemplateToRow(metaMatch as MetaMessageTemplate);
       if (mapped) return mapped;
     }
     return detailRow;
