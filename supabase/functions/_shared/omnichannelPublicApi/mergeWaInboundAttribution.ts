@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { leadFbclidCapturePatch } from "../fbclidCapture.ts";
 import {
   resolveSessionMarketingAttribution,
   type SessionMarketingRow,
@@ -223,7 +224,7 @@ export async function applyAttributionToWaLead(
 
   const { data: current } = await supabase
     .from("leads")
-    .select("attribution, attribution_label")
+    .select("attribution, attribution_label, gclid, fbclid, fbclid_captured_at")
     .eq("id", leadId)
     .maybeSingle();
 
@@ -231,14 +232,31 @@ export async function applyAttributionToWaLead(
   const existingAttr = current?.attribution as Record<string, unknown> | null;
   if (existingAttr?.utm_source) return;
 
+  const sessionCapturedAt =
+    patch.attribution.fbclid_captured_at != null
+      ? String(patch.attribution.fbclid_captured_at)
+      : null;
+  const now = new Date().toISOString();
+  const fbCapture = leadFbclidCapturePatch({
+    existingFbclid: current?.fbclid != null ? String(current.fbclid) : null,
+    existingCapturedAt: current?.fbclid_captured_at != null
+      ? String(current.fbclid_captured_at)
+      : null,
+    existingAttribution: current?.attribution ?? patch.attribution,
+    incomingFbclid: patch.fbclid,
+    sessionCapturedAt,
+    nowIso: now,
+  });
+
   const update: Record<string, unknown> = {
     web_id: patch.web_id,
     analytics_session_id: patch.analytics_session_id || null,
-    attribution: patch.attribution,
+    attribution: fbCapture.attribution ?? patch.attribution,
     attribution_label: patch.attribution_label,
     gclid: patch.gclid,
-    fbclid: patch.fbclid,
-    updated_at: new Date().toISOString(),
+    fbclid: fbCapture.fbclid ?? patch.fbclid,
+    fbclid_captured_at: fbCapture.fbclid_captured_at,
+    updated_at: now,
   };
 
   const { error } = await supabase

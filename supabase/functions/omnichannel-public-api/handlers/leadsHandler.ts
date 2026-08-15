@@ -11,6 +11,7 @@ import {
 } from "../../_shared/omnichannelPublicApi/phoneNormalize.ts";
 import { apiError, apiSuccess } from "../../_shared/omnichannelPublicApi/response.ts";
 import { resolveSessionMarketingAttribution } from "../../_shared/omnichannelPublicApi/urlParams.ts";
+import { leadFbclidCapturePatch } from "../../_shared/fbclidCapture.ts";
 import {
   findFloatingStubLead,
 } from "../../_shared/omnichannelPublicApi/syncFloatingWaClickToLead.ts";
@@ -68,6 +69,7 @@ export async function handleLeads(
     let attributionLabel: string | null = null;
     let gclid: string | null = null;
     let fbclid: string | null = null;
+    let sessionCapturedAt: string | null = null;
 
     if (sessionId && isUuid(sessionId)) {
       const { data: session } = await admin
@@ -83,6 +85,9 @@ export async function handleLeads(
         attributionLabel = marketing.attributionLabel;
         gclid = marketing.gclid;
         fbclid = marketing.fbclid;
+        sessionCapturedAt = session.fbclid_captured_at != null
+          ? String(session.fbclid_captured_at)
+          : null;
       }
     }
 
@@ -125,10 +130,30 @@ export async function handleLeads(
         updated_at: now,
       };
       if (attribution) {
-        leadPatch.attribution = attribution;
+        const { data: stubLead } = await admin
+          .from("leads")
+          .select("fbclid, fbclid_captured_at, attribution")
+          .eq("id", leadId)
+          .maybeSingle();
+
+        const fbCapture = leadFbclidCapturePatch({
+          existingFbclid: stubLead?.fbclid != null ? String(stubLead.fbclid) : null,
+          existingCapturedAt: stubLead?.fbclid_captured_at != null
+            ? String(stubLead.fbclid_captured_at)
+            : null,
+          existingAttribution: stubLead?.attribution ?? attribution,
+          incomingFbclid: fbclid,
+          sessionCapturedAt,
+          nowIso: now,
+        });
+
+        leadPatch.attribution = fbCapture.attribution ?? attribution;
         leadPatch.attribution_label = attributionLabel;
         leadPatch.gclid = gclid;
-        leadPatch.fbclid = fbclid;
+        leadPatch.fbclid = fbCapture.fbclid ?? fbclid;
+        if (fbCapture.fbclid_captured_at) {
+          leadPatch.fbclid_captured_at = fbCapture.fbclid_captured_at;
+        }
       }
 
       const { error: leadUpdErr } = await admin
@@ -188,6 +213,15 @@ export async function handleLeads(
     } else {
       leadId = crypto.randomUUID();
 
+      const fbCapture = leadFbclidCapturePatch({
+        existingFbclid: null,
+        existingCapturedAt: null,
+        existingAttribution: attribution,
+        incomingFbclid: fbclid,
+        sessionCapturedAt,
+        nowIso: now,
+      });
+
       const { error: leadErr } = await admin.from("leads").insert({
         id: leadId,
         client: name,
@@ -201,12 +235,13 @@ export async function handleLeads(
         status_id: statusId,
         phone_number: phoneRaw || null,
         email: emailRaw || null,
-        attribution,
+        attribution: fbCapture.attribution ?? attribution,
         attribution_label: attributionLabel,
         web_id: ctx.webId,
         analytics_session_id: sessionId && isUuid(sessionId) ? sessionId : null,
         gclid,
-        fbclid,
+        fbclid: fbCapture.fbclid ?? fbclid,
+        fbclid_captured_at: fbCapture.fbclid_captured_at,
         created_at: now,
         updated_at: now,
       });

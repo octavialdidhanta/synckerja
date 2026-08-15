@@ -94,6 +94,7 @@ export type SessionAttributionRow = {
   has_msclkid?: boolean | null;
   has_gbraid?: boolean | null;
   has_wbraid?: boolean | null;
+  fbclid_captured_at?: string | null;
 };
 
 export type SessionAttributionMergePatch = {
@@ -127,6 +128,7 @@ export type SessionAttributionMergePatch = {
   has_msclkid?: boolean;
   has_gbraid?: boolean;
   has_wbraid?: boolean;
+  fbclid_captured_at?: string;
 };
 
 function stickyString(
@@ -250,6 +252,12 @@ export function mergeIncomingAttribution(
   if (gclid) patch.gclid = gclid;
   if (fbclid) patch.fbclid = fbclid;
 
+  const isFirstFbclidCapture =
+    Boolean(incoming.fbclid) && !strOr(existing.fbclid);
+  if (isFirstFbclidCapture && !strOr(existing.fbclid_captured_at)) {
+    patch.fbclid_captured_at = ctx.now;
+  }
+
   if (!strOr(existing.utm_source) && source.firstTouch) {
     patch.utm_source = source.firstTouch;
     patch.first_utm_source = source.firstTouch;
@@ -309,6 +317,7 @@ export type SessionMarketingRow = SessionAttributionRow & {
   landing_url?: string | null;
   last_landing_url?: string | null;
   first_landing_url?: string | null;
+  started_at?: string | null;
 };
 
 export type SessionMarketingAttribution = {
@@ -354,6 +363,9 @@ export function resolveSessionMarketingAttribution(
     gclid: clickIds.gclid,
     fbclid: clickIds.fbclid,
   };
+  if (session.fbclid_captured_at) {
+    attribution.fbclid_captured_at = session.fbclid_captured_at;
+  }
 
   const attributionLabel = buildAttributionLabel({
     ...utm,

@@ -13,6 +13,7 @@ import {
 import {
   ensureAnalyticsSessionForIngest,
 } from "./ensureAnalyticsSession.ts";
+import { leadFbclidCapturePatch } from "../fbclidCapture.ts";
 import {
   resolveSessionMarketingAttribution,
   type SessionMarketingRow,
@@ -91,14 +92,39 @@ export async function patchFloatingStubAttributionFromSession(
   const marketing = resolveSessionMarketingAttribution(sessionId, webId, session);
   if (!marketing.attributionLabel && !marketing.attribution.utm_source) return;
 
+  const now = new Date().toISOString();
+  const { data: currentLead } = await admin
+    .from("leads")
+    .select("fbclid, fbclid_captured_at, attribution")
+    .eq("organization_id", organizationId)
+    .eq("web_id", webId)
+    .eq("analytics_session_id", sessionId)
+    .in("source", [API_LEAD_SOURCE_WHATSAPP_BUTTON, LEGACY_FLOATING_WA_LEAD_SOURCE])
+    .is("attribution", null)
+    .maybeSingle();
+
+  const fbCapture = leadFbclidCapturePatch({
+    existingFbclid: currentLead?.fbclid != null ? String(currentLead.fbclid) : null,
+    existingCapturedAt: currentLead?.fbclid_captured_at != null
+      ? String(currentLead.fbclid_captured_at)
+      : null,
+    existingAttribution: currentLead?.attribution ?? marketing.attribution,
+    incomingFbclid: marketing.fbclid,
+    sessionCapturedAt: session.fbclid_captured_at != null
+      ? String(session.fbclid_captured_at)
+      : null,
+    nowIso: now,
+  });
+
   const { error } = await admin
     .from("leads")
     .update({
-      attribution: marketing.attribution,
+      attribution: fbCapture.attribution ?? marketing.attribution,
       attribution_label: marketing.attributionLabel,
       gclid: marketing.gclid,
-      fbclid: marketing.fbclid,
-      updated_at: new Date().toISOString(),
+      fbclid: fbCapture.fbclid ?? marketing.fbclid,
+      fbclid_captured_at: fbCapture.fbclid_captured_at,
+      updated_at: now,
     })
     .eq("organization_id", organizationId)
     .eq("web_id", webId)
@@ -133,6 +159,10 @@ export async function syncFloatingWaClickToLead(
         fbclid: null,
       };
 
+  const sessionCapturedAt = session?.fbclid_captured_at != null
+    ? String(session.fbclid_captured_at)
+    : null;
+
   const existing = await findFloatingStubLead(
     admin,
     ctx.organizationId,
@@ -147,7 +177,7 @@ export async function syncFloatingWaClickToLead(
     if (marketing.attributionLabel || marketing.attribution.utm_source) {
       const { data: current } = await admin
         .from("leads")
-        .select("attribution, attribution_label, gclid, fbclid")
+        .select("attribution, attribution_label, gclid, fbclid, fbclid_captured_at")
         .eq("id", existing.leadId)
         .maybeSingle();
 
@@ -157,6 +187,21 @@ export async function syncFloatingWaClickToLead(
       }
       if (!current?.gclid && marketing.gclid) patch.gclid = marketing.gclid;
       if (!current?.fbclid && marketing.fbclid) patch.fbclid = marketing.fbclid;
+
+      const fbCapture = leadFbclidCapturePatch({
+        existingFbclid: current?.fbclid != null ? String(current.fbclid) : null,
+        existingCapturedAt: current?.fbclid_captured_at != null
+          ? String(current.fbclid_captured_at)
+          : null,
+        existingAttribution: current?.attribution ?? marketing.attribution,
+        incomingFbclid: marketing.fbclid,
+        sessionCapturedAt,
+        nowIso: now,
+      });
+      if (fbCapture.fbclid) patch.fbclid = fbCapture.fbclid;
+      if (fbCapture.fbclid_captured_at) patch.fbclid_captured_at = fbCapture.fbclid_captured_at;
+      if (fbCapture.attribution) patch.attribution = fbCapture.attribution;
+      else if (!current?.attribution) patch.attribution = marketing.attribution;
     }
 
     const { error: updErr } = await admin
@@ -182,6 +227,15 @@ export async function syncFloatingWaClickToLead(
     attribution: marketing.attribution,
   });
 
+  const fbCapture = leadFbclidCapturePatch({
+    existingFbclid: null,
+    existingCapturedAt: null,
+    existingAttribution: marketing.attribution,
+    incomingFbclid: marketing.fbclid,
+    sessionCapturedAt,
+    nowIso: now,
+  });
+
   const { error: leadErr } = await admin.from("leads").insert({
     id: leadId,
     client: FLOATING_WA_CLIENT,
@@ -195,12 +249,13 @@ export async function syncFloatingWaClickToLead(
     status_id: statusId,
     phone_number: null,
     email: null,
-    attribution: marketing.attribution,
+    attribution: fbCapture.attribution ?? marketing.attribution,
     attribution_label: marketing.attributionLabel,
     web_id: ctx.webId,
     analytics_session_id: sessionId,
     gclid: marketing.gclid,
-    fbclid: marketing.fbclid,
+    fbclid: fbCapture.fbclid ?? marketing.fbclid,
+    fbclid_captured_at: fbCapture.fbclid_captured_at,
     created_at: now,
     updated_at: now,
   });

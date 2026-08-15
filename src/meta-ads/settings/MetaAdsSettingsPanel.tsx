@@ -37,6 +37,12 @@ import { cn } from "@/shared/lib/utils";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { CONNECT_WHATSAPP_PATH } from "@/5-3-whatsapp/constants/omnichannelIntegrationPaths";
 import {
+  META_CAPI_CUSTOM_EVENT_VALUE,
+  META_CAPI_DEFAULT_EVENT_NAME,
+  META_CAPI_STANDARD_EVENTS,
+} from "@/meta-ads/constants/metaCapiStandardEvents";
+import { resolveMetaCapiEventNameForEdit, resolveMetaCapiEventNameForSave } from "@/meta-ads/lib/resolveMetaCapiEventName";
+import {
   clearOfflineConversionOAuthStart,
   isSharedOfflineConversionPath,
   shouldConsumeOfflineConversionOAuthResult,
@@ -82,7 +88,8 @@ export function MetaAdsSettingsPanel({
   const [accountLabel, setAccountLabel] = useState("");
   const [accountAdId, setAccountAdId] = useState("");
   const [accountPixelId, setAccountPixelId] = useState("");
-  const [accountEventName, setAccountEventName] = useState("Purchase");
+  const [accountEventSelect, setAccountEventSelect] = useState<string>(META_CAPI_DEFAULT_EVENT_NAME);
+  const [accountEventCustom, setAccountEventCustom] = useState("");
   const [accountIsDefault, setAccountIsDefault] = useState(false);
   const [pickerAccounts, setPickerAccounts] = useState<Array<{ account_id: string; name: string }>>([]);
   const [pickerPixels, setPickerPixels] = useState<Array<{ id: string; name: string }>>([]);
@@ -149,7 +156,8 @@ export function MetaAdsSettingsPanel({
     setAccountLabel("");
     setAccountAdId("");
     setAccountPixelId("");
-    setAccountEventName("Purchase");
+    setAccountEventSelect(META_CAPI_DEFAULT_EVENT_NAME);
+    setAccountEventCustom("");
     setAccountIsDefault(accounts.length === 0);
     setPickerAccounts([]);
     setPickerPixels([]);
@@ -163,7 +171,9 @@ export function MetaAdsSettingsPanel({
     setAccountLabel(row.label);
     setAccountAdId(row.ad_account_id);
     setAccountPixelId(row.pixel_id);
-    setAccountEventName(row.default_event_name || "Purchase");
+    const eventFields = resolveMetaCapiEventNameForEdit(row.default_event_name);
+    setAccountEventSelect(eventFields.selectValue);
+    setAccountEventCustom(eventFields.customValue);
     setAccountIsDefault(row.is_default);
     setPickerAccounts([]);
     setPickerPixels([]);
@@ -215,13 +225,29 @@ export function MetaAdsSettingsPanel({
   };
 
   const handleSaveAccount = async () => {
+    const resolved = resolveMetaCapiEventNameForSave(accountEventSelect, accountEventCustom);
+    if (!resolved.ok) {
+      toast.error(
+        resolved.error === "custom_too_long"
+          ? t(
+              "omnichannel.settings.metaAds.eventNameCustomInvalid",
+              "Event name is too long (max 64 characters).",
+            )
+          : t(
+              "omnichannel.settings.metaAds.eventNameCustomRequired",
+              "Enter a custom event name.",
+            ),
+      );
+      return;
+    }
+
     try {
       await upsertAccount.mutateAsync({
         id: editAccountId ?? undefined,
         label: accountLabel,
         ad_account_id: accountAdId,
         pixel_id: accountPixelId,
-        default_event_name: accountEventName,
+        default_event_name: resolved.eventName,
         is_default: accountIsDefault,
         is_active: true,
       });
@@ -567,7 +593,39 @@ export function MetaAdsSettingsPanel({
             </div>
             <div>
               <Label>{t("omnichannel.settings.metaAds.eventName", "CAPI event name")}</Label>
-              <Input value={accountEventName} onChange={(e) => setAccountEventName(e.target.value)} />
+              <Select value={accountEventSelect} onValueChange={setAccountEventSelect}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t("omnichannel.settings.metaAds.eventName", "CAPI event name")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {META_CAPI_STANDARD_EVENTS.map((eventName) => (
+                    <SelectItem key={eventName} value={eventName}>
+                      {eventName}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={META_CAPI_CUSTOM_EVENT_VALUE}>
+                    {t("omnichannel.settings.metaAds.eventNameCustomOption", "Custom…")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {accountEventSelect === META_CAPI_CUSTOM_EVENT_VALUE && (
+                <div className="mt-2">
+                  <Label className="text-xs text-muted-foreground">
+                    {t("omnichannel.settings.metaAds.eventNameCustom", "Custom event name")}
+                  </Label>
+                  <Input
+                    value={accountEventCustom}
+                    onChange={(e) => setAccountEventCustom(e.target.value)}
+                    placeholder={t("omnichannel.settings.metaAds.eventNameCustom", "Custom event name")}
+                  />
+                </div>
+              )}
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {t(
+                  "omnichannel.settings.metaAds.eventNameHint",
+                  "Use Purchase when Converted includes payment; Lead for qualified leads without payment.",
+                )}
+              </p>
             </div>
             <div>
               <Label>{t("omnichannel.settings.metaAds.label", "Label")}</Label>

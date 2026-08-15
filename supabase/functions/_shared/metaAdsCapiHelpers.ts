@@ -30,9 +30,18 @@ export async function hashMetaUserData(
   return out;
 }
 
-export function buildFbcFromFbclid(fbclid: string | null): string | undefined {
+export function buildFbcFromFbclid(
+  fbclid: string | null,
+  clickTimeEpochSec?: number | null,
+): string | undefined {
   if (!fbclid?.trim()) return undefined;
-  const ts = Math.floor(Date.now() / 1000);
+  const ts =
+    clickTimeEpochSec != null &&
+    Number.isFinite(clickTimeEpochSec) &&
+    clickTimeEpochSec > 0
+      ? Math.floor(clickTimeEpochSec)
+      : undefined;
+  if (ts == null) return undefined;
   return `fb.1.${ts}.${fbclid.trim()}`;
 }
 

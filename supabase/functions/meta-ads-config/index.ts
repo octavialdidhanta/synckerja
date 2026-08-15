@@ -10,6 +10,7 @@ import {
   requireOrgAdmin,
 } from "../_shared/metaAdsAuth.ts";
 import { getMetaAdsAccessToken, metaActId } from "../_shared/metaAdsOrgResolver.ts";
+import { validateMetaCapiEventNameForUpsert } from "../_shared/metaCapiEventName.ts";
 
 function digitsOnly(value: string): string {
   return value.replace(/\D/g, "");
@@ -199,7 +200,12 @@ Deno.serve(async (req: Request) => {
     const label = String(body.label ?? "").trim();
     const adAccountId = digitsOnly(String(body.ad_account_id ?? ""));
     const pixelId = digitsOnly(String(body.pixel_id ?? ""));
-    const defaultEventName = String(body.default_event_name ?? "Purchase").trim() || "Purchase";
+    const defaultEventNameRaw = String(body.default_event_name ?? "Purchase");
+    const eventNameResult = validateMetaCapiEventNameForUpsert(defaultEventNameRaw);
+    if (!eventNameResult.ok) {
+      return metaAdsJson({ error: eventNameResult.error }, 400);
+    }
+    const defaultEventName = eventNameResult.eventName;
     const isDefault = body.is_default === true;
     const isActive = body.is_active !== false;
 

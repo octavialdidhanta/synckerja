@@ -96,3 +96,74 @@ Deno.test("mergeIncomingAttribution updates last-touch only when incoming UTM pr
   assertEquals(patch.last_utm_source, "newsletter");
   assertEquals(patch.last_utm_medium, "email");
 });
+
+Deno.test("mergeIncomingAttribution sets fbclid_captured_at on first fbclid", () => {
+  const patch = mergeIncomingAttribution(
+    {},
+    {
+      utm_source: null,
+      utm_medium: null,
+      utm_campaign: null,
+      utm_term: null,
+      utm_content: null,
+      gclid: null,
+      fbclid: "fb-first",
+      msclkid: null,
+      gbraid: null,
+      wbraid: null,
+      path: "/",
+    },
+    { ...ctx, pageUrl: "https://example.com/?fbclid=fb-first" },
+  );
+
+  assertEquals(patch.fbclid, "fb-first");
+  assertEquals(patch.fbclid_captured_at, ctx.now);
+});
+
+Deno.test("mergeIncomingAttribution does not overwrite fbclid_captured_at", () => {
+  const patch = mergeIncomingAttribution(
+    {
+      fbclid: "fb-old",
+      fbclid_captured_at: "2026-06-01T08:00:00.000Z",
+    },
+    {
+      utm_source: null,
+      utm_medium: null,
+      utm_campaign: null,
+      utm_term: null,
+      utm_content: null,
+      gclid: null,
+      fbclid: "fb-new",
+      msclkid: null,
+      gbraid: null,
+      wbraid: null,
+      path: "/",
+    },
+    ctx,
+  );
+
+  assertEquals(patch.fbclid, "fb-new");
+  assertEquals(patch.fbclid_captured_at, undefined);
+});
+
+Deno.test("mergeIncomingAttribution without fbclid does not set captured_at", () => {
+  const patch = mergeIncomingAttribution(
+    {},
+    {
+      utm_source: "google",
+      utm_medium: "cpc",
+      utm_campaign: null,
+      utm_term: null,
+      utm_content: null,
+      gclid: null,
+      fbclid: null,
+      msclkid: null,
+      gbraid: null,
+      wbraid: null,
+      path: "/",
+    },
+    ctx,
+  );
+
+  assertEquals(patch.fbclid_captured_at, undefined);
+});

@@ -46,9 +46,20 @@ Required scopes: `ads_read`, `ads_management`, `business_management`.
 - `organization_meta_ads_connection_tokens` — `access_token_enc` (long-lived token; Edge only)
 - `organization_meta_ads_accounts` — ad account ID, pixel ID, default CAPI event name
 - `leads.fbclid` — Facebook click ID for attribution
+- `leads.fbclid_captured_at` — first-touch server time when fbclid was captured (used in CAPI `fbc`)
 - `leads.meta_ads_account_id` — optional per-lead brand override
 
 Settings UI: `/omnichannel/settings/offline-conversion` (Google | Meta tabs).
+
+### CAPI event name (per ad account)
+
+Each Meta ad account row stores `default_event_name` (Settings → Edit account). The UI offers Meta **standard events** recommended for CRM Converted flows (`Purchase`, `Lead`, `Contact`, …) plus **Custom…** for legacy or tenant-specific names. Default is **`Purchase`**. Custom names are trimmed and limited to 64 characters. Only **new** Converted uploads use the saved name; existing `meta_ads_conversion_uploads` rows are unchanged.
+
+**Manual check after changing event name:**
+
+1. Settings → Edit account → pick `Lead` (or Custom) → Save.
+2. Convert a test lead with fbclid.
+3. `SELECT event_name FROM meta_ads_conversion_uploads ORDER BY updated_at DESC LIMIT 1;` — should match the selection.
 
 ## Upload invoke (authenticated)
 
@@ -60,6 +71,40 @@ POST meta-ads-upload-conversion
 Account resolution: `leads.meta_ads_account_id` → org default account → skip `meta_ads_not_configured`.
 
 Skip reasons: `uploads_disabled`, `pixel_not_configured`, `no_fbclid_or_contact`, `no_ctwa_or_fbclid_or_contact`.
+
+## fbclid and fbc (web ads click time)
+
+Meta expects the `fbc` cookie format `fb.1.{clickTime}.{fbclid}` where **clickTime** is close to the ad click, not the Converted timestamp.
+
+Synckerja records first-touch capture time when traffic-logs first sees `fbclid`:
+
+| Column | Purpose |
+|--------|---------|
+| `analytics_sessions.fbclid_captured_at` | Server time on first fbclid in session |
+| `leads.fbclid_captured_at` | Copied when lead gets fbclid (form, floating WA, WA inbound merge) |
+| `attribution.fbclid_captured_at` | JSON mirror for exports/debug |
+
+On Converted, `meta-ads-upload-conversion` resolves click time (column → attribution → linked session → `created_at`) and builds `user_data.fbc`. Audit column `meta_ads_conversion_uploads.fbc_click_epoch` stores the unix seconds used.
+
+**Legacy leads** without `fbclid_captured_at` use read-time fallbacks at upload. Uploads that already succeeded are **not** re-sent automatically.
+
+**Sandbox verification:**
+
+1. Open landing with `?fbclid=TEST_...` → confirm `analytics_sessions.fbclid_captured_at` is set.
+2. Submit form or WA stub → confirm `leads.fbclid_captured_at` matches session (not Converted time).
+3. Mark Converted → `meta_ads_conversion_uploads.fbc_click_epoch` ≈ capture epoch, not Converted epoch.
+
+**Unit tests (fbclid capture + fbc):**
+
+```bash
+deno test supabase/functions/_shared/fbclidCapture.test.ts supabase/functions/_shared/omnichannelPublicApi/urlParams_test.ts
+```
+
+Also deploy `omnichannel-public-api` when changing traffic-logs / lead capture:
+
+```bash
+supabase functions deploy omnichannel-public-api
+```
 
 ## Click-to-WhatsApp (CTWA) offline conversions
 

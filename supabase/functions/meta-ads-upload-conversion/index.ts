@@ -9,6 +9,10 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveCtwaClidForLead } from "../_shared/ctwaLeadSync.ts";
 import {
+  fbclidCapturedAtToEpoch,
+  resolveFbclidCapturedAtIso,
+} from "../_shared/fbclidCapture.ts";
+import {
   buildCtwaCapiEvent,
   buildFbcFromFbclid,
   hashMetaUserData,
@@ -17,6 +21,7 @@ import {
   type MetaCapiEventPayload,
 } from "../_shared/metaAdsCapiHelpers.ts";
 import { metaAdsCorsHeaders, metaGraphVersion } from "../_shared/metaAdsAuth.ts";
+import { sanitizeMetaCapiEventName } from "../_shared/metaCapiEventName.ts";
 import { resolveOrgMetaAdsForUpload } from "../_shared/metaAdsOrgResolver.ts";
 
 function json(body: object, status: number): Response {
@@ -41,6 +46,7 @@ type LogRow = {
   skip_reason: string | null;
   error_message: string | null;
   meta_response: unknown;
+  fbc_click_epoch?: number | null;
 };
 
 type ExistingLog = {
@@ -124,7 +130,7 @@ Deno.serve(async (req: Request) => {
   const { data: lead, error: leadErr } = await admin
     .from("leads")
     .select(
-      "id, organization_id, ticket_id, fbclid, ctwa_clid, converted_at, attribution, meta_ads_account_id, phone_number",
+      "id, organization_id, ticket_id, fbclid, fbclid_captured_at, analytics_session_id, created_at, ctwa_clid, converted_at, attribution, meta_ads_account_id, phone_number",
     )
     .eq("id", leadId)
     .eq("organization_id", organizationId)
@@ -147,6 +153,40 @@ Deno.serve(async (req: Request) => {
     lead.fbclid != null ? String(lead.fbclid) : null,
     lead.attribution,
   );
+
+  let sessionCapturedAt: string | null = null;
+  let sessionStartedAt: string | null = null;
+  let sessionFbclid: string | null = null;
+  const analyticsSessionId = lead.analytics_session_id != null
+    ? String(lead.analytics_session_id).trim()
+    : "";
+  if (analyticsSessionId && fbclid) {
+    const { data: session } = await admin
+      .from("analytics_sessions")
+      .select("fbclid_captured_at, started_at, fbclid")
+      .eq("id", analyticsSessionId)
+      .maybeSingle();
+    if (session) {
+      sessionCapturedAt = session.fbclid_captured_at != null
+        ? String(session.fbclid_captured_at)
+        : null;
+      sessionStartedAt = session.started_at != null ? String(session.started_at) : null;
+      sessionFbclid = session.fbclid != null ? String(session.fbclid) : null;
+    }
+  }
+
+  const clickCapturedAtIso = resolveFbclidCapturedAtIso({
+    columnCapturedAt: lead.fbclid_captured_at != null
+      ? String(lead.fbclid_captured_at)
+      : null,
+    attribution: lead.attribution,
+    sessionCapturedAt,
+    sessionStartedAt,
+    sessionFbclid,
+    leadCreatedAt: lead.created_at != null ? String(lead.created_at) : null,
+  });
+  const fbcClickEpoch = fbclidCapturedAtToEpoch(clickCapturedAtIso);
+
   const ctwaClid = await resolveCtwaClidForLead(admin, {
     organizationId,
     ticketId: lead.ticket_id != null ? String(lead.ticket_id) : null,
@@ -177,9 +217,9 @@ Deno.serve(async (req: Request) => {
 
   const hashed = await hashMetaUserData(email, phone);
   const hasContact = Boolean(hashed.em?.length || hashed.ph?.length);
-  const fbc = buildFbcFromFbclid(fbclid);
+  const fbc = buildFbcFromFbclid(fbclid, fbcClickEpoch);
 
-  const eventName = resolved?.account.default_event_name?.trim() || "Purchase";
+  const eventName = sanitizeMetaCapiEventName(resolved?.account.default_event_name);
 
   const baseLog: LogRow = {
     organization_id: organizationId,
@@ -194,6 +234,7 @@ Deno.serve(async (req: Request) => {
     skip_reason: null,
     error_message: null,
     meta_response: null,
+    fbc_click_epoch: fbcClickEpoch ?? null,
   };
 
   if (!resolved) {

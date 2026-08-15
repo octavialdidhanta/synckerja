@@ -104,7 +104,7 @@ export async function handleTrafficLogs(
     const { data: existingSession } = await admin
       .from("analytics_sessions")
       .select(
-        "id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term, last_utm_source, last_utm_medium, last_utm_campaign, last_utm_content, last_utm_term, gclid, fbclid, has_gclid, first_has_gclid, last_has_gclid, has_fbclid, first_has_fbclid, last_has_fbclid, has_msclkid, has_gbraid, has_wbraid",
+        "id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term, last_utm_source, last_utm_medium, last_utm_campaign, last_utm_content, last_utm_term, gclid, fbclid, fbclid_captured_at, has_gclid, first_has_gclid, last_has_gclid, has_fbclid, first_has_fbclid, last_has_fbclid, has_msclkid, has_gbraid, has_wbraid",
       )
       .eq("id", sessionId)
       .maybeSingle();
@@ -165,6 +165,7 @@ export async function handleTrafficLogs(
         has_msclkid: Boolean(utm.msclkid),
         has_gbraid: Boolean(utm.gbraid),
         has_wbraid: Boolean(utm.wbraid),
+        fbclid_captured_at: utm.fbclid ? now : null,
       };
 
       const { error: sessionErr } = await admin.from("analytics_sessions").insert(sessionRow);
@@ -174,7 +175,7 @@ export async function handleTrafficLogs(
             (await admin
               .from("analytics_sessions")
               .select(
-                "id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term, last_utm_source, last_utm_medium, last_utm_campaign, last_utm_content, last_utm_term, gclid, fbclid, has_gclid, first_has_gclid, last_has_gclid, has_fbclid, first_has_fbclid, last_has_fbclid, has_msclkid, has_gbraid, has_wbraid",
+                "id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term, last_utm_source, last_utm_medium, last_utm_campaign, last_utm_content, last_utm_term, gclid, fbclid, fbclid_captured_at, has_gclid, first_has_gclid, last_has_gclid, has_fbclid, first_has_fbclid, last_has_fbclid, has_msclkid, has_gbraid, has_wbraid",
               )
               .eq("id", sessionId)
               .maybeSingle()).data ?? {},
