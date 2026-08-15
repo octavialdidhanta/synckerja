@@ -24,6 +24,12 @@ export const FLOATING_WA_LEAD_SOURCE = API_LEAD_SOURCE_WHATSAPP_BUTTON;
 
 const FLOATING_WA_CLIENT = "Website visitor";
 
+function trimOrNull(value: unknown): string | null {
+  if (value == null) return null;
+  const s = String(value).trim();
+  return s || null;
+}
+
 export type SyncFloatingWaClickParams = {
   sessionId: string;
   visitorId: string;
@@ -90,25 +96,39 @@ export async function patchFloatingStubAttributionFromSession(
   session: SessionMarketingRow,
 ): Promise<void> {
   const marketing = resolveSessionMarketingAttribution(sessionId, webId, session);
-  if (!marketing.attributionLabel && !marketing.attribution.utm_source) return;
+  if (!marketing.attributionLabel && !marketing.attribution.utm_source && !marketing.fbclid && !marketing.gclid) {
+    return;
+  }
 
   const now = new Date().toISOString();
   const { data: currentLead } = await admin
     .from("leads")
-    .select("fbclid, fbclid_captured_at, attribution")
+    .select("fbclid, fbclid_captured_at, attribution, attribution_label, gclid")
     .eq("organization_id", organizationId)
     .eq("web_id", webId)
     .eq("analytics_session_id", sessionId)
     .in("source", [API_LEAD_SOURCE_WHATSAPP_BUTTON, LEGACY_FLOATING_WA_LEAD_SOURCE])
-    .is("attribution", null)
     .maybeSingle();
 
+  if (!currentLead) return;
+
+  const existingAttr = (currentLead.attribution ?? null) as Record<string, unknown> | null;
+  const needsFbclid = !trimOrNull(currentLead.fbclid) && Boolean(marketing.fbclid);
+  const needsGclid = !trimOrNull(currentLead.gclid) && Boolean(marketing.gclid);
+  const needsLabel = !trimOrNull(currentLead.attribution_label) && Boolean(marketing.attributionLabel);
+  const needsAttribution =
+    !existingAttr &&
+    (Boolean(marketing.attribution.utm_source) || Boolean(marketing.fbclid) || Boolean(marketing.gclid));
+  const needsUtmInAttr = !trimOrNull(existingAttr?.utm_source) && Boolean(marketing.attribution.utm_source);
+
+  if (!needsFbclid && !needsGclid && !needsLabel && !needsAttribution && !needsUtmInAttr) return;
+
   const fbCapture = leadFbclidCapturePatch({
-    existingFbclid: currentLead?.fbclid != null ? String(currentLead.fbclid) : null,
-    existingCapturedAt: currentLead?.fbclid_captured_at != null
+    existingFbclid: currentLead.fbclid != null ? String(currentLead.fbclid) : null,
+    existingCapturedAt: currentLead.fbclid_captured_at != null
       ? String(currentLead.fbclid_captured_at)
       : null,
-    existingAttribution: currentLead?.attribution ?? marketing.attribution,
+    existingAttribution: currentLead.attribution ?? marketing.attribution,
     incomingFbclid: marketing.fbclid,
     sessionCapturedAt: session.fbclid_captured_at != null
       ? String(session.fbclid_captured_at)
@@ -116,21 +136,26 @@ export async function patchFloatingStubAttributionFromSession(
     nowIso: now,
   });
 
+  const patch: Record<string, unknown> = { updated_at: now };
+  if (needsAttribution || needsUtmInAttr) {
+    patch.attribution = fbCapture.attribution ?? marketing.attribution;
+  } else if (fbCapture.attribution) {
+    patch.attribution = fbCapture.attribution;
+  }
+  if (needsLabel) patch.attribution_label = marketing.attributionLabel;
+  if (needsGclid) patch.gclid = marketing.gclid;
+  if (needsFbclid) {
+    patch.fbclid = fbCapture.fbclid ?? marketing.fbclid;
+    if (fbCapture.fbclid_captured_at) patch.fbclid_captured_at = fbCapture.fbclid_captured_at;
+  }
+
   const { error } = await admin
     .from("leads")
-    .update({
-      attribution: fbCapture.attribution ?? marketing.attribution,
-      attribution_label: marketing.attributionLabel,
-      gclid: marketing.gclid,
-      fbclid: fbCapture.fbclid ?? marketing.fbclid,
-      fbclid_captured_at: fbCapture.fbclid_captured_at,
-      updated_at: now,
-    })
+    .update(patch)
     .eq("organization_id", organizationId)
     .eq("web_id", webId)
     .eq("analytics_session_id", sessionId)
-    .in("source", [API_LEAD_SOURCE_WHATSAPP_BUTTON, LEGACY_FLOATING_WA_LEAD_SOURCE])
-    .is("attribution", null);
+    .in("source", [API_LEAD_SOURCE_WHATSAPP_BUTTON, LEGACY_FLOATING_WA_LEAD_SOURCE]);
 
   if (error) {
     console.warn("patchFloatingStubAttributionFromSession:", error);

@@ -1,6 +1,14 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { OmnichannelApiTokenContext } from "./auth.ts";
-import type { SessionMarketingRow } from "./urlParams.ts";
+import {
+  coalesceUtm,
+  mergeIncomingAttribution,
+  parsePageUrl,
+  type SessionMarketingRow,
+} from "./urlParams.ts";
+
+export const SESSION_ATTRIBUTION_SELECT =
+  "id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term, last_utm_source, last_utm_medium, last_utm_campaign, last_utm_content, last_utm_term, gclid, fbclid, fbclid_captured_at, has_gclid, first_has_gclid, last_has_gclid, has_fbclid, first_has_fbclid, last_has_fbclid, has_msclkid, has_gbraid, has_wbraid, landing_url, first_landing_url, last_landing_url, started_at";
 
 export type EnsureAnalyticsSessionParams = {
   sessionId: string;
@@ -110,6 +118,66 @@ export async function ensureAnalyticsSessionForIngest(
   const created = await loadSessionRow(admin, sessionId, webId);
   if (!created) return { ok: false, error: "Session row missing after insert." };
   return { ok: true, session: created };
+}
+
+/** Merge UTM / click IDs from landing URL into an existing analytics session (wa-link-clicks race-safe). */
+export async function mergeSessionAttributionFromPageContext(
+  admin: SupabaseClient,
+  webId: string,
+  params: {
+    sessionId: string;
+    visitorId: string;
+    pageUrl?: string | null;
+    referrer?: string | null;
+    body?: Record<string, unknown>;
+  },
+): Promise<SessionMarketingRow | null> {
+  const { sessionId, visitorId, referrer, body = {} } = params;
+  const pageUrl = params.pageUrl != null ? String(params.pageUrl).trim() : "";
+  const parsed = pageUrl ? parsePageUrl(pageUrl) : null;
+  const utm = coalesceUtm(body, parsed);
+  const hasAttribution =
+    Boolean(utm.fbclid) ||
+    Boolean(utm.gclid) ||
+    Boolean(utm.utm_source) ||
+    Boolean(utm.utm_medium) ||
+    Boolean(utm.utm_campaign) ||
+    Boolean(pageUrl);
+
+  if (!hasAttribution) {
+    return loadSessionRow(admin, sessionId, webId);
+  }
+
+  const now = new Date().toISOString();
+
+  const { data: existingSession } = await admin
+    .from("analytics_sessions")
+    .select(SESSION_ATTRIBUTION_SELECT)
+    .eq("id", sessionId)
+    .eq("web_id", webId)
+    .maybeSingle();
+
+  if (!existingSession?.id) return null;
+
+  const sessionPatch = mergeIncomingAttribution(existingSession, utm, {
+    now,
+    pageUrl: pageUrl || String(existingSession.last_landing_url ?? existingSession.landing_url ?? ""),
+    referrer: referrer ?? null,
+    visitorId,
+  });
+
+  const { error } = await admin
+    .from("analytics_sessions")
+    .update(sessionPatch)
+    .eq("id", sessionId)
+    .eq("web_id", webId);
+
+  if (error) {
+    console.warn("mergeSessionAttributionFromPageContext:", error);
+    return null;
+  }
+
+  return loadSessionRow(admin, sessionId, webId);
 }
 
 /** Post-write check before traffic-logs returns 201. */

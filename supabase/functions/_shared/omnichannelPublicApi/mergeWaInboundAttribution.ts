@@ -15,6 +15,12 @@ export const FLOATING_STUB_MERGE_LOOKBACK_MS = 30 * 60 * 1000;
 /** Session attribution fallback when wa-link-clicks row missing but traffic-logs ran. */
 export const SESSION_ATTRIBUTION_LOOKBACK_MS = 30 * 60 * 1000;
 
+function trimOrNull(value: unknown): string | null {
+  if (value == null) return null;
+  const s = String(value).trim();
+  return s || null;
+}
+
 function buildAttributionLabelFromJson(attribution: Record<string, unknown> | null): string | null {
   if (!attribution) return null;
   const parts = [
@@ -110,7 +116,9 @@ async function findRecentUnlinkedSession(
       webId,
       session as SessionMarketingRow,
     );
-    if (!marketing.attributionLabel && !marketing.attribution.utm_source) continue;
+    if (!marketing.attributionLabel && !marketing.attribution.utm_source && !marketing.fbclid && !marketing.gclid) {
+      continue;
+    }
 
     const { data: linked } = await supabase
       .from("leads")
@@ -162,7 +170,7 @@ export async function resolveWaInboundAttributionPatch(
     const rawAttr = click.attribution as Record<string, unknown> | null;
     const clickIds = extractClickIdsFromAttributionJson(rawAttr);
     const attributionLabel = buildAttributionLabelFromJson(rawAttr);
-    if (!attributionLabel && !rawAttr?.utm_source) continue;
+    if (!attributionLabel && !rawAttr?.utm_source && !clickIds.fbclid && !clickIds.gclid) continue;
 
     return {
       web_id: webId,
@@ -228,9 +236,9 @@ export async function applyAttributionToWaLead(
     .eq("id", leadId)
     .maybeSingle();
 
-  if (current?.attribution_label?.trim()) return;
+  if (trimOrNull(current?.fbclid)) return;
   const existingAttr = current?.attribution as Record<string, unknown> | null;
-  if (existingAttr?.utm_source) return;
+  if (current?.attribution_label?.trim() && trimOrNull(existingAttr?.utm_source)) return;
 
   const sessionCapturedAt =
     patch.attribution.fbclid_captured_at != null

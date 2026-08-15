@@ -175,13 +175,15 @@ const sdkSnippet = `(function (window, document) {
     var el = ev.target && ev.target.closest ? ev.target.closest('[data-syn-wa-track], a[href*="wa.me"], a[href*="api.whatsapp.com"]') : null;
     if (!el) return;
     var href = el.href || '';
-    var waBody = {
+    var waBody = Object.assign({
       session_id: getSessionId(),
       visitor_id: getVisitorId(),
       path: window.location.pathname || '/',
+      page_url: window.location.href,
+      referrer: document.referrer || null,
       target_url: href,
       target_phone: (href.match(/\\d{8,15}/) || [])[0] || null,
-    };
+    }, getAttributionPayload());
     if (pageViewId) waBody.page_view_id = pageViewId;
     apiPost('/api/v1/wa-link-clicks', waBody);
   }

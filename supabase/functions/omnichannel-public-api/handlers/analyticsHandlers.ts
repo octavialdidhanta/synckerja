@@ -5,6 +5,7 @@ import { isUuid } from "../../_shared/omnichannelPublicApi/auth.ts";
 import {
   ensureAnalyticsSessionForIngest,
   isSessionForeignKeyError,
+  mergeSessionAttributionFromPageContext,
   sessionNotReadyMessage,
   verifyAnalyticsSessionExists,
 } from "../../_shared/omnichannelPublicApi/ensureAnalyticsSession.ts";
@@ -471,15 +472,32 @@ export async function handleWaLinkClicks(
     }
 
     const clientPath = body.path != null ? String(body.path).trim() || "/" : "/";
+    const pageUrl = body.page_url != null ? String(body.page_url).trim() : "";
+    const referrer = body.referrer != null ? String(body.referrer).trim() : null;
     const targetUrl = body.target_url != null ? String(body.target_url).trim() : null;
     const targetPhone = body.target_phone != null ? String(body.target_phone).trim() : null;
     const clickAt = new Date().toISOString();
     const pageViewId = body.page_view_id != null ? String(body.page_view_id).trim() : null;
 
-    const ensured = await ensureAnalyticsSessionForIngest(admin, ctx, { sessionId, visitorId });
+    const ensured = await ensureAnalyticsSessionForIngest(admin, ctx, {
+      sessionId,
+      visitorId,
+      pageUrl: pageUrl || null,
+      referrer,
+    });
     if (!ensured.ok) {
       return apiError(sessionNotReadyMessage(), "SESSION_NOT_READY", 422, corsHeaders);
     }
+
+    let sessionRow = ensured.session;
+    const merged = await mergeSessionAttributionFromPageContext(admin, ctx.webId, {
+      sessionId,
+      visitorId,
+      pageUrl: pageUrl || null,
+      referrer,
+      body,
+    });
+    if (merged) sessionRow = merged;
 
     const resolved = await resolveClickPathFromPageView(admin, {
       sessionId,
@@ -490,7 +508,7 @@ export async function handleWaLinkClicks(
     });
     const path = resolved.path;
 
-    const marketing = resolveSessionMarketingAttribution(sessionId, ctx.webId, ensured.session);
+    const marketing = resolveSessionMarketingAttribution(sessionId, ctx.webId, sessionRow);
 
     const attribution: Record<string, unknown> = {
       ...marketing.attribution,

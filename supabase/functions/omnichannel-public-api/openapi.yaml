@@ -130,7 +130,9 @@ paths:
         Mencatat event di `analytics_wa_clicks` dan membuat/update **stub lead** di CRM
         (`source: WhatsApp button`, `lead_submissions` status `draft`).
         Atribusi UTM / gclid / fbclid di-merge server-side dari `analytics_sessions` via `session_id`
-        — client **tidak** perlu mengirim UTM di body.
+        (dan opsional `page_url` / field UTM di body saat klik terjadi sebelum `traffic-logs` selesai).
+        Client **tidak** wajib mengirim UTM di body, tetapi SDK resmi mengirim `page_url` + click ID
+        dari URL landing untuk race-safe capture.
         Dedupe: satu stub lead per `session_id` + `web_id`; klik berikutnya mengembalikan `lead_created: false`.
         Jika sinkron CRM gagal, HTTP tetap **201** (analytics tersimpan); cek `lead_sync_status` dan `lead_sync_error`.
         Urutan disarankan: `traffic-logs` (landing UTM) lalu `wa-link-clicks`.
@@ -371,6 +373,33 @@ components:
         path:
           type: string
           description: Halaman tempat klik terjadi (SDK pathname; default "/")
+        page_url:
+          type: string
+          description: URL penuh saat klik (SDK `window.location.href`; race-safe fbclid/UTM)
+        referrer:
+          type: string
+          nullable: true
+        utm_source:
+          type: string
+          nullable: true
+        utm_medium:
+          type: string
+          nullable: true
+        utm_campaign:
+          type: string
+          nullable: true
+        utm_content:
+          type: string
+          nullable: true
+        utm_term:
+          type: string
+          nullable: true
+        gclid:
+          type: string
+          nullable: true
+        fbclid:
+          type: string
+          nullable: true
         page_view_id:
           type: string
           format: uuid
