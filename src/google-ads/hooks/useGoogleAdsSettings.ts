@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { markOfflineConversionOAuthStart } from "@/5-3-dashboard/omnichannel-settings/lib/offlineConversionOAuthResult";
 import { parseEdgeFunctionError } from "@/google-ads/lib/parseEdgeFunctionError";
 import { supabase } from "@/shared/lib/supabaseClient";
 
@@ -103,6 +104,7 @@ export function useGoogleAdsSettings(
   const startOAuth = useMutation({
     mutationFn: async (returnPath?: string) => {
       if (!organizationId) throw new Error("No organization");
+      markOfflineConversionOAuthStart("google");
       const { data, error } = await supabase.functions.invoke("google-ads-oauth-start", {
         body: {
           organization_id: organizationId,

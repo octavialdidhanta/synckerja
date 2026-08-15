@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
@@ -23,6 +23,10 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { cn } from "@/shared/lib/utils";
+import {
+  clearOfflineConversionOAuthStart,
+  shouldConsumeOfflineConversionOAuthResult,
+} from "@/5-3-dashboard/omnichannel-settings/lib/offlineConversionOAuthResult";
 import { useGoogleAdsSettings } from "@/google-ads/hooks/useGoogleAdsSettings";
 import type { GoogleAdsOAuthReturnPath } from "@/google-ads/settings/googleAdsSettingsPaths";
 import { retryGoogleAdsUploadsForConvertedLeads } from "@/shared/lib/retryGoogleAdsUploadsForConvertedLeads";
@@ -45,6 +49,7 @@ export function GoogleAdsSettingsPanel({
   contentClassName,
 }: GoogleAdsSettingsPanelProps) {
   const { t } = useTranslation();
+  const { pathname } = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     data,
@@ -82,19 +87,24 @@ export function GoogleAdsSettingsPanel({
   }, [connection?.login_customer_id]);
 
   useEffect(() => {
+    if (!shouldConsumeOfflineConversionOAuthResult(searchParams, "google", pathname)) return;
+
     const connected = searchParams.get("connected");
     const oauthError = searchParams.get("oauth_error");
     if (connected === "1") {
       toast.success(t("omnichannel.settings.googleAds.connectedToast"));
-      searchParams.delete("connected");
-      setSearchParams(searchParams, { replace: true });
     }
     if (oauthError) {
       toast.error(t("omnichannel.settings.googleAds.oauthErrorToast", { message: oauthError }));
-      searchParams.delete("oauth_error");
-      setSearchParams(searchParams, { replace: true });
     }
-  }, [searchParams, setSearchParams, t]);
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("connected");
+    next.delete("oauth_error");
+    next.delete("platform");
+    clearOfflineConversionOAuthStart();
+    setSearchParams(next, { replace: true });
+  }, [pathname, searchParams, setSearchParams, t]);
 
   const openAddAccount = () => {
     setEditAccountId(null);

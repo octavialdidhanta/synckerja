@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { markOfflineConversionOAuthStart } from "@/5-3-dashboard/omnichannel-settings/lib/offlineConversionOAuthResult";
 import { parseEdgeFunctionError } from "@/meta-ads/lib/parseEdgeFunctionError";
 import { supabase } from "@/shared/lib/supabaseClient";
 import type { MetaAdsOAuthReturnPath } from "@/meta-ads/settings/metaAdsSettingsPaths";
@@ -76,6 +77,7 @@ export function useMetaAdsSettings(
   const startOAuth = useMutation({
     mutationFn: async (returnPath?: MetaAdsOAuthReturnPath) => {
       if (!organizationId) throw new Error("No organization");
+      markOfflineConversionOAuthStart("meta");
       const { data, error } = await supabase.functions.invoke("meta-ads-oauth-start", {
         body: {
           organization_id: organizationId,

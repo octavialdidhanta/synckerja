@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
@@ -36,6 +36,11 @@ import {
 import { cn } from "@/shared/lib/utils";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { CONNECT_WHATSAPP_PATH } from "@/5-3-whatsapp/constants/omnichannelIntegrationPaths";
+import {
+  clearOfflineConversionOAuthStart,
+  isSharedOfflineConversionPath,
+  shouldConsumeOfflineConversionOAuthResult,
+} from "@/5-3-dashboard/omnichannel-settings/lib/offlineConversionOAuthResult";
 import { useMetaAdsSettings } from "@/meta-ads/hooks/useMetaAdsSettings";
 import type { MetaAdsOAuthReturnPath } from "@/meta-ads/settings/metaAdsSettingsPaths";
 
@@ -55,6 +60,7 @@ export function MetaAdsSettingsPanel({
   contentClassName,
 }: MetaAdsSettingsPanelProps) {
   const { t } = useTranslation();
+  const { pathname } = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     data,
@@ -119,19 +125,24 @@ export function MetaAdsSettingsPanel({
   };
 
   useEffect(() => {
+    if (!shouldConsumeOfflineConversionOAuthResult(searchParams, "meta", pathname)) return;
+
     const connected = searchParams.get("connected");
     const oauthError = searchParams.get("oauth_error");
     if (connected === "1") {
       toast.success(t("omnichannel.settings.metaAds.connectedToast", "Meta Ads connected successfully."));
-      searchParams.delete("connected");
-      setSearchParams(searchParams, { replace: true });
     }
     if (oauthError) {
       toast.error(t("omnichannel.settings.metaAds.oauthErrorToast", { message: oauthError, defaultValue: `Sign-in failed: ${oauthError}` }));
-      searchParams.delete("oauth_error");
-      setSearchParams(searchParams, { replace: true });
     }
-  }, [searchParams, setSearchParams, t]);
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("connected");
+    next.delete("oauth_error");
+    if (isSharedOfflineConversionPath(pathname)) next.set("platform", "meta");
+    clearOfflineConversionOAuthStart();
+    setSearchParams(next, { replace: true });
+  }, [pathname, searchParams, setSearchParams, t]);
 
   const openAddAccount = () => {
     setEditAccountId(null);

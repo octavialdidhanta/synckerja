@@ -11,6 +11,16 @@ import {
   readPlatformMetaAdsOAuth,
 } from "../_shared/metaAdsAuth.ts";
 
+function withSharedPlatformQuery(query: string, returnPath: string): string {
+  const shared =
+    returnPath === "/omnichannel/settings/offline-conversion" ||
+    returnPath === "/omnichannel/settings/google-ads";
+  if (!shared) return query;
+  const params = new URLSearchParams(query.startsWith("?") ? query.slice(1) : query);
+  params.set("platform", "meta");
+  return `?${params.toString()}`;
+}
+
 function redirectToAppPath(path: string, query: string, status = 302): Response {
   const origin = appPublicOrigin() || "http://localhost:5173";
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -32,8 +42,10 @@ Deno.serve(async (req: Request) => {
   const state = url.searchParams.get("state")?.trim() ?? "";
   const oauthError = url.searchParams.get("error")?.trim() ?? "";
 
-  const redirectDefault = (query: string, returnPath?: string | null) =>
-    redirectToAppPath(resolveOAuthReturnPath(returnPath), query);
+  const redirectDefault = (query: string, returnPath?: string | null) => {
+    const path = resolveOAuthReturnPath(returnPath);
+    return redirectToAppPath(path, withSharedPlatformQuery(query, path));
+  };
 
   if (oauthError) {
     return redirectDefault(`?oauth_error=${encodeURIComponent(oauthError)}`);

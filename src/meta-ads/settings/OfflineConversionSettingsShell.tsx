@@ -13,6 +13,11 @@ import {
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { GoogleAdsSettingsPanel } from "@/google-ads/settings/GoogleAdsSettingsPanel";
 import { GOOGLE_ADS_OMNICHANNEL_SETTINGS_PATH } from "@/google-ads/settings/googleAdsSettingsPaths";
+import {
+  clearOfflineConversionOAuthStart,
+  peekOfflineConversionOAuthProvider,
+  resolveOfflineConversionOAuthProvider,
+} from "@/5-3-dashboard/omnichannel-settings/lib/offlineConversionOAuthResult";
 import { MetaAdsSettingsPanel } from "@/meta-ads/settings/MetaAdsSettingsPanel";
 import { META_ADS_OMNICHANNEL_SETTINGS_PATH } from "@/meta-ads/settings/metaAdsSettingsPaths";
 
@@ -22,7 +27,43 @@ export function OfflineConversionSettingsShell() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { organizationId, canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
 
-  const platformTab = searchParams.get("platform") === "meta" ? "meta" : "google";
+  const platformTab =
+    searchParams.get("platform") === "meta" || peekOfflineConversionOAuthProvider() === "meta"
+      ? "meta"
+      : "google";
+
+  useEffect(() => {
+    const connected = searchParams.get("connected") === "1";
+    const oauthError = searchParams.get("oauth_error");
+    if (!connected && !oauthError) return;
+
+    const provider = resolveOfflineConversionOAuthProvider(searchParams) ?? "google";
+    if (connected) {
+      toast.success(
+        provider === "meta"
+          ? t("omnichannel.settings.metaAds.connectedToast", "Meta Ads connected successfully.")
+          : t("omnichannel.settings.googleAds.connectedToast"),
+      );
+    }
+    if (oauthError) {
+      toast.error(
+        provider === "meta"
+          ? t("omnichannel.settings.metaAds.oauthErrorToast", {
+              message: oauthError,
+              defaultValue: `Sign-in failed: ${oauthError}`,
+            })
+          : t("omnichannel.settings.googleAds.oauthErrorToast", { message: oauthError }),
+      );
+    }
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("connected");
+    next.delete("oauth_error");
+    if (provider === "meta") next.set("platform", "meta");
+    else next.delete("platform");
+    clearOfflineConversionOAuthStart();
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, t]);
 
   useEffect(() => {
     if (!gatePending || !organizationId) return;
