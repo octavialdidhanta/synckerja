@@ -23,6 +23,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 import { cn } from "@/shared/lib/utils";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { CONNECT_WHATSAPP_PATH } from "@/5-3-whatsapp/constants/omnichannelIntegrationPaths";
@@ -70,6 +80,7 @@ export function MetaAdsSettingsPanel({
   const [accountIsDefault, setAccountIsDefault] = useState(false);
   const [pickerAccounts, setPickerAccounts] = useState<Array<{ account_id: string; name: string }>>([]);
   const [pickerPixels, setPickerPixels] = useState<Array<{ id: string; name: string }>>([]);
+  const [deleteAccountId, setDeleteAccountId] = useState<string | null>(null);
 
   const oauthConnected = data?.oauthConnected ?? false;
   const connection = data?.connection;
@@ -94,6 +105,18 @@ export function MetaAdsSettingsPanel({
   const hasConfiguredPixel = accounts.some(
     (a) => a.pixel_id && String(a.pixel_id).replace(/\D/g, "") !== "" && String(a.pixel_id) !== "0",
   );
+  const accountPendingDelete = accounts.find((a) => a.id === deleteAccountId) ?? null;
+
+  const handleConfirmDeleteAccount = async () => {
+    if (!deleteAccountId) return;
+    try {
+      await deleteAccount.mutateAsync(deleteAccountId);
+      setDeleteAccountId(null);
+      toast.success(t("omnichannel.settings.metaAds.accountDeleted", "Account removed"));
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
 
   useEffect(() => {
     const connected = searchParams.get("connected");
@@ -200,17 +223,27 @@ export function MetaAdsSettingsPanel({
 
   if (isPending) {
     return (
-      <div className={cn("space-y-3", className)}>
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-32 w-full" />
+      <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)}>
+        <div className={cn("flex-1 min-h-0 overflow-y-auto", contentClassName)}>
+          <div className="space-y-3">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={cn("space-y-6", className)}>
-      <div className={cn("space-y-4", contentClassName)}>
-        <div className="rounded-lg border border-slate-200 p-4 space-y-4">
+    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)}>
+      <div
+        className={cn(
+          "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          contentClassName,
+        )}
+      >
+        <div className="flex min-h-0 flex-1 flex-col gap-6 max-w-2xl">
+        <div className="shrink-0 rounded-lg border border-slate-200 p-4 space-y-4">
           <h3 className="font-semibold text-slate-900">
             {t("omnichannel.settings.metaAds.connectionTitle", "Meta Ads connection")}
           </h3>
@@ -340,8 +373,8 @@ export function MetaAdsSettingsPanel({
         </div>
 
         {oauthConnected && (
-          <div className="rounded-lg border border-slate-200 p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-h-[12rem] min-w-0 flex-1 flex-col rounded-lg border border-slate-200 p-4">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
               <h3 className="font-semibold text-slate-900">
                 {t("omnichannel.settings.metaAds.accountsTitle", "Meta Ads accounts")}
               </h3>
@@ -384,51 +417,93 @@ export function MetaAdsSettingsPanel({
             </div>
 
             {accounts.length === 0 ? (
-              <p className="text-sm text-slate-500">
+              <p className="mt-3 shrink-0 text-sm text-slate-500">
                 {t("omnichannel.settings.metaAds.noAccounts", "No ad accounts configured. Sync from Meta or add manually.")}
               </p>
             ) : (
-              <ul className="space-y-2">
-                {accounts.map((acc) => (
-                  <li
-                    key={acc.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">
-                        {acc.label}
-                        {acc.is_default ? ` (${t("omnichannel.settings.metaAds.default", "default")})` : ""}
-                      </p>
-                      <p className="text-xs text-slate-500 font-mono">
-                        act_{acc.ad_account_id} · Pixel {acc.pixel_id} · {acc.default_event_name}
-                      </p>
-                    </div>
-                    <div className="flex gap-1">
-                      {!acc.is_default && (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setDefaultAccount.mutate(acc.id)}>
-                          {t("omnichannel.settings.metaAds.setDefault", "Set default")}
+              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain mt-3 min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <ul className="space-y-2 pr-1">
+                  {accounts.map((acc) => (
+                    <li
+                      key={acc.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">
+                          {acc.label}
+                          {acc.is_default ? ` (${t("omnichannel.settings.metaAds.default", "default")})` : ""}
+                        </p>
+                        <p className="text-xs text-slate-500 font-mono">
+                          act_{acc.ad_account_id} · Pixel {acc.pixel_id} · {acc.default_event_name}
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        {!acc.is_default && (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setDefaultAccount.mutate(acc.id)}>
+                            {t("omnichannel.settings.metaAds.setDefault", "Set default")}
+                          </Button>
+                        )}
+                        <Button type="button" variant="ghost" size="sm" onClick={() => openEditAccount(acc.id)}>
+                          {t("omnichannel.settings.metaAds.edit", "Edit")}
                         </Button>
-                      )}
-                      <Button type="button" variant="ghost" size="sm" onClick={() => openEditAccount(acc.id)}>
-                        {t("omnichannel.settings.metaAds.edit", "Edit")}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600"
-                        onClick={() => deleteAccount.mutate(acc.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600"
+                          onClick={() => setDeleteAccountId(acc.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         )}
+        </div>
       </div>
+
+      <AlertDialog
+        open={deleteAccountId != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteAccountId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("omnichannel.settings.metaAds.deleteAccountTitle", "Delete account?")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("omnichannel.settings.metaAds.deleteAccountBody", {
+                name: accountPendingDelete?.label || accountPendingDelete?.ad_account_id || "—",
+                defaultValue: `Remove "${accountPendingDelete?.label ?? "—"}" from this organization?`,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteAccount.isPending}>
+              {t("common.cancel", "Cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteAccount.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmDeleteAccount();
+              }}
+            >
+              {deleteAccount.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              {t("omnichannel.settings.metaAds.deleteAccountConfirm", "Delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen}>
         <DialogContent>

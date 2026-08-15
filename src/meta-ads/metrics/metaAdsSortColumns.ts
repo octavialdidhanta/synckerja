@@ -9,8 +9,13 @@ export type MetaAdsSortColumnOption = { key: string; labelKey: string; defaultLa
 
 export type MetaAdsSortColumnKind = "text" | "numeric";
 
+const PINNED_COST_SORT: MetaAdsSortColumnOption = {
+  key: "spend",
+  labelKey: "digitalMarketing.metaAds.cost",
+  defaultLabel: "Cost",
+};
+
 const METRIC_KEYS: MetaAdsSortColumnOption[] = [
-  { key: "spend", labelKey: "digitalMarketing.metaAds.spend", defaultLabel: "Spend" },
   { key: "impressions", labelKey: "digitalMarketing.metaAds.impressions", defaultLabel: "Impressions" },
   { key: "clicks", labelKey: "digitalMarketing.metaAds.clicks", defaultLabel: "Clicks" },
   { key: "ctr", labelKey: "digitalMarketing.metaAds.ctr", defaultLabel: "CTR" },
@@ -66,9 +71,11 @@ const IDENTITY_BY_ENTITY: Record<MetaAdsMetricEntity, MetaAdsSortColumnOption[]>
   campaign: [
     ...CAMPAIGN_SERVICE_SORT,
     { key: "name", labelKey: "digitalMarketing.metaAds.name", defaultLabel: "Name" },
+    PINNED_COST_SORT,
   ],
   adset: [
     { key: "name", labelKey: "digitalMarketing.metaAds.name", defaultLabel: "Name" },
+    PINNED_COST_SORT,
     {
       key: "campaign_name",
       labelKey: "digitalMarketing.metaAds.campaignColumn",
@@ -77,6 +84,7 @@ const IDENTITY_BY_ENTITY: Record<MetaAdsMetricEntity, MetaAdsSortColumnOption[]>
   ],
   ad: [
     { key: "name", labelKey: "digitalMarketing.metaAds.name", defaultLabel: "Name" },
+    PINNED_COST_SORT,
     {
       key: "adset_name",
       labelKey: "digitalMarketing.metaAds.adsetColumn",

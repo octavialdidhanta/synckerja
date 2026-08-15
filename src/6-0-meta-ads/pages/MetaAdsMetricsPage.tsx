@@ -21,7 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/aler
 import { useMetaAdsReportingEnabled } from "@/meta-ads/hooks/useMetaAdsReportingEnabled";
 import { useMetaAdsSettings } from "@/meta-ads/hooks/useMetaAdsSettings";
 import {
-  fetchMetaAdsMetrics,
+  refreshMetaAdsMetrics,
   useMetaAdsMetricsQuery,
   type MetaAdsMetricEntity,
   type MetaAdsMetricsRow,
@@ -131,6 +131,7 @@ function MetaAdsMetricsPageContent() {
   const setAdAccountId = setMetaAdAccountId;
   const [sort, setSort] = useState<MetaAdsMetricsSort>({ field: "spend", direction: "desc" });
   const [metricsDialogOpen, setMetricsDialogOpen] = useState(false);
+  const [isRefreshingMetrics, setIsRefreshingMetrics] = useState(false);
   const sortHydratedForEntityRef = useRef<string | null>(null);
 
   const validMetricKeys = useMemo(() => getMetaAdsCatalogMetricKeys(), []);
@@ -282,23 +283,24 @@ function MetaAdsMetricsPageContent() {
   });
 
   const handleRefreshMetrics = useCallback(async () => {
-    if (!organizationId || !adAccountId) return;
+    if (!organizationId || !adAccountId || isRefreshingMetrics) return;
+    setIsRefreshingMetrics(true);
     try {
-      const fresh = await fetchMetaAdsMetrics({
+      await refreshMetaAdsMetrics(queryClient, {
         organizationId,
         adAccountId,
         entity,
         dateStart,
         dateEnd,
-        forceRefresh: true,
       });
-      queryClient.setQueryData(
-        ["meta-ads-metrics", organizationId, adAccountId, entity, dateStart, dateEnd, ""],
-        fresh,
+      toast.success(
+        t("digitalMarketing.metaAds.refreshSuccess", "Metrics refreshed from Meta."),
       );
     } catch (e) {
       toast.error((e as Error).message);
       await metricsQuery.refetch();
+    } finally {
+      setIsRefreshingMetrics(false);
     }
   }, [
     organizationId,
@@ -308,6 +310,8 @@ function MetaAdsMetricsPageContent() {
     dateEnd,
     queryClient,
     metricsQuery,
+    isRefreshingMetrics,
+    t,
   ]);
 
   const sortFieldValue = useMemo(() => {
@@ -579,11 +583,12 @@ function MetaAdsMetricsPageContent() {
                                     disabled={
                                       !reportingEnabled ||
                                       !adAccountId ||
+                                      isRefreshingMetrics ||
                                       metricsQuery.isFetching
                                     }
                                     onClick={() => void handleRefreshMetrics()}
                                   >
-                                    {metricsQuery.isFetching ? (
+                                    {isRefreshingMetrics || metricsQuery.isFetching ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (
                                       <RefreshCw className="h-4 w-4" />

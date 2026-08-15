@@ -42,8 +42,42 @@ type IdentityCol = {
   render: (row: MetaAdsMetricsRow) => ReactNode;
 };
 
+const ADSET_AD_NAME_CELL_CLASS =
+  "min-w-[9rem] max-w-[220px] min-w-0 overflow-hidden font-medium";
+
+function renderTruncatedEntityName(row: MetaAdsMetricsRow, entity: MetaAdsMetricEntity) {
+  const text = metaAdsRowDisplayName(row, entity);
+  return (
+    <span className="block truncate" title={text && text !== "—" ? text : undefined}>
+      {text}
+    </span>
+  );
+}
+
+function renderTruncatedSecondaryName(row: MetaAdsMetricsRow, entity: MetaAdsMetricEntity) {
+  const text = metaAdsRowSecondaryName(row, entity) ?? "—";
+  return (
+    <span className="block truncate" title={text !== "—" ? text : undefined}>
+      {text}
+    </span>
+  );
+}
+
 function formatServiceCpa(value: unknown, currencyCode: string | null | undefined): string {
   return formatMetaMetricValue("spend", value, currencyCode);
+}
+
+function pinnedCostColumn(
+  t: (key: string, defaultValue?: string) => string,
+  currencyCode: string | null,
+): IdentityCol {
+  return {
+    key: "spend",
+    label: t("digitalMarketing.metaAds.cost", "Cost"),
+    cellClassName: "whitespace-nowrap text-right tabular-nums text-sm",
+    render: (row) =>
+      formatMetaMetricValue("spend", (row as Record<string, unknown>).spend, currencyCode),
+  };
 }
 
 function campaignIdentityColumns(
@@ -145,6 +179,7 @@ function campaignIdentityColumns(
       cellClassName: "min-w-[10rem] max-w-[280px] font-medium",
       render: (row) => metaAdsRowDisplayName(row, "campaign"),
     },
+    pinnedCostColumn(t, opts.currencyCode),
   ];
 }
 
@@ -190,24 +225,30 @@ export function MetaAdsMetricsTable({
             {
               key: "name",
               label: t("digitalMarketing.metaAds.name", "Name"),
-              render: (row) => metaAdsRowDisplayName(row, entity),
+              cellClassName: ADSET_AD_NAME_CELL_CLASS,
+              render: (row) => renderTruncatedEntityName(row, "adset"),
             },
+            pinnedCostColumn(t, currencyCode),
             {
               key: "campaign",
               label: t("digitalMarketing.metaAds.campaignColumn", "Campaign"),
-              render: (row) => metaAdsRowSecondaryName(row, entity) ?? "—",
+              cellClassName: "min-w-[6.5rem] max-w-[240px] min-w-0 overflow-hidden",
+              render: (row) => renderTruncatedSecondaryName(row, "adset"),
             },
           ]
         : [
             {
               key: "name",
               label: t("digitalMarketing.metaAds.name", "Name"),
-              render: (row) => metaAdsRowDisplayName(row, entity),
+              cellClassName: ADSET_AD_NAME_CELL_CLASS,
+              render: (row) => renderTruncatedEntityName(row, "ad"),
             },
+            pinnedCostColumn(t, currencyCode),
             {
               key: "adset",
               label: t("digitalMarketing.metaAds.adsetColumn", "Ad set"),
-              render: (row) => metaAdsRowSecondaryName(row, entity) ?? "—",
+              cellClassName: "min-w-[6.5rem] max-w-[240px] min-w-0 overflow-hidden",
+              render: (row) => renderTruncatedSecondaryName(row, "ad"),
             },
           ];
 
@@ -224,12 +265,7 @@ export function MetaAdsMetricsTable({
                 {identityCols.map((h) => (
                   <th
                     key={h.key}
-                    className={cn(
-                      thBase,
-                      h.cellClassName?.includes("text-right") ? "text-right" : undefined,
-                      h.key === "name" && entity !== "campaign" ? "min-w-[10rem]" : undefined,
-                      h.key === "campaign" || h.key === "adset" ? "min-w-[6.5rem]" : undefined,
-                    )}
+                    className={cn(thBase, h.cellClassName)}
                     title={h.headerTitle}
                   >
                     {h.label}

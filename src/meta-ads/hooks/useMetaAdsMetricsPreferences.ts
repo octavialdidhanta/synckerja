@@ -5,6 +5,7 @@ import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuer
 import {
   META_ADS_DEFAULT_METRIC_KEYS,
   getMetaAdsCatalogMetricKeys,
+  stripMetaAdsPinnedMetricKeys,
 } from "@/meta-ads/metrics/metaAdsMetricCatalog";
 import type { MetaAdsMetricsSort } from "@/meta-ads/metrics/metaAdsSortColumns";
 
@@ -22,7 +23,7 @@ function globalDefaultMetricsForEntity(
 }
 
 function sanitizeKeys(raw: string[], validKeys: Set<string>): string[] {
-  const filtered = raw.filter((k) => validKeys.has(k));
+  const filtered = stripMetaAdsPinnedMetricKeys(raw).filter((k) => validKeys.has(k));
   if (filtered.length > 0) return filtered;
   return META_ADS_DEFAULT_METRIC_KEYS.filter((k) => validKeys.has(k));
 }

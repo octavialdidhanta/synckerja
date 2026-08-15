@@ -1,5 +1,8 @@
 import type { MetaAdsColumnSet } from "@/meta-ads/hooks/useMetaAdsColumnSets";
-import { isMetaAdsSynckerjaMetricKey } from "@/meta-ads/metrics/metaAdsMetricCatalog";
+import {
+  isMetaAdsSynckerjaMetricKey,
+  stripMetaAdsPinnedMetricKeys,
+} from "@/meta-ads/metrics/metaAdsMetricCatalog";
 
 export function columnKeysMatch(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((key, index) => key === b[index]);
@@ -17,19 +20,24 @@ export function findMatchingMetaAdsColumnSet(
   columnSets: MetaAdsColumnSet[],
   keys: string[],
 ): MetaAdsColumnSet | null {
-  if (keys.length === 0) return null;
+  const normalizedKeys = stripMetaAdsPinnedMetricKeys(keys);
+  if (normalizedKeys.length === 0) return null;
+  const normalizeSetKeys = (set: MetaAdsColumnSet) => stripMetaAdsPinnedMetricKeys(set.metric_keys);
   const orgMatch =
     columnSets.find(
-      (set) => set.scope === "org" && columnKeysMatch(set.metric_keys, keys),
+      (set) => set.scope === "org" && columnKeysMatch(normalizeSetKeys(set), normalizedKeys),
     ) ??
     columnSets.find(
       (set) =>
-        set.scope === "org" && columnKeysMatchOrderIndependent(set.metric_keys, keys),
+        set.scope === "org" &&
+        columnKeysMatchOrderIndependent(normalizeSetKeys(set), normalizedKeys),
     );
   if (orgMatch) return orgMatch;
   return (
-    columnSets.find((set) => columnKeysMatch(set.metric_keys, keys)) ??
-    columnSets.find((set) => columnKeysMatchOrderIndependent(set.metric_keys, keys)) ??
+    columnSets.find((set) => columnKeysMatch(normalizeSetKeys(set), normalizedKeys)) ??
+    columnSets.find((set) =>
+      columnKeysMatchOrderIndependent(normalizeSetKeys(set), normalizedKeys),
+    ) ??
     null
   );
 }
@@ -39,7 +47,7 @@ export function filterMetaAdsPreferenceMetricKeys(
   keys: string[],
   validMetricKeys: Set<string> | null | undefined,
 ): string[] {
-  return keys.filter(
+  return stripMetaAdsPinnedMetricKeys(keys).filter(
     (k) => validMetricKeys?.has(k) || isMetaAdsSynckerjaMetricKey(k),
   );
 }

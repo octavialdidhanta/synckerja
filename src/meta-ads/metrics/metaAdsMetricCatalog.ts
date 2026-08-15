@@ -36,12 +36,18 @@ export type MetaAdsMetricCatalogResponse = {
 
 export const META_ADS_MAX_METRICS = 20;
 
-export const META_ADS_DEFAULT_METRIC_KEYS = [
-  "spend",
-  "impressions",
-  "clicks",
-  "ctr",
-] as const;
+/** Always shown after Name — not user-selectable in Modify columns. */
+export const META_ADS_PINNED_METRIC_KEYS = ["spend"] as const;
+
+export const META_ADS_DEFAULT_METRIC_KEYS = ["impressions", "clicks", "ctr"] as const;
+
+export function isMetaAdsPinnedMetricKey(key: string): boolean {
+  return (META_ADS_PINNED_METRIC_KEYS as readonly string[]).includes(String(key ?? "").trim());
+}
+
+export function stripMetaAdsPinnedMetricKeys(keys: string[]): string[] {
+  return keys.filter((k) => !isMetaAdsPinnedMetricKey(k));
+}
 
 export const META_ADS_SYNCKERJA_METRIC_KEYS = [
   "traffic_total_visit_page",
@@ -211,6 +217,23 @@ export function getMetaAdsMetricsForEntity(entity: MetaAdsMetricEntity): MetaAds
   return [...core, ...SYNCKERJA_METRICS];
 }
 
+/** Table Modify columns — excludes pinned metrics always shown in the grid. */
+export function getMetaAdsSelectableMetricsForEntity(
+  entity: MetaAdsMetricEntity,
+): MetaAdsMetricCatalogItem[] {
+  return getMetaAdsMetricsForEntity(entity).filter((m) => !isMetaAdsPinnedMetricKey(m.key));
+}
+
+export function getMetaAdsPinnedMetricColumns(_entity: MetaAdsMetricEntity): MetaAdsIdentityColumn[] {
+  return [
+    {
+      key: "spend",
+      labelKey: "digitalMarketing.metaAds.cost",
+      defaultLabel: "Cost",
+    },
+  ];
+}
+
 export function getMetaAdsSynckerjaMetricsForEntity(
   entity: MetaAdsMetricEntity,
 ): MetaAdsMetricCatalogItem[] {
@@ -259,7 +282,9 @@ export function getMetaAdsIdentityColumns(entity: MetaAdsMetricEntity): MetaAdsI
 export function buildMetaAdsMetricCatalogResponse(
   entity: MetaAdsMetricEntity,
 ): MetaAdsMetricCatalogResponse {
-  const coreMetrics = CORE_METRICS.filter((m) => m.entities.includes(entity));
+  const coreMetrics = getMetaAdsSelectableMetricsForEntity(entity).filter((m) =>
+    CORE_METRICS.some((core) => core.key === m.key),
+  );
   const synckerjaMetrics = getMetaAdsSynckerjaMetricsForEntity(entity);
   const recommended = coreMetrics.filter((m) => m.defaultSelected);
   const categories: MetaAdsMetricCatalogCategory[] = [
@@ -280,7 +305,10 @@ export function buildMetaAdsMetricCatalogResponse(
   }
   return {
     max_metrics: META_ADS_MAX_METRICS,
-    identity_columns: getMetaAdsIdentityColumns(entity),
+    identity_columns: [
+      ...getMetaAdsIdentityColumns(entity),
+      ...getMetaAdsPinnedMetricColumns(entity),
+    ],
     recommended_keys: [...META_ADS_DEFAULT_METRIC_KEYS],
     recommended: {
       id: "recommended",
@@ -296,6 +324,8 @@ export function resolveMetaAdsMetricItems(
   selectedKeys: string[],
   entity: MetaAdsMetricEntity,
 ): MetaAdsMetricCatalogItem[] {
-  const map = new Map(getMetaAdsMetricsForEntity(entity).map((m) => [m.key, m]));
-  return selectedKeys.map((k) => map.get(k)).filter((m): m is MetaAdsMetricCatalogItem => Boolean(m));
+  const map = new Map(getMetaAdsSelectableMetricsForEntity(entity).map((m) => [m.key, m]));
+  return stripMetaAdsPinnedMetricKeys(selectedKeys)
+    .map((k) => map.get(k))
+    .filter((m): m is MetaAdsMetricCatalogItem => Boolean(m));
 }

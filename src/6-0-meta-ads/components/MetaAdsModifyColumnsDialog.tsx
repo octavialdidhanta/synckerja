@@ -64,9 +64,11 @@ import {
 } from "@/meta-ads/components/MetaAdsColumnSetOptionLabel";
 import type { MetaAdsColumnSet } from "@/meta-ads/hooks/useMetaAdsColumnSets";
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
-import type {
-  MetaAdsMetricCatalogItem,
-  MetaAdsMetricCatalogResponse,
+import {
+  isMetaAdsPinnedMetricKey,
+  stripMetaAdsPinnedMetricKeys,
+  type MetaAdsMetricCatalogItem,
+  type MetaAdsMetricCatalogResponse,
 } from "@/meta-ads/metrics/metaAdsMetricCatalog";
 
 type ResolvedMetric = {
@@ -253,7 +255,7 @@ export function MetaAdsModifyColumnsDialog({
 
   useEffect(() => {
     if (open) {
-      setDraftKeys(selectedKeys);
+      setDraftKeys(stripMetaAdsPinnedMetricKeys(selectedKeys));
       setSearch("");
       setSearchOpen(false);
       setSavePreset(false);
@@ -314,6 +316,7 @@ export function MetaAdsModifyColumnsDialog({
   );
 
   const toggleMetric = (key: string, checked: boolean) => {
+    if (isMetaAdsPinnedMetricKey(key)) return;
     setDraftKeys((prev) => {
       if (checked) {
         if (prev.includes(key) || prev.length >= maxMetrics) return prev;
@@ -338,7 +341,9 @@ export function MetaAdsModifyColumnsDialog({
     const preset = columnSets.find((s) => s.id === setId);
     if (!preset) return;
     setActiveColumnSetId(setId);
-    setDraftKeys(preset.metric_keys.filter((k) => metricByKey.has(k)));
+    setDraftKeys(
+      stripMetaAdsPinnedMetricKeys(preset.metric_keys).filter((k) => metricByKey.has(k)),
+    );
     setIsEditingColumnSet(false);
     setEditColumnSetName(preset.name);
   };

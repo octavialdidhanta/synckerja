@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { type QueryClient, useQuery } from "@tanstack/react-query";
 import { clampMetaAdsDateRange } from "@/meta-ads/lib/clampMetaAdsDateRange";
 import { parseEdgeFunctionError } from "@/meta-ads/lib/parseEdgeFunctionError";
 import { supabase } from "@/shared/lib/supabaseClient";
@@ -23,6 +23,52 @@ export type MetaAdsMetricsResponse = {
   next_page_token: string | null;
   cached?: boolean;
 };
+
+export function buildMetaAdsMetricsQueryKey(args: {
+  organizationId: string | null | undefined;
+  adAccountId: string;
+  entity: MetaAdsMetricEntity;
+  dateStart: string;
+  dateEnd: string;
+  pageToken?: string;
+}): readonly unknown[] {
+  const { organizationId, adAccountId, entity, dateStart, dateEnd, pageToken = "" } = args;
+  return [
+    "meta-ads-metrics",
+    organizationId,
+    adAccountId,
+    entity,
+    dateStart,
+    dateEnd,
+    pageToken,
+  ] as const;
+}
+
+export async function refreshMetaAdsMetrics(
+  queryClient: QueryClient,
+  args: {
+    organizationId: string;
+    adAccountId: string;
+    entity: MetaAdsMetricEntity;
+    dateStart: string;
+    dateEnd: string;
+    pageToken?: string;
+  },
+): Promise<MetaAdsMetricsResponse> {
+  const pageToken = args.pageToken ?? "";
+  const queryKey = buildMetaAdsMetricsQueryKey({ ...args, pageToken });
+  const fresh = await fetchMetaAdsMetrics({
+    organizationId: args.organizationId,
+    adAccountId: args.adAccountId,
+    entity: args.entity,
+    dateStart: args.dateStart,
+    dateEnd: args.dateEnd,
+    pageToken,
+    forceRefresh: true,
+  });
+  queryClient.setQueryData(queryKey, fresh);
+  return fresh;
+}
 
 export async function fetchMetaAdsMetrics(args: {
   organizationId: string;
@@ -80,15 +126,14 @@ export function useMetaAdsMetricsQuery(args: {
   } = args;
 
   return useQuery({
-    queryKey: [
-      "meta-ads-metrics",
+    queryKey: buildMetaAdsMetricsQueryKey({
       organizationId,
       adAccountId,
       entity,
       dateStart,
       dateEnd,
       pageToken,
-    ],
+    }),
     queryFn: async () => {
       if (!organizationId || !adAccountId) return null;
       return fetchMetaAdsMetrics({
