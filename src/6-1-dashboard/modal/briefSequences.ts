@@ -90,12 +90,14 @@ export function findSequenceIndexForRow(sequences: BriefSequence[], rowIndex: nu
   return Math.max(0, sequences.length - 1);
 }
 
+/** Increment the sequence that owns the row we inserted after. */
 export function adjustSequencesForInsertRow(
   sequences: BriefSequence[],
-  insertAtRowIndex: number,
+  insertAfterRowIndex: number,
 ): BriefSequence[] {
   const next = sequences.map((s) => ({ ...s }));
-  const seqIdx = findSequenceIndexForRow(next, Math.max(0, insertAtRowIndex));
+  const ownerRow = insertAfterRowIndex >= 0 ? insertAfterRowIndex : 0;
+  const seqIdx = findSequenceIndexForRow(next, ownerRow);
   next[seqIdx] = { ...next[seqIdx], rowCount: next[seqIdx].rowCount + 1 };
   return next;
 }

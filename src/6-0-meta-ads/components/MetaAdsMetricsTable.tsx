@@ -18,7 +18,11 @@ import {
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type { MetaAdsMetricsRow } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
-import type { MetaAdsMetricCatalogItem } from "@/meta-ads/metrics/metaAdsMetricCatalog";
+import {
+  getMetaAdsLockedTableColumns,
+  isMetaAdsPinnedMetricKey,
+  type MetaAdsMetricCatalogItem,
+} from "@/meta-ads/metrics/metaAdsMetricCatalog";
 import {
   metaAdsRowDisplayName,
   metaAdsRowReactKey,
@@ -67,20 +71,8 @@ function formatServiceCpa(value: unknown, currencyCode: string | null | undefine
   return formatMetaMetricValue("spend", value, currencyCode);
 }
 
-function pinnedCostColumn(
-  t: (key: string, defaultValue?: string) => string,
-  currencyCode: string | null,
-): IdentityCol {
-  return {
-    key: "spend",
-    label: t("digitalMarketing.metaAds.cost", "Cost"),
-    cellClassName: "whitespace-nowrap text-right tabular-nums text-sm",
-    render: (row) =>
-      formatMetaMetricValue("spend", (row as Record<string, unknown>).spend, currencyCode),
-  };
-}
-
-function campaignIdentityColumns(
+function identityColumnByKey(
+  entity: MetaAdsMetricEntity,
   t: (key: string, defaultValue?: string) => string,
   opts: {
     canEditServiceMapping: boolean;
@@ -89,14 +81,14 @@ function campaignIdentityColumns(
     serviceMappingPending: boolean;
     currencyCode: string | null;
   },
-): IdentityCol[] {
+): Record<string, IdentityCol> {
   const cpaTip = t(
     "digitalMarketing.metaAds.serviceAggregateTip",
     "CPA per campaign: spent campaign ini dibagi lead Converted yang UTM campaign-nya cocok dengan nama campaign Meta (wajib fbclid; converted_at dalam rentang tanggal). CPL untuk lead yang belum converted.",
   );
 
-  return [
-    {
+  return {
+    service: {
       key: "service",
       label: t("digitalMarketing.metaAds.columnService", "Service"),
       cellClassName: "min-w-[9rem] max-w-[200px]",
@@ -133,7 +125,7 @@ function campaignIdentityColumns(
         );
       },
     },
-    {
+    service_cpl: {
       key: "service_cpl",
       label: t("digitalMarketing.metaAds.columnCostPerLead", "CPA"),
       headerTitle: cpaTip,
@@ -161,7 +153,7 @@ function campaignIdentityColumns(
         );
       },
     },
-    {
+    service_converted_leads: {
       key: "service_converted_leads",
       label: t("digitalMarketing.metaAds.columnConvertedLeads", "Conv. leads"),
       headerTitle: cpaTip,
@@ -173,14 +165,57 @@ function campaignIdentityColumns(
         return String(Number(n));
       },
     },
-    {
+    name: {
       key: "name",
-      label: t("digitalMarketing.metaAds.name", "Campaign"),
-      cellClassName: "min-w-[10rem] max-w-[280px] font-medium",
-      render: (row) => metaAdsRowDisplayName(row, "campaign"),
+      label: t("digitalMarketing.metaAds.name", entity === "campaign" ? "Campaign" : "Name"),
+      cellClassName:
+        entity === "campaign"
+          ? "min-w-[10rem] max-w-[280px] font-medium"
+          : ADSET_AD_NAME_CELL_CLASS,
+      render: (row) =>
+        entity === "campaign"
+          ? metaAdsRowDisplayName(row, "campaign")
+          : renderTruncatedEntityName(row, entity),
     },
-    pinnedCostColumn(t, opts.currencyCode),
-  ];
+    spend: {
+      key: "spend",
+      label: t("digitalMarketing.metaAds.cost", "Cost"),
+      cellClassName: "whitespace-nowrap text-right tabular-nums text-sm",
+      render: (row) =>
+        formatMetaMetricValue("spend", (row as Record<string, unknown>).spend, opts.currencyCode),
+    },
+    campaign_name: {
+      key: "campaign_name",
+      label: t("digitalMarketing.metaAds.campaignColumn", "Campaign"),
+      cellClassName: "min-w-[6.5rem] max-w-[240px] min-w-0 overflow-hidden",
+      render: (row) => renderTruncatedSecondaryName(row, "adset"),
+    },
+    adset_name: {
+      key: "adset_name",
+      label: t("digitalMarketing.metaAds.adsetColumn", "Ad set"),
+      cellClassName: "min-w-[6.5rem] max-w-[240px] min-w-0 overflow-hidden",
+      render: (row) => renderTruncatedSecondaryName(row, "ad"),
+    },
+  };
+}
+
+function lockedIdentityColumns(
+  entity: MetaAdsMetricEntity,
+  t: (key: string, defaultValue?: string) => string,
+  opts: {
+    canEditServiceMapping: boolean;
+    services: ServiceOption[];
+    onServiceMappingChange?: (row: MetaAdsMetricsRow, serviceId: string | null) => void;
+    serviceMappingPending: boolean;
+    currencyCode: string | null;
+  },
+): IdentityCol[] {
+  const byKey = identityColumnByKey(entity, t, opts);
+  return getMetaAdsLockedTableColumns(entity).flatMap((def) => {
+    const col = byKey[def.key];
+    if (!col) return [];
+    return [{ ...col, label: t(def.labelKey, def.defaultLabel) }];
+  });
 }
 
 type Props = {
@@ -211,48 +246,16 @@ export function MetaAdsMetricsTable({
 }: Props) {
   const { t } = useTranslation();
 
-  const identityCols: IdentityCol[] =
-    entity === "campaign"
-      ? campaignIdentityColumns(t, {
-          canEditServiceMapping,
-          services,
-          onServiceMappingChange,
-          serviceMappingPending,
-          currencyCode,
-        })
-      : entity === "adset"
-        ? [
-            {
-              key: "name",
-              label: t("digitalMarketing.metaAds.name", "Name"),
-              cellClassName: ADSET_AD_NAME_CELL_CLASS,
-              render: (row) => renderTruncatedEntityName(row, "adset"),
-            },
-            pinnedCostColumn(t, currencyCode),
-            {
-              key: "campaign",
-              label: t("digitalMarketing.metaAds.campaignColumn", "Campaign"),
-              cellClassName: "min-w-[6.5rem] max-w-[240px] min-w-0 overflow-hidden",
-              render: (row) => renderTruncatedSecondaryName(row, "adset"),
-            },
-          ]
-        : [
-            {
-              key: "name",
-              label: t("digitalMarketing.metaAds.name", "Name"),
-              cellClassName: ADSET_AD_NAME_CELL_CLASS,
-              render: (row) => renderTruncatedEntityName(row, "ad"),
-            },
-            pinnedCostColumn(t, currencyCode),
-            {
-              key: "adset",
-              label: t("digitalMarketing.metaAds.adsetColumn", "Ad set"),
-              cellClassName: "min-w-[6.5rem] max-w-[240px] min-w-0 overflow-hidden",
-              render: (row) => renderTruncatedSecondaryName(row, "ad"),
-            },
-          ];
+  const identityCols = lockedIdentityColumns(entity, t, {
+    canEditServiceMapping,
+    services,
+    onServiceMappingChange,
+    serviceMappingPending,
+    currencyCode,
+  });
+  const visibleMetricItems = metricItems.filter((m) => !isMetaAdsPinnedMetricKey(m.key));
 
-  const colSpan = identityCols.length + metricItems.length;
+  const colSpan = identityCols.length + visibleMetricItems.length;
   const metricColClass = "min-w-[5.5rem] whitespace-nowrap px-3 text-right";
 
   return (
@@ -271,7 +274,7 @@ export function MetaAdsMetricsTable({
                     {h.label}
                   </th>
                 ))}
-                {metricItems.map((m) => (
+                {visibleMetricItems.map((m) => (
                   <th key={m.key} className={cn(thBase, metricColClass, "text-right")}>
                     {t(m.labelKey, m.defaultLabel)}
                   </th>
@@ -310,7 +313,7 @@ export function MetaAdsMetricsTable({
                           {col.render(row)}
                         </td>
                       ))}
-                      {metricItems.map((m) => (
+                      {visibleMetricItems.map((m) => (
                         <td
                           key={m.key}
                           className={cn("p-2 align-middle tabular-nums", metricColClass)}

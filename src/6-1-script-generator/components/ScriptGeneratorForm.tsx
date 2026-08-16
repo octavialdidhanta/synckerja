@@ -49,6 +49,7 @@ import { useKeywords } from '@/6-1-product-knowledge/hooks/useKeywords';
 import { toast } from 'sonner';
 import { Checkbox } from '@/shared/components/ui/checkbox';
 import { cn } from '@/shared/lib/utils';
+import { DrawerSelectField } from '@/mobile-app/components/DrawerSelectField';
 
 /** Judul di trigger: hilang halus saat expand (diganti bar primary di dalam konten). */
 const SCRIPT_GEN_ACCORDION_TRIGGER_TITLE_CLASS =
@@ -62,7 +63,29 @@ const BREAKDOWN_TABLE_SELECT_NONE = '__breakdown_table_none__';
 interface ScriptGeneratorFormProps {
   onGenerate: (data: ScriptGeneratorRequest) => Promise<void>;
   isGenerating: boolean;
+  /** Mobile Persona Form: open options in a bottom drawer instead of a popover. */
+  selectAsDrawer?: boolean;
 }
+
+type FormSelectDrawerId =
+  | 'contentType'
+  | 'durationUnit'
+  | 'service'
+  | 'subService'
+  | 'contentPillar'
+  | 'sellingApproach'
+  | 'storyContext'
+  | 'feature'
+  | 'persona'
+  | 'gender'
+  | 'keywords'
+  | 'keinginan'
+  | 'kebutuhan'
+  | 'breakdown'
+  | 'hook'
+  | 'style'
+  | 'cta'
+  | 'judul';
 
 function decodeHtmlEntities(text: string): string {
   return text
@@ -247,7 +270,8 @@ const judulTemplates = [
 
 export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
   onGenerate,
-  isGenerating
+  isGenerating,
+  selectAsDrawer = false,
 }) => {
   const { t } = useAppTranslation();
   const { organizationId } = useCurrentOrg();
@@ -304,6 +328,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
   const [keywordSearchQuery, setKeywordSearchQuery] = useState<string>('');
   const [useKeyword, setUseKeyword] = useState<boolean>(false);
   const [breakdownTableTemplateId, setBreakdownTableTemplateId] = useState<string>(BREAKDOWN_TABLE_SELECT_NONE);
+  const [openFormDrawer, setOpenFormDrawer] = useState<FormSelectDrawerId | null>(null);
 
   const [filteredSubServices, setFilteredSubServices] = useState<any[]>([]);
   const prevContentPillarRef = useRef<string | undefined>(undefined);
@@ -445,6 +470,67 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
       .forEach((pk) => names.add(pk.feature_name.trim()));
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [productKnowledgeData, selectedServiceId]);
+
+  const filteredStyleOptions = useMemo(() => {
+    return productKnowledgeStyles.filter((style) => {
+      if (!style.name || style.name.trim() === '') return false;
+      if (!formData.content_pillar) return true;
+      const selectedPillar = contentPillars.find((pillar) => pillar.name === formData.content_pillar);
+      if (!selectedPillar) return true;
+      const pillarIds = style.content_pillar_ids || [];
+      return pillarIds.length === 0 || pillarIds.includes(selectedPillar.id);
+    });
+  }, [productKnowledgeStyles, formData.content_pillar, contentPillars]);
+
+  const kebutuhanSelectOptions = useMemo(() => {
+    if (!formData.target_market?.trim()) return [] as { value: string; label: string }[];
+    const uniqueNeeds = new Map<string, string>();
+    const kebutuhanValue = (formData.kebutuhan || '').replace(/\r\n/g, '\n').trim();
+    if (kebutuhanValue) uniqueNeeds.set(kebutuhanValue, 'autofilled');
+
+    const keinginanTrim = (formData.keinginan || '').trim();
+    const personaTrim = (formData.target_market || '').trim();
+    const selectedFeature = formData.feature_name?.trim() || '';
+
+    let matchingPKs = productKnowledgeWithWantsNeeds;
+    if (keinginanTrim) {
+      matchingPKs = matchingPKs.filter((pk) => (pk.wants || '').trim() === keinginanTrim);
+    }
+    if (selectedServiceId) {
+      matchingPKs = matchingPKs.filter((pk) => pk.service_id === selectedServiceId);
+    }
+    if (selectedFeature) {
+      matchingPKs = matchingPKs.filter((pk) => pk.feature_name?.trim() === selectedFeature);
+    }
+    if (personaTrim) {
+      matchingPKs = matchingPKs.filter((pk) => {
+        if (!pk.target_audience) return false;
+        return extractTargetAudienceAsString(pk.target_audience).trim() === personaTrim;
+      });
+    }
+    if (matchingPKs.length > 0) {
+      matchingPKs.forEach((pk) => {
+        if (!pk.needs) return;
+        const needsValue = (pk.needs || '').replace(/\r\n/g, '\n').trim();
+        if (needsValue && !uniqueNeeds.has(needsValue)) uniqueNeeds.set(needsValue, pk.id);
+      });
+    }
+    if (uniqueNeeds.size === 0) {
+      productKnowledgeWithWantsNeeds.forEach((pk) => {
+        if (!pk.needs) return;
+        const needsValue = pk.needs.trim();
+        if (needsValue && !uniqueNeeds.has(needsValue)) uniqueNeeds.set(needsValue, pk.id);
+      });
+    }
+    return Array.from(uniqueNeeds.keys()).map((needsValue) => ({ value: needsValue, label: needsValue }));
+  }, [
+    formData.target_market,
+    formData.kebutuhan,
+    formData.keinginan,
+    formData.feature_name,
+    selectedServiceId,
+    productKnowledgeWithWantsNeeds,
+  ]);
 
   // Reset Customer Insights when Customer Persona is not selected (safety net)
   useEffect(() => {
@@ -899,6 +985,217 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
   const isPostOrCarousel = contentTypeLower === 'post' || contentTypeLower === 'carousel';
   const isReelStoryYoutube = contentTypeLower === 'reel' || contentTypeLower === 'story' || contentTypeLower === 'youtube';
 
+  const handlePersonaValueChange = (value: string) => {
+    if (errors.target_market) {
+      setErrors((prev) => ({ ...prev, target_market: undefined }));
+    }
+
+    if (useCreativeContextFlow) {
+      if (value === '__none__') {
+        setStoryCreativeDetailId('__none__');
+        setFormData((prev) => ({
+          ...prev,
+          target_market: '',
+          keinginan: '',
+          kebutuhan: '',
+          hidden_needs: '',
+          problem: '',
+          impact: '',
+          false_belief: '',
+          false_belief_impact: '',
+          what_makes_them_stop: '',
+        }));
+        return;
+      }
+      const d = productKnowledgeDetailData.find((x) => x.id === value);
+      if (!d) return;
+      setStoryCreativeDetailId(value);
+      setFormData((prev) => ({
+        ...prev,
+        target_market: buildTargetMarketFromCreativeDetail(d),
+        keinginan: '',
+        kebutuhan: '',
+        hidden_needs: '',
+        problem: '',
+        impact: '',
+        false_belief: '',
+        false_belief_impact: '',
+        what_makes_them_stop: '',
+      }));
+      return;
+    }
+
+    if (value === '__none__') {
+      setFormData((prev) => ({
+        ...prev,
+        target_market: '',
+        keinginan: '',
+        kebutuhan: '',
+        hidden_needs: '',
+        problem: '',
+        impact: '',
+        false_belief: '',
+        false_belief_impact: '',
+        what_makes_them_stop: '',
+      }));
+      return;
+    }
+
+    const normalizePersona = (s: string) => (s || '').trim();
+    const selectedFeature = formData.feature_name?.trim() || '';
+    const matchingPKs = productKnowledgeData.filter((pk) => {
+      if (pk.service_id !== selectedServiceId) return false;
+      if (pk.feature_name?.trim() !== selectedFeature) return false;
+      if (!pk.target_audience) return false;
+      const pkPersonaStr = normalizePersona(extractTargetAudienceAsString(pk.target_audience));
+      return pkPersonaStr === normalizePersona(value);
+    });
+
+    const matchingWithWantsNeeds = productKnowledgeWithWantsNeeds.filter((pk) => {
+      if (pk.service_id !== selectedServiceId) return false;
+      if (pk.feature_name?.trim() !== selectedFeature) return false;
+      if (!pk.target_audience) return false;
+      const pkPersonaStr = normalizePersona(extractTargetAudienceAsString(pk.target_audience));
+      return pkPersonaStr === normalizePersona(value);
+    });
+
+    const selectedPK =
+      matchingWithWantsNeeds.length > 0 ? matchingWithWantsNeeds[0] : matchingPKs[0];
+
+    const updates: Partial<ScriptGeneratorRequest> = { target_market: value };
+
+    if (matchingPKs.length > 0 && selectedPK) {
+      const wantsVal = selectedPK.wants?.trim() || '';
+      const rawNeeds =
+        selectedPK.needs?.trim() ||
+        matchingPKs.find((pk) => pk.needs?.trim())?.needs?.trim() ||
+        '';
+      const needsVal = rawNeeds ? rawNeeds.replace(/\r\n/g, '\n') : '';
+
+      updates.keinginan = wantsVal;
+      updates.kebutuhan = needsVal;
+      updates.hidden_needs = selectedPK.hidden_needs
+        ? parseHiddenNeeds(selectedPK.hidden_needs).join('\n\n') || ''
+        : '';
+      updates.problem =
+        selectedPK.problems_solved && Array.isArray(selectedPK.problems_solved)
+          ? selectedPK.problems_solved.filter(Boolean).join('\n\n')
+          : '';
+      updates.impact = selectedPK.impact
+        ? parseImpact(selectedPK.impact).join('\n\n') || ''
+        : '';
+      updates.false_belief = selectedPK.false_belief?.trim() || '';
+      updates.false_belief_impact = richTextToPlainText(selectedPK.false_belief_impact) || '';
+      updates.what_makes_them_stop = richTextToPlainText(selectedPK.what_makes_them_stop) || '';
+      updates.solution = richTextToPlainText(selectedPK.solusi) || '';
+      updates.feature_name = selectedPK.feature_name?.trim() || '';
+      updates.feature_description = richTextToPlainText(selectedPK.feature_description) || '';
+      updates.competitive_advantage = selectedPK.competitive_advantage
+        ? parseCompetitiveAdvantage(selectedPK.competitive_advantage)
+        : '';
+    } else {
+      updates.keinginan = '';
+      updates.kebutuhan = '';
+      updates.hidden_needs = '';
+      updates.problem = '';
+      updates.impact = '';
+      updates.false_belief = '';
+      updates.false_belief_impact = '';
+      updates.what_makes_them_stop = '';
+      updates.solution = '';
+      updates.feature_name = '';
+      updates.feature_description = '';
+      updates.competitive_advantage = '';
+    }
+
+    setFormData((prev) => ({ ...prev, ...updates }));
+  };
+
+  const handleKeinginanValueChange = (value: string) => {
+    handleInputChange('keinginan', value);
+    const selectedPK = productKnowledgeWithWantsNeeds.find((pk) => pk.wants?.trim() === value);
+
+    handleInputChange('kebutuhan', selectedPK?.needs?.trim() || '');
+    handleInputChange('solution', selectedPK?.solusi ? richTextToPlainText(selectedPK.solusi) : '');
+
+    if (selectedPK?.hidden_needs) {
+      const hiddenNeedsArray = parseHiddenNeeds(selectedPK.hidden_needs);
+      handleInputChange('hidden_needs', hiddenNeedsArray.length > 0 ? hiddenNeedsArray.join('\n\n') : '');
+    } else {
+      handleInputChange('hidden_needs', '');
+    }
+
+    if (selectedPK?.problems_solved && Array.isArray(selectedPK.problems_solved) && selectedPK.problems_solved.length > 0) {
+      const problemsArray = selectedPK.problems_solved.filter(Boolean);
+      handleInputChange('problem', problemsArray.length > 0 ? problemsArray.join('\n\n') : '');
+    } else {
+      handleInputChange('problem', '');
+    }
+
+    if (selectedPK?.impact) {
+      const impactArray = parseImpact(selectedPK.impact);
+      handleInputChange('impact', impactArray.length > 0 ? impactArray.join('\n\n') : '');
+    } else {
+      handleInputChange('impact', '');
+    }
+
+    handleInputChange('false_belief', selectedPK?.false_belief?.trim() || '');
+    handleInputChange(
+      'false_belief_impact',
+      selectedPK?.false_belief_impact ? richTextToPlainText(selectedPK.false_belief_impact) : '',
+    );
+    handleInputChange(
+      'what_makes_them_stop',
+      selectedPK?.what_makes_them_stop ? richTextToPlainText(selectedPK.what_makes_them_stop) : '',
+    );
+    handleInputChange('feature_name', selectedPK?.feature_name?.trim() || '');
+    handleInputChange(
+      'feature_description',
+      selectedPK?.feature_description ? richTextToPlainText(selectedPK.feature_description) : '',
+    );
+    handleInputChange(
+      'competitive_advantage',
+      selectedPK?.competitive_advantage ? parseCompetitiveAdvantage(selectedPK.competitive_advantage) : '',
+    );
+  };
+
+  const renderFormSelect = (
+    id: FormSelectDrawerId,
+    args: {
+      title: string;
+      value: string;
+      placeholder: string;
+      options: { value: string; label: string }[];
+      onSelect: (value: string) => void;
+      disabled?: boolean;
+      triggerClassName?: string;
+      wrapLabel?: boolean;
+      emptyText?: string;
+      searchPlaceholder?: string;
+      desktop: React.ReactNode;
+    },
+  ) => {
+    if (!selectAsDrawer) return args.desktop;
+    return (
+      <DrawerSelectField
+        open={openFormDrawer === id}
+        onOpenChange={(open) => setOpenFormDrawer(open ? id : null)}
+        title={args.title}
+        value={args.value}
+        placeholder={args.placeholder}
+        options={args.options}
+        onSelect={args.onSelect}
+        disabled={args.disabled}
+        triggerClassName={args.triggerClassName}
+        wrapLabel={args.wrapLabel}
+        emptyText={args.emptyText}
+        searchPlaceholder={args.searchPlaceholder}
+        overlayClassName="z-[80]"
+        contentClassName="z-[80]"
+      />
+    );
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       {masterError && (
@@ -926,6 +1223,28 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
               {/* Content Type — full row width when paired with Durasi (reel/story/youtube) so numeric field is not squeezed */}
               <div className={cn('space-y-1', isReelStoryYoutube && 'md:col-span-2')}>
                 <Label htmlFor="content_type">Content Type</Label>
+                {renderFormSelect('contentType', {
+                  title: 'Content Type',
+                  value: formData.content_type || '',
+                  placeholder: 'Pilih Content Type',
+                  triggerClassName: 'min-h-11 text-base',
+                  options: contentTypes
+                    .filter((type) => {
+                      const name = type?.name;
+                      return name && typeof name === 'string' && name.trim() !== '' && type?.id;
+                    })
+                    .map((type) => ({ value: String(type.name).trim(), label: type.name })),
+                  onSelect: (value) => {
+                    handleInputChange('content_type', value);
+                    setFormData((prev) => ({
+                      ...prev,
+                      content_type: value,
+                      slide: undefined,
+                      duration_value: undefined,
+                      duration_unit: 'detik',
+                    }));
+                  },
+                  desktop: (
                 <Select
                   value={formData.content_type || ""}
                   onValueChange={(value) => {
@@ -959,6 +1278,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       })}
                   </SelectContent>
                 </Select>
+                  ),
+                })}
               </div>
 
               {/* Slide or Duration - conditional based on Content Type */}
@@ -988,6 +1309,17 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       placeholder="Contoh: 60"
                       className="min-h-11 min-w-0 text-base"
                     />
+                    {renderFormSelect('durationUnit', {
+                      title: 'Durasi',
+                      value: formData.duration_unit || 'detik',
+                      placeholder: 'Detik',
+                      triggerClassName: 'h-11 min-h-11 w-full min-w-0 text-base',
+                      options: [
+                        { value: 'menit', label: 'Menit' },
+                        { value: 'detik', label: 'Detik' },
+                      ],
+                      onSelect: (value) => handleInputChange('duration_unit', value as 'menit' | 'detik'),
+                      desktop: (
                     <Select
                       value={formData.duration_unit || 'detik'}
                       onValueChange={(value) => handleInputChange('duration_unit', value as 'menit' | 'detik')}
@@ -1000,6 +1332,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                         <SelectItem value="detik">Detik</SelectItem>
                       </SelectContent>
                     </Select>
+                      ),
+                    })}
                   </div>
                 </div>
               ) : null}
@@ -1007,6 +1341,40 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
               {/* Service */}
               <div className="space-y-1">
                 <Label htmlFor="service_name">Service</Label>
+                {renderFormSelect('service', {
+                  title: 'Service',
+                  value: selectedServiceId || '',
+                  placeholder: 'Pilih Service',
+                  triggerClassName: 'min-h-11 text-base',
+                  options: services
+                    .filter((service) => {
+                      const id = service?.id;
+                      const name = service?.name;
+                      return id && name && typeof name === 'string' && name.trim() !== '' && typeof id === 'string' && id.trim() !== '';
+                    })
+                    .map((service) => ({ value: String(service.id).trim(), label: service.name })),
+                  onSelect: (serviceId) => {
+                    const selectedService = services.find((s) => s.id === serviceId);
+                    setSelectedServiceId(serviceId);
+                    handleInputChange('service_name', selectedService?.name || '');
+                    handleInputChange('sub_service_name', '');
+                    handleInputChange('target_market', '');
+                    handleInputChange('keinginan', '');
+                    handleInputChange('kebutuhan', '');
+                    handleInputChange('hidden_needs', '');
+                    handleInputChange('problem', '');
+                    handleInputChange('impact', '');
+                    handleInputChange('false_belief', '');
+                    handleInputChange('false_belief_impact', '');
+                    handleInputChange('what_makes_them_stop', '');
+                    handleInputChange('keywords', []);
+                    handleInputChange('feature_name', '');
+                    handleInputChange('feature_description', '');
+                    handleInputChange('solution', '');
+                    handleInputChange('competitive_advantage', '');
+                    setStoryCreativeDetailId('__none__');
+                  },
+                  desktop: (
                 <Select
                   value={selectedServiceId || ""}
                   onValueChange={(serviceId) => {
@@ -1051,11 +1419,49 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       })}
                   </SelectContent>
                 </Select>
+                  ),
+                })}
               </div>
 
               {/* Sub Service */}
               <div className="space-y-1">
                 <Label htmlFor="sub_service_name">Sub Service</Label>
+                {renderFormSelect('subService', {
+                  title: 'Sub Service',
+                  value: formData.sub_service_name || '',
+                  placeholder: selectedServiceId ? 'Pilih Sub Service' : 'Pilih Service dulu',
+                  triggerClassName: 'min-h-11 text-base',
+                  disabled: !selectedServiceId,
+                  options: filteredSubServices
+                    .filter((subService) => {
+                      const name = subService?.name;
+                      return name && typeof name === 'string' && name.trim() !== '' && subService?.id;
+                    })
+                    .map((subService) => ({
+                      value: String(subService.name).trim(),
+                      label: subService.name,
+                    })),
+                  onSelect: (value) => {
+                    if (useCreativeContextFlow) {
+                      setStoryCreativeDetailId('__none__');
+                      setFormData((prev) => ({
+                        ...prev,
+                        sub_service_name: value,
+                        target_market: '',
+                        keinginan: '',
+                        kebutuhan: '',
+                        hidden_needs: '',
+                        problem: '',
+                        impact: '',
+                        false_belief: '',
+                        false_belief_impact: '',
+                        what_makes_them_stop: '',
+                      }));
+                      return;
+                    }
+                    handleInputChange('sub_service_name', value);
+                  },
+                  desktop: (
                 <Select
                   value={formData.sub_service_name || ""}
                   onValueChange={(value) => {
@@ -1099,12 +1505,27 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       })}
                   </SelectContent>
                 </Select>
+                  ),
+                })}
               </div>
 
               {/* Content Pillar & Pendekatan Content - sejajar dalam satu baris, keduanya punya wrapper */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch md:col-span-2">
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1 flex flex-col min-h-[72px]">
                   <Label htmlFor="content_pillar">{t('scriptGenerator.form.contentPillar', 'Content Pillar')}</Label>
+                  {renderFormSelect('contentPillar', {
+                    title: t('scriptGenerator.form.contentPillar', 'Content Pillar'),
+                    value: formData.content_pillar || '',
+                    placeholder: t('scriptGenerator.form.contentPillarPlaceholder', 'Pilih Content Pillar'),
+                    triggerClassName: 'flex-1 min-h-[40px]',
+                    options: contentPillars
+                      .filter((pillar) => {
+                        const name = pillar?.name;
+                        return name && typeof name === 'string' && name.trim() !== '' && pillar?.id;
+                      })
+                      .map((pillar) => ({ value: String(pillar.name).trim(), label: pillar.name })),
+                    onSelect: (value) => handleInputChange('content_pillar', value),
+                    desktop: (
                   <Select
                     value={formData.content_pillar || ""}
                     onValueChange={(value) => handleInputChange('content_pillar', value)}
@@ -1139,6 +1560,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                         }).filter(Boolean)}
                     </SelectContent>
                   </Select>
+                    ),
+                  })}
                 </div>
 
                 {/* Pendekatan Content - wrapper dengan warna: Tanpa Produk=hijau, Soft Selling=kuning, Hard Selling=merah */}
@@ -1162,6 +1585,29 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       <Label htmlFor="selling_approach">
                         {t('scriptGenerator.form.approachLabel', 'Pendekatan Content')}
                       </Label>
+                      {renderFormSelect('sellingApproach', {
+                        title: t('scriptGenerator.form.approachLabel', 'Pendekatan Content'),
+                        value: formData.selling_approach || '',
+                        placeholder: t('scriptGenerator.form.approachPlaceholder', 'Pilih Pendekatan Content'),
+                        triggerClassName: triggerClasses,
+                        wrapLabel: true,
+                        options: [
+                          {
+                            value: 'Tanpa Produk',
+                            label: t('scriptGenerator.form.approachTanpaProduk', 'Tanpa Produk - Tidak membahas produk sama sekali'),
+                          },
+                          {
+                            value: 'Soft Selling',
+                            label: t('scriptGenerator.form.approachSoftSelling', 'Soft Selling - Bicara produk tetapi sangat soft'),
+                          },
+                          {
+                            value: 'Hard Selling',
+                            label: t('scriptGenerator.form.approachHardSelling', 'Hard Selling - 100% bicara Produk, keunggulan dan fitur'),
+                          },
+                        ],
+                        onSelect: (value) =>
+                          handleInputChange('selling_approach', value as 'Tanpa Produk' | 'Soft Selling' | 'Hard Selling'),
+                        desktop: (
                       <Select
                         value={formData.selling_approach || ""}
                         onValueChange={(value) => handleInputChange('selling_approach', value as 'Tanpa Produk' | 'Soft Selling' | 'Hard Selling')}
@@ -1186,6 +1632,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                           </SelectItem>
                         </SelectContent>
                       </Select>
+                        ),
+                      })}
                     </div>
                   );
                 })()}
@@ -1196,6 +1644,60 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                   <Label htmlFor="story_context_mode">
                     {t('scriptGenerator.form.contextSource', 'Sumber konteks')}
                   </Label>
+                  {renderFormSelect('storyContext', {
+                    title: t('scriptGenerator.form.contextSource', 'Sumber konteks'),
+                    value: storyContextMode,
+                    placeholder: t('scriptGenerator.form.storyContextProductKnowledge', 'Product Knowledge'),
+                    triggerClassName: 'min-h-11 text-base bg-white',
+                    options: [
+                      {
+                        value: 'creative',
+                        label: t('scriptGenerator.form.storyContextCreative', 'Creative'),
+                      },
+                      {
+                        value: 'product_knowledge',
+                        label: t('scriptGenerator.form.storyContextProductKnowledge', 'Product Knowledge'),
+                      },
+                    ],
+                    onSelect: (v) => {
+                      const next = v as 'creative' | 'product_knowledge';
+                      if (next === storyContextMode) return;
+                      setStoryContextMode(next);
+                      if (next === 'product_knowledge') {
+                        setStoryCreativeDetailId('__none__');
+                        setFormData((p) => ({
+                          ...p,
+                          target_market: '',
+                          keinginan: '',
+                          kebutuhan: '',
+                          hidden_needs: '',
+                          problem: '',
+                          impact: '',
+                          false_belief: '',
+                          false_belief_impact: '',
+                          what_makes_them_stop: '',
+                        }));
+                      } else {
+                        setStoryCreativeDetailId('__none__');
+                        setFormData((p) => ({
+                          ...p,
+                          feature_name: '',
+                          feature_description: '',
+                          solution: '',
+                          competitive_advantage: '',
+                          target_market: '',
+                          keinginan: '',
+                          kebutuhan: '',
+                          hidden_needs: '',
+                          problem: '',
+                          impact: '',
+                          false_belief: '',
+                          false_belief_impact: '',
+                          what_makes_them_stop: '',
+                        }));
+                      }
+                    },
+                    desktop: (
                   <Select
                     value={storyContextMode}
                     onValueChange={(v) => {
@@ -1249,6 +1751,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       </SelectItem>
                     </SelectContent>
                   </Select>
+                    ),
+                  })}
                   <p className="text-xs text-muted-foreground">
                     {storyContextMode === 'creative'
                       ? t(
@@ -1287,6 +1791,60 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
               <div className="space-y-2 bg-primary/10 px-4 py-3">
               <div className="space-y-1">
                 <Label htmlFor="feature_name">Feature</Label>
+                {renderFormSelect('feature', {
+                  title: 'Feature',
+                  value: formData.feature_name?.trim() || '__none__',
+                  placeholder: selectedServiceId ? 'Pilih Feature' : 'Pilih Service terlebih dahulu',
+                  triggerClassName: !selectedServiceId ? 'opacity-70' : '',
+                  disabled: !selectedServiceId,
+                  options: [
+                    { value: '__none__', label: 'Pilih Feature' },
+                    ...featureOptions.map((name) => ({ value: name, label: name })),
+                  ],
+                  onSelect: (value) => {
+                    if (value === '__need_service__' || value === '__none__' || !value) {
+                      handleInputChange('feature_name', '');
+                      handleInputChange('target_market', '');
+                      handleInputChange('feature_description', '');
+                      handleInputChange('solution', '');
+                      handleInputChange('competitive_advantage', '');
+                      handleInputChange('keinginan', '');
+                      handleInputChange('kebutuhan', '');
+                      handleInputChange('hidden_needs', '');
+                      handleInputChange('problem', '');
+                      handleInputChange('impact', '');
+                      handleInputChange('false_belief', '');
+                      handleInputChange('false_belief_impact', '');
+                      handleInputChange('what_makes_them_stop', '');
+                      return;
+                    }
+                    const selectedPK = productKnowledgeData.find(
+                      (pk) =>
+                        pk.service_id === selectedServiceId &&
+                        pk.feature_name?.trim() === value
+                    );
+                    handleInputChange('target_market', '');
+                    handleInputChange('keinginan', '');
+                    handleInputChange('kebutuhan', '');
+                    handleInputChange('hidden_needs', '');
+                    handleInputChange('problem', '');
+                    handleInputChange('impact', '');
+                    handleInputChange('false_belief', '');
+                    handleInputChange('false_belief_impact', '');
+                    handleInputChange('what_makes_them_stop', '');
+                    if (selectedPK) {
+                      handleInputChange('feature_name', selectedPK.feature_name?.trim() || '');
+                      handleInputChange('feature_description', richTextToPlainText(selectedPK.feature_description) || '');
+                      handleInputChange('solution', richTextToPlainText(selectedPK.solusi) || '');
+                      handleInputChange(
+                        'competitive_advantage',
+                        selectedPK.competitive_advantage
+                          ? parseCompetitiveAdvantage(selectedPK.competitive_advantage)
+                          : ''
+                      );
+                    }
+                  },
+                  desktop: (
                 <Select
                   value={!selectedServiceId ? '__need_service__' : (formData.feature_name?.trim() || '__none__')}
                   onValueChange={(value) => {
@@ -1349,6 +1907,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     ))}
                   </SelectContent>
                 </Select>
+                  ),
+                })}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1409,137 +1969,64 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                 <Label htmlFor="target_market">
                   Customer Persona <span className="text-red-500">*</span>
                 </Label>
+                {renderFormSelect('persona', {
+                  title: useCreativeContextFlow ? 'Creative' : 'Customer Persona',
+                  value: useCreativeContextFlow
+                    ? storyCreativeDetailId || '__none__'
+                    : formData.target_market?.trim() || '__none__',
+                  placeholder: useCreativeContextFlow
+                    ? !selectedServiceId
+                      ? 'Pilih Service terlebih dahulu'
+                      : !selectedFormContentPillarId
+                        ? 'Pilih Content Pillar terlebih dahulu'
+                        : storyCreativeDetailOptions.length === 0
+                          ? 'Tidak ada baris Creative untuk pillar & layanan ini'
+                          : 'Pilih baris Creative (Target market)'
+                    : !selectedServiceId
+                      ? 'Pilih Service terlebih dahulu'
+                      : !formData.feature_name?.trim()
+                        ? 'Pilih Feature terlebih dahulu'
+                        : customerPersonas.length === 0
+                          ? 'Tidak ada Customer Persona untuk Feature ini'
+                          : 'Pilih Customer Persona',
+                  triggerClassName: cn(
+                    'min-w-0 overflow-hidden',
+                    (useCreativeContextFlow
+                      ? !selectedServiceId || !selectedFormContentPillarId
+                      : !selectedServiceId || !formData.feature_name?.trim()) && 'opacity-70',
+                    errors.target_market && 'border-red-500',
+                  ),
+                  wrapLabel: true,
+                  disabled: useCreativeContextFlow
+                    ? !selectedServiceId || !selectedFormContentPillarId
+                    : !selectedServiceId || !formData.feature_name?.trim(),
+                  emptyText: useCreativeContextFlow
+                    ? 'Tidak ada baris Creative untuk pillar & layanan ini'
+                    : 'Tidak ada Customer Persona untuk Feature ini',
+                  options: useCreativeContextFlow
+                    ? [
+                        { value: '__none__', label: 'Pilih baris Creative' },
+                        ...storyCreativeDetailOptions.map((row) => {
+                          const label =
+                            row.title?.trim() ||
+                            richTextToPlainText(row.product_knowledge_content).slice(0, 80) ||
+                            row.id;
+                          return { value: row.id, label };
+                        }),
+                      ]
+                    : [
+                        { value: '__none__', label: 'Pilih Customer Persona' },
+                        ...customerPersonas.map((persona) => ({ value: persona, label: persona })),
+                      ],
+                  onSelect: handlePersonaValueChange,
+                  desktop: (
                 <Select
                   value={
                     useCreativeContextFlow
                       ? storyCreativeDetailId || '__none__'
                       : formData.target_market?.trim() || '__none__'
                   }
-                  onValueChange={(value) => {
-                    if (errors.target_market) {
-                      setErrors((prev) => ({ ...prev, target_market: undefined }));
-                    }
-
-                    if (useCreativeContextFlow) {
-                      if (value === '__none__') {
-                        setStoryCreativeDetailId('__none__');
-                        setFormData((prev) => ({
-                          ...prev,
-                          target_market: '',
-                          keinginan: '',
-                          kebutuhan: '',
-                          hidden_needs: '',
-                          problem: '',
-                          impact: '',
-                          false_belief: '',
-                          false_belief_impact: '',
-                          what_makes_them_stop: '',
-                        }));
-                        return;
-                      }
-                      const d = productKnowledgeDetailData.find((x) => x.id === value);
-                      if (!d) return;
-                      setStoryCreativeDetailId(value);
-                      setFormData((prev) => ({
-                        ...prev,
-                        target_market: buildTargetMarketFromCreativeDetail(d),
-                        keinginan: '',
-                        kebutuhan: '',
-                        hidden_needs: '',
-                        problem: '',
-                        impact: '',
-                        false_belief: '',
-                        false_belief_impact: '',
-                        what_makes_them_stop: '',
-                      }));
-                      return;
-                    }
-
-                    if (value === '__none__') {
-                      setFormData((prev) => ({
-                        ...prev,
-                        target_market: '',
-                        keinginan: '',
-                        kebutuhan: '',
-                        hidden_needs: '',
-                        problem: '',
-                        impact: '',
-                        false_belief: '',
-                        false_belief_impact: '',
-                        what_makes_them_stop: '',
-                      }));
-                      return;
-                    }
-
-                    const normalizePersona = (s: string) => (s || '').trim();
-                    const selectedFeature = formData.feature_name?.trim() || '';
-                    const matchingPKs = productKnowledgeData.filter((pk) => {
-                      if (pk.service_id !== selectedServiceId) return false;
-                      if (pk.feature_name?.trim() !== selectedFeature) return false;
-                      if (!pk.target_audience) return false;
-                      const pkPersonaStr = normalizePersona(extractTargetAudienceAsString(pk.target_audience));
-                      return pkPersonaStr === normalizePersona(value);
-                    });
-
-                    const matchingWithWantsNeeds = productKnowledgeWithWantsNeeds.filter((pk) => {
-                      if (pk.service_id !== selectedServiceId) return false;
-                      if (pk.feature_name?.trim() !== selectedFeature) return false;
-                      if (!pk.target_audience) return false;
-                      const pkPersonaStr = normalizePersona(extractTargetAudienceAsString(pk.target_audience));
-                      return pkPersonaStr === normalizePersona(value);
-                    });
-
-                    const selectedPK =
-                      matchingWithWantsNeeds.length > 0 ? matchingWithWantsNeeds[0] : matchingPKs[0];
-
-                    const updates: Partial<ScriptGeneratorRequest> = { target_market: value };
-
-                    if (matchingPKs.length > 0 && selectedPK) {
-                      const wantsVal = selectedPK.wants?.trim() || '';
-                      const rawNeeds =
-                        selectedPK.needs?.trim() ||
-                        matchingPKs.find((pk) => pk.needs?.trim())?.needs?.trim() ||
-                        '';
-                      const needsVal = rawNeeds ? rawNeeds.replace(/\r\n/g, '\n') : '';
-
-                      updates.keinginan = wantsVal;
-                      updates.kebutuhan = needsVal;
-                      updates.hidden_needs = selectedPK.hidden_needs
-                        ? parseHiddenNeeds(selectedPK.hidden_needs).join('\n\n') || ''
-                        : '';
-                      updates.problem =
-                        selectedPK.problems_solved && Array.isArray(selectedPK.problems_solved)
-                          ? selectedPK.problems_solved.filter(Boolean).join('\n\n')
-                          : '';
-                      updates.impact = selectedPK.impact
-                        ? parseImpact(selectedPK.impact).join('\n\n') || ''
-                        : '';
-                      updates.false_belief = selectedPK.false_belief?.trim() || '';
-                      updates.false_belief_impact = richTextToPlainText(selectedPK.false_belief_impact) || '';
-                      updates.what_makes_them_stop = richTextToPlainText(selectedPK.what_makes_them_stop) || '';
-                      updates.solution = richTextToPlainText(selectedPK.solusi) || '';
-                      updates.feature_name = selectedPK.feature_name?.trim() || '';
-                      updates.feature_description = richTextToPlainText(selectedPK.feature_description) || '';
-                      updates.competitive_advantage = selectedPK.competitive_advantage
-                        ? parseCompetitiveAdvantage(selectedPK.competitive_advantage)
-                        : '';
-                    } else {
-                      updates.keinginan = '';
-                      updates.kebutuhan = '';
-                      updates.hidden_needs = '';
-                      updates.problem = '';
-                      updates.impact = '';
-                      updates.false_belief = '';
-                      updates.false_belief_impact = '';
-                      updates.what_makes_them_stop = '';
-                      updates.solution = '';
-                      updates.feature_name = '';
-                      updates.feature_description = '';
-                      updates.competitive_advantage = '';
-                    }
-
-                    setFormData((prev) => ({ ...prev, ...updates }));
-                  }}
+                  onValueChange={handlePersonaValueChange}
                   disabled={
                     useCreativeContextFlow
                       ? !selectedServiceId || !selectedFormContentPillarId
@@ -1644,6 +2131,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     )}
                   </SelectContent>
                 </Select>
+                  ),
+                })}
                 {errors.target_market && (
                   <p className="text-sm text-red-500 mt-1">{errors.target_market}</p>
                 )}
@@ -1654,6 +2143,17 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
               {/* Gender */}
               <div className="space-y-1">
                 <Label htmlFor="gender">Gender</Label>
+                {renderFormSelect('gender', {
+                  title: 'Gender',
+                  value: formData.gender || '',
+                  placeholder: 'Pilih Gender',
+                  options: [
+                    { value: 'Laki-laki', label: 'Laki-laki' },
+                    { value: 'Perempuan', label: 'Perempuan' },
+                    { value: 'Semua', label: 'Semua' },
+                  ],
+                  onSelect: (value) => handleInputChange('gender', value),
+                  desktop: (
                 <Select
                   value={formData.gender || ""}
                   onValueChange={(value) => handleInputChange('gender', value)}
@@ -1672,6 +2172,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     <SelectItem value="Semua">Semua</SelectItem>
                   </SelectContent>
                 </Select>
+                  ),
+                })}
               </div>
 
               {/* Age */}
@@ -1724,6 +2226,27 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                   </div>
                   {useKeyword && <span className="text-red-500">*</span>}
                 </div>
+                {renderFormSelect('keywords', {
+                  title: 'Keyword',
+                  value: '',
+                  placeholder: !useKeyword
+                    ? 'Aktifkan checkbox untuk menggunakan keyword'
+                    : !selectedServiceId
+                      ? 'Pilih Service terlebih dahulu'
+                      : formData.keywords && formData.keywords.length >= 3
+                        ? 'Maksimal 3 keyword sudah tercapai'
+                        : 'Pilih Keyword',
+                  triggerClassName: errors.keywords ? 'border-red-500' : '',
+                  disabled: !useKeyword || !selectedServiceId || (formData.keywords && formData.keywords.length >= 3),
+                  searchPlaceholder: 'Cari keyword...',
+                  emptyText: !selectedServiceId
+                    ? 'Pilih Service terlebih dahulu'
+                    : 'Tidak ada keyword tersedia untuk Service ini',
+                  options: filteredKeywords
+                    .filter((kw) => !formData.keywords?.includes(kw.keyword))
+                    .map((kw) => ({ value: kw.keyword, label: kw.keyword })),
+                  onSelect: (keyword) => handleAddKeyword(keyword),
+                  desktop: (
                 <Popover open={keywordSearchOpen} onOpenChange={setKeywordSearchOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -1785,6 +2308,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     </Command>
                   </PopoverContent>
                 </Popover>
+                  ),
+                })}
                 {formData.keywords && formData.keywords.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
                     {formData.keywords.map((keyword, index) => (
@@ -1910,125 +2435,28 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="keinginan">Keinginan</Label>
+                  {renderFormSelect('keinginan', {
+                    title: 'Keinginan',
+                    value: formData.keinginan || '',
+                    placeholder: formData.target_market?.trim()
+                      ? 'Pilih Keinginan dari Creative'
+                      : 'Pilih Customer Persona terlebih dahulu',
+                    triggerClassName: cn(
+                      'min-w-0',
+                      !formData.target_market?.trim() && 'bg-gray-100 opacity-70',
+                    ),
+                    wrapLabel: true,
+                    disabled: !formData.target_market?.trim(),
+                    emptyText: 'Tidak ada data Creative dengan Wants dan Needs',
+                    options: productKnowledgeWithWantsNeeds
+                      .filter((pk) => pk.wants && pk.wants.trim() !== '')
+                      .map((pk) => ({ value: pk.wants!.trim(), label: pk.wants!.trim() })),
+                    onSelect: handleKeinginanValueChange,
+                    desktop: (
                   <Select
                     value={formData.keinginan || ""}
                     disabled={!formData.target_market?.trim()}
-                    onValueChange={(value) => {
-                      // Update keinginan first
-                      handleInputChange('keinginan', value);
-                      
-                      // Find the product knowledge item with this wants value
-                      const selectedPK = productKnowledgeWithWantsNeeds.find(
-                        (pk) => pk.wants?.trim() === value
-                      );
-                      
-                      // Auto-fill needs if found
-                      if (selectedPK && selectedPK.needs) {
-                        const needsValue = selectedPK.needs.trim();
-                        handleInputChange('kebutuhan', needsValue);
-                      } else {
-                        // Clear kebutuhan if no product knowledge found or no needs available
-                        handleInputChange('kebutuhan', '');
-                      }
-                      
-                      // Auto-fill solution if found
-                      if (selectedPK && selectedPK.solusi) {
-                        const solusiValue = richTextToPlainText(selectedPK.solusi);
-                        handleInputChange('solution', solusiValue);
-                      } else {
-                        // Clear solution if no product knowledge found or no solusi available
-                        handleInputChange('solution', '');
-                      }
-                      
-                      // Auto-fill hidden needs if found
-                      if (selectedPK && selectedPK.hidden_needs) {
-                        const hiddenNeedsArray = parseHiddenNeeds(selectedPK.hidden_needs);
-                        if (hiddenNeedsArray.length > 0) {
-                          // Join array dengan double newline untuk pemisahan visual
-                          const hiddenNeedsStr = hiddenNeedsArray.join('\n\n');
-                          handleInputChange('hidden_needs', hiddenNeedsStr);
-                        } else {
-                          handleInputChange('hidden_needs', '');
-                        }
-                      } else {
-                        // Clear hidden needs if no product knowledge found
-                        handleInputChange('hidden_needs', '');
-                      }
-                      
-                      // Auto-fill problems if found
-                      if (selectedPK && selectedPK.problems_solved && Array.isArray(selectedPK.problems_solved) && selectedPK.problems_solved.length > 0) {
-                        // problems_solved is already an array, so use it directly
-                        const problemsArray = selectedPK.problems_solved.filter(Boolean);
-                        if (problemsArray.length > 0) {
-                          // Join array dengan double newline untuk pemisahan visual
-                          const problemsStr = problemsArray.join('\n\n');
-                          handleInputChange('problem', problemsStr);
-                        } else {
-                          handleInputChange('problem', '');
-                        }
-                      } else {
-                        // Clear problems if no product knowledge found
-                        handleInputChange('problem', '');
-                      }
-                      
-                      // Auto-fill impact if found
-                      if (selectedPK && selectedPK.impact) {
-                        const impactArray = parseImpact(selectedPK.impact);
-                        if (impactArray.length > 0) {
-                          // Join array dengan double newline untuk pemisahan visual
-                          const impactStr = impactArray.join('\n\n');
-                          handleInputChange('impact', impactStr);
-                        } else {
-                          handleInputChange('impact', '');
-                        }
-                      } else {
-                        // Clear impact if no product knowledge found
-                        handleInputChange('impact', '');
-                      }
-                      
-                      // Auto-fill false_belief if found
-                      if (selectedPK && selectedPK.false_belief) {
-                        handleInputChange('false_belief', selectedPK.false_belief.trim());
-                      } else {
-                        handleInputChange('false_belief', '');
-                      }
-                      
-                      // Auto-fill false_belief_impact if found
-                      if (selectedPK && selectedPK.false_belief_impact) {
-                        handleInputChange('false_belief_impact', richTextToPlainText(selectedPK.false_belief_impact));
-                      } else {
-                        handleInputChange('false_belief_impact', '');
-                      }
-                      
-                      // Auto-fill what_makes_them_stop if found
-                      if (selectedPK && selectedPK.what_makes_them_stop) {
-                        handleInputChange('what_makes_them_stop', richTextToPlainText(selectedPK.what_makes_them_stop));
-                      } else {
-                        handleInputChange('what_makes_them_stop', '');
-                      }
-                      
-                      // Auto-fill feature_name if found
-                      if (selectedPK && selectedPK.feature_name) {
-                        handleInputChange('feature_name', selectedPK.feature_name.trim());
-                      } else {
-                        handleInputChange('feature_name', '');
-                      }
-                      
-                      // Auto-fill feature_description if found
-                      if (selectedPK && selectedPK.feature_description) {
-                        handleInputChange('feature_description', richTextToPlainText(selectedPK.feature_description));
-                      } else {
-                        handleInputChange('feature_description', '');
-                      }
-                      
-                      // Auto-fill competitive_advantage if found
-                      if (selectedPK && selectedPK.competitive_advantage) {
-                        const competitiveAdvantageStr = parseCompetitiveAdvantage(selectedPK.competitive_advantage);
-                        handleInputChange('competitive_advantage', competitiveAdvantageStr);
-                      } else {
-                        handleInputChange('competitive_advantage', '');
-                      }
-                    }}
+                    onValueChange={handleKeinginanValueChange}
                   >
                     <SelectTrigger className={cn(
                       'min-w-0 overflow-hidden [&>span]:min-w-0 [&>span]:truncate',
@@ -2064,10 +2492,30 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       )}
                     </SelectContent>
                   </Select>
+                    ),
+                  })}
                 </div>
 
                 <div className="space-y-1">
                   <Label htmlFor="kebutuhan">Kebutuhan</Label>
+                  {renderFormSelect('kebutuhan', {
+                    title: 'Kebutuhan',
+                    value: formData.kebutuhan || '',
+                    placeholder: formData.target_market?.trim()
+                      ? formData.kebutuhan
+                        ? formData.kebutuhan
+                        : 'Pilih Kebutuhan'
+                      : 'Pilih Customer Persona terlebih dahulu',
+                    triggerClassName: cn(
+                      'min-w-0',
+                      !formData.target_market?.trim() && 'bg-gray-100 opacity-70',
+                    ),
+                    wrapLabel: true,
+                    disabled: !formData.target_market?.trim(),
+                    emptyText: 'Pilih Keinginan atau Customer Persona terlebih dahulu',
+                    options: kebutuhanSelectOptions,
+                    onSelect: (value) => handleInputChange('kebutuhan', value),
+                    desktop: (
                   <Select
                     value={formData.kebutuhan || ""}
                     onValueChange={(value) => handleInputChange('kebutuhan', value)}
@@ -2168,6 +2616,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       )}
                     </SelectContent>
                   </Select>
+                    ),
+                  })}
                 </div>
               </div>
 
@@ -2277,6 +2727,18 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
               <div className="space-y-2 bg-primary/10 px-4 py-3">
               <div className="space-y-1">
                 <Label htmlFor="script_breakdown_table_template">Template tabel breakdown</Label>
+                {renderFormSelect('breakdown', {
+                  title: 'Template tabel breakdown',
+                  value: breakdownTableTemplateId,
+                  placeholder: 'Tanpa template tabel',
+                  disabled: !organizationId || scriptBreakdownTemplates.length === 0,
+                  wrapLabel: true,
+                  options: [
+                    { value: BREAKDOWN_TABLE_SELECT_NONE, label: 'Tanpa template tabel' },
+                    ...scriptBreakdownTemplates.map((tpl) => ({ value: tpl.id, label: tpl.name })),
+                  ],
+                  onSelect: (value) => applyBreakdownTemplateSelection(value),
+                  desktop: (
                 <Select
                   value={breakdownTableTemplateId}
                   onValueChange={(value) => applyBreakdownTemplateSelection(value)}
@@ -2300,6 +2762,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     ))}
                   </SelectContent>
                 </Select>
+                  ),
+                })}
                 <p className="text-xs text-muted-foreground">
                   Opsional. Jika dipilih, prompt memakai kolom ini untuk blok ## FORMAT TABLE ##. Durasi breakdown:
                   video mengikuti durasi konten; selain video mengikuti field durasi (menit/detik) bila diisi, atau default{' '}
@@ -2309,6 +2773,42 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
 
               <div className="space-y-1">
                 <Label htmlFor="hook_name">Hook Name</Label>
+                {renderFormSelect('hook', {
+                  title: 'Hook Name',
+                  value:
+                    (selectedHookName || formData.hook_name || '').trim()
+                      ? selectedHookName || formData.hook_name || ''
+                      : HOOK_NAME_SELECT_NONE,
+                  placeholder: 'Pilih Hook Name',
+                  wrapLabel: true,
+                  emptyText: 'Tidak ada template Hook di Product Knowledge',
+                  options: [
+                    { value: HOOK_NAME_SELECT_NONE, label: 'Tanpa hook' },
+                    ...productKnowledgeHooks
+                      .filter((hook) => hook.name && hook.name.trim() !== '')
+                      .map((hook) => ({ value: hook.name, label: hook.name })),
+                  ],
+                  onSelect: (value) => {
+                    if (value === HOOK_NAME_SELECT_NONE) {
+                      setSelectedHookName('');
+                      handleInputChange('hook_name', '');
+                      handleInputChange('hook_description', '');
+                      handleInputChange('hook_content', '');
+                      return;
+                    }
+                    setSelectedHookName(value);
+                    const selectedHook = productKnowledgeHooks.find((hook) => hook.name === value);
+                    if (selectedHook) {
+                      handleInputChange('hook_name', value);
+                      handleInputChange('hook_description', selectedHook.description || '');
+                      handleInputChange('hook_content', selectedHook.hook_content || '');
+                    } else {
+                      handleInputChange('hook_name', '');
+                      handleInputChange('hook_description', '');
+                      handleInputChange('hook_content', '');
+                    }
+                  },
+                  desktop: (
                 <Select
                   value={
                     (selectedHookName || formData.hook_name || '').trim()
@@ -2376,6 +2876,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     )}
                   </SelectContent>
                 </Select>
+                  ),
+                })}
               </div>
 
               {formData.hook_description && (
@@ -2408,6 +2910,33 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
 
               <div className="space-y-1">
                 <Label htmlFor="style_name">Style Name</Label>
+                {renderFormSelect('style', {
+                  title: 'Style Name',
+                  value: selectedStyleName || '',
+                  placeholder: 'Pilih Style Name',
+                  wrapLabel: true,
+                  emptyText: formData.content_pillar
+                    ? `Tidak ada Style tersedia untuk pillar "${formData.content_pillar}"`
+                    : 'Tidak ada Style tersedia',
+                  options: filteredStyleOptions.map((style) => ({ value: style.name, label: style.name })),
+                  onSelect: (value) => {
+                    setSelectedStyleName(value);
+                    const selectedStyle = productKnowledgeStyles.find((style) => style.name === value);
+                    if (selectedStyle) {
+                      handleInputChange('style_name', value);
+                      if (selectedStyle.description) {
+                        handleInputChange('style_instruksi', selectedStyle.description);
+                      }
+                      if (selectedStyle.structure) {
+                        handleInputChange('structure', selectedStyle.structure);
+                      }
+                    } else {
+                      handleInputChange('style_name', '');
+                      handleInputChange('style_instruksi', '');
+                      handleInputChange('structure', '');
+                    }
+                  },
+                  desktop: (
                 <Select
                   value={selectedStyleName || ""}
                   onValueChange={(value) => {
@@ -2505,6 +3034,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     })()}
                   </SelectContent>
                 </Select>
+                  ),
+                })}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2533,6 +3064,28 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
 
               <div className="space-y-1">
                 <Label htmlFor="cta_type">CTA (Call to Action)</Label>
+                {renderFormSelect('cta', {
+                  title: 'CTA (Call to Action)',
+                  value: formData.cta_type || '',
+                  placeholder: 'Pilih Tipe CTA',
+                  triggerClassName: cn(
+                    'min-w-0',
+                    !formData.selling_approach && 'bg-gray-100 cursor-not-allowed',
+                  ),
+                  wrapLabel: true,
+                  disabled: !formData.selling_approach,
+                  options: [
+                    {
+                      value: 'use_solution',
+                      label: 'Menggunakan Solution - CTA akan menggunakan field Solution dari Product/Service Details',
+                    },
+                    {
+                      value: 'use_comment',
+                      label: 'Menggunakan Comment - CTA meminta comment untuk mendapatkan engagement dan leads',
+                    },
+                  ],
+                  onSelect: (value) => handleInputChange('cta_type', value as 'use_solution' | 'use_comment'),
+                  desktop: (
                 <Select
                   value={formData.cta_type || ""}
                   onValueChange={(value) => handleInputChange('cta_type', value as 'use_solution' | 'use_comment')}
@@ -2563,6 +3116,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     </SelectItem>
                   </SelectContent>
                 </Select>
+                  ),
+                })}
                 {formData.cta_type === 'use_solution' && !formData.solution && !useCreativeContextFlow && (
                   <p className="text-xs text-amber-600 mt-1">
                     ⚠️ Pastikan field "Solution" di accordion "Product/Service Details" sudah diisi
@@ -2572,6 +3127,28 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
 
               <div className="space-y-1">
                 <Label htmlFor="judul">Judul</Label>
+                {renderFormSelect('judul', {
+                  title: 'Judul',
+                  value: selectedJudulTemplate || '',
+                  placeholder: 'Pilih Template Judul',
+                  triggerClassName: 'min-w-0',
+                  wrapLabel: true,
+                  options: judulTemplates.map((template) => ({
+                    value: template.value,
+                    label: template.label,
+                  })),
+                  onSelect: (value) => {
+                    setSelectedJudulTemplate(value);
+                    const template = judulTemplates.find((t) => t.value === value);
+                    if (template) {
+                      handleInputChange('judul', template.template);
+                      handleInputChange('judul_custom', template.template);
+                    } else {
+                      handleInputChange('judul', '');
+                      handleInputChange('judul_custom', '');
+                    }
+                  },
+                  desktop: (
                 <Select
                   value={selectedJudulTemplate || ""}
                   onValueChange={(value) => {
@@ -2614,6 +3191,8 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     ]).filter(Boolean)}
                   </SelectContent>
                 </Select>
+                  ),
+                })}
                 {formData.judul && (
                   <div className="mt-2 rounded-md border border-primary/25 bg-primary/10 p-3">
                     <Label htmlFor="judul_custom" className="text-sm font-medium text-gray-700 mb-2 block">

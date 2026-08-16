@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 import { HeaderAndTab } from '@/6-1-content-calendar/container/HeaderAndTab';
@@ -8,13 +8,8 @@ import { PICFilterProvider } from '@/6-1-dashboard/context/PICFilterContext';
 import { ScriptGeneratorForm } from './components/ScriptGeneratorForm';
 import { ScriptResult } from './components/ScriptResult';
 import { AIScriptResult } from './components/AIScriptResult';
-import { generateScript, ScriptGeneratorRequest } from './services/scriptGeneratorService';
-import { generateScriptWithAI } from './services/scriptGeneratorAIService';
-import { toast } from 'sonner';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
-import { useScriptAIConfig } from './hooks/useScriptAIConfig';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
-import { supabase } from '@/shared/lib/supabaseClient';
 import { useScriptGeneratorFormMasterData } from './hooks/useScriptGeneratorFormMasterData';
 import { useProductKnowledge } from '@/6-1-product-knowledge/hooks/useProductKnowledge';
 import { useProductKnowledgeDetail } from '@/6-1-product-knowledge/hooks/useProductKnowledgeDetail';
@@ -27,84 +22,41 @@ import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate'
 import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { Button } from '@/shared/components/ui/button';
 import {
-  defaultModelForTextAIProvider,
   isTextAIConfigured,
   resolveTextAIProvider,
   textAIProviderLabel,
-  type TextAIProvider,
 } from '@/6-1-script-generator/utils/scriptAiTextProvider';
-
-const SCRIPT_GENERATOR_DRAFT_KEY_PREFIX = 'synckerja-script-generator-draft';
-
-function getDraftKey(organizationId: string): string {
-  return `${SCRIPT_GENERATOR_DRAFT_KEY_PREFIX}-${organizationId}`;
-}
-
-type DraftState = {
-  generatedPrompt: string | null;
-  aiGeneratedScript: string | null;
-  lastFormDataForPlan: { content_type_id?: string; service_id?: string; sub_service_id?: string; content_pillar_id?: string } | null;
-  formPanelHidden: boolean;
-};
-
-function loadDraft(organizationId: string | null | undefined): DraftState | null {
-  if (!organizationId || typeof sessionStorage === 'undefined') return null;
-  try {
-    const raw = sessionStorage.getItem(getDraftKey(organizationId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as DraftState;
-    if (!parsed || (typeof parsed.generatedPrompt !== 'string' && parsed.generatedPrompt !== null)) return null;
-    if (typeof parsed.aiGeneratedScript !== 'string' && parsed.aiGeneratedScript !== null) return null;
-    return {
-      generatedPrompt: parsed.generatedPrompt ?? null,
-      aiGeneratedScript: parsed.aiGeneratedScript ?? null,
-      lastFormDataForPlan: parsed.lastFormDataForPlan && typeof parsed.lastFormDataForPlan === 'object' ? parsed.lastFormDataForPlan : null,
-      formPanelHidden: !!parsed.formPanelHidden,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function saveDraft(state: DraftState, organizationId: string | null | undefined) {
-  if (!organizationId || typeof sessionStorage === 'undefined') return;
-  try {
-    sessionStorage.setItem(getDraftKey(organizationId), JSON.stringify(state));
-  } catch {
-    // ignore
-  }
-}
+import { useScriptGeneratorSession } from './hooks/useScriptGeneratorSession';
 
 const ScriptGeneratorContent: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useAppTranslation();
   const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
-  const draftAppliedRef = useRef(false);
   const [activeMainTab, setActiveMainTab] = useState('script-generator');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
-  const [generatedPrompt, setGeneratedPrompt] = useState<string | null>(null);
-  const [aiGeneratedScript, setAiGeneratedScript] = useState<string | null>(null);
-  const [isSwitchingTextProvider, setIsSwitchingTextProvider] = useState(false);
-  const [lastFormDataForPlan, setLastFormDataForPlan] = useState<{
-    content_type_id?: string;
-    service_id?: string;
-    sub_service_id?: string;
-    content_pillar_id?: string;
-  } | null>(null);
-  const [formPanelHidden, setFormPanelHidden] = useState(false);
+  const {
+    aiConfig,
+    scriptAiPending,
+    aiConfigError,
+    refetchAiConfig,
+    isGenerating,
+    isGeneratingAI,
+    isSwitchingTextProvider,
+    generatedPrompt,
+    aiGeneratedScript,
+    lastFormDataForPlan,
+    formPanelHidden,
+    setFormPanelHidden,
+    setAiGeneratedScript,
+    handleGenerate,
+    handleGenerateWithAI,
+    handleSetTextAIProvider,
+  } = useScriptGeneratorSession();
   const { isPending: masterPending } = useScriptGeneratorFormMasterData();
   const { isPending: productKnowledgePending } = useProductKnowledge();
   const { isPending: productKnowledgeDetailPending } = useProductKnowledgeDetail();
   const { isPending: stylePending } = useProductKnowledgeStyle();
   const { isPending: hooksPending } = useProductKnowledgeHooks();
   const { isPending: keywordsPending } = useKeywords();
-  const {
-    data: aiConfig,
-    isPending: scriptAiPending,
-    isError: aiConfigError,
-    refetch: refetchAiConfig,
-  } = useScriptAIConfig();
 
   const hasOrg = Boolean(organizationId);
   const rawPagePending =
@@ -123,148 +75,10 @@ const ScriptGeneratorContent: React.FC = () => {
     '/digital-marketing/social-media/script-generator',
   );
   const showPageSkeleton = useScriptGeneratorPageSkeletonGate(showFullPageSkeleton);
-  // Use draft synchronously for first paint when org is ready but effect hasn't run yet (removes refresh flicker)
-  const draftForPaint = organizationId && !draftAppliedRef.current ? loadDraft(organizationId) : null;
-  const effectiveGeneratedPrompt = draftForPaint !== null ? draftForPaint.generatedPrompt : generatedPrompt;
-  const effectiveAiGeneratedScript = draftForPaint !== null ? draftForPaint.aiGeneratedScript : aiGeneratedScript;
-  const effectiveLastFormDataForPlan = draftForPaint !== null ? draftForPaint.lastFormDataForPlan : lastFormDataForPlan;
-  const effectiveFormPanelHidden = draftForPaint !== null ? draftForPaint.formPanelHidden : formPanelHidden;
-
-  // Saat organisasi berubah (termasuk pertama kali load): muat draft untuk org tersebut; isolasi data per org
-  useEffect(() => {
-    if (!organizationId) {
-      draftAppliedRef.current = false;
-      setGeneratedPrompt(null);
-      setAiGeneratedScript(null);
-      setLastFormDataForPlan(null);
-      setFormPanelHidden(false);
-      return;
-    }
-    const draft = loadDraft(organizationId);
-    setGeneratedPrompt(draft?.generatedPrompt ?? null);
-    setAiGeneratedScript(draft?.aiGeneratedScript ?? null);
-    setLastFormDataForPlan(draft?.lastFormDataForPlan ?? null);
-    setFormPanelHidden(draft?.formPanelHidden ?? false);
-    draftAppliedRef.current = true;
-  }, [organizationId]);
-
-  // Simpan draft ke sessionStorage per organisasi (hanya bila org aktif)
-  useEffect(() => {
-    if (!organizationId) return;
-    saveDraft(
-      {
-        generatedPrompt,
-        aiGeneratedScript,
-        lastFormDataForPlan,
-        formPanelHidden,
-      },
-      organizationId
-    );
-  }, [organizationId, generatedPrompt, aiGeneratedScript, lastFormDataForPlan, formPanelHidden]);
 
   const handleTabChange = (newTab: string) => {
     setActiveMainTab(newTab);
     navigate(`/digital-marketing/social-media/${newTab}`);
-  };
-
-  const handleGenerate = async (data: ScriptGeneratorRequest) => {
-    setIsGenerating(true);
-    setGeneratedPrompt(null);
-    setAiGeneratedScript(null);
-    // Store form data for Save to Plan auto-fill
-    setLastFormDataForPlan({
-      content_type_id: data.content_type_id,
-      service_id: data.service_id,
-      sub_service_id: data.sub_service_id,
-      content_pillar_id: data.content_pillar_id,
-    });
-
-    try {
-      const result = await generateScript(data);
-
-      if (result.success && result.script) {
-        setGeneratedPrompt(result.script);
-        toast.success('Prompt berhasil di-generate!');
-      } else {
-        toast.error(result.error || 'Gagal generate prompt');
-      }
-    } catch (error) {
-      console.error('Error generating script:', error);
-      toast.error('Terjadi error saat generate prompt');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleGenerateWithAI = async (prompt: string) => {
-    if (!prompt.trim()) {
-      toast.error('Prompt kosong');
-      return;
-    }
-    const isConfigured = isTextAIConfigured(aiConfig);
-    if (!isConfigured) {
-      toast.error(
-        t('scriptGenerator.settings.configNotFound', 'Script AI belum dikonfigurasi. Buka Settings > Script AI Generator.')
-      );
-      return;
-    }
-
-    setIsGeneratingAI(true);
-    setAiGeneratedScript(null);
-
-    try {
-      const result = await generateScriptWithAI(prompt);
-
-      if (result.success && result.script) {
-        setAiGeneratedScript(result.script);
-        setFormPanelHidden(true);
-        toast.success('Script berhasil di-generate oleh AI!');
-      } else {
-        const msg = result.error || 'Gagal generate script dengan AI';
-        const currentProvider = resolveTextAIProvider(aiConfig);
-        const shouldOfferSwitch =
-          currentProvider === 'groq' &&
-          (msg.includes('Prompt terlalu besar untuk Groq') ||
-            msg.toLowerCase().includes('tpm') ||
-            msg.toLowerCase().includes('tokens per minute') ||
-            msg.includes('Request terlalu besar'));
-
-        if (shouldOfferSwitch) {
-          toast.error(msg);
-          return;
-        }
-        toast.error(msg);
-      }
-    } catch (error) {
-      console.error('Error generating script with AI:', error);
-      toast.error('Terjadi error saat generate script dengan AI');
-    } finally {
-      setIsGeneratingAI(false);
-    }
-  };
-
-  const handleSetTextAIProvider = async (next: TextAIProvider) => {
-    if (!organizationId) return;
-    if (!aiConfig) return;
-    setIsSwitchingTextProvider(true);
-    try {
-      const { error } = await supabase
-        .from('organization_script_ai_config')
-        .update({
-          text_ai_provider: next,
-          is_active: true,
-          model: defaultModelForTextAIProvider(next),
-        })
-        .eq('organization_id', organizationId);
-      if (error) throw error;
-      await refetchAiConfig();
-      toast.success(`Text AI Provider diubah ke ${textAIProviderLabel(next)}.`);
-    } catch (e) {
-      console.error('switch text ai provider:', e);
-      toast.error('Gagal mengubah provider. Coba lagi.');
-    } finally {
-      setIsSwitchingTextProvider(false);
-    }
   };
 
   const panelScrollClass =
@@ -293,15 +107,15 @@ const ScriptGeneratorContent: React.FC = () => {
                 </div>
 
                 <ModuleShellContentGate pagePath="/digital-marketing/social-media/script-generator">
-                {/* Desktop: tinggi pita tetap + isi panel scroll di dalam; mobile: stack + scroll halaman */}
+                {/* Pola settings: jarak tab → section via mb-1; pita tinggi tetap di desktop; scroll halaman tetap hidup */}
                 <div
-                  className={`grid w-full min-w-0 flex-1 grid-cols-1 gap-2 min-h-[calc(100vh-120px)] items-stretch lg:max-h-[calc(100vh-120px)] lg:overflow-hidden lg:grid-rows-1 lg:[grid-template-rows:minmax(0,1fr)] ${
-                    effectiveFormPanelHidden
+                  className={`grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-1 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden lg:grid-rows-1 ${
+                    formPanelHidden
                       ? 'lg:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]'
                       : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.33fr)]'
                   }`}
                 >
-                  {!effectiveFormPanelHidden && (
+                  {!formPanelHidden && (
                     <div className="flex min-h-0 min-w-0 flex-col overflow-hidden lg:h-full">
                       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:h-full">
                         <div className="flex flex-shrink-0 items-center border-b border-gray-200 bg-gray-50 px-3 py-2">
@@ -329,7 +143,7 @@ const ScriptGeneratorContent: React.FC = () => {
 
                   <div className="flex min-h-0 min-w-0 flex-col overflow-hidden lg:h-full">
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:h-full">
-                      {effectiveFormPanelHidden && (
+                      {formPanelHidden && (
                         <div className="flex flex-shrink-0 items-center border-b border-gray-200 bg-gray-50 px-3 py-2">
                           <button
                             type="button"
@@ -344,12 +158,12 @@ const ScriptGeneratorContent: React.FC = () => {
                       )}
                       <div
                         className={
-                          effectiveGeneratedPrompt
+                          generatedPrompt
                             ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4'
                             : `${panelScrollClass}`
                         }
                       >
-                        {effectiveGeneratedPrompt ? (
+                        {generatedPrompt ? (
                           <div className="flex min-h-0 flex-1 flex-col gap-2">
                             {aiConfig && (
                               <div className="flex flex-shrink-0 flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -377,10 +191,7 @@ const ScriptGeneratorContent: React.FC = () => {
                                 </div>
                               </div>
                             )}
-                            {(() => {
-                              const isConfigured = isTextAIConfigured(aiConfig);
-                              return !isConfigured;
-                            })() ? (
+                            {!isTextAIConfigured(aiConfig) ? (
                               <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
                                 <span className="text-sm text-amber-800">
                                   {scriptAiPending && 'Memuat konfigurasi AI...'}
@@ -417,7 +228,7 @@ const ScriptGeneratorContent: React.FC = () => {
                             ) : null}
                             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                               <ScriptResult
-                                script={effectiveGeneratedPrompt}
+                                script={generatedPrompt}
                                 onGenerateWithAI={handleGenerateWithAI}
                                 isGeneratingAI={isGeneratingAI}
                                 isAIConfigured={isTextAIConfigured(aiConfig)}
@@ -441,10 +252,10 @@ const ScriptGeneratorContent: React.FC = () => {
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:h-full">
                       <div className={panelScrollClass}>
                         <div className="w-full min-w-0 px-4 pb-4 pt-4">
-                          {effectiveAiGeneratedScript ? (
+                          {aiGeneratedScript ? (
                             <AIScriptResult
-                              script={effectiveAiGeneratedScript}
-                              formDataForPlan={effectiveLastFormDataForPlan}
+                              script={aiGeneratedScript}
+                              formDataForPlan={lastFormDataForPlan}
                               onScriptChange={setAiGeneratedScript}
                             />
                           ) : (
@@ -484,7 +295,6 @@ const ScriptGeneratorContent: React.FC = () => {
   );
 };
 
-// Main export with providers
 const ScriptGeneratorPage = () => {
   return (
     <OptimizedErrorBoundary>

@@ -27,6 +27,8 @@ interface ViewLeadDialogProps {
     _leadMagnetEnrollmentStatus?: string | null;
     _leadMagnetPlatform?: 'instagram' | 'facebook' | null;
     _leadMagnetCampaignId?: string | null;
+    _leadMagnetMediaCaption?: string | null;
+    _leadMagnetMediaPermalink?: string | null;
   }) | null;
 }
 
@@ -268,6 +270,26 @@ export const ViewLeadDialog = ({
                   <div>
                     <label className="text-sm font-medium text-gray-500">Funnel status</label>
                     <p className="text-sm font-medium mt-1">{lead._leadMagnetEnrollmentStatus.replace(/_/g, ' ')}</p>
+                  </div>
+                )}
+                {(lead._leadMagnetMediaCaption?.trim() || lead._leadMagnetMediaPermalink?.trim()) && (
+                  <div className="sm:col-span-2">
+                    <label className="text-sm font-medium text-gray-500">Content</label>
+                    {lead._leadMagnetMediaCaption?.trim() ? (
+                      <p className="text-sm font-medium mt-1 whitespace-pre-line">
+                        {lead._leadMagnetMediaCaption}
+                      </p>
+                    ) : null}
+                    {lead._leadMagnetMediaPermalink?.trim() ? (
+                      <a
+                        href={lead._leadMagnetMediaPermalink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1 inline-block text-sm text-primary hover:underline"
+                      >
+                        View post
+                      </a>
+                    ) : null}
                   </div>
                 )}
               </div>

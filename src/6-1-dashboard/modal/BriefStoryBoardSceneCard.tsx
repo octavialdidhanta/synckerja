@@ -248,14 +248,13 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
   return (
     <article
       className={cn(
-        'flex shrink-0 flex-col rounded-lg border-2 border-gray-300 bg-white',
+        'flex shrink-0 flex-col overflow-hidden rounded-lg border-2 border-gray-300 bg-white [touch-action:pan-x_pan-y]',
         density === 'mobile-2col'
-          ? 'w-[calc((100cqw-0.75rem)/2)] min-w-[calc((100cqw-0.75rem)/2)]'
-          : 'w-[360px]',
-        'max-h-[70vh] overflow-y-auto scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          ? 'w-[calc((100cqw-0.75rem)/1.25)] min-w-[calc((100cqw-0.75rem)/1.25)]'
+          : 'w-[360px] max-h-[70vh]',
       )}
     >
-      <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-2 py-1.5">
+      <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-2 py-1.5">
         <span className="text-xs font-semibold text-gray-700">
           {t('briefDialog.layout.scene', 'Scene')} {rowIndex + 1}
         </span>
@@ -307,7 +306,14 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
         ) : null}
       </div>
 
-      <div className="space-y-2 p-3">
+      <div
+        className={cn(
+          'space-y-2 p-3',
+          density === 'mobile-2col'
+            ? 'overflow-visible'
+            : 'min-h-0 flex-1 overflow-y-auto scrollbar-hide nested-scroll-touch-chain-xy [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+        )}
+      >
         <BriefStoryboardImageCell
           rowIndex={rowIndex}
           images={images}
@@ -380,11 +386,11 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
             {selectedCharacters.length === 0 ? (
               <span className="text-sm text-gray-400">—</span>
             ) : (
-              <div className="flex flex-wrap gap-1">
+              <div className="flex min-w-0 flex-nowrap gap-1 overflow-x-auto overflow-y-hidden scrollbar-hide [touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {selectedCharacters.map((c) => (
                   <span
                     key={c.id}
-                    className="inline-flex max-w-full items-center gap-0.5 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-xs text-gray-800"
+                    className="inline-flex shrink-0 items-center gap-0.5 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-xs text-gray-800"
                   >
                     <span className="truncate">{c.name || c.id.slice(0, 8)}</span>
                     {isEditing && onCharacterIdsChange ? (
@@ -419,7 +425,7 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
               </Select>
             ) : null}
 
-            {characterIds.length > 0 ? (
+            {density !== 'mobile-2col' && characterIds.length > 0 ? (
               <p className="text-[10px] text-blue-700">
                 {t(
                   'briefDialog.layout.allPosesWillBeSent',

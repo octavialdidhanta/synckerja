@@ -42,16 +42,18 @@ export function DigitalMarketingReportPageSkeleton() {
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-col gap-2">
                   {/* Report header card — same as DigitalMarketingReportPage */}
-                  <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
+                  <div className="min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <div className="min-w-0 shrink-0">
                         <Skeleton className="h-5 w-16" />
                         <Skeleton className="mt-0.5 h-3 w-full max-w-xl" />
                         <Skeleton className="mt-1 h-3 w-full max-w-md" />
                       </div>
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <Skeleton className="h-9 w-[14rem] shrink-0" />
-                        <Skeleton className="h-9 min-w-[200px] w-52 max-w-[min(300px,50vw)] shrink-0" />
+                      <div className="nested-scroll-touch-chain-xy min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+                        <div className="flex w-max min-w-full items-center justify-end gap-2">
+                          <Skeleton className="h-9 w-[14rem] shrink-0" />
+                          <Skeleton className="h-9 min-w-[200px] w-52 shrink-0" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -69,14 +71,16 @@ export function DigitalMarketingReportPageSkeleton() {
                       >
                         <Skeleton className="mb-1.5 h-3 w-16" />
                         <Skeleton className="h-5 w-24" />
+                        <Skeleton className="mt-0.5 h-3 w-20" />
+                        <Skeleton className="mt-2 h-1.5 w-full" />
                       </div>
                     ))}
                   </div>
 
                   {/* Service table — min-w-[1040px], 11 columns, 4 loading rows */}
-                  <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[1040px] caption-bottom border-collapse text-sm">
+        <div className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="nested-scroll-touch-chain-xy seamless-scroll min-w-0 w-full overflow-x-auto overflow-y-hidden">
+            <table className="w-max min-w-[1040px] caption-bottom border-collapse text-sm">
                         <thead>
                           <tr className="border-b border-gray-200">
                             {Array.from({ length: REPORT_TABLE_COLUMN_COUNT }, (_, i) => (
@@ -109,22 +113,22 @@ export function DigitalMarketingReportPageSkeleton() {
 
                   {/* Monthly charts — TabsList h-9, 6 tabs (All services default), channel filter 11.5rem */}
                   <div className="overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div
-                          className="inline-flex h-9 flex-wrap items-center gap-1 rounded-md bg-gray-100 p-1"
-                          aria-hidden
-                        >
-                          {CHART_TAB_SKELETON_WIDTHS.map((widthClass, i) => (
-                            <Skeleton key={i} className={cn("h-7 rounded-sm", widthClass)} />
-                          ))}
+                    <div className="mb-3 min-w-0">
+                      <div className="nested-scroll-touch-chain-xy min-w-0 w-full overflow-x-auto overflow-y-hidden">
+                        <div className="inline-flex w-max min-w-full items-center gap-2">
+                          <div
+                            className="inline-flex h-9 shrink-0 items-center gap-1 rounded-md bg-gray-100 p-1"
+                            aria-hidden
+                          >
+                            {CHART_TAB_SKELETON_WIDTHS.map((widthClass, i) => (
+                              <Skeleton key={i} className={cn("h-7 rounded-sm", widthClass)} />
+                            ))}
+                          </div>
+                          <Skeleton className="h-9 w-[11.5rem] shrink-0" />
                         </div>
-                        <Skeleton className="mt-2 h-3 w-full max-w-2xl" />
-                        <Skeleton className="mt-1 h-3 w-full max-w-lg" />
                       </div>
-                      <div className="flex shrink-0 flex-nowrap items-center gap-2">
-                        <Skeleton className="h-9 w-[11.5rem] shrink-0" />
-                      </div>
+                      <Skeleton className="mt-2 h-3 w-full max-w-2xl" />
+                      <Skeleton className="mt-1 h-3 w-full max-w-lg" />
                     </div>
                     <Skeleton className="h-[300px] w-full rounded-md" />
                   </div>

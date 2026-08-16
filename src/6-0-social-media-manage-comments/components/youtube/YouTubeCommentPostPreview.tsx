@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { getYouTubeEmbedUrl } from "@/6-1-dashboard/utils/previewUtils";
+import { getYouTubePlayableEmbedUrl } from "@/6-1-dashboard/utils/previewUtils";
 import { formatPostEngagementStats } from "@/6-0-social-media-manage-comments/lib/formatPostEngagementStats";
+import { useManageCommentsMobileLayout } from "@/6-0-social-media-manage-comments/components/shared/ManageCommentsMobileLayoutContext";
 import type { ManageCommentsPostListItem } from "@/6-0-social-media-manage-comments/types/manageCommentsSharedTypes";
 
 type YouTubeCommentPostPreviewProps = {
@@ -9,10 +10,13 @@ type YouTubeCommentPostPreviewProps = {
 
 export function YouTubeCommentPostPreview({ post }: YouTubeCommentPostPreviewProps) {
   const { t, i18n } = useTranslation();
+  const isMobileLayout = useManageCommentsMobileLayout();
+  if (isMobileLayout) return null;
   const statsLabel = formatPostEngagementStats(post, t, i18n.language);
   const embedUrl =
-    getYouTubeEmbedUrl(post.shareUrl ?? "") ||
-    getYouTubeEmbedUrl(`https://www.youtube.com/watch?v=${post.id}`);
+    getYouTubePlayableEmbedUrl(post.shareUrl ?? "") ||
+    getYouTubePlayableEmbedUrl(post.id) ||
+    getYouTubePlayableEmbedUrl(`https://www.youtube.com/watch?v=${post.id}`);
 
   return (
     <div className="mt-3 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -23,8 +27,9 @@ export function YouTubeCommentPostPreview({ post }: YouTubeCommentPostPreviewPro
             src={embedUrl}
             title={post.title}
             className="absolute inset-0 h-full w-full border-0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
             allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
           />
         ) : post.coverImageUrl ? (
           <img

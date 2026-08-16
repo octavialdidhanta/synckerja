@@ -42,7 +42,7 @@ export function YouTubeContentSettingsPanel({
 
   const {
     data,
-    isPending,
+    isLoading,
     startOAuth,
     disconnect,
     setDefaultAccount,
@@ -141,7 +141,7 @@ export function YouTubeContentSettingsPanel({
     }
   };
 
-  if (isPending) {
+  if (isLoading) {
     return (
       <div className={cn("space-y-3 p-4", className)}>
         <Skeleton className="h-8 w-48" />

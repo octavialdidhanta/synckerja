@@ -13,6 +13,7 @@ import { TikTokAdsMobileShellHeader } from "@/mobile/6-0-tiktok-ads/components/T
 import { MobileTikTokAdsSummaryBar } from "@/mobile/6-0-tiktok-ads/components/MobileTikTokAdsSummaryBar";
 import { MobileTikTokAdsFilterStrip } from "@/mobile/6-0-tiktok-ads/components/MobileTikTokAdsFilterStrip";
 import { MobileTikTokAdsMetricsTable } from "@/mobile/6-0-tiktok-ads/components/MobileTikTokAdsMetricsTable";
+import { MobileManageCommentsAccountButton } from "@/mobile/6-0-social-media-performance/components/MobileManageCommentsAccountButton";
 import { CustomDatePicker } from "@/mobile-app/components/CustomDatePicker";
 import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
@@ -379,6 +380,19 @@ function MobileTikTokAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean 
             }
             refreshDisabled={isRefreshing || metricsQuery.isFetching}
             isRefreshing={isRefreshing || metricsQuery.isFetching}
+            headerActions={
+              showContentGate && oauthConnected ? (
+                <MobileManageCommentsAccountButton
+                  accounts={filterAccounts.map((a) => ({
+                    value: a.advertiser_id,
+                    label: a.label?.trim() || a.advertiser_id,
+                  }))}
+                  accountId={advertiserId}
+                  onAccountIdChange={setTikTokAdvertiserId}
+                  accountsLoading={accountsNavPending}
+                />
+              ) : undefined
+            }
           />
 
           <ModuleShellContentGate
@@ -471,6 +485,15 @@ function MobileTikTokAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean 
                           metricKeys={summarySlotMetricKeys}
                           onMetricKeysChange={handleSummaryKeysChange}
                           isLoading={summaryLoading}
+                          organizationId={organizationId}
+                          dateStart={dateStart}
+                          dateEnd={dateEnd}
+                          compareEnabled={
+                            reportingEnabled &&
+                            accountReadyForMetrics &&
+                            canManage &&
+                            !gatePending
+                          }
                         />
                       ) : null}
 
@@ -479,6 +502,7 @@ function MobileTikTokAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean 
                         advertiserId={advertiserId}
                         onAdvertiserIdChange={setTikTokAdvertiserId}
                         accountsLoading={accountsNavPending}
+                        showAccount={false}
                         dateSelection={dateSelection}
                         onDateSelectionChange={setDateSelection}
                         filtersHydrated={filtersHydrated}

@@ -18,6 +18,7 @@ import {
 import {
   FU_PRIORITY_FILTER_CHOICES,
   buildAssigneeFilterOptions,
+  buildCategoryFilterOptions,
   buildLeadSourceFilterOptions,
   buildWebPropertyFilterOptions,
   buildUniqueLeadStatusFilterOptions,
@@ -93,7 +94,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
     refreshSurveyData();
   }, [refetch, refreshSurveyData]);
   const { data: employees = [] } = useOmnichannelRosterAssignees();
-  const { subServices, leadSources, leadStatuses } = useLeadsManagementFilterQueries();
+  const { leadSources, leadStatuses } = useLeadsManagementFilterQueries();
 
   const handleCategoryFilterChange = useCallback((value: string) => {
     setFilters((prev) => ({ ...prev, category: value }));
@@ -146,6 +147,11 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
   const sourceFilterOptions = useMemo(
     () => buildLeadSourceFilterOptions(leads, leadSources),
     [leads, leadSources],
+  );
+
+  const categoryFilterOptions = useMemo(
+    () => buildCategoryFilterOptions(leads),
+    [leads],
   );
 
   const assigneeFilterOptions = useMemo(
@@ -385,7 +391,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
                   categoryColumnFilter={{
                     value: filters.category,
                     onChange: handleCategoryFilterChange,
-                    options: subServices,
+                    options: categoryFilterOptions,
                   }}
                   sourceColumnFilter={{
                     value: filters.source,

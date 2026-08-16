@@ -1,10 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   parseMarkdownTable,
   replaceTableInMarkdown,
   stringifyMarkdownTable,
 } from "@/6-1-dashboard/utils/markdownTableUtils";
 import { EditableBriefTable } from "@/6-1-dashboard/modal/EditableBriefTable";
+import { BriefStoryboardEmptyState } from "@/6-1-dashboard/modal/BriefStoryboardEmptyState";
+import { CreateBriefTableDialog } from "@/6-1-dashboard/modal/CreateBriefTableDialog";
 import {
   isBriefStoryboardTableCanonical,
   normalizeBriefStoryboardTable,
@@ -16,7 +18,6 @@ import {
 } from "@/6-1-dashboard/modal/briefSceneMeta";
 import { useBriefStoryboardImages } from "@/6-1-dashboard/hook/useBriefStoryboardImages";
 import { useSocialMediaMutations } from "@/6-1-dashboard/hook/useOptimizedSocialMediaState";
-import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 type Props = {
   planId: string;
@@ -27,8 +28,8 @@ type Props = {
  * SSoT brief editor for mobile calendar: same table/board + images as desktop BriefDialog.
  */
 export function MobileContentPlanBriefEditor({ planId, brief }: Props) {
-  const { t } = useAppTranslation();
   const { updateContentPlan } = useSocialMediaMutations();
+  const [createTableOpen, setCreateTableOpen] = useState(false);
   const {
     rowImagesMap,
     uploadMany,
@@ -41,6 +42,7 @@ export function MobileContentPlanBriefEditor({ planId, brief }: Props) {
   } = useBriefStoryboardImages(planId);
 
   const briefText = brief?.trim() ?? "";
+  const canUpdate = Boolean(planId && planId !== "__missing_plan_id__");
 
   const parsedTable = useMemo(() => {
     if (!briefText) return null;
@@ -53,63 +55,80 @@ export function MobileContentPlanBriefEditor({ planId, brief }: Props) {
     };
   }, [briefText]);
 
-  if (!briefText) {
-    return (
-      <p className="px-1 py-6 text-center text-sm text-muted-foreground">
-        {t("contentCalendar.dayDialog.noBrief", "No description")}
-      </p>
-    );
-  }
+  const persistBrief = (nextBrief: string) => {
+    if (!canUpdate) return;
+    updateContentPlan(planId, { brief: nextBrief });
+  };
+
+  const handleCreateStoryboardTable = (tableData: string[][]) => {
+    const markdown = stringifyMarkdownTable(tableData, { trimTrailingEmptyBodyRows: false });
+    const existing = parseMarkdownTable(briefText);
+    const next = existing
+      ? replaceTableInMarkdown(briefText, markdown, existing.startIndex, existing.endIndex)
+      : briefText
+        ? `${briefText}\n\n${markdown}`
+        : markdown;
+    persistBrief(next);
+    setCreateTableOpen(false);
+  };
+
+  const createTableDialog = (
+    <CreateBriefTableDialog
+      open={createTableOpen}
+      onOpenChange={setCreateTableOpen}
+      onCreate={handleCreateStoryboardTable}
+    />
+  );
 
   if (!parsedTable?.table?.length) {
     return (
-      <p className="px-1 py-6 text-center text-sm text-muted-foreground">
-        {t(
-          "contentCalendar.mobile.noStoryboardTable",
-          "No storyboard table in this brief yet.",
-        )}
-      </p>
+      <div className="flex min-h-0 flex-1 flex-col px-2">
+        <BriefStoryboardEmptyState onCreateTable={() => setCreateTableOpen(true)} />
+        {createTableDialog}
+      </div>
     );
   }
 
-  const canUpdate = Boolean(planId && planId !== "__missing_plan_id__");
-
   return (
-    <EditableBriefTable
-      tableData={parsedTable.table}
-      storyboardToolbar
-      density="mobile-2col"
-      sequencesSource={briefText}
-      planId={planId}
-      rowImagesMap={rowImagesMap}
-      onUploadImages={uploadMany}
-      onDeleteImage={remove}
-      onInsertRowImages={insertRow}
-      onDeleteRowImages={deleteRow}
-      mediaBusy={isStoryboardImagesBusy}
-      uploadingRowIndex={uploadingRowIndex}
-      deletingImageId={deletingImageId}
-      className="!my-0 !max-h-none min-h-0 flex-1"
-      onSave={(
-        newTableData,
-        meta?: { sequences: BriefSequence[]; sceneMeta?: BriefSceneMeta[] },
-      ) => {
-        if (!canUpdate) return;
-        const newTableMarkdown = stringifyMarkdownTable(newTableData);
-        let nextBrief = replaceTableInMarkdown(
-          briefText,
-          newTableMarkdown,
-          parsedTable.startIndex,
-          parsedTable.endIndex,
-        );
-        if (meta?.sequences) {
-          nextBrief = upsertBriefSequencesInMarkdown(nextBrief, meta.sequences);
-        }
-        if (meta?.sceneMeta) {
-          nextBrief = upsertBriefSceneMetaInMarkdown(nextBrief, meta.sceneMeta);
-        }
-        updateContentPlan(planId, { brief: nextBrief });
-      }}
-    />
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <EditableBriefTable
+        tableData={parsedTable.table}
+        storyboardToolbar
+        density="mobile-2col"
+        sequencesSource={briefText}
+        planId={planId}
+        rowImagesMap={rowImagesMap}
+        onUploadImages={uploadMany}
+        onDeleteImage={remove}
+        onInsertRowImages={insertRow}
+        onDeleteRowImages={deleteRow}
+        mediaBusy={isStoryboardImagesBusy}
+        uploadingRowIndex={uploadingRowIndex}
+        deletingImageId={deletingImageId}
+        className="!my-0 !max-h-none min-h-0 flex-1"
+        onSave={(
+          newTableData,
+          meta?: { sequences: BriefSequence[]; sceneMeta?: BriefSceneMeta[] },
+        ) => {
+          const newTableMarkdown = stringifyMarkdownTable(newTableData, {
+            trimTrailingEmptyBodyRows: false,
+          });
+          let nextBrief = replaceTableInMarkdown(
+            briefText,
+            newTableMarkdown,
+            parsedTable.startIndex,
+            parsedTable.endIndex,
+          );
+          if (meta?.sequences) {
+            nextBrief = upsertBriefSequencesInMarkdown(nextBrief, meta.sequences);
+          }
+          if (meta?.sceneMeta) {
+            nextBrief = upsertBriefSceneMetaInMarkdown(nextBrief, meta.sceneMeta);
+          }
+          persistBrief(nextBrief);
+        }}
+      />
+      {createTableDialog}
+    </div>
   );
 }

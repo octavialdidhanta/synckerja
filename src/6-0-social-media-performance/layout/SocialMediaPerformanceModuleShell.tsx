@@ -25,7 +25,7 @@ export function SocialMediaPerformanceModuleShell({
                 header={
                   <SocialMediaPerformanceHeaderAndTab activeReportPath={activeReportPath} />
                 }
-                className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                className="flex min-h-0 min-w-0 flex-1 flex-col"
               >
                 {children}
               </ModuleHeaderBelowContentGate>

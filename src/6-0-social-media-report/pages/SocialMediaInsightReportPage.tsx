@@ -117,6 +117,8 @@ function SocialMediaInsightReportPageBody({
   } = useDigitalMarketingPaidAdsFilters();
   const {
     organizationId,
+    dateStart,
+    dateEnd,
     pageLoading,
     isFetching,
     accounts,
@@ -220,7 +222,7 @@ function SocialMediaInsightReportPageBody({
   const hasConnectedData = accounts.some((a) => a.connected && !a.isPlatformPlaceholder);
 
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
         className={cn(
           "flex min-h-0 min-w-0 flex-1 flex-col",
@@ -228,7 +230,7 @@ function SocialMediaInsightReportPageBody({
         )}
         aria-hidden={showTableSkeletonOverlay}
       >
-        <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
+        <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)]">
                     <div className="col-span-12 flex min-h-0 min-w-0 flex-col gap-2">
                       <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -367,6 +369,10 @@ function SocialMediaInsightReportPageBody({
                         targetProgress={progressList}
                         isLoading={showTableSkeletonOverlay}
                         targetsLoading={targetsLoading && !showTableSkeletonOverlay}
+                        platformFilter={platformFilter}
+                        dateStart={dateStart}
+                        dateEnd={dateEnd}
+                        compareEnabled={Boolean(organizationId)}
                       />
 
                       <SocialMediaInsightReportAccountTable
@@ -390,11 +396,6 @@ function SocialMediaInsightReportPageBody({
                       ) : null}
                     </div>
         </div>
-
-        <div
-          className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-          aria-hidden
-        />
       </div>
 
       {showTableSkeletonOverlay ? (

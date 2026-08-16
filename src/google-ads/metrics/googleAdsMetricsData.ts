@@ -45,7 +45,6 @@ export const METRIC_CATALOG: MetricDef[] = [
     entities: ALL_ENTITIES,
     sortable: true,
     description: "Total cost.",
-    recommendedFor: ALL_ENTITIES,
   },
   {
     key: "avg_cpc",

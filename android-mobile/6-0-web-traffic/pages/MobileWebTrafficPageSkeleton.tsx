@@ -22,30 +22,40 @@ export default function MobileWebTrafficPageSkeleton() {
               <div className="mt-1 h-3 w-56 animate-pulse rounded bg-muted/40" />
             </div>
           </div>
-          <div className="h-9 w-9 animate-pulse rounded-md bg-muted/40" />
+          <div className="flex shrink-0 items-center gap-0.5">
+            <div className="h-9 w-9 animate-pulse rounded-md bg-muted/40" />
+            <div className="h-9 w-9 animate-pulse rounded-md bg-muted/40" />
+          </div>
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="mx-auto w-full max-w-md space-y-1 px-2 pt-2 content-padding-above-nav-default">
-              <div className="rounded-lg border border-primary/35 bg-card p-3">
-                <div className="h-3 w-24 animate-pulse rounded bg-muted/50" />
-                <div className="mt-2 h-6 w-32 animate-pulse rounded bg-muted/60" />
-              </div>
-              <div className="rounded-lg border border-primary/35 bg-card p-3">
+              <div className="rounded-lg border border-border bg-card p-3">
                 <div className="h-3 w-24 animate-pulse rounded bg-muted/50" />
                 <div className="mt-2 h-8 w-52 animate-pulse rounded bg-muted/40" />
               </div>
-              <div className="rounded-lg border border-primary/35 bg-card p-3">
-                <div className="h-3 w-24 animate-pulse rounded bg-muted/50" />
-                <div className="mt-2 h-6 w-40 animate-pulse rounded bg-muted/60" />
+              <div
+                data-horizontal-scroll-zone
+                className="-mx-2 overflow-x-auto overflow-y-hidden overscroll-x-contain scrollbar-hide snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <div className="flex w-max gap-px border-y border-border bg-border">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="w-[min(12.5rem,calc(46vw))] shrink-0 snap-start bg-card px-3 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="h-3 w-16 animate-pulse rounded bg-muted/50" />
+                        <div className="h-3 w-10 animate-pulse rounded bg-muted/40" />
+                      </div>
+                      <div className="mt-1 h-5 w-14 animate-pulse rounded bg-muted/60" />
+                      <div className="mt-0.5 h-3 w-20 animate-pulse rounded bg-muted/30" />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="rounded-lg border border-primary/35 bg-card p-3">
-                <div className="h-3 w-24 animate-pulse rounded bg-muted/50" />
-                <div className="mt-2 h-6 w-28 animate-pulse rounded bg-muted/60" />
-              </div>
-
-              <div className="rounded-lg border border-primary/35 bg-card p-3">
+              <div className="rounded-lg border border-border bg-card p-3">
                 <div className="h-4 w-32 animate-pulse rounded bg-muted/50" />
                 <div className="mt-3 space-y-2">
                   {Array.from({ length: 6 }).map((_, i) => (

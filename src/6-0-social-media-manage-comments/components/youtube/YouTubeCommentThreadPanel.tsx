@@ -19,6 +19,8 @@ import { ManageCommentsThreadHeader } from "@/6-0-social-media-manage-comments/c
 import { YouTubeCommentItem } from "@/6-0-social-media-manage-comments/components/youtube/YouTubeCommentItem";
 
 import { YouTubeCommentPostPreview } from "@/6-0-social-media-manage-comments/components/youtube/YouTubeCommentPostPreview";
+import { ManageCommentsInlineReplyComposer } from "@/6-0-social-media-manage-comments/components/shared/ManageCommentsInlineReplyComposer";
+import { useManageCommentsMobileLayout } from "@/6-0-social-media-manage-comments/components/shared/ManageCommentsMobileLayoutContext";
 
 import type { ManageCommentsPostListItem } from "@/6-0-social-media-manage-comments/types/manageCommentsSharedTypes";
 
@@ -107,6 +109,7 @@ export function YouTubeCommentThreadPanel({
 }: YouTubeCommentThreadPanelProps) {
 
   const { t } = useTranslation();
+  const isMobileLayout = useManageCommentsMobileLayout();
 
   const queryClient = useQueryClient();
 
@@ -138,7 +141,7 @@ export function YouTubeCommentThreadPanel({
 
 
 
-  const { replyComment } = useYouTubeContentCommentMutations({
+  const { replyComment, insertComment } = useYouTubeContentCommentMutations({
 
     organizationId,
 
@@ -172,7 +175,7 @@ export function YouTubeCommentThreadPanel({
 
 
 
-  const isMutating = replyComment.isPending;
+  const isMutating = replyComment.isPending || insertComment.isPending;
 
 
 
@@ -819,6 +822,18 @@ export function YouTubeCommentThreadPanel({
   );
 
 
+  const handleInsertComment = useCallback(
+    async (text: string) => {
+      try {
+        await insertComment.mutateAsync({ text });
+        toast.success(t("digitalMarketing.manageComments.commentPosted", "Comment posted"));
+      } catch (e) {
+        toast.error((e as Error).message);
+        throw e;
+      }
+    },
+    [insertComment, t],
+  );
 
   const needsReconnect = useMemo(() => {
 
@@ -1061,6 +1076,24 @@ export function YouTubeCommentThreadPanel({
         </div>
 
       </div>
+
+      {isMobileLayout && commentsScopesGranted && !commentsQuery.isError ? (
+        <div className="shrink-0 border-t border-border bg-background px-3 py-2">
+          <ManageCommentsInlineReplyComposer
+            accountLabel={accountLabel}
+            accountAvatarUrl={post.accountAvatarUrl}
+            isSubmitting={insertComment.isPending}
+            autoFocus={false}
+            maxLength={5000}
+            className="mt-0"
+            placeholder={t("digitalMarketing.manageComments.writeCommentPlaceholder", {
+              name: accountLabel,
+              defaultValue: `Write a comment as ${accountLabel}`,
+            })}
+            onSubmit={handleInsertComment}
+          />
+        </div>
+      ) : null}
 
     </div>
 

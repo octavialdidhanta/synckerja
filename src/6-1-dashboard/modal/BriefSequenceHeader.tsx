@@ -8,6 +8,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/shared/components/ui/popover';
 import { cn } from '@/shared/lib/utils';
 
 export interface BriefSequenceHeaderProps {
@@ -89,7 +94,23 @@ export const BriefSequenceHeader: React.FC<BriefSequenceHeaderProps> = ({
         </>
       ) : (
         <>
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-blue-900">{name}</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm font-semibold text-blue-900"
+              >
+                {name}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="bottom"
+              align="start"
+              className="z-[110] w-auto max-w-[min(92vw,360px)] px-3 py-1.5 text-sm whitespace-normal break-words"
+            >
+              {name}
+            </PopoverContent>
+          </Popover>
           {(canRename || onAddRow || (canDelete && onDelete)) ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

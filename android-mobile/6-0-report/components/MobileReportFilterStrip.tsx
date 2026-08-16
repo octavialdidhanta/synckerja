@@ -48,14 +48,14 @@ export function MobileReportFilterStrip({
   const { t } = useAppTranslation();
 
   return (
-    <div className={cn("-mx-2 border-y border-border bg-card", className)}>
+    <div className={cn("-mx-2 min-w-0 border-y border-border bg-card", className)}>
       <div
         className={cn(
-          "scrollbar-hide seamless-scroll min-w-0 overflow-x-auto overflow-y-hidden",
-          "[touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "nested-scroll-touch-chain-xy scrollbar-hide min-w-0 w-full overflow-x-auto overflow-y-hidden",
+          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
       >
-        <div className="inline-flex items-center gap-2 py-2">
+        <div className="inline-flex w-max items-center gap-2 py-2">
           <span className="inline-block w-4 shrink-0 grow-0 basis-4" aria-hidden />
           <div className="min-w-[11rem] max-w-[16rem] shrink-0">
             <MobileTrafficDateRangeDrawer

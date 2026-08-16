@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Download, Info, MoreVertical, RefreshCw, Shield, Wifi } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
@@ -8,30 +8,17 @@ import { useContentPillarData } from '../../hook/useContentPillarData';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
-
-const FUNNEL_CONFIG = {
-  top: {
-    label: "TOP FUNNEL",
-    name: "Awareness",
-    color: "#10B981",
-    bgColor: "#ECFDF5",
-    emoji: "🟢"
-  },
-  middle: {
-    label: "MIDDLE FUNNEL",
-    name: "Consideration",
-    color: "#F59E0B",
-    bgColor: "#FFFBEB",
-    emoji: "🟡"
-  },
-  bottom: {
-    label: "BOTTOM FUNNEL",
-    name: "Conversion",
-    color: "#EF4444",
-    bgColor: "#FEF2F2",
-    emoji: "🔴"
-  }
-};
+import {
+  FUNNEL_CONFIG,
+  buildPillarTrackerCsv,
+  computeFunnelStats,
+  downloadCsv,
+  filterPillarsByFunnel,
+  invalidateContentPillarQueries,
+  pillarBarWidth,
+  pillarTrackerCsvFilename,
+  type FunnelStage,
+} from '../../lib/contentPillarTracker';
 
 interface ContentPillarTrackerProps {
   selectedMonth?: Date;
@@ -71,7 +58,7 @@ function InfoDescriptionPopover({
 
 export const ContentPillarTracker: React.FC<ContentPillarTrackerProps> = ({ selectedMonth, serviceFilter }) => {
   const { t } = useAppTranslation();
-  const [selectedFunnel, setSelectedFunnel] = useState<'top' | 'middle' | 'bottom'>('top');
+  const [selectedFunnel, setSelectedFunnel] = useState<FunnelStage>('top');
   const {
     organizationId
   } = useCurrentOrg();
@@ -84,53 +71,17 @@ export const ContentPillarTracker: React.FC<ContentPillarTrackerProps> = ({ sele
   } = useContentPillarData(selectedMonth, serviceFilter);
 
   const handleManualRefresh = async () => {
-    await queryClient.invalidateQueries({
-      queryKey: ['contentPillarData', organizationId]
-    });
-    await queryClient.invalidateQueries({
-      queryKey: ['social-media-plans', organizationId]
-    });
+    await invalidateContentPillarQueries(queryClient, organizationId);
     refetch();
     toast.success('Data refreshed');
   };
 
   const exportToCSV = () => {
-    const csvContent = [['Pillar Name', 'Count', 'Funnel', 'Type'].join(','), ...pillarData.map(p => [`"${p.pillar_name}"`, p.count, p.funnel, p.isDefault ? 'Default' : 'Custom'].join(','))].join('\n');
-    const blob = new Blob([csvContent], {
-      type: 'text/csv'
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `content-pillar-tracker-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(pillarTrackerCsvFilename(), buildPillarTrackerCsv(pillarData));
     toast.success('Content pillar data exported successfully');
   };
 
-  // Calculate funnel stats from pillarData (single source of truth - same as table filter)
-  const funnelStats = React.useMemo(() => {
-    const totalContent = pillarData.reduce((sum, p) => sum + p.count, 0);
-    const funnelCounts = { top: 0, middle: 0, bottom: 0 };
-    pillarData.forEach(p => {
-      funnelCounts[p.funnel] += p.count;
-    });
-    return {
-      total: totalContent,
-      top: {
-        count: funnelCounts.top,
-        percentage: totalContent > 0 ? Math.round((funnelCounts.top / totalContent) * 100) : 0
-      },
-      middle: {
-        count: funnelCounts.middle,
-        percentage: totalContent > 0 ? Math.round((funnelCounts.middle / totalContent) * 100) : 0
-      },
-      bottom: {
-        count: funnelCounts.bottom,
-        percentage: totalContent > 0 ? Math.round((funnelCounts.bottom / totalContent) * 100) : 0
-      }
-    };
-  }, [pillarData]);
+  const funnelStats = useMemo(() => computeFunnelStats(pillarData), [pillarData]);
 
   const trackerTitle = t('socialMedia.contentPillarTracker.title', 'Content Pillar Tracker');
   const trackerInfoDescription = t(
@@ -179,14 +130,8 @@ export const ContentPillarTracker: React.FC<ContentPillarTrackerProps> = ({ sele
       </div>;
   }
 
-  // Filter data by selected funnel
-  const filteredPillars = pillarData.filter(pillar => pillar.funnel === selectedFunnel);
+  const filteredPillars = filterPillarsByFunnel(pillarData, selectedFunnel);
   const selectedConfig = FUNNEL_CONFIG[selectedFunnel];
-
-  // Count pillars by funnel for tabs
-  const topCount = pillarData.filter(p => p.funnel === 'top').length;
-  const middleCount = pillarData.filter(p => p.funnel === 'middle').length;
-  const bottomCount = pillarData.filter(p => p.funnel === 'bottom').length;
 
   return <div className="flex h-full min-h-0 w-full flex-col rounded-[5px] border border-gray-200 bg-white shadow-sm">
       {/* Header */}
@@ -302,7 +247,7 @@ export const ContentPillarTracker: React.FC<ContentPillarTrackerProps> = ({ sele
                 </div>
                 <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div className="h-full transition-all duration-300 rounded-full" style={{
-              width: `${Math.min(pillar.count / 10 * 100, 100)}%`,
+              width: `${pillarBarWidth(pillar.count)}%`,
               backgroundColor: selectedConfig.color
             }} />
                 </div>

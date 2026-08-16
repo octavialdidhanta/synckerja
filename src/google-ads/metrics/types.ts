@@ -49,7 +49,7 @@ export type GoogleAdsMetricCatalogResponse = {
   categories: MetricCatalogCategory[];
 };
 
-export const DEFAULT_METRIC_KEYS = ["impressions", "clicks", "ctr", "spent"] as const;
+export const DEFAULT_METRIC_KEYS = ["impressions", "clicks", "ctr"] as const;
 
 export const GOOGLE_ADS_MAX_METRICS = 50;
 

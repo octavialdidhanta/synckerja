@@ -234,6 +234,26 @@ export function getMetaAdsPinnedMetricColumns(_entity: MetaAdsMetricEntity): Met
   ];
 }
 
+function getMetaAdsCampaignServiceColumns(): MetaAdsIdentityColumn[] {
+  return [
+    {
+      key: "service",
+      labelKey: "digitalMarketing.metaAds.columnService",
+      defaultLabel: "Service",
+    },
+    {
+      key: "service_cpl",
+      labelKey: "digitalMarketing.metaAds.columnCostPerLead",
+      defaultLabel: "CPA",
+    },
+    {
+      key: "service_converted_leads",
+      labelKey: "digitalMarketing.metaAds.columnConvertedLeads",
+      defaultLabel: "Conv. leads",
+    },
+  ];
+}
+
 export function getMetaAdsSynckerjaMetricsForEntity(
   entity: MetaAdsMetricEntity,
 ): MetaAdsMetricCatalogItem[] {
@@ -277,6 +297,19 @@ export function getMetaAdsIdentityColumns(entity: MetaAdsMetricEntity): MetaAdsI
       defaultLabel: "Ad set",
     },
   ];
+}
+
+/** Locked table column order: Name then Cost, plus campaign service cols / parent names. */
+export function getMetaAdsLockedTableColumns(entity: MetaAdsMetricEntity): MetaAdsIdentityColumn[] {
+  const pinned = getMetaAdsPinnedMetricColumns(entity);
+  const identity = getMetaAdsIdentityColumns(entity);
+  const name = identity.find((c) => c.key === "name");
+  const parents = identity.filter((c) => c.key !== "name");
+  if (!name) return [...identity, ...pinned];
+  if (entity === "campaign") {
+    return [...getMetaAdsCampaignServiceColumns(), name, ...pinned];
+  }
+  return [name, ...pinned, ...parents];
 }
 
 export function buildMetaAdsMetricCatalogResponse(

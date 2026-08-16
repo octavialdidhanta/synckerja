@@ -293,6 +293,33 @@ const MobileContentCalendarPage = lazy(
 const MobileContentCalendarPageSkeleton = lazy(
   () => import("@/mobile/6-1-content-calendar/pages/MobileContentCalendarPageSkeleton"),
 );
+const MobileTikTokContentPerformancePage = lazy(
+  () => import("@/mobile/6-0-social-media-performance/pages/MobileTikTokContentPerformancePage"),
+);
+const MobileYouTubeContentPerformancePage = lazy(
+  () => import("@/mobile/6-0-social-media-performance/pages/MobileYouTubeContentPerformancePage"),
+);
+const MobileLinkedInContentPerformancePage = lazy(
+  () => import("@/mobile/6-0-social-media-performance/pages/MobileLinkedInContentPerformancePage"),
+);
+const MobileThreadsContentPerformancePage = lazy(
+  () => import("@/mobile/6-0-social-media-performance/pages/MobileThreadsContentPerformancePage"),
+);
+const MobileInstagramContentPerformancePage = lazy(
+  () => import("@/mobile/6-0-social-media-performance/pages/MobileInstagramContentPerformancePage"),
+);
+const MobileFacebookContentPerformancePage = lazy(
+  () => import("@/mobile/6-0-social-media-performance/pages/MobileFacebookContentPerformancePage"),
+);
+const MobileSocialMediaInsightReportPage = lazy(
+  () => import("@/mobile/6-0-social-media-performance/pages/MobileSocialMediaInsightReportPage"),
+);
+const MobileManageCommentsInboxPage = lazy(
+  () => import("@/mobile/6-0-social-media-performance/pages/MobileManageCommentsInboxPage"),
+);
+const MobileSocialMediaPerformancePageSkeleton = lazy(
+  () => import("@/mobile/6-0-social-media-performance/pages/MobileSocialMediaPerformancePageSkeleton"),
+);
 const ReviewRouteGate = lazy(() =>
   import("@/6-1-dashboard/routes/ReviewRouteGate").then((m) => ({ default: m.ReviewRouteGate })),
 );
@@ -2155,6 +2182,57 @@ function ContentCalendarMobileAwareLoadingShell() {
   );
 }
 
+function SocialMediaPerformanceMobileAwareLoadingShell({
+  desktop,
+}: {
+  desktop: ReactNode;
+}) {
+  const { isDesktop } = useAuthSurface();
+  if (isDesktop) return desktop;
+  return (
+    <Suspense fallback={desktop}>
+      <MobileSocialMediaPerformancePageSkeleton />
+    </Suspense>
+  );
+}
+
+function SmpMobileAwareRoute({
+  mobile,
+  desktop,
+  desktopSkeleton,
+}: {
+  mobile: ReactNode;
+  desktop: ReactNode;
+  desktopSkeleton: ReactNode;
+}) {
+  const { isDesktop } = useAuthSurface();
+  const location = useLocation();
+  const useMobileShell = !isDesktop && !location.pathname.includes("/settings");
+
+  return (
+    <Suspense
+      fallback={
+        <div
+          className={
+            useMobileShell
+              ? "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-muted/70"
+              : "flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100"
+          }
+          aria-busy
+        >
+          {useMobileShell ? (
+            <SocialMediaPerformanceMobileAwareLoadingShell desktop={desktopSkeleton} />
+          ) : (
+            desktopSkeleton
+          )}
+        </div>
+      }
+    >
+      {useMobileShell ? mobile : desktop}
+    </Suspense>
+  );
+}
+
 function GoogleAdsMetricsPageRouteElement() {
   const { isDesktop } = useAuthSurface();
   const location = useLocation();
@@ -2399,85 +2477,61 @@ function SocialMediaPerformanceHubPageRouteElement() {
 
 function TikTokContentPerformancePageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <TikTokContentPerformancePageSkeleton />
-        </div>
-      }
-    >
-      <TikTokContentPerformancePage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileTikTokContentPerformancePage />}
+      desktop={<TikTokContentPerformancePage />}
+      desktopSkeleton={<TikTokContentPerformancePageSkeleton />}
+    />
   );
 }
 
 function YouTubeContentPerformancePageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <YouTubeContentPerformancePageSkeleton />
-        </div>
-      }
-    >
-      <YouTubeContentPerformancePage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileYouTubeContentPerformancePage />}
+      desktop={<YouTubeContentPerformancePage />}
+      desktopSkeleton={<YouTubeContentPerformancePageSkeleton />}
+    />
   );
 }
 
 function LinkedInContentPerformancePageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <LinkedInContentPerformancePageSkeleton />
-        </div>
-      }
-    >
-      <LinkedInContentPerformancePage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileLinkedInContentPerformancePage />}
+      desktop={<LinkedInContentPerformancePage />}
+      desktopSkeleton={<LinkedInContentPerformancePageSkeleton />}
+    />
   );
 }
 
 function InstagramContentPerformancePageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <MetaContentPerformancePageSkeleton />
-        </div>
-      }
-    >
-      <InstagramContentPerformancePage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileInstagramContentPerformancePage />}
+      desktop={<InstagramContentPerformancePage />}
+      desktopSkeleton={<MetaContentPerformancePageSkeleton />}
+    />
   );
 }
 
 function FacebookContentPerformancePageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <MetaContentPerformancePageSkeleton />
-        </div>
-      }
-    >
-      <FacebookContentPerformancePage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileFacebookContentPerformancePage />}
+      desktop={<FacebookContentPerformancePage />}
+      desktopSkeleton={<MetaContentPerformancePageSkeleton />}
+    />
   );
 }
 
 function SocialMediaInsightReportPageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <SocialMediaInsightReportPageSkeleton />
-        </div>
-      }
-    >
-      <SocialMediaInsightReportPage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileSocialMediaInsightReportPage />}
+      desktop={<SocialMediaInsightReportPage />}
+      desktopSkeleton={<SocialMediaInsightReportPageSkeleton />}
+    />
   );
 }
 
@@ -2511,99 +2565,71 @@ function ManageCommentsHubPageRouteElement() {
 
 function TikTokManageCommentsPageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <TikTokManageCommentsPageSkeleton />
-        </div>
-      }
-    >
-      <TikTokManageCommentsPage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileManageCommentsInboxPage />}
+      desktop={<TikTokManageCommentsPage />}
+      desktopSkeleton={<TikTokManageCommentsPageSkeleton />}
+    />
   );
 }
 
 function YouTubeManageCommentsPageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <YouTubeManageCommentsPageSkeleton />
-        </div>
-      }
-    >
-      <YouTubeManageCommentsPage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileManageCommentsInboxPage />}
+      desktop={<YouTubeManageCommentsPage />}
+      desktopSkeleton={<YouTubeManageCommentsPageSkeleton />}
+    />
   );
 }
 
 function InstagramManageCommentsPageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <MetaManageCommentsPageSkeleton />
-        </div>
-      }
-    >
-      <InstagramManageCommentsPage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileManageCommentsInboxPage />}
+      desktop={<InstagramManageCommentsPage />}
+      desktopSkeleton={<MetaManageCommentsPageSkeleton />}
+    />
   );
 }
 
 function FacebookManageCommentsPageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <MetaManageCommentsPageSkeleton />
-        </div>
-      }
-    >
-      <FacebookManageCommentsPage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileManageCommentsInboxPage />}
+      desktop={<FacebookManageCommentsPage />}
+      desktopSkeleton={<MetaManageCommentsPageSkeleton />}
+    />
   );
 }
 
 function LinkedInManageCommentsPageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <MetaManageCommentsPageSkeleton />
-        </div>
-      }
-    >
-      <LinkedInManageCommentsPage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileManageCommentsInboxPage />}
+      desktop={<LinkedInManageCommentsPage />}
+      desktopSkeleton={<MetaManageCommentsPageSkeleton />}
+    />
   );
 }
 
 function ThreadsContentPerformancePageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <LinkedInContentPerformancePageSkeleton />
-        </div>
-      }
-    >
-      <ThreadsContentPerformancePage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileThreadsContentPerformancePage />}
+      desktop={<ThreadsContentPerformancePage />}
+      desktopSkeleton={<LinkedInContentPerformancePageSkeleton />}
+    />
   );
 }
 
 function ThreadsManageCommentsPageRouteElement() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <MetaManageCommentsPageSkeleton />
-        </div>
-      }
-    >
-      <ThreadsManageCommentsPage />
-    </Suspense>
+    <SmpMobileAwareRoute
+      mobile={<MobileManageCommentsInboxPage />}
+      desktop={<ThreadsManageCommentsPage />}
+      desktopSkeleton={<MetaManageCommentsPageSkeleton />}
+    />
   );
 }
 
@@ -4264,7 +4290,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance"
-                                loadingShell={<TikTokManageCommentsPageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<TikTokManageCommentsPageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <TikTokManageCommentsPageRouteElement />
@@ -4288,7 +4318,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance"
-                                loadingShell={<YouTubeManageCommentsPageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<YouTubeManageCommentsPageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <YouTubeManageCommentsPageRouteElement />
@@ -4300,7 +4334,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance"
-                                loadingShell={<MetaManageCommentsPageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<MetaManageCommentsPageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <InstagramManageCommentsPageRouteElement />
@@ -4312,7 +4350,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance"
-                                loadingShell={<MetaManageCommentsPageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<MetaManageCommentsPageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <FacebookManageCommentsPageRouteElement />
@@ -4324,7 +4366,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance/manage-comments/linkedin"
-                                loadingShell={<MetaManageCommentsPageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<MetaManageCommentsPageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <LinkedInManageCommentsPageRouteElement />
@@ -4336,7 +4382,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance/manage-comments/threads"
-                                loadingShell={<MetaManageCommentsPageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<MetaManageCommentsPageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <ThreadsManageCommentsPageRouteElement />
@@ -4372,7 +4422,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance"
-                                loadingShell={<TikTokContentPerformancePageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<TikTokContentPerformancePageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <TikTokContentPerformancePageRouteElement />
@@ -4396,7 +4450,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance"
-                                loadingShell={<YouTubeContentPerformancePageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<YouTubeContentPerformancePageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <YouTubeContentPerformancePageRouteElement />
@@ -4420,7 +4478,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance"
-                                loadingShell={<MetaContentPerformancePageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<MetaContentPerformancePageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <InstagramContentPerformancePageRouteElement />
@@ -4444,7 +4506,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance"
-                                loadingShell={<MetaContentPerformancePageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<MetaContentPerformancePageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <FacebookContentPerformancePageRouteElement />
@@ -4468,7 +4534,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance"
-                                loadingShell={<LinkedInContentPerformancePageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<LinkedInContentPerformancePageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <LinkedInContentPerformancePageRouteElement />
@@ -4480,7 +4550,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance/threads"
-                                loadingShell={<LinkedInContentPerformancePageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<LinkedInContentPerformancePageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <ThreadsContentPerformancePageRouteElement />
@@ -4504,7 +4578,11 @@ const App = () => (
                             element={
                               <PageAccessGuard
                                 pagePath="/digital-marketing/social-media-performance"
-                                loadingShell={<SocialMediaInsightReportPageSkeleton />}
+                                loadingShell={
+                                  <SocialMediaPerformanceMobileAwareLoadingShell
+                                    desktop={<SocialMediaInsightReportPageSkeleton />}
+                                  />
+                                }
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <SocialMediaInsightReportPageRouteElement />

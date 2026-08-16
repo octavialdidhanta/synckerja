@@ -9,6 +9,8 @@ interface ProgressBarProps {
   className?: string;
   /** Brand fill + label; legacy colors kept for optional reuse */
   color?: 'primary' | 'purple' | 'blue' | 'green' | 'danger';
+  /** Inline percent to the right of the bar. Hide when the caller renders the label elsewhere. */
+  showLabel?: boolean;
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({ 
@@ -16,7 +18,8 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   target, 
   percentage: percentageOverride,
   className = "",
-  color = 'primary' 
+  color = 'primary',
+  showLabel = true,
 }) => {
   const rawPercentage =
     percentageOverride != null
@@ -27,9 +30,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 
   const displayPercentage = Math.max(0, rawPercentage);
   const barWidth = Math.min(displayPercentage, 100);
-  const isOverTarget = displayPercentage > 100;
-  const resolvedColor = isOverTarget ? 'danger' : color;
-  
+
   const colorClasses = {
     primary: 'bg-primary',
     purple: 'bg-purple-600',
@@ -39,9 +40,9 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   };
 
   const labelClass =
-    resolvedColor === 'primary'
+    color === 'primary'
       ? 'text-primary'
-      : resolvedColor === 'danger'
+      : color === 'danger'
         ? 'text-red-600'
         : 'text-foreground';
 
@@ -57,13 +58,15 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     <div className={`flex items-center gap-2 ${className}`}>
       <div className="flex-1 bg-gray-200 rounded-full h-1.5">
         <div 
-          className={`${colorClasses[resolvedColor]} h-1.5 rounded-full transition-all duration-300`}
+          className={`${colorClasses[color]} h-1.5 rounded-full transition-all duration-300`}
           style={{ width: `${barWidth}%` }}
         />
       </div>
-      <span className={`min-w-[2rem] text-xs font-medium text-right tabular-nums ${labelClass}`}>
-        {displayPercentage}%
-      </span>
+      {showLabel ? (
+        <span className={`min-w-[2rem] text-xs font-medium text-right tabular-nums ${labelClass}`}>
+          {displayPercentage}%
+        </span>
+      ) : null}
     </div>
   );
 };

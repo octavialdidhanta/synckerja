@@ -27,24 +27,27 @@ export default function MobileGoogleAdsPageSkeleton() {
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="mx-auto w-full max-w-md space-y-2 px-2 pt-2 content-padding-above-nav-default">
+              <div className="mx-auto min-w-0 w-full max-w-md space-y-2 px-2 pt-2 content-padding-above-nav-default">
                 <div className="-mx-2 grid grid-cols-2 gap-px overflow-hidden border-y border-border bg-border">
                   {Array.from({ length: 1 + SUMMARY_SLOT_COUNT }, (_, i) => (
                     <div key={i} className="bg-card px-4 py-3">
                       <div className="mb-1.5 h-3 w-16 animate-pulse rounded bg-muted/50" />
                       <div className="h-6 w-24 animate-pulse rounded bg-muted/60" />
+                      <div className="mt-0.5 h-3 w-20 animate-pulse rounded bg-muted/40" />
                       <div className="mt-2 h-1.5 w-full animate-pulse rounded bg-muted/40" />
                     </div>
                   ))}
                 </div>
 
-                <div className="-mx-2 border-y border-border bg-card px-2 py-2">
-                  <div className="flex gap-2 overflow-hidden">
-                    <div className="h-11 w-28 shrink-0 animate-pulse rounded-md bg-muted/40" />
-                    <div className="h-11 w-36 shrink-0 animate-pulse rounded-md bg-muted/40" />
-                    <div className="h-11 w-32 shrink-0 animate-pulse rounded-md bg-muted/40" />
-                    <div className="h-11 w-24 shrink-0 animate-pulse rounded-md bg-muted/40" />
-                    <div className="h-11 w-32 shrink-0 animate-pulse rounded-md bg-muted/40" />
+                <div className="-mx-2 min-w-0 border-y border-border bg-card">
+                  <div className="nested-scroll-touch-chain-xy min-w-0 w-full overflow-x-auto overflow-y-hidden px-2 py-2">
+                    <div className="inline-flex w-max items-center gap-2">
+                      <div className="h-11 w-28 shrink-0 animate-pulse rounded-md bg-muted/40" />
+                      <div className="h-11 w-36 shrink-0 animate-pulse rounded-md bg-muted/40" />
+                      <div className="h-11 w-32 shrink-0 animate-pulse rounded-md bg-muted/40" />
+                      <div className="h-11 w-24 shrink-0 animate-pulse rounded-md bg-muted/40" />
+                      <div className="h-11 w-32 shrink-0 animate-pulse rounded-md bg-muted/40" />
+                    </div>
                   </div>
                 </div>
 

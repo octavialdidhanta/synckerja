@@ -74,9 +74,8 @@ function ThreadsContentPerformancePageContent() {
   const hasInstagramConnected = instagramAccounts.length > 0;
 
   return (
-    <>
-        <div className="flex min-h-[calc(100vh-120px)] min-w-0 flex-1 flex-col">
-            <div className="flex min-h-[560px] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+    <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
+            <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
               {notConnected ? (
                 <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
                   <p className="mb-4 max-w-md text-sm text-slate-600">
@@ -162,8 +161,6 @@ function ThreadsContentPerformancePageContent() {
                 </div>
               )}
             </div>
-            <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
-        </div>
-    </>
+    </div>
   );
 }

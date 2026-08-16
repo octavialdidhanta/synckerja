@@ -10,6 +10,7 @@ import { LeadsFilters, type LeadsFilters as LeadsFiltersState } from "@/5-3-dash
 import {
   FU_PRIORITY_FILTER_CHOICES,
   buildAssigneeFilterOptions,
+  buildCategoryFilterOptions,
   buildLeadSourceFilterOptions,
   buildServicesFilterOptions,
   buildUniqueLeadStatusFilterOptions,
@@ -213,6 +214,14 @@ export function RecipientListContactPickerPanel({
   const attributionLabelOptionsEmbedded = useMemo(
     () => filterOptions?.attributionLabels ?? [],
     [filterOptions?.attributionLabels],
+  );
+
+  const categoryFilterOptions = useMemo(
+    () =>
+      buildCategoryFilterOptions(
+        tableRows.map((r) => ({ category: (r as RecipientPickerRpcItem).category })),
+      ),
+    [tableRows],
   );
 
   const servicesFilterOptions = useMemo(() => {
@@ -463,7 +472,7 @@ export function RecipientListContactPickerPanel({
                   categoryColumnFilter={{
                     value: filters.category,
                     onChange: (v) => setFilters((f) => ({ ...f, category: v })),
-                    options: subServices,
+                    options: categoryFilterOptions,
                   }}
                   servicesColumnFilter={{
                     value: filters.services,

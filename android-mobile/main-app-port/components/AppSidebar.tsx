@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
+  Activity,
   BarChart3,
   CalendarDays,
   Clock,
@@ -11,7 +12,7 @@ import {
   Receipt,
   Wallet,
 } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 import {
   Sidebar,
@@ -41,6 +42,7 @@ import { mobileSidebarPagePathForUrl } from "@/shared/auth/page-access/mobileRou
 type SidebarNavItem = {
   url: string;
   icon: LucideIcon;
+  matchPrefix?: string;
 } & (
   | { title: string }
   | { titleKey: string; titleDefault: string }
@@ -64,6 +66,13 @@ const menuItems: SidebarNavItem[] = [
     url: "/digital-marketing/social-media/content-calendar",
     icon: CalendarDays,
   },
+  {
+    titleKey: "sidebar.digitalMarketing.socialMediaPerformance.title",
+    titleDefault: "Social Media Performance",
+    url: "/digital-marketing/social-media-performance/tiktok",
+    icon: Activity,
+    matchPrefix: "/digital-marketing/social-media-performance",
+  },
   { title: "Subscription", url: SUBSCRIPTION_OVERVIEW_PATH, icon: CreditCard },
 ];
 
@@ -73,6 +82,7 @@ function itemLabel(item: SidebarNavItem, t: ReturnType<typeof useAppTranslation>
 
 export function AppSidebar() {
   const { t } = useAppTranslation();
+  const location = useLocation();
   const { isTabLocked } = useHeaderTabPageAccess();
   const { filterNavItems } = useFilteredNavByPageAccess();
   const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
@@ -149,15 +159,28 @@ export function AppSidebar() {
                         ? t("accessDenied.message", "You do not have permission to view this page.")
                         : undefined
                     }
-                    className={({ isActive }) =>
-                      [
+                    className={({ isActive }) => {
+                      const prefixActive = Boolean(
+                        item.matchPrefix &&
+                          (location.pathname === item.matchPrefix ||
+                            location.pathname.startsWith(`${item.matchPrefix}/`)),
+                      );
+                      const active = prefixActive || isActive;
+                      return [
                         "flex items-center gap-3 px-3 py-2 rounded-lg w-full min-w-0 transition-colors",
                         locked && "opacity-70",
-                        isActive ? "text-primary font-medium" : "text-foreground hover:bg-primary/10",
-                      ].join(" ")
-                    }
+                        active ? "text-primary font-medium" : "text-foreground hover:bg-primary/10",
+                      ].join(" ");
+                    }}
                   >
-                    {({ isActive }) => (
+                    {({ isActive }) => {
+                      const prefixActive = Boolean(
+                        item.matchPrefix &&
+                          (location.pathname === item.matchPrefix ||
+                            location.pathname.startsWith(`${item.matchPrefix}/`)),
+                      );
+                      const active = prefixActive || isActive;
+                      return (
                       <>
                         <item.icon className="h-4 w-4 flex-shrink-0" />
                         <span className="font-medium truncate min-w-0 flex-1 flex items-center gap-1">
@@ -166,20 +189,21 @@ export function AppSidebar() {
                         </span>
                         <span
                           className={`flex-shrink-0 flex items-center justify-center rounded-full p-1 transition-colors ${
-                            isActive ? "bg-primary/10 ring-1 ring-primary/20" : "bg-muted/40 ring-1 ring-border/50"
+                            active ? "bg-primary/10 ring-1 ring-primary/20" : "bg-muted/40 ring-1 ring-border/50"
                           }`}
                           aria-hidden
                         >
                           <span
                             className={`w-2.5 h-2.5 rounded-full border-2 transition-colors ${
-                              isActive
+                              active
                                 ? "bg-primary border-primary shadow-sm"
                                 : "bg-transparent border-muted-foreground/30"
                             }`}
                           />
                         </span>
                       </>
-                    )}
+                      );
+                    }}
                   </NavLink>
                 </SidebarMenuItem>
               );

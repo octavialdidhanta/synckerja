@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
 import { formatPostEngagementStats } from "@/6-0-social-media-manage-comments/lib/formatPostEngagementStats";
+import { useManageCommentsMobileLayout } from "@/6-0-social-media-manage-comments/components/shared/ManageCommentsMobileLayoutContext";
 import type { ManageCommentsPostListItem } from "@/6-0-social-media-manage-comments/types/manageCommentsSharedTypes";
 
 type ManageCommentsThreadHeaderProps = {
@@ -20,6 +21,8 @@ export function ManageCommentsThreadHeader({
   openOnPlatform = "tiktok",
 }: ManageCommentsThreadHeaderProps) {
   const { t, i18n } = useTranslation();
+  const isMobileLayout = useManageCommentsMobileLayout();
+  if (isMobileLayout) return null;
   const initials = post.accountLabel.slice(0, 2).toUpperCase();
   const engagementStats = formatPostEngagementStats(post, t, i18n.language);
   const postedLabel = (() => {

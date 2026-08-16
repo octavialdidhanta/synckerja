@@ -20,6 +20,10 @@ import {
   type ReportTableMetricKey,
 } from "@/6-0-digital-marketing-shared/reportSummaryMetrics";
 import { DigitalMarketingReportSummaryMetricPicker } from "@/6-0-report/components/DigitalMarketingReportSummaryMetricPicker";
+import {
+  reportPeriodCompareBits,
+  useDmReportSummaryPeriodCompare,
+} from "@/6-0-report/hooks/useDmReportSummaryPeriodCompare";
 
 const SLOT_COUNT = REPORT_SUMMARY_SLOT_COUNT;
 
@@ -132,12 +136,15 @@ export function DigitalMarketingReportSummaryBar({
   );
   const currencyCode = googleCost.currency;
 
+  const { previousRange, previousTotals, compareLoading, compareError } =
+    useDmReportSummaryPeriodCompare();
+
   if (loading && bootstrapLoading) {
     return null;
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
       {slots.map((key, index) => {
         const progress = progressByReportSlot.get(key);
         const ratioText =
@@ -147,6 +154,15 @@ export function DigitalMarketingReportSummaryBar({
           progress.actual != null
             ? `${formatDmActualValue("google", key, progress.actual, currencyCode)} / ${formatDmActualValue("google", key, progress.target, currencyCode)}`
             : null;
+        const slotCompare = reportPeriodCompareBits({
+          metricKey: key,
+          currentTotals: totals,
+          previousTotals,
+          previousRange,
+          compareLoading,
+          compareError,
+          mixedCurrencyLabel,
+        });
 
         return (
           <DigitalMarketingReportSummaryMetricPicker
@@ -171,6 +187,7 @@ export function DigitalMarketingReportSummaryBar({
             targetProgress={progress}
             targetsLoading={targetsLoading}
             progressRatioText={ratioText}
+            {...slotCompare}
           />
         );
       })}

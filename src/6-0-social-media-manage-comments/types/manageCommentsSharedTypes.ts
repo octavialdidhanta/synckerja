@@ -11,6 +11,9 @@ export type ManageCommentsPostListItem = {
   title: string;
   snippet: string;
   coverImageUrl: string | null;
+  /** Direct playable file (mp4) when the platform returns one. */
+  videoUrl?: string | null;
+  mediaType?: string | null;
   postedAt: string | null;
   commentCount: number;
   likeCount: number;

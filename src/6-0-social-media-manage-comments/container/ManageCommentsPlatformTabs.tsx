@@ -13,6 +13,7 @@ import { ThreadsTabIcon } from "@/6-0-social-media-performance/components/Thread
 
 import { cn } from "@/shared/lib/utils";
 
+import { usePrefetchManageCommentsPlatforms } from "@/6-0-social-media-manage-comments/hooks/usePrefetchManageCommentsPlatforms";
 import {
   SOCIAL_MEDIA_MANAGE_COMMENTS_FACEBOOK_PATH,
   SOCIAL_MEDIA_MANAGE_COMMENTS_INSTAGRAM_PATH,
@@ -153,6 +154,7 @@ export function ManageCommentsPlatformTabs() {
   const navigate = useNavigate();
 
   const location = useLocation();
+  usePrefetchManageCommentsPlatforms();
 
 
 

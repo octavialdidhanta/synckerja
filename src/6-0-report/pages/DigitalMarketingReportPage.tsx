@@ -253,14 +253,15 @@ function DigitalMarketingReportPageBody({
       >
         <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                       <div className="col-span-12 flex min-h-0 min-w-0 flex-col gap-2">
-                        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
+                        <div className="min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                          <div className="flex min-w-0 items-start justify-between gap-3">
+                            <div className="min-w-0 shrink-0">
                               <h2 className="text-base font-semibold text-gray-900">
                                 {t("digitalMarketing.report.title", "Report")}
                               </h2>
                             </div>
-                            <div className="flex flex-wrap items-center justify-end gap-2">
+                            <div className="nested-scroll-touch-chain-xy min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+                              <div className="flex w-max min-w-full items-center justify-end gap-2">
                               {filtersHydrated ? (
                                 <>
                                   <Select
@@ -272,7 +273,7 @@ function DigitalMarketingReportPageBody({
                                     }
                                   >
                                     <SelectTrigger
-                                      className="h-9 w-[14rem] border-gray-200 bg-gray-50 text-sm"
+                                      className="h-9 w-[14rem] shrink-0 border-gray-200 bg-gray-50 text-sm"
                                       aria-label={t(
                                         "digitalMarketing.report.tableServiceFilterLabel",
                                         "Service",
@@ -315,6 +316,7 @@ function DigitalMarketingReportPageBody({
                                       "digitalMarketing.report.compareToggleHint",
                                       "Charts (Spend, CPA, Conv. leads) show monthly data for the chart year. Table and KPIs keep the date filter above.",
                                     )}
+                                    className="shrink-0"
                                   />
                                   <Button
                                     type="button"
@@ -336,13 +338,14 @@ function DigitalMarketingReportPageBody({
                                 </>
                               ) : (
                                 <div
-                                  className="flex flex-wrap items-center justify-end gap-2"
+                                  className="flex items-center justify-end gap-2"
                                   aria-hidden
                                 >
                                   <div className="h-9 w-[14rem] shrink-0 rounded-md border border-gray-200 bg-gray-50" />
-                                  <div className="h-9 min-w-[200px] w-52 max-w-[min(300px,50vw)] shrink-0 rounded-md border border-gray-300 bg-white" />
+                                  <div className="h-9 min-w-[200px] w-52 shrink-0 rounded-md border border-gray-300 bg-white" />
                                 </div>
                               )}
+                              </div>
                             </div>
                           </div>
                         </div>

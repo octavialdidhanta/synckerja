@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
@@ -39,6 +39,45 @@ function normalizeImageExtension(file: File): string {
 
 function getBriefStoryboardImagePublicUrl(storagePath: string): string {
   return supabase.storage.from(BRIEF_STORYBOARD_IMAGES_BUCKET).getPublicUrl(storagePath).data.publicUrl;
+}
+
+export async function fetchBriefStoryboardImages(
+  socialMediaPlanId: string,
+): Promise<BriefStoryboardImageRow[]> {
+  const { data, error } = await supabase
+    .from('brief_storyboard_images')
+    .select(
+      'id, social_media_plan_id, row_index, column_index, sort_order, storage_path, file_name, mime_type, file_size, width, height, created_at, updated_at',
+    )
+    .eq('social_media_plan_id', socialMediaPlanId)
+    .eq('column_index', BRIEF_STORYBOARD_IMAGE_COLUMN_INDEX)
+    .order('row_index', { ascending: true })
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  return (data || []) as BriefStoryboardImageRow[];
+}
+
+/** Warm query cache + decode the first visible scene images before the drawer paints. */
+export async function prefetchBriefStoryboardImages(
+  queryClient: QueryClient,
+  socialMediaPlanId: string,
+): Promise<void> {
+  if (!socialMediaPlanId) return;
+  try {
+    const rows = await queryClient.fetchQuery({
+      queryKey: [BRIEF_STORYBOARD_IMAGES_QUERY_KEY, socialMediaPlanId],
+      queryFn: () => fetchBriefStoryboardImages(socialMediaPlanId),
+      staleTime: 30 * 1000,
+    });
+    const toWarm = rows.slice(0, 12);
+    for (const row of toWarm) {
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = getBriefStoryboardImagePublicUrl(row.storage_path);
+    }
+  } catch {
+    // Prefetch is best-effort; the editor query will retry.
+  }
 }
 
 export async function removeAllBriefStoryboardImagesForPlan(socialMediaPlanId: string): Promise<void> {
@@ -102,17 +141,7 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
     queryKey,
     queryFn: async (): Promise<BriefStoryboardImageRow[]> => {
       if (!socialMediaPlanId) return [];
-      const { data, error } = await supabase
-        .from('brief_storyboard_images')
-        .select(
-          'id, social_media_plan_id, row_index, column_index, sort_order, storage_path, file_name, mime_type, file_size, width, height, created_at, updated_at',
-        )
-        .eq('social_media_plan_id', socialMediaPlanId)
-        .eq('column_index', BRIEF_STORYBOARD_IMAGE_COLUMN_INDEX)
-        .order('row_index', { ascending: true })
-        .order('sort_order', { ascending: true });
-      if (error) throw error;
-      return (data || []) as BriefStoryboardImageRow[];
+      return fetchBriefStoryboardImages(socialMediaPlanId);
     },
     enabled: Boolean(socialMediaPlanId),
     staleTime: 30 * 1000,

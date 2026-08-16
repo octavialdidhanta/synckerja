@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { parseEdgeFunctionError } from '@/tiktok-ads/lib/parseEdgeFunctionError';
 import { supabase } from '@/shared/lib/supabaseClient';
@@ -103,7 +103,7 @@ function toPostListItem(
   const id = String(row.id ?? row.media_id ?? row.post_id ?? '').trim();
   return {
     id,
-    title: title.length > 80 ? `${title.slice(0, 77)}…` : title,
+    title,
     snippet,
     coverImageUrl: row.thumbnail_url ?? row.cover_image_url ?? null,
     postedAt: row.timestamp ?? row.posted_at ?? null,
@@ -166,7 +166,9 @@ export function useThreadsContentCommentPostsQuery(args: {
 
   const inboxState = query.data?.inbox ?? null;
 
-  return { ...query, posts, inboxState };
+  const refetchWithForce = useCallback(() => query.refetch(), [query]);
+
+  return { ...query, posts, inboxState, refetchWithForce };
 }
 
 export function useThreadsContentCommentsQuery(args: {

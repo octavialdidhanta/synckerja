@@ -340,16 +340,15 @@ const ProductKnowledgeContent: React.FC = () => {
                     }
                     aria-hidden={showPageSkeleton}
                   >
-                    <div className="flex-shrink-0">
+                    <div className="mb-1 flex-shrink-0">
                       <HeaderAndTab
                         activeMainTab={activeMainTab}
                         handleTabChange={handleTabChange}
-                        flushBottom
                       />
                     </div>
 
                     <ModuleShellContentGate pagePath="/digital-marketing/social-media/product-knowledge">
-                    <div className="grid min-h-[calc(100vh-120px)] max-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
+                    <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
                       <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col gap-0 overflow-hidden">
                         <div className="min-h-0 flex-shrink-0">
                           <ProductKnowledgeGeneratePanel

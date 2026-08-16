@@ -196,7 +196,7 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
   const showContent = useDebouncedReady(accessReady && !showFullPageSkeleton, 150);
 
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
         className={cn(
           'flex min-h-0 flex-1 flex-col',
@@ -204,7 +204,7 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
         )}
         aria-hidden={!showContent}
       >
-                <div className="grid min-h-0 min-w-0 w-full flex-1 basis-0 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
+                <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
                   <div className="col-span-12 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                     <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-row overflow-hidden">
                       <MetaContentPerformanceAccountNav
@@ -226,7 +226,6 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
                           <MetaContentSettingsPanel
                             platform={platform}
                             oauthReturnPath={settingsPath}
-                            className="min-h-0 flex-1"
                           />
                         ) : (
                           <>
@@ -378,6 +377,12 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
                                   targetProgress={progressList}
                                   isLoading={metricsLoading}
                                   targetsLoading={targetsLoading}
+                                  organizationId={organizationId}
+                                  platform={platform}
+                                  accountId={accountId}
+                                  dateStart={dateStart ?? null}
+                                  dateEnd={dateEnd ?? null}
+                                  compareEnabled={showMetricsView}
                                 />
 
                                 <div className="min-h-0 flex-1 overflow-hidden">

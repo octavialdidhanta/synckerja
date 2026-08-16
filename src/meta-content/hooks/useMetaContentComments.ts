@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { parseEdgeFunctionError } from '@/tiktok-ads/lib/parseEdgeFunctionError';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { MANAGE_COMMENTS_THREAD_POLL_MS } from '@/6-0-social-media-manage-comments/lib/manageCommentsPolling';
@@ -35,7 +35,10 @@ export function useMetaContentCommentsQuery(args: {
       });
       return data as { comments: MetaContentCommentRow[] };
     },
+    staleTime: 8_000,
+    placeholderData: keepPreviousData,
     refetchInterval: refetchIntervalMs ?? false,
+    refetchIntervalInBackground: false,
   });
 }
 

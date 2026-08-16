@@ -97,5 +97,22 @@ export function useYouTubeContentCommentMutations(args: {
     },
   });
 
-  return { replyComment };
+  const insertComment = useMutation({
+    mutationFn: async (input: { text: string }) => {
+      if (!organizationId || !channelId || !videoId) throw new Error("Missing context");
+      return invokeYouTubeCommentAction(organizationId, channelId, "insertComment", {
+        video_id: videoId,
+        text: input.text,
+      });
+    },
+    onSuccess: () => {
+      if (organizationId && channelId && videoId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["youtube-content-comments", organizationId, channelId, videoId],
+        });
+      }
+    },
+  });
+
+  return { replyComment, insertComment };
 }

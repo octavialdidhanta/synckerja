@@ -148,13 +148,43 @@ export interface HolidayEvent {
   description?: string;
 }
 
+export type FunnelStage = 'top' | 'middle' | 'bottom';
+
 export interface PillarData {
   pillar_id: string;
   pillar_name: string;
   count: number;
-  funnel: 'top' | 'middle' | 'bottom';
+  funnel: FunnelStage;
   previousMonthCount?: number;
   isDefault: boolean;
   description?: string | null;
   category?: string | null;
+}
+
+export interface ContentBalanceStats {
+  total: number;
+  image: {
+    count: number;
+    percentage: number;
+  };
+  video: {
+    count: number;
+    percentage: number;
+  };
+  completed: {
+    total: number;
+    image: number;
+    video: number;
+  };
+}
+
+export interface PICProductionStats {
+  picId: string;
+  picName: string;
+  imageCount: number;
+  videoCount: number;
+  totalCount: number;
+  completedImageCount: number;
+  completedVideoCount: number;
+  completedTotalCount: number;
 }

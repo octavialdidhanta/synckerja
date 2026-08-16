@@ -16,7 +16,7 @@ import {
 } from '@/6-0-social-media-manage-comments/lib/manageCommentsInboundHighlightStore';
 import type { MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
 
-const META_INBOX_POLL_MS = 5_000;
+const META_INBOX_POLL_MS = 15_000;
 
 function applyInboxStateToLocalStore(
   accountId: string,

@@ -603,9 +603,9 @@ export function DigitalMarketingReportTable({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1040px] caption-bottom border-collapse text-sm">
+      <div className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="nested-scroll-touch-chain-xy seamless-scroll min-w-0 w-full overflow-x-auto overflow-y-hidden">
+          <table className="w-max min-w-[1040px] caption-bottom border-collapse text-sm">
             <thead>
               <tr className="border-b border-gray-200">
                 <th className={thClass}>{t("digitalMarketing.report.tableChannel", "Channel")}</th>

@@ -25,7 +25,10 @@ export const MOBILE_PAGE_PATH = {
   digitalMarketingMetaAds: "/digital-marketing/meta-ads",
   digitalMarketingTikTokAds: "/digital-marketing/tiktok-ads",
   digitalMarketingReport: "/digital-marketing/report",
+  digitalMarketingSocialMedia: "/digital-marketing/social-media",
   digitalMarketingContentCalendar: "/digital-marketing/social-media/content-calendar",
+  digitalMarketingScriptGenerator: "/digital-marketing/social-media/script-generator",
+  digitalMarketingSocialMediaPerformance: "/digital-marketing/social-media-performance",
   subscriptionOverview: "/subscription/overview",
   subscriptionPlans: "/subscription/plans",
   subscriptionManagement: "/subscription/management",
@@ -93,9 +96,14 @@ export function mobileSidebarPagePathForUrl(url: string): string {
     "/digital-marketing/report": MOBILE_PAGE_PATH.digitalMarketingReport,
     "/digital-marketing/social-media/content-calendar":
       MOBILE_PAGE_PATH.digitalMarketingContentCalendar,
+    "/digital-marketing/social-media-performance/tiktok":
+      MOBILE_PAGE_PATH.digitalMarketingSocialMediaPerformance,
     "/subscription/overview": MOBILE_PAGE_PATH.subscriptionOverview,
   };
   if (map[normalized]) return map[normalized];
   if (normalized.startsWith("/incomes")) return MOBILE_PAGE_PATH.incomesDashboard;
+  if (normalized.startsWith("/digital-marketing/social-media-performance")) {
+    return MOBILE_PAGE_PATH.digitalMarketingSocialMediaPerformance;
+  }
   return normalized;
 }

@@ -1,6 +1,6 @@
 /** Background poll while Manage Comments inbox is open (tab focused). */
-export const MANAGE_COMMENTS_THREAD_POLL_MS = 2_000;
-export const MANAGE_COMMENTS_POSTS_POLL_MS = 10_000;
+export const MANAGE_COMMENTS_THREAD_POLL_MS = 10_000;
+export const MANAGE_COMMENTS_POSTS_POLL_MS = 15_000;
 
 /** YouTube: slower polls + server cache (Google API quota). */
 export const YOUTUBE_MANAGE_COMMENTS_THREAD_POLL_MS = 10_000;

@@ -21,6 +21,10 @@ import {
   type ReportTableMetricKey,
 } from "@/6-0-digital-marketing-shared/reportSummaryMetrics";
 import { MobileReportSummaryMetricCard } from "@/mobile/6-0-report/components/MobileReportSummaryMetricCard";
+import {
+  reportPeriodCompareBits,
+  useDmReportSummaryPeriodCompare,
+} from "@/6-0-report/hooks/useDmReportSummaryPeriodCompare";
 
 const SLOT_COUNT = REPORT_SUMMARY_MOBILE_SLOT_COUNT;
 const DEFAULT_SLOT_KEYS = REPORT_SUMMARY_MOBILE_DEFAULT_SLOT_KEYS;
@@ -133,6 +137,9 @@ export function MobileReportSummaryBar({
   );
   const currencyCode = googleCost.currency;
 
+  const { previousRange, previousTotals, compareLoading, compareError } =
+    useDmReportSummaryPeriodCompare();
+
   if (loading && bootstrapLoading) {
     return (
       <div
@@ -144,6 +151,7 @@ export function MobileReportSummaryBar({
           <div key={i} className="bg-card px-4 py-3">
             <Skeleton className="mb-1.5 h-3 w-16" />
             <Skeleton className="h-6 w-24" />
+            <Skeleton className="mt-0.5 h-3 w-20" />
             <Skeleton className="mt-2 h-1.5 w-full" />
           </div>
         ))}
@@ -162,6 +170,15 @@ export function MobileReportSummaryBar({
           progress.actual != null
             ? `${formatDmActualValue("google", key, progress.actual, currencyCode)} / ${formatDmActualValue("google", key, progress.target, currencyCode)}`
             : null;
+        const slotCompare = reportPeriodCompareBits({
+          metricKey: key,
+          currentTotals: totals,
+          previousTotals,
+          previousRange,
+          compareLoading,
+          compareError,
+          mixedCurrencyLabel,
+        });
 
         return (
           <MobileReportSummaryMetricCard
@@ -181,6 +198,7 @@ export function MobileReportSummaryBar({
             targetProgress={progress}
             targetsLoading={targetsLoading}
             progressRatioText={ratioText}
+            {...slotCompare}
           />
         );
       })}

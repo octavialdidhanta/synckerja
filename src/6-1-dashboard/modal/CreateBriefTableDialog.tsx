@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -10,8 +11,10 @@ import {
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
-import { Table2 } from 'lucide-react';
+import { Table2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/shared/lib/utils';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import {
   DEFAULT_BRIEF_STORYBOARD_COLUMN_COUNT,
@@ -26,6 +29,9 @@ interface CreateBriefTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreate: (tableData: string[][]) => void;
+  /** Raise above a parent dialog that uses a custom z-index. */
+  overlayClassName?: string;
+  contentClassName?: string;
 }
 
 function syncColumnNames(prev: string[], count: number): string[] {
@@ -37,14 +43,15 @@ function syncColumnNames(prev: string[], count: number): string[] {
   return next;
 }
 
-const compactInputClass = 'h-8 text-sm';
-
 export const CreateBriefTableDialog: React.FC<CreateBriefTableDialogProps> = ({
   open,
   onOpenChange,
   onCreate,
+  overlayClassName,
+  contentClassName,
 }) => {
   const { t } = useAppTranslation();
+  const isMobile = useIsMobile();
   const [columnCount, setColumnCount] = useState(DEFAULT_BRIEF_STORYBOARD_COLUMN_COUNT);
   const [columnNames, setColumnNames] = useState<string[]>(() =>
     Array.from({ length: DEFAULT_BRIEF_STORYBOARD_COLUMN_COUNT }, (_, i) => defaultColumnNameAt(i)),
@@ -82,20 +89,52 @@ export const CreateBriefTableDialog: React.FC<CreateBriefTableDialogProps> = ({
     onOpenChange(false);
   };
 
+  const inputClass = isMobile ? 'h-10 text-sm' : 'h-8 text-sm';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(85vh,480px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[400px]">
-        <DialogHeader className="flex-shrink-0 space-y-0.5 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3">
-          <DialogTitle className="flex items-center gap-1.5 text-base font-semibold leading-tight">
+      <DialogContent
+        hideCloseButton={isMobile}
+        fullscreenAnimation={isMobile}
+        overlayClassName={overlayClassName}
+        className={cn(
+          isMobile
+            ? 'fixed left-0 right-0 top-0 z-50 flex h-dvh max-h-none min-h-0 w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 p-0 shadow-none modal-above-safe-area'
+            : 'flex max-h-[min(85vh,480px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[400px]',
+          contentClassName,
+        )}
+      >
+        <DialogHeader
+          className={cn(
+            'flex-shrink-0 space-y-0 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 text-left',
+            isMobile
+              ? 'safe-area-top flex h-12 flex-row items-center justify-between gap-2 px-4 py-0'
+              : 'px-4 py-3',
+          )}
+        >
+          <DialogTitle className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-semibold leading-none">
             <Table2 className="h-4 w-4 shrink-0 text-gray-700" />
             {t('briefDialog.storyboard.createCustomTable', 'Create custom table')}
           </DialogTitle>
-          <DialogDescription className="text-xs leading-snug text-muted-foreground">
+          <DialogDescription className="sr-only">
             {t(
               'briefDialog.storyboard.createCustomTableDesc',
               'Set columns and initial rows for the brief storyboard.',
             )}
           </DialogDescription>
+          {isMobile ? (
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-white/80 hover:text-foreground"
+                aria-label={t('briefDialog.cancel', 'Cancel')}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogClose>
+          ) : null}
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -112,7 +151,7 @@ export const CreateBriefTableDialog: React.FC<CreateBriefTableDialogProps> = ({
                   max={MAX_BRIEF_STORYBOARD_COLUMNS}
                   value={columnCount}
                   onChange={(e) => handleColumnCountChange(e.target.value)}
-                  className={compactInputClass}
+                  className={inputClass}
                 />
               </div>
               <div className="space-y-1">
@@ -130,7 +169,7 @@ export const CreateBriefTableDialog: React.FC<CreateBriefTableDialogProps> = ({
                     if (Number.isNaN(parsed)) return;
                     setInitialRowCount(Math.max(1, Math.min(parsed, MAX_BRIEF_STORYBOARD_ROWS)));
                   }}
-                  className={compactInputClass}
+                  className={inputClass}
                 />
               </div>
             </div>
@@ -140,7 +179,7 @@ export const CreateBriefTableDialog: React.FC<CreateBriefTableDialogProps> = ({
             <Label className="flex-shrink-0 text-xs font-medium">
               {t('briefDialog.storyboard.columnNames', 'Column names')}
             </Label>
-            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-[120px] flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex flex-col gap-1.5 pr-0.5">
                 {columnNames.map((name, index) => (
                   <Input
@@ -154,14 +193,19 @@ export const CreateBriefTableDialog: React.FC<CreateBriefTableDialogProps> = ({
                       n: index + 1,
                     })}
                     maxLength={80}
-                    className={compactInputClass}
+                    className={inputClass}
                   />
                 ))}
               </div>
             </div>
           </div>
 
-          <DialogFooter className="flex-shrink-0 gap-2 border-t border-gray-100 bg-gray-50 px-4 py-2.5 sm:justify-end">
+          <DialogFooter
+            className={cn(
+              'flex-shrink-0 flex-row justify-end gap-2 space-x-0 border-t border-gray-100 bg-gray-50 px-4 py-2.5',
+              isMobile && 'pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+            )}
+          >
             <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               {t('briefDialog.cancel', 'Cancel')}
             </Button>

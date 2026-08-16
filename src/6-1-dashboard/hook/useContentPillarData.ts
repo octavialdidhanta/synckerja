@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { PillarData } from '../types/social-media';
+import { PillarData, FunnelStage } from '../types/social-media';
 import { startOfMonth, endOfMonth } from 'date-fns';
 import {
   getContentPlansQueryOptions,
@@ -81,7 +81,7 @@ export const useContentPillarData = (selectedMonth?: Date, serviceFilter?: strin
         pillar_id: pillar.id,
         pillar_name: pillar.name,
         count: usageCounts[pillar.id] ?? 0,
-        funnel: (pillar.funnel_stage as 'top' | 'middle' | 'bottom') || 'top',
+        funnel: (pillar.funnel_stage as FunnelStage) || 'top',
         previousMonthCount: prevUsageCounts[pillar.id] ?? 0,
         isDefault: pillar.is_default || false,
         description: pillar.description ?? null,

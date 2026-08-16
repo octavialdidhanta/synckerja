@@ -4,7 +4,7 @@ import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate"
 import { Button } from "@/shared/components/ui/button";
 import { BarChart3 } from "lucide-react";
 import { UtmTrackingTable } from "../components/UtmTrackingTable";
-import { computeTrafficKpiDisplay } from "../lib/computeTrafficKpiDisplay";
+import { computeTrafficKpiDisplay, computeUnfilteredTrafficKpiDisplay } from "../lib/computeTrafficKpiDisplay";
 import {
   computeSourceBreakdownTotals,
   normalizeSourceBreakdownRows,
@@ -29,6 +29,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/shared/lib/supabaseClient";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ClickDetailsDialog } from "../components/ClickDetailsDialog";
 import { useTrafficDashboardController } from "../hooks/useTrafficDashboardController";
+import { TrafficKpiCompareHint } from "../components/TrafficKpiCompareHint";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import {
   AlertDialog,
@@ -168,6 +169,8 @@ export default function TrafficPage() {
     queryToDate,
     queryDateReady,
     dashboardQuery,
+    dashboardCompareQuery,
+    previousRange,
     ingestionQuery,
     webAccessQuery,
   } = useTrafficDashboardController();
@@ -260,6 +263,15 @@ export default function TrafficPage() {
     hasSourceBreakdown,
     sourceBreakdownTotals,
   });
+  const unfilteredCurrentKpis = computeUnfilteredTrafficKpiDisplay({
+    kpis,
+    sourceBreakdown: dashboardQuery.data?.source_breakdown,
+  });
+  const unfilteredPreviousKpis = computeUnfilteredTrafficKpiDisplay({
+    kpis: dashboardCompareQuery.data?.kpis ?? null,
+    sourceBreakdown: dashboardCompareQuery.data?.source_breakdown,
+  });
+  const compareLoading = Boolean(previousRange) && dashboardCompareQuery.isPending;
   const topPages = dashboardQuery.data?.top_pages ?? [];
 
   const topPagesBlog = useMemo(() => {
@@ -533,22 +545,43 @@ export default function TrafficPage() {
                         </div>
                       )}
                       <div className="col-span-12 lg:col-span-4 rounded-lg border border-gray-200 p-4">
-                        <p className="text-xs text-gray-500">Total sessions</p>
-                        <p className="mt-1 text-2xl font-bold text-gray-900">
-                          {sessionsDisplay != null ? sessionsDisplay.toLocaleString() : "—"}
-                        </p>
+                        <TrafficKpiCompareHint
+                          title="Total sessions"
+                          titleClassName="text-gray-500"
+                          value={sessionsDisplay != null ? sessionsDisplay.toLocaleString() : "—"}
+                          valueClassName="text-2xl font-bold text-gray-900"
+                          current={unfilteredCurrentKpis.sessionsDisplay}
+                          previous={unfilteredPreviousKpis.sessionsDisplay}
+                          compareFromDate={previousRange?.fromDate}
+                          compareToDate={previousRange?.toDate}
+                          loading={compareLoading}
+                        />
                       </div>
                       <div className="col-span-12 lg:col-span-4 rounded-lg border border-gray-200 p-4">
-                        <p className="text-xs text-gray-500">All Page Views</p>
-                        <p className="mt-1 text-2xl font-bold text-gray-900">
-                          {pageViewsDisplay != null ? pageViewsDisplay.toLocaleString() : "—"}
-                        </p>
+                        <TrafficKpiCompareHint
+                          title="All Page Views"
+                          titleClassName="text-gray-500"
+                          value={pageViewsDisplay != null ? pageViewsDisplay.toLocaleString() : "—"}
+                          valueClassName="text-2xl font-bold text-gray-900"
+                          current={unfilteredCurrentKpis.pageViewsDisplay}
+                          previous={unfilteredPreviousKpis.pageViewsDisplay}
+                          compareFromDate={previousRange?.fromDate}
+                          compareToDate={previousRange?.toDate}
+                          loading={compareLoading}
+                        />
                       </div>
                       <div className="col-span-12 lg:col-span-4 rounded-lg border border-gray-200 p-4">
-                        <p className="text-xs text-gray-500">Clicks</p>
-                        <p className="mt-1 text-2xl font-bold text-gray-900">
-                          {clicksDisplay != null ? clicksDisplay.toLocaleString() : "—"}
-                        </p>
+                        <TrafficKpiCompareHint
+                          title="Clicks"
+                          titleClassName="text-gray-500"
+                          value={clicksDisplay != null ? clicksDisplay.toLocaleString() : "—"}
+                          valueClassName="text-2xl font-bold text-gray-900"
+                          current={unfilteredCurrentKpis.clicksDisplay}
+                          previous={unfilteredPreviousKpis.clicksDisplay}
+                          compareFromDate={previousRange?.fromDate}
+                          compareToDate={previousRange?.toDate}
+                          loading={compareLoading}
+                        />
                       </div>
 
                       <div className="col-span-12 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">

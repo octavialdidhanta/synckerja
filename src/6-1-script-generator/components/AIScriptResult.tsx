@@ -8,6 +8,8 @@ import { stringifyMarkdownTable } from '@/6-1-dashboard/utils/markdownTableUtils
 import { EditableBriefTable } from '@/6-1-dashboard/modal/EditableBriefTable';
 import { toast } from 'sonner';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
+import { cn } from '@/shared/lib/utils';
 import { SaveToPlanModal } from './SaveToPlanModal';
 import { RevisiModal } from './RevisiModal';
 import { ReframeModal } from './ReframeModal';
@@ -162,6 +164,7 @@ export const AIScriptResult: React.FC<AIScriptResultProps> = ({
   onScriptChange,
 }) => {
   const { t } = useAppTranslation();
+  const isMobile = useIsMobile();
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [revisiModalOpen, setRevisiModalOpen] = useState(false);
   const [reframeModalOpen, setReframeModalOpen] = useState(false);
@@ -451,7 +454,12 @@ export const AIScriptResult: React.FC<AIScriptResultProps> = ({
 
   return (
     <div className="space-y-2">
-      <div className="sticky top-0 z-10 flex flex-col gap-2 bg-white pb-2 -mt-0 pt-0 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">
+      <div
+        className={cn(
+          'sticky top-0 z-10 flex flex-col gap-2 bg-card pb-2 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]',
+          isMobile ? '-mx-3 px-3 pt-0' : 'pt-0',
+        )}
+      >
         <h3 className="text-lg font-semibold">{t('scriptGenerator.aiResultTitle', 'Hasil Script dari AI (Gemini)')}</h3>
         <div className="flex gap-2 flex-nowrap overflow-x-auto seamless-scroll">
           {onScriptChange && (
@@ -577,7 +585,7 @@ export const AIScriptResult: React.FC<AIScriptResultProps> = ({
           </div>
         )}
         <div
-          className={`min-w-0 px-4 pt-4 pb-4 ${PROSE_CLASS} [&>*:last-child]:!mb-0 [&_table]:!w-max [&_table]:!min-w-full [&_table]:!table-fixed`}
+          className={`min-w-0 px-4 pt-4 pb-4 ${PROSE_CLASS} [&>*:last-child]:!mb-0`}
         >
           {segments.map((seg, idx) => {
             const slice = fullScript.slice(seg.start, seg.end);

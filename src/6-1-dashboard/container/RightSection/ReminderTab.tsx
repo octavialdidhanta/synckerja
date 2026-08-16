@@ -167,16 +167,24 @@ const ReminderTab: React.FC<ReminderTabProps> = ({ selectedMonth, serviceFilter 
             </TabsTrigger>
           </TabsList>
           
-          {/* Scrollable Content Area — sama untuk ketiga tab: TabsContent = scroll container (overflow-y-auto) */}
-          <TabsContent value="funnel" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+          <TabsContent
+            value="funnel"
+            className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden p-0 data-[state=inactive]:hidden"
+          >
             <ContentPillarTracker selectedMonth={selectedMonth} serviceFilter={serviceFilter} />
           </TabsContent>
 
-          <TabsContent value="content-balance" className="flex-1 p-0 m-0 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain">
+          <TabsContent
+            value="content-balance"
+            className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden p-0 data-[state=inactive]:hidden"
+          >
             <ContentBalanceTab selectedMonth={selectedMonth} serviceFilter={serviceFilter} />
           </TabsContent>
 
-          <TabsContent value="pengingat" className="flex-1 p-2 space-y-3 m-0 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain">
+          <TabsContent
+            value="pengingat"
+            className="m-0 min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden p-2 seamless-scroll nested-scroll-touch-chain data-[state=inactive]:hidden"
+          >
             {/* Daily Task Reminders */}
             <div>
               <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">

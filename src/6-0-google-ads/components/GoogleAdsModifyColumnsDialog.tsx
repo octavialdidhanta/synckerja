@@ -65,8 +65,10 @@ import type { GoogleAdsColumnSet } from "@/google-ads/hooks/useGoogleAdsColumnSe
 import {
   GOOGLE_ADS_IDENTITY_COLUMNS,
   GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS,
+  isGoogleAdsPinnedMetricKey,
   isOptionalIdentityColumnKey,
   modifyColumnsTitle,
+  stripGoogleAdsPinnedMetricKeys,
 } from "@/google-ads/metrics/googleAdsIdentityColumns";
 import type {
   GoogleAdsIdentityColumn,
@@ -237,7 +239,7 @@ export function GoogleAdsModifyColumnsDialog({
 }: Props) {
   const maxMetrics = catalog?.max_metrics ?? 50;
   const [search, setSearch] = useState("");
-  const [draftKeys, setDraftKeys] = useState<string[]>(selectedKeys);
+  const [draftKeys, setDraftKeys] = useState<string[]>(() => stripGoogleAdsPinnedMetricKeys(selectedKeys));
   const [savePreset, setSavePreset] = useState(false);
   const [presetName, setPresetName] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -265,7 +267,7 @@ export function GoogleAdsModifyColumnsDialog({
 
   useEffect(() => {
     if (open) {
-      setDraftKeys(selectedKeys);
+      setDraftKeys(stripGoogleAdsPinnedMetricKeys(selectedKeys));
       setSavePreset(false);
       setPresetName("");
       setActiveColumnSetId(null);
@@ -311,10 +313,14 @@ export function GoogleAdsModifyColumnsDialog({
       m.key.toLowerCase().includes(q) ||
       m.description.toLowerCase().includes(q);
 
-    const recommended = (catalog?.recommended.metrics ?? []).filter(matches);
+    const recommended = (catalog?.recommended.metrics ?? [])
+      .filter((m) => !isGoogleAdsPinnedMetricKey(m.key))
+      .filter(matches);
     const synckerjaCat = catalog?.categories.find((c) => c.id === "synckerja_metrics");
     const synckerja =
-      entity === "campaign" ? (synckerjaCat?.metrics ?? []).filter(matches) : [];
+      entity === "campaign"
+        ? (synckerjaCat?.metrics ?? []).filter((m) => !isGoogleAdsPinnedMetricKey(m.key)).filter(matches)
+        : [];
 
     const optional = optionalIdentityItems.filter(matches);
 
@@ -322,7 +328,7 @@ export function GoogleAdsModifyColumnsDialog({
       .filter((cat) => cat.id !== "synckerja_metrics")
       .map((cat) => ({
         ...cat,
-        metrics: cat.metrics.filter(matches),
+        metrics: cat.metrics.filter((m) => !isGoogleAdsPinnedMetricKey(m.key)).filter(matches),
       }))
       .filter((c) => c.metrics.length > 0);
 
@@ -350,6 +356,7 @@ export function GoogleAdsModifyColumnsDialog({
   );
 
   const toggleMetric = (key: string, checked: boolean) => {
+    if (isGoogleAdsPinnedMetricKey(key)) return;
     setDraftKeys((prev) => {
       if (checked) {
         if (prev.includes(key) || prev.length >= maxMetrics) return prev;
@@ -373,7 +380,10 @@ export function GoogleAdsModifyColumnsDialog({
   const handleApply = async () => {
     const trimmedName = presetName.trim();
     if (savePreset && !trimmedName) return;
-    await onApply(draftKeys, savePreset ? { saveColumnSetName: trimmedName } : undefined);
+    await onApply(
+      stripGoogleAdsPinnedMetricKeys(draftKeys),
+      savePreset ? { saveColumnSetName: trimmedName } : undefined,
+    );
     onOpenChange(false);
   };
 
@@ -381,7 +391,9 @@ export function GoogleAdsModifyColumnsDialog({
     const preset = columnSets.find((s) => s.id === setId);
     if (!preset) return;
     setActiveColumnSetId(setId);
-    setDraftKeys(preset.metric_keys.filter((k) => metricByKeyWithOptional.has(k)));
+    setDraftKeys(
+      stripGoogleAdsPinnedMetricKeys(preset.metric_keys).filter((k) => metricByKeyWithOptional.has(k)),
+    );
     setIsEditingColumnSet(false);
     setEditColumnSetName(preset.name);
   };

@@ -34,6 +34,12 @@ function AdaptiveAppLayoutContent() {
   const isMobileReportPath = pathname === "/digital-marketing/report";
   const isMobileContentCalendarPath =
     pathname === "/digital-marketing/social-media/content-calendar";
+  /** Social Media Performance mobile shells bring their own header + footer — skip desktop AppHeader. */
+  const isMobileSocialMediaPerformancePath =
+    (pathname === "/digital-marketing/social-media-performance" ||
+      pathname.startsWith("/digital-marketing/social-media-performance/")) &&
+    !pathname.includes("/settings") &&
+    !pathname.includes("/targets");
   /**
    * Daily task / initiative / job desc mobile (`5-daily-task`) membawa `AppSidebar` + header sendiri.
    * Tanpa bypass ini, `AppShellLayout` tetap merender `AppHeader` (PT Synckerja, notifikasi, profil) di atas shell mobile.
@@ -72,6 +78,7 @@ function AdaptiveAppLayoutContent() {
       isMobileTikTokAdsPath ||
       isMobileReportPath ||
       isMobileContentCalendarPath ||
+      isMobileSocialMediaPerformancePath ||
       isMobileShareReceiptValidationPath ||
       isMobileShareToPublishPath ||
       isMobileSettingsPath)

@@ -1,9 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { parseMarkdownTable, replaceTableInMarkdown, stringifyMarkdownTable } from '@/6-1-dashboard/utils/markdownTableUtils';
-import { EditableBriefTable } from '@/6-1-dashboard/modal/EditableBriefTable';
 import {
+  parseMarkdownTable,
+  replaceTableInMarkdown,
+  stringifyMarkdownTable,
+} from '@/6-1-dashboard/utils/markdownTableUtils';
+import { EditableBriefTable } from '@/6-1-dashboard/modal/EditableBriefTable';
+import { BriefStoryboardEmptyState } from '@/6-1-dashboard/modal/BriefStoryboardEmptyState';
+import { CreateBriefTableDialog } from '@/6-1-dashboard/modal/CreateBriefTableDialog';
+import {
+  DEFAULT_BRIEF_STORYBOARD_HEADERS,
   isBriefStoryboardTableCanonical,
   normalizeBriefStoryboardTable,
 } from '@/6-1-dashboard/modal/briefStoryboardConstants';
@@ -12,9 +19,23 @@ import {
   removeBriefTitleFromStart,
   makeBriefSectionsInline,
 } from '@/shared/utils/briefUtils';
+import {
+  upsertBriefSequencesInMarkdown,
+  stripBriefSequencesComment,
+  type BriefSequence,
+} from '@/6-1-dashboard/modal/briefSequences';
+import {
+  upsertBriefSceneMetaInMarkdown,
+  stripBriefSceneMetaComment,
+  type BriefSceneMeta,
+} from '@/6-1-dashboard/modal/briefSceneMeta';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useSocialMediaMutations } from '@/6-1-dashboard/hook/useOptimizedSocialMediaState';
 import { useBriefStoryboardImages } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
+
+function stripBriefInternalComments(markdown: string): string {
+  return stripBriefSceneMetaComment(stripBriefSequencesComment(markdown));
+}
 
 /** Match BriefDialog markdown styling for consistency with brief content modal */
 const briefMarkdownComponents = {
@@ -46,6 +67,50 @@ const briefMarkdownComponents = {
   ),
 };
 
+function normalizeTableDataForSave(
+  newTableData: string[][],
+  existingTable: { table: string[][] } | null,
+): string[][] {
+  const firstCell = newTableData[0]?.[0]?.trim() ?? '';
+  const isFirstRowData = /^\d+-\d+s$/i.test(firstCell) || /^\d+-\d+\s*s$/i.test(firstCell);
+  if (!isFirstRowData || newTableData.length === 0) return newTableData;
+
+  const originalHeader = existingTable?.table[0];
+  const headerRow =
+    originalHeader && !/^\d+-\d+s$/i.test((originalHeader[0] ?? '').trim())
+      ? originalHeader
+      : [...DEFAULT_BRIEF_STORYBOARD_HEADERS];
+  const colCount = Math.max(headerRow.length, ...newTableData.map((r) => r.length));
+  const pad = (arr: string[]) => {
+    const a = [...arr];
+    while (a.length < colCount) a.push('');
+    return a.slice(0, colCount);
+  };
+  return [pad(headerRow), ...newTableData.map(pad)];
+}
+
+function applyTableToBrief(
+  brief: string,
+  newTableData: string[][],
+  existingParsedTable: ReturnType<typeof parseMarkdownTable>,
+): string {
+  const dataToSave = normalizeTableDataForSave(newTableData, existingParsedTable);
+  const newTableMarkdown = stringifyMarkdownTable(dataToSave, {
+    trimTrailingEmptyBodyRows: false,
+  });
+  if (existingParsedTable) {
+    return replaceTableInMarkdown(
+      brief,
+      newTableMarkdown,
+      existingParsedTable.startIndex,
+      existingParsedTable.endIndex,
+    );
+  }
+  const trimmed = brief.trim();
+  if (!trimmed) return newTableMarkdown;
+  return `${trimmed}\n\n${newTableMarkdown}`;
+}
+
 export interface ContentPlanBriefDisplayProps {
   planId: string;
   brief: string | null | undefined;
@@ -54,6 +119,7 @@ export interface ContentPlanBriefDisplayProps {
 export const ContentPlanBriefDisplay: React.FC<ContentPlanBriefDisplayProps> = ({ planId, brief }) => {
   const { t } = useAppTranslation();
   const { updateContentPlan } = useSocialMediaMutations();
+  const [createTableOpen, setCreateTableOpen] = useState(false);
   const {
     rowImagesMap,
     uploadMany,
@@ -65,6 +131,7 @@ export const ContentPlanBriefDisplay: React.FC<ContentPlanBriefDisplayProps> = (
     isWorking: isStoryboardImagesBusy,
   } = useBriefStoryboardImages(planId);
   const briefText = brief?.trim() ?? '';
+  const canUpdate = Boolean(planId && planId !== '__missing_plan_id__');
 
   const parsedTable = useMemo(() => {
     if (!briefText) return null;
@@ -77,30 +144,75 @@ export const ContentPlanBriefDisplay: React.FC<ContentPlanBriefDisplayProps> = (
     };
   }, [briefText]);
 
+  const persistBrief = (nextBrief: string) => {
+    if (!canUpdate) return;
+    updateContentPlan(planId, { brief: nextBrief });
+  };
+
+  const handleTableSave = (
+    newTableData: string[][],
+    meta?: { sequences: BriefSequence[]; sceneMeta?: BriefSceneMeta[] },
+  ) => {
+    let next = applyTableToBrief(briefText, newTableData, parseMarkdownTable(briefText));
+    if (meta?.sequences) {
+      next = upsertBriefSequencesInMarkdown(next, meta.sequences);
+    }
+    if (meta?.sceneMeta) {
+      next = upsertBriefSceneMetaInMarkdown(next, meta.sceneMeta);
+    }
+    persistBrief(next);
+  };
+
+  const handleCreateStoryboardTable = (tableData: string[][]) => {
+    persistBrief(applyTableToBrief(briefText, tableData, null));
+    setCreateTableOpen(false);
+  };
+
+  const emptyState = (
+    <>
+      <BriefStoryboardEmptyState onCreateTable={() => setCreateTableOpen(true)} />
+      <CreateBriefTableDialog
+        open={createTableOpen}
+        onOpenChange={setCreateTableOpen}
+        onCreate={handleCreateStoryboardTable}
+      />
+    </>
+  );
+
   if (!briefText) {
     return (
-      <p className="text-sm text-muted-foreground italic">
-        {t('contentCalendar.dayDialog.noBrief', 'No description')}
-      </p>
-    );
-  }
-
-  if (!parsedTable) {
-    return (
-      <div className="prose prose-sm max-w-none prose-p:my-0.5 prose-headings:mt-1 prose-headings:mb-0.5">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={briefMarkdownComponents}>
-          {makeBriefSectionsInline(stripBreakdownScriptLabel(removeBriefTitleFromStart(briefText)))}
-        </ReactMarkdown>
+      <div className="min-w-0">
+        <p className="text-sm text-muted-foreground italic">
+          {t('contentCalendar.dayDialog.noBrief', 'No description')}
+        </p>
+        {emptyState}
       </div>
     );
   }
 
-  const before = briefText.slice(0, parsedTable.startIndex);
-  const after = briefText.slice(parsedTable.endIndex);
-  const canUpdate = Boolean(planId && planId !== '__missing_plan_id__');
+  if (!parsedTable) {
+    const prose = makeBriefSectionsInline(
+      stripBreakdownScriptLabel(removeBriefTitleFromStart(stripBriefInternalComments(briefText))),
+    );
+    return (
+      <div className="min-w-0 space-y-2">
+        {prose.trim() ? (
+          <div className="prose prose-sm max-w-none prose-p:my-0.5 prose-headings:mt-1 prose-headings:mb-0.5">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={briefMarkdownComponents}>
+              {prose}
+            </ReactMarkdown>
+          </div>
+        ) : null}
+        {emptyState}
+      </div>
+    );
+  }
+
+  const before = stripBriefInternalComments(briefText.slice(0, parsedTable.startIndex));
+  const after = stripBriefInternalComments(briefText.slice(parsedTable.endIndex));
 
   return (
-    <div className="space-y-2 min-w-0">
+    <div className="flex min-h-0 min-w-0 flex-col space-y-2">
       {before.trim().length > 0 && (
         <div className="prose prose-sm max-w-none prose-p:my-0.5 prose-headings:mt-1 prose-headings:mb-0.5 flex-shrink-0">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={briefMarkdownComponents}>
@@ -108,10 +220,11 @@ export const ContentPlanBriefDisplay: React.FC<ContentPlanBriefDisplayProps> = (
           </ReactMarkdown>
         </div>
       )}
-      <div className="min-w-0 -mx-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <EditableBriefTable
           tableData={parsedTable.table}
-          controlsPlacement="taggingColumn"
+          storyboardToolbar
+          sequencesSource={briefText}
           planId={planId}
           rowImagesMap={rowImagesMap}
           onUploadImages={uploadMany}
@@ -121,18 +234,8 @@ export const ContentPlanBriefDisplay: React.FC<ContentPlanBriefDisplayProps> = (
           mediaBusy={isStoryboardImagesBusy}
           uploadingRowIndex={uploadingRowIndex}
           deletingImageId={deletingImageId}
-          onSave={(newTableData) => {
-            if (!canUpdate) return;
-            const newTableMarkdown = stringifyMarkdownTable(newTableData);
-            const nextBrief = replaceTableInMarkdown(
-              briefText,
-              newTableMarkdown,
-              parsedTable.startIndex,
-              parsedTable.endIndex
-            );
-            updateContentPlan(planId, { brief: nextBrief });
-          }}
-          className="!my-1 !max-h-[min(480px,52vh)]"
+          onSave={handleTableSave}
+          className="!my-1"
         />
       </div>
       {after.trim().length > 0 && (
@@ -142,6 +245,11 @@ export const ContentPlanBriefDisplay: React.FC<ContentPlanBriefDisplayProps> = (
           </ReactMarkdown>
         </div>
       )}
+      <CreateBriefTableDialog
+        open={createTableOpen}
+        onOpenChange={setCreateTableOpen}
+        onCreate={handleCreateStoryboardTable}
+      />
     </div>
   );
 };

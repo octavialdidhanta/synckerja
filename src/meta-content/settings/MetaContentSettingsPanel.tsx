@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -9,7 +9,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/aler
 import { cn } from '@/shared/lib/utils';
 import { useInstagramAccounts } from '@/5-3-whatsapp/hooks/useInstagramAccounts';
 import { useFacebookPages } from '@/5-3-whatsapp/hooks/useFacebookPages';
-import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatusCards';
 import { notifyMetaOAuthExchangeWarnings } from '@/meta-platform/lib/notifyMetaOAuthExchangeResult';
 import { useMetaOAuthConnect } from '@/meta-platform/hooks/useMetaOAuthConnect';
 import type { MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
@@ -38,22 +37,6 @@ function instagramAccountLabel(row: {
   );
 }
 
-const INSTAGRAM_SCOPE_FEATURES = [
-  'instagram_dm',
-  'comments',
-  'insights',
-  'pages',
-  'publish',
-] as const;
-
-const FACEBOOK_SCOPE_FEATURES = [
-  'messenger_dm',
-  'comments',
-  'insights',
-  'pages',
-  'facebook_publish',
-] as const;
-
 export function MetaContentSettingsPanel({
   platform,
   oauthReturnPath,
@@ -80,13 +63,6 @@ export function MetaContentSettingsPanel({
     disconnectPage: disconnectFacebookPage,
     isDisconnecting: isDisconnectingFacebookPages,
   } = useFacebookPages();
-
-  const scopeCardAccounts = useMemo(() => {
-    if (platform === 'instagram') {
-      return instagramAccounts.map((acc) => ({ granted_scopes: acc.granted_scopes }));
-    }
-    return facebookPages.map((page) => ({ granted_scopes: page.granted_scopes }));
-  }, [platform, instagramAccounts, facebookPages]);
 
   const isLoading = platform === 'instagram' ? instagramLoading : facebookLoading;
   const connectedCount =
@@ -214,15 +190,6 @@ export function MetaContentSettingsPanel({
           </AlertDescription>
         </Alert>
       )}
-
-      <MetaScopeStatusCards
-        accounts={scopeCardAccounts}
-        features={
-          platform === 'instagram'
-            ? [...INSTAGRAM_SCOPE_FEATURES]
-            : [...FACEBOOK_SCOPE_FEATURES]
-        }
-      />
 
       <div className="flex flex-wrap gap-2">
         <Button

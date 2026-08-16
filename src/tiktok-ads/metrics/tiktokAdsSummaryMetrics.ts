@@ -253,6 +253,42 @@ export function formatTikTokAdsSummaryMetricValue(
   }
 }
 
+/** Numeric value used for period compare — same source as the formatted card value. */
+export function tiktokAdsSummaryNumericValue(
+  key: TikTokAdsTableMetricKey,
+  totals: TikTokAdsSummaryTotals | null | undefined,
+): number | null {
+  if (!totals) return null;
+  switch (key) {
+    case "spend":
+      return Number.isFinite(totals.spend) ? totals.spend : null;
+    case "impressions":
+      return Number.isFinite(totals.impressions) ? totals.impressions : null;
+    case "clicks":
+      return Number.isFinite(totals.clicks) ? totals.clicks : null;
+    case "reach":
+      return totals.reach;
+    case "ctr":
+      return totals.ctr;
+    case "cpc":
+      return totals.cpc;
+    case "cpm":
+      return totals.cpm;
+    case "service_converted_leads":
+      return totals.convertedLeads;
+    case "service_cpl":
+      return totals.cpa;
+    default:
+      return null;
+  }
+}
+
+export function tiktokAdsCompareToneKey(key: TikTokAdsTableMetricKey): string {
+  if (key === "spend") return "spent";
+  if (key === "service_cpl") return "cpa";
+  return key;
+}
+
 export function normalizeTikTokAdsSummarySlotKeys(
   keys: string[],
   validKeys: Iterable<TikTokAdsTableMetricKey>,

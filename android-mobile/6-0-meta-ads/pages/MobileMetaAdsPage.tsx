@@ -13,6 +13,7 @@ import { MetaAdsMobileShellHeader } from "@/mobile/6-0-meta-ads/components/MetaA
 import { MobileMetaAdsSummaryBar } from "@/mobile/6-0-meta-ads/components/MobileMetaAdsSummaryBar";
 import { MobileMetaAdsFilterStrip } from "@/mobile/6-0-meta-ads/components/MobileMetaAdsFilterStrip";
 import { MobileMetaAdsMetricsTable } from "@/mobile/6-0-meta-ads/components/MobileMetaAdsMetricsTable";
+import { MobileManageCommentsAccountButton } from "@/mobile/6-0-social-media-performance/components/MobileManageCommentsAccountButton";
 import { CustomDatePicker } from "@/mobile-app/components/CustomDatePicker";
 import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
@@ -388,6 +389,25 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
             }
             refreshDisabled={isRefreshing || metricsQuery.isFetching}
             isRefreshing={isRefreshing || metricsQuery.isFetching}
+            headerActions={
+              showContentGate && oauthConnected ? (
+                <MobileManageCommentsAccountButton
+                  accounts={filterAccounts.map((a) => ({
+                    value: a.ad_account_id,
+                    label: a.label?.trim() || a.ad_account_id,
+                    hint: a.metricsReady
+                      ? undefined
+                      : t(
+                          "digitalMarketing.metaAds.navPixelRequiredAccount",
+                          "Edit this account and enter your Meta Pixel ID from Events Manager.",
+                        ),
+                  }))}
+                  accountId={adAccountId}
+                  onAccountIdChange={setMetaAdAccountId}
+                  accountsLoading={accountsNavPending}
+                />
+              ) : undefined
+            }
           />
 
           <ModuleShellContentGate
@@ -396,7 +416,7 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
           >
             {hasPageAccess ? (
               <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="mx-auto w-full max-w-md space-y-2 px-2 pt-2 content-padding-above-nav-default">
+                <div className="mx-auto min-w-0 w-full max-w-md space-y-2 px-2 pt-2 content-padding-above-nav-default">
                   {!canManage && !gatePending ? (
                     <Alert>
                       <AlertTitle>
@@ -508,6 +528,15 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
                           metricKeys={summarySlotMetricKeys}
                           onMetricKeysChange={handleSummaryKeysChange}
                           isLoading={summaryLoading}
+                          organizationId={organizationId}
+                          dateStart={dateStart}
+                          dateEnd={dateEnd}
+                          compareEnabled={
+                            reportingEnabled &&
+                            accountReadyForMetrics &&
+                            canManage &&
+                            !gatePending
+                          }
                         />
                       ) : null}
 
@@ -516,6 +545,7 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
                         adAccountId={adAccountId}
                         onAdAccountIdChange={setMetaAdAccountId}
                         accountsLoading={accountsNavPending}
+                        showAccount={false}
                         dateSelection={dateSelection}
                         onDateSelectionChange={setDateSelection}
                         filtersHydrated={filtersHydrated}

@@ -25,12 +25,12 @@ export function DigitalMarketingReportChartsSkeleton({ variant = "default" }: Pr
         <>
           <div
             className={cn(
-              "scrollbar-hide min-w-0 overflow-x-auto overflow-y-hidden",
+              "nested-scroll-touch-chain-xy scrollbar-hide min-w-0 w-full overflow-x-auto overflow-y-hidden",
               "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
             )}
             aria-hidden
           >
-            <div className="inline-flex items-center gap-2 pt-3">
+            <div className="inline-flex w-max items-center gap-2 pt-3">
               <span className="inline-block w-4 shrink-0 grow-0 basis-4" aria-hidden />
               <div className="inline-flex h-9 shrink-0 items-center gap-1 rounded-md bg-gray-100 p-1">
                 {CHART_TAB_SKELETON_WIDTHS.map((widthClass, i) => (

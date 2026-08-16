@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avat
 import { cn } from '@/shared/lib/utils';
 import { formatCommentRelativeTimeFromIso } from '@/6-0-social-media-manage-comments/lib/formatCommentRelativeTime';
 import { ManageCommentsInlineReplyComposer } from '@/6-0-social-media-manage-comments/components/shared/ManageCommentsInlineReplyComposer';
+import { useManageCommentsMobileLayout } from '@/6-0-social-media-manage-comments/components/shared/ManageCommentsMobileLayoutContext';
 import { ManageCommentsInlineEditComposer } from '@/6-0-social-media-manage-comments/components/shared/ManageCommentsInlineEditComposer';
 import { TikTokOptimisticReplyBubble } from '@/6-0-social-media-manage-comments/components/tiktok/TikTokOptimisticReplyBubble';
 import { ThreadsCommentReplyThread } from '@/6-0-social-media-manage-comments/components/threads/ThreadsCommentReplyThread';
@@ -64,6 +65,7 @@ export function ThreadsCommentItem({
   isSubmittingEdit,
 }: ThreadsCommentItemProps) {
   const { t, i18n } = useTranslation();
+  const isMobileLayout = useManageCommentsMobileLayout();
   const [showReplies, setShowReplies] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const name = comment.author_display_name?.trim() || t('digitalMarketing.manageComments.unknownUser', 'User');
@@ -109,16 +111,18 @@ export function ThreadsCommentItem({
   return (
     <div
       className={cn(
-        nested ? 'py-1' : 'px-4 py-2',
+        nested ? 'py-1' : isMobileLayout ? 'px-3 py-2.5' : 'px-4 py-2',
         'transition-colors duration-500',
         !nested && isNew && 'border-l-4 border-amber-400 bg-amber-50/90 animate-in fade-in slide-in-from-top-1',
       )}
     >
-      <div className="flex gap-2">
-        <Avatar className={cn('mt-0.5 shrink-0', nested ? 'h-7 w-7' : 'h-8 w-8')}>
-          <AvatarImage src={comment.author_avatar_url ?? undefined} alt={name} />
-          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-        </Avatar>
+      <div className={cn(!isMobileLayout && 'flex gap-2')}>
+        {isMobileLayout ? null : (
+          <Avatar className={cn('mt-0.5 shrink-0', nested ? 'h-7 w-7' : 'h-8 w-8')}>
+            <AvatarImage src={comment.author_avatar_url ?? undefined} alt={name} />
+            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+          </Avatar>
+        )}
         <div className="min-w-0 flex-1">
           <div
             className={cn(
@@ -126,7 +130,13 @@ export function ThreadsCommentItem({
               isNew ? 'bg-amber-100/80 ring-1 ring-amber-300/60' : 'bg-sky-50',
             )}
           >
-            <div className="mb-0.5 flex items-center gap-2">
+            <div className="mb-0.5 flex items-center gap-1.5">
+              {isMobileLayout ? (
+                <Avatar className="h-5 w-5 shrink-0">
+                  <AvatarImage src={comment.author_avatar_url ?? undefined} alt={name} />
+                  <AvatarFallback className="text-[9px]">{initials}</AvatarFallback>
+                </Avatar>
+              ) : null}
               <p className="text-xs font-semibold text-gray-900">{name}</p>
               {isNew ? (
                 <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
@@ -220,7 +230,7 @@ export function ThreadsCommentItem({
               }}
             />
           ) : null}
-          {isReplyTarget ? (
+          {isReplyTarget && !isMobileLayout ? (
             <ManageCommentsInlineReplyComposer
               accountLabel={replyControls.accountLabel}
               accountAvatarUrl={replyControls.accountAvatarUrl}
@@ -276,6 +286,15 @@ export function ThreadsCommentItem({
           ) : null}
         </div>
       </div>
+      {isReplyTarget && isMobileLayout ? (
+        <ManageCommentsInlineReplyComposer
+          accountLabel={replyControls.accountLabel}
+          accountAvatarUrl={replyControls.accountAvatarUrl}
+          onCancel={replyControls.onCancelReply}
+          onSubmit={(text) => replyControls.onSubmitReply(comment.id, text, name)}
+          isSubmitting={replyControls.isSubmittingReply}
+        />
+      ) : null}
     </div>
   );
 }

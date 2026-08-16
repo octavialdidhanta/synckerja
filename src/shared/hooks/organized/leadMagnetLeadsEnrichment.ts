@@ -16,6 +16,8 @@ export type LeadMagnetLeadMeta = {
   _leadMagnetKeyword: string | null;
   _leadMagnetPlatform: 'instagram' | 'facebook' | null;
   _leadMagnetParticipantScopedId: string | null;
+  _leadMagnetMediaCaption: string | null;
+  _leadMagnetMediaPermalink: string | null;
 };
 
 export type LeadMagnetVirtualDedupeContext = {
@@ -38,12 +40,21 @@ type EnrollmentRow = {
   status: string | null;
   campaign_id: string | null;
   participant_scoped_id: string | null;
+  media_id: string | null;
 };
 
 type CampaignRow = {
   id: string;
   name: string;
   keyword: string;
+};
+
+type CampaignPostRow = {
+  campaign_id: string;
+  platform: string | null;
+  media_id: string;
+  media_caption: string | null;
+  media_permalink: string | null;
 };
 
 function normalizeConversationTable(value: string | null | undefined): LeadMagnetConversationTable | null {
@@ -58,13 +69,41 @@ function normalizeConversationTable(value: string | null | undefined): LeadMagne
   return null;
 }
 
+function postExactKey(campaignId: string, platform: string, mediaId: string) {
+  return `${campaignId}|${platform}|${mediaId}`;
+}
+
+function postFallbackKey(campaignId: string, mediaId: string) {
+  return `${campaignId}|${mediaId}`;
+}
+
+function resolveCampaignPost(
+  campaignId: string,
+  platform: string | null | undefined,
+  mediaId: string | null | undefined,
+  postByExact: Map<string, CampaignPostRow>,
+  postByCampaignMedia: Map<string, CampaignPostRow>,
+): CampaignPostRow | undefined {
+  const cid = campaignId.trim();
+  const mid = (mediaId ?? '').trim();
+  if (!cid || !mid) return undefined;
+  const plat = (platform ?? '').trim();
+  return (
+    (plat ? postByExact.get(postExactKey(cid, plat, mid)) : undefined) ??
+    postByCampaignMedia.get(postFallbackKey(cid, mid))
+  );
+}
+
 function buildMetaFromRows(
   submission: SubmissionRow,
   enrollment: EnrollmentRow | undefined,
   campaign: CampaignRow | undefined,
+  post: CampaignPostRow | undefined,
 ): LeadMagnetLeadMeta {
   const platformRaw = (enrollment?.platform ?? '').trim();
   const platform = platformRaw === 'instagram' || platformRaw === 'facebook' ? platformRaw : null;
+  const caption = (post?.media_caption ?? '').trim();
+  const permalink = (post?.media_permalink ?? '').trim();
 
   return {
     _fromLeadMagnet: true,
@@ -77,6 +116,8 @@ function buildMetaFromRows(
     _leadMagnetKeyword: campaign?.keyword ?? null,
     _leadMagnetPlatform: platform,
     _leadMagnetParticipantScopedId: enrollment?.participant_scoped_id ?? null,
+    _leadMagnetMediaCaption: caption || null,
+    _leadMagnetMediaPermalink: permalink || null,
   };
 }
 
@@ -213,7 +254,7 @@ export async function fetchLeadMagnetMetaByLeadIds(
 
   const { data: enrollmentRows, error: enrollmentError } = await supabase
     .from('lead_magnet_enrollments')
-    .select('id, conversation_id, conversation_table, platform, status, campaign_id, participant_scoped_id')
+    .select('id, conversation_id, conversation_table, platform, status, campaign_id, participant_scoped_id, media_id')
     .eq('organization_id', organizationId)
     .in('id', enrollmentIds);
 
@@ -254,6 +295,28 @@ export async function fetchLeadMagnetMetaByLeadIds(
     }
   }
 
+  const postByExact = new Map<string, CampaignPostRow>();
+  const postByCampaignMedia = new Map<string, CampaignPostRow>();
+  if (campaignIds.size > 0) {
+    const { data: postRows, error: postError } = await supabase
+      .from('lead_magnet_campaign_posts')
+      .select('campaign_id, platform, media_id, media_caption, media_permalink')
+      .in('campaign_id', [...campaignIds]);
+
+    if (postError) {
+      console.error('Error fetching lead magnet campaign posts for leads:', postError);
+    } else {
+      for (const row of (postRows ?? []) as CampaignPostRow[]) {
+        const cid = String(row.campaign_id ?? '').trim();
+        const mid = String(row.media_id ?? '').trim();
+        if (!cid || !mid) continue;
+        const plat = String(row.platform ?? '').trim();
+        if (plat) postByExact.set(postExactKey(cid, plat, mid), row);
+        postByCampaignMedia.set(postFallbackKey(cid, mid), row);
+      }
+    }
+  }
+
   if (import.meta.env.DEV) {
     for (const submission of submissions) {
       const enrollmentId = String(submission.lead_magnet_enrollment_id ?? '').trim();
@@ -276,8 +339,15 @@ export async function fetchLeadMagnetMetaByLeadIds(
       submission.lead_magnet_campaign_id ?? enrollment?.campaign_id ?? '',
     ).trim();
     const campaign = campaignId ? campaignById.get(campaignId) : undefined;
+    const post = resolveCampaignPost(
+      campaignId,
+      enrollment?.platform,
+      enrollment?.media_id,
+      postByExact,
+      postByCampaignMedia,
+    );
 
-    result.set(leadId, buildMetaFromRows(submission, enrollment, campaign));
+    result.set(leadId, buildMetaFromRows(submission, enrollment, campaign, post));
   }
 
   return result;

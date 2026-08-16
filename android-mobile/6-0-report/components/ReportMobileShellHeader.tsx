@@ -12,7 +12,7 @@ export function ReportMobileShellHeader() {
           <SidebarTrigger className="md:hidden shrink-0" />
           <div className="min-w-0">
             <h1 className="truncate text-base font-semibold leading-tight text-foreground">
-              {t("digitalMarketing.report.title", "Report")}
+              {t("sidebar.digitalMarketing.report.title", "Report")}
             </h1>
           </div>
         </div>

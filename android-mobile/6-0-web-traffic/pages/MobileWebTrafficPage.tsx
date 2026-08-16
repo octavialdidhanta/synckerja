@@ -22,13 +22,14 @@ import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { MOBILE_PAGE_PATH } from "@/shared/auth/page-access/mobileRoutePagePaths";
 import { WebTrafficMobileShellHeader } from "@/mobile/6-0-web-traffic/components/WebTrafficMobileShellHeader";
+import { TrafficKpiCompareHint } from "@/6-0-traffic/components/TrafficKpiCompareHint";
 import { ToolsMobileDenyGateArea } from "@/mobile-app/components/ToolsMobileDenyGateArea";
 import { useMobileToolsShellLayout } from "@/shared/hooks/useMobileToolsShellLayout";
 import { useToolsMobilePageAccess } from "@/mobile-app/hooks/useToolsMobilePageAccess";
 import { cn } from "@/shared/lib/utils";
 import { CustomDatePicker } from "@/mobile-app/components/CustomDatePicker";
 import { useToast } from "@/shared/components/ui/use-toast";
-import { computeTrafficKpiDisplay } from "@/6-0-traffic/lib/computeTrafficKpiDisplay";
+import { computeTrafficKpiDisplay, computeUnfilteredTrafficKpiDisplay } from "@/6-0-traffic/lib/computeTrafficKpiDisplay";
 import {
   computeSourceBreakdownTotals,
   normalizeSourceBreakdownRows,
@@ -95,6 +96,8 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
     queryToDate,
     queryDateReady,
     dashboardQuery,
+    dashboardCompareQuery,
+    previousRange,
     ingestionQuery,
   } = useTrafficDashboardController();
 
@@ -182,6 +185,15 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
     hasSourceBreakdown,
     sourceBreakdownTotals,
   });
+  const unfilteredCurrentKpis = computeUnfilteredTrafficKpiDisplay({
+    kpis,
+    sourceBreakdown: dashboardQuery.data?.source_breakdown,
+  });
+  const unfilteredPreviousKpis = computeUnfilteredTrafficKpiDisplay({
+    kpis: dashboardCompareQuery.data?.kpis ?? null,
+    sourceBreakdown: dashboardCompareQuery.data?.source_breakdown,
+  });
+  const compareLoading = Boolean(previousRange) && dashboardCompareQuery.isPending;
 
   const utmRows = useMemo(() => {
     return (dashboardQuery.data?.utm_table ?? []).map((r) => ({
@@ -437,6 +449,18 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
           onSync={handleSync}
           syncDisabled={dashboardQuery.isFetching || isRefreshing}
           isSyncing={isRefreshing || dashboardQuery.isFetching}
+          headerActions={
+            <MobileTrafficWebIdPicker
+              value={selectedWebId}
+              options={accessibleWebIds}
+              loading={webIdsQuery.isLoading}
+              canDisconnect={canManageWebId}
+              disconnectingWebId={disconnectingWebId}
+              onValueChange={setWebId}
+              onConnectClick={() => setConnectOpen(true)}
+              onDisconnectClick={setDisconnectConfirmWebId}
+            />
+          }
         />
 
         <ModuleShellContentGate
@@ -480,26 +504,13 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
             </div>
             <div className="mx-auto w-full max-w-md space-y-1 px-2 pt-2 content-padding-above-nav-default">
               {webIdsQuery.isError ? (
-                <div className="rounded-lg border border-primary/35 bg-card p-3 text-sm text-destructive">
+                <div className="rounded-lg border border-border bg-card p-3 text-sm text-destructive">
                   {t("traffic.mobile.error.webIds", "Gagal memuat web id.")}
                 </div>
               ) : null}
 
-              <div className="rounded-lg border border-primary/35 bg-card p-3">
+              <div className="rounded-lg border border-border bg-card p-3">
                 <div className="flex min-w-0 flex-col gap-2">
-                  <div className="min-w-0 w-full">
-                    <MobileTrafficWebIdPicker
-                      value={selectedWebId}
-                      options={accessibleWebIds}
-                      loading={webIdsQuery.isLoading}
-                      canDisconnect={canManageWebId}
-                      disconnectingWebId={disconnectingWebId}
-                      onValueChange={setWebId}
-                      onConnectClick={() => setConnectOpen(true)}
-                      onDisconnectClick={setDisconnectConfirmWebId}
-                    />
-                  </div>
-
                   <div className="min-w-0 w-full">
                     <MobileTrafficDateRangeDrawer
                       value={dateSelection}
@@ -551,7 +562,7 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
               ) : null}
 
               {dashboardQuery.isError ? (
-                <div className="rounded-lg border border-primary/35 bg-card p-3 text-sm">
+                <div className="rounded-lg border border-border bg-card p-3 text-sm">
                   <p className="font-medium text-destructive">
                     {t("traffic.mobile.error.dashboard", "Gagal memuat dashboard.")}
                   </p>
@@ -599,24 +610,53 @@ function MobileWebTrafficPageContent({ hasPageAccess }: { hasPageAccess: boolean
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-lg border border-primary/35 bg-card p-3">
-                  <div className="text-[11px] text-muted-foreground">{t("traffic.kpi.sessions", "Sessions")}</div>
-                  <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                    {formatCompactInt(sessionsDisplay)}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-primary/35 bg-card p-3">
-                  <div className="text-[11px] text-muted-foreground">{t("traffic.kpi.pageViews", "Page views")}</div>
-                  <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                    {formatCompactInt(pageViewsDisplay)}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-primary/35 bg-card p-3">
-                  <div className="text-[11px] text-muted-foreground">{t("traffic.kpi.clicks", "Clicks")}</div>
-                  <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
-                    {formatCompactInt(clicksDisplay)}
-                  </div>
+              <div
+                data-horizontal-scroll-zone
+                className="-mx-2 overflow-x-auto overflow-y-hidden overscroll-x-contain scrollbar-hide snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <div className="flex w-max gap-px border-y border-border bg-border">
+                  {(
+                    [
+                      {
+                        key: "sessions",
+                        title: t("traffic.kpi.sessions", "Sessions"),
+                        value: formatCompactInt(sessionsDisplay),
+                        current: unfilteredCurrentKpis.sessionsDisplay,
+                        previous: unfilteredPreviousKpis.sessionsDisplay,
+                      },
+                      {
+                        key: "pageViews",
+                        title: t("traffic.kpi.pageViews", "Page views"),
+                        value: formatCompactInt(pageViewsDisplay),
+                        current: unfilteredCurrentKpis.pageViewsDisplay,
+                        previous: unfilteredPreviousKpis.pageViewsDisplay,
+                      },
+                      {
+                        key: "clicks",
+                        title: t("traffic.kpi.clicks", "Clicks"),
+                        value: formatCompactInt(clicksDisplay),
+                        current: unfilteredCurrentKpis.clicksDisplay,
+                        previous: unfilteredPreviousKpis.clicksDisplay,
+                      },
+                    ] as const
+                  ).map((card) => (
+                    <div
+                      key={card.key}
+                      className="w-[min(12.5rem,calc(46vw))] shrink-0 snap-start bg-card px-3 py-3"
+                    >
+                      <TrafficKpiCompareHint
+                        compact
+                        title={card.title}
+                        value={card.value}
+                        valueClassName="text-lg font-semibold text-foreground"
+                        current={card.current}
+                        previous={card.previous}
+                        compareFromDate={previousRange?.fromDate}
+                        compareToDate={previousRange?.toDate}
+                        loading={compareLoading}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
 

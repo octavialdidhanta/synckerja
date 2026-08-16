@@ -68,6 +68,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         registerPlugin(ZoomDisablePlugin.class);
         registerPlugin(SafeAreaInsetsPlugin.class);
         registerPlugin(NoOverscrollPlugin.class);
+        registerPlugin(WebViewMediaPlugin.class);
         registerPlugin(ShareIntentPlugin.class);
         registerPlugin(PhotoPickerPlugin.class);
         registerPlugin(NotificationLaunchPlugin.class);

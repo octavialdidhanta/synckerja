@@ -5,13 +5,24 @@ export type GoogleAdsIdentityColumnDef = {
   label: string;
 };
 
-/** Always visible — not in Modify columns picker. */
+export const GOOGLE_ADS_PINNED_METRIC_KEYS = ["spent"] as const;
+
+export function isGoogleAdsPinnedMetricKey(key: string): boolean {
+  return (GOOGLE_ADS_PINNED_METRIC_KEYS as readonly string[]).includes(String(key ?? "").trim());
+}
+
+export function stripGoogleAdsPinnedMetricKeys(keys: string[]): string[] {
+  return keys.filter((k) => !isGoogleAdsPinnedMetricKey(k));
+}
+
+/** Always visible — not in Modify columns picker. Cost is pinned next to Name. */
 export const GOOGLE_ADS_IDENTITY_COLUMNS: Record<
   GoogleAdsMetricEntity,
   GoogleAdsIdentityColumnDef[]
 > = {
   keyword: [
     { key: "keyword", label: "Keyword" },
+    { key: "spent", label: "Cost" },
     { key: "match_type", label: "Match type" },
     { key: "campaign", label: "Campaign" },
     { key: "ad_group", label: "Ad group" },
@@ -21,12 +32,17 @@ export const GOOGLE_ADS_IDENTITY_COLUMNS: Record<
     { key: "service_cpl", label: "CPA" },
     { key: "service_converted_leads", label: "Conv. leads" },
     { key: "name", label: "Campaign" },
+    { key: "spent", label: "Cost" },
   ],
   ad_group: [
     { key: "name", label: "Ad group" },
+    { key: "spent", label: "Cost" },
     { key: "campaign", label: "Campaign" },
   ],
-  ad: [{ key: "preview", label: "Ad" }],
+  ad: [
+    { key: "preview", label: "Ad" },
+    { key: "spent", label: "Cost" },
+  ],
 };
 
 /** Optional table columns — user can add/remove/reorder in Modify columns. */
@@ -70,13 +86,11 @@ export const GOOGLE_ADS_RECOMMENDED_METRIC_KEYS: Record<GoogleAdsMetricEntity, s
     "cost_per_conv",
     "impressions",
     "ctr",
-    "spent",
   ],
   campaign: [
     "impressions",
     "clicks",
     "ctr",
-    "spent",
     "conversions",
     "conv_rate",
     "avg_cpc",
@@ -86,13 +100,12 @@ export const GOOGLE_ADS_RECOMMENDED_METRIC_KEYS: Record<GoogleAdsMetricEntity, s
     "impressions",
     "clicks",
     "ctr",
-    "spent",
     "conversions",
     "conv_rate",
     "avg_cpc",
     "cost_per_conv",
   ],
-  ad: ["impressions", "clicks", "ctr", "spent", "conversions", "conv_rate"],
+  ad: ["impressions", "clicks", "ctr", "conversions", "conv_rate"],
 };
 
 export const GOOGLE_ADS_MAX_METRICS = 50;
@@ -102,7 +115,7 @@ export function defaultSelectedColumnKeys(
   validKeys: Set<string>,
 ): string[] {
   const metrics = GOOGLE_ADS_RECOMMENDED_METRIC_KEYS[entity].filter((k) => validKeys.has(k));
-  const fallback = ["impressions", "clicks", "ctr", "spent"].filter((k) => validKeys.has(k));
+  const fallback = ["impressions", "clicks", "ctr"].filter((k) => validKeys.has(k));
   const base = metrics.length > 0 ? metrics : fallback;
   const optional = GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS[entity]
     .map((c) => c.key)

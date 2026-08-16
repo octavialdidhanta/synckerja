@@ -35,15 +35,36 @@ export function getFolderEmbedUrl(url: string): string {
 /** YouTube embed URL for in-page preview. */
 export function getYouTubeEmbedUrl(url: string): string {
   if (!url?.trim()) return '';
-  const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  const trimmed = url.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
+    return `https://www.youtube.com/embed/${trimmed}`;
+  }
+  const watchMatch = trimmed.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
   if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
-  const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+  const shortMatch = trimmed.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
   if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
-  const embedMatch = url.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
+  const embedMatch = trimmed.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
   if (embedMatch) return `https://www.youtube.com/embed/${embedMatch[1]}`;
-  const shortsMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/);
+  const shortsMatch = trimmed.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/);
   if (shortsMatch) return `https://www.youtube.com/embed/${shortsMatch[1]}`;
+  const liveMatch = trimmed.match(/youtube\.com\/live\/([a-zA-Z0-9_-]{11})/);
+  if (liveMatch) return `https://www.youtube.com/embed/${liveMatch[1]}`;
   return '';
+}
+
+/** Same youtube.com/embed player, with mobile playback params (not a different embed). */
+export function getYouTubePlayableEmbedUrl(url: string): string {
+  const embed = getYouTubeEmbedUrl(url);
+  if (!embed) return '';
+  const parsed = new URL(embed);
+  parsed.searchParams.set('playsinline', '1');
+  parsed.searchParams.set('rel', '0');
+  parsed.searchParams.set('modestbranding', '1');
+  parsed.searchParams.set('enablejsapi', '1');
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    parsed.searchParams.set('origin', window.location.origin);
+  }
+  return parsed.toString();
 }
 
 export function isFolderLink(url: string): boolean {

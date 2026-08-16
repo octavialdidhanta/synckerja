@@ -5,7 +5,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 import { toast } from 'sonner';
 import { BriefStoryboardImageCell } from './BriefStoryboardImageCell';
-import { BriefStoryBoardView } from './BriefStoryBoardView';
+import { BriefStoryBoardView, useHideOnScrollDown } from './BriefStoryBoardView';
 import { BriefSequenceHeader } from './BriefSequenceHeader';
 import {
   readBriefLayoutMode,
@@ -38,6 +38,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/shared/components/ui/drawer';
 import {
   Tooltip,
   TooltipContent,
@@ -100,7 +106,7 @@ const briefTableCellClass =
   'border-b border-r border-gray-300 px-3 py-3 text-gray-700 align-top overflow-hidden break-words [overflow-wrap:anywhere] [word-break:break-word] min-w-0 last:border-r-0';
 
 const briefTableHeaderClass =
-  'sticky top-0 z-10 border-b-2 border-r border-gray-300 bg-gray-100 px-3 py-3 text-left font-semibold text-gray-900 min-w-0 overflow-hidden last:border-r-0';
+  'sticky top-0 z-30 border-b-2 border-r border-gray-300 bg-gray-100 px-3 py-3 text-left font-semibold text-gray-900 min-w-0 overflow-hidden last:border-r-0 [box-shadow:0_-2px_0_0_theme(colors.gray.100)]';
 
 /** Auto-resize textarea to fit content height */
 function AutoResizeTextarea({
@@ -191,6 +197,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   const [editData, setEditData] = useState<string[][]>([]);
   const [layoutMode, setLayoutMode] = useState<BriefLayoutMode>(() => readBriefLayoutMode());
   const [editingColumnIndex, setEditingColumnIndex] = useState<number | null>(null);
+  const [columnsDrawerOpen, setColumnsDrawerOpen] = useState(false);
   const [columnNameDraft, setColumnNameDraft] = useState('');
   const [sequences, setSequences] = useState<BriefSequence[]>(() =>
     normalizeBriefSequences(
@@ -344,7 +351,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     }
   };
 
-  const handleAddRow = async (rowIdx: number) => {
+  const handleAddRow = async (rowIdx: number, sequenceId?: string) => {
     const tableColCount = Math.max(...tableData.map((r) => r.length), 1);
     const headerRow = (tableData[0] ?? displayData[0] ?? []).slice(0, tableColCount);
     const body = isEditing ? editData : displayData.slice(1);
@@ -359,7 +366,11 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       while (a.length < tableColCount) a.push('');
       return a.slice(0, tableColCount);
     });
-    const nextSequences = adjustSequencesForInsertRow(sequencesRef.current, insertAt);
+    const nextSequences = sequenceId
+      ? sequencesRef.current.map((seq) =>
+          seq.id === sequenceId ? { ...seq, rowCount: seq.rowCount + 1 } : { ...seq },
+        )
+      : adjustSequencesForInsertRow(sequencesRef.current, rowIdx);
     const nextSceneMeta = adjustSceneMetaForInsertRow(sceneMetaRef.current, insertAt);
     persistTable([headerRow, ...newBody], nextSequences, nextSceneMeta);
     if (isEditing) {
@@ -536,9 +547,11 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   const renderStoryboardToolbar = () => {
     if (!storyboardToolbar || alwaysEditable || readOnly || !onSave) return null;
 
+    const toolbarBtnClass = cn('h-8 shrink-0 text-xs', isMobile2Col && 'whitespace-nowrap');
+
     const layoutToggle = (
       <div
-        className="mr-1 flex items-center rounded-md border border-gray-200 bg-gray-50 p-0.5"
+        className="flex shrink-0 items-center rounded-md border border-gray-200 bg-gray-50 p-0.5"
         role="group"
         aria-label={t('briefDialog.layout.toggleLabel', 'Layout mode')}
       >
@@ -566,19 +579,70 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       </div>
     );
 
+    const editActions = isEditing ? (
+      <>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={saveEdit}
+          disabled={mediaBusy}
+          className={cn(
+            toolbarBtnClass,
+            'gap-1 text-green-600 hover:bg-green-50 hover:text-green-700',
+          )}
+        >
+          <Check className="h-4 w-4" />
+          {t('common.save', 'Save')}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={cancelEdit}
+          disabled={mediaBusy}
+          className={cn(toolbarBtnClass, 'gap-1 text-gray-600 hover:bg-gray-100')}
+        >
+          <X className="h-4 w-4" />
+          {t('common.cancel', 'Cancel')}
+        </Button>
+      </>
+    ) : (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={startEdit}
+        disabled={mediaBusy}
+        className={cn(toolbarBtnClass, 'gap-1')}
+      >
+        <Pencil className="h-3.5 w-3.5" />
+        {t('briefDialog.edit', 'Edit')}
+      </Button>
+    );
+
     return (
       <div
         className={cn(
-          'mb-2 flex flex-wrap items-center justify-between gap-2',
-          isMobile2Col && 'px-2',
+          'mb-2 flex items-center gap-2',
+          isMobile2Col
+            ? 'mb-0 border-y border-border bg-background'
+            : 'flex-wrap justify-between',
         )}
       >
-        <div className="flex flex-wrap items-center gap-1">
+        <div
+          className={cn(
+            'flex items-center gap-1',
+            isMobile2Col
+              ? 'w-full min-w-0 flex-nowrap overflow-x-auto overflow-y-hidden pl-3 pr-4 py-1.5 scrollbar-hide [touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+              : 'flex-wrap',
+          )}
+        >
           {isEditing ? (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="inline-flex">{layoutToggle}</span>
+                  <span className="inline-flex shrink-0">{layoutToggle}</span>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-xs text-xs">
                   {t(
@@ -591,33 +655,18 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
           ) : (
             layoutToggle
           )}
-          <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={handleAddColumn}>
+          <Button type="button" variant="outline" size="sm" className={toolbarBtnClass} onClick={handleAddColumn}>
             <Plus className="mr-1 h-3.5 w-3.5" />
             {t('briefDialog.storyboard.addColumn', 'Add column')}
           </Button>
-          <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => void handleAppendRow()}>
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            {t('briefDialog.addRow', 'Add row')}
-          </Button>
-          <DropdownMenu
-            onOpenChange={(open) => {
-              if (!open) {
-                setEditingColumnIndex(null);
-                setColumnNameDraft('');
-              }
-            }}
-          >
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="outline" size="sm" className="h-8 text-xs">
-                <Columns3 className="mr-1 h-3.5 w-3.5" />
-                {t('briefDialog.storyboard.columns', 'Columns')}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-72 p-2" onCloseAutoFocus={(e) => e.preventDefault()}>
-              <DropdownMenuLabel className="px-1 text-xs font-normal text-muted-foreground">
-                {t('briefDialog.storyboard.manageColumns', 'Manage columns')}
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
+          {layoutMode === 'storyline' ? (
+            <Button type="button" variant="outline" size="sm" className={toolbarBtnClass} onClick={() => void handleAppendRow()}>
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              {t('briefDialog.addRow', 'Add row')}
+            </Button>
+          ) : null}
+          {(() => {
+            const manageColumnsList = (
               <div className="space-y-1.5 py-1">
                 {headerRow.map((header, colIdx) => {
                   const label =
@@ -729,49 +778,77 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                   );
                 })}
               </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="flex items-center gap-1">
-          {isEditing ? (
-            <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={saveEdit}
-                disabled={mediaBusy}
-                className="h-8 gap-1 text-xs text-green-600 hover:bg-green-50 hover:text-green-700"
+            );
+
+            const resetColumnEditor = () => {
+              setEditingColumnIndex(null);
+              setColumnNameDraft('');
+            };
+
+            if (isMobile2Col) {
+              return (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={toolbarBtnClass}
+                    onClick={() => setColumnsDrawerOpen(true)}
+                  >
+                    <Columns3 className="mr-1 h-3.5 w-3.5" />
+                    {t('briefDialog.storyboard.columns', 'Columns')}
+                  </Button>
+                  <Drawer
+                    shouldScaleBackground={false}
+                    open={columnsDrawerOpen}
+                    onOpenChange={(open) => {
+                      setColumnsDrawerOpen(open);
+                      if (!open) resetColumnEditor();
+                    }}
+                  >
+                    <DrawerContent
+                      className="z-50 max-h-[85vh] px-0 pb-4"
+                      overlayClassName="z-50"
+                    >
+                      <DrawerHeader className="px-4 pb-2 text-left">
+                        <DrawerTitle className="text-base">
+                          {t('briefDialog.storyboard.manageColumns', 'Manage columns')}
+                        </DrawerTitle>
+                      </DrawerHeader>
+                      <div className="max-h-[min(60vh,420px)] overflow-y-auto px-3 pb-2">
+                        {manageColumnsList}
+                      </div>
+                    </DrawerContent>
+                  </Drawer>
+                </>
+              );
+            }
+
+            return (
+              <DropdownMenu
+                onOpenChange={(open) => {
+                  if (!open) resetColumnEditor();
+                }}
               >
-                <Check className="h-4 w-4" />
-                {t('common.save', 'Save')}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={cancelEdit}
-                disabled={mediaBusy}
-                className="h-8 gap-1 text-xs text-gray-600 hover:bg-gray-100"
-              >
-                <X className="h-4 w-4" />
-                {t('common.cancel', 'Cancel')}
-              </Button>
-            </>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={startEdit}
-              disabled={mediaBusy}
-              className="h-8 gap-1 text-xs"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              {t('briefDialog.edit', 'Edit')}
-            </Button>
-          )}
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" className={toolbarBtnClass}>
+                    <Columns3 className="mr-1 h-3.5 w-3.5" />
+                    {t('briefDialog.storyboard.columns', 'Columns')}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-72 p-2" onCloseAutoFocus={(e) => e.preventDefault()}>
+                  <DropdownMenuLabel className="px-1 text-xs font-normal text-muted-foreground">
+                    {t('briefDialog.storyboard.manageColumns', 'Manage columns')}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {manageColumnsList}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            );
+          })()}
+          {isMobile2Col ? editActions : null}
         </div>
+        {isMobile2Col ? null : <div className="flex items-center gap-1">{editActions}</div>}
       </div>
     );
   };
@@ -784,6 +861,11 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   );
   const sequenceRanges = getSequenceRowRanges(normalizedSequences);
   const canManageSequences = Boolean(storyboardToolbar && showRowActionsColumn && onSave);
+  const hideAddSequence = useHideOnScrollDown(
+    scrollContainerRef,
+    isMobile2Col && canManageSequences && !useStoryBoardLayout,
+    normalizedSequences.length,
+  );
   const tableColSpan = headerRow.length + (showRowActionsColumn ? 1 : 0);
 
   const getCurrentTableForPersist = (): string[][] => {
@@ -900,7 +982,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     const range = ranges.find((item) => item.sequence.id === sequenceId);
     if (!range) return;
     const insertAfter = range.rowCount === 0 ? range.startRow - 1 : range.endRow - 1;
-    await handleAddRow(insertAfter);
+    await handleAddRow(insertAfter, sequenceId);
   };
 
   const handleMoveToNextSequence = (rowIndex: number) => {
@@ -1050,21 +1132,57 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     );
   };
 
+  const addSequenceBelowButton = canManageSequences ? (
+    <div
+      className={cn(
+        'z-10 flex border-t border-border bg-background transition-[transform,opacity] duration-200 ease-out',
+        isMobile2Col
+          ? cn(
+              'absolute inset-x-0 bottom-0 px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]',
+              hideAddSequence && 'pointer-events-none translate-y-full opacity-0',
+            )
+          : 'relative shrink-0 px-2 pb-2 pt-2',
+      )}
+    >
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 gap-1 text-xs"
+        onClick={handleAddSequenceBelow}
+      >
+        <Plus className="h-3.5 w-3.5" />
+        {t('briefDialog.layout.addSequenceBelow', 'Add Sequence below')}
+      </Button>
+    </div>
+  ) : null;
+
   return (
-    <div className={cn('flex min-h-0 flex-col', storyboardToolbar && 'flex-1')}>
+    <div
+      className={cn(
+        'relative flex min-h-0 flex-col overflow-hidden',
+        storyboardToolbar && 'flex-1',
+        className,
+      )}
+    >
       {renderStoryboardToolbar()}
       <div
         ref={scrollContainerRef}
         className={cn(
-          'min-h-0 overflow-x-auto overflow-y-auto scrollbar-hide seamless-scroll nested-scroll-touch-chain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          'min-h-0 flex-1 scrollbar-hide seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
           isMobile2Col
-            ? '@container/brief my-0 w-full min-w-0 flex-1 rounded-none border-x-0 border-y border-border'
+            ? cn(
+                '@container/brief my-0 w-full min-w-0 rounded-none border-x-0 border-y border-border',
+                'nested-scroll-touch-chain-xy [-webkit-overflow-scrolling:touch]',
+                useStoryBoardLayout
+                  ? 'flex min-h-0 flex-col overflow-hidden [overscroll-behavior-y:contain]'
+                  : 'overflow-x-auto overflow-y-auto pb-14 [overscroll-behavior:contain]',
+              )
             : cn(
-                'my-1 rounded-lg border-2 border-gray-300',
-                storyboardToolbar ? 'max-h-[calc(100dvh-16rem)] flex-1' : 'max-h-[min(720px,78vh)]',
+                'overflow-x-auto overflow-y-auto nested-scroll-touch-chain my-1 rounded-lg border-2 border-gray-300',
+                storyboardToolbar ? 'max-h-[calc(100dvh-16rem)]' : 'max-h-[min(720px,78vh)]',
               ),
-          useStoryBoardLayout && 'overflow-y-auto',
-          className,
+          useStoryBoardLayout && !isMobile2Col && 'flex min-h-0 flex-col overflow-hidden',
         )}
         style={{ overflowAnchor: 'none' } as React.CSSProperties}
       >
@@ -1098,11 +1216,16 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             onMoveToNextSequence={handleMoveToNextSequence}
           />
         ) : (
-          <div className={cn(storyboardToolbar && 'flex min-h-0 flex-col gap-2')}>
+          <div
+            className={cn(
+              storyboardToolbar && 'flex flex-col gap-2',
+              useHorizontalScrollLayout && 'w-max min-w-full',
+            )}
+          >
             <table
               key={tableLayoutKey}
               className={cn(
-                'table-fixed border-collapse text-sm',
+                'table-fixed border-separate border-spacing-0 text-sm',
                 !useHorizontalScrollLayout && 'w-full',
               )}
               style={
@@ -1130,7 +1253,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                 ))}
                 {showRowActionsColumn ? <col style={{ width: BRIEF_COLUMN_WIDTH_PX.actions }} /> : null}
               </colgroup>
-              <thead className="sticky top-0 z-20 bg-gray-100">
+              <thead className="sticky top-0 z-30 bg-gray-100">
                 <tr>
                   {headerRow.map((cell, j) => {
                     const shouldRenderControlsInThisHeader =
@@ -1225,23 +1348,10 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                 </tbody>
               )}
             </table>
-            {canManageSequences ? (
-              <div className="flex shrink-0 px-2 pb-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1 text-xs"
-                  onClick={handleAddSequenceBelow}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {t('briefDialog.layout.addSequenceBelow', 'Add Sequence below')}
-                </Button>
-              </div>
-            ) : null}
           </div>
         )}
       </div>
+      {!useStoryBoardLayout ? addSequenceBelowButton : null}
     </div>
   );
 };

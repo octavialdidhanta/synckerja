@@ -10,6 +10,7 @@ type CommentHighlightBucket = {
   seenCommentIds: Set<string>;
   highlightedCommentIds: Set<string>;
   pinnedCommentIds: Set<string>;
+  pendingEngagedCommentIds: Set<string>;
   seeded: boolean;
 };
 
@@ -65,6 +66,7 @@ function getOrCreateCommentBucket(openId: string, videoId: string): CommentHighl
       seenCommentIds: new Set(),
       highlightedCommentIds: new Set(),
       pinnedCommentIds: new Set(),
+      pendingEngagedCommentIds: new Set(),
       seeded: false,
     };
     commentBuckets.set(key, bucket);
@@ -150,8 +152,14 @@ export function bumpPostInboundHighlight(
 ): void {
   if (!postId) return;
   const bucket = getOrCreatePostBucket(openId);
-  bucket.pinnedAtMs.set(postId, Date.now());
-  bucket.pinnedPostIds.add(postId);
+  const alreadyPinned = bucket.pinnedPostIds.has(postId);
+  const alreadyHighlighted = bucket.highlightedPostIds.has(postId);
+  if (alreadyPinned && (!highlight || alreadyHighlighted)) return;
+
+  if (!alreadyPinned) {
+    bucket.pinnedAtMs.set(postId, Date.now());
+    bucket.pinnedPostIds.add(postId);
+  }
   if (highlight) bucket.highlightedPostIds.add(postId);
   notify();
 }
@@ -236,6 +244,7 @@ export function dismissCommentInboundHighlight(
 ): void {
   if (!commentId) return;
   const bucket = getOrCreateCommentBucket(openId, videoId);
+  bucket.pendingEngagedCommentIds.add(commentId);
   if (!bucket.highlightedCommentIds.delete(commentId)) return;
   notify();
 }
@@ -266,21 +275,34 @@ export function hydratePostHighlightStoreFromServer(
   }>,
 ): void {
   const bucket = getOrCreatePostBucket(openId);
-  bucket.highlightedPostIds.clear();
-  bucket.pinnedPostIds.clear();
-  bucket.pinnedAtMs.clear();
-  bucket.commentCountsByPostId.clear();
+  const nextHighlighted = new Set<string>();
+  const nextPinned = new Set<string>();
+  const nextPinnedAt = new Map<string, number>();
+  const nextCounts = new Map<string, number>();
 
   for (const row of posts) {
-    bucket.commentCountsByPostId.set(row.video_id, row.last_known_comment_count);
+    nextCounts.set(row.video_id, row.last_known_comment_count);
     const hasComments = row.last_known_comment_count > 0;
     if (row.pinned_at && hasComments) {
-      bucket.pinnedPostIds.add(row.video_id);
+      nextPinned.add(row.video_id);
       const ms = new Date(row.pinned_at).getTime();
-      if (Number.isFinite(ms)) bucket.pinnedAtMs.set(row.video_id, ms);
+      if (Number.isFinite(ms)) nextPinnedAt.set(row.video_id, ms);
     }
-    if (row.is_highlighted && hasComments) bucket.highlightedPostIds.add(row.video_id);
+    if (row.is_highlighted && hasComments) nextHighlighted.add(row.video_id);
   }
+
+  const same =
+    bucket.seeded &&
+    setsEqual(bucket.highlightedPostIds, nextHighlighted) &&
+    setsEqual(bucket.pinnedPostIds, nextPinned) &&
+    mapsEqual(bucket.pinnedAtMs, nextPinnedAt) &&
+    mapsEqual(bucket.commentCountsByPostId, nextCounts);
+  if (same) return;
+
+  bucket.highlightedPostIds = nextHighlighted;
+  bucket.pinnedPostIds = nextPinned;
+  bucket.pinnedAtMs = nextPinnedAt;
+  bucket.commentCountsByPostId = nextCounts;
   bucket.seeded = true;
   notify();
 }
@@ -292,18 +314,48 @@ export function hydrateCommentHighlightStoreFromServer(
   engagedCommentIds: Set<string>,
 ): void {
   const bucket = getOrCreateCommentBucket(openId, videoId);
-  bucket.seenCommentIds.clear();
-  bucket.highlightedCommentIds.clear();
-  bucket.pinnedCommentIds.clear();
+  const nextSeen = new Set<string>();
+  const nextPinned = new Set<string>();
+  const nextHighlighted = new Set<string>();
 
   for (const id of inboundCommentIds) {
     if (!id) continue;
-    bucket.seenCommentIds.add(id);
-    bucket.pinnedCommentIds.add(id);
-    if (!engagedCommentIds.has(id)) {
-      bucket.highlightedCommentIds.add(id);
+    nextSeen.add(id);
+    nextPinned.add(id);
+    if (engagedCommentIds.has(id)) {
+      bucket.pendingEngagedCommentIds.delete(id);
+      continue;
     }
+    if (bucket.pendingEngagedCommentIds.has(id)) continue;
+    nextHighlighted.add(id);
   }
+
+  const same =
+    bucket.seeded &&
+    setsEqual(bucket.seenCommentIds, nextSeen) &&
+    setsEqual(bucket.pinnedCommentIds, nextPinned) &&
+    setsEqual(bucket.highlightedCommentIds, nextHighlighted);
+  if (same) return;
+
+  bucket.seenCommentIds = nextSeen;
+  bucket.pinnedCommentIds = nextPinned;
+  bucket.highlightedCommentIds = nextHighlighted;
   bucket.seeded = true;
   notify();
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const value of a) {
+    if (!b.has(value)) return false;
+  }
+  return true;
+}
+
+function mapsEqual(a: Map<string, number>, b: Map<string, number>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [key, value] of a) {
+    if (b.get(key) !== value) return false;
+  }
+  return true;
 }

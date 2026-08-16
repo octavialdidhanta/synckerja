@@ -3,6 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   fetchMetaComments,
+  fetchMetaPostLikers,
   fetchMetaPosts,
   replyMetaComment,
   type MetaContentComment,
@@ -39,6 +40,7 @@ function mapCommentRow(row: MetaContentComment) {
     media_id: row.media_id,
     text: row.text,
     author_display_name: row.author_name,
+    author_id: row.author_id,
     author_avatar_url: null,
     like_count: row.like_count,
     reply_count: row.reply_count,
@@ -208,6 +210,18 @@ Deno.serve(async (req: Request) => {
           account_id: accountId,
           platform,
         }, 200);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return metaContentJson({ error: msg, code: "META_CONTENT_API_ERROR", action }, 400);
+      }
+    }
+
+    if (action === "listPostLikes") {
+      const mediaId = String(body.media_id ?? "").trim();
+      if (!mediaId) return metaContentJson({ error: "Missing media_id" }, 400);
+      try {
+        const result = await fetchMetaPostLikers(platform, mediaId, token);
+        return metaContentJson({ ...result, media_id: mediaId, platform }, 200);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         return metaContentJson({ error: msg, code: "META_CONTENT_API_ERROR", action }, 400);

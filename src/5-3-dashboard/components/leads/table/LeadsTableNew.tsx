@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { History, Clock, ChevronDown, ChevronUp, ArrowUpDown, ListFilter } from "lucide-react";
 import { format } from "date-fns";
 import { NewLead } from '@/shared/types/leads';
+import { isLeadMagnetSourceLead } from '@/shared/hooks/organized/leadMagnetLeadsEnrichment';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { LeadActionsDropdown } from "@/5-3-dashboard/components/leads/actions/LeadActionsDropdown";
 import { LeadFollowUpForm } from "@/5-3-dashboard/components/leads/forms/LeadFollowUpForm";
@@ -197,6 +198,54 @@ interface LeadsTableNewProps {
   showGoogleContactsSyncColumn?: boolean;
   getGoogleContactsSyncForLead?: (lead: NewLead) => GoogleContactsSyncLinkRecord | null;
   googleContactsSyncLoading?: boolean;
+}
+
+type LeadMagnetTitleFields = NewLead & {
+  _leadMagnetMediaCaption?: string | null;
+  _leadMagnetMediaPermalink?: string | null;
+};
+
+function LeadMagnetTitleCell({
+  lead,
+  viewPostLabel,
+}: {
+  lead: NewLead;
+  viewPostLabel: string;
+}) {
+  const lmLead = lead as LeadMagnetTitleFields;
+  const caption = (lmLead._leadMagnetMediaCaption ?? "").trim();
+  const permalink = (lmLead._leadMagnetMediaPermalink ?? "").trim();
+  const showContent = isLeadMagnetSourceLead(lead) && Boolean(caption || permalink);
+
+  return (
+    <div className="min-w-0">
+      <span className="block truncate text-sm leading-normal" title={lead.title ?? ""}>
+        {lead.title}
+      </span>
+      {showContent ? (
+        <p
+          className="mt-0.5 truncate text-[11px] leading-snug text-muted-foreground"
+          title={caption || undefined}
+        >
+          {caption || null}
+          {permalink ? (
+            <>
+              {caption ? " · " : null}
+              <a
+                href={permalink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {viewPostLabel}
+              </a>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 const ASSIGNEE_SELECT_UNASSIGNED = "__lead_assignee_unassigned__";
@@ -1307,9 +1356,7 @@ export default function LeadsTableNew({
                         {rowDisplayPhone?.trim() ? rowDisplayPhone : "—"}
                       </span>
                     ) : (
-                      <span className="block truncate text-sm leading-normal" title={lead.title ?? ""}>
-                        {lead.title}
-                      </span>
+                      <LeadMagnetTitleCell lead={lead} viewPostLabel={t("leadMagnet.list.viewPost")} />
                     )}
                   </TableCell>
                   {showEmailColumn ? (

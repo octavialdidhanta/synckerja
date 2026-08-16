@@ -88,8 +88,8 @@ export function MobileSourceTrafficTableCard({
   const errorHint = error ? trafficDashboardErrorHint(errorDetail) : null;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-primary/35 bg-card shadow-sm">
-      <div className="shrink-0 border-b border-primary/25 px-4 py-3">
+    <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div className="shrink-0 border-b border-border px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-gray-900">Sumber traffic</h3>
@@ -104,7 +104,7 @@ export function MobileSourceTrafficTableCard({
       >
           <table className="w-full min-w-[720px] table-fixed border-separate border-spacing-0 text-sm">
             <thead>
-              <tr className="border-b border-primary/15 bg-gray-50 text-xs text-gray-600">
+              <tr className="border-b border-border bg-gray-50 text-xs text-gray-600">
                 <th className="w-[160px] px-4 py-2 text-left font-medium">Sumber</th>
                 <th className="w-[90px] px-4 py-2 text-center font-medium">Sessions</th>
                 <th className="w-[90px] px-4 py-2 text-center font-medium">% of total</th>
@@ -145,7 +145,7 @@ export function MobileSourceTrafficTableCard({
                 </tr>
               ) : (
                 rows.map((row) => (
-                  <tr key={row.key} className="border-b border-primary/10">
+                  <tr key={row.key} className="border-b border-border/60">
                     <td className="px-4 py-2.5 text-left text-gray-900">{displaySource(row.key, row.label)}</td>
                     <td className="px-4 py-2.5 text-center tabular-nums text-gray-800">
                       {row.sessions.toLocaleString()}

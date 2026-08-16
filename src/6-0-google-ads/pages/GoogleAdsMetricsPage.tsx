@@ -33,6 +33,7 @@ import { buildReportYearOptionsFromEarliest } from "@/6-0-digital-marketing-shar
 import {
   GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS,
   isOptionalIdentityColumnKey,
+  stripGoogleAdsPinnedMetricKeys,
 } from "@/google-ads/metrics/googleAdsIdentityColumns";
 import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAccountDateBounds";
 import { useOmnichannelSurveySettingsAdmin } from "@/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
@@ -358,10 +359,12 @@ function GoogleAdsMetricsPageContent() {
     return filterGoogleAdsPreferenceMetricKeys(entity, selectedMetrics, validMetricKeys);
   }, [selectedMetrics, validMetricKeys, entity]);
 
-  const apiMetricKeys = useMemo(
-    () => selectedMetricsForEntity.filter((k) => !isOptionalIdentityColumnKey(entity, k)),
-    [selectedMetricsForEntity, entity],
-  );
+  const apiMetricKeys = useMemo(() => {
+    const keys = stripGoogleAdsPinnedMetricKeys(selectedMetricsForEntity).filter(
+      (k) => !isOptionalIdentityColumnKey(entity, k),
+    );
+    return ["spent", ...keys];
+  }, [selectedMetricsForEntity, entity]);
 
   const metricItems = useMemo(() => {
     const cats = catalogData?.categories ?? [];
@@ -372,7 +375,7 @@ function GoogleAdsMetricsPageContent() {
     for (const c of cats) {
       for (const m of c.metrics) map.set(m.key, m);
     }
-    return selectedMetricsForEntity
+    return stripGoogleAdsPinnedMetricKeys(selectedMetricsForEntity)
       .map((k) => {
         const catalogMetric = map.get(k);
         if (catalogMetric) return catalogMetric;
@@ -382,7 +385,7 @@ function GoogleAdsMetricsPageContent() {
           key: uiCustom.key,
           label: uiCustom.label,
           description: uiCustom.description,
-          entities: ["campaign", "ad_group", "ad", "keyword"] as const,
+          entities: ["campaign", "ad_group", "ad", "keyword"] as GoogleAdsMetricEntity[],
           valueKind: "count" as const,
           defaultSelected: false,
           sortable: false,
@@ -1216,6 +1219,9 @@ function GoogleAdsMetricsPageContent() {
                                 metricKeys={summarySlotMetricKeys}
                                 onMetricKeyChange={handleSummarySlotMetricChange}
                                 summaryMetricOptions={summaryMetricOptions}
+                                organizationId={organizationId}
+                                metricsFilters={metricsFilters}
+                                compareEnabled={canManage && reportingEnabled && !prefsPending}
                               />
                             </div>
                           ) : null}
@@ -1392,7 +1398,7 @@ function GoogleAdsMetricsPageContent() {
           }
         }}
         isImportingUiCustomColumns={uiCustomColumnsImporting}
-        selectedKeys={selectedMetrics}
+        selectedKeys={selectedMetricsForEntity}
         columnSets={columnSets}
         onApply={handleApplyMetrics}
         onDeleteColumnSet={async (id) => {

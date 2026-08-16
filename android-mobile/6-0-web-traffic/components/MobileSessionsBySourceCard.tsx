@@ -39,7 +39,7 @@ export function MobileSessionsBySourceCard({
   }, [rows]);
 
   return (
-    <div className="rounded-lg border border-primary/35 bg-card p-3">
+    <div className="rounded-lg border border-border bg-card p-3">
       <div className="text-sm font-medium text-foreground">
         {t("traffic.mobile.sessionsBySource", "Sessions")}
       </div>

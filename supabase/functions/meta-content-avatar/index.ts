@@ -2,6 +2,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchMetaAccountProfilePictureUrl } from "../_shared/metaContentAccountProfile.ts";
+import { resolveIgBusinessDiscovery } from "../_shared/metaContent/resolveIgBusinessDiscovery.ts";
 import {
   getUserFromBearer,
   metaContentCorsHeaders,
@@ -43,6 +44,8 @@ Deno.serve(async (req: Request) => {
     const organizationId = url.searchParams.get("organization_id")?.trim() ?? "";
     const platform = url.searchParams.get("platform")?.trim() as MetaContentPlatform;
     const accountId = url.searchParams.get("account_id")?.trim() ?? "";
+    const username = url.searchParams.get("username")?.trim().replace(/^@+/, "") ?? "";
+    const userId = url.searchParams.get("user_id")?.trim() ?? "";
 
     if (!organizationId || !accountId) {
       return textError("Missing organization_id or account_id", 400);
@@ -74,11 +77,36 @@ Deno.serve(async (req: Request) => {
       ? resolved.igBusinessAccountId ?? accountId
       : resolved.pageId;
 
-    const pictureUrl = await fetchMetaAccountProfilePictureUrl(
-      platform,
-      graphNodeId,
-      resolved.pageAccessToken,
-    );
+    let pictureUrl: string | null = null;
+    if (platform === "instagram" && username) {
+      const accountUsername = resolved.accountLabel.replace(/^@+/, "").toLowerCase();
+      if (username.toLowerCase() === accountUsername) {
+        pictureUrl = await fetchMetaAccountProfilePictureUrl(
+          platform,
+          graphNodeId,
+          resolved.pageAccessToken,
+        );
+      } else if (resolved.igBusinessAccountId) {
+        const discovered = await resolveIgBusinessDiscovery({
+          igBusinessAccountId: resolved.igBusinessAccountId,
+          pageAccessToken: resolved.pageAccessToken,
+          username,
+        });
+        pictureUrl = discovered?.profilePictureUrl ?? null;
+      }
+    } else if (platform === "facebook" && userId) {
+      pictureUrl = await fetchMetaAccountProfilePictureUrl(
+        "facebook",
+        userId,
+        resolved.pageAccessToken,
+      );
+    } else {
+      pictureUrl = await fetchMetaAccountProfilePictureUrl(
+        platform,
+        graphNodeId,
+        resolved.pageAccessToken,
+      );
+    }
     if (!pictureUrl) return textError("Profile picture not available", 404);
 
     const imgRes = await fetch(pictureUrl);

@@ -317,7 +317,7 @@ export function DigitalMarketingReportMonthlyChartsSection({
     return <DigitalMarketingReportChartsSkeleton variant={variant} />;
   }
 
-  const tabTriggerClass = isMobile ? "shrink-0 text-xs" : "text-sm";
+  const tabTriggerClass = isMobile ? "shrink-0 text-xs" : "shrink-0 text-sm";
 
   const channelFilterSelect = (
     <Select
@@ -359,13 +359,7 @@ export function DigitalMarketingReportMonthlyChartsSection({
   );
 
   const chartTabs = (
-    <TabsList
-      className={
-        isMobile
-          ? "h-9 w-max shrink-0 justify-start bg-gray-100"
-          : "h-9 bg-gray-100"
-      }
-    >
+    <TabsList className="h-9 w-max shrink-0 justify-start bg-gray-100">
       <TabsTrigger value="spend" className={tabTriggerClass}>
         {t("digitalMarketing.report.monthlyChartTabSpend", "Spend")}
       </TabsTrigger>
@@ -463,8 +457,8 @@ export function DigitalMarketingReportMonthlyChartsSection({
     <div
       className={
         isMobile
-          ? "border-y border-border bg-card"
-          : "overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+          ? "min-w-0 border-y border-border bg-card"
+          : "min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
       }
     >
       <Tabs
@@ -476,11 +470,11 @@ export function DigitalMarketingReportMonthlyChartsSection({
           <>
             <div
               className={
-                "scrollbar-hide seamless-scroll min-w-0 overflow-x-auto overflow-y-hidden " +
-                "[touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                "nested-scroll-touch-chain-xy min-w-0 w-full overflow-x-auto overflow-y-hidden " +
+                "scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               }
             >
-              <div className="inline-flex items-center gap-2 pb-0.5 pt-3">
+              <div className="inline-flex w-max items-center gap-2 pb-0.5 pt-3">
                 <span className="inline-block w-4 shrink-0 grow-0 basis-4" aria-hidden />
                 {chartTabs}
                 <div className={`${CHANNEL_FILTER_WRAPPER_CLASS} shrink-0`}>
@@ -498,16 +492,18 @@ export function DigitalMarketingReportMonthlyChartsSection({
           </>
         ) : (
           <>
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                {chartTabs}
-                {chartSubtitle ? (
-                  <p className="mt-2 text-xs text-muted-foreground">{chartSubtitle}</p>
-                ) : null}
+            <div className="mb-3 min-w-0">
+              <div className="nested-scroll-touch-chain-xy min-w-0 w-full overflow-x-auto overflow-y-hidden">
+                <div className="inline-flex w-max min-w-full items-center gap-2">
+                  {chartTabs}
+                  <div className={`${CHANNEL_FILTER_WRAPPER_CLASS} shrink-0`}>
+                    {channelFilterSelect}
+                  </div>
+                </div>
               </div>
-              <div className="flex shrink-0 flex-nowrap items-center gap-2">
-                <div className={CHANNEL_FILTER_WRAPPER_CLASS}>{channelFilterSelect}</div>
-              </div>
+              {chartSubtitle ? (
+                <p className="mt-2 text-xs text-muted-foreground">{chartSubtitle}</p>
+              ) : null}
             </div>
             <div className="min-h-[300px] min-w-0" key={chartTab}>
               {chartBody}

@@ -1,6 +1,8 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths } from "date-fns";
+import { Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { AppSidebar } from "@/mobile-app/components/AppSidebar";
 import { SidebarProvider } from "@/mobile-app/components/ui/sidebar";
@@ -18,25 +20,52 @@ import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { useModulePageOverlaySkeleton } from "@/shared/auth/page-access/useModulePageOverlaySkeleton";
 import {
   useSocialMediaData,
+  useSocialMediaMutations,
 } from "@/6-1-dashboard/hook/useOptimizedSocialMediaState";
 import { ContentPlan } from "@/6-1-dashboard/types/social-media";
 import { RealtimeSocialMediaProvider } from "@/6-1-dashboard/hook/RealtimeSocialMediaProvider";
 import OptimizedErrorBoundary from "@/6-1-dashboard/components/OptimizedErrorBoundary";
 import { PICFilterProvider } from "@/6-1-dashboard/context/PICFilterContext";
 import { usePublicReviewToken } from "@/6-1-dashboard/hook/usePublicReviewToken";
-import { CalendarStats } from "@/6-1-content-calendar/container/CalendarStats";
-import { CalendarGrid } from "@/6-1-content-calendar/container/CalendarGrid";
+import { prefetchBriefStoryboardImages } from "@/6-1-dashboard/hook/useBriefStoryboardImages";
+import { Button } from "@/shared/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import { AddContentDialog } from "@/6-1-content-calendar/modal/AddContentDialog";
 import { ContentCalendarMobileShellHeader } from "@/mobile/6-1-content-calendar/components/ContentCalendarMobileShellHeader";
 import { MobileContentCalendarFilterStrip } from "@/mobile/6-1-content-calendar/components/MobileContentCalendarFilterStrip";
 import { MobileDayPlanPickerSheet } from "@/mobile/6-1-content-calendar/components/MobileDayPlanPickerSheet";
 import { MobilePlanBriefSheet } from "@/mobile/6-1-content-calendar/components/MobilePlanBriefSheet";
 import { SocialMediaMobileFooter } from "@/mobile/6-1-content-calendar/components/SocialMediaMobileFooter";
+import { MobileContentCalendarTab } from "@/mobile/6-1-content-calendar/sections/MobileContentCalendarTab";
+import { MobileFunnelSection } from "@/mobile/6-1-content-calendar/sections/MobileFunnelSection";
+import { MobileContentBalanceSection } from "@/mobile/6-1-content-calendar/sections/MobileContentBalanceSection";
+import { MobilePersonaSection } from "@/mobile/6-1-content-calendar/sections/persona/MobilePersonaSection";
+import { MobileContentCalendarViewSkeleton } from "@/mobile/6-1-content-calendar/sections/MobileContentCalendarViewSkeleton";
+import {
+  pagePathForContentCalendarTab,
+  parseContentCalendarTab,
+} from "@/mobile/6-1-content-calendar/shared/contentCalendarNavPaths";
+import { refreshContentPillarTrackerQueries } from "@/6-1-dashboard/lib/contentPillarTracker";
 
-function MobileContentCalendarPageContent({ hasPageAccess }: { hasPageAccess: boolean }) {
+const PULL_THRESHOLD = 52;
+const MAX_PULL = 72;
+const INDICATOR_HEIGHT = 56;
+const PULL_RESISTANCE = 0.55;
+
+function MobileContentCalendarPageContent() {
   useStatusBarStyle("light");
   const { t } = useAppTranslation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const activeTab = parseContentCalendarTab(searchParams.toString());
+  const pagePath = pagePathForContentCalendarTab(activeTab);
   const { mainFixedStyle, isKeyboardShellOpen } = useVisualViewport();
   const { getOrCreate } = usePublicReviewToken();
 
@@ -52,12 +81,108 @@ function MobileContentCalendarPageContent({ hasPageAccess }: { hasPageAccess: bo
 
   const { loading: orgBootstrapPending, organizationId: activeOrgId } = useCurrentOrg();
   const { contentPlans, services, isLoading: socialDataLoading } = useSocialMediaData();
+  const { refreshAll, deleteContentPlan } = useSocialMediaMutations();
+  const [planToDelete, setPlanToDelete] = useState<ContentPlan | null>(null);
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const touchStartY = useRef(0);
+  const touchStartX = useRef(0);
+  const pullDistanceRef = useRef(0);
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const pullIndicatorRef = useRef<HTMLDivElement>(null);
+  const pullIconRef = useRef<SVGSVGElement>(null);
+  const pullReleaseRef = useRef<HTMLSpanElement>(null);
+
+  const applyPullVisual = useCallback((distance: number, animate: boolean) => {
+    const indicator = pullIndicatorRef.current;
+    if (!indicator) return;
+    indicator.style.transition = animate
+      ? "height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
+      : "none";
+    indicator.style.height = `${distance}px`;
+    const icon = pullIconRef.current;
+    if (icon) {
+      icon.style.transition = animate ? "transform 0.2s ease-out" : "none";
+      icon.style.transform = `rotate(${Math.min((distance / PULL_THRESHOLD) * 180, 180)}deg)`;
+      icon.style.display = distance >= PULL_THRESHOLD ? "none" : "";
+    }
+    const release = pullReleaseRef.current;
+    if (release) {
+      release.style.display = distance >= PULL_THRESHOLD ? "" : "none";
+    }
+  }, []);
+
+  const handlePullRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    applyPullVisual(INDICATOR_HEIGHT, true);
+    try {
+      if (activeTab === "funnel") {
+        await refreshContentPillarTrackerQueries(queryClient, activeOrgId);
+        toast.success("Data refreshed");
+      } else {
+        await refreshAll();
+      }
+    } catch {
+      toast.error(
+        activeTab === "funnel"
+          ? t("contentCalendar.mobile.refreshFailed", "Gagal memperbarui data.")
+          : t("contentCalendar.mobile.refreshFailed", "Gagal memperbarui kalender."),
+      );
+    } finally {
+      setIsRefreshing(false);
+      applyPullVisual(0, true);
+    }
+  }, [activeTab, activeOrgId, applyPullVisual, isRefreshing, queryClient, refreshAll, t]);
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchStartX.current = e.touches[0].clientX;
+    pullDistanceRef.current = 0;
+  }, []);
+
+  const onTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      const el = listScrollRef.current;
+      if (!el || isRefreshing) return;
+
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.("[data-horizontal-scroll-zone]")) return;
+      if (el.scrollTop > 2) return;
+
+      const dx = e.touches[0].clientX - touchStartX.current;
+      const delta = e.touches[0].clientY - touchStartY.current;
+      if (Math.abs(dx) > Math.abs(delta) || delta <= 0) {
+        if (pullDistanceRef.current !== 0) {
+          pullDistanceRef.current = 0;
+          applyPullVisual(0, false);
+        }
+        return;
+      }
+
+      const d = Math.min(delta * PULL_RESISTANCE, MAX_PULL);
+      pullDistanceRef.current = d;
+      applyPullVisual(d, false);
+    },
+    [applyPullVisual, isRefreshing],
+  );
+
+  const onTouchEnd = useCallback(() => {
+    const d = pullDistanceRef.current;
+    pullDistanceRef.current = 0;
+    if (d >= PULL_THRESHOLD) {
+      void handlePullRefresh();
+      return;
+    }
+    applyPullVisual(0, true);
+  }, [applyPullVisual, handlePullRefresh]);
 
   const dataPending = Boolean(activeOrgId) && socialDataLoading;
   const rawPendingLoad = orgBootstrapPending || dataPending;
-  const { showFullPageSkeleton } = useModulePageOverlaySkeleton(
+  const { showFullPageSkeleton, hasPageAccess } = useModulePageOverlaySkeleton(
     rawPendingLoad,
-    MOBILE_PAGE_PATH.digitalMarketingContentCalendar,
+    pagePath,
   );
   const showContent = useDebouncedReady(!showFullPageSkeleton, 220);
 
@@ -249,32 +374,49 @@ function MobileContentCalendarPageContent({ hasPageAccess }: { hasPageAccess: bo
     };
   }, [filteredContentPlans, currentDate]);
 
+  const openBriefForPlan = useCallback(
+    (planId: string) => {
+      void prefetchBriefStoryboardImages(queryClient, planId);
+      setBriefPlanId(planId);
+      setBriefOpen(true);
+      setPickerOpen(false);
+    },
+    [queryClient],
+  );
+
+  const openPickerForDate = useCallback(
+    (date: Date) => {
+      setSelectedDate(date);
+      const dayKey = format(date, "yyyy-MM-dd");
+      const dayPlans = plansByDate[dayKey] || [];
+      dayPlans.forEach((plan: { id?: string }) => {
+        if (plan?.id) void prefetchBriefStoryboardImages(queryClient, plan.id);
+      });
+      setBriefPlanId(null);
+      setBriefOpen(false);
+      setPickerOpen(true);
+    },
+    [plansByDate, queryClient],
+  );
+
   const handleDayClick = (date: Date) => {
     setSelectedDate(date);
     const dayKey = format(date, "yyyy-MM-dd");
     const dayPlans = plansByDate[dayKey] || [];
     if (dayPlans.length === 1 && dayPlans[0]?.id) {
-      setBriefPlanId(dayPlans[0].id);
-      setBriefOpen(true);
-      setPickerOpen(false);
+      openBriefForPlan(dayPlans[0].id);
       return;
     }
-    setBriefPlanId(null);
-    setBriefOpen(false);
-    setPickerOpen(true);
+    openPickerForDate(date);
   };
 
   const handlePlanClick = (date: Date, plan: any) => {
     setSelectedDate(date);
     if (plan?.id) {
-      setBriefPlanId(plan.id);
-      setBriefOpen(true);
-      setPickerOpen(false);
+      openBriefForPlan(plan.id);
       return;
     }
-    setBriefPlanId(null);
-    setBriefOpen(false);
-    setPickerOpen(true);
+    openPickerForDate(date);
   };
 
   const handleAddContent = async (date: Date) => {
@@ -298,7 +440,33 @@ function MobileContentCalendarPageContent({ hasPageAccess }: { hasPageAccess: bo
     return contentPlans.find((p) => p.id === briefPlanId) ?? null;
   }, [briefPlanId, dayPlansForPicker, contentPlans]);
 
-  const multiPlanDay = dayPlansForPicker.length > 1;
+  const pickerIsSource = dayPlansForPicker.length >= 1;
+
+  const handleRequestDeletePlan = useCallback((plan: { id?: string; title?: string | null }) => {
+    if (!plan?.id) return;
+    const fullPlan =
+      dayPlansForPicker.find((p) => p.id === plan.id) ??
+      contentPlans.find((p) => p.id === plan.id);
+    setPlanToDelete(fullPlan ?? ({ id: plan.id, title: plan.title ?? null } as ContentPlan));
+  }, [contentPlans, dayPlansForPicker]);
+
+  const handleConfirmDeletePlan = useCallback(async () => {
+    if (!planToDelete?.id || deletingPlanId) return;
+    setDeletingPlanId(planToDelete.id);
+    try {
+      await deleteContentPlan(planToDelete.id);
+      toast.success(
+        t("contentCalendar.mobile.deletePlanSuccess", "Content plan deleted."),
+      );
+      setPlanToDelete(null);
+    } catch {
+      toast.error(
+        t("contentCalendar.mobile.deletePlanError", "Failed to delete content plan."),
+      );
+    } finally {
+      setDeletingPlanId(null);
+    }
+  }, [deleteContentPlan, deletingPlanId, planToDelete, t]);
 
   const handleOpenPreview = useCallback(
     async (plan: any) => {
@@ -331,8 +499,6 @@ function MobileContentCalendarPageContent({ hasPageAccess }: { hasPageAccess: bo
     [getOrCreate, navigate, previewLoading, t],
   );
 
-  const pagePath = MOBILE_PAGE_PATH.digitalMarketingContentCalendar;
-
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-muted/70">
@@ -352,33 +518,80 @@ function MobileContentCalendarPageContent({ hasPageAccess }: { hasPageAccess: bo
             {hasPageAccess ? (
               <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
                 <div
+                  ref={listScrollRef}
                   className={cn(
-                    "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+                    "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
                     !showContent && "pointer-events-none invisible select-none",
                   )}
                   aria-hidden={!showContent}
+                  onTouchStart={onTouchStart}
+                  onTouchMove={onTouchMove}
+                  onTouchEnd={onTouchEnd}
                 >
-                  <div className="mx-auto w-full max-w-md space-y-1 px-2 pt-1 content-padding-above-nav-default">
-                    <MobileContentCalendarFilterStrip
-                      currentDate={currentDate}
-                      onPrevMonth={() => setCurrentDate(subMonths(currentDate, 1))}
-                      onNextMonth={() => setCurrentDate(addMonths(currentDate, 1))}
-                    />
+                  <div
+                    ref={pullIndicatorRef}
+                    className="flex h-0 shrink-0 items-center justify-center overflow-hidden text-sm text-muted-foreground"
+                  >
+                    {isRefreshing ? (
+                      <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" aria-hidden />
+                    ) : (
+                      <>
+                        <RefreshCw
+                          ref={pullIconRef}
+                          className="h-5 w-5 shrink-0 opacity-80"
+                          aria-hidden
+                        />
+                        <span
+                          ref={pullReleaseRef}
+                          className="whitespace-nowrap text-xs font-medium text-primary"
+                          style={{ display: "none" }}
+                        >
+                          {t("common.pullToRefresh.release", "Lepas untuk refresh")}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <div
+                    className={cn(
+                      "mx-auto w-full max-w-md space-y-1 px-2 pt-1",
+                      activeTab === "persona"
+                        ? "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden content-padding-above-nav-default"
+                        : "content-padding-above-nav-default",
+                    )}
+                  >
+                    {activeTab !== "persona" ? (
+                      <MobileContentCalendarFilterStrip
+                        currentDate={currentDate}
+                        onPrevMonth={() => setCurrentDate(subMonths(currentDate, 1))}
+                        onNextMonth={() => setCurrentDate(addMonths(currentDate, 1))}
+                      />
+                    ) : null}
 
-                    <div className="-mx-2 border-y border-border bg-card px-2 py-2 [&>div]:grid-cols-2 [&>div]:gap-1.5 [&>div>div]:p-3 [&>div>div]:rounded-none [&>div>div]:border-0">
-                      <CalendarStats monthlyStats={monthlyStats} />
-                    </div>
-
-                    <div className="-mx-2 border-y border-border bg-card px-0 py-2">
-                      <CalendarGrid
+                    {activeTab === "funnel" ? (
+                      <MobileFunnelSection
+                        selectedMonth={currentDate}
+                        serviceFilter={selectedService}
+                      />
+                    ) : activeTab === "balance" ? (
+                      <MobileContentBalanceSection
+                        selectedMonth={currentDate}
+                        serviceFilter={selectedService}
+                      />
+                    ) : activeTab === "persona" ? (
+                      <MobilePersonaSection />
+                    ) : (
+                      <MobileContentCalendarTab
+                        monthlyStats={monthlyStats}
                         calendarDays={calendarDays}
                         getDayInfo={getDayInfo}
                         onDayClick={handleDayClick}
                         onPlanClick={handlePlanClick}
+                        onPlanPrefetch={(plan) => {
+                          if (plan?.id) void prefetchBriefStoryboardImages(queryClient, plan.id);
+                        }}
                         onOpenPreview={handleOpenPreview}
-                        layout="mobile-h-scroll"
                       />
-                    </div>
+                    )}
                   </div>
                 </div>
 
@@ -388,28 +601,7 @@ function MobileContentCalendarPageContent({ hasPageAccess }: { hasPageAccess: bo
                     aria-busy
                   >
                     <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      <div className="mx-auto w-full max-w-md space-y-1 px-2 pt-1 content-padding-above-nav-default">
-                        <div className="mx-auto h-7 w-36 animate-pulse rounded bg-muted/40" />
-                        <div className="-mx-2 grid grid-cols-2 gap-px overflow-hidden border-y border-border bg-border">
-                          {Array.from({ length: 6 }, (_, i) => (
-                            <div key={i} className="bg-card px-3 py-3">
-                              <div className="mb-1.5 h-3 w-16 animate-pulse rounded bg-muted/50" />
-                              <div className="h-6 w-10 animate-pulse rounded bg-muted/60" />
-                              <div className="mt-2 h-2.5 w-24 animate-pulse rounded bg-muted/40" />
-                            </div>
-                          ))}
-                        </div>
-                        <div className="-mx-2 border-y border-border bg-card p-2">
-                          <div className="grid grid-cols-2 gap-1">
-                            {Array.from({ length: 6 }).map((_, i) => (
-                              <div
-                                key={i}
-                                className="min-h-[100px] animate-pulse rounded-md border border-border bg-muted/30"
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
+                      <MobileContentCalendarViewSkeleton tab={activeTab} />
                     </div>
                   </div>
                 ) : null}
@@ -433,10 +625,10 @@ function MobileContentCalendarPageContent({ hasPageAccess }: { hasPageAccess: bo
         plans={dayPlansForPicker}
         onSelectPlan={(plan) => {
           if (!plan?.id) return;
-          setBriefPlanId(plan.id);
-          setPickerOpen(false);
-          setBriefOpen(true);
+          openBriefForPlan(plan.id);
         }}
+        onDeletePlan={handleRequestDeletePlan}
+        deletingPlanId={deletingPlanId}
         onAddContent={handleAddContent}
       />
 
@@ -446,7 +638,7 @@ function MobileContentCalendarPageContent({ hasPageAccess }: { hasPageAccess: bo
           setBriefOpen(open);
           if (!open) {
             setBriefPlanId(null);
-            if (multiPlanDay) {
+            if (pickerIsSource) {
               setPickerOpen(true);
             } else {
               setSelectedDate(null);
@@ -459,17 +651,80 @@ function MobileContentCalendarPageContent({ hasPageAccess }: { hasPageAccess: bo
                 id: briefPlan.id,
                 title: briefPlan.title,
                 brief: briefPlan.brief,
+                content_pillar_id: briefPlan.content_pillar_id,
+                content_pillar: briefPlan.content_pillar,
                 service: briefPlan.service,
               }
             : null
         }
-        showBackToPicker={multiPlanDay}
+        showBackToPicker={pickerIsSource}
         onBackToPicker={() => {
           setBriefOpen(false);
           setBriefPlanId(null);
           setPickerOpen(true);
         }}
       />
+
+      <Dialog
+        open={planToDelete != null}
+        onOpenChange={(open) => {
+          if (!open && deletingPlanId == null) setPlanToDelete(null);
+        }}
+      >
+        <DialogContent
+          hideCloseButton
+          fullscreenAnimation
+          overlayClassName="z-[100]"
+          className="fixed inset-0 left-0 right-0 top-0 z-[100] m-0 flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col items-center justify-center gap-6 overflow-hidden rounded-none border-none bg-background p-6 shadow-none modal-above-safe-area"
+        >
+          <DialogHeader className="space-y-0 text-center sm:text-center">
+            <DialogTitle className="flex flex-col items-center gap-3 text-lg font-semibold text-destructive">
+              <Trash2 className="h-8 w-8 shrink-0" aria-hidden />
+              {t("contentCalendar.mobile.deletePlanConfirmTitle", "Delete content plan?")}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              {t(
+                "contentCalendar.mobile.deletePlanConfirmBody",
+                'This will permanently delete "{{title}}". This action cannot be undone.',
+                {
+                  title:
+                    planToDelete?.title?.trim() ||
+                    t("contentCalendar.mobile.untitled", "Untitled"),
+                },
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deletingPlanId != null}
+              onClick={() => {
+                if (deletingPlanId == null) setPlanToDelete(null);
+              }}
+            >
+              {t("common.cancel", "Cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletingPlanId != null || planToDelete?.id == null}
+              onClick={() => {
+                void handleConfirmDeletePlan();
+              }}
+            >
+              {deletingPlanId != null ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  {t("contentCalendar.mobile.deletingPlan", "Deleting...")}
+                </>
+              ) : (
+                t("contentCalendar.mobile.deletePlan", "Delete")
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AddContentDialog
         open={showAddContentDialog}
@@ -479,6 +734,7 @@ function MobileContentCalendarPageContent({ hasPageAccess }: { hasPageAccess: bo
         }}
         selectedDate={selectedDate}
         editingPlan={editingPlan}
+        serviceFilter={selectedService}
       />
     </SidebarProvider>
   );
@@ -488,8 +744,8 @@ function MobileContentCalendarPageInner() {
   useStatusBarStyle("light");
   const { isKeyboardShellOpen } = useVisualViewport();
   const { outerShellClassName, mainShellClassName, mainShellStyle } = useMobileToolsShellLayout();
-  const pagePath = MOBILE_PAGE_PATH.digitalMarketingContentCalendar;
-  const { hasPageAccess, showDenyShellHeader } = useToolsMobilePageAccess(pagePath);
+  const pagePath = MOBILE_PAGE_PATH.digitalMarketingSocialMedia;
+  const { showDenyShellHeader } = useToolsMobilePageAccess(pagePath);
 
   if (showDenyShellHeader) {
     return (
@@ -517,7 +773,7 @@ function MobileContentCalendarPageInner() {
     );
   }
 
-  return <MobileContentCalendarPageContent hasPageAccess={hasPageAccess} />;
+  return <MobileContentCalendarPageContent />;
 }
 
 export default function MobileContentCalendarPage() {

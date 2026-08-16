@@ -9,7 +9,7 @@ export type SortColumnOption = { key: string; label: string };
 
 export type SortColumnKind = "text" | "numeric";
 
-const NUMERIC_IDENTITY_KEYS = new Set(["service_cpl", "service_converted_leads"]);
+const NUMERIC_IDENTITY_KEYS = new Set(["service_cpl", "service_converted_leads", "spent"]);
 
 /** Identity columns sort alphabetically; applied metrics sort numerically. */
 export function getSortColumnKind(

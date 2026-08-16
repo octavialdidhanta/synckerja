@@ -1,5 +1,9 @@
-import type { UtmTableMetricsSlice } from "@/6-0-traffic/lib/utmTableMetrics";
-import type { SourceBreakdownTotals } from "@/6-0-traffic/lib/normalizeSourceBreakdownRows";
+import { EMPTY_UTM_TABLE_METRICS, type UtmTableMetricsSlice } from "@/6-0-traffic/lib/utmTableMetrics";
+import {
+  computeSourceBreakdownTotals,
+  normalizeSourceBreakdownRows,
+  type SourceBreakdownTotals,
+} from "@/6-0-traffic/lib/normalizeSourceBreakdownRows";
 
 export type TrafficKpis = {
   sessions: number;
@@ -40,4 +44,18 @@ export function computeTrafficKpiDisplay(opts: {
     : kpis.clicks;
 
   return { sessionsDisplay, pageViewsDisplay, clicksDisplay };
+}
+
+/** Period comparison always uses unfiltered KPI totals (source breakdown when present). */
+export function computeUnfilteredTrafficKpiDisplay(opts: {
+  kpis: TrafficKpis | null;
+  sourceBreakdown: unknown;
+}): TrafficKpiDisplay {
+  const rows = normalizeSourceBreakdownRows(opts.sourceBreakdown);
+  return computeTrafficKpiDisplay({
+    kpis: opts.kpis,
+    utmTableMetrics: EMPTY_UTM_TABLE_METRICS,
+    hasSourceBreakdown: rows.length > 0,
+    sourceBreakdownTotals: computeSourceBreakdownTotals(rows),
+  });
 }

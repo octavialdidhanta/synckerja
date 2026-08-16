@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { Input } from "@/shared/components/ui/input";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
   Table,
@@ -33,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
+import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import type { AvailableEmployee } from "@/shared/hooks/useAvailableEmployees";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
@@ -327,6 +329,7 @@ export function InsightTargetsTable({
   onCellChange,
 }: Props) {
   const { t } = useAppTranslation();
+  const { organizationId } = useCurrentOrg();
   const accounts = orderedAccounts(accountsByPlatform);
   const metricAggregates = useMemo(
     () => computeMetricAggregates(accounts, getAccountActuals, formMap, periodNotStarted),
@@ -380,6 +383,9 @@ export function InsightTargetsTable({
                     <SocialMediaInsightAccountAvatar
                       avatarUrl={account.avatarUrl}
                       accountLabel={account.accountLabel}
+                      organizationId={organizationId}
+                      platform={account.platform}
+                      accountId={account.accountId}
                       className="h-7 w-7"
                     />
                     <span className="min-w-0 truncate text-sm font-medium text-gray-900">

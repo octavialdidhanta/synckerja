@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { buildLeadMagnetPublicCommentReply } from '@/6-0-social-media-manage-comments/lib/buildLeadMagnetPublicCommentReply';
 import { normalizeCommentReplyTexts } from '@/6-1-lead-magnet/lib/commentReplyVariants';
-import { MANAGE_COMMENTS_THREAD_POLL_MS } from '@/6-0-social-media-manage-comments/lib/manageCommentsPolling';
 import type { MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
 
 export type LeadMagnetAutoCommentReply = {
@@ -86,6 +85,6 @@ export function useLeadMagnetAutoCommentReplies(args: {
       return map;
     },
     staleTime: 30_000,
-    refetchInterval: MANAGE_COMMENTS_THREAD_POLL_MS,
+    refetchInterval: false,
   });
 }

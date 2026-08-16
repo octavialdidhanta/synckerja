@@ -54,26 +54,47 @@ export function buildWebPropertyFilterOptions(
   );
 }
 
-/** Opsi filter Services: master sub-services + nilai `lead.services` yang ada di data. */
-export function buildServicesFilterOptions(
-  leads: Array<{ services?: string | null }>,
-  masterServices: Array<{ id: string; name: string }>,
+function mergeNamedFilterOptions(
+  master: Array<{ id: string; name: string }>,
+  extraNames: Iterable<string>,
+  syntheticPrefix: string,
 ): Array<{ id: string; name: string }> {
   const byName = new Map<string, { id: string; name: string }>();
-  for (const s of masterServices) {
+  for (const s of master) {
     const n = (s.name ?? "").trim();
     if (n) byName.set(n, { id: s.id, name: n });
   }
   let seq = 0;
-  for (const l of leads) {
-    const n = (l.services ?? "").trim();
-    if (!n) continue;
-    if (!byName.has(n)) {
-      byName.set(n, { id: `__services_lead__${seq++}`, name: n });
-    }
+  for (const raw of extraNames) {
+    const n = raw.trim();
+    if (!n || byName.has(n)) continue;
+    byName.set(n, { id: `${syntheticPrefix}${seq++}`, name: n });
   }
   return [...byName.values()].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+}
+
+/** Opsi filter Services: master + nilai `lead.services` yang ada di data. */
+export function buildServicesFilterOptions(
+  leads: Array<{ services?: string | null }>,
+  masterServices: Array<{ id: string; name: string }>,
+): Array<{ id: string; name: string }> {
+  return mergeNamedFilterOptions(
+    masterServices,
+    leads.map((l) => l.services ?? ""),
+    "__services_lead__",
+  );
+}
+
+/** Opsi filter Category: hanya nilai `lead.category` yang ada di kolom. */
+export function buildCategoryFilterOptions(
+  leads: Array<{ category?: string | null }>,
+): Array<{ id: string; name: string }> {
+  return mergeNamedFilterOptions(
+    [],
+    leads.map((l) => l.category ?? ""),
+    "__category_lead__",
   );
 }
 

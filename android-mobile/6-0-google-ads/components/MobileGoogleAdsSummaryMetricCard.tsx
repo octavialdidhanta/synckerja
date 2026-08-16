@@ -11,6 +11,11 @@ import type { DmReportTargetProgress } from "@/6-0-digital-marketing-shared/dmRe
 import { ProgressBar } from "@/shared/components/ProgressBar";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { MobileGoogleAdsMetricPickerSheet } from "@/mobile/6-0-google-ads/components/MobileGoogleAdsMetricPickerSheet";
+import {
+  PeriodCompareDeltaBadge,
+  PeriodCompareFooter,
+} from "@/6-0-digital-marketing-shared/components/PeriodCompareBits";
+import type { KpiCompareDelta } from "@/6-0-digital-marketing-shared/lib/kpiPeriodCompare";
 
 type Props = {
   selectedKey: string;
@@ -26,6 +31,12 @@ type Props = {
   /** Fixed label (e.g. Cost) — no metric picker. */
   fixedLabel?: string;
   fixedValue?: string;
+  compareMetricKey?: string;
+  compareDelta?: KpiCompareDelta | null;
+  compareRangeLabel?: string;
+  comparePreviousText?: string;
+  compareLoading?: boolean;
+  compareVisible?: boolean;
 };
 
 /**
@@ -44,6 +55,12 @@ export function MobileGoogleAdsSummaryMetricCard({
   progressRatioText = null,
   fixedLabel,
   fixedValue,
+  compareMetricKey,
+  compareDelta = null,
+  compareRangeLabel = "",
+  comparePreviousText = "—",
+  compareLoading = false,
+  compareVisible = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const isFixed = Boolean(fixedLabel);
@@ -61,7 +78,17 @@ export function MobileGoogleAdsSummaryMetricCard({
     <div className={cn("bg-card px-4 py-3", className)}>
       {isFixed ? (
         <div className="flex min-w-0 flex-col items-start">
-          <span className="text-xs text-muted-foreground">{label}</span>
+          <div className="flex w-full min-w-0 items-center gap-1">
+            <span className="min-w-0 truncate text-xs text-muted-foreground">{label}</span>
+            {compareVisible ? (
+              <PeriodCompareDeltaBadge
+                compact
+                delta={compareDelta}
+                metricKey={compareMetricKey ?? selectedKey}
+                loading={compareLoading}
+              />
+            ) : null}
+          </div>
           <span className="text-lg font-semibold tabular-nums text-foreground">
             {isLoading ? (
               <span className="inline-block h-6 w-24 animate-pulse rounded bg-muted" />
@@ -74,14 +101,24 @@ export function MobileGoogleAdsSummaryMetricCard({
         <Button
           type="button"
           variant="ghost"
-          className="h-auto w-full justify-between gap-1 px-0 py-0 text-left font-normal hover:bg-transparent"
+          className="h-auto w-full justify-start gap-1 px-0 py-0 text-left font-normal hover:bg-transparent"
           disabled={isLoading || options.length === 0}
           onClick={() => setOpen(true)}
         >
-          <span className="flex min-w-0 flex-1 flex-col items-start">
-            <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
-              <span className="truncate">{label}</span>
-              <ChevronDown className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+          <span className="flex w-full min-w-0 flex-col items-start">
+            <span className="flex w-full min-w-0 items-center gap-1">
+              <span className="inline-flex min-w-0 items-center gap-0.5 text-xs text-muted-foreground">
+                <span className="truncate">{label}</span>
+                <ChevronDown className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+              </span>
+              {compareVisible ? (
+                <PeriodCompareDeltaBadge
+                  compact
+                  delta={compareDelta}
+                  metricKey={compareMetricKey ?? selectedKey}
+                  loading={compareLoading}
+                />
+              ) : null}
             </span>
             <span className="text-lg font-semibold tabular-nums text-foreground">
               {isLoading ? (
@@ -93,6 +130,14 @@ export function MobileGoogleAdsSummaryMetricCard({
           </span>
         </Button>
       )}
+      {compareVisible ? (
+        <PeriodCompareFooter
+          compact
+          rangeLabel={compareRangeLabel}
+          previousText={comparePreviousText}
+          loading={compareLoading}
+        />
+      ) : null}
 
       <div className="mt-2 min-h-[1.125rem]">
         {isLoading || targetsLoading ? (

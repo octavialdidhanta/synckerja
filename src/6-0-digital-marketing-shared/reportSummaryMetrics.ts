@@ -285,3 +285,36 @@ export function formatReportSummaryMetricValue(
       return "—";
   }
 }
+
+/** Numeric value used for period compare — same source as the formatted card value. */
+export function reportSummaryNumericValue(
+  key: ReportTableMetricKey,
+  totals: ReportSummaryTotals | null | undefined,
+): number | null {
+  if (!totals) return null;
+  switch (key) {
+    case "cost": {
+      if (totals.costByCurrency.length !== 1) return null;
+      const amount = totals.costByCurrency[0]!.amount;
+      return Number.isFinite(amount) ? amount : null;
+    }
+    case "impressions":
+      return Number.isFinite(totals.impressions) ? totals.impressions : null;
+    case "clicks":
+      return Number.isFinite(totals.clicks) ? totals.clicks : null;
+    case "converted_leads":
+      return totals.convertedLeads;
+    case "ctr":
+      return totals.ctr;
+    case "cpc":
+      return totals.primaryCurrency ? totals.blendedCpc : null;
+    case "cpa":
+      return totals.primaryCurrency ? totals.blendedCpa : null;
+    default:
+      return null;
+  }
+}
+
+export function reportCompareToneKey(key: ReportTableMetricKey): string {
+  return key;
+}

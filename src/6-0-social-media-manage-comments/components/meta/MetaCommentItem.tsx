@@ -4,10 +4,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avat
 import { cn } from '@/shared/lib/utils';
 import { formatCommentRelativeTimeFromIso } from '@/6-0-social-media-manage-comments/lib/formatCommentRelativeTime';
 import { ManageCommentsInlineReplyComposer } from '@/6-0-social-media-manage-comments/components/shared/ManageCommentsInlineReplyComposer';
+import { useManageCommentsMobileLayout } from '@/6-0-social-media-manage-comments/components/shared/ManageCommentsMobileLayoutContext';
 import { MetaCommentReplyThread } from '@/6-0-social-media-manage-comments/components/meta/MetaCommentReplyThread';
 import type { LeadMagnetAutoCommentReply } from '@/6-0-social-media-manage-comments/hooks/useLeadMagnetAutoCommentReplies';
 import type { ManageCommentsReplyControls } from '@/6-0-social-media-manage-comments/types/manageCommentsReplyControls';
 import type { MetaContentCommentRow, MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
+import { useMetaCommentAuthorAvatarObjectUrl } from '@/meta-content/lib/useMetaCommentAuthorAvatarObjectUrl';
 
 type MetaCommentItemProps = {
   comment: MetaContentCommentRow;
@@ -35,9 +37,18 @@ export function MetaCommentItem({
   nested,
 }: MetaCommentItemProps) {
   const { t, i18n } = useTranslation();
+  const isMobileLayout = useManageCommentsMobileLayout();
   const [showReplies, setShowReplies] = useState(false);
   const name = comment.author_display_name?.trim() || t('digitalMarketing.manageComments.unknownUser', 'User');
   const initials = name.slice(0, 2).toUpperCase();
+  const authorPhotoUrl = useMetaCommentAuthorAvatarObjectUrl({
+    organizationId,
+    platform,
+    accountId,
+    username: platform === 'instagram' ? name : null,
+    userId: platform === 'facebook' ? comment.author_id : null,
+  });
+  const avatarSrc = authorPhotoUrl ?? comment.author_avatar_url ?? undefined;
   const timeLabel = formatCommentRelativeTimeFromIso(comment.published_at, i18n.language);
   const isReplyTarget = replyControls.replyToCommentId === comment.id;
   const hasAutoReply = Boolean(autoReply);
@@ -52,15 +63,17 @@ export function MetaCommentItem({
   return (
     <div
       className={cn(
-        nested ? 'py-1' : 'px-4 py-2',
+        nested ? 'py-1' : isMobileLayout ? 'px-3 py-2.5' : 'px-4 py-2',
         !nested && isNew && 'border-l-4 border-amber-400 bg-amber-50/90 animate-in fade-in slide-in-from-top-1',
       )}
     >
-      <div className="flex gap-2">
-        <Avatar className={cn('mt-0.5 shrink-0', nested ? 'h-7 w-7' : 'h-8 w-8')}>
-          <AvatarImage src={comment.author_avatar_url ?? undefined} alt={name} />
-          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-        </Avatar>
+      <div className={cn(!isMobileLayout && 'flex gap-2')}>
+        {isMobileLayout ? null : (
+          <Avatar className={cn('mt-0.5 shrink-0', nested ? 'h-7 w-7' : 'h-8 w-8')}>
+            <AvatarImage src={avatarSrc} alt={name} referrerPolicy="no-referrer" />
+            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+          </Avatar>
+        )}
         <div className="min-w-0 flex-1">
           <div
             className={cn(
@@ -68,7 +81,15 @@ export function MetaCommentItem({
               isNew ? 'bg-amber-100/80 ring-1 ring-amber-300/60' : 'bg-sky-50',
             )}
           >
-            <p className="mb-0.5 text-xs font-semibold text-gray-900">{name}</p>
+            <div className="mb-0.5 flex items-center gap-1.5">
+              {isMobileLayout ? (
+                <Avatar className="h-5 w-5 shrink-0">
+                  <AvatarImage src={avatarSrc} alt={name} referrerPolicy="no-referrer" />
+                  <AvatarFallback className="text-[9px]">{initials}</AvatarFallback>
+                </Avatar>
+              ) : null}
+              <p className="text-xs font-semibold text-gray-900">{name}</p>
+            </div>
             <p className="whitespace-pre-wrap text-sm text-gray-800">{comment.text}</p>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
@@ -123,7 +144,7 @@ export function MetaCommentItem({
             />
           ) : null}
 
-          {isReplyTarget ? (
+          {isReplyTarget && !isMobileLayout ? (
             <ManageCommentsInlineReplyComposer
               accountLabel={replyControls.accountLabel}
               accountAvatarUrl={replyControls.accountAvatarUrl}
@@ -136,6 +157,17 @@ export function MetaCommentItem({
           ) : null}
         </div>
       </div>
+      {isReplyTarget && isMobileLayout ? (
+        <ManageCommentsInlineReplyComposer
+          accountLabel={replyControls.accountLabel}
+          accountAvatarUrl={replyControls.accountAvatarUrl}
+          mentionLabel={name}
+          disabled={isMutating}
+          isSubmitting={replyControls.isSubmittingReply}
+          onCancel={replyControls.onCancelReply}
+          onSubmit={(text) => replyControls.onSubmitReply(comment.id, text, name)}
+        />
+      ) : null}
     </div>
   );
 }

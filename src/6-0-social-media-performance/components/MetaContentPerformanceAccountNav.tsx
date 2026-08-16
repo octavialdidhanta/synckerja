@@ -1,8 +1,9 @@
-import { Instagram, Facebook } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/shared/lib/utils';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import type { MetaContentAccount, MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
 import { CollapsibleContentAccountNav } from '@/6-0-social-media-performance/components/CollapsibleContentAccountNav';
+import { MetaContentAccountAvatar } from '@/6-0-social-media-performance/components/MetaContentAccountAvatar';
 
 function collapsedStorageKey(platform: MetaContentPlatform): string {
   return `synckerja.meta-content-account-nav.${platform}.collapsed`;
@@ -28,8 +29,8 @@ export function MetaContentPerformanceAccountNav({
   className,
 }: MetaContentPerformanceAccountNavProps) {
   const { t } = useTranslation();
+  const { organizationId } = useCurrentOrg();
   const filtered = accounts.filter((a) => a.platform === platform);
-  const PlatformIcon = platform === 'instagram' ? Instagram : Facebook;
 
   return (
     <CollapsibleContentAccountNav
@@ -64,15 +65,12 @@ export function MetaContentPerformanceAccountNav({
                 )}
                 onClick={() => onAccountIdChange(acc.account_id)}
               >
-                {acc.avatar_url ? (
-                  <img
-                    src={acc.avatar_url}
-                    alt=""
-                    className="h-5 w-5 shrink-0 rounded-full object-cover"
-                  />
-                ) : (
-                  <PlatformIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                )}
+                <MetaContentAccountAvatar
+                  organizationId={organizationId}
+                  platform={platform}
+                  accountId={acc.account_id}
+                  accountLabel={label}
+                />
                 <span className="truncate">{label}</span>
               </button>
             );

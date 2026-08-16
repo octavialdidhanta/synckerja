@@ -66,7 +66,7 @@ function TikTokManageCommentsPageContent() {
     { enabled: Boolean(organizationId) && !gatePending },
   );
 
-  const [openId, setOpenId] = useState("");
+  const [openIdOverride, setOpenIdOverride] = useState("");
   const [postFilter, setPostFilter] = useState<ManageCommentsPostFilter>("all");
 
   const selectedVideoId = searchParams.get("videoId");
@@ -75,13 +75,12 @@ function TikTokManageCommentsPageContent() {
     () => (settings?.accounts ?? []).filter((a) => a.is_active),
     [settings?.accounts],
   );
-
-  useEffect(() => {
-    if (!openId && activeAccounts.length > 0) {
-      const def = activeAccounts.find((a) => a.is_default) ?? activeAccounts[0];
-      setOpenId(def.open_id);
-    }
-  }, [activeAccounts, openId]);
+  const defaultOpenId =
+    (activeAccounts.find((a) => a.is_default) ?? activeAccounts[0])?.open_id ?? "";
+  const openId =
+    openIdOverride && activeAccounts.some((a) => a.open_id === openIdOverride)
+      ? openIdOverride
+      : defaultOpenId;
 
   useEffect(() => {
     setPostFilter("all");
@@ -180,14 +179,28 @@ function TikTokManageCommentsPageContent() {
   );
 
   useEffect(() => {
-    if (filteredPosts.length === 0) {
-      if (selectedVideoId) setSearchParams({}, { replace: true });
-      return;
-    }
-    if (!selectedVideoId || !filteredPosts.some((p) => p.id === selectedVideoId)) {
-      setSearchParams({ videoId: filteredPosts[0].id }, { replace: true });
-    }
+    const nextVideoId =
+      filteredPosts.length === 0
+        ? null
+        : selectedVideoId && filteredPosts.some((p) => p.id === selectedVideoId)
+          ? selectedVideoId
+          : filteredPosts[0]?.id?.trim() || null;
+
+    if (nextVideoId === selectedVideoId) return;
+    setSearchParams(
+      (prev) => {
+        const current = prev.get("videoId")?.trim() || null;
+        if (current === nextVideoId) return prev;
+        if (!nextVideoId) return new URLSearchParams();
+        return new URLSearchParams({ videoId: nextVideoId });
+      },
+      { replace: true },
+    );
   }, [filteredPosts, selectedVideoId, setSearchParams]);
+
+  const handleNewInboundComments = useCallback(() => {
+    if (selectedVideoId) markPostWithNewActivity(selectedVideoId);
+  }, [selectedVideoId, markPostWithNewActivity]);
 
   const handleSelectPost = useCallback(
     (post: ManageCommentsPostListItem) => {
@@ -196,16 +209,12 @@ function TikTokManageCommentsPageContent() {
     [setSearchParams],
   );
 
-  const rawPageLoadPending = gatePending || reportingPending || (canManage && settingsPending);
-
-  if (rawPageLoadPending) {
-    return null;
-  }
+  const showAccessDenied = !gatePending && !canManage;
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="flex max-h-[calc(100vh-120px)] min-h-0 flex-1 flex-row overflow-hidden">
-          {!canManage ? (
+    <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
+      <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
+          {showAccessDenied ? (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <Alert>
                 <AlertTitle>
@@ -225,7 +234,7 @@ function TikTokManageCommentsPageContent() {
                 accounts={activeAccounts}
                 openId={openId}
                 onOpenIdChange={(next) => {
-                  setOpenId(next);
+                  setOpenIdOverride(next);
                   setSearchParams({}, { replace: true });
                   if (isSettingsView) {
                     navigate(SOCIAL_MEDIA_MANAGE_COMMENTS_TIKTOK_PATH);
@@ -319,7 +328,7 @@ function TikTokManageCommentsPageContent() {
                               selectedId={selectedVideoId}
                               highlightedPostIds={visibleHighlightedPostIds}
                               onSelect={handleSelectPost}
-                              isLoading={postsQuery.isLoading}
+                              isLoading={gatePending || reportingPending || settingsPending || postsQuery.isLoading}
                               isFetching={postsQuery.isFetching}
                               totalPosts={postsQuery.data?.totalPosts ?? 0}
                               activeFilter={postFilter}
@@ -343,9 +352,7 @@ function TikTokManageCommentsPageContent() {
                                 ? visibleHighlightedPostIds.has(selectedPost.id)
                                 : false
                             }
-                            onNewInboundComments={() => {
-                              if (selectedPost) markPostWithNewActivity(selectedPost.id);
-                            }}
+                            onNewInboundComments={handleNewInboundComments}
                             onPostHighlightResolved={handlePostHighlightResolved}
                           />
                         ) : (

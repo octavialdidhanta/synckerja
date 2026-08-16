@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { SidebarTrigger } from "@/mobile-app/components/ui/sidebar";
 import { Button } from "@/shared/components/ui/button";
@@ -8,12 +9,14 @@ type GoogleAdsMobileShellHeaderProps = {
   onRefresh?: () => void;
   refreshDisabled?: boolean;
   isRefreshing?: boolean;
+  headerActions?: ReactNode;
 };
 
 export function GoogleAdsMobileShellHeader({
   onRefresh,
   refreshDisabled,
   isRefreshing,
+  headerActions,
 }: GoogleAdsMobileShellHeaderProps) {
   const { t } = useAppTranslation();
   const showRefresh = onRefresh != null;
@@ -25,29 +28,32 @@ export function GoogleAdsMobileShellHeader({
           <SidebarTrigger className="md:hidden shrink-0" />
           <div className="min-w-0">
             <h1 className="truncate text-base font-semibold leading-tight text-foreground">
-              {t("sidebar.digitalMarketing.adsPerformance.title", "Ads Performance")}
+              {t("sidebar.digitalMarketing.googleAds.title", "Google Ads")}
             </h1>
           </div>
         </div>
 
-        {showRefresh ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 shrink-0"
-            aria-label={t("common.refresh", "Refresh")}
-            onClick={onRefresh}
-            disabled={refreshDisabled}
-          >
-            {isRefreshing ? (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
-            ) : (
-              <RefreshCw className="h-4 w-4 text-muted-foreground" aria-hidden />
-            )}
-          </Button>
-        ) : (
-          <div className="w-9 shrink-0" aria-hidden />
-        )}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {headerActions}
+          {showRefresh ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              aria-label={t("common.refresh", "Refresh")}
+              onClick={onRefresh}
+              disabled={refreshDisabled}
+            >
+              {isRefreshing ? (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+              ) : (
+                <RefreshCw className="h-4 w-4 text-muted-foreground" aria-hidden />
+              )}
+            </Button>
+          ) : headerActions ? null : (
+            <div className="w-9 shrink-0" aria-hidden />
+          )}
+        </div>
       </header>
       <SubscriptionExpiryBannerSlot />
     </>

@@ -11,7 +11,6 @@ import { useTikTokContentSettings } from "@/tiktok-content/hooks/useTikTokConten
 import type { TikTokContentOAuthReturnPath } from "@/tiktok-content/settings/tiktokContentSettingsPaths";
 import { getTikTokAccountDisplayLabel } from "@/tiktok-content/lib/tiktokAccountDisplayLabel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/components/ui/avatar";
-import { TikTokCredentialDiagnosticsCard } from "@/tiktok-content/settings/TikTokCredentialDiagnosticsCard";
 
 export type TikTokContentSettingsPanelProps = {
   organizationId: string | null | undefined;
@@ -128,8 +127,6 @@ export function TikTokContentSettingsPanel({
           </AlertDescription>
         </Alert>
       )}
-
-      <TikTokCredentialDiagnosticsCard organizationId={organizationId} />
 
       {serverConfigured && !publishConfigured && oauthConnected ? (
         <Alert>

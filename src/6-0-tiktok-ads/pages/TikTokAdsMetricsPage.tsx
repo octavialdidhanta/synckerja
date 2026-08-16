@@ -605,6 +605,12 @@ function TikTokAdsMetricsPageContent() {
                                         saveTikTokAdsSummarySlotMetrics(entity, keys);
                                       }}
                                       isLoading={metricsTableLoading}
+                                      organizationId={organizationId}
+                                      dateStart={dateStart}
+                                      dateEnd={dateEnd}
+                                      compareEnabled={
+                                        reportingEnabled && Boolean(advertiserId) && canManage
+                                      }
                                     />
                                   </div>
                                 ) : null}

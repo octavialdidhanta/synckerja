@@ -25,6 +25,8 @@ const sampleMeta = (): LeadMagnetLeadMeta => ({
   _leadMagnetKeyword: 'mantab',
   _leadMagnetPlatform: 'instagram',
   _leadMagnetParticipantScopedId: '7813056332046745',
+  _leadMagnetMediaCaption: null,
+  _leadMagnetMediaPermalink: null,
 });
 
 describe('leadMagnetLeadsEnrichment', () => {

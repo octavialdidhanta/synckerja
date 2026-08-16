@@ -16,6 +16,10 @@ import {
   type MetaAdsTableMetricKey,
 } from "@/meta-ads/metrics/metaAdsSummaryMetrics";
 import { MobileMetaAdsSummaryMetricCard } from "@/mobile/6-0-meta-ads/components/MobileMetaAdsSummaryMetricCard";
+import {
+  metaAdsPeriodCompareBits,
+  useMetaAdsSummaryPeriodCompare,
+} from "@/6-0-meta-ads/hooks/useMetaAdsSummaryPeriodCompare";
 import type { DmReportTargetProgress } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
 
 type Summary = {
@@ -35,6 +39,10 @@ type Props = {
   metricKeys: MetaAdsTableMetricKey[];
   onMetricKeysChange: (keys: MetaAdsTableMetricKey[]) => void;
   isLoading?: boolean;
+  organizationId?: string | null;
+  dateStart?: string | null;
+  dateEnd?: string | null;
+  compareEnabled?: boolean;
 };
 
 function formatProgressRatio(
@@ -74,6 +82,10 @@ export function MobileMetaAdsSummaryBar({
   metricKeys,
   onMetricKeysChange,
   isLoading = false,
+  organizationId = null,
+  dateStart = null,
+  dateEnd = null,
+  compareEnabled = false,
 }: Props) {
   const { t } = useAppTranslation();
 
@@ -130,6 +142,16 @@ export function MobileMetaAdsSummaryBar({
     [metricOptions],
   );
 
+  const { previousRange, previousTotals, compareLoading, compareError } =
+    useMetaAdsSummaryPeriodCompare({
+      organizationId,
+      adAccountId,
+      entity,
+      dateStart,
+      dateEnd,
+      enabled: compareEnabled,
+    });
+
   if (isLoading) {
     return (
       <div
@@ -141,6 +163,7 @@ export function MobileMetaAdsSummaryBar({
           <div key={i} className="bg-card px-4 py-3">
             <Skeleton className="mb-1.5 h-3 w-16" />
             <Skeleton className="h-6 w-24" />
+            <Skeleton className="mt-0.5 h-3 w-20" />
             <Skeleton className="mt-2 h-1.5 w-full" />
           </div>
         ))}
@@ -149,6 +172,14 @@ export function MobileMetaAdsSummaryBar({
   }
 
   const costProgress = progressByTableMetric.get("spend");
+  const costCompare = metaAdsPeriodCompareBits({
+    metricKey: "spend",
+    currentTotals: totals,
+    previousTotals,
+    previousRange,
+    compareLoading,
+    compareError,
+  });
 
   return (
     <div className="-mx-2 grid grid-cols-2 gap-px overflow-hidden border-y border-border bg-border">
@@ -163,9 +194,18 @@ export function MobileMetaAdsSummaryBar({
         targetProgress={costProgress}
         targetsLoading={targetsLoading}
         progressRatioText={formatProgressRatio("spend", costProgress, currencyCode)}
+        {...costCompare}
       />
       {slots.map((key, index) => {
         const progress = progressByTableMetric.get(key);
+        const slotCompare = metaAdsPeriodCompareBits({
+          metricKey: key,
+          currentTotals: totals,
+          previousTotals,
+          previousRange,
+          compareLoading,
+          compareError,
+        });
         return (
           <MobileMetaAdsSummaryMetricCard
             key={index}
@@ -184,6 +224,7 @@ export function MobileMetaAdsSummaryBar({
             targetProgress={progress}
             targetsLoading={targetsLoading}
             progressRatioText={formatProgressRatio(key, progress, currencyCode)}
+            {...slotCompare}
           />
         );
       })}

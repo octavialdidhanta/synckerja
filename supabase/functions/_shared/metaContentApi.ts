@@ -956,6 +956,7 @@ const FB_POST_LIST_FIELDS = [
   "shares",
   "comments.summary(true)",
   "reactions.summary(true)",
+  "attachments{media_type,type,url,media,target}",
 ].join(",");
 
 async function fetchFacebookPostsFromEndpoint(
@@ -1115,18 +1116,50 @@ function parseFbInlineInsights(row: Record<string, unknown>): { views: number; r
   };
 }
 
+function firstFbAttachment(row: Record<string, unknown>): Record<string, unknown> | null {
+  const attachments = row.attachments as { data?: Record<string, unknown>[] } | undefined;
+  const first = attachments?.data?.[0];
+  return first && typeof first === "object" ? first : null;
+}
+
+function isFacebookVideoAttachment(attachment: Record<string, unknown> | null): boolean {
+  if (!attachment) return false;
+  const type = String(attachment.type ?? attachment.media_type ?? "").toLowerCase();
+  return type.includes("video");
+}
+
+function facebookAttachmentMediaSource(attachment: Record<string, unknown> | null): string | null {
+  if (!attachment) return null;
+  const media = attachment.media as { source?: unknown; image?: { src?: unknown } } | undefined;
+  return typeof media?.source === "string" && media.source.trim() ? media.source : null;
+}
+
+function facebookAttachmentImageSrc(attachment: Record<string, unknown> | null): string | null {
+  if (!attachment) return null;
+  const media = attachment.media as { image?: { src?: unknown } } | undefined;
+  return typeof media?.image?.src === "string" && media.image.src.trim()
+    ? media.image.src
+    : null;
+}
+
 function mapFbPost(row: Record<string, unknown>): MetaContentPost {
   const comments = row.comments as { summary?: { total_count?: number } } | undefined;
   const reactions = row.reactions as { summary?: { total_count?: number } } | undefined;
   const likes = row.likes as { summary?: { total_count?: number } } | undefined;
   const inline = parseFbInlineInsights(row);
   const shares = row.shares as { count?: number } | undefined;
+  const attachment = firstFbAttachment(row);
+  const isVideo = isFacebookVideoAttachment(attachment);
+  const picture =
+    (typeof row.full_picture === "string" ? row.full_picture : null) ??
+    facebookAttachmentImageSrc(attachment);
+  const videoSource = facebookAttachmentMediaSource(attachment);
   return {
     id: String(row.id ?? ""),
     caption: typeof row.message === "string" ? row.message : null,
-    media_type: "post",
-    media_url: typeof row.full_picture === "string" ? row.full_picture : null,
-    thumbnail_url: typeof row.full_picture === "string" ? row.full_picture : null,
+    media_type: isVideo ? "VIDEO" : "post",
+    media_url: videoSource ?? (isVideo ? null : picture),
+    thumbnail_url: picture,
     permalink: typeof row.permalink_url === "string" ? row.permalink_url : null,
     timestamp: typeof row.created_time === "string" ? row.created_time : null,
     comment_count: Number(comments?.summary?.total_count ?? 0),
@@ -1603,6 +1636,95 @@ export async function fetchMetaComments(
     return fetchInstagramComments(mediaId, accessToken);
   }
   return fetchFacebookComments(mediaId, accessToken);
+}
+
+export type MetaPostLiker = {
+  id: string;
+  name: string;
+  username: string | null;
+  avatar_url: string | null;
+};
+
+type GraphLikerNode = {
+  id?: string;
+  name?: string;
+  pic?: string;
+  picture?: { data?: { url?: string }; url?: string };
+};
+
+type GraphLikersResponse = {
+  data?: GraphLikerNode[];
+  summary?: { total_count?: number };
+};
+
+function mapFacebookPostLiker(row: GraphLikerNode): MetaPostLiker {
+  const picture =
+    (typeof row.pic === "string" && row.pic.trim() ? row.pic : null) ??
+    (typeof row.picture?.data?.url === "string" ? row.picture.data.url : null) ??
+    (typeof row.picture?.url === "string" ? row.picture.url : null);
+  return {
+    id: String(row.id ?? ""),
+    name: typeof row.name === "string" && row.name.trim() ? row.name : "User",
+    username: null,
+    avatar_url: picture,
+  };
+}
+
+function facebookEngagementObjectIds(mediaId: string): string[] {
+  const ids = [mediaId];
+  const sep = mediaId.indexOf("_");
+  if (sep > 0) {
+    const trailing = mediaId.slice(sep + 1).trim();
+    if (trailing) ids.push(trailing);
+  }
+  return ids;
+}
+
+async function fetchFacebookPostLikers(
+  mediaId: string,
+  accessToken: string,
+): Promise<{ likers: MetaPostLiker[]; unavailable: boolean }> {
+  let reactionCount = 0;
+  const edges = [
+    { suffix: "reactions", fields: "id,name,pic,type,picture.type(large)" },
+    { suffix: "likes", fields: "id,name,pic,picture.type(large)" },
+  ] as const;
+
+  for (const id of facebookEngagementObjectIds(mediaId)) {
+    for (const edge of edges) {
+      try {
+        const data = await graphGet<GraphLikersResponse>(
+          graphUrl(`${id}/${edge.suffix}`, {
+            fields: edge.fields,
+            limit: "50",
+            summary: "total_count",
+          }),
+          accessToken,
+        );
+        const likers = (data.data ?? [])
+          .map(mapFacebookPostLiker)
+          .filter((row) => row.id || row.name !== "User");
+        const total = Number(data.summary?.total_count ?? 0);
+        if (Number.isFinite(total) && total > reactionCount) reactionCount = total;
+        if (likers.length > 0) return { unavailable: false, likers };
+      } catch {
+        /* try the next edge or object id */
+      }
+    }
+  }
+
+  return { likers: [], unavailable: reactionCount > 0 };
+}
+
+export async function fetchMetaPostLikers(
+  platform: MetaContentPlatform,
+  mediaId: string,
+  accessToken: string,
+): Promise<{ likers: MetaPostLiker[]; unavailable: boolean }> {
+  if (platform === "instagram") {
+    return { likers: [], unavailable: true };
+  }
+  return fetchFacebookPostLikers(mediaId, accessToken);
 }
 
 export async function replyMetaComment(

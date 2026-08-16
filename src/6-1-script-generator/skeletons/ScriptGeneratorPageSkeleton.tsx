@@ -81,7 +81,7 @@ function RightPanelSkeleton() {
 
 function MainGridSkeleton() {
   return (
-    <div className="grid w-full min-w-0 flex-1 grid-cols-1 gap-2 min-h-[calc(100vh-120px)] items-stretch lg:max-h-[calc(100vh-120px)] lg:overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.33fr)] lg:grid-rows-1 lg:[grid-template-rows:minmax(0,1fr)]">
+    <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-1 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.33fr)] lg:grid-rows-1">
       <FormColumnSkeleton />
       <MiddlePanelSkeleton />
       <RightPanelSkeleton />
@@ -110,7 +110,7 @@ export function ScriptGeneratorPageSkeleton({
     return (
       <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100">
         <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex min-h-full flex-col">{inner}</div>
+          <div className="flex min-h-full flex-1 flex-col">{inner}</div>
         </div>
       </div>
     );
@@ -122,7 +122,7 @@ export function ScriptGeneratorPageSkeleton({
         <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 flex-col">
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex min-h-full flex-col">{inner}</div>
+              <div className="flex min-h-full flex-1 flex-col">{inner}</div>
             </div>
           </div>
         </div>

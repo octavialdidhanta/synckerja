@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { Plus, Calendar as CalendarIcon, ExternalLink, Pencil } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
+import { Plus, Calendar as CalendarIcon, ExternalLink, X } from 'lucide-react';
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Card } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
@@ -25,7 +25,6 @@ export const DayDetailsDialog: React.FC<DayDetailsDialogProps> = ({
   selectedDate,
   plansByDate,
   onAddContent,
-  onEditContent,
   selectedPlan = null
 }) => {
   const selectedPlanId = selectedPlan?.id as string | undefined;
@@ -75,31 +74,49 @@ export const DayDetailsDialog: React.FC<DayDetailsDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] flex min-h-0 flex-col overflow-hidden">
-        <DialogHeader className="sticky top-0 z-10 border-b bg-background pb-4 pr-14 sm:pr-16">
-          <DialogTitle>
-            Content Plans - {selectedDate && format(selectedDate, 'dd MMMM yyyy', { locale: id })}
-          </DialogTitle>
-          
-          {/* Sticky Add Content Button */}
-          {selectedDate && (
-            <div className="flex justify-between items-center pt-2">
-              <h4 className="font-medium">
-                {selectedPlan ? '1 Content Plan' : `${plansByDate[format(selectedDate, 'yyyy-MM-dd')]?.length || 0} Content Plans`}
-              </h4>
-              <Button 
-                onClick={() => onAddContent(selectedDate)}
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Add Content
-              </Button>
+      <DialogContent
+        hideCloseButton
+        className="max-w-7xl w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] flex min-h-0 flex-col overflow-hidden"
+      >
+        <DialogHeader className="sticky top-0 z-10 space-y-0 border-b bg-background pb-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 text-left">
+              <DialogTitle className="truncate text-base">
+                Content Plans - {selectedDate && format(selectedDate, 'dd MMMM yyyy', { locale: id })}
+              </DialogTitle>
+              {selectedDate ? (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {selectedPlan ? '1 Content Plan' : `${plansByDate[format(selectedDate, 'yyyy-MM-dd')]?.length || 0} Content Plans`}
+                </p>
+              ) : null}
             </div>
-          )}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {selectedDate ? (
+                <Button
+                  onClick={() => onAddContent(selectedDate)}
+                  size="sm"
+                  className="h-8 gap-1 px-2.5 text-xs"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Content
+                </Button>
+              ) : null}
+              <DialogClose asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </DialogClose>
+            </div>
+          </div>
         </DialogHeader>
         
-        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 space-y-4 overflow-y-auto overflow-x-hidden pt-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 space-y-3 overflow-y-auto overflow-x-hidden pt-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {selectedDate && (
             <>                
               {(() => {
@@ -137,41 +154,20 @@ export const DayDetailsDialog: React.FC<DayDetailsDialogProps> = ({
                                                isValidUrl(plan.google_drive_link);
                       
                       return (
-                        <Card key={plan.id} className="p-3">
-                          <div className="space-y-2">
-                            {/* Header with Edit button */}
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                {/* Service - Sub Service - Pillar */}
-                                <div className="text-sm text-muted-foreground">
-                                  {[
-                                    plan?.service?.name,
-                                    plan?.sub_service?.name,
-                                    plan?.content_pillar?.name
-                                  ].filter(Boolean).join(' - ') || 'No Service'}
-                                </div>
-                                
-                                {/* Title */}
-                                <h5 className="font-medium text-lg">{plan?.title || 'Untitled Content'}</h5>
-                              </div>
-                              {/* Edit Button */}
-                              {onEditContent && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => onEditContent(plan)}
-                                  className="h-8 w-8 p-0"
-                                  title="Edit content plan"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
-                            
-                            {/* PIC */}
-                            <div className="text-sm text-muted-foreground">
+                        <Card key={plan.id} className="min-w-0 p-3">
+                          <div className="min-w-0 space-y-2">
+                            <h5 className="text-lg font-medium leading-snug">
+                              {plan?.title || 'Untitled Content'}
+                            </h5>
+                            <p className="truncate text-sm text-muted-foreground">
+                              {[
+                                plan?.service?.name,
+                                plan?.sub_service?.name,
+                                plan?.content_pillar?.name
+                              ].filter(Boolean).join(' - ') || 'No Service'}
+                              {' · '}
                               <strong>PIC:</strong> {plan?.pic?.full_name || 'Unassigned'}
-                            </div>
+                            </p>
                             
                             {/* Brief / script: markdown + markdown table → same table UI as brief modal */}
                             {plan?.id && <ContentPlanBriefDisplay planId={plan.id} brief={plan?.brief} />}
@@ -225,7 +221,7 @@ export const DayDetailsDialog: React.FC<DayDetailsDialogProps> = ({
                               </div>
                             )}
                             
-                            <div className="flex justify-between items-center">
+                            <div className="flex justify-between items-center pt-2">
                               <div className="flex gap-2">
                                 {plan?.content_type?.name && (
                                   <Badge variant="secondary" className="text-xs">

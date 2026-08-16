@@ -19,15 +19,14 @@ export function tiktokEmbedCiteUrl(shareUrl: string | null, videoId: string): st
 /** Photo / image carousel posts (no misleading video play chrome). */
 export function isTikTokPhotoPost(
   shareUrl: string | null,
-  duration: number | null | undefined,
+  _duration?: number | null,
 ): boolean {
-  if (shareUrl && /\/photo\//i.test(shareUrl)) return true;
-  if (duration != null && duration <= 0) return true;
-  return false;
+  return Boolean(shareUrl && /\/photo\//i.test(shareUrl));
 }
 
 export type TikTokPlayerEmbedOptions = {
   isPhotoPost?: boolean;
+  autoplay?: boolean;
 };
 
 /** Official TikTok player iframe — video-only, no promotional footer scroll. */
@@ -36,17 +35,43 @@ export function tiktokVideoPlayerSrc(
   options?: TikTokPlayerEmbedOptions,
 ): string {
   const isPhoto = options?.isPhotoPost ?? false;
+  const autoplay = options?.autoplay === true && !isPhoto;
   const params = new URLSearchParams({
+    autoplay: autoplay ? "1" : "0",
+    muted: "0",
     music_info: "0",
     description: "0",
     rel: "0",
+    native_context_menu: "0",
+    closed_caption: "0",
     controls: isPhoto ? "0" : "1",
     progress_bar: isPhoto ? "0" : "1",
     play_button: isPhoto ? "0" : "1",
     volume_control: isPhoto ? "0" : "1",
+    fullscreen_button: isPhoto ? "0" : "1",
     timestamp: isPhoto ? "0" : "1",
   });
   return `https://www.tiktok.com/player/v1/${encodeURIComponent(videoId)}?${params}`;
+}
+
+export function postTikTokPlayerMessage(
+  iframe: HTMLIFrameElement | null,
+  type: "play" | "pause" | "mute" | "unMute",
+  value?: unknown,
+) {
+  iframe?.contentWindow?.postMessage(
+    { type, value, "x-tiktok-player": true },
+    "*",
+  );
+}
+
+export function isTikTokPlayerMessage(
+  event: MessageEvent,
+  iframe: HTMLIFrameElement | null,
+): event is MessageEvent<{ type?: string; value?: unknown }> {
+  if (!iframe || event.source !== iframe.contentWindow) return false;
+  const data = event.data as { "x-tiktok-player"?: boolean; type?: string } | null;
+  return Boolean(data && data["x-tiktok-player"] === true && data.type);
 }
 
 /** Full-page TikTok embed (includes CTA footer — prefer player/v1 in manage-comments UI). */

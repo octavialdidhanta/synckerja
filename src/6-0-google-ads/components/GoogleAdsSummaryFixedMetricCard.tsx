@@ -9,6 +9,11 @@ import {
   TooltipTrigger,
 } from "@/shared/components/ui/tooltip";
 import type { DmReportTargetProgress } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
+import {
+  PeriodCompareDeltaBadge,
+  PeriodCompareFooter,
+} from "@/6-0-digital-marketing-shared/components/PeriodCompareBits";
+import type { KpiCompareDelta } from "@/6-0-digital-marketing-shared/lib/kpiPeriodCompare";
 
 type Props = {
   label: string;
@@ -19,6 +24,12 @@ type Props = {
   targetProgress?: DmReportTargetProgress;
   targetsLoading?: boolean;
   progressRatioText?: string | null;
+  compareMetricKey?: string;
+  compareDelta?: KpiCompareDelta | null;
+  compareRangeLabel?: string;
+  comparePreviousText?: string;
+  compareLoading?: boolean;
+  compareVisible?: boolean;
 };
 
 export function GoogleAdsSummaryFixedMetricCard({
@@ -30,6 +41,12 @@ export function GoogleAdsSummaryFixedMetricCard({
   targetProgress,
   targetsLoading = false,
   progressRatioText = null,
+  compareMetricKey = "spent",
+  compareDelta = null,
+  compareRangeLabel = "",
+  comparePreviousText = "—",
+  compareLoading = false,
+  compareVisible = false,
 }: Props) {
   return (
     <div
@@ -38,15 +55,22 @@ export function GoogleAdsSummaryFixedMetricCard({
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="flex items-center gap-1">
+        <p className="min-w-0 truncate text-xs text-muted-foreground">{label}</p>
+        {compareVisible ? (
+          <PeriodCompareDeltaBadge
+            delta={compareDelta}
+            metricKey={compareMetricKey}
+            loading={compareLoading}
+          />
+        ) : null}
         {detailTooltip ? (
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                  className="ml-auto shrink-0 text-muted-foreground hover:text-foreground"
                   aria-label={detailTooltip}
                 >
                   <Info className="h-3.5 w-3.5" />
@@ -60,6 +84,13 @@ export function GoogleAdsSummaryFixedMetricCard({
         ) : null}
       </div>
       <p className="text-base font-semibold tabular-nums text-gray-900">{value}</p>
+      {compareVisible ? (
+        <PeriodCompareFooter
+          rangeLabel={compareRangeLabel}
+          previousText={comparePreviousText}
+          loading={compareLoading}
+        />
+      ) : null}
       <div className="mt-2 min-h-[1.125rem]">
         {targetsLoading ? (
           <Skeleton className="h-1.5 w-full" />

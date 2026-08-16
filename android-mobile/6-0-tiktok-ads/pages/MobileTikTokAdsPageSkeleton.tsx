@@ -33,6 +33,7 @@ export default function MobileTikTokAdsPageSkeleton() {
                     <div key={i} className="bg-card px-4 py-3">
                       <div className="mb-1.5 h-3 w-16 animate-pulse rounded bg-muted/50" />
                       <div className="h-6 w-24 animate-pulse rounded bg-muted/60" />
+                      <div className="mt-0.5 h-3 w-20 animate-pulse rounded bg-muted/40" />
                       <div className="mt-2 h-1.5 w-full animate-pulse rounded bg-muted/40" />
                     </div>
                   ))}

@@ -13,10 +13,12 @@ interface CalendarGridProps {
   getDayInfo: (date: Date) => any;
   onDayClick: (date: Date, dayInfo: any) => void;
   onPlanClick?: (date: Date, plan: any) => void; // Optional: handler for clicking individual plan card
+  /** Warm storyboard images before the drawer opens (pointer down). */
+  onPlanPrefetch?: (plan: any) => void;
   /** Production Need Review (grey) & Production Revision (red): open Google Drive preview modal */
   onOpenPreview?: (plan: any) => void;
   variant?: 'default' | 'share-picker';
-  /** Desktop = 7-col grid; mobile-h-scroll = ~2 cols visible, scroll for rest */
+  /** Desktop = 7-col grid; mobile-h-scroll = 2 cols visible, scroll for rest */
   layout?: 'desktop' | 'mobile-h-scroll';
   isPlanSelected?: (plan: any) => boolean;
 }
@@ -26,6 +28,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
   getDayInfo,
   onDayClick,
   onPlanClick,
+  onPlanPrefetch,
   onOpenPreview,
   variant = 'default',
   layout = 'desktop',
@@ -203,7 +206,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     <div
       className={cn(
         'grid grid-cols-7 gap-1',
-        isMobileHScroll ? 'pt-0' : 'pt-2',
+        isMobileHScroll ? 'items-start pt-0' : 'pt-2',
         isMobileHScroll && 'w-full',
       )}
     >
@@ -211,18 +214,18 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
         const dayInfo = getDayInfo(date);
         const isToday = isSameDay(date, new Date());
 
-        return (
+        const dayCell = (
           <div
-            key={index}
             onClick={() => onDayClick(date, dayInfo)}
             className={`
                 ${
                   isSharePicker
                     ? 'min-h-[124px]'
                     : isMobileHScroll
-                      ? 'min-h-[160px]'
+                      ? 'absolute inset-0 min-h-0'
                       : 'aspect-square'
-                } p-2 border border-slate-200 dark:border-slate-700 flex flex-col text-xs relative cursor-pointer transition-colors overflow-hidden
+                } p-2 border border-slate-200 dark:border-slate-700 flex flex-col text-xs cursor-pointer transition-colors overflow-hidden
+                ${isMobileHScroll ? '' : 'relative'}
                 ${!isCurrentMonth ? 'text-slate-400 bg-slate-50 dark:bg-slate-900' : 'bg-white dark:bg-slate-800'}
                 ${isToday ? 'ring-2 ring-primary' : ''}
                 ${isSharePicker || isMobileHScroll ? 'shadow-sm' : 'hover:shadow-md hover:scale-105'} transition-all duration-200
@@ -239,11 +242,14 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
             {dayInfo.count > 0 ? (
               <div
+                data-day-card-scroll={isMobileHScroll ? '' : undefined}
                 className={cn(
                   'flex-1 min-h-0 space-y-1 overflow-x-hidden',
                   isSharePicker
                     ? ''
                     : 'overflow-y-auto seamless-scroll nested-scroll-touch-chain',
+                  isMobileHScroll &&
+                    'nested-scroll-touch-chain-xy [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
                 )}
               >
                 {dayInfo.plans.map((plan: any, planIndex: number) => {
@@ -288,6 +294,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                   return (
                     <div
                       key={planIndex}
+                      onPointerDown={() => {
+                        if (plan?.id) onPlanPrefetch?.(plan);
+                      }}
                       onClick={(e) => {
                         // Stop propagation to prevent day click handler
                         e.stopPropagation();
@@ -474,6 +483,19 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
             ) : null}
           </div>
         );
+
+        if (isMobileHScroll) {
+          return (
+            <div
+              key={index}
+              className="relative aspect-square min-h-0 min-w-0 w-full [touch-action:pan-x_pan-y]"
+            >
+              {dayCell}
+            </div>
+          );
+        }
+
+        return <React.Fragment key={index}>{dayCell}</React.Fragment>;
       })}
     </div>
   );
@@ -482,9 +504,10 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
     return (
       <div className="relative">
         <div
+          data-horizontal-scroll-zone=""
           className={cn(
-            'scrollbar-hide seamless-scroll min-w-0 overflow-x-auto overflow-y-hidden',
-            '[touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            'scrollbar-hide seamless-scroll nested-scroll-touch-chain-xy min-w-0 overflow-x-auto overflow-y-hidden',
+            '[-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
           )}
         >
           {/* content-box + px so Min has left inset and Sab has right inset at scroll ends */}

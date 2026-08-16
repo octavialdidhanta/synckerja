@@ -51,8 +51,8 @@ export function MobileTopPagesTableCard({
   }, [rows]);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-primary/35 bg-card shadow-sm">
-      <div className="shrink-0 border-b border-primary/25 px-4 py-3">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div className="shrink-0 border-b border-border px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-gray-900">Top pages</h3>
@@ -89,7 +89,7 @@ export function MobileTopPagesTableCard({
               </thead>
               <tbody>
                 {topPagesNonBlog.slice(0, 10).map((p) => (
-                  <tr key={p.path} className="border-t border-primary/10">
+                  <tr key={p.path} className="border-t border-border/60">
                     <td className="py-2 pl-2 pr-3">
                       <span className="block truncate text-gray-900" title={p.path}>
                         {p.path}

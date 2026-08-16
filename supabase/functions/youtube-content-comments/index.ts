@@ -14,6 +14,7 @@ import {
   fetchYouTubeCommentThreads,
   fetchGoogleTokenScopes,
   insertYouTubeCommentReply,
+  insertYouTubeTopLevelComment,
 } from "../_shared/youtubeContentApi.ts";
 import { resolveOrgYouTubeContentForMetrics } from "../_shared/youtubeContentOrgResolver.ts";
 import {
@@ -335,6 +336,40 @@ Deno.serve(async (req: Request) => {
         }, 200);
       } catch (e) {
         return await apiErrorResponse("replyComment", e, accessToken);
+      }
+    }
+
+    if (action === "insertComment") {
+      const scopes = await fetchGoogleTokenScopes(accessToken).catch(() => []);
+      if (scopes.length > 0 && !hasYouTubeCommentsOAuthScope(scopes)) {
+        return youtubeContentJson({
+          error:
+            "youtube_comments_forbidden: Reconnect the channel in settings to grant the youtube.force-ssl scope required to post comments.",
+          code: "YOUTUBE_CONTENT_API_ERROR",
+          action,
+        }, 400);
+      }
+
+      const videoId = String(body.video_id ?? "").trim();
+      const text = String(body.text ?? "").trim();
+      if (!videoId || !text) {
+        return youtubeContentJson({ error: "Missing video_id or text" }, 400);
+      }
+
+      try {
+        const comment = await insertYouTubeTopLevelComment(
+          accessToken,
+          accountChannelId,
+          videoId,
+          text,
+        );
+        return youtubeContentJson({
+          ok: true,
+          comment_id: comment.id,
+          comment: mapCommentRow(comment),
+        }, 200);
+      } catch (e) {
+        return await apiErrorResponse("insertComment", e, accessToken);
       }
     }
 

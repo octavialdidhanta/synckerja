@@ -18,16 +18,50 @@ function enrichPostFromMedia(
   post: LeadMagnetCampaignPost,
   pool: LeadMagnetMediaPost[],
 ): LeadMagnetCampaignPost {
-  if (!postNeedsEnrich(post)) return post;
   const meta = pool.find((m) => m.media_id === post.media_id);
-  if (!meta) return post;
+  const freshThumb = meta?.thumbnail_url?.trim() || meta?.media_url?.trim() || null;
   return {
     ...post,
-    media_caption: post.media_caption?.trim() || meta.caption || null,
-    media_thumbnail_url:
-      post.media_thumbnail_url?.trim() || meta.thumbnail_url || meta.media_url || null,
-    media_permalink: post.media_permalink || meta.permalink,
+    media_caption: post.media_caption?.trim() || meta?.caption || null,
+    // Prefer live media thumbnails — stored Meta CDN URLs expire and break in <img>.
+    media_thumbnail_url: freshThumb || post.media_thumbnail_url?.trim() || null,
+    media_permalink: post.media_permalink || meta?.permalink || null,
   };
+}
+
+export function useEnrichedCampaignPosts(
+  posts: LeadMagnetCampaignPost[],
+  accounts: LeadMagnetCampaignAccount[] = [],
+) {
+  const needsIg = posts.some((p) => p.platform === "instagram");
+  const needsFb = posts.some((p) => p.platform === "facebook");
+  const igAccountId = getAccountForPlatform(accounts, "instagram");
+  const fbAccountId = getAccountForPlatform(accounts, "facebook");
+
+  const { data: igMedia = [], isLoading: loadingIg } = useLeadMagnetMediaPosts(
+    "instagram",
+    needsIg && igAccountId ? igAccountId : "",
+  );
+  const { data: fbMedia = [], isLoading: loadingFb } = useLeadMagnetMediaPosts(
+    "facebook",
+    needsFb && fbAccountId ? fbAccountId : "",
+  );
+
+  const mediaByPlatform: Record<LeadMagnetPlatform, LeadMagnetMediaPost[]> = {
+    instagram: igMedia,
+    facebook: fbMedia,
+  };
+
+  const displayPosts = useMemo(
+    () => posts.map((post) => enrichPostFromMedia(post, mediaByPlatform[post.platform] ?? [])),
+    [posts, igMedia, fbMedia],
+  );
+
+  const isEnriching =
+    (needsIg && Boolean(igAccountId) && loadingIg) ||
+    (needsFb && Boolean(fbAccountId) && loadingFb);
+
+  return { displayPosts, isEnriching };
 }
 
 function PostThumb({
@@ -82,34 +116,7 @@ type Props = {
 
 export function CampaignPostsPreview({ posts, accounts = [] }: Props) {
   const { t } = useTranslation();
-
-  const needsIg = posts.some((p) => p.platform === 'instagram' && postNeedsEnrich(p));
-  const needsFb = posts.some((p) => p.platform === 'facebook' && postNeedsEnrich(p));
-  const igAccountId = getAccountForPlatform(accounts, 'instagram');
-  const fbAccountId = getAccountForPlatform(accounts, 'facebook');
-
-  const { data: igMedia = [], isLoading: loadingIg } = useLeadMagnetMediaPosts(
-    'instagram',
-    needsIg && igAccountId ? igAccountId : '',
-  );
-  const { data: fbMedia = [], isLoading: loadingFb } = useLeadMagnetMediaPosts(
-    'facebook',
-    needsFb && fbAccountId ? fbAccountId : '',
-  );
-
-  const mediaByPlatform: Record<LeadMagnetPlatform, LeadMagnetMediaPost[]> = {
-    instagram: igMedia,
-    facebook: fbMedia,
-  };
-
-  const displayPosts = useMemo(
-    () => posts.map((post) => enrichPostFromMedia(post, mediaByPlatform[post.platform] ?? [])),
-    [posts, igMedia, fbMedia],
-  );
-
-  const isEnriching =
-    (needsIg && Boolean(igAccountId) && loadingIg)
-    || (needsFb && Boolean(fbAccountId) && loadingFb);
+  const { displayPosts, isEnriching } = useEnrichedCampaignPosts(posts, accounts);
 
   if (!posts.length) {
     return <span className="text-xs text-muted-foreground">{t('leadMagnet.list.noPosts')}</span>;

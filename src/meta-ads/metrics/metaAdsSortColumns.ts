@@ -1,4 +1,8 @@
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
+import {
+  getMetaAdsLockedTableColumns,
+  stripMetaAdsPinnedMetricKeys,
+} from "@/meta-ads/metrics/metaAdsMetricCatalog";
 
 export type MetaAdsMetricsSort = {
   field: string;
@@ -8,12 +12,6 @@ export type MetaAdsMetricsSort = {
 export type MetaAdsSortColumnOption = { key: string; labelKey: string; defaultLabel: string };
 
 export type MetaAdsSortColumnKind = "text" | "numeric";
-
-const PINNED_COST_SORT: MetaAdsSortColumnOption = {
-  key: "spend",
-  labelKey: "digitalMarketing.metaAds.cost",
-  defaultLabel: "Cost",
-};
 
 const METRIC_KEYS: MetaAdsSortColumnOption[] = [
   { key: "impressions", labelKey: "digitalMarketing.metaAds.impressions", defaultLabel: "Impressions" },
@@ -49,50 +47,6 @@ const METRIC_KEYS: MetaAdsSortColumnOption[] = [
   },
 ];
 
-const CAMPAIGN_SERVICE_SORT: MetaAdsSortColumnOption[] = [
-  {
-    key: "service",
-    labelKey: "digitalMarketing.metaAds.columnService",
-    defaultLabel: "Service",
-  },
-  {
-    key: "service_cpl",
-    labelKey: "digitalMarketing.metaAds.columnCostPerLead",
-    defaultLabel: "CPA",
-  },
-  {
-    key: "service_converted_leads",
-    labelKey: "digitalMarketing.metaAds.columnConvertedLeads",
-    defaultLabel: "Conv. leads",
-  },
-];
-
-const IDENTITY_BY_ENTITY: Record<MetaAdsMetricEntity, MetaAdsSortColumnOption[]> = {
-  campaign: [
-    ...CAMPAIGN_SERVICE_SORT,
-    { key: "name", labelKey: "digitalMarketing.metaAds.name", defaultLabel: "Name" },
-    PINNED_COST_SORT,
-  ],
-  adset: [
-    { key: "name", labelKey: "digitalMarketing.metaAds.name", defaultLabel: "Name" },
-    PINNED_COST_SORT,
-    {
-      key: "campaign_name",
-      labelKey: "digitalMarketing.metaAds.campaignColumn",
-      defaultLabel: "Campaign",
-    },
-  ],
-  ad: [
-    { key: "name", labelKey: "digitalMarketing.metaAds.name", defaultLabel: "Name" },
-    PINNED_COST_SORT,
-    {
-      key: "adset_name",
-      labelKey: "digitalMarketing.metaAds.adsetColumn",
-      defaultLabel: "Ad set",
-    },
-  ],
-};
-
 const TEXT_FIELDS = new Set(["name", "campaign_name", "adset_name", "service"]);
 
 const CAMPAIGN_ONLY_SORT_KEYS = new Set([
@@ -107,14 +61,22 @@ export function buildMetaAdsSortColumnOptions(
   entity: MetaAdsMetricEntity,
   selectedMetricKeys?: string[],
 ): MetaAdsSortColumnOption[] {
+  const locked = getMetaAdsLockedTableColumns(entity).map((c) => ({
+    key: c.key,
+    labelKey: c.labelKey,
+    defaultLabel: c.defaultLabel,
+  }));
   const allowedMetrics = METRIC_KEYS.filter(
     (m) => entity === "campaign" || !CAMPAIGN_ONLY_SORT_KEYS.has(m.key),
   );
+  const selected = selectedMetricKeys
+    ? stripMetaAdsPinnedMetricKeys(selectedMetricKeys)
+    : undefined;
   const metrics =
-    selectedMetricKeys && selectedMetricKeys.length > 0
-      ? allowedMetrics.filter((m) => selectedMetricKeys.includes(m.key))
+    selected && selected.length > 0
+      ? allowedMetrics.filter((m) => selected.includes(m.key))
       : allowedMetrics;
-  return [...IDENTITY_BY_ENTITY[entity], ...metrics];
+  return [...locked, ...metrics];
 }
 
 export function getMetaAdsSortColumnKind(field: string): MetaAdsSortColumnKind {

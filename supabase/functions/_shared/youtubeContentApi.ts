@@ -921,3 +921,46 @@ export async function insertYouTubeCommentReply(
     can_reply: true,
   };
 }
+
+export async function insertYouTubeTopLevelComment(
+  accessToken: string,
+  channelId: string,
+  videoId: string,
+  text: string,
+): Promise<YouTubeCommentApiRow> {
+  const trimmedVideoId = videoId.trim();
+  const trimmedChannelId = channelId.trim();
+  const trimmedText = text.trim();
+  if (!trimmedVideoId || !trimmedText) {
+    throw new Error("Missing video_id or comment text");
+  }
+
+  const ownershipIssue = await verifyYouTubeVideoOwnedByChannel(
+    accessToken,
+    trimmedVideoId,
+    trimmedChannelId,
+  );
+  if (ownershipIssue) {
+    throw new Error(ownershipIssue);
+  }
+
+  const json = await youtubeDataPost<CommentThreadItem>(
+    accessToken,
+    "/commentThreads",
+    { part: "snippet" },
+    {
+      snippet: {
+        channelId: trimmedChannelId,
+        videoId: trimmedVideoId,
+        topLevelComment: {
+          snippet: { textOriginal: trimmedText },
+        },
+      },
+    },
+  );
+  const row = parseCommentThreadItems([json], trimmedChannelId, trimmedVideoId)[0];
+  if (!row) {
+    throw new Error("YouTube did not return the new comment");
+  }
+  return row;
+}

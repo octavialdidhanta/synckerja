@@ -1,12 +1,22 @@
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import { ProgressBar } from '@/shared/components/ProgressBar';
 import { useTranslation } from 'react-i18next';
-import type { MetaContentMetricsPayload } from '@/meta-platform/types/metaContentTypes';
+import type { MetaContentMetricsPayload, MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
 import { aggregateMetaContentPostRows } from '@/meta-content/lib/aggregateMetaContentPostRows';
 import type {
   InsightTargetMetric,
   InsightTargetProgress,
 } from '@/6-0-social-media-performance-shared/socialMediaInsightTargetTypes';
+import {
+  PeriodCompareDeltaBadge,
+  PeriodCompareFooter,
+} from '@/6-0-digital-marketing-shared/components/PeriodCompareBits';
+import {
+  buildMetaContentCompareSnapshot,
+  metaContentPeriodCompareBits,
+  useMetaContentSummaryPeriodCompare,
+  type MetaContentCompareCardKey,
+} from '@/6-0-social-media-performance/hooks/useMetaContentSummaryPeriodCompare';
 
 type MetaContentSummaryBarProps = {
   account?: MetaContentMetricsPayload['account'] | null;
@@ -14,6 +24,12 @@ type MetaContentSummaryBarProps = {
   targetProgress?: InsightTargetProgress[];
   isLoading?: boolean;
   targetsLoading?: boolean;
+  organizationId?: string | null;
+  platform?: MetaContentPlatform;
+  accountId?: string | null;
+  dateStart?: string | null;
+  dateEnd?: string | null;
+  compareEnabled?: boolean;
 };
 
 function formatCount(n: number): string {
@@ -48,16 +64,43 @@ function formatAudienceCount(
   return formatCount(count);
 }
 
+function isCompareCardKey(key: string): key is MetaContentCompareCardKey {
+  return (
+    key === 'reach' ||
+    key === 'views' ||
+    key === 'engagement' ||
+    key === 'posts' ||
+    key === 'avgEngagement'
+  );
+}
+
 export function MetaContentSummaryBar({
   account,
   posts = [],
   targetProgress = [],
   isLoading = false,
   targetsLoading = false,
+  organizationId = null,
+  platform = 'facebook',
+  accountId = null,
+  dateStart = null,
+  dateEnd = null,
+  compareEnabled = false,
 }: MetaContentSummaryBarProps) {
   const { t } = useTranslation();
   const progressByMetric = new Map(targetProgress.map((item) => [item.metric, item]));
   const showProgressSkeleton = isLoading || targetsLoading;
+
+  const { previousRange, previousSnapshot, compareLoading, compareError } =
+    useMetaContentSummaryPeriodCompare({
+      organizationId,
+      platform,
+      accountId,
+      dateStart,
+      dateEnd,
+      enabled: compareEnabled,
+    });
+  const currentSnapshot = buildMetaContentCompareSnapshot({ account, posts });
 
   const totals = aggregateMetaContentPostRows(posts);
 
@@ -128,18 +171,45 @@ export function MetaContentSummaryBar({
         {cards.map((card) => {
           const progress = card.metric ? progressByMetric.get(card.metric) : undefined;
           const ratioText = card.metric ? formatTargetRatio(card.metric, progress) : null;
+          const slotCompare = isCompareCardKey(card.key)
+            ? metaContentPeriodCompareBits({
+                cardKey: card.key,
+                currentSnapshot,
+                previousSnapshot,
+                previousRange,
+                compareLoading: compareLoading || isLoading,
+                compareError,
+              })
+            : null;
+          const compareVisible = Boolean(slotCompare?.compareVisible);
 
           return (
             <div
               key={card.key}
               className="rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm"
             >
-              <p className="text-xs text-muted-foreground">{card.label}</p>
+              <div className="flex min-w-0 items-center gap-1">
+                <p className="min-w-0 truncate text-xs text-muted-foreground">{card.label}</p>
+                {compareVisible && slotCompare ? (
+                  <PeriodCompareDeltaBadge
+                    delta={slotCompare.compareDelta}
+                    metricKey={slotCompare.compareMetricKey}
+                    loading={slotCompare.compareLoading}
+                  />
+                ) : null}
+              </div>
               {isLoading ? (
                 <Skeleton className="mt-1 h-6 w-20" />
               ) : (
                 <p className="text-lg font-semibold tabular-nums text-gray-900">{card.value}</p>
               )}
+              {compareVisible && slotCompare ? (
+                <PeriodCompareFooter
+                  rangeLabel={slotCompare.compareRangeLabel}
+                  previousText={slotCompare.comparePreviousText}
+                  loading={slotCompare.compareLoading}
+                />
+              ) : null}
 
               <div className="mt-2 min-h-[1.125rem]">
                 {showProgressSkeleton ? (

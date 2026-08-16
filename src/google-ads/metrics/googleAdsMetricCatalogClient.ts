@@ -1,4 +1,7 @@
-import { GOOGLE_ADS_IDENTITY_COLUMNS } from "@/google-ads/metrics/googleAdsIdentityColumns";
+import {
+  GOOGLE_ADS_IDENTITY_COLUMNS,
+  isGoogleAdsPinnedMetricKey,
+} from "@/google-ads/metrics/googleAdsIdentityColumns";
 import { SYNCKERJA_LEADS_METRIC_ITEMS } from "@/google-ads/metrics/googleAdsSynckerjaLeadsMetrics";
 import { SYNCKERJA_TRAFFIC_METRIC_ITEMS } from "@/google-ads/metrics/googleAdsSynckerjaTrafficMetrics";
 import { METRIC_CATALOG } from "@/google-ads/metrics/googleAdsMetricsData";
@@ -46,6 +49,7 @@ export function buildGoogleAdsMetricCatalogClient(
   const recommendedSet = new Set(RECOMMENDED_METRIC_KEYS[entity]);
 
   const recommendedMetrics = defs
+    .filter((m) => !isGoogleAdsPinnedMetricKey(m.key))
     .filter((m) => recommendedSet.has(m.key) || m.recommendedFor?.includes(entity))
     .map(toCatalogItem);
 
@@ -69,7 +73,9 @@ export function buildGoogleAdsMetricCatalogClient(
     ...CATEGORY_ORDER.map((id) => ({
       id,
       label: CATEGORY_LABELS[id],
-      metrics: defs.filter((m) => m.category === id).map(toCatalogItem),
+      metrics: defs
+        .filter((m) => m.category === id && !isGoogleAdsPinnedMetricKey(m.key))
+        .map(toCatalogItem),
     })).filter((c) => c.metrics.length > 0),
   ];
 

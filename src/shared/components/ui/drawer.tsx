@@ -5,8 +5,11 @@ import { cn } from "@/shared/lib/utils";
 import { useMobileChromeReflowOnForeground } from "@/shared/mobile/useMobileChromeReflowOnForeground";
 import { useRegisterMobileAppNavSuppression } from "@/shared/mobile/MobileAppNavSuppressionContext";
 
+/** Vaul close animation; keep nav suppression until this elapses so `bottom` does not jump mid-slide. */
+const DRAWER_CLOSE_ANIMATION_MS = 500;
+
 const Drawer = ({
-  shouldScaleBackground = true,
+  shouldScaleBackground = false,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
   <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
@@ -44,11 +47,25 @@ const DrawerContent = React.forwardRef<
   const shell = mergedClassName.includes("modal-above-safe-area");
   const [drawerSurfaceOpen, setDrawerSurfaceOpen] = React.useState(false);
   const moRef = React.useRef<MutationObserver | null>(null);
+  const closeDelayRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (closeDelayRef.current != null) {
+        clearTimeout(closeDelayRef.current);
+        closeDelayRef.current = null;
+      }
+    };
+  }, []);
 
   const setContentNode = React.useCallback(
     (node: HTMLDivElement | null) => {
       moRef.current?.disconnect();
       moRef.current = null;
+      if (closeDelayRef.current != null) {
+        clearTimeout(closeDelayRef.current);
+        closeDelayRef.current = null;
+      }
       if (typeof ref === "function") {
         ref(node);
       } else if (ref) {
@@ -59,7 +76,22 @@ const DrawerContent = React.forwardRef<
         return;
       }
       const sync = () => {
-        setDrawerSurfaceOpen(node.getAttribute("data-state") === "open");
+        const isOpen = node.getAttribute("data-state") === "open";
+        if (isOpen) {
+          if (closeDelayRef.current != null) {
+            clearTimeout(closeDelayRef.current);
+            closeDelayRef.current = null;
+          }
+          setDrawerSurfaceOpen(true);
+          return;
+        }
+        if (closeDelayRef.current != null) clearTimeout(closeDelayRef.current);
+        closeDelayRef.current = setTimeout(() => {
+          closeDelayRef.current = null;
+          if (node.getAttribute("data-state") !== "open") {
+            setDrawerSurfaceOpen(false);
+          }
+        }, DRAWER_CLOSE_ANIMATION_MS);
       };
       sync();
       const mo = new MutationObserver(sync);

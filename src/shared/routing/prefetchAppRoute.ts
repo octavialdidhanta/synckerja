@@ -39,27 +39,66 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
   },
   {
     prefix: "/digital-marketing/social-media-performance/manage-comments/tiktok",
-    prefetch: () => import("@/6-0-social-media-manage-comments/pages/TikTokManageCommentsPage"),
+    prefetch: () =>
+      import("@/6-0-social-media-manage-comments/pages/TikTokManageCommentsPage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileManageCommentsInboxPage"),
+      ),
   },
   {
     prefix: "/digital-marketing/social-media-performance/manage-comments/youtube",
-    prefetch: () => import("@/6-0-social-media-manage-comments/pages/YouTubeManageCommentsPage"),
+    prefetch: () =>
+      import("@/6-0-social-media-manage-comments/pages/YouTubeManageCommentsPage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileManageCommentsInboxPage"),
+      ),
   },
   {
     prefix: "/digital-marketing/social-media-performance/manage-comments",
-    prefetch: () => import("@/6-0-social-media-manage-comments/pages/ManageCommentsHubPage"),
+    prefetch: () =>
+      import("@/6-0-social-media-manage-comments/pages/ManageCommentsHubPage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileManageCommentsInboxPage"),
+      ),
   },
   {
     prefix: "/digital-marketing/social-media-performance/tiktok",
-    prefetch: () => import("@/6-0-social-media-performance/pages/TikTokContentPerformancePage"),
+    prefetch: () =>
+      import("@/6-0-social-media-performance/pages/TikTokContentPerformancePage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileTikTokContentPerformancePage"),
+      ),
   },
   {
     prefix: "/digital-marketing/social-media-performance/youtube",
-    prefetch: () => import("@/6-0-social-media-performance/pages/YouTubeContentPerformancePage"),
+    prefetch: () =>
+      import("@/6-0-social-media-performance/pages/YouTubeContentPerformancePage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileYouTubeContentPerformancePage"),
+      ),
   },
   {
     prefix: "/digital-marketing/social-media-performance/linkedin",
-    prefetch: () => import("@/6-0-social-media-performance/pages/LinkedInContentPerformancePage"),
+    prefetch: () =>
+      import("@/6-0-social-media-performance/pages/LinkedInContentPerformancePage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileLinkedInContentPerformancePage"),
+      ),
+  },
+  {
+    prefix: "/digital-marketing/social-media-performance/facebook",
+    prefetch: () =>
+      import("@/6-0-social-media-performance/pages/FacebookContentPerformancePage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileFacebookContentPerformancePage"),
+      ),
+  },
+  {
+    prefix: "/digital-marketing/social-media-performance/instagram",
+    prefetch: () =>
+      import("@/6-0-social-media-performance/pages/InstagramContentPerformancePage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileInstagramContentPerformancePage"),
+      ),
+  },
+  {
+    prefix: "/digital-marketing/social-media-performance/threads",
+    prefetch: () =>
+      import("@/6-0-social-media-performance/pages/ThreadsContentPerformancePage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileThreadsContentPerformancePage"),
+      ),
   },
   {
     prefix: "/digital-marketing/social-media-performance/report/targets",
@@ -68,11 +107,17 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
   },
   {
     prefix: "/digital-marketing/social-media-performance/report",
-    prefetch: () => import("@/6-0-social-media-report/pages/SocialMediaInsightReportPage"),
+    prefetch: () =>
+      import("@/6-0-social-media-report/pages/SocialMediaInsightReportPage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileSocialMediaInsightReportPage"),
+      ),
   },
   {
     prefix: "/digital-marketing/social-media-performance",
-    prefetch: () => import("@/6-0-social-media-performance/pages/SocialMediaPerformanceHubPage"),
+    prefetch: () =>
+      import("@/6-0-social-media-performance/pages/SocialMediaPerformanceHubPage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileTikTokContentPerformancePage"),
+      ),
   },
   {
     prefix: "/digital-marketing/report/targets",
@@ -363,6 +408,44 @@ function prefetchCompanyModuleTabs(): void {
   for (const fn of fns) void fn();
 }
 
+function prefetchSocialMediaPerformanceModuleTabs(): void {
+  const fns: PrefetchFn[] = [
+    () =>
+      import("@/6-0-social-media-performance/pages/TikTokContentPerformancePage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileTikTokContentPerformancePage"),
+      ),
+    () =>
+      import("@/6-0-social-media-performance/pages/FacebookContentPerformancePage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileFacebookContentPerformancePage"),
+      ),
+    () =>
+      import("@/6-0-social-media-performance/pages/InstagramContentPerformancePage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileInstagramContentPerformancePage"),
+      ),
+    () =>
+      import("@/6-0-social-media-performance/pages/YouTubeContentPerformancePage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileYouTubeContentPerformancePage"),
+      ),
+    () =>
+      import("@/6-0-social-media-performance/pages/LinkedInContentPerformancePage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileLinkedInContentPerformancePage"),
+      ),
+    () =>
+      import("@/6-0-social-media-performance/pages/ThreadsContentPerformancePage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileThreadsContentPerformancePage"),
+      ),
+    () =>
+      import("@/6-0-social-media-report/pages/SocialMediaInsightReportPage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileSocialMediaInsightReportPage"),
+      ),
+    () =>
+      import("@/6-0-social-media-manage-comments/pages/TikTokManageCommentsPage").then(() =>
+        import("@/mobile/6-0-social-media-performance/pages/MobileManageCommentsInboxPage"),
+      ),
+  ];
+  for (const fn of fns) void fn();
+}
+
 function prefetchSocialMediaModuleTabs(): void {
   const fns: PrefetchFn[] = [
     () => import("@/6-1-dashboard/pages/SocialMediaDashboardPage"),
@@ -487,6 +570,10 @@ function prefetchModuleSiblingTabs(base: string): void {
   }
   if (base.startsWith("/company")) {
     prefetchCompanyModuleTabs();
+    return;
+  }
+  if (base.startsWith("/digital-marketing/social-media-performance")) {
+    prefetchSocialMediaPerformanceModuleTabs();
     return;
   }
   if (base.startsWith("/digital-marketing/social-media")) {

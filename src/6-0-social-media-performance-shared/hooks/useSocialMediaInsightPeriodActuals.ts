@@ -12,96 +12,14 @@ import {
   resolvePeriodKeyToBounds,
 } from "@/6-0-social-media-performance-shared/insightTargetPeriod";
 import {
-  buildPlatformPlaceholderRow,
-  normalizeLinkedInMetrics,
-  normalizeTikTokMetrics,
-  normalizeYouTubeMetrics,
-} from "@/6-0-social-media-performance-shared/socialMediaInsightNormalize";
+  fetchInsightAccountMetrics,
+  INSIGHT_FETCH_CONCURRENCY,
+  mapWithConcurrency,
+} from "@/6-0-social-media-performance-shared/fetchInsightAccountMetrics";
 import { socialMediaInsightQueryKeys } from "@/6-0-social-media-performance-shared/socialMediaInsightQueryKeys";
 import type { InsightTargetPeriodKey } from "@/6-0-social-media-performance-shared/socialMediaInsightTargetTypes";
-import type { SocialMediaInsightAccountRow } from "@/6-0-social-media-performance-shared/socialMediaInsightTypes";
-import { fetchLinkedInContentPosts } from "@/linkedin-content/hooks/useLinkedInContentPostsQuery";
-import { fetchTikTokContentVideos } from "@/tiktok-content/hooks/useTikTokContentVideosQuery";
 import { clampTikTokAdsDateRange } from "@/tiktok-ads/lib/clampTikTokAdsDateRange";
-import { fetchYouTubeContentVideos } from "@/youtube-content/hooks/useYouTubeContentVideosQuery";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
-
-const CONCURRENCY = 4;
-
-type FetchTarget =
-  | { platform: "tiktok"; accountId: string; avatarUrl: string | null }
-  | { platform: "youtube"; accountId: string; avatarUrl: string | null }
-  | { platform: "linkedin"; accountId: string; avatarUrl: string | null };
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = [];
-  let index = 0;
-
-  async function worker() {
-    while (index < items.length) {
-      const i = index++;
-      results[i] = await fn(items[i]);
-    }
-  }
-
-  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
-  await Promise.all(workers);
-  return results;
-}
-
-async function fetchAccountMetrics(
-  organizationId: string,
-  target: FetchTarget,
-  dateStart: string,
-  dateEnd: string,
-): Promise<SocialMediaInsightAccountRow> {
-  try {
-    if (target.platform === "tiktok") {
-      const payload = await fetchTikTokContentVideos({
-        organizationId,
-        openId: target.accountId,
-        dateStart,
-        dateEnd,
-        forceRefresh: false,
-      });
-      return normalizeTikTokMetrics(payload, target.avatarUrl).account;
-    }
-    if (target.platform === "youtube") {
-      const payload = await fetchYouTubeContentVideos({
-        organizationId,
-        channelId: target.accountId,
-        dateStart,
-        dateEnd,
-        forceRefresh: false,
-      });
-      return normalizeYouTubeMetrics(payload, target.avatarUrl).account;
-    }
-    const payload = await fetchLinkedInContentPosts({
-      organizationId,
-      pageId: target.accountId,
-      dateStart,
-      dateEnd,
-      forceRefresh: false,
-    });
-    return normalizeLinkedInMetrics(payload, target.avatarUrl).account;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    const placeholder = buildPlatformPlaceholderRow(target.platform);
-    return {
-      ...placeholder,
-      accountId: target.accountId,
-      connected: true,
-      loading: false,
-      error: msg,
-      isPlatformPlaceholder: false,
-      avatarUrl: target.avatarUrl,
-    };
-  }
-}
 
 const EMPTY_ACCOUNT_ACTUALS: PlatformPeriodActuals = {
   audience: null,
@@ -131,14 +49,6 @@ export function useSocialMediaInsightPeriodActuals(period: InsightTargetPeriodKe
   const { accounts: accountRefs, isLoading: accountsLoading } =
     useSocialMediaInsightTargetAccounts();
 
-  const fetchTargets = useMemo((): FetchTarget[] => {
-    return accountRefs.map((acc) => ({
-      platform: acc.platform,
-      accountId: acc.accountId,
-      avatarUrl: acc.avatarUrl,
-    }));
-  }, [accountRefs]);
-
   const actualsQuery = useQuery({
     queryKey: socialMediaInsightQueryKeys.periodActuals(
       organizationId,
@@ -148,17 +58,20 @@ export function useSocialMediaInsightPeriodActuals(period: InsightTargetPeriodKe
     ),
     queryFn: async () => {
       const byAccount: Record<string, PlatformPeriodActuals> = {};
-      if (!organizationId || periodNotStarted || fetchTargets.length === 0) {
+      if (!organizationId || periodNotStarted || accountRefs.length === 0) {
         return byAccount;
       }
 
-      const accountRows = await mapWithConcurrency(fetchTargets, CONCURRENCY, (target) =>
-        fetchAccountMetrics(
-          organizationId,
-          target,
-          clampedRange.start,
-          clampedRange.end,
-        ),
+      const accountRows = await mapWithConcurrency(
+        accountRefs,
+        INSIGHT_FETCH_CONCURRENCY,
+        (account) =>
+          fetchInsightAccountMetrics(
+            organizationId,
+            account,
+            clampedRange.start,
+            clampedRange.end,
+          ),
       );
 
       for (const row of accountRows) {

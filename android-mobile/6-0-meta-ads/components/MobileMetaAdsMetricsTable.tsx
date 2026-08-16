@@ -4,7 +4,11 @@ import { cn } from "@/shared/lib/utils";
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type { MetaAdsMetricsRow } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
-import type { MetaAdsMetricCatalogItem } from "@/meta-ads/metrics/metaAdsMetricCatalog";
+import {
+  getMetaAdsLockedTableColumns,
+  isMetaAdsPinnedMetricKey,
+  type MetaAdsMetricCatalogItem,
+} from "@/meta-ads/metrics/metaAdsMetricCatalog";
 import {
   metaAdsRowDisplayName,
   metaAdsRowReactKey,
@@ -25,6 +29,36 @@ function formatServiceCpa(value: unknown, currencyCode: string | null): string {
   return formatMetaMetricValue("spend", value, currencyCode);
 }
 
+function identityCellText(
+  entity: MetaAdsMetricEntity,
+  key: string,
+  row: MetaAdsMetricsRow,
+  currencyCode: string | null,
+): string {
+  const r = row as Record<string, unknown>;
+  switch (key) {
+    case "spend":
+      return formatMetaMetricValue("spend", r.spend, currencyCode);
+    case "service":
+      return String(r.service_name ?? "").trim() || "—";
+    case "service_cpl":
+      return formatServiceCpa(r.service_cpl, currencyCode);
+    case "service_converted_leads": {
+      const n = r.service_converted_leads;
+      return n != null && Number.isFinite(Number(n)) ? String(Number(n)) : "—";
+    }
+    case "name":
+      return metaAdsRowDisplayName(row, entity);
+    case "campaign_name":
+    case "campaign":
+    case "adset_name":
+    case "adset":
+      return metaAdsRowSecondaryName(row, entity) ?? "—";
+    default:
+      return "—";
+  }
+}
+
 /**
  * Mobile-only Meta metrics table. Does not import desktop MetaAdsMetricsTable.
  */
@@ -39,29 +73,18 @@ export function MobileMetaAdsMetricsTable({
 }: Props) {
   const { t } = useAppTranslation();
 
-  const identityCols = useMemo(() => {
-    if (entity === "campaign") {
-      return [
-        { key: "service", label: t("digitalMarketing.metaAds.columnService", "Service") },
-        { key: "service_cpl", label: t("digitalMarketing.metaAds.columnCostPerLead", "CPA") },
-        {
-          key: "service_converted_leads",
-          label: t("digitalMarketing.metaAds.columnConvertedLeads", "Conv. leads"),
-        },
-        { key: "name", label: t("digitalMarketing.metaAds.name", "Name") },
-      ] as const;
-    }
-    if (entity === "adset") {
-      return [
-        { key: "name", label: t("digitalMarketing.metaAds.name", "Name") },
-        { key: "campaign", label: t("digitalMarketing.metaAds.campaignColumn", "Campaign") },
-      ] as const;
-    }
-    return [
-      { key: "name", label: t("digitalMarketing.metaAds.name", "Name") },
-      { key: "adset", label: t("digitalMarketing.metaAds.adsetColumn", "Ad set") },
-    ] as const;
-  }, [entity, t]);
+  const identityCols = useMemo(
+    () =>
+      getMetaAdsLockedTableColumns(entity).map((col) => ({
+        key: col.key,
+        label: t(col.labelKey, col.defaultLabel),
+      })),
+    [entity, t],
+  );
+  const visibleMetricItems = useMemo(
+    () => metricItems.filter((m) => !isMetaAdsPinnedMetricKey(m.key)),
+    [metricItems],
+  );
 
   const thClass =
     "sticky top-0 z-10 whitespace-nowrap border-b border-border bg-muted/80 px-3 py-2 text-left text-xs font-medium text-muted-foreground backdrop-blur-sm";
@@ -110,10 +133,16 @@ export function MobileMetaAdsMetricsTable({
   return (
     <div
       className={cn(
-        "-mx-2 overflow-x-auto overflow-y-hidden border-y border-border bg-card [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "-mx-2 min-w-0 border-y border-border bg-card",
         className,
       )}
     >
+      <div
+        className={cn(
+          "nested-scroll-touch-chain-xy scrollbar-hide min-w-0 w-full overflow-x-auto overflow-y-hidden",
+          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        )}
+      >
       <table className="w-max min-w-full border-collapse text-sm">
         <thead>
           <tr>
@@ -122,14 +151,16 @@ export function MobileMetaAdsMetricsTable({
                 key={col.key}
                 className={cn(
                   thClass,
-                  (col.key === "service_cpl" || col.key === "service_converted_leads") &&
+                  (col.key === "service_cpl" ||
+                    col.key === "service_converted_leads" ||
+                    col.key === "spend") &&
                     "text-right",
                 )}
               >
                 {col.label}
               </th>
             ))}
-            {metricItems.map((m) => (
+            {visibleMetricItems.map((m) => (
               <th key={m.key} className={cn(thClass, "text-right")}>
                 {t(m.labelKey, m.defaultLabel)}
               </th>
@@ -137,43 +168,32 @@ export function MobileMetaAdsMetricsTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => {
-            const r = row as Record<string, unknown>;
-            return (
-              <tr key={metaAdsRowReactKey(row, entity, i)} className="bg-card">
-                {identityCols.map((col) => {
-                  let text = "—";
-                  if (col.key === "service") {
-                    text = String(r.service_name ?? "").trim() || "—";
-                  } else if (col.key === "service_cpl") {
-                    text = formatServiceCpa(r.service_cpl, currencyCode);
-                  } else if (col.key === "service_converted_leads") {
-                    const n = r.service_converted_leads;
-                    text =
-                      n != null && Number.isFinite(Number(n)) ? String(Number(n)) : "—";
-                  } else if (col.key === "name") {
-                    text = metaAdsRowDisplayName(row, entity);
-                  } else if (col.key === "campaign" || col.key === "adset") {
-                    text = metaAdsRowSecondaryName(row, entity) ?? "—";
-                  }
-                  const alignRight =
-                    col.key === "service_cpl" || col.key === "service_converted_leads";
-                  return (
-                    <td
-                      key={col.key}
-                      className={cn(
-                        tdClass,
-                        alignRight && "text-right tabular-nums",
-                        col.key === "name" && "max-w-[11rem] truncate font-medium",
-                        col.key === "service" && "max-w-[8rem] truncate",
-                      )}
-                      title={text}
-                    >
-                      {text}
-                    </td>
-                  );
-                })}
-                {metricItems.map((m) => (
+          {rows.map((row, i) => (
+            <tr key={metaAdsRowReactKey(row, entity, i)} className="bg-card">
+              {identityCols.map((col) => {
+                const text = identityCellText(entity, col.key, row, currencyCode);
+                const alignRight =
+                  col.key === "service_cpl" ||
+                  col.key === "service_converted_leads" ||
+                  col.key === "spend";
+                return (
+                  <td
+                    key={col.key}
+                    className={cn(
+                      tdClass,
+                      alignRight && "text-right tabular-nums",
+                      col.key === "name" && "max-w-[11rem] truncate font-medium",
+                      col.key === "service" && "max-w-[8rem] truncate",
+                    )}
+                    title={text}
+                  >
+                    {text}
+                  </td>
+                );
+              })}
+              {visibleMetricItems.map((m) => {
+                const r = row as Record<string, unknown>;
+                return (
                   <td
                     key={m.key}
                     className={cn(tdClass, "text-right tabular-nums")}
@@ -182,12 +202,13 @@ export function MobileMetaAdsMetricsTable({
                       ctrSource: m.key === "ctr" ? "api" : undefined,
                     })}
                   </td>
-                ))}
-              </tr>
-            );
-          })}
+                );
+              })}
+            </tr>
+          ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

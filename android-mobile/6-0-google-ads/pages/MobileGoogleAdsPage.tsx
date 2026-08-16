@@ -12,6 +12,7 @@ import { GoogleAdsMobileShellHeader } from "@/mobile/6-0-google-ads/components/G
 import { MobileGoogleAdsSummaryBar } from "@/mobile/6-0-google-ads/components/MobileGoogleAdsSummaryBar";
 import { MobileGoogleAdsFilterStrip } from "@/mobile/6-0-google-ads/components/MobileGoogleAdsFilterStrip";
 import { MobileGoogleAdsMetricsTable } from "@/mobile/6-0-google-ads/components/MobileGoogleAdsMetricsTable";
+import { MobileManageCommentsAccountButton } from "@/mobile/6-0-social-media-performance/components/MobileManageCommentsAccountButton";
 import { CustomDatePicker } from "@/mobile-app/components/CustomDatePicker";
 import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
@@ -52,6 +53,7 @@ import {
 import {
   GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS,
   isOptionalIdentityColumnKey,
+  stripGoogleAdsPinnedMetricKeys,
 } from "@/google-ads/metrics/googleAdsIdentityColumns";
 import {
   buildSortColumnOptions,
@@ -260,10 +262,12 @@ function MobileGoogleAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean 
     return filterGoogleAdsPreferenceMetricKeys(entity, selectedMetrics, validMetricKeys);
   }, [selectedMetrics, validMetricKeys, entity]);
 
-  const apiMetricKeys = useMemo(
-    () => selectedMetricsForEntity.filter((k) => !isOptionalIdentityColumnKey(entity, k)),
-    [selectedMetricsForEntity, entity],
-  );
+  const apiMetricKeys = useMemo(() => {
+    const keys = stripGoogleAdsPinnedMetricKeys(selectedMetricsForEntity).filter(
+      (k) => !isOptionalIdentityColumnKey(entity, k),
+    );
+    return ["spent", ...keys];
+  }, [selectedMetricsForEntity, entity]);
 
   const metricItems = useMemo(() => {
     const cats = catalogData?.categories ?? [];
@@ -274,7 +278,7 @@ function MobileGoogleAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean 
     for (const c of cats) {
       for (const m of c.metrics) map.set(m.key, m);
     }
-    return selectedMetricsForEntity
+    return stripGoogleAdsPinnedMetricKeys(selectedMetricsForEntity)
       .map((k) => {
         const catalogMetric = map.get(k);
         if (catalogMetric) return catalogMetric;
@@ -492,6 +496,19 @@ function MobileGoogleAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean 
             onRefresh={showContentGate && oauthConnected ? handleRefresh : undefined}
             refreshDisabled={isRefreshing || metricsQuery.isFetching}
             isRefreshing={isRefreshing || metricsQuery.isFetching}
+            headerActions={
+              showContentGate && oauthConnected ? (
+                <MobileManageCommentsAccountButton
+                  accounts={accounts.map((a) => ({
+                    value: a.customer_id,
+                    label: a.label?.trim() || a.customer_id,
+                  }))}
+                  accountId={effectiveCustomerId}
+                  onAccountIdChange={setGoogleCustomerId}
+                  accountsLoading={accountsNavPending}
+                />
+              ) : undefined
+            }
           />
 
           <ModuleShellContentGate
@@ -500,7 +517,7 @@ function MobileGoogleAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean 
           >
             {hasPageAccess ? (
               <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="mx-auto w-full max-w-md space-y-2 px-2 pt-2 content-padding-above-nav-default">
+                <div className="mx-auto min-w-0 w-full max-w-md space-y-2 px-2 pt-2 content-padding-above-nav-default">
                   {!canManage && !gatePending ? (
                     <Alert>
                       <AlertTitle>
@@ -556,6 +573,9 @@ function MobileGoogleAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean 
                           metricKeys={summarySlotMetricKeys}
                           onMetricKeyChange={handleSummarySlotMetricChange}
                           summaryMetricOptions={summaryMetricOptions}
+                          organizationId={organizationId}
+                          metricsFilters={metricsFilters}
+                          compareEnabled={metricsEnabled}
                         />
                       ) : null}
 
@@ -564,6 +584,7 @@ function MobileGoogleAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean 
                         customerId={effectiveCustomerId}
                         onCustomerIdChange={setGoogleCustomerId}
                         accountsLoading={accountsNavPending}
+                        showAccount={false}
                         dateSelection={dateSelection}
                         onDateSelectionChange={setDateSelection}
                         filtersHydrated={filtersHydrated}

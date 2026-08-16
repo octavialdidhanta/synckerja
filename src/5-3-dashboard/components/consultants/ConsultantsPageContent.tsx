@@ -27,6 +27,7 @@ import {
 import {
   FU_PRIORITY_FILTER_CHOICES,
   buildAssigneeFilterOptions,
+  buildCategoryFilterOptions,
   buildLeadSourceFilterOptions,
   buildWebPropertyFilterOptions,
   buildUniqueLeadStatusFilterOptions,
@@ -114,7 +115,7 @@ export const ConsultantsPageContent = () => {
     refetch();
     refreshSurveyData();
   }, [refetch, refreshSurveyData]);
-  const { subServices, leadSources, leadStatuses } = useLeadsManagementFilterQueries();
+  const { leadSources, leadStatuses } = useLeadsManagementFilterQueries();
 
   const handleCategoryFilterChange = useCallback((value: string) => {
     setFilters((prev) => ({ ...prev, category: value }));
@@ -167,6 +168,11 @@ export const ConsultantsPageContent = () => {
   const sourceFilterOptions = useMemo(
     () => buildLeadSourceFilterOptions(leads, leadSources),
     [leads, leadSources],
+  );
+
+  const categoryFilterOptions = useMemo(
+    () => buildCategoryFilterOptions(leads),
+    [leads],
   );
 
   const assigneeFilterOptions = useMemo(
@@ -500,7 +506,7 @@ export const ConsultantsPageContent = () => {
                     categoryColumnFilter={{
                       value: filters.category,
                       onChange: handleCategoryFilterChange,
-                      options: subServices,
+                      options: categoryFilterOptions,
                     }}
                     sourceColumnFilter={{
                       value: filters.source,

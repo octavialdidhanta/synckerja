@@ -3,11 +3,20 @@ import type { DmReportTargetDirection } from "@/6-0-digital-marketing-shared/dmR
 
 export type DmReportMetricDirectionsMap = Record<string, DmReportTargetDirection>;
 
-const LOWER_IS_BETTER_DEFAULTS = new Set(["cost", "spent", "cpc", "avg_cpc", "cpa", "cost_per_conv"]);
+const LOWER_IS_BETTER_DEFAULTS = new Set([
+  "cost",
+  "spent",
+  "cpc",
+  "avg_cpc",
+  "avg_cost",
+  "cpa",
+  "cost_per_conv",
+  "cpm",
+]);
 
 export function defaultDmReportMetricDirection(metricKey: string): DmReportTargetDirection {
   const normalized = metricKey.toLowerCase();
-  if (LOWER_IS_BETTER_DEFAULTS.has(normalized)) {
+  if (LOWER_IS_BETTER_DEFAULTS.has(normalized) || normalized.includes("cost")) {
     return "lower_is_better";
   }
   return "higher_is_better";

@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogFormScrollArea,
 } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
+import { cn } from '@/shared/lib/utils';
 import { Label } from '@/shared/components/ui/label';
 import { Input } from '@/shared/components/ui/input';
 import { Checkbox } from '@/shared/components/ui/checkbox';
@@ -28,8 +32,9 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { InfoTooltip } from '@/2-1-employees/MyInfo/LeavePermit/components/info-tooltip';
 import { ContentCalendarPlanPicker, type PlanForPicker } from './ContentCalendarPlanPicker';
 import { SaveToPlanPreviewDialog } from './SaveToPlanPreviewDialog';
+import { DrawerSelectField } from '@/mobile-app/components/DrawerSelectField';
 import { format } from 'date-fns';
-import { CalendarIcon, Eye } from 'lucide-react';
+import { CalendarIcon, Eye, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { isEmployeeActive } from '@/2-1-employees/utils/employeeUtils';
 
@@ -65,6 +70,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
   onSuccess,
 }) => {
   const { t } = useAppTranslation();
+  const isMobile = useIsMobile();
   const { organizationId } = useCurrentOrg();
   const { data: currentEmployee } = useCurrentEmployee();
   const { saveToPlan, isSaving } = useSaveToPlan();
@@ -78,6 +84,9 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
   const [saveConcept, setSaveConcept] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [openPlanDrawer, setOpenPlanDrawer] = useState<
+    'pic' | 'contentType' | 'service' | 'subService' | 'contentPillar' | null
+  >(null);
 
   // Create new plan form state
   const [newPlanForm, setNewPlanForm] = useState({
@@ -308,6 +317,10 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
       newPlanForm.content_pillar_id
     ));
 
+  useEffect(() => {
+    if (!isOpen) setOpenPlanDrawer(null);
+  }, [isOpen]);
+
   const LabelWithTooltip = ({
     htmlFor,
     label,
@@ -326,19 +339,109 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
     </div>
   );
 
+  const renderPlanFieldSelect = (
+    field: 'pic' | 'contentType' | 'service' | 'subService' | 'contentPillar',
+    args: {
+      title: string;
+      value: string;
+      placeholder: string;
+      options: { value: string; label: string }[];
+      onSelect: (value: string) => void;
+      disabled?: boolean;
+      desktop: React.ReactNode;
+    },
+  ) => {
+    if (isMobile) {
+      return (
+        <DrawerSelectField
+          open={openPlanDrawer === field}
+          onOpenChange={(open) => setOpenPlanDrawer(open ? field : null)}
+          title={args.title}
+          value={args.value}
+          placeholder={args.placeholder}
+          options={args.options}
+          onSelect={args.onSelect}
+          disabled={args.disabled}
+          overlayClassName="z-[999999]"
+          contentClassName="z-[999999]"
+        />
+      );
+    }
+    return args.desktop;
+  };
+
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="sm:max-w-[min(90vw,680px)] sm:max-h-[min(90vh,680px)] flex flex-col overflow-hidden" style={{ zIndex: 999998 }}>
-          <DialogHeader>
-            <DialogTitle>{t('scriptGenerator.saveToPlanModal.title', 'Save to Plan')}</DialogTitle>
-            <DialogDescription>
-              {t('scriptGenerator.saveToPlanModal.description', 'Select publish date and target plan to save Breakdown Script and/or Caption.')}
-            </DialogDescription>
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (open) return;
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+          onClose();
+        }}
+      >
+        <DialogContent
+          hideCloseButton={isMobile}
+          fullscreenAnimation={isMobile}
+          className={cn(
+            'flex flex-col overflow-hidden',
+            isMobile
+              ? 'fixed left-0 right-0 top-0 h-dvh max-h-none min-h-0 w-full max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-0 p-0 modal-above-safe-area'
+              : 'sm:max-w-[min(90vw,680px)] sm:max-h-[min(90vh,680px)]',
+          )}
+          style={{ zIndex: 999998 }}
+        >
+          <DialogHeader
+            className={cn(
+              'flex-shrink-0',
+              isMobile
+                ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-0 py-0 text-left dark:from-blue-950/20 dark:to-indigo-950/20'
+                : undefined,
+            )}
+          >
+            {isMobile ? (
+              <div className="flex w-full min-w-0 items-center gap-1.5 px-3 py-2">
+                <DialogClose asChild>
+                  <button
+                    type="button"
+                    className="-ml-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    aria-label={t('common.cancel', 'Cancel')}
+                    disabled={isSaving}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </DialogClose>
+                <DialogTitle className="m-0 flex min-h-0 min-w-0 flex-1 items-center truncate py-0 pr-1 text-base font-semibold leading-tight">
+                  {t('scriptGenerator.saveToPlanModal.title', 'Save to Plan')}
+                </DialogTitle>
+              </div>
+            ) : (
+              <>
+                <DialogTitle>{t('scriptGenerator.saveToPlanModal.title', 'Save to Plan')}</DialogTitle>
+                <DialogDescription>
+                  {t(
+                    'scriptGenerator.saveToPlanModal.description',
+                    'Select publish date and target plan to save Breakdown Script and/or Caption.',
+                  )}
+                </DialogDescription>
+              </>
+            )}
+            {isMobile ? (
+              <DialogDescription className="sr-only">
+                {t(
+                  'scriptGenerator.saveToPlanModal.description',
+                  'Select publish date and target plan to save Breakdown Script and/or Caption.',
+                )}
+              </DialogDescription>
+            ) : null}
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain space-y-4 py-2">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <DialogFormScrollArea
+              className={cn(isMobile ? 'px-3 pb-4 pt-2' : 'space-y-4 py-2', isMobile && 'space-y-2')}
+            >
               {/* 1. Tanggal Publish */}
               <div className="space-y-2">
                 <LabelWithTooltip
@@ -361,7 +464,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                   label={t('scriptGenerator.saveToPlanModal.selectPlan', 'Target Plan')}
                   tooltip={t('scriptGenerator.saveToPlanModal.tooltipPlan', 'Target plan to save Brief/Caption')}
                 />
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
@@ -443,81 +546,129 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                         </div>
                         <div className="space-y-2">
                           <LabelWithTooltip label={t('scriptGenerator.saveToPlanModal.pic', 'PIC')} tooltip={t('scriptGenerator.saveToPlanModal.tooltipPic', 'PIC for this plan')} />
-                          <Select
-                            value={newPlanForm.pic_id}
-                            onValueChange={(v) => setNewPlanForm((p) => ({ ...p, pic_id: v }))}
-                          >
-                            <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.pic', 'PIC')} /></SelectTrigger>
-                            <SelectContent>
-                              {employees.map((e) => (
-                                <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {renderPlanFieldSelect('pic', {
+                            title: t('scriptGenerator.saveToPlanModal.pic', 'PIC'),
+                            value: newPlanForm.pic_id,
+                            placeholder: t('scriptGenerator.saveToPlanModal.pic', 'PIC'),
+                            options: employees.map((e) => ({ value: e.id, label: e.full_name })),
+                            onSelect: (v) => setNewPlanForm((p) => ({ ...p, pic_id: v })),
+                            desktop: (
+                              <Select
+                                value={newPlanForm.pic_id}
+                                onValueChange={(v) => setNewPlanForm((p) => ({ ...p, pic_id: v }))}
+                              >
+                                <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.pic', 'PIC')} /></SelectTrigger>
+                                <SelectContent>
+                                  {employees.map((e) => (
+                                    <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ),
+                          })}
                         </div>
                         <div className="space-y-2">
                           <LabelWithTooltip label={t('scriptGenerator.saveToPlanModal.contentType', 'Content Type')} tooltip={t('scriptGenerator.saveToPlanModal.tooltipContentType', 'Content type')} />
-                          <Select
-                            value={newPlanForm.content_type_id}
-                            onValueChange={(v) => setNewPlanForm((p) => ({ ...p, content_type_id: v }))}
-                          >
-                            <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.contentType', 'Content Type')} /></SelectTrigger>
-                            <SelectContent>
-                              {contentTypes.map((ct) => (
-                                <SelectItem key={ct.id} value={ct.id}>{ct.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {renderPlanFieldSelect('contentType', {
+                            title: t('scriptGenerator.saveToPlanModal.contentType', 'Content Type'),
+                            value: newPlanForm.content_type_id,
+                            placeholder: t('scriptGenerator.saveToPlanModal.contentType', 'Content Type'),
+                            options: contentTypes.map((ct) => ({ value: ct.id, label: ct.name })),
+                            onSelect: (v) => setNewPlanForm((p) => ({ ...p, content_type_id: v })),
+                            desktop: (
+                              <Select
+                                value={newPlanForm.content_type_id}
+                                onValueChange={(v) => setNewPlanForm((p) => ({ ...p, content_type_id: v }))}
+                              >
+                                <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.contentType', 'Content Type')} /></SelectTrigger>
+                                <SelectContent>
+                                  {contentTypes.map((ct) => (
+                                    <SelectItem key={ct.id} value={ct.id}>{ct.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ),
+                          })}
                         </div>
                         <div className="space-y-2">
                           <LabelWithTooltip label={t('scriptGenerator.saveToPlanModal.service', 'Service')} tooltip={t('scriptGenerator.saveToPlanModal.tooltipService', 'Related service')} />
-                          <Select
-                            value={newPlanForm.service_id}
-                            onValueChange={(v) => setNewPlanForm((p) => ({ ...p, service_id: v, sub_service_id: '' }))}
-                          >
-                            <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.service', 'Service')} /></SelectTrigger>
-                            <SelectContent>
-                              {services.map((s) => (
-                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {renderPlanFieldSelect('service', {
+                            title: t('scriptGenerator.saveToPlanModal.service', 'Service'),
+                            value: newPlanForm.service_id,
+                            placeholder: t('scriptGenerator.saveToPlanModal.service', 'Service'),
+                            options: services.map((s) => ({ value: s.id, label: s.name })),
+                            onSelect: (v) => setNewPlanForm((p) => ({ ...p, service_id: v, sub_service_id: '' })),
+                            desktop: (
+                              <Select
+                                value={newPlanForm.service_id}
+                                onValueChange={(v) => setNewPlanForm((p) => ({ ...p, service_id: v, sub_service_id: '' }))}
+                              >
+                                <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.service', 'Service')} /></SelectTrigger>
+                                <SelectContent>
+                                  {services.map((s) => (
+                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ),
+                          })}
                         </div>
                         <div className="space-y-2">
                           <LabelWithTooltip label={t('scriptGenerator.saveToPlanModal.subService', 'Sub Service')} tooltip={t('scriptGenerator.saveToPlanModal.tooltipSubService', 'Sub service')} />
-                          <Select
-                            value={newPlanForm.sub_service_id}
-                            onValueChange={(v) => setNewPlanForm((p) => ({ ...p, sub_service_id: v }))}
-                            disabled={!newPlanForm.service_id}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder={newPlanForm.service_id ? t('scriptGenerator.saveToPlanModal.subService', 'Sub Service') : t('scriptGenerator.saveToPlanModal.selectServiceFirst', 'Select service first')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {filteredSubServices.map((s) => (
-                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {renderPlanFieldSelect('subService', {
+                            title: t('scriptGenerator.saveToPlanModal.subService', 'Sub Service'),
+                            value: newPlanForm.sub_service_id,
+                            placeholder: newPlanForm.service_id
+                              ? t('scriptGenerator.saveToPlanModal.subService', 'Sub Service')
+                              : t('scriptGenerator.saveToPlanModal.selectServiceFirst', 'Select service first'),
+                            options: filteredSubServices.map((s) => ({ value: s.id, label: s.name })),
+                            onSelect: (v) => setNewPlanForm((p) => ({ ...p, sub_service_id: v })),
+                            disabled: !newPlanForm.service_id,
+                            desktop: (
+                              <Select
+                                value={newPlanForm.sub_service_id}
+                                onValueChange={(v) => setNewPlanForm((p) => ({ ...p, sub_service_id: v }))}
+                                disabled={!newPlanForm.service_id}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder={newPlanForm.service_id ? t('scriptGenerator.saveToPlanModal.subService', 'Sub Service') : t('scriptGenerator.saveToPlanModal.selectServiceFirst', 'Select service first')} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {filteredSubServices.map((s) => (
+                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ),
+                          })}
                         </div>
                         <div className="space-y-2">
                           <LabelWithTooltip label={t('scriptGenerator.saveToPlanModal.contentPillar', 'Content Pillar')} tooltip={t('scriptGenerator.saveToPlanModal.tooltipContentPillar', 'Content pillar')} />
-                          <Select
-                            value={newPlanForm.content_pillar_id}
-                            onValueChange={(v) => setNewPlanForm((p) => ({ ...p, content_pillar_id: v }))}
-                          >
-                            <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.contentPillar', 'Content Pillar')} /></SelectTrigger>
-                            <SelectContent>
-                              {contentPillars.map((cp) => (
-                                <SelectItem key={cp.id} value={cp.id}>
-                                  <div className="flex items-center gap-2">
-                                    {cp.color && <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cp.color }} />}
-                                    {cp.name}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {renderPlanFieldSelect('contentPillar', {
+                            title: t('scriptGenerator.saveToPlanModal.contentPillar', 'Content Pillar'),
+                            value: newPlanForm.content_pillar_id,
+                            placeholder: t('scriptGenerator.saveToPlanModal.contentPillar', 'Content Pillar'),
+                            options: contentPillars.map((cp) => ({ value: cp.id, label: cp.name })),
+                            onSelect: (v) => setNewPlanForm((p) => ({ ...p, content_pillar_id: v })),
+                            desktop: (
+                              <Select
+                                value={newPlanForm.content_pillar_id}
+                                onValueChange={(v) => setNewPlanForm((p) => ({ ...p, content_pillar_id: v }))}
+                              >
+                                <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.contentPillar', 'Content Pillar')} /></SelectTrigger>
+                                <SelectContent>
+                                  {contentPillars.map((cp) => (
+                                    <SelectItem key={cp.id} value={cp.id}>
+                                      <div className="flex items-center gap-2">
+                                        {cp.color && <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cp.color }} />}
+                                        {cp.name}
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ),
+                          })}
                         </div>
                       </>
                     )}
@@ -568,8 +719,8 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                 </div>
               </div>
 
-              {/* Preview button */}
-              {(saveBrief || saveCaption || saveConcept) && (
+              {/* Preview button — desktop only; hidden on mobile to keep the form compact */}
+              {!isMobile && (saveBrief || saveCaption || saveConcept) && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -581,13 +732,31 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                   {t('scriptGenerator.saveToPlanModal.viewPreview', 'View preview')}
                 </Button>
               )}
-            </div>
+            </DialogFormScrollArea>
 
-            <DialogFooter className="flex-shrink-0 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+            <DialogFooter
+              className={cn(
+                'flex-shrink-0',
+                isMobile
+                  ? 'flex-row items-center justify-end gap-2 border-t bg-muted/30 px-4 pb-3 pt-3 sm:space-x-0'
+                  : 'border-t pt-4',
+              )}
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size={isMobile ? 'sm' : 'default'}
+                onClick={onClose}
+                disabled={isSaving}
+              >
                 {t('common.cancel', 'Cancel')}
               </Button>
-              <Button type="submit" disabled={isSaving || !canSubmit}>
+              <Button
+                type="submit"
+                size={isMobile ? 'sm' : 'default'}
+                disabled={isSaving || !canSubmit}
+                className={isMobile ? 'flex min-w-[120px] items-center justify-center gap-1.5' : undefined}
+              >
                 {isSaving ? t('common.saving', 'Saving...') : t('common.save', 'Save')}
               </Button>
             </DialogFooter>

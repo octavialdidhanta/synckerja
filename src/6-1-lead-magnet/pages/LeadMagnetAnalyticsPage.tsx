@@ -2,6 +2,12 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { LeadMagnetFunnelPanel } from '../components/LeadMagnetFunnelPanel';
+import {
+  LeadMagnetEnrollmentContentCell,
+  LeadMagnetEnrollmentOpenChatCell,
+  LeadMagnetEnrollmentUserCell,
+} from '../components/LeadMagnetEnrollmentCells';
+import { useEnrichedCampaignPosts } from '../components/CampaignPostsPreview';
 import { LeadMagnetPageShell } from '../components/LeadMagnetPageShell';
 import { useLeadMagnetAnalytics, useLeadMagnetCampaign } from '../hooks/useLeadMagnetCampaigns';
 import { LEAD_MAGNET_PATHS } from '../lib/leadMagnetPaths';
@@ -21,6 +27,10 @@ export function LeadMagnetAnalyticsPage() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const { data: campaign } = useLeadMagnetCampaign(campaignId);
   const { data, isLoading } = useLeadMagnetAnalytics(campaignId);
+  const { displayPosts, isEnriching } = useEnrichedCampaignPosts(
+    campaign?.lead_magnet_campaign_posts ?? [],
+    campaign?.lead_magnet_campaign_accounts ?? [],
+  );
 
   return (
     <LeadMagnetPageShell>
@@ -62,16 +72,25 @@ export function LeadMagnetAnalyticsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>{t('leadMagnet.analytics.colUser')}</TableHead>
+                      <TableHead>{t('leadMagnet.analytics.colContent')}</TableHead>
                       <TableHead>{t('leadMagnet.analytics.colStatus')}</TableHead>
                       <TableHead>{t('leadMagnet.analytics.colTime')}</TableHead>
                       <TableHead>{t('leadMagnet.analytics.colError')}</TableHead>
+                      <TableHead className="text-right pr-4">{t('leadMagnet.analytics.colActions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(data?.enrollments ?? []).map((e) => (
                       <TableRow key={e.id}>
                         <TableCell>
-                          {e.participant_username ?? e.participant_scoped_id.slice(0, 10)}
+                          <LeadMagnetEnrollmentUserCell enrollment={e} />
+                        </TableCell>
+                        <TableCell>
+                          <LeadMagnetEnrollmentContentCell
+                            enrollment={e}
+                            posts={displayPosts}
+                            loading={isEnriching}
+                          />
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{e.status}</Badge>
@@ -81,6 +100,11 @@ export function LeadMagnetAnalyticsPage() {
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate text-xs text-destructive">
                           {e.last_error ?? '—'}
+                        </TableCell>
+                        <TableCell className="pr-4 text-right">
+                          <div className="flex justify-end">
+                            <LeadMagnetEnrollmentOpenChatCell enrollment={e} />
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

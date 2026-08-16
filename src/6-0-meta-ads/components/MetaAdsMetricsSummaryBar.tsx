@@ -16,6 +16,10 @@ import {
   type MetaAdsTableMetricKey,
 } from "@/meta-ads/metrics/metaAdsSummaryMetrics";
 import { MetaAdsSummaryMetricPicker } from "@/6-0-meta-ads/components/MetaAdsSummaryMetricPicker";
+import {
+  metaAdsPeriodCompareBits,
+  useMetaAdsSummaryPeriodCompare,
+} from "@/6-0-meta-ads/hooks/useMetaAdsSummaryPeriodCompare";
 
 type Summary = {
   spend: number;
@@ -34,6 +38,10 @@ type Props = {
   metricKeys: MetaAdsTableMetricKey[];
   onMetricKeysChange: (keys: MetaAdsTableMetricKey[]) => void;
   isLoading?: boolean;
+  organizationId?: string | null;
+  dateStart?: string | null;
+  dateEnd?: string | null;
+  compareEnabled?: boolean;
 };
 
 function formatMetaProgressRatioValue(
@@ -78,6 +86,10 @@ export function MetaAdsMetricsSummaryBar({
   metricKeys,
   onMetricKeysChange,
   isLoading = false,
+  organizationId = null,
+  dateStart = null,
+  dateEnd = null,
+  compareEnabled = false,
 }: Props) {
   const { t } = useAppTranslation();
 
@@ -130,6 +142,16 @@ export function MetaAdsMetricsSummaryBar({
 
   const currencyCode = summary?.currency ?? "IDR";
 
+  const { previousRange, previousTotals, compareLoading, compareError } =
+    useMetaAdsSummaryPeriodCompare({
+      organizationId,
+      adAccountId,
+      entity,
+      dateStart,
+      dateEnd,
+      enabled: compareEnabled,
+    });
+
   if (isLoading) {
     return (
       <div
@@ -141,6 +163,7 @@ export function MetaAdsMetricsSummaryBar({
           <div key={i} className="rounded-md border border-gray-200 bg-white px-3 py-2">
             <Skeleton className="mb-1.5 h-3 w-16" />
             <Skeleton className="h-5 w-24" />
+            <Skeleton className="mt-0.5 h-3 w-20" />
             <Skeleton className="mt-2 h-1.5 w-full" />
           </div>
         ))}
@@ -152,6 +175,14 @@ export function MetaAdsMetricsSummaryBar({
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
       {slots.map((key, index) => {
         const progress = progressByTableMetric.get(key);
+        const slotCompare = metaAdsPeriodCompareBits({
+          metricKey: key,
+          currentTotals: totals,
+          previousTotals,
+          previousRange,
+          compareLoading,
+          compareError,
+        });
         return (
           <MetaAdsSummaryMetricPicker
             key={index}
@@ -175,6 +206,7 @@ export function MetaAdsMetricsSummaryBar({
             targetProgress={progress}
             targetsLoading={targetsLoading}
             progressRatioText={progressRatioTextForTableKey(key, progress, currencyCode)}
+            {...slotCompare}
           />
         );
       })}

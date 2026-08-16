@@ -346,14 +346,14 @@ export function MobileReportTable({
   }
 
   return (
-    <div className="-mx-2 overflow-hidden border-y border-border bg-card">
+    <div className="-mx-2 min-w-0 border-y border-border bg-card">
       <div
         className={cn(
-          "scrollbar-hide overflow-x-auto overflow-y-hidden",
-          "[touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "nested-scroll-touch-chain-xy scrollbar-hide min-w-0 w-full overflow-x-auto overflow-y-hidden",
+          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
       >
-        <table className="w-full min-w-[920px] caption-bottom border-collapse">
+        <table className="w-max min-w-[920px] caption-bottom border-collapse">
           <thead>
             <tr className="border-b border-border">
               <th className={thClass}>{t("digitalMarketing.report.tableChannel", "Channel")}</th>

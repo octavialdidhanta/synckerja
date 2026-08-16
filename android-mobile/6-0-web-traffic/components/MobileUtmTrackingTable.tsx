@@ -165,7 +165,7 @@ function SortableTh({ column, label, sortKey, sortDir, onSort, align = "left", c
   return (
     <th
       className={cn(
-        "border-b border-primary/15 bg-gray-50 font-medium",
+        "border-b border-border bg-gray-50 font-medium",
         align === "left" && "text-left",
         align === "right" && "text-right",
         className,
@@ -221,7 +221,7 @@ function UtmColumnSelect({ "aria-label": ariaLabel, value, onValueChange, option
       <DrawerTrigger asChild>
         <button
           type="button"
-          className="flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-primary/25 bg-white px-2 text-xs text-gray-700"
+          className="flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-white px-2 text-xs text-gray-700"
           aria-label={ariaLabel}
         >
           <span className="truncate">{label}</span>
@@ -392,8 +392,8 @@ export function MobileUtmTrackingTable({
   const hasActiveFilters = Object.values(filters).some((v) => v !== FILTER_ALL);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-primary/35 bg-card shadow-sm">
-      <div className="shrink-0 border-b border-primary/25 px-4 py-3">
+    <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div className="shrink-0 border-b border-border px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-gray-900">UTM tracking</h3>
@@ -525,8 +525,8 @@ export function MobileUtmTrackingTable({
               />
             </tr>
             <tr className="bg-gray-50/80">
-              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
-              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
+              <th className="border-b border-border px-2 py-1.5 align-bottom" aria-hidden />
+              <th className="border-b border-border px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter route"
                   value={filters.route}
@@ -534,7 +534,7 @@ export function MobileUtmTrackingTable({
                   options={routeOptions}
                 />
               </th>
-              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
+              <th className="border-b border-border px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter utm_campaign"
                   value={filters.utm_campaign}
@@ -542,7 +542,7 @@ export function MobileUtmTrackingTable({
                   options={campaignOptions}
                 />
               </th>
-              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
+              <th className="border-b border-border px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter utm_source"
                   value={filters.utm_source}
@@ -550,7 +550,7 @@ export function MobileUtmTrackingTable({
                   options={sourceOptions}
                 />
               </th>
-              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
+              <th className="border-b border-border px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter utm_medium"
                   value={filters.utm_medium}
@@ -558,7 +558,7 @@ export function MobileUtmTrackingTable({
                   options={mediumOptions}
                 />
               </th>
-              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
+              <th className="border-b border-border px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter utm_content"
                   value={filters.utm_content}
@@ -566,7 +566,7 @@ export function MobileUtmTrackingTable({
                   options={contentOptions}
                 />
               </th>
-              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom font-normal">
+              <th className="border-b border-border px-2 py-1.5 align-bottom font-normal">
                 <UtmColumnSelect
                   aria-label="Filter utm_term"
                   value={filters.utm_term}
@@ -574,10 +574,10 @@ export function MobileUtmTrackingTable({
                   options={termOptions}
                 />
               </th>
-              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
-              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
-              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
-              <th className="border-b border-primary/15 px-2 py-1.5 align-bottom" aria-hidden />
+              <th className="border-b border-border px-2 py-1.5 align-bottom" aria-hidden />
+              <th className="border-b border-border px-2 py-1.5 align-bottom" aria-hidden />
+              <th className="border-b border-border px-2 py-1.5 align-bottom" aria-hidden />
+              <th className="border-b border-border px-2 py-1.5 align-bottom" aria-hidden />
             </tr>
           </thead>
           <tbody className="text-sm">

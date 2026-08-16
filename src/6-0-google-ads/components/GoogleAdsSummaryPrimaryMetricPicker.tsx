@@ -22,6 +22,11 @@ import type { GoogleAdsMetricsSummaryTotals, GoogleAdsSummaryMetricOption } from
 import type { DmReportTargetProgress } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
 import { ProgressBar } from "@/shared/components/ProgressBar";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import {
+  PeriodCompareDeltaBadge,
+  PeriodCompareFooter,
+} from "@/6-0-digital-marketing-shared/components/PeriodCompareBits";
+import type { KpiCompareDelta } from "@/6-0-digital-marketing-shared/lib/kpiPeriodCompare";
 
 type Props = {
   selectedKey: string;
@@ -34,6 +39,12 @@ type Props = {
   targetProgress?: DmReportTargetProgress;
   targetsLoading?: boolean;
   progressRatioText?: string | null;
+  compareMetricKey?: string;
+  compareDelta?: KpiCompareDelta | null;
+  compareRangeLabel?: string;
+  comparePreviousText?: string;
+  compareLoading?: boolean;
+  compareVisible?: boolean;
 };
 
 export function GoogleAdsSummaryPrimaryMetricPicker({
@@ -47,6 +58,12 @@ export function GoogleAdsSummaryPrimaryMetricPicker({
   targetProgress,
   targetsLoading = false,
   progressRatioText = null,
+  compareMetricKey,
+  compareDelta = null,
+  compareRangeLabel = "",
+  comparePreviousText = "—",
+  compareLoading = false,
+  compareVisible = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const groups = useMemo(() => summaryMetricGroups(options), [options]);
@@ -63,63 +80,79 @@ export function GoogleAdsSummaryPrimaryMetricPicker({
       )}
     >
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-auto w-full justify-between gap-1 px-0 py-0 text-left font-normal hover:bg-transparent"
-            disabled={isLoading || options.length === 0}
-          >
-            <span className="flex min-w-0 flex-1 flex-col items-start">
-              <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
-                <span className="truncate">{label}</span>
-                <ChevronDown className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-auto w-full justify-start gap-1 px-0 py-0 text-left font-normal hover:bg-transparent"
+              disabled={isLoading || options.length === 0}
+            >
+              <span className="flex w-full min-w-0 flex-col items-start">
+                <span className="flex w-full min-w-0 items-center gap-1">
+                  <span className="inline-flex min-w-0 items-center gap-0.5 text-xs text-muted-foreground">
+                    <span className="truncate">{label}</span>
+                    <ChevronDown className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                  </span>
+                  {compareVisible ? (
+                    <PeriodCompareDeltaBadge
+                      delta={compareDelta}
+                      metricKey={compareMetricKey ?? selectedKey}
+                      loading={compareLoading}
+                    />
+                  ) : null}
+                </span>
+                <span className="text-base font-semibold tabular-nums text-gray-900">
+                  {isLoading ? (
+                    <span className="inline-block h-5 w-20 animate-pulse rounded bg-muted" />
+                  ) : (
+                    formatMetricValue(selectedKey, value, currencyCode, valueKind)
+                  )}
+                </span>
               </span>
-              <span className="text-base font-semibold tabular-nums text-gray-900">
-                {isLoading ? (
-                  <span className="inline-block h-5 w-20 animate-pulse rounded bg-muted" />
-                ) : (
-                  formatMetricValue(selectedKey, value, currencyCode, valueKind)
-                )}
-              </span>
-            </span>
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[min(100vw-2rem,22rem)] p-0" align="start">
-          <Command>
-            <CommandInput placeholder="Search metrics…" />
-            <CommandList className="max-h-[min(60vh,320px)]">
-              <CommandEmpty>No metrics found.</CommandEmpty>
-              {groups.map((group, index) => (
-                <div key={group.id}>
-                  {index > 0 ? <CommandSeparator /> : null}
-                  <CommandGroup heading={group.label}>
-                    {group.options.map((opt) => (
-                      <CommandItem
-                        key={opt.key}
-                        value={`${opt.label} ${opt.key}`}
-                        onSelect={() => {
-                          onSelectKey(opt.key);
-                          setOpen(false);
-                        }}
-                      >
-                        <span
-                          className={cn(
-                            "truncate",
-                            opt.key === selectedKey && "font-medium text-blue-700",
-                          )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[min(100vw-2rem,22rem)] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search metrics…" />
+              <CommandList className="max-h-[min(60vh,320px)]">
+                <CommandEmpty>No metrics found.</CommandEmpty>
+                {groups.map((group, index) => (
+                  <div key={group.id}>
+                    {index > 0 ? <CommandSeparator /> : null}
+                    <CommandGroup heading={group.label}>
+                      {group.options.map((opt) => (
+                        <CommandItem
+                          key={opt.key}
+                          value={`${opt.label} ${opt.key}`}
+                          onSelect={() => {
+                            onSelectKey(opt.key);
+                            setOpen(false);
+                          }}
                         >
-                          {opt.label}
-                        </span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </div>
-              ))}
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+                          <span
+                            className={cn(
+                              "truncate",
+                              opt.key === selectedKey && "font-medium text-blue-700",
+                            )}
+                          >
+                            {opt.label}
+                          </span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </div>
+                ))}
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      {compareVisible ? (
+        <PeriodCompareFooter
+          rangeLabel={compareRangeLabel}
+          previousText={comparePreviousText}
+          loading={compareLoading}
+        />
+      ) : null}
       <div className="mt-2 min-h-[1.125rem]">
         {isLoading || targetsLoading ? (
           <Skeleton className="h-1.5 w-full" />

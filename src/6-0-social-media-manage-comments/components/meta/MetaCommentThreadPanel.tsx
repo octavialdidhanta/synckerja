@@ -58,6 +58,7 @@ export function MetaCommentThreadPanel({
   const { t } = useTranslation();
   const mediaId = post?.id ?? null;
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const hadCommentHighlightsRef = useRef(false);
   const markedReadRef = useRef(new Set<string>());
@@ -90,7 +91,6 @@ export function MetaCommentThreadPanel({
   const {
     syncInboundCommentsMutation,
     markCommentReadMutation,
-    invalidateInboxState,
   } = useMetaManageCommentsInboxState({
     organizationId,
     platform,
@@ -168,7 +168,6 @@ export function MetaCommentThreadPanel({
             markedReadRef.current.delete(commentId);
           });
         resolvePostHighlightIfNeeded(post.id, highlightedIds.size - 1);
-        invalidateInboxState();
         return;
       }
       if (!wasHighlighted && postHighlightActive) {
@@ -182,7 +181,6 @@ export function MetaCommentThreadPanel({
       dismissHighlight,
       markCommentReadMutation,
       resolvePostHighlightIfNeeded,
-      invalidateInboxState,
       postHighlightActive,
     ],
   );
@@ -191,9 +189,16 @@ export function MetaCommentThreadPanel({
     () => [...highlightedIds].sort().join(','),
     [highlightedIds],
   );
+  const autoEngagedMediaRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    autoEngagedMediaRef.current = null;
+  }, [mediaId]);
 
   useEffect(() => {
     if (!inboxEnabled || !post?.id || !commentsReady || !highlightedIdsKey) return;
+    if (autoEngagedMediaRef.current === post.id) return;
+    autoEngagedMediaRef.current = post.id;
     for (const commentId of highlightedIdsKey.split(',')) {
       if (commentId) markCommentEngaged(commentId);
     }
@@ -321,16 +326,21 @@ export function MetaCommentThreadPanel({
       <ManageCommentsThreadHeader
         post={post}
         openOnPlatform={platform}
-        onRefresh={() => void commentsQuery.refetch()}
-        isRefreshing={commentsQuery.isFetching}
+        onRefresh={() => {
+          setManualRefreshing(true);
+          void commentsQuery.refetch().finally(() => setManualRefreshing(false));
+        }}
+        isRefreshing={manualRefreshing}
       />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
+      <aside className="flex w-[380px] shrink-0 flex-col overflow-y-auto overflow-x-hidden border-r border-gray-100 bg-white p-3 scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <MetaCommentPostPreview key={post.id} post={post} compact />
+      </aside>
       <div
         ref={scrollContainerRef}
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-gray-50/60 scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <div className="mx-auto w-full max-w-[680px] px-4">
-          <MetaCommentPostPreview key={post.id} post={post} />
-          <div className="mt-4">
+        <div className="mx-auto w-full max-w-[680px] px-4 pt-4">
             {commentsQuery.isLoading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -369,9 +379,9 @@ export function MetaCommentThreadPanel({
                 />
               ))
             )}
-          </div>
           <div className="h-2 flex-shrink-0" aria-hidden />
         </div>
+      </div>
       </div>
     </div>
   );

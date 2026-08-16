@@ -1,10 +1,26 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
-import { Textarea } from '@/shared/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
+import { EditableBriefTable } from '@/6-1-dashboard/modal/EditableBriefTable';
+import { BriefStoryboardEmptyState } from '@/6-1-dashboard/modal/BriefStoryboardEmptyState';
+import { CreateBriefTableDialog } from '@/6-1-dashboard/modal/CreateBriefTableDialog';
+import {
+  parseMarkdownTable,
+  replaceTableInMarkdown,
+  stringifyMarkdownTable,
+} from '@/6-1-dashboard/utils/markdownTableUtils';
+import {
+  isBriefStoryboardTableCanonical,
+  normalizeBriefStoryboardTable,
+} from '@/6-1-dashboard/modal/briefStoryboardConstants';
+import { upsertBriefSequencesInMarkdown, type BriefSequence } from '@/6-1-dashboard/modal/briefSequences';
+import {
+  upsertBriefSceneMetaInMarkdown,
+  type BriefSceneMeta,
+} from '@/6-1-dashboard/modal/briefSceneMeta';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useSocialMediaMutations } from '@/6-1-dashboard/hook/useOptimizedSocialMediaState';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
@@ -12,7 +28,135 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { format } from 'date-fns';
 import { ContentPlan } from '@/6-1-dashboard/types/social-media';
 import { isEmployeeActive } from '@/2-1-employees/utils/employeeUtils';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
+import { cn } from '@/shared/lib/utils';
+import { ChevronDown, X } from 'lucide-react';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/shared/components/ui/drawer';
+import { MobileContentPillarPickerField } from '@/mobile/6-1-content-calendar/components/MobileContentPillarPickerField';
 import './AddContentDialog.css';
+
+type AddContentSelectOption = {
+  id: string;
+  label: string;
+  leading?: React.ReactNode;
+};
+
+function AddContentSelectField({
+  label,
+  value,
+  placeholder,
+  options,
+  onChange,
+  disabled = false,
+  isMobile,
+  emptyText,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  options: AddContentSelectOption[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  isMobile: boolean;
+  emptyText: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.id === value);
+
+  if (isMobile) {
+    return (
+      <div className="space-y-1.5">
+        <Label className="text-xs">{label}</Label>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+          className="h-8 w-full justify-between px-2.5 text-xs font-normal"
+        >
+          <span className={cn('flex min-w-0 items-center gap-2 truncate', !selected && 'text-muted-foreground')}>
+            {selected?.leading}
+            {selected ? selected.label : placeholder}
+          </span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+        </Button>
+        <Drawer shouldScaleBackground={false} open={open} onOpenChange={setOpen}>
+          <DrawerContent
+            className="z-[1000003] max-h-[85vh] px-0 pb-4"
+            overlayClassName="z-[1000002]"
+          >
+            <DrawerHeader className="px-4 pb-2 text-left">
+              <DrawerTitle className="text-base">{label}</DrawerTitle>
+            </DrawerHeader>
+            <div className="scrollbar-hide max-h-[min(60vh,420px)] overflow-y-auto px-3 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {options.length === 0 ? (
+                <p className="px-2 py-6 text-center text-sm text-muted-foreground">{emptyText}</p>
+              ) : (
+                options.map((option) => {
+                  const isSelected = option.id === value;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm',
+                        isSelected ? 'bg-primary/10 font-medium text-primary' : 'hover:bg-muted',
+                      )}
+                      onClick={() => {
+                        onChange(option.id);
+                        setOpen(false);
+                      }}
+                    >
+                      {option.leading}
+                      <span className="min-w-0 truncate">{option.label}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </DrawerContent>
+        </Drawer>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Select value={value} onValueChange={onChange} disabled={disabled}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent
+          className="max-h-[200px] overflow-y-auto"
+          position="popper"
+          sideOffset={4}
+          style={{ zIndex: 999999 }}
+        >
+          {options.length > 0 ? (
+            options.map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                <span className="flex items-center gap-2">
+                  {option.leading}
+                  {option.label}
+                </span>
+              </SelectItem>
+            ))
+          ) : (
+            <SelectItem value="__empty" disabled>
+              {emptyText}
+            </SelectItem>
+          )}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
 
 function statusNameFromJoin(row: {
   employee_statuses?: { name?: string } | { name?: string }[] | null;
@@ -28,6 +172,8 @@ interface AddContentDialogProps {
   onOpenChange: (open: boolean) => void;
   selectedDate: Date | null;
   editingPlan?: ContentPlan | null; // Plan to edit, null means create mode
+  /** Calendar service filter; used by the mobile pillar tracker picker. */
+  serviceFilter?: string;
 }
 
 interface Employee {
@@ -40,12 +186,19 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
   open,
   onOpenChange,
   selectedDate,
-  editingPlan = null
+  editingPlan = null,
+  serviceFilter = 'all',
 }) => {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const { organizationId } = useCurrentOrg();
   const { addContentPlan, updateContentPlan } = useSocialMediaMutations();
   const isEditMode = !!editingPlan;
+  const trackerMonth = useMemo(() => {
+    if (editingPlan?.post_date) return new Date(editingPlan.post_date);
+    if (selectedDate) return selectedDate;
+    return new Date();
+  }, [editingPlan?.post_date, selectedDate]);
   
   // State for master data - simplified approach
   const [contentTypes, setContentTypes] = useState<any[]>([]);
@@ -67,6 +220,7 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
     post_date: ''
   });
   const [filteredSubServices, setFilteredSubServices] = useState<any[]>([]);
+  const [createTableOpen, setCreateTableOpen] = useState(false);
 
   // Simplified master data loading function
   const loadMasterData = useCallback(async () => {
@@ -266,6 +420,7 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
         pic_id: currentEmployee?.id || '',
         post_date: ''
       });
+      setCreateTableOpen(false);
       setLoading(false);
     }
   }, [open, isEditMode, currentEmployee?.id]);
@@ -432,24 +587,94 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
     }
   };
 
+  const parsedBriefTable = useMemo(() => {
+    const briefText = formData.brief.trim();
+    if (!briefText) return null;
+    const parsed = parseMarkdownTable(briefText);
+    if (!parsed?.table?.length) return parsed;
+    if (isBriefStoryboardTableCanonical(parsed.table)) return parsed;
+    return {
+      ...parsed,
+      table: normalizeBriefStoryboardTable(parsed.table),
+    };
+  }, [formData.brief]);
+
+  const handleCreateStoryboardTable = (tableData: string[][]) => {
+    const markdown = stringifyMarkdownTable(tableData, { trimTrailingEmptyBodyRows: false });
+    setFormData((prev) => {
+      const existing = parseMarkdownTable(prev.brief);
+      if (existing) {
+        return {
+          ...prev,
+          brief: replaceTableInMarkdown(prev.brief, markdown, existing.startIndex, existing.endIndex),
+        };
+      }
+      const trimmed = prev.brief.trim();
+      return { ...prev, brief: trimmed ? `${trimmed}\n\n${markdown}` : markdown };
+    });
+    setCreateTableOpen(false);
+  };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] flex flex-col p-0 overflow-hidden" style={{ zIndex: 999999 }}>
+      <DialogContent
+        hideCloseButton={isMobile}
+        fullscreenAnimation={isMobile}
+        className={cn(
+          'flex flex-col overflow-hidden p-0',
+          isMobile
+            ? 'fixed left-0 right-0 top-0 h-dvh max-h-none min-h-0 w-full max-w-none translate-x-0 translate-y-0 gap-0 rounded-none border-0 modal-above-safe-area'
+            : 'max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-6xl',
+        )}
+        style={{ zIndex: 999999 }}
+      >
         {/* Sticky Header */}
-        <DialogHeader className="flex-shrink-0 bg-background z-10 pb-4 pt-6 px-6 border-b">
-          <DialogTitle>
-            {isEditMode ? 'Edit Content Plan' : 'Add New Content Plan'} - {selectedDate && format(selectedDate, 'dd MMMM yyyy')}
+        <DialogHeader
+          className={cn(
+            'z-10 flex-shrink-0 space-y-0 border-b bg-background text-left',
+            isMobile
+              ? 'safe-area-top flex h-12 flex-row items-center justify-between gap-2 px-4 py-0'
+              : 'px-6 pb-4 pt-6',
+          )}
+        >
+          <DialogTitle
+            className={cn(
+              'min-w-0 flex-1',
+              isMobile && 'truncate text-sm font-semibold leading-none',
+            )}
+          >
+            {isEditMode ? 'Edit Content Plan' : 'Add New Content Plan'}
+            {selectedDate ? (
+              <span className={cn('font-medium', isMobile ? 'text-muted-foreground' : '')}>
+                {' - '}
+                {format(selectedDate, 'dd MMMM yyyy')}
+              </span>
+            ) : null}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className={cn(isMobile ? 'sr-only' : undefined)}>
             {isEditMode 
               ? 'Edit the content plan details. Fill in all required fields to save your changes.'
               : 'Create a new content plan for the selected date. Fill in all required fields to save your content plan.'}
           </DialogDescription>
+          {isMobile ? (
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Close"
+                disabled={loading}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogClose>
+          ) : null}
         </DialogHeader>
 
         {/* Scrollable Content */}
-        <div className="flex-1 min-h-0 overflow-y-auto seamless-scroll px-6">
+        <div className={cn('flex-1 min-h-0 overflow-y-auto seamless-scroll', isMobile ? 'px-4' : 'px-6')}>
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="text-center">
@@ -458,18 +683,20 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
               </div>
             </div>
           ) : (
-          <form onSubmit={handleSubmit} id="content-plan-form" className="space-y-4 py-4">
+          <form onSubmit={handleSubmit} id="content-plan-form" className={cn(isMobile ? 'space-y-2.5 py-3' : 'space-y-4 py-4')}>
           {/* Post Date - Only show in edit mode, and disable if approved */}
           {isEditMode && editingPlan && (
-            <div className="space-y-2">
-              <Label htmlFor="post_date">Post Date {editingPlan.approved && '(Cannot change - Already approved)'}</Label>
+            <div className={cn(isMobile ? 'space-y-1.5' : 'space-y-2')}>
+              <Label htmlFor="post_date" className={cn(isMobile && 'text-xs')}>
+                Post Date {editingPlan.approved && '(Cannot change - Already approved)'}
+              </Label>
               <Input
                 id="post_date"
                 type="date"
                 value={formData.post_date}
                 onChange={(e) => setFormData(prev => ({ ...prev, post_date: e.target.value }))}
                 disabled={editingPlan.approved === true}
-                className={editingPlan.approved ? 'bg-muted' : ''}
+                className={cn(editingPlan.approved && 'bg-muted', isMobile && 'h-8 text-xs')}
               />
               {editingPlan.approved && (
                 <p className="text-xs text-muted-foreground">
@@ -480,217 +707,173 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
           )}
 
           {/* Title */}
-          <div className="space-y-2">
-            <Label htmlFor="title">Title *</Label>
+          <div className={cn(isMobile ? 'space-y-1.5' : 'space-y-2')}>
+            <Label htmlFor="title" className={cn(isMobile && 'text-xs')}>Title *</Label>
             <Input
               id="title"
               value={formData.title}
               onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
               placeholder="Enter content title"
               required
+              className={cn(isMobile && 'h-8 text-xs')}
             />
           </div>
 
-          {/* Brief */}
-          <div className="space-y-2">
-            <Label htmlFor="brief">Brief</Label>
-            <Textarea
-              id="brief"
-              value={formData.brief}
-              onChange={(e) => setFormData(prev => ({ ...prev, brief: e.target.value }))}
-              placeholder="Enter content brief/description"
-              rows={3}
-            />
+          {/* Brief / storyboard table — same create-table flow as dashboard Brief Content */}
+          <div className={cn(isMobile ? 'space-y-1.5' : 'space-y-2')}>
+            <Label className={cn(isMobile && 'text-xs')}>Brief</Label>
+            {parsedBriefTable ? (
+              <div className={cn(isMobile && '-mx-4')}>
+              <EditableBriefTable
+                tableData={parsedBriefTable.table}
+                storyboardToolbar
+                density={isMobile ? 'mobile-2col' : 'desktop'}
+                sequencesSource={formData.brief}
+                planId={isEditMode ? editingPlan?.id : undefined}
+                onSave={(
+                  newTableData,
+                  meta?: { sequences: BriefSequence[]; sceneMeta?: BriefSceneMeta[] },
+                ) => {
+                  const existing = parseMarkdownTable(formData.brief);
+                  const markdown = stringifyMarkdownTable(newTableData, {
+                    trimTrailingEmptyBodyRows: false,
+                  });
+                  let next = existing
+                    ? replaceTableInMarkdown(
+                        formData.brief,
+                        markdown,
+                        existing.startIndex,
+                        existing.endIndex,
+                      )
+                    : markdown;
+                  if (meta?.sequences) {
+                    next = upsertBriefSequencesInMarkdown(next, meta.sequences);
+                  }
+                  if (meta?.sceneMeta) {
+                    next = upsertBriefSceneMetaInMarkdown(next, meta.sceneMeta);
+                  }
+                  setFormData((prev) => ({ ...prev, brief: next }));
+                }}
+                className="!my-0"
+              />
+              </div>
+            ) : (
+              <div className={cn(isMobile && '[&_p]:text-xs [&_button]:h-8 [&_button]:text-xs')}>
+                <BriefStoryboardEmptyState onCreateTable={() => setCreateTableOpen(true)} />
+              </div>
+            )}
           </div>
 
-          {/* Service */}
-          <div className="space-y-2">
-            <Label htmlFor="service">Service</Label>
-            <Select
-              value={formData.service_id}
-              onValueChange={(value) => {
-                setFormData(prev => ({ 
-                  ...prev, 
-                  service_id: value,
-                  sub_service_id: '' // Reset sub service when service changes
-                }));
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select service" />
-              </SelectTrigger>
-              <SelectContent 
-                className="max-h-[200px] overflow-y-auto" 
-                position="popper" 
-                sideOffset={4}
-                style={{ zIndex: 999999 }}
-              >
-                {services.length > 0 ? (
-                  services.map((service) => (
-                    <SelectItem key={service.id} value={service.id}>
-                      {service.name}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-services" disabled>
-                    No services available
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+          <AddContentSelectField
+            label="Service"
+            value={formData.service_id}
+            placeholder="Select service"
+            emptyText="No services available"
+            isMobile={isMobile}
+            options={services.map((service) => ({ id: service.id, label: service.name }))}
+            onChange={(value) => {
+              setFormData((prev) => ({
+                ...prev,
+                service_id: value,
+                sub_service_id: '',
+              }));
+            }}
+          />
 
-           {/* Sub Service */}
-           <div className="space-y-2">
-             <Label htmlFor="subService">Sub Service</Label>
-             <Select
-               value={formData.sub_service_id}
-               onValueChange={(value) => {
-                 setFormData(prev => ({ ...prev, sub_service_id: value }));
-               }}
-               disabled={!formData.service_id}
-             >
-               <SelectTrigger className="w-full">
-                 <SelectValue placeholder={formData.service_id ? "Select sub service" : "Please select service first"} />
-               </SelectTrigger>
-              <SelectContent 
-                className="max-h-[200px] overflow-y-auto" 
-                position="popper" 
-                sideOffset={4}
-                style={{ zIndex: 999999 }}
-              >
-                {filteredSubServices.length > 0 ? (
-                  filteredSubServices.map((subService) => (
-                    <SelectItem key={subService.id} value={subService.id}>
-                      {subService.name}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-sub-services" disabled>
-                    No sub services available
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+          <AddContentSelectField
+            label="Sub Service"
+            value={formData.sub_service_id}
+            placeholder={formData.service_id ? 'Select sub service' : 'Please select service first'}
+            emptyText="No sub services available"
+            isMobile={isMobile}
+            disabled={!formData.service_id}
+            options={filteredSubServices.map((subService) => ({
+              id: subService.id,
+              label: subService.name,
+            }))}
+            onChange={(value) => {
+              setFormData((prev) => ({ ...prev, sub_service_id: value }));
+            }}
+          />
 
-          {/* Content Pillar */}
-          <div className="space-y-2">
-            <Label htmlFor="pillar">Content Pillar</Label>
-            <Select
+          {isMobile ? (
+            <MobileContentPillarPickerField
+              label="Content Pillar"
               value={formData.content_pillar_id}
-              onValueChange={(value) => {
-                setFormData(prev => ({ ...prev, content_pillar_id: value }));
+              placeholder="Select content pillar"
+              selectedMonth={trackerMonth}
+              serviceFilter={serviceFilter}
+              onChange={(value) => {
+                setFormData((prev) => ({ ...prev, content_pillar_id: value }));
               }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select content pillar" />
-              </SelectTrigger>
-              <SelectContent 
-                className="max-h-[200px] overflow-y-auto" 
-                position="popper" 
-                sideOffset={4}
-                style={{ zIndex: 999999 }}
-              >
-                {contentPillars.length > 0 ? (
-                  contentPillars.map((pillar) => (
-                    <SelectItem key={pillar.id} value={pillar.id}>
-                      <div className="flex items-center gap-2">
-                        {pillar.color && (
-                          <div 
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: pillar.color }}
-                          />
-                        )}
-                        {pillar.name}
-                      </div>
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-content-pillars" disabled>
-                    No content pillars available
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+            />
+          ) : (
+            <AddContentSelectField
+              label="Content Pillar"
+              value={formData.content_pillar_id}
+              placeholder="Select content pillar"
+              emptyText="No content pillars available"
+              isMobile={false}
+              options={contentPillars.map((pillar) => ({
+                id: pillar.id,
+                label: pillar.name,
+                leading: pillar.color ? (
+                  <span
+                    className="h-3 w-3 shrink-0 rounded-full"
+                    style={{ backgroundColor: pillar.color }}
+                  />
+                ) : undefined,
+              }))}
+              onChange={(value) => {
+                setFormData((prev) => ({ ...prev, content_pillar_id: value }));
+              }}
+            />
+          )}
 
-          {/* Content Type */}
-          <div className="space-y-2">
-            <Label htmlFor="contentType">Content Type</Label>
-            <Select
-              value={formData.content_type_id}
-              onValueChange={(value) => {
-                setFormData(prev => ({ ...prev, content_type_id: value }));
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select content type" />
-              </SelectTrigger>
-              <SelectContent 
-                className="max-h-[200px] overflow-y-auto" 
-                position="popper" 
-                sideOffset={4}
-                style={{ zIndex: 999999 }}
-              >
-                {contentTypes.length > 0 ? (
-                  contentTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-content-types" disabled>
-                    No content types available
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+          <AddContentSelectField
+            label="Content Type"
+            value={formData.content_type_id}
+            placeholder="Select content type"
+            emptyText="No content types available"
+            isMobile={isMobile}
+            options={contentTypes.map((type) => ({ id: type.id, label: type.name }))}
+            onChange={(value) => {
+              setFormData((prev) => ({ ...prev, content_type_id: value }));
+            }}
+          />
 
-          {/* PIC (Editable dropdown) */}
-          <div className="space-y-2">
-            <Label htmlFor="pic">PIC</Label>
-            <Select
-              value={formData.pic_id}
-              onValueChange={(value) => {
-                setFormData(prev => ({ ...prev, pic_id: value }));
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select PIC" />
-              </SelectTrigger>
-              <SelectContent 
-                className="max-h-[200px] overflow-y-auto" 
-                position="popper" 
-                sideOffset={4}
-                style={{ zIndex: 999999 }}
-              >
-                {employees.length > 0 ? (
-                  employees.map((employee) => (
-                    <SelectItem key={employee.id} value={employee.id}>
-                      {employee.full_name}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-employees" disabled>
-                    No employees available
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+          <AddContentSelectField
+            label="PIC"
+            value={formData.pic_id}
+            placeholder="Select PIC"
+            emptyText="No employees available"
+            isMobile={isMobile}
+            options={employees.map((employee) => ({
+              id: employee.id,
+              label: employee.full_name,
+            }))}
+            onChange={(value) => {
+              setFormData((prev) => ({ ...prev, pic_id: value }));
+            }}
+          />
 
           </form>
           )}
         </div>
 
         {/* Sticky Footer */}
-        <div className="flex-shrink-0 bg-background z-10 pt-4 pb-6 px-6 border-t">
+        <div
+          className={cn(
+            'z-10 flex-shrink-0 border-t bg-background',
+            isMobile ? 'px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]' : 'px-6 pb-6 pt-4',
+          )}
+        >
           <div className="flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"
+              size={isMobile ? 'sm' : 'default'}
+              className={cn(isMobile && 'text-xs')}
               onClick={() => {
                 if (!loading) {
                   onOpenChange(false);
@@ -703,6 +886,8 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
             <Button 
               type="submit" 
               form="content-plan-form"
+              size={isMobile ? 'sm' : 'default'}
+              className={cn(isMobile && 'text-xs')}
               disabled={loading || !formData.pic_id}
             >
               {loading 
@@ -713,5 +898,13 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
         </div>
       </DialogContent>
     </Dialog>
+    <CreateBriefTableDialog
+      open={createTableOpen}
+      onOpenChange={setCreateTableOpen}
+      onCreate={handleCreateStoryboardTable}
+      overlayClassName="z-[1000000]"
+      contentClassName="z-[1000001]"
+    />
+    </>
   );
 };

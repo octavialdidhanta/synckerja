@@ -1,21 +1,14 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2, Pencil, X } from "lucide-react";
+import { Plus, Trash2, Pencil, Search } from "lucide-react";
 import { toast } from "sonner";
 import { StockManagementModuleShell } from "@/6-0-stock-management/layout/StockManagementModuleShell";
+import { PlatformMappingDialog } from "@/6-0-stock-management/container/PlatformMappingDialog";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import {
   Table,
   TableBody,
@@ -42,6 +35,18 @@ export default function StockPlatformMappingPage() {
   );
 }
 
+function platformLabel(platform: string, t: (key: string, fallback: string) => string) {
+  const match = INVENTORY_PLATFORMS.find((p) => p.value === platform);
+  return match ? t(match.labelKey, match.defaultLabel) : platform;
+}
+
+function mappingSkuLabel(mapping: InventoryPlatformMappingRow) {
+  const skuRef = Array.isArray(mapping.inventory_skus)
+    ? mapping.inventory_skus[0]
+    : mapping.inventory_skus;
+  return skuRef?.internal_sku ?? mapping.sku_id.slice(0, 8);
+}
+
 function StockPlatformMappingContent() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -50,6 +55,8 @@ function StockPlatformMappingContent() {
   const { data: mappingsData, isLoading } = usePlatformSkuMappingsQuery(organizationId);
   const { data: tiktokSettings } = useTikTokShopSettings(organizationId);
 
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [skuId, setSkuId] = useState("");
   const [platform, setPlatform] = useState("tiktok_shop");
   const [sellerSku, setSellerSku] = useState("");
@@ -58,6 +65,7 @@ function StockPlatformMappingContent() {
   const [shopAccountId, setShopAccountId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const skus = skusData?.rows ?? [];
   const mappings = mappingsData?.rows ?? [];
@@ -68,12 +76,34 @@ function StockPlatformMappingContent() {
       ),
     [tiktokSettings],
   );
+  const shopById = useMemo(() => new Map(shops.map((shop) => [shop.id, shop])), [shops]);
+
+  const filteredMappings = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return mappings;
+    return mappings.filter((mapping) => {
+      const sku = mappingSkuLabel(mapping).toLowerCase();
+      const shop = shopById.get(mapping.shop_account_id ?? "");
+      const shopLabel = (shop?.label || shop?.shop_name || shop?.shop_id || "").toLowerCase();
+      const platformText = platformLabel(mapping.platform, t).toLowerCase();
+      return (
+        sku.includes(q) ||
+        platformText.includes(q) ||
+        mapping.platform.toLowerCase().includes(q) ||
+        (mapping.seller_sku ?? "").toLowerCase().includes(q) ||
+        (mapping.platform_product_id ?? "").toLowerCase().includes(q) ||
+        (mapping.platform_sku_id ?? "").toLowerCase().includes(q) ||
+        shopLabel.includes(q) ||
+        (mapping.warehouse_id ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [mappings, search, shopById, t]);
 
   useEffect(() => {
-    if (shopAccountId || shops.length === 0) return;
+    if (!dialogOpen || editingId || shopAccountId || shops.length === 0) return;
     const preferred = shops.find((shop) => shop.is_default) ?? shops[0];
     if (preferred) setShopAccountId(preferred.id);
-  }, [shops, shopAccountId]);
+  }, [shops, shopAccountId, dialogOpen, editingId]);
 
   if (gatePending || (isLoading && mappings.length === 0)) {
     return null;
@@ -94,7 +124,12 @@ function StockPlatformMappingContent() {
     setWarehouseId("");
   };
 
-  const loadMappingForEdit = (mapping: InventoryPlatformMappingRow) => {
+  const openAddDialog = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (mapping: InventoryPlatformMappingRow) => {
     setEditingId(mapping.id);
     setSkuId(mapping.sku_id);
     setPlatform(mapping.platform);
@@ -104,10 +139,17 @@ function StockPlatformMappingContent() {
     setShopAccountId(mapping.shop_account_id ?? "");
     const wh = mapping.warehouse_id?.trim() ?? "";
     setWarehouseId(wh === "default" ? "" : wh);
+    setDialogOpen(true);
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) resetForm();
   };
 
   const handleSave = async () => {
     if (!organizationId || !skuId) return;
+    setSaving(true);
     try {
       await upsertPlatformMapping(organizationId, {
         ...(editingId ? { id: editingId } : {}),
@@ -127,175 +169,150 @@ function StockPlatformMappingContent() {
           editingId ? "Mapping updated" : "Mapping saved",
         ),
       );
-      resetForm();
+      handleDialogOpenChange(false);
       invalidate();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
     <>
-            <div className="col-span-12 space-y-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-              {canManage ? (
-                <div className="space-y-2">
-                  {editingId ? (
-                    <p className="text-sm text-muted-foreground">
-                      {t("operations.stockManagement.editingMapping", "Editing mapping — save or cancel")}
-                    </p>
-                  ) : null}
-                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  <div>
-                    <Label>{t("operations.stockManagement.colInternalSku", "Internal SKU")}</Label>
-                    <Select value={skuId} onValueChange={setSkuId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select SKU" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {skus.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.internal_sku}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>{t("operations.stockManagement.colPlatform", "Platform")}</Label>
-                    <Select value={platform} onValueChange={setPlatform}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {INVENTORY_PLATFORMS.map((p) => (
-                          <SelectItem key={p.value} value={p.value}>
-                            {t(p.labelKey, p.defaultLabel)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>{t("operations.stockManagement.sellerSku", "Seller SKU")}</Label>
-                    <Input value={sellerSku} onChange={(e) => setSellerSku(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label>{t("operations.stockManagement.platformProductId", "Platform product ID")}</Label>
-                    <Input value={platformProductId} onChange={(e) => setPlatformProductId(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label>{t("operations.stockManagement.platformSkuId", "Platform SKU ID")}</Label>
-                    <Input value={platformSkuId} onChange={(e) => setPlatformSkuId(e.target.value)} />
-                  </div>
-                  {platform === "tiktok_shop" ? (
-                    <div>
-                      <Label>{t("operations.stockManagement.tiktokShop", "TikTok shop")}</Label>
-                      <Select value={shopAccountId} onValueChange={setShopAccountId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Shop" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {shops.map((shop) => (
-                            <SelectItem key={shop.id} value={shop.id}>
-                              {shop.label || shop.shop_name || shop.shop_id}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : null}
-                  <div>
-                    <Label>{t("operations.stockManagement.warehouseId", "Warehouse ID")}</Label>
-                    <Input
-                      value={warehouseId}
-                      onChange={(e) => setWarehouseId(e.target.value)}
-                      placeholder={t(
-                        "operations.stockManagement.warehouseIdPlaceholder",
-                        "Leave empty — auto from TikTok",
-                      )}
-                    />
-                  </div>
-                  <div className="flex items-end gap-2">
-                    <Button onClick={handleSave} disabled={!skuId}>
-                      {editingId ? (
-                        t("operations.stockManagement.saveMapping", "Save mapping")
-                      ) : (
-                        <>
-                          <Plus className="mr-1 h-4 w-4" />
-                          {t("operations.stockManagement.addMapping", "Add mapping")}
-                        </>
-                      )}
-                    </Button>
-                    {editingId ? (
-                      <Button type="button" variant="outline" onClick={resetForm}>
-                        <X className="mr-1 h-4 w-4" />
-                        {t("common.cancel", "Cancel")}
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-                </div>
-              ) : null}
+      <div className="col-span-12 space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t(
+                "operations.stockManagement.searchMappings",
+                "Search SKU, shop, or ID",
+              )}
+              className="pl-8"
+            />
+          </div>
+          {canManage ? (
+            <Button onClick={openAddDialog}>
+              <Plus className="mr-1 h-4 w-4" />
+              {t("operations.stockManagement.addMapping", "Add mapping")}
+            </Button>
+          ) : null}
+        </div>
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Platform</TableHead>
-                    <TableHead>Seller SKU</TableHead>
-                    <TableHead>Product / SKU ID</TableHead>
-                    {canManage ? <TableHead /> : null}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mappings.map((m) => {
-                    const skuRef = Array.isArray(m.inventory_skus)
-                      ? m.inventory_skus[0]
-                      : m.inventory_skus;
-                    return (
-                      <TableRow key={m.id}>
-                        <TableCell className="font-mono text-xs">
-                          {skuRef?.internal_sku ?? m.sku_id.slice(0, 8)}
+        {filteredMappings.length === 0 ? (
+          <div className="flex min-h-[200px] items-center justify-center p-6 text-sm text-muted-foreground">
+            {mappings.length === 0
+              ? t("operations.stockManagement.noMappings", "No mappings yet.")
+              : t("operations.stockManagement.noMappingsMatch", "No mappings match this search.")}
+          </div>
+        ) : (
+          <div className="min-h-0 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("operations.stockManagement.colInternalSku", "Internal SKU")}</TableHead>
+                  <TableHead>{t("operations.stockManagement.colPlatform", "Platform")}</TableHead>
+                  <TableHead>{t("operations.stockManagement.colShop", "Shop")}</TableHead>
+                  <TableHead>{t("operations.stockManagement.sellerSku", "Seller SKU")}</TableHead>
+                  <TableHead>{t("operations.stockManagement.colProductId", "Product ID")}</TableHead>
+                  <TableHead>{t("operations.stockManagement.colSkuId", "SKU ID")}</TableHead>
+                  <TableHead>{t("operations.stockManagement.warehouseId", "Warehouse ID")}</TableHead>
+                  {canManage ? (
+                    <TableHead className="text-right">
+                      {t("operations.stockManagement.colActions", "Actions")}
+                    </TableHead>
+                  ) : null}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredMappings.map((mapping) => {
+                  const shop = shopById.get(mapping.shop_account_id ?? "");
+                  const warehouse =
+                    mapping.warehouse_id && mapping.warehouse_id !== "default"
+                      ? mapping.warehouse_id
+                      : "—";
+                  return (
+                    <TableRow key={mapping.id}>
+                      <TableCell className="font-mono text-xs">{mappingSkuLabel(mapping)}</TableCell>
+                      <TableCell>{platformLabel(mapping.platform, t)}</TableCell>
+                      <TableCell>
+                        {shop?.label || shop?.shop_name || shop?.shop_id || "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{mapping.seller_sku || "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {mapping.platform_product_id || "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {mapping.platform_sku_id || "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{warehouse}</TableCell>
+                      {canManage ? (
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              aria-label={t("common.edit", "Edit")}
+                              onClick={() => openEditDialog(mapping)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              aria-label={t("common.delete", "Delete")}
+                              onClick={async () => {
+                                if (!organizationId) return;
+                                await deletePlatformMapping(organizationId, mapping.id);
+                                invalidate();
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
-                        <TableCell>{m.platform}</TableCell>
-                        <TableCell>{m.seller_sku || "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {m.platform_product_id} / {m.platform_sku_id}
-                        </TableCell>
-                        {canManage ? (
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                aria-label={t("common.edit", "Edit")}
-                                onClick={() => loadMappingForEdit(m)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                aria-label={t("common.delete", "Delete")}
-                                onClick={async () => {
-                                  if (!organizationId) return;
-                                  if (editingId === m.id) resetForm();
-                                  await deletePlatformMapping(organizationId, m.id);
-                                  invalidate();
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        ) : null}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-            <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
+                      ) : null}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+      <div
+        className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+        aria-hidden
+      />
+
+      {canManage ? (
+        <PlatformMappingDialog
+          open={dialogOpen}
+          onOpenChange={handleDialogOpenChange}
+          editing={Boolean(editingId)}
+          skuId={skuId}
+          onSkuIdChange={setSkuId}
+          platform={platform}
+          onPlatformChange={setPlatform}
+          sellerSku={sellerSku}
+          onSellerSkuChange={setSellerSku}
+          platformProductId={platformProductId}
+          onPlatformProductIdChange={setPlatformProductId}
+          platformSkuId={platformSkuId}
+          onPlatformSkuIdChange={setPlatformSkuId}
+          shopAccountId={shopAccountId}
+          onShopAccountIdChange={setShopAccountId}
+          warehouseId={warehouseId}
+          onWarehouseIdChange={setWarehouseId}
+          skus={skus}
+          shops={shops}
+          saving={saving}
+          onSave={handleSave}
+        />
+      ) : null}
     </>
   );
 }

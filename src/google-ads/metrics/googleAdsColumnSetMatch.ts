@@ -1,5 +1,5 @@
 import type { GoogleAdsColumnSet } from "@/google-ads/hooks/useGoogleAdsColumnSets";
-import { isOptionalIdentityColumnKey } from "@/google-ads/metrics/googleAdsIdentityColumns";
+import { isOptionalIdentityColumnKey, stripGoogleAdsPinnedMetricKeys } from "@/google-ads/metrics/googleAdsIdentityColumns";
 import { isSynckerjaLeadsMetricKey } from "@/google-ads/metrics/googleAdsSynckerjaLeadsMetrics";
 import { isSynckerjaTrafficMetricKey } from "@/google-ads/metrics/googleAdsSynckerjaTrafficMetrics";
 import type { GoogleAdsMetricEntity } from "@/google-ads/metrics/types";
@@ -20,10 +20,13 @@ export function findMatchingGoogleAdsColumnSet(
   columnSets: GoogleAdsColumnSet[],
   keys: string[],
 ): GoogleAdsColumnSet | null {
-  if (keys.length === 0) return null;
+  const normalizedKeys = stripGoogleAdsPinnedMetricKeys(keys);
+  if (normalizedKeys.length === 0) return null;
   return (
-    columnSets.find((set) => columnKeysMatch(set.metric_keys, keys)) ??
-    columnSets.find((set) => columnKeysMatchOrderIndependent(set.metric_keys, keys)) ??
+    columnSets.find((set) => columnKeysMatch(stripGoogleAdsPinnedMetricKeys(set.metric_keys), normalizedKeys)) ??
+    columnSets.find((set) =>
+      columnKeysMatchOrderIndependent(stripGoogleAdsPinnedMetricKeys(set.metric_keys), normalizedKeys),
+    ) ??
     null
   );
 }
@@ -37,7 +40,7 @@ export function filterGoogleAdsPreferenceMetricKeys(
   keys: string[],
   validMetricKeys: Set<string> | null | undefined,
 ): string[] {
-  return keys.filter(
+  return stripGoogleAdsPinnedMetricKeys(keys).filter(
     (k) =>
       validMetricKeys?.has(k) ||
       k.startsWith("conv_action:") ||

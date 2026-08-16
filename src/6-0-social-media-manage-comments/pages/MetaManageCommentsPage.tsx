@@ -55,7 +55,7 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
   const [searchParams, setSearchParams] = useSearchParams();
   const { organizationId, canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
   const configQuery = useMetaContentConfig(organizationId);
-  const [accountId, setAccountId] = useState('');
+  const [accountIdOverride, setAccountIdOverride] = useState('');
   const [postFilter, setPostFilter] = useState<ManageCommentsPostFilter>('all');
   const selectedMediaId = searchParams.get('videoId')?.trim() || null;
 
@@ -69,12 +69,11 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
     () => (configQuery.data?.accounts ?? []).filter((a) => a.platform === platform),
     [configQuery.data?.accounts, platform],
   );
-
-  useEffect(() => {
-    if (!accountId && platformAccounts.length > 0) {
-      setAccountId(platformAccounts[0].account_id);
-    }
-  }, [platformAccounts, accountId]);
+  const accountId =
+    (accountIdOverride &&
+    platformAccounts.some((a) => a.account_id === accountIdOverride)
+      ? accountIdOverride
+      : platformAccounts[0]?.account_id) ?? '';
 
   useEffect(() => {
     setPostFilter('all');
@@ -182,15 +181,23 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
   );
 
   useEffect(() => {
-    if (filteredPosts.length === 0) {
-      if (selectedMediaId) setSearchParams({}, { replace: true });
-      return;
-    }
-    const hasSelection = selectedMediaId != null &&
-      filteredPosts.some((p) => String(p.id) === selectedMediaId);
-    if (!hasSelection) {
-      setSearchParams({ videoId: String(filteredPosts[0].id) }, { replace: true });
-    }
+    const nextVideoId =
+      filteredPosts.length === 0
+        ? null
+        : selectedMediaId && filteredPosts.some((p) => String(p.id) === selectedMediaId)
+          ? selectedMediaId
+          : String(filteredPosts[0]?.id ?? '').trim() || null;
+
+    if (nextVideoId === selectedMediaId) return;
+    setSearchParams(
+      (prev) => {
+        const current = prev.get('videoId')?.trim() || null;
+        if (current === nextVideoId) return prev;
+        if (!nextVideoId) return new URLSearchParams();
+        return new URLSearchParams({ videoId: nextVideoId });
+      },
+      { replace: true },
+    );
   }, [filteredPosts, selectedMediaId, setSearchParams]);
 
   const handleSelectPost = useCallback(
@@ -200,26 +207,28 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
     [setSearchParams],
   );
 
+  const handleNewInboundComments = useCallback(() => {
+    if (platform === 'instagram' && selectedMediaId) {
+      markPostWithNewActivity(selectedMediaId);
+    }
+  }, [platform, selectedMediaId, markPostWithNewActivity]);
+
   const handleAccountChange = useCallback(
     (nextAccountId: string) => {
-      setAccountId(nextAccountId);
+      setAccountIdOverride(nextAccountId);
       setSearchParams({}, { replace: true });
     },
     [setSearchParams],
   );
 
-  const rawPageLoadPending = gatePending || (canManage && configQuery.isPending);
-
-  if (rawPageLoadPending) {
-    return null;
-  }
-
-  const showConnectCta = platformAccounts.length === 0;
+  const showAccessDenied = !gatePending && !canManage;
+  const showConnectCta =
+    !gatePending && canManage && !configQuery.isPending && platformAccounts.length === 0;
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="flex max-h-[calc(100vh-120px)] min-h-0 flex-1 flex-row overflow-hidden">
-          {!canManage ? (
+    <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
+      <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
+          {showAccessDenied ? (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <Alert>
                 <AlertTitle>
@@ -294,7 +303,7 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
                           selectedId={selectedMediaId}
                           highlightedPostIds={visibleHighlightedPostIds}
                           onSelect={handleSelectPost}
-                          isLoading={postsQuery.isLoading}
+                          isLoading={gatePending || configQuery.isPending || postsQuery.isLoading}
                           isFetching={postsQuery.isFetching}
                           totalPosts={allPosts.length}
                           activeFilter={postFilter}
@@ -321,11 +330,7 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
                             ? visibleHighlightedPostIds.has(selectedPost.id)
                             : false
                         }
-                        onNewInboundComments={() => {
-                          if (platform === 'instagram' && selectedPost) {
-                            markPostWithNewActivity(selectedPost.id);
-                          }
-                        }}
+                        onNewInboundComments={handleNewInboundComments}
                         onPostHighlightResolved={handlePostHighlightResolved}
                         inboxEnabled={inboxEnabled}
                       />

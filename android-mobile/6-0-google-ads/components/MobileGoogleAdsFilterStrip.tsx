@@ -67,6 +67,7 @@ type Props = {
   enabledOnly?: boolean;
   onEnabledOnlyChange?: (checked: boolean) => void;
   showDeliveryEnabled?: boolean;
+  showAccount?: boolean;
   className?: string;
 };
 
@@ -110,6 +111,7 @@ export function MobileGoogleAdsFilterStrip({
   enabledOnly = false,
   onEnabledOnlyChange,
   showDeliveryEnabled = false,
+  showAccount = true,
   className,
 }: Props) {
   const { t } = useAppTranslation();
@@ -126,15 +128,16 @@ export function MobileGoogleAdsFilterStrip({
     t("digitalMarketing.googleAds.customerPlaceholder", "Select customer");
 
   return (
-    <div className={cn("-mx-2 border-y border-border bg-card", className)}>
+    <div className={cn("-mx-2 min-w-0 border-y border-border bg-card", className)}>
       <div
         className={cn(
-          "scrollbar-hide seamless-scroll min-w-0 overflow-x-auto overflow-y-hidden",
-          "[touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "nested-scroll-touch-chain-xy scrollbar-hide min-w-0 w-full overflow-x-auto overflow-y-hidden",
+          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
       >
-        <div className="inline-flex items-center gap-2 py-2">
+        <div className="inline-flex w-max items-center gap-2 py-2">
           <span className="inline-block w-4 shrink-0 grow-0 basis-4" aria-hidden />
+          {showAccount ? (
           <Button
             type="button"
             variant="outline"
@@ -154,6 +157,7 @@ export function MobileGoogleAdsFilterStrip({
               <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
             </span>
           </Button>
+          ) : null}
 
           <div className="min-w-[11rem] max-w-[16rem] shrink-0">
             <MobileTrafficDateRangeDrawer
@@ -226,6 +230,7 @@ export function MobileGoogleAdsFilterStrip({
         </div>
       </div>
 
+      {showAccount ? (
       <Drawer open={accountOpen} onOpenChange={setAccountOpen}>
         <DrawerContent className="max-h-[85vh] px-0 pb-4">
           <DrawerHeader className="px-4 pb-2 text-left">
@@ -259,6 +264,7 @@ export function MobileGoogleAdsFilterStrip({
           </div>
         </DrawerContent>
       </Drawer>
+      ) : null}
     </div>
   );
 }

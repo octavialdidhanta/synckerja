@@ -21,6 +21,8 @@ describe("dmReportMetricDirections", () => {
   it("keeps default lower-is-better for CPC without override", () => {
     expect(computeDmReportTargetProgressPercentage(5_905, 5_000, "cpc")).toBe(118);
     expect(computeDmReportTargetOkrPercentage(5_905, 5_000, "cpc")).toBe(85);
+    expect(resolveDmReportMetricDirection("avg_cost")).toBe("lower_is_better");
+    expect(resolveDmReportMetricDirection("cpm")).toBe("lower_is_better");
   });
 
   it("requires desc target ≤ actual and asc target ≥ actual for save", () => {

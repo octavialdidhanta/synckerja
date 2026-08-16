@@ -5,7 +5,9 @@ import { formatMetricValue } from "@/google-ads/metrics/formatMetricValue";
 import {
   GOOGLE_ADS_IDENTITY_COLUMNS,
   GOOGLE_ADS_OPTIONAL_IDENTITY_COLUMNS,
+  isGoogleAdsPinnedMetricKey,
   isOptionalIdentityColumnKey,
+  stripGoogleAdsPinnedMetricKeys,
 } from "@/google-ads/metrics/googleAdsIdentityColumns";
 import { LEADS_VISIT_RATE_KEY } from "@/google-ads/metrics/googleAdsSynckerjaLeadsMetrics";
 import { TRAFFIC_VISIT_CLICK_RATE_KEY } from "@/google-ads/metrics/googleAdsSynckerjaTrafficMetrics";
@@ -44,6 +46,8 @@ function identityCellText(
 ): string {
   const id = row.identity;
   switch (key) {
+    case "spent":
+      return formatMetricValue("spent", row.metrics.spent, currencyCode, "micros");
     case "name":
       return String(id.name ?? "—");
     case "service":
@@ -90,7 +94,7 @@ export function MobileGoogleAdsMetricsTable({
 }: Props) {
   const { t } = useTranslation();
   const metricByKey = useMemo(
-    () => new Map(metricItems.map((m) => [m.key, m])),
+    () => new Map(metricItems.filter((m) => !isGoogleAdsPinnedMetricKey(m.key)).map((m) => [m.key, m])),
     [metricItems],
   );
   const optionalLabelByKey = useMemo(() => {
@@ -104,7 +108,7 @@ export function MobileGoogleAdsMetricsTable({
   const lockedCols = GOOGLE_ADS_IDENTITY_COLUMNS[entity];
 
   const displayMetricCols = useMemo(() => {
-    return selectedColumnKeys
+    return stripGoogleAdsPinnedMetricKeys(selectedColumnKeys)
       .map((key) => {
         if (isOptionalIdentityColumnKey(entity, key)) {
           return {
@@ -168,21 +172,38 @@ export function MobileGoogleAdsMetricsTable({
   return (
     <div
       className={cn(
-        "-mx-2 overflow-x-auto overflow-y-hidden border-y border-border bg-card [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "-mx-2 min-w-0 border-y border-border bg-card",
         className,
       )}
     >
+      <div
+        className={cn(
+          "nested-scroll-touch-chain-xy scrollbar-hide min-w-0 w-full overflow-x-auto overflow-y-hidden",
+          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        )}
+      >
       <table className="w-max min-w-full border-collapse text-sm">
         <thead>
           <tr>
             {lockedCols.map((col) => (
-              <th key={col.key} className={thClass}>
+              <th
+                key={col.key}
+                className={cn(
+                  thClass,
+                  (col.key === "service_cpl" ||
+                    col.key === "service_converted_leads" ||
+                    col.key === "spent") &&
+                    "text-right",
+                )}
+              >
                 {col.key === "service"
                   ? t("digitalMarketing.googleAds.columnService", "Service")
                   : col.key === "service_cpl"
                     ? t("digitalMarketing.googleAds.columnCostPerLead", "CPA")
-                    : col.key === "service_converted_leads"
-                      ? t("digitalMarketing.googleAds.columnConvertedLeads", "Conv. leads")
+                  : col.key === "service_converted_leads"
+                    ? t("digitalMarketing.googleAds.columnConvertedLeads", "Conv. leads")
+                    : col.key === "spent"
+                      ? t("digitalMarketing.googleAds.summaryCost", "Cost")
                       : col.label}
               </th>
             ))}
@@ -205,7 +226,9 @@ export function MobileGoogleAdsMetricsTable({
               {lockedCols.map((col) => {
                 const text = identityCellText(entity, col.key, row, currencyCode);
                 const alignRight =
-                  col.key === "service_cpl" || col.key === "service_converted_leads";
+                  col.key === "service_cpl" ||
+                  col.key === "service_converted_leads" ||
+                  col.key === "spent";
                 return (
                   <td
                     key={col.key}
@@ -257,6 +280,7 @@ export function MobileGoogleAdsMetricsTable({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

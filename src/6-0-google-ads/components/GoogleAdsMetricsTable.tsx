@@ -28,7 +28,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/shared/components/ui/tooltip";
-import { GOOGLE_ADS_IDENTITY_COLUMNS } from "@/google-ads/metrics/googleAdsIdentityColumns";
+import {
+  GOOGLE_ADS_IDENTITY_COLUMNS,
+  isGoogleAdsPinnedMetricKey,
+  stripGoogleAdsPinnedMetricKeys,
+} from "@/google-ads/metrics/googleAdsIdentityColumns";
 import type {
   GoogleAdsMetricEntity,
   GoogleAdsMetricsRow,
@@ -80,23 +84,25 @@ function formatServiceCpa(
   return formatMetricValue("spent", Number(value), currencyCode ?? "IDR", "micros");
 }
 
-function campaignIdentityColumns(
+type LockedColumnOpts = {
+  canEditServiceMapping: boolean;
+  services: ServiceOption[];
+  onServiceMappingChange?: Props["onServiceMappingChange"];
+  serviceMappingPending: boolean;
+  currencyCode: string | null;
+};
+
+function identityColumnByKey(
   t: (key: string, defaultValue?: string) => string,
-  opts: {
-    canEditServiceMapping: boolean;
-    services: ServiceOption[];
-    onServiceMappingChange?: Props["onServiceMappingChange"];
-    serviceMappingPending: boolean;
-    currencyCode: string | null;
-  },
-): IdentityCol[] {
+  opts: LockedColumnOpts,
+): Record<string, IdentityCol> {
   const serviceAggregateTip = t(
     "digitalMarketing.googleAds.serviceAggregateTip",
     "CPA per campaign: spent campaign ini dibagi lead Converted yang UTM campaign-nya cocok dengan nama campaign Google (wajib gclid, converted_at dalam rentang tanggal). CPL untuk lead yang belum converted.",
   );
 
-  return [
-    {
+  return {
+    service: {
       key: "service",
       label: t("digitalMarketing.googleAds.columnService", "Service"),
       render: (r) => String(r.identity.service_name ?? "—"),
@@ -132,7 +138,7 @@ function campaignIdentityColumns(
           }
         : undefined,
     },
-    {
+    service_cpl: {
       key: "service_cpl",
       label: t("digitalMarketing.googleAds.columnCostPerLead", "CPA"),
       headerTitle: serviceAggregateTip,
@@ -160,7 +166,7 @@ function campaignIdentityColumns(
         );
       },
     },
-    {
+    service_converted_leads: {
       key: "service_converted_leads",
       label: t("digitalMarketing.googleAds.columnConvertedLeads", "Conv. leads"),
       headerTitle: serviceAggregateTip,
@@ -171,8 +177,49 @@ function campaignIdentityColumns(
       },
       cellClassName: "whitespace-nowrap text-right tabular-nums text-sm",
     },
-    { key: "name", label: "Campaign", render: (r) => String(r.identity.name ?? "—") },
-  ];
+    name: {
+      key: "name",
+      label: "Name",
+      render: (r) => String(r.identity.name ?? "—"),
+    },
+    spent: {
+      key: "spent",
+      label: t("digitalMarketing.googleAds.summaryCost", "Cost"),
+      render: (r) => formatMetricValue("spent", r.metrics.spent, opts.currencyCode, "micros"),
+      cellClassName: "whitespace-nowrap text-right tabular-nums text-sm",
+    },
+    campaign: {
+      key: "campaign",
+      label: t("digitalMarketing.googleAds.campaignColumn", "Campaign"),
+      render: (r) => String(r.identity.campaign_name ?? "—"),
+      cellClassName: "max-w-[200px] truncate",
+    },
+    keyword: {
+      key: "keyword",
+      label: "Keyword",
+      render: (r) => String(r.identity.keyword_text ?? "—"),
+      cellClassName: "max-w-[240px] font-medium",
+    },
+    match_type: {
+      key: "match_type",
+      label: "Match type",
+      render: (r) => formatKeywordMatchType(r.identity.match_type),
+      cellClassName: "whitespace-nowrap text-sm",
+    },
+    ad_group: {
+      key: "ad_group",
+      label: "Ad group",
+      render: (r) => String(r.identity.ad_group_name ?? "—"),
+      cellClassName: "max-w-[200px] truncate",
+    },
+    preview: {
+      key: "preview",
+      label: "Ad",
+      render: () => "",
+      cellClassName: "align-top p-3",
+      customCell: (row: GoogleAdsMetricsRow) => <GoogleAdsAdPreviewCell row={row} />,
+    },
+  };
 }
 
 function optionalIdentityColumns(
@@ -208,64 +255,19 @@ function optionalIdentityColumns(
 function lockedIdentityColumns(
   entity: GoogleAdsMetricEntity,
   t: (key: string, defaultValue?: string) => string,
-  campaignOpts: Parameters<typeof campaignIdentityColumns>[1] | null,
+  opts: LockedColumnOpts,
 ): IdentityCol[] {
-  const lockedKeys = new Set(GOOGLE_ADS_IDENTITY_COLUMNS[entity].map((c) => c.key));
-  const allCols =
-    entity === "campaign" && campaignOpts
-      ? campaignIdentityColumns(t, {
-          canEditServiceMapping: campaignOpts.canEditServiceMapping,
-          services: campaignOpts.services,
-          onServiceMappingChange: campaignOpts.onServiceMappingChange,
-          serviceMappingPending: campaignOpts.serviceMappingPending,
-          currencyCode: campaignOpts.currencyCode,
-        })
-      : entity === "ad_group"
-        ? [
-            { key: "name", label: "Ad group", render: (r) => String(r.identity.name ?? "—") },
-            {
-              key: "campaign",
-              label: "Campaign",
-              render: (r) => String(r.identity.campaign_name ?? "—"),
-            },
-          ]
-        : entity === "keyword"
-          ? [
-              {
-                key: "keyword",
-                label: "Keyword",
-                render: (r) => String(r.identity.keyword_text ?? "—"),
-                cellClassName: "max-w-[240px] font-medium",
-              },
-              {
-                key: "match_type",
-                label: "Match type",
-                render: (r) => formatKeywordMatchType(r.identity.match_type),
-                cellClassName: "whitespace-nowrap text-sm",
-              },
-              {
-                key: "campaign",
-                label: "Campaign",
-                render: (r) => String(r.identity.campaign_name ?? "—"),
-                cellClassName: "max-w-[200px] truncate",
-              },
-              {
-                key: "ad_group",
-                label: "Ad group",
-                render: (r) => String(r.identity.ad_group_name ?? "—"),
-                cellClassName: "max-w-[200px] truncate",
-              },
-            ]
-          : [
-              {
-                key: "preview",
-                label: "Ad",
-                render: () => "",
-                cellClassName: "align-top p-3",
-                customCell: (row: GoogleAdsMetricsRow) => <GoogleAdsAdPreviewCell row={row} />,
-              },
-            ];
-  return allCols.filter((c) => lockedKeys.has(c.key));
+  const byKey = identityColumnByKey(t, opts);
+  return GOOGLE_ADS_IDENTITY_COLUMNS[entity].flatMap((def) => {
+    const col = byKey[def.key];
+    if (!col) return [];
+    const keepTranslatedLabel =
+      def.key === "service" ||
+      def.key === "service_cpl" ||
+      def.key === "service_converted_leads" ||
+      def.key === "spent";
+    return [{ ...col, label: keepTranslatedLabel ? col.label : def.label }];
+  });
 }
 
 /** Tipis & transparan — lihat `.seamless-scroll` di `index.css` (bukan scrollbar OS tebal). */
@@ -293,20 +295,18 @@ export function GoogleAdsMetricsTable({
   serviceMappingPending = false,
 }: Props) {
   const { t } = useTranslation();
-  const campaignOpts =
-    entity === "campaign"
-      ? {
-          canEditServiceMapping,
-          services,
-          onServiceMappingChange,
-          serviceMappingPending,
-          currencyCode,
-        }
-      : null;
-  const lockedIdCols = lockedIdentityColumns(entity, t, campaignOpts);
+  const lockedIdCols = lockedIdentityColumns(entity, t, {
+    canEditServiceMapping,
+    services,
+    onServiceMappingChange,
+    serviceMappingPending,
+    currencyCode,
+  });
   const optionalByKey = new Map(optionalIdentityColumns(entity, t).map((c) => [c.key, c]));
-  const metricByKey = new Map(metricItems.map((m) => [m.key, m]));
-  const displayColumns: GoogleAdsTableDisplayColumn[] = selectedColumnKeys
+  const metricByKey = new Map(
+    metricItems.filter((m) => !isGoogleAdsPinnedMetricKey(m.key)).map((m) => [m.key, m]),
+  );
+  const displayColumns: GoogleAdsTableDisplayColumn[] = stripGoogleAdsPinnedMetricKeys(selectedColumnKeys)
     .map((key) => {
       const metric = metricByKey.get(key);
       if (metric) return { kind: "metric" as const, metric };
@@ -324,7 +324,7 @@ export function GoogleAdsMetricsTable({
       title={c.headerTitle}
       className={cn(
         thBase,
-        c.key === "service_cpl" || c.key === "service_converted_leads" ? "text-right" : "",
+        c.key === "service_cpl" || c.key === "service_converted_leads" || c.key === "spent" ? "text-right" : "",
         c.key === "preview"
           ? "min-w-[min(480px,55vw)]"
           : c.key === "keyword" || c.key === "name"
@@ -398,7 +398,7 @@ export function GoogleAdsMetricsTable({
     const text = c.render(row);
     const isCampaignName =
       entity === "campaign" && c.key === "name" && onCampaignDrillDown && row.id;
-    const alignRight = c.key === "service_cpl" || c.key === "service_converted_leads";
+    const alignRight = c.key === "service_cpl" || c.key === "service_converted_leads" || c.key === "spent";
 
     if (c.customCell) {
       return (

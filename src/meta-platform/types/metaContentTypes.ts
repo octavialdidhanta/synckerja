@@ -31,6 +31,7 @@ export type MetaContentCommentRow = {
   media_id: string;
   text: string;
   author_display_name: string;
+  author_id?: string | null;
   author_avatar_url: string | null;
   like_count: number;
   reply_count: number;

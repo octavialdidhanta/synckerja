@@ -635,6 +635,12 @@ function MetaAdsMetricsPageContent() {
                                       saveMetaAdsSummarySlotMetrics(entity, keys);
                                     }}
                                     isLoading={metricsTableLoading}
+                                    organizationId={organizationId}
+                                    dateStart={dateStart}
+                                    dateEnd={dateEnd}
+                                    compareEnabled={
+                                      reportingEnabled && Boolean(adAccountId) && canManage
+                                    }
                                   />
                                 </div>
                               ) : null}

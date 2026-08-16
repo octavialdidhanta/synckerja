@@ -4,11 +4,16 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { GoogleAdsSummaryPrimaryMetricPicker } from "@/6-0-google-ads/components/GoogleAdsSummaryPrimaryMetricPicker";
 import { GoogleAdsSummaryFixedMetricCard } from "@/6-0-google-ads/components/GoogleAdsSummaryFixedMetricCard";
 import { useGoogleAdsReportTargetProgress } from "@/6-0-digital-marketing-shared/hooks/useGoogleAdsReportTargetProgress";
+import {
+  googleAdsPeriodCompareBits,
+  useGoogleAdsSummaryPeriodCompare,
+} from "@/6-0-google-ads/hooks/useGoogleAdsSummaryPeriodCompare";
 import { SUMMARY_SLOT_COUNT } from "@/google-ads/metrics/googleAdsSummaryMetricOptions";
 import { formatMetricValue } from "@/google-ads/metrics/formatMetricValue";
 import {
   findSummaryMetricOption,
 } from "@/google-ads/metrics/googleAdsSummaryMetricOptions";
+import type { GoogleAdsMetricsFilters } from "@/google-ads/hooks/useGoogleAdsMetricsQuery";
 import type {
   GoogleAdsMetricsSummaryTotals,
   GoogleAdsSummaryMetricOption,
@@ -22,6 +27,9 @@ type Props = {
   metricKeys: string[];
   onMetricKeyChange: (slotIndex: number, key: string) => void;
   summaryMetricOptions: GoogleAdsSummaryMetricOption[];
+  organizationId?: string | null;
+  metricsFilters?: GoogleAdsMetricsFilters | null;
+  compareEnabled?: boolean;
 };
 
 function costValue(
@@ -65,6 +73,9 @@ export function GoogleAdsMetricsSummaryBar({
   metricKeys,
   onMetricKeyChange,
   summaryMetricOptions,
+  organizationId = null,
+  metricsFilters = null,
+  compareEnabled = false,
 }: Props) {
   const { t } = useTranslation();
   const slots = metricKeys.slice(0, SUMMARY_SLOT_COUNT);
@@ -78,6 +89,12 @@ export function GoogleAdsMetricsSummaryBar({
     customerId,
     googleTotals: totals,
     catalogMetricKeys,
+  });
+
+  const { previousRange, previousTotals, compareLoading, compareError } = useGoogleAdsSummaryPeriodCompare({
+    organizationId,
+    filters: metricsFilters,
+    enabled: compareEnabled,
   });
 
   if (isLoading) {
@@ -94,6 +111,7 @@ export function GoogleAdsMetricsSummaryBar({
           >
             <Skeleton className="mb-1.5 h-3 w-16" />
             <Skeleton className="h-5 w-24" />
+            <Skeleton className="mt-0.5 h-3 w-20" />
             <Skeleton className="mt-2 h-1.5 w-full" />
           </div>
         ))}
@@ -102,6 +120,16 @@ export function GoogleAdsMetricsSummaryBar({
   }
 
   const costProgress = progressByCatalogKey.get("spent");
+  const costCompare = googleAdsPeriodCompareBits({
+    metricKey: "spent",
+    valueKind: "micros",
+    currentTotals: totals,
+    previousTotals,
+    previousRange,
+    compareLoading,
+    compareError,
+    currencyCode,
+  });
 
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
@@ -116,11 +144,22 @@ export function GoogleAdsMetricsSummaryBar({
           currencyCode,
           "micros",
         )}
+        {...costCompare}
       />
       {slots.map((key, index) => {
         const selected = findSummaryMetricOption(summaryMetricOptions, key);
         const valueKind = selected?.valueKind ?? "count";
         const progress = progressByCatalogKey.get(key);
+        const slotCompare = googleAdsPeriodCompareBits({
+          metricKey: key,
+          valueKind,
+          currentTotals: totals,
+          previousTotals,
+          previousRange,
+          compareLoading,
+          compareError,
+          currencyCode,
+        });
 
         return (
           <GoogleAdsSummaryPrimaryMetricPicker
@@ -139,6 +178,7 @@ export function GoogleAdsMetricsSummaryBar({
               currencyCode,
               valueKind,
             )}
+            {...slotCompare}
           />
         );
       })}

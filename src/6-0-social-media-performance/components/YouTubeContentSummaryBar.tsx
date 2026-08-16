@@ -6,6 +6,15 @@ import type {
   InsightTargetMetric,
   InsightTargetProgress,
 } from "@/6-0-social-media-performance-shared/socialMediaInsightTargetTypes";
+import {
+  PeriodCompareDeltaBadge,
+  PeriodCompareFooter,
+} from "@/6-0-digital-marketing-shared/components/PeriodCompareBits";
+import {
+  useYouTubeContentSummaryPeriodCompare,
+  youtubeContentPeriodCompareBits,
+  type YouTubeContentCompareCardKey,
+} from "@/6-0-social-media-performance/hooks/useYouTubeContentSummaryPeriodCompare";
 
 type YouTubeContentSummaryBarProps = {
   summary: YouTubeContentVideosResponse["summary"] | null | undefined;
@@ -14,6 +23,11 @@ type YouTubeContentSummaryBarProps = {
   targetsLoading?: boolean;
   /** When true, views are lifetime totals (all-time video list), not period metrics. */
   viewsAreLifetime?: boolean;
+  organizationId?: string | null;
+  channelId?: string | null;
+  dateStart?: string | null;
+  dateEnd?: string | null;
+  compareEnabled?: boolean;
 };
 
 function formatCount(n: number): string {
@@ -39,16 +53,34 @@ function formatTargetRatio(
   return `${formatCount(progress.actual)} / ${formatCount(progress.target)}`;
 }
 
+function isCompareCardKey(key: string): key is YouTubeContentCompareCardKey {
+  return key === "videos" || key === "views" || key === "likes" || key === "engagement";
+}
+
 export function YouTubeContentSummaryBar({
   summary,
   targetProgress = [],
   isLoading = false,
   targetsLoading = false,
   viewsAreLifetime = false,
+  organizationId = null,
+  channelId = null,
+  dateStart = null,
+  dateEnd = null,
+  compareEnabled = false,
 }: YouTubeContentSummaryBarProps) {
   const { t } = useTranslation();
   const progressByMetric = new Map(targetProgress.map((item) => [item.metric, item]));
   const showProgressSkeleton = isLoading || targetsLoading;
+
+  const { previousRange, previousSummary, compareLoading, compareError } =
+    useYouTubeContentSummaryPeriodCompare({
+      organizationId,
+      channelId,
+      dateStart,
+      dateEnd,
+      enabled: compareEnabled,
+    });
 
   const subscriberValue =
     summary?.subscriber_count != null
@@ -102,18 +134,45 @@ export function YouTubeContentSummaryBar({
         {cards.map((card) => {
           const progress = card.metric ? progressByMetric.get(card.metric) : undefined;
           const ratioText = card.metric ? formatTargetRatio(card.metric, progress) : null;
+          const slotCompare = isCompareCardKey(card.key)
+            ? youtubeContentPeriodCompareBits({
+                cardKey: card.key,
+                currentSummary: summary,
+                previousSummary,
+                previousRange,
+                compareLoading: compareLoading || isLoading,
+                compareError,
+              })
+            : null;
+          const compareVisible = Boolean(slotCompare?.compareVisible);
 
           return (
             <div
               key={card.key}
               className="rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm"
             >
-              <p className="text-xs text-muted-foreground">{card.label}</p>
+              <div className="flex min-w-0 items-center gap-1">
+                <p className="min-w-0 truncate text-xs text-muted-foreground">{card.label}</p>
+                {compareVisible && slotCompare ? (
+                  <PeriodCompareDeltaBadge
+                    delta={slotCompare.compareDelta}
+                    metricKey={slotCompare.compareMetricKey}
+                    loading={slotCompare.compareLoading}
+                  />
+                ) : null}
+              </div>
               {isLoading ? (
                 <Skeleton className="mt-1 h-6 w-20" />
               ) : (
                 <p className="text-lg font-semibold tabular-nums text-gray-900">{card.value}</p>
               )}
+              {compareVisible && slotCompare ? (
+                <PeriodCompareFooter
+                  rangeLabel={slotCompare.compareRangeLabel}
+                  previousText={slotCompare.comparePreviousText}
+                  loading={slotCompare.compareLoading}
+                />
+              ) : null}
 
               <div className="mt-2 min-h-[1.125rem]">
                 {showProgressSkeleton ? (

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { defaultSelectedColumnKeys } from "@/google-ads/metrics/googleAdsIdentityColumns";
+import { defaultSelectedColumnKeys, stripGoogleAdsPinnedMetricKeys } from "@/google-ads/metrics/googleAdsIdentityColumns";
 import {
   DEFAULT_METRIC_KEYS,
   type GoogleAdsMetricEntity,
@@ -29,7 +29,7 @@ function globalDefaultMetricsForEntity(
 }
 
 function sanitizeKeys(raw: string[], validKeys: Set<string>): string[] {
-  const filtered = raw.filter((k) => validKeys.has(k));
+  const filtered = stripGoogleAdsPinnedMetricKeys(raw).filter((k) => validKeys.has(k));
   if (filtered.length > 0) return filtered;
   return DEFAULT_METRIC_KEYS.filter((k) => validKeys.has(k));
 }

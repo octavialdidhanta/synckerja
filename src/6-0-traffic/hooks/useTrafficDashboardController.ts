@@ -6,6 +6,7 @@ import { useGoogleAdsAccountDateBounds } from "@/google-ads/hooks/useGoogleAdsAc
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { resolveTrafficQueryDateBounds } from "@/6-0-traffic/lib/resolveTrafficQueryDateBounds";
+import { resolvePreviousTrafficDateRange } from "@/6-0-traffic/lib/resolvePreviousTrafficDateRange";
 
 /** Background poll while Traffic overview tab is visible (rollup debounce ~45s). */
 export const TRAFFIC_LIVE_POLL_MS = 45_000;
@@ -110,6 +111,15 @@ function ymdOnly(v: string | null | undefined): string | null {
   if (v == null || v === "") return null;
   const s = String(v).slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
+function mapTrafficDashboardPayload(raw: TrafficDashboardPayload): TrafficDashboardPayload {
+  const topPages = (raw.top_pages ?? []).map((row) => {
+    const r = row as unknown as { impr?: unknown; page_views?: unknown };
+    const impr = r.impr ?? r.page_views;
+    return { ...row, impr: Number(impr ?? 0) };
+  });
+  return { ...raw, top_pages: topPages } as TrafficDashboardPayload;
 }
 
 function emptyTrafficDashboard(webId: string): TrafficDashboardPayload {
@@ -253,19 +263,55 @@ export function useTrafficDashboardController() {
         p_utm_limit: 2000,
       });
       if (error) throw error;
-      const raw = data as TrafficDashboardPayload;
-      // RPC lama (top_pages: page_views) vs baru (impr); filter tanggal pakai `day` di DB, bukan UTC di sini
-      const topPages = (raw.top_pages ?? []).map((row) => {
-        const r = row as unknown as { impr?: unknown; page_views?: unknown };
-        const impr = r.impr ?? r.page_views;
-        return { ...row, impr: Number(impr ?? 0) };
-      });
-      return { ...raw, top_pages: topPages } as TrafficDashboardPayload;
+      return mapTrafficDashboardPayload(data as TrafficDashboardPayload);
     },
     staleTime: 0,
     placeholderData: keepPreviousData,
     refetchInterval: trafficLivePollInterval,
     refetchIntervalInBackground: false,
+  });
+
+  const previousRange = useMemo(
+    () => resolvePreviousTrafficDateRange(dateSelection, fromDate, toDate),
+    [dateSelection, fromDate, toDate],
+  );
+
+  const dashboardCompareQuery = useQuery({
+    queryKey: [
+      "traffic",
+      "dashboard-compare",
+      organizationId,
+      effectiveWebId,
+      previousRange?.fromDate,
+      previousRange?.toDate,
+    ],
+    enabled:
+      Boolean(organizationId) &&
+      Boolean(effectiveWebId) &&
+      filtersHydrated &&
+      Boolean(previousRange?.fromDate) &&
+      Boolean(previousRange?.toDate),
+    queryFn: async () => {
+      const rpcFrom = previousRange?.fromDate ?? null;
+      const rpcTo = previousRange?.toDate ?? null;
+      if (!rpcFrom || !rpcTo) {
+        throw new Error("Rentang tanggal pembanding tidak valid.");
+      }
+      if (rpcTo < rpcFrom) {
+        throw new Error("Tanggal akhir pembanding harus setelah tanggal mulai.");
+      }
+      const { data, error } = await supabase.rpc("get_traffic_dashboard", {
+        p_web_id: effectiveWebId,
+        p_from: rpcFrom,
+        p_to: rpcTo,
+        p_top_pages_limit: 1,
+        p_top_clicks_limit: 1,
+        p_utm_limit: 1,
+      });
+      if (error) throw error;
+      return mapTrafficDashboardPayload(data as TrafficDashboardPayload);
+    },
+    staleTime: 60_000,
   });
 
   const ingestionQuery = useQuery({
@@ -307,6 +353,8 @@ export function useTrafficDashboardController() {
     queryToDate,
     queryDateReady,
     dashboardQuery,
+    dashboardCompareQuery,
+    previousRange,
     ingestionQuery,
   };
 }

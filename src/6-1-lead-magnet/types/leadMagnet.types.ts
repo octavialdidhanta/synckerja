@@ -105,6 +105,8 @@ export type LeadMagnetEnrollment = {
   created_at: string;
   last_error: string | null;
   conversation_id: string | null;
+  platform?: LeadMagnetPlatform | null;
+  media_id?: string | null;
 };
 
 export type LeadMagnetCampaignForm = {
