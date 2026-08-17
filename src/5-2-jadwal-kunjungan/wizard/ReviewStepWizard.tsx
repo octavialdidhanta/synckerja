@@ -1,6 +1,8 @@
-import { MapPin, User, Calendar, Clock, FileText, Building2, Compass, CheckCircle } from 'lucide-react';
+import { MapPin, User, Calendar, Clock, FileText, Compass, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
+import { useVisitPartyOptions } from '@/shared/hooks/useVisitPartyOptions';
 
 interface VisitData {
   selectedLocation: any;
@@ -41,6 +43,13 @@ const locationTypeLabels: Record<string, string> = {
 };
 
 export const ReviewStepWizard = ({ visitData }: ReviewStepWizardProps) => {
+  const { findByKey } = useVisitPartyOptions();
+  const { data: employees = [] } = useAvailableEmployees();
+  const selectedParty = findByKey(visitData.clientName);
+  const selectedEmployee = employees.find((emp) => emp.id === visitData.salesPerson);
+  const clientLabel = selectedParty?.label || visitData.contactPerson || '-';
+  const salesLabel = selectedEmployee?.full_name || '-';
+
   const formatDateTime = (dateTimeString: string) => {
     if (!dateTimeString) return '-';
     try {
@@ -120,7 +129,7 @@ export const ReviewStepWizard = ({ visitData }: ReviewStepWizardProps) => {
           <div className="space-y-3">
             <div>
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Klien</p>
-              <p className="text-sm text-slate-900 mt-1">{visitData.clientName || '-'}</p>
+              <p className="text-sm text-slate-900 mt-1">{clientLabel}</p>
             </div>
             
             <div>
@@ -135,7 +144,7 @@ export const ReviewStepWizard = ({ visitData }: ReviewStepWizardProps) => {
             
             <div>
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Sales Person</p>
-              <p className="text-sm text-slate-900 mt-1">{visitData.salesPerson || '-'}</p>
+              <p className="text-sm text-slate-900 mt-1">{salesLabel}</p>
             </div>
           </div>
         </div>

@@ -70,6 +70,7 @@ export async function recordOfflineSale(
   skuId: string,
   qty: number,
   note?: string,
+  reference?: { referenceType?: string; referenceId?: string },
 ) {
   return invokeStockApi<{ movementId: string; qtyAfter: number }>({
     action: "offlineSale",
@@ -77,6 +78,8 @@ export async function recordOfflineSale(
     sku_id: skuId,
     qty,
     note,
+    reference_type: reference?.referenceType,
+    reference_id: reference?.referenceId,
   });
 }
 

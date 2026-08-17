@@ -158,6 +158,26 @@ async function handleRestockOrAdjust(
     qtyDelta = Math.floor(Number(body.qty_delta));
   }
 
+  const referenceType = body.reference_type != null ? String(body.reference_type).trim() : "";
+  const referenceId = body.reference_id != null ? String(body.reference_id).trim() : "";
+  if (movementType === "offline_sale" && referenceType && referenceId) {
+    const { data: existing } = await admin
+      .from("inventory_stock_movements")
+      .select("id, qty_after")
+      .eq("organization_id", orgId)
+      .eq("sku_id", skuId)
+      .eq("reference_type", referenceType)
+      .eq("reference_id", referenceId)
+      .maybeSingle();
+    if (existing?.id) {
+      return stockManagementJson({
+        movementId: existing.id,
+        qtyAfter: existing.qty_after,
+        already_recorded: true,
+      }, 200);
+    }
+  }
+
   try {
     const result = await applyInventoryMovement(admin, {
       organizationId: orgId,
@@ -167,6 +187,8 @@ async function handleRestockOrAdjust(
       note: body.note != null ? String(body.note) : null,
       createdBy: userId,
       platform: movementType === "offline_sale" ? "offline" : null,
+      referenceType: body.reference_type != null ? String(body.reference_type) : null,
+      referenceId: body.reference_id != null ? String(body.reference_id) : null,
     });
     await enqueueInventorySyncForSku(admin, orgId, skuId, result.qtyAfter);
     return stockManagementJson({ ...result }, 200);

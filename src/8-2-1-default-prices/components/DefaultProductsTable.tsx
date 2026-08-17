@@ -1,0 +1,166 @@
+import { useState } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/shared/components/ui/table";
+import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import { MoreVertical, Pencil, Copy, Trash2 } from "lucide-react";
+import { useToast } from "@/shared/components/ui/use-toast";
+import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
+import type { DefaultPriceRow } from "../types/defaultPrices";
+
+function formatRupiah(n: number): string {
+  return new Intl.NumberFormat("id-ID", { style: "decimal", minimumFractionDigits: 0 }).format(n);
+}
+
+export type DefaultProductsTableProps = {
+  rows: DefaultPriceRow[];
+  isLoading: boolean;
+  onEdit: (row: DefaultPriceRow) => void;
+  onDuplicate: (row: DefaultPriceRow) => void;
+  onDelete: (id: string) => Promise<void>;
+};
+
+export function DefaultProductsTable({ rows, isLoading, onEdit, onDuplicate, onDelete }: DefaultProductsTableProps) {
+  const { t } = useAppTranslation();
+  const { toast } = useToast();
+  const [deleteTarget, setDeleteTarget] = useState<DefaultPriceRow | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await onDelete(deleteTarget.id);
+      toast({ title: t("defaultPrices.deleted", "Deleted") });
+    } catch {
+      toast({ title: t("defaultPrices.deleteFailed", "Failed to delete."), variant: "destructive" });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
+  if (isLoading) {
+    return <div className="py-8 text-center text-muted-foreground">{t("defaultPrices.loading", "Loading...")}</div>;
+  }
+  if (rows.length === 0) {
+    return (
+      <div className="py-8 text-center text-muted-foreground">
+        {t("defaultPrices.product.empty", "No products yet. Add a retail or F&B item with a photo.")}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[72px]">{t("defaultPrices.product.photo", "Photo")}</TableHead>
+            <TableHead>{t("defaultPrices.product.name", "Name")}</TableHead>
+            <TableHead>{t("defaultPrices.product.category", "Category")}</TableHead>
+            <TableHead className="w-[80px]">{t("defaultPrices.product.unit", "Unit")}</TableHead>
+            <TableHead className="text-right">{t("defaultPrices.form.unitPrice", "Unit Price (Rp)")}</TableHead>
+            <TableHead>{t("defaultPrices.product.posStatus", "POS")}</TableHead>
+            <TableHead>{t("defaultPrices.product.stockMode", "Stock")}</TableHead>
+            <TableHead>{t("defaultPrices.product.sku", "SKU")}</TableHead>
+            <TableHead className="text-right">{t("defaultPrices.product.qty", "Qty")}</TableHead>
+            <TableHead className="w-[80px]">{t("defaultPrices.actions", "Actions")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.id}>
+              <TableCell>
+                {row.photo_url ? (
+                  <img src={row.photo_url} alt="" className="h-10 w-10 rounded object-cover" />
+                ) : (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )}
+              </TableCell>
+              <TableCell className="max-w-[180px] truncate font-medium">{row.name || row.service_name || "—"}</TableCell>
+              <TableCell className="max-w-[140px] truncate text-xs">
+                {row.product_category_name || t("defaultPrices.product.uncategorized", "Uncategorized")}
+              </TableCell>
+              <TableCell>{row.unit || "pcs"}</TableCell>
+              <TableCell className="text-right font-medium">{formatRupiah(row.unit_price)}</TableCell>
+              <TableCell className="text-xs">
+                {t(`defaultPrices.product.status.${row.pos_status ?? "available"}`, row.pos_status ?? "available")}
+              </TableCell>
+              <TableCell className="text-xs">
+                {row.track_stock
+                  ? t("defaultPrices.product.tracked", "Tracked")
+                  : t("defaultPrices.product.untracked", "Menu (no stock)")}
+              </TableCell>
+              <TableCell className="text-xs">{row.sku_code || "—"}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {row.track_stock ? (row.available_qty ?? 0) : "—"}
+              </TableCell>
+              <TableCell>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => onEdit(row)}>
+                      <Pencil className="mr-2 h-4 w-4" />
+                      {t("common.edit", "Edit")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onDuplicate(row)}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      {t("common.duplicate", "Duplicate")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(row)}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      {t("common.delete", "Delete")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("defaultPrices.product.deleteTitle", "Delete product")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("defaultPrices.product.deleteBody", "This product will be removed from the store catalog.")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel", "Cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleConfirmDelete()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t("common.delete", "Delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}

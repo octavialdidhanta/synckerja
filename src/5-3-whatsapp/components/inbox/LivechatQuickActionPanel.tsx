@@ -38,6 +38,7 @@ import { getLeadStatusDisplayName } from '@/5-1-leads-management/utils/leadStatu
 import { useServices } from '@/6-1-product-knowledge/hooks/useServices';
 import { useSubServices } from '@/6-1-product-knowledge/hooks/useSubServices';
 import { supabase } from '@/shared/lib/supabaseClient';
+import { LEAD_CONVERSION_CATALOG_KIND } from '@/8-2-1-default-prices/lib/catalogKind';
 import { devLog } from '@/shared/lib/logger';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
@@ -1469,6 +1470,7 @@ export function LivechatQuickActionPanel({
         .from('default_prices')
         .select('unit_price')
         .eq('organization_id', organizationId)
+        .eq('kind', LEAD_CONVERSION_CATALOG_KIND)
         .eq('service_id', svc.id)
         .eq('sub_service_id', sub.id)
         .maybeSingle();

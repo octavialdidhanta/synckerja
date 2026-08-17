@@ -29,6 +29,7 @@ import {
   filterSalesActivities,
   type SalesActivitiesFiltersState,
 } from '../utils/salesActivitiesFilterUtils';
+import { collectActivityTypesFromActivities } from '../lib/salesActivityType';
 import {
   SALES_OPS_MAIN_COLUMN,
   SALES_OPS_MAIN_GRID,
@@ -172,6 +173,11 @@ export const SalesActivitiesPageContent = () => {
     [activities, filters],
   );
 
+  const activityTypes = React.useMemo(
+    () => collectActivityTypesFromActivities(activities),
+    [activities],
+  );
+
   // Calculate unique activity types for footer
   const uniqueTypes = [...new Set(filteredActivities.map(a => a.activity_type).filter(Boolean))];
 
@@ -228,6 +234,7 @@ export const SalesActivitiesPageContent = () => {
             <SalesActivitiesFilters
               filters={filters}
               onFiltersChange={setFilters}
+              activityTypes={activityTypes}
               onCreateSuccess={() => refetch()}
             />
           </div>

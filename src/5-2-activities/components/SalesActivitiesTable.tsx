@@ -12,7 +12,9 @@ import { SalesActivitiesActionsDropdown } from './SalesActivitiesActionsDropdown
 import { SalesActivitiesTableFooter } from './SalesActivitiesTableFooter';
 import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import type { SalesActivity } from '@/shared/hooks/organized/sales';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { isWonSalesActivityStatus } from '../utils/salesActivitiesFilterUtils';
+import { formatActivityTypeLabel, getActivityTypeColor } from '../lib/salesActivityType';
 
 interface SalesActivitiesTableProps {
   activities: SalesActivity[];
@@ -45,33 +47,8 @@ const getStatusColor = (status: string) => {
   }
 };
 
-const getActivityTypeColor = (type: string) => {
-  switch (type?.trim().toLowerCase()) {
-    case 'demo':
-      return 'bg-brand-blue-soft text-brand-blue-deep border-brand-blue/25';
-    case 'meeting':
-      return 'bg-green-100 text-green-800 border-green-200';
-    case 'call':
-      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    case 'proposal':
-      return 'bg-purple-100 text-purple-800 border-purple-200';
-    case 'closing':
-      return 'bg-red-100 text-red-800 border-red-200';
-    case 'lead conversion':
-    case 'visit':
-      return 'bg-gray-100 text-gray-800 border-gray-200';
-    default:
-      return 'bg-gray-100 text-gray-800 border-gray-200';
-  }
-};
-
 const ACTIVITY_BADGE_CLASS =
   'inline-flex max-w-full shrink-0 whitespace-nowrap border px-2 py-0.5 text-xs font-medium leading-snug';
-
-const formatActivityTypeLabel = (type: string | null | undefined) => {
-  if (!type) return '-';
-  return type.replace(/_/g, ' ');
-};
 
 const formatDate = (dateString: string | null) => {
   if (!dateString) return '-';
@@ -140,6 +117,9 @@ const ActivityRow = memo(({
   onUpdatePayment: (activity: SalesActivity) => void;
   onCheckHistory: (activity: SalesActivity) => void;
 }) => {
+  const { t } = useAppTranslation();
+  const typeLabel = formatActivityTypeLabel(activity.activity_type, t);
+
   const handleViewDetails = useCallback(() => {
     onViewDetails(activity);
   }, [activity, onViewDetails]);
@@ -279,9 +259,9 @@ const ActivityRow = memo(({
       <TableCell className="min-w-[7.5rem] w-36 px-3">
         <Badge
           className={`${getActivityTypeColor(activity.activity_type)} ${ACTIVITY_BADGE_CLASS}`}
-          title={formatActivityTypeLabel(activity.activity_type)}
+          title={typeLabel}
         >
-          {formatActivityTypeLabel(activity.activity_type)}
+          {typeLabel}
         </Badge>
       </TableCell>
       <TableCell className="w-32 px-3">

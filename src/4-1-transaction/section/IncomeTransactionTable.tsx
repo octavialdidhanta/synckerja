@@ -13,6 +13,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { getIncomeTransactionIdDisplay } from '@/4-1-dashboard/utils/incomeTransactionDisplayId';
 import { isIncomeAllocationIncomplete, incomeStatusBadgeVariant } from '@/4-1-dashboard/utils/incomeAllocationStatus';
 import { useCanAllocateIncome } from '@/4-1-dashboard/hooks/useCanAllocateIncome';
+import { formatIncomePaymentMethodLabel } from '../utils/formatIncomePaymentMethod';
 
 const IncomeTransactionTableDialogs = lazy(() =>
   import('./IncomeTransactionTableDialogs').then((m) => ({
@@ -201,7 +202,13 @@ export const IncomeTransactionTable = ({ transactions, onRefresh }: IncomeTransa
                     </div>
                   </TableCell>
                   <TableCell className="min-w-[150px] w-[150px] px-3 py-2 text-xs align-top">
-                    {transaction.payment_method || '-'}
+                    {formatIncomePaymentMethodLabel(transaction.payment_method, {
+                      cash: t('incomes.paymentMethod.cash', 'Cash'),
+                      bankTransfer: t('incomes.paymentMethod.bankTransfer', 'Bank Transfer'),
+                      eWallet: t('incomes.paymentMethod.eWallet', 'E-wallet'),
+                      creditCard: t('incomes.paymentMethod.creditCard', 'Credit Card'),
+                      debitCard: t('incomes.paymentMethod.debitCard', 'Debit Card'),
+                    })}
                   </TableCell>
                   <TableCell className="min-w-[200px] w-[200px] px-3 py-2 text-xs align-top">
                     {(() => {

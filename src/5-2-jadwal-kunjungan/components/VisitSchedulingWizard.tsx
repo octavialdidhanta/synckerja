@@ -6,6 +6,7 @@ import { LocationStepWizard } from '../wizard/LocationStepWizard';
 import { ContactStepWizard } from '../wizard/ContactStepWizard';
 import { ScheduleStepWizard } from '../wizard/ScheduleStepWizard';
 import { ReviewStepWizard } from '../wizard/ReviewStepWizard';
+import { parseVisitPartyKey } from '@/shared/lib/sales/visitParty';
 
 interface LocationData {
   address: string;
@@ -86,6 +87,7 @@ export const VisitSchedulingWizard = ({
   };
 
   const handleSave = () => {
+    const party = parseVisitPartyKey(visitData.clientName);
     const locationData = {
       name: visitData.locationName || visitData.selectedLocation?.formatted_address || '',
       address: visitData.selectedLocation?.formatted_address || visitData.locationName || '',
@@ -96,7 +98,8 @@ export const VisitSchedulingWizard = ({
       contact_person: visitData.contactPerson || null,
       contact_phone: visitData.phoneNumber || null,
       notes: visitData.notes || null,
-      client_id: visitData.clientName && visitData.clientName !== '' ? visitData.clientName : null,
+      client_id: party?.kind === 'client' ? party.id : null,
+      lead_id: party?.kind === 'lead' ? party.id : null,
       is_client_location: true,
       google_place_id: visitData.selectedLocation?.google_place_id || null,
       formatted_address: visitData.selectedLocation?.formatted_address || null,
@@ -115,7 +118,7 @@ export const VisitSchedulingWizard = ({
       case 1:
         return visitData.selectedLocation || visitData.locationName;
       case 2:
-        return visitData.contactPerson && visitData.salesPerson;
+        return Boolean(visitData.clientName && visitData.contactPerson && visitData.salesPerson);
       case 3:
         return visitData.plannedStartTime && visitData.plannedEndTime && visitData.visitPurpose;
       case 4:

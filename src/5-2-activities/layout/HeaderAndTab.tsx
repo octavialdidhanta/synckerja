@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Activity, Calendar, Users, Lock } from "lucide-react";
+import { Activity, Calendar, Users, Store, Lock } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -21,8 +21,14 @@ const tabs = [
   {
     key: "client-visits",
     path: "/operations/sales/client-visits",
-    title: "Client Visits",
+    title: "Sales Visits",
     icon: Users,
+  },
+  {
+    key: "customer-visits",
+    path: "/operations/sales/customer-visits",
+    title: "Customer Visits",
+    icon: Store,
   },
 ];
 
@@ -52,6 +58,11 @@ export const HeaderAndTab = () => {
             const Icon = tab.icon;
             const isActive = activeKey === tab.key;
             const locked = isTabLocked(tab.path);
+
+            const title =
+              tab.key === "customer-visits"
+                ? t("customerVisits.tabTitle", "Customer Visits")
+                : tab.title;
 
             return (
               <div
@@ -86,7 +97,7 @@ export const HeaderAndTab = () => {
                     isActive ? "text-brand-blue" : "text-muted-foreground group-hover:text-foreground",
                   )}
                 >
-                  {tab.title}
+                  {title}
                 </span>
                 {locked ? <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
               </div>

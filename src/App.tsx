@@ -32,6 +32,7 @@ import {
   AccessPermissionsPageSkeleton,
   CalculatorPageSkeleton,
   ClientVisitsPageSkeleton,
+  CustomerVisitsPageSkeleton,
   CompanyRouteSkeleton,
   ConsultantCrmDashboardPageSkeleton,
   ConsultantLivechatRouteLoadingShell,
@@ -1422,6 +1423,22 @@ function AppRoutes() {
                 }
               />
               <Route
+                path="/operations/sales/customer-visits"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/sales"
+                    loadingShell={<CustomerVisitsPageSkeleton />}
+                    loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                  >
+                    <CustomerVisitsOperationsSuspense>
+                      <DailyTaskProviderShell>
+                        <SalesOperationsPage />
+                      </DailyTaskProviderShell>
+                    </CustomerVisitsOperationsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
                 path="/omnichannel/crm"
                 element={
                   <PageAccessGuard
@@ -1876,6 +1893,22 @@ const ClientVisitsOperationsSuspense = ({ children }: { children: ReactNode }) =
         aria-label="Loading client visits"
       >
         <ClientVisitsPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const CustomerVisitsOperationsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        aria-busy
+        aria-label="Loading customer visits"
+      >
+        <CustomerVisitsPageSkeleton />
       </div>
     }
   >
@@ -3616,6 +3649,22 @@ const App = () => (
                                   <SalesOperationsPage />
                                 </DailyTaskProviderShell>
                               </ClientVisitsOperationsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/sales/customer-visits"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/sales"
+                              loadingShell={<CustomerVisitsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-surface-muted overflow-hidden"
+                            >
+                              <CustomerVisitsOperationsSuspense>
+                                <DailyTaskProviderShell>
+                                  <SalesOperationsPage />
+                                </DailyTaskProviderShell>
+                              </CustomerVisitsOperationsSuspense>
                             </PageAccessGuard>
                           }
                         />

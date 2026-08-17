@@ -17,7 +17,7 @@ function SalesActivitiesHeaderAndTabSkeleton() {
       </div>
       <div className="-mb-3">
         <nav className="flex space-x-6" aria-hidden>
-          {[1, 2, 3].map((i) => (
+          {[1, 2, 3, 4].map((i) => (
             <div key={i} className="flex items-center gap-1.5 border-b-2 border-transparent px-1 py-1.5">
               <Skeleton className="h-4 w-4 shrink-0 rounded-sm" />
               <Skeleton className="h-4 w-24 rounded-sm sm:w-28" />

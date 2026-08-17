@@ -561,3 +561,31 @@ video.review-fit-video-mobile::-webkit-media-controls-toggle-closed-captions-but
   opacity: 0 !important;
   pointer-events: none !important;
 }
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  #store-receipt-print,
+  #store-receipt-print * {
+    visibility: visible !important;
+  }
+  #store-receipt-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    width: 100%;
+    max-width: none;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+    padding: 16px !important;
+    background: #fff !important;
+    box-shadow: none;
+  }
+}

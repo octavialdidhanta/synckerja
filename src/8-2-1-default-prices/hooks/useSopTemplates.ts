@@ -200,6 +200,7 @@ export function useSopTemplateByService(serviceId: string | null, subServiceId: 
         .from("default_prices")
         .select("id, organization_id, service_id, sub_service_id, unit_price, created_at, updated_at")
         .eq("organization_id", organizationId)
+        .eq("kind", "service")
         .eq("service_id", serviceId);
       if (subServiceId) {
         q = q.eq("sub_service_id", subServiceId);
@@ -223,6 +224,7 @@ export function useSopTemplateByService(serviceId: string | null, subServiceId: 
       const defaultPriceRow: DefaultPriceRow = {
         id: dp.id,
         organization_id: dp.organization_id,
+        kind: "service",
         service_id: dp.service_id,
         sub_service_id: dp.sub_service_id ?? null,
         unit_price: Number(dp.unit_price),

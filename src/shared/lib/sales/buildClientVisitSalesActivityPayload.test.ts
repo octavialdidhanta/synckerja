@@ -26,6 +26,7 @@ describe('buildClientVisitSalesActivityPayload', () => {
 
   it('normalizes payment method when paid', () => {
     expect(resolveSalesActivityPaymentMethod(true, 'debit_card')).toBe('other');
+    expect(resolveSalesActivityPaymentMethod(true, 'transfer')).toBe('bank_transfer');
     expect(resolveSalesActivityPaymentMethod(false, 'cash')).toBeNull();
     expect(normalizeSalesActivityStatusForDb('in_progress')).toBe('Active');
   });

@@ -24,6 +24,13 @@ import { useToast } from '@/shared/components/ui/use-toast';
 import { devLog } from '@/shared/lib/logger';
 import { useIncomeTransactions } from '@/shared/hooks/organized/sales';
 import { useSalesActivityPayments } from '@/shared/hooks/organized/sales';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import {
+  CREATABLE_SALES_ACTIVITY_TYPES,
+  formatActivityTypeLabel,
+  isCreatableSalesActivityType,
+  isStoreCheckoutActivityType,
+} from '../lib/salesActivityType';
 import { SalesActivityItemsManager } from './SalesActivityItemsManager';
 import type { SalesActivityItemsManagerHandle } from './SalesActivityItemsManager';
 import { format } from 'date-fns';
@@ -69,6 +76,7 @@ interface SalesActivityFormProps {
 }
 
 export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = false }: SalesActivityFormProps) => {
+  const { t } = useAppTranslation();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [selectedIncomeType, setSelectedIncomeType] = useState<string>('');
@@ -149,6 +157,10 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
 
   const downPaymentAmount = watch('down_payment_amount');
   const isDownPayment = watch('is_down_payment');
+  const activityType = watch('activity_type');
+  const lockActivityType =
+    Boolean(activityType) &&
+    (isStoreCheckoutActivityType(activityType) || !isCreatableSalesActivityType(activityType));
 
   // Auto-calculate remaining amount when total from items or down payment changes
   React.useEffect(() => {
@@ -554,19 +566,35 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
           <CardContent className="space-y-2">
             <div>
               <Label htmlFor="activity_type" className="text-sm">Activity Type *</Label>
-              <Select disabled={readOnly} onValueChange={(value) => setValue('activity_type', value)}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select activity type" />
-                </SelectTrigger>
-                <SelectContent className="bg-background">
-                  <SelectItem value="Demo">Demo</SelectItem>
-                  <SelectItem value="Meeting">Meeting</SelectItem>
-                  <SelectItem value="Call">Call</SelectItem>
-                  <SelectItem value="Proposal">Proposal</SelectItem>
-                  <SelectItem value="Closing">Closing</SelectItem>
-                  <SelectItem value="Lead Conversion">Lead Conversion</SelectItem>
-                </SelectContent>
-              </Select>
+              {lockActivityType ? (
+                <Select value={activityType} disabled>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue>{formatActivityTypeLabel(activityType, t)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="bg-background">
+                    <SelectItem value={activityType} disabled>
+                      {formatActivityTypeLabel(activityType, t)}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Select
+                  value={activityType || undefined}
+                  disabled={readOnly}
+                  onValueChange={(value) => setValue('activity_type', value)}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select activity type" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background">
+                    {CREATABLE_SALES_ACTIVITY_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {formatActivityTypeLabel(type, t)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {errors.activity_type && (
                 <p className="text-sm text-red-500">{errors.activity_type.message}</p>
               )}

@@ -36,6 +36,8 @@ import {
 import {
   applyContactCollectedEventsToMetrics,
   applyEnrollmentRowsToMetrics,
+  applyOfflineVisitRowsToMetrics,
+  applyPaidSalesActivitiesToMetrics,
   EMPTY_CAMPAIGN_LIST_METRICS,
   parseListMetricsDateRange,
   sumCampaignListMetricTotals,
@@ -52,14 +54,20 @@ const EMPTY_METRICS: CampaignMetrics = { ...EMPTY_CAMPAIGN_LIST_METRICS };
 async function fetchCampaignMetricsByOrg(
   admin: ReturnType<typeof createClient>,
   organizationId: string,
-  dateRange: { startIso: string; endIso: string },
+  dateRange: { startIso: string; endIso: string; dateStart: string; dateEnd: string },
 ): Promise<{ map: Map<string, CampaignMetrics>; totals: ReturnType<typeof sumCampaignListMetricTotals> }> {
   const map = new Map<string, CampaignMetrics>();
 
-  const [{ data: enrollments, error: enErr }, { data: contactEvents, error: evErr }] = await Promise.all([
+  const [
+    { data: enrollments, error: enErr },
+    { data: contactEvents, error: evErr },
+    { data: visits, error: visitErr },
+    { data: customerVisits, error: customerVisitErr },
+    { data: salesActivities, error: salesErr },
+  ] = await Promise.all([
     admin
       .from("lead_magnet_enrollments")
-      .select("campaign_id, is_follower_at_start, became_follower_at")
+      .select("campaign_id, is_follower_at_start, became_follower_at, lead_id, created_at")
       .eq("organization_id", organizationId),
     admin
       .from("lead_magnet_funnel_events")
@@ -68,19 +76,45 @@ async function fetchCampaignMetricsByOrg(
       .eq("event_type", "contact_collected")
       .gte("created_at", dateRange.startIso)
       .lte("created_at", dateRange.endIso),
+    admin
+      .from("client_visits")
+      .select("lead_id, visit_date, status")
+      .eq("organization_id", organizationId)
+      .eq("status", "completed")
+      .not("lead_id", "is", null)
+      .gte("visit_date", dateRange.dateStart)
+      .lte("visit_date", dateRange.dateEnd),
+    admin
+      .from("customer_visits")
+      .select("lead_id, visit_date, status")
+      .eq("organization_id", organizationId)
+      .eq("status", "completed")
+      .not("lead_id", "is", null)
+      .gte("visit_date", dateRange.dateStart)
+      .lte("visit_date", dateRange.dateEnd),
+    admin
+      .from("sales_activities")
+      .select("id, lead_id, date, payment_status, is_paid, total_amount, total_paid_amount")
+      .eq("organization_id", organizationId)
+      .not("lead_id", "is", null)
+      .gte("date", dateRange.dateStart)
+      .lte("date", dateRange.dateEnd),
   ]);
   if (enErr) throw enErr;
   if (evErr) throw evErr;
+  if (visitErr) throw visitErr;
+  if (customerVisitErr) throw customerVisitErr;
+  if (salesErr) throw salesErr;
 
-  applyEnrollmentRowsToMetrics(
-    map,
-    (enrollments ?? []).map((row) => ({
-      campaign_id: String(row.campaign_id),
-      is_follower_at_start: (row.is_follower_at_start as boolean | null) ?? null,
-      became_follower_at: (row.became_follower_at as string | null) ?? null,
-    })),
-    dateRange,
-  );
+  const enrollmentRows = (enrollments ?? []).map((row) => ({
+    campaign_id: String(row.campaign_id),
+    is_follower_at_start: (row.is_follower_at_start as boolean | null) ?? null,
+    became_follower_at: (row.became_follower_at as string | null) ?? null,
+    lead_id: (row.lead_id as string | null) ?? null,
+    created_at: (row.created_at as string | null) ?? null,
+  }));
+
+  applyEnrollmentRowsToMetrics(map, enrollmentRows, dateRange);
 
   applyContactCollectedEventsToMetrics(
     map,
@@ -92,7 +126,33 @@ async function fetchCampaignMetricsByOrg(
     })),
   );
 
-  return { map, totals: sumCampaignListMetricTotals(map) };
+  applyOfflineVisitRowsToMetrics(
+    map,
+    [...(visits ?? []), ...(customerVisits ?? [])].map((row) => ({
+      lead_id: (row.lead_id as string | null) ?? null,
+      visit_date: (row.visit_date as string | null) ?? null,
+      status: (row.status as string | null) ?? null,
+    })),
+    enrollmentRows,
+    { dateStart: dateRange.dateStart, dateEnd: dateRange.dateEnd },
+  );
+
+  const uniquePaid = applyPaidSalesActivitiesToMetrics(
+    map,
+    (salesActivities ?? []).map((row) => ({
+      id: (row.id as string | null) ?? null,
+      lead_id: (row.lead_id as string | null) ?? null,
+      date: (row.date as string | null) ?? null,
+      payment_status: (row.payment_status as string | null) ?? null,
+      is_paid: (row.is_paid as boolean | null) ?? null,
+      total_amount: row.total_amount == null ? null : Number(row.total_amount),
+      total_paid_amount: row.total_paid_amount == null ? null : Number(row.total_paid_amount),
+    })),
+    enrollmentRows,
+    { dateStart: dateRange.dateStart, dateEnd: dateRange.dateEnd },
+  );
+
+  return { map, totals: sumCampaignListMetricTotals(map, uniquePaid) };
 }
 
 function metricsForCampaign(
@@ -817,6 +877,8 @@ Deno.serve(async (req: Request) => {
         fetchCampaignMetricsByOrg(admin, orgId, {
           startIso: dateRange.startIso,
           endIso: dateRange.endIso,
+          dateStart: dateRange.dateStart,
+          dateEnd: dateRange.dateEnd,
         }),
       ]);
       if (error) return metaContentJson({ error: error.message }, 500);

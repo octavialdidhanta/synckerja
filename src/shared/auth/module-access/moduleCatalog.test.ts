@@ -47,6 +47,7 @@ describe("moduleCatalog", () => {
   it("uses longest-prefix match for nested paths", () => {
     expect(resolveSalesModuleForPath("/omnichannel/settings")).toBe("omnichannel");
     expect(resolveSalesModuleForPath("/operations/sales/stock-management")).toBe("operations");
+    expect(resolveSalesModuleForPath("/tools/default-prices")).toBe("operations");
     expect(resolveSalesModuleForPath("/finance/bank-mutations")).toBe("finance");
   });
 

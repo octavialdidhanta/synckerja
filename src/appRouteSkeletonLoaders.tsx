@@ -257,6 +257,12 @@ export const ClientVisitsPageSkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const CustomerVisitsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/5-2-customer-visits/skeletons/CustomerVisitsPageSkeleton").then((m) => ({
+    default: m.CustomerVisitsPageSkeleton,
+  })),
+);
+
 export const WhatsAppConnectPageSkeleton = createDeferredSkeleton(() =>
   import("@/5-3-whatsapp/skeletons/WhatsAppConnectPageSkeleton").then((m) => ({
     default: m.WhatsAppConnectPageSkeleton,

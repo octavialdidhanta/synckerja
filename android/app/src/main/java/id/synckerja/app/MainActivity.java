@@ -12,8 +12,11 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -48,6 +51,9 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
 
     public static final String LIVECHAT_CHANNEL_ID = "livechat";
     public static final String NOTIFICATIONS_CHANNEL_ID = "notifications";
+
+    /** API 35+: {@code setNavigationBarColor} diabaikan; view ini menutup WebView di zona 3-tombol. */
+    private View navigationBarScrim;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -135,6 +141,8 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         decor.post(this::applyBlackSystemNavigationBar);
         decor.postDelayed(this::applyBlackSystemNavigationBar, 100);
         decor.postDelayed(this::applyBlackSystemNavigationBar, 400);
+        decor.postDelayed(this::applyBlackSystemNavigationBar, 900);
+        decor.postDelayed(this::applyBlackSystemNavigationBar, 1600);
     }
 
     /** Window#setStatusBarColor is deprecated from API 35; still used for WebView edge-to-edge setup. */
@@ -163,6 +171,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
     /**
      * Opaque dark navigation bar (back / home / recent): solid background, not translucent over WebView.
      * {@code setAppearanceLightNavigationBars(false)} → ikon sistem terang di atas latar gelap.
+     * API 35/36 mengabaikan {@code setNavigationBarColor}; scrim native menutup WebView abu di zona tombol.
      * Selalu batalkan immersive / hide-navigation (splash plugin atau WebView) agar bilah sistem tetap ada.
      */
     @SuppressWarnings("deprecation")
@@ -175,6 +184,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         /**
          * false: di beberapa perangkat + WebView edge-to-edge, contrast enforced menambah lapisan inset
          * mandatory yang tidak selalu selaras dengan env(safe-area) setelah resume → spasi bawah ganjil.
+         * Latar hitam di API 35+ memakai {@link #ensureNavigationBarScrim()} bukan contrast scrim sistem.
          */
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             getWindow().setNavigationBarContrastEnforced(false);
@@ -193,7 +203,80 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
             controller.show(WindowInsetsCompat.Type.navigationBars());
             controller.setAppearanceLightNavigationBars(false);
         }
+        ensureNavigationBarScrim(navColor);
         ViewCompat.requestApplyInsets(decor);
+    }
+
+    /**
+     * Android 15+ (target 16): warna nav bar window diabaikan. WebView sudah di-layout di atas
+     * zona 3-tombol; celah itu menampilkan background activity (putih) di belakang ikon terang.
+     * View opak di DecorView menutup zona itu tanpa mengubah inset CSS.
+     */
+    private void ensureNavigationBarScrim(int navColor) {
+        View decor = getWindow().getDecorView();
+        if (!(decor instanceof ViewGroup)) {
+            return;
+        }
+        ViewGroup decorGroup = (ViewGroup) decor;
+        if (navigationBarScrim == null) {
+            navigationBarScrim = new View(this);
+            navigationBarScrim.setClickable(false);
+            navigationBarScrim.setFocusable(false);
+            navigationBarScrim.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            navigationBarScrim.setElevation(64f);
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                navigationBarHeightPx(),
+                Gravity.BOTTOM
+            );
+            decorGroup.addView(navigationBarScrim, lp);
+            ViewCompat.setOnApplyWindowInsetsListener(navigationBarScrim, (v, insets) -> {
+                layoutNavigationBarScrim(insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom);
+                return insets;
+            });
+        } else if (navigationBarScrim.getParent() == null) {
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                navigationBarHeightPx(),
+                Gravity.BOTTOM
+            );
+            decorGroup.addView(navigationBarScrim, lp);
+        }
+        navigationBarScrim.setBackgroundColor(navColor);
+        layoutNavigationBarScrim(navigationBarHeightPx());
+        navigationBarScrim.bringToFront();
+    }
+
+    private int navigationBarHeightPx() {
+        WindowInsetsCompat root = ViewCompat.getRootWindowInsets(getWindow().getDecorView());
+        if (root != null) {
+            int bottom = root.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            if (bottom > 0) {
+                return bottom;
+            }
+        }
+        int resId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+        if (resId > 0) {
+            return getResources().getDimensionPixelSize(resId);
+        }
+        return Math.round(48f * getResources().getDisplayMetrics().density);
+    }
+
+    private void layoutNavigationBarScrim(int bottomPx) {
+        if (navigationBarScrim == null) {
+            return;
+        }
+        ViewGroup.LayoutParams lp = navigationBarScrim.getLayoutParams();
+        int height = Math.max(0, bottomPx);
+        if (lp == null) {
+            return;
+        }
+        if (lp.height != height) {
+            lp.height = height;
+            navigationBarScrim.setLayoutParams(lp);
+        }
+        navigationBarScrim.bringToFront();
+        navigationBarScrim.setVisibility(height > 0 ? View.VISIBLE : View.GONE);
     }
 
     private void createLiveChatNotificationChannel() {

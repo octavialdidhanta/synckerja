@@ -7,9 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/shared/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { GoogleMapsLocationSelector } from '@/2-3-settings/components/GoogleMapsLocationSelector';
-import { useClients } from '@/shared/hooks/organized/sales';
 import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
 import { useLocationTypes } from '@/shared/hooks/organized/sales';
+import { useVisitPartyOptions } from '@/shared/hooks/useVisitPartyOptions';
+import { parseVisitPartyKey } from '@/shared/lib/sales/visitParty';
+import { VisitPartyPicker } from '@/5-2-jadwal-kunjungan/components/VisitPartyPicker';
 interface LocationData {
   address: string;
   formatted_address: string;
@@ -42,9 +44,7 @@ export const VisitSchedulingModal = ({
     notes: '',
     radius: '100'
   });
-  const {
-    clients
-  } = useClients();
+  const { leadParties, clientParties, findByKey, isLoading: isLoadingParties } = useVisitPartyOptions();
   const {
     data: employees = []
   } = useAvailableEmployees();
@@ -71,6 +71,7 @@ export const VisitSchedulingModal = ({
       const meetingType = locationTypes.find(type => type.name === 'Meeting Point');
       locationTypeId = meetingType?.id || null;
     }
+    const party = parseVisitPartyKey(formData.clientName);
     const locationData = {
       name: formData.locationName || selectedLocation?.formatted_address || '',
       address: selectedLocation?.formatted_address || formData.locationName || '',
@@ -81,11 +82,16 @@ export const VisitSchedulingModal = ({
       contact_person: formData.contactPerson || null,
       contact_phone: formData.phoneNumber || null,
       notes: formData.notes || null,
-      client_id: formData.clientName && formData.clientName !== '' ? formData.clientName : null,
+      client_id: party?.kind === 'client' ? party.id : null,
+      lead_id: party?.kind === 'lead' ? party.id : null,
       is_client_location: formData.locationType === 'client-site',
       google_place_id: selectedLocation?.google_place_id || null,
       formatted_address: selectedLocation?.formatted_address || null,
-      location_type_id: locationTypeId
+      location_type_id: locationTypeId,
+      sales_person_id: formData.salesPerson && formData.salesPerson !== '' ? formData.salesPerson : null,
+      planned_start_time: formData.plannedStartTime || null,
+      planned_end_time: formData.plannedEndTime || null,
+      visit_purpose: formData.visitPurpose || '',
     };
     onSave(locationData);
     onClose();
@@ -408,21 +414,22 @@ export const VisitSchedulingModal = ({
                                 <Label htmlFor="client-name" className="text-sm font-semibold text-slate-700 mb-2 block">
                                   Klien *
                                 </Label>
-                                <Select 
-                                  value={formData.clientName} 
-                                  onValueChange={value => setFormData({...formData, clientName: value})}
-                                >
-                                  <SelectTrigger className="h-12 border-2 border-slate-200 focus:border-primary">
-                                    <SelectValue placeholder="Pilih klien" />
-                                  </SelectTrigger>
-                                  <SelectContent className="bg-white border-2 border-slate-200 shadow-xl">
-                                    {clients.map(client => (
-                                      <SelectItem key={client.id} value={client.id}>
-                                        {client.company_name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                <VisitPartyPicker
+                                  value={formData.clientName}
+                                  selected={findByKey(formData.clientName)}
+                                  leadParties={leadParties}
+                                  clientParties={clientParties}
+                                  isLoading={isLoadingParties}
+                                  triggerClassName="h-12 border-2 border-slate-200 focus:border-primary"
+                                  onSelect={(party) =>
+                                    setFormData({
+                                      ...formData,
+                                      clientName: party.key,
+                                      contactPerson: party.contactPerson || party.label,
+                                      phoneNumber: party.phone || formData.phoneNumber,
+                                    })
+                                  }
+                                />
                               </div>
 
                               <div>

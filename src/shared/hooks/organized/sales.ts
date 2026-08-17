@@ -24,6 +24,8 @@ import {
   buildScheduleFromWizardPayload,
   type WizardLocationPayload,
 } from '@/shared/lib/sales/scheduleVisitFromWizard';
+import { ensureClientFromLead } from '@/shared/lib/sales/ensureClientFromLead';
+import { LEAD_CONVERSION_CATALOG_KIND } from '@/8-2-1-default-prices/lib/catalogKind';
 import { dedupeInstagramConversations } from '@/5-3-whatsapp/lib/dedupeInstagramConversations';
 import {
   applyLeadMagnetAssigneeOverlay,
@@ -143,7 +145,7 @@ async function resolveServiceAndSubFromLead(
   };
 }
 
-/** Get default unit_price from default_prices for (org, service_id, sub_service_id). Returns 0 if either id is null or no row. */
+/** Get default unit_price from default_prices for (org, service_id, sub_service_id). Services only — products are POS catalog. Returns 0 if either id is null or no row. */
 async function getDefaultPrice(
   supabaseClient: ReturnType<typeof supabase>,
   orgId: string,
@@ -155,6 +157,7 @@ async function getDefaultPrice(
     .from('default_prices')
     .select('unit_price')
     .eq('organization_id', orgId)
+    .eq('kind', LEAD_CONVERSION_CATALOG_KIND)
     .eq('service_id', serviceId)
     .eq('sub_service_id', subServiceId)
     .maybeSingle();
@@ -1148,6 +1151,7 @@ export const useVisitScheduling = () => {
       .insert({
         organization_id: organizationId,
         lead_client_id: visitData.client_id ?? visitData.lead_client_id,
+        lead_id: visitData.lead_id ?? null,
         employee_id: visitData.employee_id ?? visitData.sales_person_id,
         validated_location_id: visitData.location_id ?? visitData.validated_location_id ?? null,
         visit_date: visitData.visit_date ?? visitData.scheduled_date,
@@ -1168,7 +1172,33 @@ export const useVisitScheduling = () => {
   const scheduleVisitFromWizard = async (payload: WizardLocationPayload) => {
     if (!organizationId) throw new Error('Organization ID is required');
 
-    const parsed = buildScheduleFromWizardPayload(payload, organizationId);
+    let clientId = payload.client_id ?? null;
+    let leadId = payload.lead_id?.trim() || null;
+
+    if (leadId) {
+      const ensured = await ensureClientFromLead({
+        organizationId,
+        leadId,
+        contactPerson: payload.contact_person,
+        contactPhone: payload.contact_phone,
+      });
+      clientId = ensured.clientId;
+      leadId = ensured.leadId;
+    } else if (clientId) {
+      const { data: clientRow, error: clientLeadError } = await supabase
+        .from('clients')
+        .select('lead_id')
+        .eq('id', clientId)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+      if (clientLeadError) throw clientLeadError;
+      leadId = (clientRow?.lead_id as string | null)?.trim() || null;
+    }
+
+    const parsed = buildScheduleFromWizardPayload(
+      { ...payload, client_id: clientId, lead_id: leadId },
+      organizationId,
+    );
 
     const { data: existingLocation, error: existingLocationError } = await supabase
       .from('office_locations')

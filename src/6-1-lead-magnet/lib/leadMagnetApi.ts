@@ -39,9 +39,20 @@ export type LeadMagnetCampaignsListResult = {
 };
 
 const EMPTY_TOTALS: LeadMagnetCampaignMetricTotals = {
+  new_leads: 0,
+  offline_visits: 0,
   new_followers: 0,
   new_emails: 0,
   new_phones: 0,
+  transactions: 0,
+  revenue: 0,
+  aov: 0,
+};
+
+const EMPTY_CAMPAIGN_METRICS: LeadMagnetCampaignMetrics = {
+  ...EMPTY_TOTALS,
+  non_follower_at_start: 0,
+  total_enrollments: 0,
 };
 
 export async function fetchLeadMagnetCampaigns(opts?: {
@@ -60,8 +71,11 @@ export async function fetchLeadMagnetCampaigns(opts?: {
     date_end?: string;
   };
   return {
-    campaigns: body.campaigns ?? [],
-    totals: body.totals ?? EMPTY_TOTALS,
+    campaigns: (body.campaigns ?? []).map((campaign) => ({
+      ...campaign,
+      metrics: { ...EMPTY_CAMPAIGN_METRICS, ...(campaign.metrics ?? {}) },
+    })),
+    totals: { ...EMPTY_TOTALS, ...(body.totals ?? {}) },
     date_start: body.date_start,
     date_end: body.date_end,
   };

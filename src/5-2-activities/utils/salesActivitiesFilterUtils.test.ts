@@ -36,6 +36,53 @@ describe('salesActivitiesFilterUtils', () => {
     expect(byType).toHaveLength(1);
   });
 
+  it('filters Store Checkout independently from Lead Conversion', () => {
+    const rows = [
+      activity({ id: '1', activity_type: 'Store Checkout', status: 'Converted' }),
+      activity({ id: '2', activity_type: 'Lead Conversion', status: 'Converted' }),
+      activity({ id: '3', activity_type: 'Demo', status: 'Active' }),
+    ];
+
+    const store = filterSalesActivities(rows, {
+      ...DEFAULT_SALES_ACTIVITIES_FILTERS,
+      type: 'Store Checkout',
+    });
+    expect(store.map((r) => r.id)).toEqual(['1']);
+
+    const lead = filterSalesActivities(rows, {
+      ...DEFAULT_SALES_ACTIVITIES_FILTERS,
+      type: 'Lead Conversion',
+    });
+    expect(lead.map((r) => r.id)).toEqual(['2']);
+  });
+
+  it('search matches activity_type and Store Checkout labels (store / kasir)', () => {
+    const rows = [
+      activity({
+        id: '1',
+        client_name: 'Walk-in',
+        activity_type: 'Store Checkout',
+        description: '',
+      }),
+      activity({
+        id: '2',
+        client_name: 'Acme',
+        activity_type: 'Demo',
+        description: 'Pipeline demo',
+      }),
+    ];
+
+    expect(
+      filterSalesActivities(rows, { ...DEFAULT_SALES_ACTIVITIES_FILTERS, search: 'store' }).map((r) => r.id),
+    ).toEqual(['1']);
+    expect(
+      filterSalesActivities(rows, { ...DEFAULT_SALES_ACTIVITIES_FILTERS, search: 'kasir' }).map((r) => r.id),
+    ).toEqual(['1']);
+    expect(
+      filterSalesActivities(rows, { ...DEFAULT_SALES_ACTIVITIES_FILTERS, search: 'demo' }).map((r) => r.id),
+    ).toEqual(['2']);
+  });
+
   it('filters by payment method', () => {
     const rows = [
       activity({ id: '1', payment_method: 'bank_transfer' }),

@@ -142,7 +142,7 @@ export const SopSelectionPopup = ({
           {showNoDefaultPrice && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Belum ada SOP untuk Service dan Kategori ini. Buat SOP terlebih dahulu di halaman Product & Service (Default Prices).
+                Belum ada SOP untuk Service dan Kategori ini. Buat SOP terlebih dahulu di halaman Produk & Jasa.
               </p>
               <DialogFooter>
                 <Button variant="outline" onClick={onCancel}>Batal</Button>

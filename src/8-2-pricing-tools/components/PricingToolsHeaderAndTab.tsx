@@ -1,21 +1,13 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Calculator, Lock, Percent, Tag } from "lucide-react";
+import { Calculator, Lock, Percent } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 
-const DEFAULT_PRICES_PATH = "/tools/default-prices";
 const PRICING_TOOLS_PATH = "/tools/pricing-tools";
 const PROMO_SIMULATION_PATH = "/tools/promo-simulation";
 
 const tabs = [
-  {
-    id: "default-prices" as const,
-    path: DEFAULT_PRICES_PATH,
-    titleKey: "sidebar.tools.defaultPrices.title",
-    fallbackTitle: "Default Prices",
-    icon: Tag,
-  },
   {
     id: "pricing" as const,
     path: PRICING_TOOLS_PATH,
@@ -33,7 +25,7 @@ const tabs = [
 ];
 
 /**
- * Header + cross-links ke tool harga terkait yang sudah ada di app (default prices ↔ pricing tools).
+ * Header + tabs for Pricing Tool and Promo Simulation (Tools).
  */
 export function PricingToolsHeaderAndTab() {
   const navigate = useNavigate();
@@ -43,8 +35,6 @@ export function PricingToolsHeaderAndTab() {
 
   const activeId = useMemo(() => {
     if (location.pathname.startsWith(PROMO_SIMULATION_PATH)) return "promo-simulation";
-    if (location.pathname.startsWith(PRICING_TOOLS_PATH)) return "pricing";
-    if (location.pathname.startsWith(DEFAULT_PRICES_PATH)) return "default-prices";
     return "pricing";
   }, [location.pathname]);
 

@@ -17,7 +17,6 @@ export type ConversionLeadPaymentPayload = {
 
 const ALLOWED_SALES_ACTIVITY_METHODS = new Set([
   'cash',
-  'transfer',
   'credit',
   'pending',
   'bank_transfer',
@@ -28,9 +27,11 @@ const ALLOWED_SALES_ACTIVITY_METHODS = new Set([
 
 /**
  * Maps Activity / livechat UI values to values allowed by `sales_activities.payment_method` CHECK.
+ * Canonical bank method is `bank_transfer` (alias `transfer` is not persisted).
  */
 export function normalizePaymentMethodForSalesActivity(ui: string): string {
   const u = (ui ?? '').trim().toLowerCase();
+  if (u === 'transfer') return 'bank_transfer';
   if (ALLOWED_SALES_ACTIVITY_METHODS.has(u)) return u;
   switch (u) {
     case 'debit_card':

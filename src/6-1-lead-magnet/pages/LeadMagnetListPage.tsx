@@ -61,7 +61,17 @@ export function LeadMagnetListPage() {
 
   const { data, isLoading } = useLeadMagnetCampaigns(!orgLoading, { dateStart, dateEnd });
   const campaigns = data?.campaigns ?? [];
-  const totals = data?.totals ?? { new_followers: 0, new_emails: 0, new_phones: 0 };
+  const totals = {
+    new_leads: 0,
+    offline_visits: 0,
+    new_followers: 0,
+    new_emails: 0,
+    new_phones: 0,
+    transactions: 0,
+    revenue: 0,
+    aov: 0,
+    ...(data?.totals ?? {}),
+  };
   const pauseMut = usePauseLeadMagnetCampaign();
   const deleteMut = useDeleteLeadMagnetCampaign();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -75,9 +85,20 @@ export function LeadMagnetListPage() {
 
   const metricCards = useMemo(
     () => [
+      { key: 'new_leads' as const, label: t('leadMagnet.list.cardNewLeads') },
+      { key: 'offline_visits' as const, label: t('leadMagnet.list.cardOfflineVisit') },
       { key: 'new_followers' as const, label: t('leadMagnet.list.cardNewFollowers') },
       { key: 'new_emails' as const, label: t('leadMagnet.list.cardNewEmails') },
       { key: 'new_phones' as const, label: t('leadMagnet.list.cardNewPhones') },
+    ],
+    [t],
+  );
+
+  const commerceCards = useMemo(
+    () => [
+      { key: 'transactions' as const, label: t('leadMagnet.list.cardTransactions') },
+      { key: 'revenue' as const, label: t('leadMagnet.list.cardRevenue'), format: 'currency' as const },
+      { key: 'aov' as const, label: t('leadMagnet.list.cardAov'), format: 'currency' as const },
     ],
     [t],
   );
@@ -127,7 +148,12 @@ export function LeadMagnetListPage() {
             </div>
           </div>
 
-          <LeadMagnetListMetricCards totals={totals} cards={metricCards} loading={isLoading} />
+          <LeadMagnetListMetricCards
+            totals={totals}
+            cards={metricCards}
+            commerceCards={commerceCards}
+            loading={isLoading}
+          />
 
           <div className={LEAD_MAGNET_TABLE_SECTION}>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
@@ -143,7 +169,7 @@ export function LeadMagnetListPage() {
               ) : (
                 <>
                   <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <table className="w-full caption-bottom text-sm">
+                    <table className="w-full min-w-[1600px] caption-bottom text-sm">
                         <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
                           <TableRow className="hover:bg-transparent">
                             <TableHead className="min-w-[200px] bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 align-top">
@@ -161,19 +187,34 @@ export function LeadMagnetListPage() {
                             <TableHead className="min-w-[140px] bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
                               {t('leadMagnet.list.columnLeadMagnet')}
                             </TableHead>
-                            <TableHead className="bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
+                            <TableHead className="min-w-[5.5rem] whitespace-nowrap bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
                               Status
                             </TableHead>
-                            <TableHead className="bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
+                            <TableHead className="min-w-[6.5rem] whitespace-nowrap bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
+                              {t('leadMagnet.list.columnNewLeads')}
+                            </TableHead>
+                            <TableHead className="min-w-[7.5rem] whitespace-nowrap bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
                               {t('leadMagnet.list.columnNewFollowers')}
                             </TableHead>
-                            <TableHead className="bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
+                            <TableHead className="min-w-[6.5rem] whitespace-nowrap bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
                               {t('leadMagnet.list.columnNewEmails')}
                             </TableHead>
-                            <TableHead className="bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
+                            <TableHead className="min-w-[8rem] whitespace-nowrap bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
                               {t('leadMagnet.list.columnNewPhones')}
                             </TableHead>
-                            <TableHead className="bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
+                            <TableHead className="min-w-[7.5rem] whitespace-nowrap bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
+                              {t('leadMagnet.list.columnOfflineVisit')}
+                            </TableHead>
+                            <TableHead className="min-w-[7rem] whitespace-nowrap bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
+                              {t('leadMagnet.list.columnTransactions')}
+                            </TableHead>
+                            <TableHead className="min-w-[9.5rem] whitespace-nowrap bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
+                              {t('leadMagnet.list.columnRevenue')}
+                            </TableHead>
+                            <TableHead className="min-w-[8.5rem] whitespace-nowrap bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
+                              {t('leadMagnet.list.columnAov')}
+                            </TableHead>
+                            <TableHead className="min-w-[10rem] whitespace-nowrap bg-gray-50 px-3 py-2 text-right text-xs font-medium text-gray-700">
                               Aksi
                             </TableHead>
                           </TableRow>
@@ -198,30 +239,62 @@ export function LeadMagnetListPage() {
                                   onOpen={() => setPreviewCampaign(c)}
                                 />
                               </TableCell>
-                              <TableCell className="px-3 py-2 align-middle">
+                              <TableCell className="whitespace-nowrap px-3 py-2 align-middle">
                                 <Badge variant={statusVariant(c.status)} className="text-[11px]">
                                   {c.status}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="px-3 py-2 align-middle text-right">
+                              <TableCell className="whitespace-nowrap px-3 py-2 align-middle text-right">
+                                <CampaignMetricCell
+                                  value={c.metrics?.new_leads ?? 0}
+                                  tooltipKey="leadMagnet.list.newLeadsTooltip"
+                                />
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap px-3 py-2 align-middle text-right">
                                 <CampaignMetricCell
                                   value={c.metrics?.new_followers ?? 0}
                                   tooltipKey="leadMagnet.list.newFollowersTooltip"
                                 />
                               </TableCell>
-                              <TableCell className="px-3 py-2 align-middle text-right">
+                              <TableCell className="whitespace-nowrap px-3 py-2 align-middle text-right">
                                 <CampaignMetricCell
                                   value={c.metrics?.new_emails ?? 0}
                                   tooltipKey="leadMagnet.list.newEmailsTooltip"
                                 />
                               </TableCell>
-                              <TableCell className="px-3 py-2 align-middle text-right">
+                              <TableCell className="whitespace-nowrap px-3 py-2 align-middle text-right">
                                 <CampaignMetricCell
                                   value={c.metrics?.new_phones ?? 0}
                                   tooltipKey="leadMagnet.list.newPhonesTooltip"
                                 />
                               </TableCell>
-                              <TableCell className="px-3 py-2 align-middle text-right">
+                              <TableCell className="whitespace-nowrap px-3 py-2 align-middle text-right">
+                                <CampaignMetricCell
+                                  value={c.metrics?.offline_visits ?? 0}
+                                  tooltipKey="leadMagnet.list.offlineVisitTooltip"
+                                />
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap px-3 py-2 align-middle text-right">
+                                <CampaignMetricCell
+                                  value={c.metrics?.transactions ?? 0}
+                                  tooltipKey="leadMagnet.list.transactionsTooltip"
+                                />
+                              </TableCell>
+                              <TableCell className="min-w-[9.5rem] whitespace-nowrap px-3 py-2 align-middle text-right">
+                                <CampaignMetricCell
+                                  value={c.metrics?.revenue ?? 0}
+                                  tooltipKey="leadMagnet.list.revenueTooltip"
+                                  format="currency"
+                                />
+                              </TableCell>
+                              <TableCell className="min-w-[8.5rem] whitespace-nowrap px-3 py-2 align-middle text-right">
+                                <CampaignMetricCell
+                                  value={c.metrics?.aov ?? 0}
+                                  tooltipKey="leadMagnet.list.aovTooltip"
+                                  format="currency"
+                                />
+                              </TableCell>
+                              <TableCell className="min-w-[10rem] whitespace-nowrap px-3 py-2 align-middle text-right">
                                 <div className="flex justify-end gap-0.5">
                                   <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                                     <Link to={LEAD_MAGNET_PATHS.analytics(c.id)}>

@@ -3,7 +3,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 export function DefaultPricesPageSkeleton() {
   const { t } = useAppTranslation();
-  const aria = t("defaultPrices.page.loadingAria", "Loading default prices");
+  const aria = t("defaultPrices.page.loadingAria", "Loading products and services");
 
   return (
     <div
@@ -23,7 +23,10 @@ export function DefaultPricesPageSkeleton() {
                     <Skeleton className="h-3 w-80 max-w-full" />
                   </div>
                   <div className="-mb-3">
-                    <Skeleton className="h-8 w-44" />
+                    <div className="flex flex-wrap gap-x-6 gap-y-1">
+                      <Skeleton className="h-8 w-24" />
+                      <Skeleton className="h-8 w-24" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -40,6 +43,12 @@ export function DefaultPricesPageSkeleton() {
                           </div>
                           <Skeleton className="h-9 w-24 shrink-0" />
                         </div>
+                        <div className="mb-3 flex flex-wrap gap-2">
+                          <Skeleton className="h-9 min-w-[160px] flex-1" />
+                          <Skeleton className="h-9 w-[160px]" />
+                          <Skeleton className="h-9 w-[140px]" />
+                          <Skeleton className="h-9 w-[140px]" />
+                        </div>
                         <div className="space-y-2">
                           <Skeleton className="h-10 w-full" />
                           {Array.from({ length: 6 }).map((_, i) => (
@@ -52,6 +61,7 @@ export function DefaultPricesPageSkeleton() {
                 </div>
               </div>
 
+              <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
             </div>
           </div>
         </div>

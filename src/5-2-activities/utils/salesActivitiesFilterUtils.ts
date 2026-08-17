@@ -1,4 +1,5 @@
 import type { SalesActivity } from '@/shared/hooks/organized/sales';
+import { activityTypeSearchText } from '../lib/salesActivityType';
 
 export type SalesActivitiesDateFilter =
   | 'all'
@@ -121,11 +122,13 @@ export function filterSalesActivities(
       const phone = String((activity as Record<string, unknown>).client_phone ?? '').toLowerCase();
       const email = String((activity as Record<string, unknown>).client_email ?? '').toLowerCase();
       const description = String((activity as Record<string, unknown>).description ?? '').toLowerCase();
+      const activityType = activityTypeSearchText(activity.activity_type);
       if (
         !client.includes(searchLower) &&
         !phone.includes(searchLower) &&
         !email.includes(searchLower) &&
-        !description.includes(searchLower)
+        !description.includes(searchLower) &&
+        !activityType.includes(searchLower)
       ) {
         return false;
       }

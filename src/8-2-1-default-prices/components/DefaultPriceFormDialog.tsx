@@ -74,7 +74,7 @@ export function DefaultPriceFormDialog({
   useEffect(() => {
     if (!open) return;
     if (editingRow) {
-      setServiceId(editingRow.service_id);
+      setServiceId(editingRow.service_id ?? "");
       setSubServiceId(editingRow.sub_service_id ?? "");
       setDescription(editingRow.description ?? "");
       const raw = editingRow.unit_price != null ? String(Math.round(Number(editingRow.unit_price))) : "";
@@ -110,6 +110,7 @@ export function DefaultPriceFormDialog({
     try {
       await onSubmit({
         organization_id: organizationId,
+        kind: 'service',
         service_id: serviceId,
         sub_service_id: subServiceId || null,
         unit_price: price,

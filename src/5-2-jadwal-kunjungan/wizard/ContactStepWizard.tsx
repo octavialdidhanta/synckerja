@@ -2,8 +2,9 @@ import { User, Building2 } from 'lucide-react';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
-import { useClients } from '@/shared/hooks/organized/sales';
 import { useAvailableEmployees } from '@/shared/hooks/useAvailableEmployees';
+import { useVisitPartyOptions } from '@/shared/hooks/useVisitPartyOptions';
+import { VisitPartyPicker } from '@/5-2-jadwal-kunjungan/components/VisitPartyPicker';
 
 interface VisitData {
   selectedLocation: any;
@@ -26,16 +27,14 @@ interface ContactStepWizardProps {
 }
 
 export const ContactStepWizard = ({ visitData, updateVisitData }: ContactStepWizardProps) => {
-  const { clients } = useClients();
+  const { leadParties, clientParties, findByKey, isLoading } = useVisitPartyOptions();
   const { data: employees = [] } = useAvailableEmployees();
-  
-  // Get selected client and employee names for display
-  const selectedClient = clients.find(client => client.id === visitData.clientName);
-  const selectedEmployee = employees.find(emp => emp.id === visitData.salesPerson);
+
+  const selectedParty = findByKey(visitData.clientName);
+  const selectedEmployee = employees.find((emp) => emp.id === visitData.salesPerson);
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6">
-      {/* Instructions */}
       <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200">
         <div className="flex items-start gap-3">
           <div className="p-2 bg-green-100 rounded-lg">
@@ -44,14 +43,13 @@ export const ContactStepWizard = ({ visitData, updateVisitData }: ContactStepWiz
           <div>
             <h3 className="font-semibold text-green-900 mb-1">Informasi Kontak</h3>
             <p className="text-green-700 text-sm">
-              Lengkapi data klien dan sales person yang akan melakukan kunjungan.
+              Pilih lead atau klien, lalu lengkapi sales person yang akan melakukan kunjungan.
             </p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        {/* Client Information */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-3">
             <div className="p-2 bg-brand-blue-soft rounded-lg">
@@ -59,39 +57,36 @@ export const ContactStepWizard = ({ visitData, updateVisitData }: ContactStepWiz
             </div>
             Informasi Klien
           </h3>
-          
+
           <div className="space-y-4">
             <div>
               <Label htmlFor="client-name" className="text-sm font-medium text-slate-700">
                 Nama Klien *
               </Label>
-              <Select 
-                value={visitData.clientName} 
-                onValueChange={value => updateVisitData({ clientName: value })}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Pilih klien">
-                    {selectedClient ? selectedClient.company_name : "Pilih klien"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.company_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <VisitPartyPicker
+                value={visitData.clientName}
+                selected={selectedParty}
+                leadParties={leadParties}
+                clientParties={clientParties}
+                isLoading={isLoading}
+                onSelect={(party) =>
+                  updateVisitData({
+                    clientName: party.key,
+                    contactPerson: party.contactPerson || party.label,
+                    phoneNumber: party.phone || '',
+                  })
+                }
+              />
             </div>
 
             <div>
               <Label htmlFor="contact-person" className="text-sm font-medium text-slate-700">
                 Nama Kontak Person *
               </Label>
-              <Input 
-                id="contact-person" 
-                value={visitData.contactPerson} 
-                onChange={e => updateVisitData({ contactPerson: e.target.value })} 
+              <Input
+                id="contact-person"
+                value={visitData.contactPerson}
+                onChange={(e) => updateVisitData({ contactPerson: e.target.value })}
                 className="mt-1"
                 placeholder="Masukkan nama kontak person"
               />
@@ -101,11 +96,11 @@ export const ContactStepWizard = ({ visitData, updateVisitData }: ContactStepWiz
               <Label htmlFor="phone-number" className="text-sm font-medium text-slate-700">
                 Nomor Telepon
               </Label>
-              <Input 
-                id="phone-number" 
+              <Input
+                id="phone-number"
                 type="tel"
-                value={visitData.phoneNumber} 
-                onChange={e => updateVisitData({ phoneNumber: e.target.value })} 
+                value={visitData.phoneNumber}
+                onChange={(e) => updateVisitData({ phoneNumber: e.target.value })}
                 className="mt-1"
                 placeholder="Masukkan nomor telepon"
               />
@@ -113,7 +108,6 @@ export const ContactStepWizard = ({ visitData, updateVisitData }: ContactStepWiz
           </div>
         </div>
 
-        {/* Sales Person */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-3">
             <div className="p-2 bg-orange-100 rounded-lg">
@@ -121,18 +115,18 @@ export const ContactStepWizard = ({ visitData, updateVisitData }: ContactStepWiz
             </div>
             Sales Person
           </h3>
-          
+
           <div>
             <Label htmlFor="sales-person" className="text-sm font-medium text-slate-700">
               Pilih Sales Person *
             </Label>
-            <Select 
-              value={visitData.salesPerson} 
-              onValueChange={value => updateVisitData({ salesPerson: value })}
+            <Select
+              value={visitData.salesPerson}
+              onValueChange={(value) => updateVisitData({ salesPerson: value })}
             >
               <SelectTrigger className="mt-1">
                 <SelectValue placeholder="Pilih sales person">
-                  {selectedEmployee ? selectedEmployee.full_name : "Pilih sales person"}
+                  {selectedEmployee ? selectedEmployee.full_name : 'Pilih sales person'}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>

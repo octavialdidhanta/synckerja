@@ -29,7 +29,6 @@ export function PromoSimulationPageSkeleton() {
                   <div className="flex flex-wrap gap-x-6 gap-y-1">
                   <Skeleton className="h-8 w-40 max-w-[32%]" />
                   <Skeleton className="h-8 w-36 max-w-[32%]" />
-                  <Skeleton className="h-8 w-36 max-w-[32%]" />
                 </div>
               </div>
               </div>

@@ -1,17 +1,29 @@
 import React from 'react';
 import { Button } from '@/shared/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/components/ui/select';
 import { Input } from '@/shared/components/ui/input';
 import { Search, RefreshCw, Plus } from 'lucide-react';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { SalesActivityDialog } from './SalesActivityDialog';
 import {
   DEFAULT_SALES_ACTIVITIES_FILTERS,
   type SalesActivitiesFiltersState,
 } from '../utils/salesActivitiesFilterUtils';
+import { formatActivityTypeLabel, mergeActivityTypeGroups } from '../lib/salesActivityType';
 
 interface SalesActivitiesFiltersProps {
   filters: SalesActivitiesFiltersState;
   onFiltersChange: (filters: SalesActivitiesFiltersState) => void;
+  /** Unique activity_type values from the unfiltered page dataset. */
+  activityTypes?: string[];
   /** Called after a new activity is saved from the filter-bar dialog (keeps list in sync). */
   onCreateSuccess?: () => void;
 }
@@ -19,9 +31,12 @@ interface SalesActivitiesFiltersProps {
 export const SalesActivitiesFilters = ({
   filters,
   onFiltersChange,
+  activityTypes = [],
   onCreateSuccess,
 }: SalesActivitiesFiltersProps) => {
+  const { t } = useAppTranslation();
   const [showDialog, setShowDialog] = React.useState(false);
+  const typeGroups = React.useMemo(() => mergeActivityTypeGroups(activityTypes), [activityTypes]);
 
   const handleFilterChange = (key: string, value: string) => {
     onFiltersChange({ ...filters, [key]: value });
@@ -70,17 +85,30 @@ export const SalesActivitiesFilters = ({
         {/* Type Filter */}
         <Select value={filters.type} onValueChange={(value) => handleFilterChange('type', value)}>
           <SelectTrigger className="w-full sm:w-36 lg:w-40 h-9 text-sm text-primary placeholder:text-muted-foreground text-left">
-            <SelectValue placeholder="Type" />
+            <SelectValue placeholder={t('salesActivities.filters.typePlaceholder', 'Type')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="Demo">Demo</SelectItem>
-            <SelectItem value="Meeting">Meeting</SelectItem>
-            <SelectItem value="Call">Call</SelectItem>
-            <SelectItem value="Proposal">Proposal</SelectItem>
-            <SelectItem value="Closing">Closing</SelectItem>
-            <SelectItem value="Lead Conversion">Lead Conversion</SelectItem>
-            <SelectItem value="visit">Visit</SelectItem>
+            <SelectItem value="all">{t('salesActivities.filters.allTypes', 'All Types')}</SelectItem>
+            <SelectGroup>
+              <SelectLabel className="text-xs text-gray-500 font-medium">
+                {t('salesActivities.filters.groupSales', 'Sales')}
+              </SelectLabel>
+              {typeGroups.sales.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {formatActivityTypeLabel(type, t)}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+            <SelectGroup>
+              <SelectLabel className="text-xs text-gray-500 font-medium">
+                {t('salesActivities.filters.groupStore', 'Store')}
+              </SelectLabel>
+              {typeGroups.store.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {formatActivityTypeLabel(type, t)}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
 

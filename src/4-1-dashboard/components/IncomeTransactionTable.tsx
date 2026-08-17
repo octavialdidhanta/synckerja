@@ -23,6 +23,7 @@ import { format } from 'date-fns';
 import { AddIncomeForm } from './AddIncomeForm';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { getIncomeTransactionIdDisplay } from '@/4-1-dashboard/utils/incomeTransactionDisplayId';
+import { formatIncomePaymentMethodLabel } from '@/4-1-transaction/utils/formatIncomePaymentMethod';
 
 export function IncomeTransactionTable() {
   const { t } = useAppTranslation();
@@ -221,7 +222,13 @@ export function IncomeTransactionTable() {
                     </div>
                   </TableCell>
                   <TableCell className="px-3 py-2 text-xs">
-                    {transaction.payment_method || '-'}
+                    {formatIncomePaymentMethodLabel(transaction.payment_method, {
+                      cash: t('incomes.paymentMethod.cash', 'Cash'),
+                      bankTransfer: t('incomes.paymentMethod.bankTransfer', 'Bank Transfer'),
+                      eWallet: t('incomes.paymentMethod.eWallet', 'E-wallet'),
+                      creditCard: t('incomes.paymentMethod.creditCard', 'Credit Card'),
+                      debitCard: t('incomes.paymentMethod.debitCard', 'Debit Card'),
+                    })}
                   </TableCell>
                   <TableCell className="px-3 py-2 text-xs">
                     <Badge

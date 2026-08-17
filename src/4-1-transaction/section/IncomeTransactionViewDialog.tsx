@@ -12,6 +12,7 @@ import {
   MODAL_BRAND_HEADER_BAR,
   MODAL_BRAND_HEADER_CLOSE_BTN,
 } from '@/shared/constants/modalBrandHeaderClasses';
+import { formatIncomePaymentMethodLabel } from '../utils/formatIncomePaymentMethod';
 
 interface IncomeTransactionViewDialogProps {
   transaction: IncomeTransactionWithRelations | null;
@@ -75,18 +76,13 @@ export const IncomeTransactionViewDialog = ({
 
   const title = t('incomes.transactionDetailsTitle', 'Income Transaction Details');
 
-  const paymentMethodLabel = (() => {
-    const raw = transaction.payment_method?.trim();
-    if (!raw) return '-';
-    const keyMap: Record<string, string> = {
-      cash: t('incomes.paymentMethod.cash', 'Cash'),
-      bank_transfer: t('incomes.paymentMethod.bankTransfer', 'Bank Transfer'),
-      credit_card: t('incomes.paymentMethod.creditCard', 'Credit Card'),
-      debit_card: t('incomes.paymentMethod.debitCard', 'Debit Card'),
-      digital_wallet: t('incomes.paymentMethod.digitalWallet', 'Digital Wallet'),
-    };
-    return keyMap[raw] ?? raw;
-  })();
+  const paymentMethodLabel = formatIncomePaymentMethodLabel(transaction.payment_method, {
+    cash: t('incomes.paymentMethod.cash', 'Cash'),
+    bankTransfer: t('incomes.paymentMethod.bankTransfer', 'Bank Transfer'),
+    eWallet: t('incomes.paymentMethod.eWallet', 'E-wallet'),
+    creditCard: t('incomes.paymentMethod.creditCard', 'Credit Card'),
+    debitCard: t('incomes.paymentMethod.debitCard', 'Debit Card'),
+  });
 
   const bodyScrollClass = cn(
     'scrollbar-hide seamless-scroll flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',

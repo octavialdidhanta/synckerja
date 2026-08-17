@@ -12,6 +12,7 @@ export interface WizardLocationPayload {
   contact_phone?: string | null;
   notes?: string | null;
   client_id?: string | null;
+  lead_id?: string | null;
   sales_person_id?: string | null;
   planned_start_time?: string | null;
   planned_end_time?: string | null;
@@ -25,6 +26,7 @@ export interface ParsedVisitSchedule {
   visitPurpose: string;
   notes: string | null;
   clientId: string;
+  leadId: string | null;
   employeeId: string;
   officeLocation: Record<string, unknown>;
   scheduledVisit: Record<string, unknown>;
@@ -56,6 +58,7 @@ export const buildScheduleFromWizardPayload = (
   const plannedStartTime = parseTimeFromDateTimeLocal(payload.planned_start_time ?? null);
   const plannedEndTime = parseTimeFromDateTimeLocal(payload.planned_end_time ?? null);
   const clientId = payload.client_id ?? '';
+  const leadId = payload.lead_id?.trim() || null;
   const employeeId = payload.sales_person_id ?? '';
 
   if (!clientId) throw new Error('Client is required');
@@ -84,6 +87,7 @@ export const buildScheduleFromWizardPayload = (
   const scheduledVisit: Record<string, unknown> = {
     organization_id: organizationId,
     lead_client_id: clientId,
+    lead_id: leadId,
     employee_id: employeeId,
     visit_date: visitDate,
     visit_purpose: payload.visit_purpose ?? '',
@@ -100,6 +104,7 @@ export const buildScheduleFromWizardPayload = (
     visitPurpose: payload.visit_purpose ?? '',
     notes: payload.notes ?? null,
     clientId,
+    leadId,
     employeeId,
     officeLocation,
     scheduledVisit,

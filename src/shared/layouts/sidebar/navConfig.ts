@@ -236,12 +236,17 @@ export const mainNavItems: MainNavItem[] = [
     id: "operations",
     titleKey: "sidebar.salesOperations.title",
     icon: Briefcase,
-    activePathPrefixes: ["/operations/sales"],
+    activePathPrefixes: ["/operations/sales", "/tools/default-prices"],
     subItems: [
+      {
+        titleKey: "sidebar.tools.defaultPrices.title",
+        path: "/tools/default-prices",
+        activePathPrefixes: ["/tools/default-prices"],
+      },
       {
         titleKey: "sidebar.operations.sales.title",
         path: "/operations/sales/activities",
-        activePathPrefixes: ["/operations/sales/activities", "/operations/sales/jadwal-kunjungan", "/operations/sales/client-visits"],
+        activePathPrefixes: ["/operations/sales/activities", "/operations/sales/jadwal-kunjungan", "/operations/sales/client-visits", "/operations/sales/customer-visits"],
       },
       {
         titleKey: "sidebar.operations.sales.tiktokShop.title",
@@ -269,7 +274,17 @@ export const mainNavItems: MainNavItem[] = [
     id: "tools",
     titleKey: "sidebar.tools.title",
     icon: Wrench,
-    activePathPrefixes: ["/tools"],
+    activePathPrefixes: [
+      "/tools/daily-task",
+      "/tools/daily-task-report",
+      "/tools/meeting-notes",
+      "/tools/habits-tracker",
+      "/tools/password-manager",
+      "/tools/pph21-calculator",
+      "/tools/calculator",
+      "/tools/pricing-tools",
+      "/tools/promo-simulation",
+    ],
     subItems: [
       {
         titleKey: "sidebar.tools.dailyTask.title",
@@ -285,11 +300,6 @@ export const mainNavItems: MainNavItem[] = [
         titleKey: "sidebar.tools.pph21Calculator.title",
         path: "/tools/pph21-calculator",
         activePathPrefixes: ["/tools/pph21-calculator"],
-      },
-      {
-        titleKey: "sidebar.tools.defaultPrices.title",
-        path: "/tools/default-prices",
-        activePathPrefixes: ["/tools/default-prices"],
       },
       {
         titleKey: "sidebar.tools.campaignCalculator.title",

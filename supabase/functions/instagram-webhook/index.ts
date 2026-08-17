@@ -26,6 +26,7 @@ import {
   isPlaceholderLeadClientName,
   refreshLeadClientIfPlaceholder,
 } from "../_shared/omnichannelLeadClientName.ts";
+import { reconcileLeadMagnetChannelLead } from "../_shared/leadMagnet/reconcileInstagramLeadMagnetLead.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -239,7 +240,7 @@ async function fetchInstagramSenderDisplayName(
   }
 }
 
-/** Create lead for new Instagram conversation (ticket_id IG-xxx). */
+/** Create or merge lead for an Instagram conversation (ticket_id IG-xxx). */
 async function ensureLeadForNewInstagramConversation(
   supabase: ReturnType<typeof createClient>,
   orgId: string,
@@ -247,9 +248,31 @@ async function ensureLeadForNewInstagramConversation(
   clientName: string,
   title: string,
   customerIgId: string,
-  createdByDisplayName: string
+  createdByDisplayName: string,
+  extraScopedIds: string[] = [],
 ): Promise<void> {
   const ticketId = "IG-" + String(convId).replace(/-/g, "").slice(0, 8).toUpperCase();
+  const scopedIds = [customerIgId, ...extraScopedIds];
+  const reconciled = await reconcileLeadMagnetChannelLead(supabase, {
+    organizationId: orgId,
+    platform: "instagram",
+    conversationId: convId,
+    scopedIds,
+    customerHandle: clientName,
+    clientName,
+  });
+  if (reconciled.leadId) {
+    const incoming = (clientName && String(clientName).trim()) || "";
+    if (incoming && !isPlaceholderLeadClientName(incoming)) {
+      await refreshLeadClientIfPlaceholder(supabase, {
+        organizationId: orgId,
+        leadId: reconciled.leadId,
+        clientName: incoming,
+      });
+    }
+    return;
+  }
+
   const { data: existing } = await supabase
     .from("leads")
     .select("id, client")
@@ -1683,6 +1706,19 @@ Deno.serve(async (req: Request) => {
             .select("id, first_inbound_at, ticket_id")
             .single();
           conv = updated;
+          const createdByDisplayName = account.instagram_username?.trim()
+            ? `@${account.instagram_username.trim()}`
+            : (account.instagram_name?.trim() || "Instagram");
+          await ensureLeadForNewInstagramConversation(
+            supabase,
+            orgId,
+            existingConvResolved.id,
+            customerName || "",
+            lastBody || "Instagram",
+            customerMessagingId,
+            createdByDisplayName,
+            [senderId],
+          );
           if (customerName) {
             const igTicket =
               String((updated as { ticket_id?: string | null } | null)?.ticket_id ?? "").trim() ||
@@ -1757,6 +1793,19 @@ Deno.serve(async (req: Request) => {
                 .select("id, first_inbound_at")
                 .single();
               conv = updatedAfterRace;
+              const createdByDisplayName = account.instagram_username?.trim()
+                ? `@${account.instagram_username.trim()}`
+                : (account.instagram_name?.trim() || "Instagram");
+              await ensureLeadForNewInstagramConversation(
+                supabase,
+                orgId,
+                retried.id,
+                customerName || "",
+                lastBody || "Instagram",
+                customerMessagingId,
+                createdByDisplayName,
+                [senderId],
+              );
             } else {
               continue;
             }
@@ -1771,8 +1820,9 @@ Deno.serve(async (req: Request) => {
               conv!.id,
               customerName || "",
               lastBody || "Instagram",
-              senderId,
-              createdByDisplayName
+              customerMessagingId,
+              createdByDisplayName,
+              [senderId],
             );
             const { error: newCycleErr } = await supabase.from("instagram_conversation_cycles").insert({
               conversation_id: conv!.id,

@@ -7,6 +7,7 @@ import {
   runLeadMagnetFacebookPostbackIfResolved,
 } from "./leadMagnet/facebookLeadMagnetInbound.ts";
 import { fillClientProfileEmailFromInboundMessage } from "./livechat/fillClientProfileEmailFromInbound.ts";
+import { reconcileLeadMagnetChannelLead } from "./leadMagnet/reconcileInstagramLeadMagnetLead.ts";
 
 const META_GRAPH_VERSION = "v21.0";
 const MEDIA_BUCKET = "whatsapp-media";
@@ -159,8 +160,18 @@ async function ensureLeadForNewFacebookConversation(
   clientName: string,
   title: string,
   pageDisplayName: string,
+  customerPsid: string,
 ): Promise<void> {
   const ticketId = "FB-" + String(convId).replace(/-/g, "").slice(0, 8).toUpperCase();
+  const reconciled = await reconcileLeadMagnetChannelLead(supabase, {
+    organizationId: orgId,
+    platform: "facebook",
+    conversationId: convId,
+    scopedIds: [customerPsid],
+    customerHandle: clientName,
+    clientName,
+  });
+  if (reconciled.leadId) return;
   const { data: existing } = await supabase.from("leads").select("id").eq("ticket_id", ticketId).maybeSingle();
   if (existing) return;
   const { data: unreadStatus } = await supabase
@@ -476,6 +487,15 @@ export async function processFacebookMessengerEvents(
         .select("id, first_inbound_at")
         .single();
       conv = updated;
+      await ensureLeadForNewFacebookConversation(
+        supabase,
+        orgId,
+        existingConv.id,
+        customerName || "Messenger contact",
+        lastBody || "Messenger",
+        displayName,
+        senderId,
+      );
     } else {
       const newConvId = crypto.randomUUID();
       const ticketId = "FB-" + newConvId.replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -508,7 +528,7 @@ export async function processFacebookMessengerEvents(
       if (insertErr) continue;
       conv = inserted;
       await ensureLeadForNewFacebookConversation(
-        supabase, orgId, conv!.id, customerName || "Messenger contact", lastBody || "Messenger", displayName,
+        supabase, orgId, conv!.id, customerName || "Messenger contact", lastBody || "Messenger", displayName, senderId,
       );
       await supabase.from("facebook_conversation_cycles").insert({ conversation_id: conv!.id, cycle_started_at: ts });
     }
@@ -586,6 +606,9 @@ async function upsertFacebookConversationInbound(
         updated_at: ts,
       })
       .eq("id", existing.id);
+    await ensureLeadForNewFacebookConversation(
+      supabase, orgId, existing.id, "Messenger contact", bodyText, pageDisplayName, senderId,
+    );
     return existing.id;
   }
   const newConvId = crypto.randomUUID();
@@ -619,7 +642,7 @@ async function upsertFacebookConversationInbound(
     .single();
   if (!inserted?.id) return null;
   await ensureLeadForNewFacebookConversation(
-    supabase, orgId, inserted.id, customerName || "Messenger contact", bodyText, pageDisplayName,
+    supabase, orgId, inserted.id, customerName || "Messenger contact", bodyText, pageDisplayName, senderId,
   );
   await supabase.from("facebook_conversation_cycles").insert({ conversation_id: inserted.id, cycle_started_at: ts });
   return inserted.id;

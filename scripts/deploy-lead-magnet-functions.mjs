@@ -35,6 +35,11 @@ const leadMagnetWaPersist = [
   "supabase/functions/_shared/omnichannelPublicApi/syncOmnichannelWhatsAppDelivery.ts",
 ];
 
+const leadMagnetChannelLeadDeps = [
+  "supabase/functions/_shared/omnichannelLeadClientName.ts",
+  "supabase/functions/_shared/instagramAccountDedupe.ts",
+];
+
 const bundles = {
   "lead-magnet-runtime": [
     "supabase/functions/lead-magnet-runtime/index.ts",
@@ -43,6 +48,7 @@ const bundles = {
     "supabase/functions/_shared/metaPlatformScopes.ts",
     "supabase/functions/_shared/waTemplateGraph.ts",
     "supabase/functions/_shared/omnichannelPublicApi/leadStatusMap.ts",
+    ...leadMagnetChannelLeadDeps,
     ...leadMagnetWaPersist,
     ...leadMagnetShared,
   ],
@@ -62,6 +68,7 @@ const bundles = {
     "supabase/functions/_shared/metaPlatformScopes.ts",
     "supabase/functions/_shared/metaManageCommentsInboxState.ts",
     "supabase/functions/_shared/instagramAccountDedupe.ts",
+    "supabase/functions/_shared/omnichannelLeadClientName.ts",
     "supabase/functions/_shared/instagramMessagingRecipient.ts",
     "supabase/functions/_shared/facebookMessengerWebhook.ts",
     "supabase/functions/_shared/waTemplateGraph.ts",

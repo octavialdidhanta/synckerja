@@ -5,17 +5,27 @@ export type LeadMagnetPlatform = 'instagram' | 'facebook';
 export type LeadMagnetCampaignStatus = 'draft' | 'active' | 'paused' | 'archived';
 
 export type LeadMagnetCampaignMetrics = {
+  new_leads: number;
+  offline_visits: number;
   new_followers: number;
   new_emails: number;
   new_phones: number;
+  transactions: number;
+  revenue: number;
+  aov: number;
   non_follower_at_start: number;
   total_enrollments: number;
 };
 
 export type LeadMagnetCampaignMetricTotals = {
+  new_leads: number;
+  offline_visits: number;
   new_followers: number;
   new_emails: number;
   new_phones: number;
+  transactions: number;
+  revenue: number;
+  aov: number;
 };
 
 export type LeadMagnetCampaignAccount = {

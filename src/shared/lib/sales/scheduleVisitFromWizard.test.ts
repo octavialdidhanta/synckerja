@@ -21,6 +21,7 @@ describe('scheduleVisitFromWizard', () => {
         longitude: 106.7,
         radius_meters: 120,
         client_id: 'c1c1c1c1-1111-4111-8111-111111111101',
+        lead_id: 'a1a1a1a1-1111-4111-8111-111111111111',
         sales_person_id: '001b6725-bf16-4a2f-81ae-8960cf86c46d',
         planned_start_time: '2026-06-20T10:00',
         planned_end_time: '2026-06-20T12:00',
@@ -31,8 +32,10 @@ describe('scheduleVisitFromWizard', () => {
     );
 
     expect(result.clientId).toBe('c1c1c1c1-1111-4111-8111-111111111101');
+    expect(result.leadId).toBe('a1a1a1a1-1111-4111-8111-111111111111');
     expect(result.officeLocation.is_client_location).toBe(true);
     expect(result.scheduledVisit.status).toBe('scheduled');
+    expect(result.scheduledVisit.lead_id).toBe('a1a1a1a1-1111-4111-8111-111111111111');
     expect(result.scheduledVisit.visit_purpose).toBe('presentation');
   });
 
