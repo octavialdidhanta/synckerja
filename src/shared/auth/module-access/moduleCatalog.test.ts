@@ -47,6 +47,8 @@ describe("moduleCatalog", () => {
   it("uses longest-prefix match for nested paths", () => {
     expect(resolveSalesModuleForPath("/omnichannel/settings")).toBe("omnichannel");
     expect(resolveSalesModuleForPath("/operations/sales/stock-management")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/inventory")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/inventory/mapping")).toBe("operations");
     expect(resolveSalesModuleForPath("/operations/library/service-list")).toBe("operations");
     expect(resolveSalesModuleForPath("/operations/library/product-list")).toBe("operations");
     expect(resolveSalesModuleForPath("/operations/library/bundles")).toBe("operations");

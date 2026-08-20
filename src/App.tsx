@@ -20,6 +20,15 @@ import { CapacitorKeyboardInsetProvider } from "@/shared/native/useCapacitorKeyb
 import { NativeAppDisplayInit } from "@/shared/components/mobile/NativeAppDisplayInit";
 import { NativeSafeAreaCssVarsInit } from "@/shared/hooks/useNativeSafeAreaCssVars";
 import { LegacyDefaultPricesRedirect } from "@/8-2-1-default-prices/layout/DefaultPricesHeaderAndTab";
+import {
+  STOCK_MANAGEMENT_BASE_PATH,
+  STOCK_MANAGEMENT_LEGACY_BASE_PATH,
+  STOCK_MANAGEMENT_LEGACY_MAPPING_PATH,
+  STOCK_MANAGEMENT_LEGACY_SYNC_LOGS_PATH,
+  STOCK_MANAGEMENT_MAPPING_PATH,
+  STOCK_MANAGEMENT_PAGE_ACCESS_PATH,
+  STOCK_MANAGEMENT_SYNC_LOGS_PATH,
+} from "@/stock-management/lib/inventoryPaths";
 import { NativeBootstrapSplashGate } from "@/shared/components/mobile/NativeBootstrapSplashGate";
 import { ShareIntentRouteSync } from "@/shared/native/ShareIntentRouteSync";
 import { AdaptiveAppLayout } from "@/shared/layouts";
@@ -72,6 +81,7 @@ import {
   TikTokShopDashboardPageSkeleton,
   TikTokShopProductsPageSkeleton,
   StockManagementDashboardSkeleton,
+  InventorySummarySkeleton,
   EcommerceChatPageSkeleton,
   BlibliOrdersPageSkeleton,
   SocialMediaPerformanceHubPageSkeleton,
@@ -2624,7 +2634,7 @@ function StockManagementDashboardPageRouteElement() {
     <Suspense
       fallback={
         <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
-          <StockManagementDashboardSkeleton />
+          <InventorySummarySkeleton />
         </div>
       }
     >
@@ -4675,11 +4685,11 @@ const App = () => (
                             }
                           />
                           <Route
-                            path="/operations/sales/stock-management"
+                            path={STOCK_MANAGEMENT_BASE_PATH}
                             element={
                               <PageAccessGuard
-                                pagePath="/operations/sales/stock-management"
-                                loadingShell={<StockManagementDashboardSkeleton />}
+                                pagePath={STOCK_MANAGEMENT_PAGE_ACCESS_PATH}
+                                loadingShell={<InventorySummarySkeleton />}
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <StockManagementDashboardPageRouteElement />
@@ -4687,10 +4697,10 @@ const App = () => (
                             }
                           />
                           <Route
-                            path="/operations/sales/stock-management/mapping"
+                            path={STOCK_MANAGEMENT_MAPPING_PATH}
                             element={
                               <PageAccessGuard
-                                pagePath="/operations/sales/stock-management"
+                                pagePath={STOCK_MANAGEMENT_PAGE_ACCESS_PATH}
                                 loadingShell={<StockManagementDashboardSkeleton />}
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
@@ -4699,16 +4709,28 @@ const App = () => (
                             }
                           />
                           <Route
-                            path="/operations/sales/stock-management/sync-logs"
+                            path={STOCK_MANAGEMENT_SYNC_LOGS_PATH}
                             element={
                               <PageAccessGuard
-                                pagePath="/operations/sales/stock-management"
+                                pagePath={STOCK_MANAGEMENT_PAGE_ACCESS_PATH}
                                 loadingShell={<StockManagementDashboardSkeleton />}
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <StockSyncLogsPageRouteElement />
                               </PageAccessGuard>
                             }
+                          />
+                          <Route
+                            path={STOCK_MANAGEMENT_LEGACY_BASE_PATH}
+                            element={<Navigate to={STOCK_MANAGEMENT_BASE_PATH} replace />}
+                          />
+                          <Route
+                            path={STOCK_MANAGEMENT_LEGACY_MAPPING_PATH}
+                            element={<Navigate to={STOCK_MANAGEMENT_MAPPING_PATH} replace />}
+                          />
+                          <Route
+                            path={STOCK_MANAGEMENT_LEGACY_SYNC_LOGS_PATH}
+                            element={<Navigate to={STOCK_MANAGEMENT_SYNC_LOGS_PATH} replace />}
                           />
                           <Route
                             path="/operations/sales/ecommerce-chat"

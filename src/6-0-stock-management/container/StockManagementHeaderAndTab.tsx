@@ -1,11 +1,12 @@
-import { LayoutDashboard, Link2, ScrollText } from "lucide-react";
+import { LayoutDashboard, Link2, ScrollText, Scale } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ModuleTabNavItem } from "@/shared/auth/page-access/ModuleTabNavItem";
 import {
-  STOCK_MANAGEMENT_BASE_PATH,
   STOCK_MANAGEMENT_DASHBOARD_PATH,
+  STOCK_MANAGEMENT_ADJUSTMENT_PATH,
   STOCK_MANAGEMENT_MAPPING_PATH,
+  STOCK_MANAGEMENT_PAGE_ACCESS_PATH,
   STOCK_MANAGEMENT_SYNC_LOGS_PATH,
 } from "@/stock-management/lib/inventoryPaths";
 
@@ -18,6 +19,7 @@ export function StockManagementHeaderAndTab() {
   const navigate = useNavigate();
   const location = useLocation();
   const isDashboard = location.pathname === STOCK_MANAGEMENT_DASHBOARD_PATH;
+  const isAdjustment = location.pathname.startsWith(STOCK_MANAGEMENT_ADJUSTMENT_PATH);
   const isMapping = location.pathname.startsWith(STOCK_MANAGEMENT_MAPPING_PATH);
   const isSyncLogs = location.pathname.startsWith(STOCK_MANAGEMENT_SYNC_LOGS_PATH);
 
@@ -25,12 +27,12 @@ export function StockManagementHeaderAndTab() {
     <div className="px-1 py-3">
       <div className="mb-3">
         <h1 className="mb-0.5 text-xl font-bold text-gray-900">
-          {t("operations.stockManagement.title", "Stock Management")}
+          {t("operations.stockManagement.title", "Inventory")}
         </h1>
         <p className="text-xs text-gray-600">
           {t(
             "operations.stockManagement.headerDesc",
-            "Central inventory shared across TikTok Shop, Shopee, Tokopedia, BliBli, and other channels",
+            "Shared inventory for Item Library and e-commerce channels",
           )}
         </p>
       </div>
@@ -38,8 +40,8 @@ export function StockManagementHeaderAndTab() {
       <div className="-mb-3">
         <nav className="flex space-x-6" role="tablist">
           <ModuleTabNavItem
-            pagePath={STOCK_MANAGEMENT_BASE_PATH}
-            label={t("operations.stockManagement.tabInventory", "Inventory")}
+            pagePath={STOCK_MANAGEMENT_PAGE_ACCESS_PATH}
+            label={t("operations.stockManagement.tabInventory", "Summary")}
             icon={LayoutDashboard}
             isActive={isDashboard}
             onActivate={() => navigate(STOCK_MANAGEMENT_DASHBOARD_PATH)}
@@ -47,7 +49,16 @@ export function StockManagementHeaderAndTab() {
             inactiveClassName={tabInactive}
           />
           <ModuleTabNavItem
-            pagePath={STOCK_MANAGEMENT_BASE_PATH}
+            pagePath={STOCK_MANAGEMENT_PAGE_ACCESS_PATH}
+            label={t("operations.stockManagement.tabAdjustment", "Adjustment")}
+            icon={Scale}
+            isActive={isAdjustment}
+            onActivate={() => navigate(STOCK_MANAGEMENT_ADJUSTMENT_PATH)}
+            activeClassName={tabActive}
+            inactiveClassName={tabInactive}
+          />
+          <ModuleTabNavItem
+            pagePath={STOCK_MANAGEMENT_PAGE_ACCESS_PATH}
             label={t("operations.stockManagement.tabMapping", "Platform mapping")}
             icon={Link2}
             isActive={isMapping}
@@ -56,7 +67,7 @@ export function StockManagementHeaderAndTab() {
             inactiveClassName={tabInactive}
           />
           <ModuleTabNavItem
-            pagePath={STOCK_MANAGEMENT_BASE_PATH}
+            pagePath={STOCK_MANAGEMENT_PAGE_ACCESS_PATH}
             label={t("operations.stockManagement.tabSyncLogs", "Sync logs")}
             icon={ScrollText}
             isActive={isSyncLogs}

@@ -221,8 +221,8 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/8-2-3-ingredient/pages/IngredientPage"),
   },
   {
-    prefix: "/operations/settings",
-    prefetch: () => import("@/8-2-2-outlets/pages/OutletsListPage"),
+    prefix: "/operations/inventory",
+    prefetch: () => import("@/6-0-stock-management/pages/StockManagementDashboardPage"),
   },
   {
     prefix: "/tools/pricing-tools",
@@ -564,6 +564,7 @@ function prefetchSalesOperationsModuleTabs(): void {
   void import("@/8-2-3-ingredient/pages/IngredientPage");
   void import("@/8-2-2-outlets/pages/OutletsListPage");
   void import("@/8-2-2-outlets/pages/CheckoutSettingsPage");
+  void import("@/6-0-stock-management/pages/StockManagementDashboardPage");
 }
 
 function prefetchModuleSiblingTabs(base: string): void {
@@ -603,7 +604,7 @@ function prefetchModuleSiblingTabs(base: string): void {
     prefetchToolsModuleTabs();
     return;
   }
-  if (base.startsWith("/operations/sales") || base.startsWith("/operations/library") || base.startsWith("/operations/ingredient") || base.startsWith("/operations/settings")) {
+  if (base.startsWith("/operations/sales") || base.startsWith("/operations/library") || base.startsWith("/operations/ingredient") || base.startsWith("/operations/settings") || base.startsWith("/operations/inventory")) {
     prefetchSalesOperationsModuleTabs();
     return;
   }

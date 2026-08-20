@@ -241,7 +241,7 @@ export const mainNavItems: MainNavItem[] = [
     titleKey: "sidebar.salesOperations.title",
     panelTitleKey: "sidebar.salesOperations.panelTitle",
     icon: Briefcase,
-    activePathPrefixes: ["/operations/sales", "/operations/library", "/operations/ingredient", "/operations/settings"],
+    activePathPrefixes: ["/operations/sales", "/operations/library", "/operations/ingredient", "/operations/settings", "/operations/inventory"],
     subItems: [
       {
         titleKey: "sidebar.tools.defaultPrices.title",
@@ -259,6 +259,12 @@ export const mainNavItems: MainNavItem[] = [
         activePathPrefixes: ["/operations/settings"],
       },
       {
+        titleKey: "sidebar.operations.sales.stockManagement.title",
+        path: "/operations/inventory",
+        activePathPrefixes: ["/operations/inventory"],
+        sectionTitleKey: "sidebar.salesOperations.groupShared",
+      },
+      {
         titleKey: "sidebar.operations.sales.title",
         path: "/operations/sales/activities",
         activePathPrefixes: ["/operations/sales/activities", "/operations/sales/jadwal-kunjungan", "/operations/sales/client-visits", "/operations/sales/customer-visits"],
@@ -273,11 +279,6 @@ export const mainNavItems: MainNavItem[] = [
         titleKey: "sidebar.operations.sales.blibliOrders.title",
         path: "/operations/sales/blibli-orders",
         activePathPrefixes: ["/operations/sales/blibli-orders"],
-      },
-      {
-        titleKey: "sidebar.operations.sales.stockManagement.title",
-        path: "/operations/sales/stock-management",
-        activePathPrefixes: ["/operations/sales/stock-management"],
       },
       {
         titleKey: "sidebar.operations.sales.ecommerceChat.title",

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2, Pencil, Search } from "lucide-react";
@@ -7,6 +7,11 @@ import { StockManagementModuleShell } from "@/6-0-stock-management/layout/StockM
 import { PlatformMappingDialog } from "@/6-0-stock-management/container/PlatformMappingDialog";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
+import { DefaultProductFormDialog } from "@/8-2-1-default-prices/components/DefaultProductFormDialog";
+import { useDefaultPrices } from "@/8-2-1-default-prices/hooks/useDefaultPrices";
+import type { DefaultPriceCreate, DefaultPriceRow } from "@/8-2-1-default-prices/types/defaultPrices";
+import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
+import { defaultPosOutletId } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -18,10 +23,13 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { useInventorySkusQuery } from "@/stock-management/hooks/useInventorySkusQuery";
+import { useOrphanInventorySkus } from "@/stock-management/hooks/useOrphanInventorySkus";
 import { usePlatformSkuMappingsQuery } from "@/stock-management/hooks/usePlatformSkuMappingsQuery";
 import { deletePlatformMapping, upsertPlatformMapping } from "@/stock-management/lib/inventoryApi";
+import { formatInventoryQty } from "@/stock-management/lib/formatInventoryQty";
+import { prefillProductFromInventorySku } from "@/stock-management/lib/prefillProductFromInventorySku";
 import { INVENTORY_PLATFORMS } from "@/stock-management/types/inventory";
-import type { InventoryPlatformMappingRow } from "@/stock-management/types/inventory";
+import type { InventoryPlatformMappingRow, InventorySkuRow } from "@/stock-management/types/inventory";
 import { StockManagementDashboardSkeleton } from "@/6-0-stock-management/skeletons/StockManagementDashboardSkeleton";
 import { useTikTokShopSettings } from "@/tiktok-shop/hooks/useTikTokShopSettings";
 
@@ -51,11 +59,18 @@ function StockPlatformMappingContent() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { organizationId, canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
+  const { create } = useDefaultPrices();
+  const { rows: outlets } = usePosOutlets();
+  const defaultOutletId = defaultPosOutletId(outlets);
+  const defaultOutletName = outlets.find((row) => row.id === defaultOutletId)?.name ?? null;
   const { data: skusData } = useInventorySkusQuery(organizationId);
+  const { orphans, isLoading: orphanLoading } = useOrphanInventorySkus(organizationId);
   const { data: mappingsData, isLoading } = usePlatformSkuMappingsQuery(organizationId);
   const { data: tiktokSettings } = useTikTokShopSettings(organizationId);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [productPrefill, setProductPrefill] = useState<DefaultPriceRow | null>(null);
   const [search, setSearch] = useState("");
   const [skuId, setSkuId] = useState("");
   const [platform, setPlatform] = useState("tiktok_shop");
@@ -105,13 +120,52 @@ function StockPlatformMappingContent() {
     if (preferred) setShopAccountId(preferred.id);
   }, [shops, shopAccountId, dialogOpen, editingId]);
 
+  const invalidate = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["inventory-mappings", organizationId] });
+    void queryClient.invalidateQueries({ queryKey: ["inventory-sku-linked", organizationId] });
+    void queryClient.invalidateQueries({ queryKey: ["inventory-skus", organizationId] });
+    void queryClient.invalidateQueries({ queryKey: ["inventory-summary"] });
+    void queryClient.invalidateQueries({ queryKey: ["default-prices", organizationId] });
+  }, [organizationId, queryClient]);
+
+  const openCreateProductFromSku = useCallback(
+    (sku: InventorySkuRow) => {
+      if (!organizationId || !defaultOutletId) {
+        toast.error(t("operations.inventory.summary.migrateSkuNoOutlet", "Assign an active outlet first."));
+        return;
+      }
+      setProductPrefill(
+        prefillProductFromInventorySku({
+          organizationId,
+          sku,
+          outletId: defaultOutletId,
+        }),
+      );
+      setProductDialogOpen(true);
+    },
+    [defaultOutletId, organizationId, t],
+  );
+
+  const handleCreateProductFromSku = useCallback(
+    async (payload: DefaultPriceCreate) => {
+      if (!organizationId) return;
+      await create({
+        ...payload,
+        organization_id: organizationId,
+        kind: "product",
+        selected_outlet_id: defaultOutletId,
+      });
+      toast.success(t("operations.inventory.orphanSku.productCreated", "Product created from SKU."));
+      setProductDialogOpen(false);
+      setProductPrefill(null);
+      invalidate();
+    },
+    [create, defaultOutletId, invalidate, organizationId, t],
+  );
+
   if (gatePending || (isLoading && mappings.length === 0)) {
     return null;
   }
-
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["inventory-mappings", organizationId] });
-  };
 
   const resetForm = () => {
     setEditingId(null);
@@ -180,6 +234,52 @@ function StockPlatformMappingContent() {
 
   return (
     <>
+      {canManage && orphans.length > 0 ? (
+        <div className="col-span-12 space-y-3 rounded-lg border border-amber-200 bg-amber-50/40 p-4 shadow-sm">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">
+              {t("operations.inventory.orphanSku.title", "SKUs not in Item Library")}
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t(
+                "operations.inventory.orphanSku.desc",
+                "Create an Item Library product to show legacy SKU stock on Summary. Photo is required.",
+              )}
+            </p>
+          </div>
+          <div className="min-h-0 overflow-x-auto rounded-md border border-amber-100 bg-white">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("operations.stockManagement.colInternalSku", "Internal SKU")}</TableHead>
+                  <TableHead>{t("operations.inventory.orphanSku.colName", "Name")}</TableHead>
+                  <TableHead className="text-right">{t("operations.inventory.orphanSku.colQty", "Pool qty")}</TableHead>
+                  <TableHead className="text-right">{t("operations.stockManagement.colActions", "Actions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orphans.map((sku) => (
+                  <TableRow key={sku.id}>
+                    <TableCell className="font-mono text-xs">{sku.internal_sku}</TableCell>
+                    <TableCell>{sku.name || sku.product_name || "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatInventoryQty(sku.available_qty)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button type="button" size="sm" variant="outline" onClick={() => openCreateProductFromSku(sku)}>
+                        {t("operations.inventory.orphanSku.createProduct", "Create product")}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      ) : orphanLoading && canManage ? (
+        <div className="col-span-12 rounded-lg border border-gray-200 bg-white p-4 text-sm text-muted-foreground shadow-sm">
+          {t("operations.inventory.orphanSku.loading", "Checking legacy SKUs…")}
+        </div>
+      ) : null}
+
       <div className="col-span-12 space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1">
@@ -311,6 +411,20 @@ function StockPlatformMappingContent() {
           shops={shops}
           saving={saving}
           onSave={handleSave}
+        />
+      ) : null}
+
+      {canManage ? (
+        <DefaultProductFormDialog
+          open={productDialogOpen}
+          onOpenChange={(open) => {
+            setProductDialogOpen(open);
+            if (!open) setProductPrefill(null);
+          }}
+          onSubmit={handleCreateProductFromSku}
+          prefillRow={productPrefill}
+          selectedOutletId={defaultOutletId}
+          selectedOutletName={defaultOutletName}
         />
       ) : null}
     </>
