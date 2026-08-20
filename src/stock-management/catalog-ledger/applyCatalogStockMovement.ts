@@ -7,7 +7,7 @@ export type ApplyCatalogStockMovementInput = {
   productId?: string | null;
   variantId?: string | null;
   ingredientId?: string | null;
-  movementType: "opening" | "adjustment";
+  movementType: "opening" | "adjustment" | "purchase_order";
   qtyDelta: number;
   note?: string;
   referenceType?: string | null;

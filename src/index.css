@@ -571,10 +571,13 @@ video.review-fit-video-mobile::-webkit-media-controls-toggle-closed-captions-but
     visibility: hidden !important;
   }
   #store-receipt-print,
-  #store-receipt-print * {
+  #store-receipt-print *,
+  #purchase-order-print-root,
+  #purchase-order-print-root * {
     visibility: visible !important;
   }
-  #store-receipt-print {
+  #store-receipt-print,
+  #purchase-order-print-root {
     position: absolute;
     left: 0;
     top: 0;

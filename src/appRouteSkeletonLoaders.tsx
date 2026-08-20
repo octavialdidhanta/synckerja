@@ -419,6 +419,20 @@ export const InventoryAdjustmentSkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const InventoryPurchaseOrdersSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-stock-management/purchase-orders/skeletons/InventoryPurchaseOrdersSkeleton").then(
+    (m) => ({
+      default: m.InventoryPurchaseOrdersSkeleton,
+    }),
+  ),
+);
+
+export const InventorySuppliersSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-stock-management/suppliers/skeletons/InventorySuppliersSkeleton").then((m) => ({
+    default: m.InventorySuppliersSkeleton,
+  })),
+);
+
 export const EcommerceChatPageSkeleton = createDeferredSkeleton(() =>
   import("@/6-0-ecommerce-chat/skeletons/EcommerceChatPageSkeleton").then((m) => ({
     default: m.EcommerceChatPageSkeleton,
