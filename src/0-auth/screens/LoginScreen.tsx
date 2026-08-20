@@ -9,6 +9,8 @@ import type { AuthError } from "@supabase/supabase-js";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "@/shared/hooks/use-toast";
 import { resolvePostAuthRouting } from "@/shared/auth/mfa/resolvePostAuthRouting";
+import { cleanupAuthState } from "@/shared/auth/utils/authCleanup";
+import { isSessionAccessTokenExpired } from "@/shared/auth/utils/expiredAuth";
 import { startGoogleSignIn } from "@/0-auth/lib/googleSignIn";
 import { AuthDivider, GoogleSignInButton } from "@/0-auth/components/GoogleSignInButton";
 import {
@@ -94,7 +96,19 @@ export function LoginScreen({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session || cancelled) return;
+      if (cancelled) return;
+      let active = session;
+      if (active && isSessionAccessTokenExpired(active)) {
+        const { data, error } = await supabase.auth.refreshSession();
+        if (cancelled) return;
+        if (error || !data.session) {
+          await supabase.auth.signOut({ scope: "local" });
+          cleanupAuthState();
+          return;
+        }
+        active = data.session;
+      }
+      if (!active || cancelled) return;
       await resolvePostAuthRouting(navigate, searchParams.get("redirectTo"));
     })();
     return () => {

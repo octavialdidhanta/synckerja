@@ -158,8 +158,25 @@ export const LEAD_MAGNET_ADD_ON_CODE = "lead_magnet" as const;
 
 export const LEAD_MAGNET_ADDON_IDR_PER_ORG_MONTHLY = 99_000;
 
+/** Extra POS outlets (HQ is always included; billed units are extras). */
+export const POS_OUTLETS_ADD_ON_CODE = "pos_outlets" as const;
+
+export const POS_OUTLETS_ADD_ON_MAX = 20;
+
+export const POS_OUTLETS_ADDON_IDR_PER_OUTLET_MONTHLY = 99_000;
+
 export function isFlatPerOrganizationAddOn(billingUnit: string | null | undefined): boolean {
   return billingUnit === "per_organization_month";
+}
+
+export function isPerOutletMonthAddOn(billingUnit: string | null | undefined): boolean {
+  return billingUnit === "per_outlet_month";
+}
+
+/** Quantity cap: POS extras are independent of HR member seats. */
+export function addOnLineQuantityCap(code: string, memberCount: number): number {
+  if (code === POS_OUTLETS_ADD_ON_CODE) return POS_OUTLETS_ADD_ON_MAX;
+  return Math.max(1, Math.round(Number(memberCount)) || 1);
 }
 
 /** Whether Lead Magnet add-on is included in checkout selections (bundled HR payment). */
@@ -179,6 +196,17 @@ export function bundledOmnichannelRosterUnitsFromSelections(
   const q = Math.round(Number(row.quantity));
   if (!Number.isFinite(q) || q < 1) return 0;
   return Math.min(999, q);
+}
+
+/** Extra POS outlet count from merged checkout selections (stored on payment for webhook). */
+export function bundledPosOutletUnitsFromSelections(
+  selections: Record<string, { included: boolean; quantity: number } | undefined>,
+): number {
+  const row = selections[POS_OUTLETS_ADD_ON_CODE];
+  if (!row?.included || row.quantity < 1) return 0;
+  const q = Math.round(Number(row.quantity));
+  if (!Number.isFinite(q) || q < 1) return 0;
+  return Math.min(POS_OUTLETS_ADD_ON_MAX, q);
 }
 
 export type OmnichannelRosterAddonResolved = {
@@ -374,9 +402,10 @@ export function summarizeAddOnSelectionsForDisplay(
     if (!sel?.included) continue;
     const isFlatOrg = isFlatPerOrganizationAddOn(link.subscription_add_ons.billing_unit);
     const isOmni = code === OMNICHANNEL_ROSTER_ADD_ON_CODE;
+    const lineCap = addOnLineQuantityCap(code, seatCap);
     const quantity = isFlatOrg
       ? 1
-      : Math.min(seatCap, Math.max(1, Math.round(Number(sel.quantity)) || 1));
+      : Math.min(lineCap, Math.max(1, Math.round(Number(sel.quantity)) || 1));
     rows.push({
       code,
       name: link.subscription_add_ons.name,
@@ -474,6 +503,7 @@ export type PlanAddOnSelectionMap = Record<string, { included: boolean; quantity
 export type PaidAddOnBaselines = {
   omnichannelPaidSeats: number;
   leadMagnetActive: boolean;
+  posPaidOutletCount?: number;
 };
 
 /** Paid entitlement baseline per add-on code (from DB, not UI). */
@@ -485,6 +515,9 @@ export function paidAddOnBaselineQty(
     return Math.max(0, Math.round(Number(baselines.omnichannelPaidSeats)) || 0);
   }
   if (code === LEAD_MAGNET_ADD_ON_CODE && baselines.leadMagnetActive) return 1;
+  if (code === POS_OUTLETS_ADD_ON_CODE) {
+    return Math.max(0, Math.round(Number(baselines.posPaidOutletCount ?? 0)) || 0);
+  }
   return 0;
 }
 
@@ -510,25 +543,25 @@ export function mergePlanAddOnSelections(
   stored: Record<string, { included: boolean; quantity: number }> | undefined,
   isCurrentPlan: boolean,
   omnichannelPaidSeats: number,
-  /** Add-on billed units cannot exceed selected HR member (seat) count. */
+  /** Add-on billed units cannot exceed selected HR member (seat) count (POS uses its own cap). */
   maxAddonQuantityPerLine: number,
   leadMagnetActive = false,
+  posPaidOutletCount = 0,
 ): Record<string, { included: boolean; quantity: number }> {
   const cap = Math.max(1, Math.round(Number(maxAddonQuantityPerLine)) || 1);
-  const baselines: PaidAddOnBaselines = { omnichannelPaidSeats, leadMagnetActive };
+  const baselines: PaidAddOnBaselines = { omnichannelPaidSeats, leadMagnetActive, posPaidOutletCount };
 
   const out: Record<string, { included: boolean; quantity: number }> = {};
   for (const link of sortPlanAddOnLinks(plan)) {
     const code = link.subscription_add_ons.code;
     const prev = stored?.[code];
     const isFlatOrg = isFlatPerOrganizationAddOn(link.subscription_add_ons.billing_unit);
-    const baselineQty = paidAddOnBaselineQty(code, baselines);
-
+    const lineCap = addOnLineQuantityCap(code, cap);
     if (prev) {
       const included = Boolean(prev.included);
       out[code] = {
         included,
-        quantity: clampAddonSelectionQty(code, included, prev.quantity, cap, isFlatOrg),
+        quantity: clampAddonSelectionQty(code, included, prev.quantity, lineCap, isFlatOrg),
       };
       continue;
     }
@@ -537,12 +570,20 @@ export function mergePlanAddOnSelections(
       const paid = Math.max(0, Math.round(Number(omnichannelPaidSeats)) || 0);
       out[code] = {
         included: paid > 0,
-        quantity: paid > 0 ? Math.min(cap, Math.max(1, paid)) : 1,
+        quantity: paid > 0 ? Math.min(lineCap, Math.max(1, paid)) : 1,
       };
       continue;
     }
     if (code === LEAD_MAGNET_ADD_ON_CODE && isCurrentPlan && leadMagnetActive) {
       out[code] = { included: true, quantity: 1 };
+      continue;
+    }
+    if (code === POS_OUTLETS_ADD_ON_CODE && isCurrentPlan) {
+      const paid = Math.max(0, Math.round(Number(posPaidOutletCount)) || 0);
+      out[code] = {
+        included: paid > 0,
+        quantity: paid > 0 ? Math.min(lineCap, Math.max(1, paid)) : 1,
+      };
       continue;
     }
     out[code] = { included: false, quantity: 1 };
@@ -579,6 +620,7 @@ export type SchedulableDowngradeParams = {
   selections: PlanAddOnSelectionMap;
   legacyOmnichannelPaidSeatCount: number;
   legacyLeadMagnetActive?: boolean;
+  legacyPosPaidOutletCount?: number;
   isTargetPlanDowngrade?: boolean;
   currentEmployeeCount?: number;
   rosterCount?: number;
@@ -612,6 +654,7 @@ export function hasSchedulableDowngrade(params: SchedulableDowngradeParams): boo
     {
       omnichannelPaidSeats: params.legacyOmnichannelPaidSeatCount,
       leadMagnetActive: Boolean(params.legacyLeadMagnetActive),
+      posPaidOutletCount: params.legacyPosPaidOutletCount ?? 0,
     },
   );
   if (addonDowngrade && params.isRenewWindow) {
@@ -632,9 +675,11 @@ export function mergePlanAddOnSelectionsForCheckout(
 /** Snapshot of paid add-on entitlements for schedule request storage. */
 export function buildCurrentAddonSnapshot(baselines: PaidAddOnBaselines): Record<string, { included: boolean; quantity: number }> {
   const omni = Math.max(0, Math.round(Number(baselines.omnichannelPaidSeats)) || 0);
+  const pos = Math.max(0, Math.round(Number(baselines.posPaidOutletCount ?? 0)) || 0);
   return {
     [OMNICHANNEL_ROSTER_ADD_ON_CODE]: { included: omni > 0, quantity: omni },
     [LEAD_MAGNET_ADD_ON_CODE]: { included: baselines.leadMagnetActive, quantity: baselines.leadMagnetActive ? 1 : 0 },
+    [POS_OUTLETS_ADD_ON_CODE]: { included: pos > 0, quantity: pos },
   };
 }
 
@@ -724,6 +769,7 @@ export function hasCheckoutableCatalogAddOnDelta(params: {
   selections: PlanAddOnSelectionMap;
   legacyOmnichannelPaidSeatCount: number;
   legacyLeadMagnetActive?: boolean;
+  legacyPosPaidOutletCount?: number;
   isExpired?: boolean;
   remainingDays?: number | null;
 }): boolean {
@@ -741,6 +787,7 @@ export function hasCheckoutableCatalogAddOnDelta(params: {
       selections: params.selections,
       legacyOmnichannelPaidSeatCount: params.legacyOmnichannelPaidSeatCount,
       legacyLeadMagnetActive: params.legacyLeadMagnetActive,
+      legacyPosPaidOutletCount: params.legacyPosPaidOutletCount,
     }) > 0
   );
 }
@@ -757,6 +804,7 @@ export function isAddOnOnlyMidCycleCheckout(params: {
   selections: PlanAddOnSelectionMap;
   legacyOmnichannelPaidSeatCount: number;
   legacyLeadMagnetActive?: boolean;
+  legacyPosPaidOutletCount?: number;
   isExpired?: boolean;
   remainingDays: number;
 }): boolean {
@@ -779,10 +827,11 @@ export function catalogAddOnIncrementalListAmountIdr(params: {
   selections: PlanAddOnSelectionMap;
   legacyOmnichannelPaidSeatCount: number;
   legacyLeadMagnetActive?: boolean;
+  legacyPosPaidOutletCount?: number;
 }): number {
   const termMonths = resolveBillingPeriodMonths(params.billingCycle, params.billingTermMonths);
   const paidOmnichannel = Math.max(0, Math.round(Number(params.legacyOmnichannelPaidSeatCount)) || 0);
-  const paidLeadMagnet = params.legacyLeadMagnetActive ? 1 : 0;
+  const paidPos = Math.max(0, Math.round(Number(params.legacyPosPaidOutletCount ?? 0)) || 0);
   const links = sortPlanAddOnLinks(params.plan);
   if (links.length > 0) {
     let sum = 0;
@@ -790,12 +839,11 @@ export function catalogAddOnIncrementalListAmountIdr(params: {
       const code = link.subscription_add_ons.code;
       const sel = params.selections[code];
       if (!sel?.included || sel.quantity < 1) continue;
-      const baseline =
-        code === OMNICHANNEL_ROSTER_ADD_ON_CODE
-          ? paidOmnichannel
-          : code === LEAD_MAGNET_ADD_ON_CODE
-            ? paidLeadMagnet
-            : 0;
+      const baseline = paidAddOnBaselineQty(code, {
+        omnichannelPaidSeats: paidOmnichannel,
+        leadMagnetActive: Boolean(params.legacyLeadMagnetActive),
+        posPaidOutletCount: paidPos,
+      });
       const deltaQty = Math.max(0, Math.round(Number(sel.quantity)) - baseline);
       if (deltaQty < 1) continue;
       sum += computeCatalogAddOnLineAmountIdr({
@@ -855,6 +903,7 @@ export function catalogAddonChargeForMidtransSplit(params: {
   selections: PlanAddOnSelectionMap;
   legacyOmnichannelPaidSeatCount: number;
   legacyLeadMagnetActive?: boolean;
+  legacyPosPaidOutletCount?: number;
   calculation: AddonBillingCalculationSlice | null | undefined;
 }): number {
   if (usesMidCycleIncrementalAddonProrate(params.calculation)) {
@@ -866,6 +915,7 @@ export function catalogAddonChargeForMidtransSplit(params: {
       selections: params.selections,
       legacyOmnichannelPaidSeatCount: params.legacyOmnichannelPaidSeatCount,
       legacyLeadMagnetActive: params.legacyLeadMagnetActive,
+      legacyPosPaidOutletCount: params.legacyPosPaidOutletCount,
     });
     return proratedCatalogAddonChargeIdr({
       incrementalListAmountIdr: inc,

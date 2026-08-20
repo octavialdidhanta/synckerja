@@ -1,35 +1,88 @@
 import { Package, Tag, Lock } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
+/** Legacy URL; redirects to Library services/products. */
 export const DEFAULT_PRICES_PATH = "/tools/default-prices";
 
-export type CatalogSubTab = "services" | "products";
+export const LIBRARY_INDEX_PATH = "/operations/library";
+export const LIBRARY_SERVICES_PATH = "/operations/library/service-list";
+export const LIBRARY_PRODUCTS_PATH = "/operations/library/product-list";
+export const LIBRARY_BUNDLES_PATH = "/operations/library/bundles";
+export const LIBRARY_CATEGORIES_PATH = "/operations/library/categories";
+export const LIBRARY_BRANDS_PATH = "/operations/library/brands";
+export const LIBRARY_MODIFIERS_PATH = "/operations/library/modifiers";
+export const LIBRARY_GRATUITY_PATH = "/operations/library/gratuity";
+export const LIBRARY_DISCOUNTS_PATH = "/operations/library/discounts";
+export const LIBRARY_PROMOS_PATH = "/operations/library/promos";
+export const LIBRARY_SALES_TYPES_PATH = "/operations/library/sales-types";
+export const LIBRARY_TAXES_PATH = "/operations/library/taxes";
 
-export function catalogTabFromSearch(search: string): CatalogSubTab {
-  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
-  return params.get("tab") === "products" ? "products" : "services";
+export type CatalogSubTab =
+  | "services"
+  | "products"
+  | "bundles"
+  | "categories"
+  | "brands"
+  | "modifiers"
+  | "gratuity"
+  | "discounts"
+  | "promos"
+  | "sales-types"
+  | "taxes";
+
+export function catalogTabFromPathname(pathname: string): CatalogSubTab {
+  if (pathname.startsWith(LIBRARY_TAXES_PATH)) return "taxes";
+  if (pathname.startsWith(LIBRARY_SALES_TYPES_PATH)) return "sales-types";
+  if (pathname.startsWith(LIBRARY_PROMOS_PATH)) return "promos";
+  if (pathname.startsWith(LIBRARY_DISCOUNTS_PATH)) return "discounts";
+  if (pathname.startsWith(LIBRARY_GRATUITY_PATH)) return "gratuity";
+  if (pathname.startsWith(LIBRARY_MODIFIERS_PATH)) return "modifiers";
+  if (pathname.startsWith(LIBRARY_BRANDS_PATH)) return "brands";
+  if (pathname.startsWith(LIBRARY_CATEGORIES_PATH)) return "categories";
+  if (pathname.startsWith(LIBRARY_BUNDLES_PATH)) return "bundles";
+  if (pathname.startsWith(LIBRARY_PRODUCTS_PATH)) return "products";
+  return "services";
 }
 
 export function catalogTabPath(tab: CatalogSubTab): string {
-  return tab === "products" ? `${DEFAULT_PRICES_PATH}?tab=products` : DEFAULT_PRICES_PATH;
+  if (tab === "products") return LIBRARY_PRODUCTS_PATH;
+  if (tab === "bundles") return LIBRARY_BUNDLES_PATH;
+  if (tab === "categories") return LIBRARY_CATEGORIES_PATH;
+  if (tab === "brands") return LIBRARY_BRANDS_PATH;
+  if (tab === "modifiers") return LIBRARY_MODIFIERS_PATH;
+  if (tab === "gratuity") return LIBRARY_GRATUITY_PATH;
+  if (tab === "discounts") return LIBRARY_DISCOUNTS_PATH;
+  if (tab === "promos") return LIBRARY_PROMOS_PATH;
+  if (tab === "sales-types") return LIBRARY_SALES_TYPES_PATH;
+  if (tab === "taxes") return LIBRARY_TAXES_PATH;
+  return LIBRARY_SERVICES_PATH;
+}
+
+export function LegacyDefaultPricesRedirect() {
+  const [params] = useSearchParams();
+  const to = params.get("tab") === "products" ? LIBRARY_PRODUCTS_PATH : LIBRARY_SERVICES_PATH;
+  return <Navigate to={to} replace />;
 }
 
 const tabs: Array<{
   id: CatalogSubTab;
+  path: string;
   titleKey: string;
   fallbackTitle: string;
   icon: typeof Tag;
 }> = [
   {
     id: "services",
+    path: LIBRARY_SERVICES_PATH,
     titleKey: "defaultPrices.tab.services",
     fallbackTitle: "Services",
     icon: Tag,
   },
   {
     id: "products",
+    path: LIBRARY_PRODUCTS_PATH,
     titleKey: "defaultPrices.tab.products",
     fallbackTitle: "Products",
     icon: Package,
@@ -41,10 +94,9 @@ export function DefaultPricesHeaderAndTab() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isTabLocked } = useHeaderTabPageAccess();
-  const locked = isTabLocked(DEFAULT_PRICES_PATH);
-  const activeTab = catalogTabFromSearch(location.search);
+  const activeTab = catalogTabFromPathname(location.pathname);
 
-  const title = t("sidebar.tools.defaultPrices.title", "Products & Services");
+  const title = t("defaultPrices.nav.itemLibrary", "Item Library");
   const description = t(
     "sidebar.tools.defaultPrices.description",
     "Services for lead conversion, products for retail and F&B",
@@ -62,6 +114,7 @@ export function DefaultPricesHeaderAndTab() {
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
+            const locked = isTabLocked(tab.path);
             const label = t(tab.titleKey, tab.fallbackTitle);
 
             return (
@@ -70,11 +123,15 @@ export function DefaultPricesHeaderAndTab() {
                 role="tab"
                 aria-selected={isActive}
                 tabIndex={0}
-                onClick={() => navigate(catalogTabPath(tab.id))}
+                onClick={() => {
+                  if (locked) return;
+                  navigate(tab.path);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    navigate(catalogTabPath(tab.id));
+                    if (locked) return;
+                    navigate(tab.path);
                   }
                 }}
                 className={`flex items-center space-x-1.5 px-1 py-1.5 text-sm font-medium transition-colors ${

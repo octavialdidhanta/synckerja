@@ -49,6 +49,8 @@ export interface PaymentParams {
     bundled_omnichannel_roster_units?: number;
     /** Lead Magnet flat add-on included in bundled HR checkout. */
     bundled_lead_magnet_included?: boolean;
+    /** Extra POS outlets in this checkout; webhook applies to org entitlement. */
+    bundled_pos_outlet_units?: number;
     /** Full-period renewal checkout — webhook assigns add-on entitlements (not max with prior). */
     renewal_full_period?: boolean;
   };

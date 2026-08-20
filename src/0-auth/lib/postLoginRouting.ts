@@ -1,4 +1,5 @@
 import { supabase } from "@/shared/lib/supabaseClient";
+import { isSessionAccessTokenExpired } from "@/shared/auth/utils/expiredAuth";
 
 export function safeInternalRedirectPath(raw: string | null): string | null {
   if (raw == null || raw === "") return null;
@@ -18,9 +19,10 @@ export async function routeAfterLogin(
   redirectToParam?: string | null,
 ) {
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user || isSessionAccessTokenExpired(session)) return;
 
   const { data: memberships, error: uoErr } = await supabase
     .from("user_organizations")

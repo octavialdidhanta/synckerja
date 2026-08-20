@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/shared/components/ui/sheet";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -31,12 +31,22 @@ import {
   type CatalogPosStatus,
 } from "../lib/catalogKind";
 import { uploadCatalogProductPhoto } from "../lib/catalogProductPhoto";
-import { useCatalogProductCategories } from "../hooks/useCatalogProductCategories";
+import { ProductCategoriesDialog, useCatalogProductCategories } from "../categories";
+import { useCatalogBrands } from "../brands";
 import type { DefaultPriceCreate, DefaultPriceRow } from "../types/defaultPrices";
 import { formatIdIntegerGrouping, parseGroupedIdInteger, stripToDigits } from "../utils/formatIdUnitPrice";
-import { ProductCategoriesDialog } from "./ProductCategoriesDialog";
+import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
+import { activePosOutletIds } from "@/8-2-2-outlets/lib/assignedOutlets";
+import { ProductOutletsSection } from "../product-outlets";
+import {
+  effectivePosStatus,
+  effectiveUnitPrice,
+  hasPriceOverride,
+  hasStatusOverride,
+} from "../product-outlets/lib/effectiveProductOutlet";
 
 const NONE_CATEGORY = "__none__";
+const NONE_BRAND = "__none__";
 
 export type DefaultProductFormDialogProps = {
   open: boolean;
@@ -44,6 +54,8 @@ export type DefaultProductFormDialogProps = {
   onSubmit: (payload: DefaultPriceCreate) => Promise<void>;
   editingRow?: DefaultPriceRow | null;
   prefillRow?: DefaultPriceRow | null;
+  selectedOutletId?: string | null;
+  selectedOutletName?: string | null;
 };
 
 export function DefaultProductFormDialog({
@@ -52,12 +64,16 @@ export function DefaultProductFormDialog({
   onSubmit,
   editingRow,
   prefillRow,
+  selectedOutletId,
+  selectedOutletName,
 }: DefaultProductFormDialogProps) {
   const { t } = useAppTranslation();
   const { organizationId } = useCurrentOrg();
+  const { rows: outlets } = usePosOutlets();
   const skusQuery = useInventorySkusQuery(organizationId);
   const skuRows = skusQuery.data?.rows ?? [];
   const categories = useCatalogProductCategories();
+  const brands = useCatalogBrands();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [name, setName] = useState("");
@@ -72,7 +88,13 @@ export function DefaultProductFormDialog({
   const [existingPhotoPath, setExistingPhotoPath] = useState<string | null>(null);
   const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
   const [categoryId, setCategoryId] = useState(NONE_CATEGORY);
+  const [brandId, setBrandId] = useState(NONE_BRAND);
   const [posStatus, setPosStatus] = useState<CatalogPosStatus>("available");
+  const [outletIds, setOutletIds] = useState<string[]>([]);
+  const [useDefaultPrice, setUseDefaultPrice] = useState(true);
+  const [useDefaultStatus, setUseDefaultStatus] = useState(true);
+  const [masterPrice, setMasterPrice] = useState(0);
+  const [masterStatus, setMasterStatus] = useState<CatalogPosStatus>("available");
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [newSkuCode, setNewSkuCode] = useState("");
   const [newSkuQty, setNewSkuQty] = useState("0");
@@ -81,13 +103,28 @@ export function DefaultProductFormDialog({
   const [error, setError] = useState("");
 
   const sourceRow = editingRow ?? prefillRow ?? null;
+  const isEdit = Boolean(editingRow);
+  const outletLabel = selectedOutletName?.trim() || t("outlets.filter.label", "Outlet");
+  const categoryOptions = useMemo(
+    () =>
+      categories.rows.filter((row) => {
+        if (categoryId !== NONE_CATEGORY && row.id === categoryId) return true;
+        if (!selectedOutletId) return true;
+        return (row.outlet_ids ?? []).includes(selectedOutletId);
+      }),
+    [categories.rows, categoryId, selectedOutletId],
+  );
 
   useEffect(() => {
     if (!open) return;
     if (sourceRow) {
       setName(sourceRow.name ?? sourceRow.service_name ?? "");
       setDescription(sourceRow.description ?? "");
-      const raw = sourceRow.unit_price != null ? String(Math.round(Number(sourceRow.unit_price))) : "";
+      const master = Number(sourceRow.unit_price) || 0;
+      setMasterPrice(master);
+      setMasterStatus(normalizeCatalogPosStatus(sourceRow.pos_status));
+      const effectivePrice = effectiveUnitPrice(sourceRow, selectedOutletId ?? null);
+      const raw = String(Math.round(effectivePrice));
       setUnitPrice(raw ? formatIdIntegerGrouping(stripToDigits(raw)) : "");
       const unit = normalizeProductUnit(sourceRow.unit);
       if (isCatalogProductUnitPreset(unit)) {
@@ -102,7 +139,11 @@ export function DefaultProductFormDialog({
       setExistingPhotoPath(sourceRow.photo_path ?? null);
       setExistingPhotoUrl(sourceRow.photo_url ?? null);
       setCategoryId(sourceRow.product_category_id ?? NONE_CATEGORY);
-      setPosStatus(normalizeCatalogPosStatus(sourceRow.pos_status));
+      setBrandId(sourceRow.product_brand_id ?? NONE_BRAND);
+      setPosStatus(effectivePosStatus(sourceRow, selectedOutletId ?? null));
+      setOutletIds([...(sourceRow.outlet_ids ?? [])]);
+      setUseDefaultPrice(!hasPriceOverride(sourceRow, selectedOutletId ?? null));
+      setUseDefaultStatus(!hasStatusOverride(sourceRow, selectedOutletId ?? null));
     } else {
       setName("");
       setDescription("");
@@ -114,14 +155,29 @@ export function DefaultProductFormDialog({
       setExistingPhotoPath(null);
       setExistingPhotoUrl(null);
       setCategoryId(NONE_CATEGORY);
+      setBrandId(NONE_BRAND);
       setPosStatus("available");
+      setOutletIds([]);
+      setUseDefaultPrice(true);
+      setUseDefaultStatus(true);
+      setMasterPrice(0);
+      setMasterStatus("available");
     }
     setFile(null);
     setPreviewUrl(null);
     setNewSkuCode("");
     setNewSkuQty("0");
     setError("");
-  }, [open, sourceRow]);
+  }, [open, sourceRow, selectedOutletId]);
+
+  useEffect(() => {
+    if (!open || sourceRow) return;
+    setOutletIds((prev) => {
+      if (prev.length > 0) return prev;
+      if (selectedOutletId) return [selectedOutletId];
+      return activePosOutletIds(outlets);
+    });
+  }, [open, sourceRow, outlets, selectedOutletId]);
 
   useEffect(() => {
     if (!file) {
@@ -203,6 +259,10 @@ export function DefaultProductFormDialog({
       setError(t("defaultPrices.product.skuRequired", "Select or create a SKU to track stock."));
       return;
     }
+    if (outletIds.length < 1) {
+      setError(t("outlets.assign.minOne", "Please select minimum one outlet"));
+      return;
+    }
     setLoading(true);
     try {
       await onSubmit({
@@ -219,7 +279,13 @@ export function DefaultProductFormDialog({
         track_stock: trackStock,
         inventory_sku_id: trackStock ? skuId : null,
         product_category_id: categoryId === NONE_CATEGORY ? null : categoryId,
+        product_brand_id: brandId === NONE_BRAND ? null : brandId,
         pos_status: posStatus,
+        outlet_ids: outletIds,
+        selected_outlet_id: selectedOutletId ?? null,
+        use_default_price: !isEdit || useDefaultPrice,
+        use_default_status: !isEdit || useDefaultStatus,
+        outlet_overrides: sourceRow?.outlet_overrides,
       });
       onOpenChange(false);
     } catch (err) {
@@ -233,16 +299,21 @@ export function DefaultProductFormDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
-          <DialogHeader>
-            <DialogTitle>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="right"
+          className="flex w-full flex-col gap-0 p-0 sm:max-w-md"
+          aria-describedby={undefined}
+        >
+          <SheetHeader className="shrink-0 border-b px-6 py-4 pr-12 text-left">
+            <SheetTitle>
               {editingRow
                 ? t("defaultPrices.product.editTitle", "Edit product")
                 : t("defaultPrices.product.addTitle", "Add product")}
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+            </SheetTitle>
+          </SheetHeader>
+          <form onSubmit={(e) => void handleSubmit(e)} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
             <div>
               <Label htmlFor="product_name">{t("defaultPrices.product.name", "Name")} *</Label>
               <Input id="product_name" className="mt-1" value={name} onChange={(e) => setName(e.target.value)} />
@@ -325,7 +396,7 @@ export function DefaultProductFormDialog({
                   <SelectItem value={NONE_CATEGORY}>
                     {t("defaultPrices.product.uncategorized", "Uncategorized")}
                   </SelectItem>
-                  {categories.rows.map((row) => (
+                  {categoryOptions.map((row) => (
                     <SelectItem key={row.id} value={row.id}>
                       {row.name}
                     </SelectItem>
@@ -334,8 +405,59 @@ export function DefaultProductFormDialog({
               </Select>
             </div>
             <div>
-              <Label htmlFor="product_status">{t("defaultPrices.product.posStatus", "POS status")}</Label>
-              <Select value={posStatus} onValueChange={(value) => setPosStatus(normalizeCatalogPosStatus(value))}>
+              <Label htmlFor="product_brand">{t("defaultPrices.product.brand", "Brand")}</Label>
+              <Select value={brandId} onValueChange={setBrandId}>
+                <SelectTrigger id="product_brand" className="mt-1">
+                  <SelectValue placeholder={t("defaultPrices.product.unbranded", "Unbranded")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_BRAND}>
+                    {t("defaultPrices.product.unbranded", "Unbranded")}
+                  </SelectItem>
+                  {brands.rows.map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t(
+                  "defaultPrices.product.brandHint",
+                  "Optional. Use for retail items sold under a manufacturer or supplier brand.",
+                )}
+              </p>
+            </div>
+            <ProductOutletsSection selectedIds={outletIds} onChange={setOutletIds} />
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="product_status">
+                  {isEdit
+                    ? t("defaultPrices.product.posStatusForOutlet", "POS status for {{outlet}}", { outlet: outletLabel })
+                    : t("defaultPrices.product.posStatus", "POS status")}
+                </Label>
+                {isEdit && !useDefaultStatus ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => {
+                      setUseDefaultStatus(true);
+                      setPosStatus(masterStatus);
+                    }}
+                  >
+                    {t("defaultPrices.product.useDefaultStatus", "Use default status")}
+                  </Button>
+                ) : null}
+              </div>
+              <Select
+                value={posStatus}
+                onValueChange={(value) => {
+                  setUseDefaultStatus(false);
+                  setPosStatus(normalizeCatalogPosStatus(value));
+                }}
+              >
                 <SelectTrigger id="product_status" className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
@@ -347,9 +469,38 @@ export function DefaultProductFormDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {isEdit && !useDefaultStatus ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t("defaultPrices.product.outletStatusHint", "This status applies only to {{outlet}}.", {
+                    outlet: outletLabel,
+                  })}
+                </p>
+              ) : null}
             </div>
             <div>
-              <Label htmlFor="product_price">{t("defaultPrices.form.unitPrice", "Unit Price (Rp)")} *</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="product_price">
+                  {isEdit
+                    ? t("defaultPrices.product.priceForOutlet", "Unit Price (Rp) for {{outlet}}", { outlet: outletLabel })
+                    : t("defaultPrices.form.unitPrice", "Unit Price (Rp)")}{" "}
+                  *
+                </Label>
+                {isEdit && !useDefaultPrice ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => {
+                      setUseDefaultPrice(true);
+                      const raw = String(Math.round(masterPrice));
+                      setUnitPrice(raw ? formatIdIntegerGrouping(stripToDigits(raw)) : "");
+                    }}
+                  >
+                    {t("defaultPrices.product.useDefaultPrice", "Use default price")}
+                  </Button>
+                ) : null}
+              </div>
               <Input
                 id="product_price"
                 className="mt-1"
@@ -357,9 +508,17 @@ export function DefaultProductFormDialog({
                 value={unitPrice}
                 onChange={(e) => {
                   const digits = stripToDigits(e.target.value);
+                  setUseDefaultPrice(false);
                   setUnitPrice(digits ? formatIdIntegerGrouping(digits) : "");
                 }}
               />
+              {isEdit && !useDefaultPrice ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t("defaultPrices.product.outletPriceHint", "This price applies only to {{outlet}}.", {
+                    outlet: outletLabel,
+                  })}
+                </p>
+              ) : null}
             </div>
             <div>
               <Label htmlFor="product_description">{t("defaultPrices.form.description", "Description")}</Label>
@@ -423,7 +582,8 @@ export function DefaultProductFormDialog({
               </div>
             ) : null}
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            <div className="flex justify-end gap-2 pt-2">
+            </div>
+            <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("common.cancel", "Cancel")}
               </Button>
@@ -432,8 +592,8 @@ export function DefaultProductFormDialog({
               </Button>
             </div>
           </form>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
       <ProductCategoriesDialog
         open={categoriesOpen}
         onOpenChange={setCategoriesOpen}

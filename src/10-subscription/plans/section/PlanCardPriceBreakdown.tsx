@@ -7,6 +7,7 @@ import {
   type BillingTermMonths,
 } from "@/10-subscription/shared/billingTermUtils";
 import {
+  addOnLineQuantityCap,
   describeCatalogAddOnLinePricing,
   formatIDR,
   isFlatPerOrganizationAddOn,
@@ -122,8 +123,8 @@ export const PlanCardPriceBreakdown = memo(
         const code = link.subscription_add_ons.code;
         const sel = addOnSelections[code];
         if (!sel?.included) continue;
-        const seatCap = Math.max(1, memberCount);
-        const billedQty = Math.min(seatCap, Math.max(1, sel.quantity));
+        const qtyCap = addOnLineQuantityCap(code, memberCount);
+        const billedQty = Math.min(qtyCap, Math.max(1, sel.quantity));
         const isFlatOrg = isFlatPerOrganizationAddOn(link.subscription_add_ons.billing_unit);
         const effectiveQty = isFlatOrg ? 1 : billedQty;
         const pricing = describeCatalogAddOnLinePricing({

@@ -283,6 +283,8 @@ Deno.serve(async (req) => {
         bundled_omnichannel_units_applied: false,
         lead_magnet_applied: false,
         bundled_lead_magnet_applied: false,
+        pos_outlets_applied: false,
+        bundled_pos_outlets_applied: false,
         created_at: new Date().toISOString(),
       })
       .select()

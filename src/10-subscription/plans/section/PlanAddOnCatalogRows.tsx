@@ -7,10 +7,13 @@ import { Label } from "@/shared/components/ui/label";
 import {
   LEAD_MAGNET_ADD_ON_CODE,
   OMNICHANNEL_ROSTER_ADD_ON_CODE,
+  POS_OUTLETS_ADD_ON_CODE,
+  addOnLineQuantityCap,
   computeCatalogAddOnLineAmountIdr,
   describeCatalogAddOnLinePricing,
   formatIDR,
   isFlatPerOrganizationAddOn,
+  isPerOutletMonthAddOn,
   resolvePlanAddOnUnitMonthly,
   sortPlanAddOnLinks,
 } from "@/10-subscription/shared/subscriptionUtils";
@@ -34,26 +37,31 @@ type PlanAddOnCatalogRowsProps = {
   omnichannelPaidSeats: number;
   omnichannelRosterActiveCount: number;
   leadMagnetActive?: boolean;
+  posPaidOutletCount?: number;
   isMidCycleActive?: boolean;
   isTrialPlan?: boolean;
   isExpired?: boolean;
 };
 
 function addOnPriceLabelKey(billingUnit: string | null | undefined): string {
-  return isFlatPerOrganizationAddOn(billingUnit)
-    ? "subscription.plans.addOnPricePerOrg"
-    : "subscription.plans.addOnPricePerUnit";
+  if (isFlatPerOrganizationAddOn(billingUnit)) return "subscription.plans.addOnPricePerOrg";
+  if (isPerOutletMonthAddOn(billingUnit)) return "subscription.plans.addOnPricePerOutlet";
+  return "subscription.plans.addOnPricePerUnit";
 }
 
 function paidAddOnBaseline(
   code: string,
   omnichannelPaidSeats: number,
   leadMagnetActive: boolean,
+  posPaidOutletCount: number,
 ): number {
   if (code === OMNICHANNEL_ROSTER_ADD_ON_CODE) {
     return Math.max(0, Math.round(Number(omnichannelPaidSeats)) || 0);
   }
   if (code === LEAD_MAGNET_ADD_ON_CODE && leadMagnetActive) return 1;
+  if (code === POS_OUTLETS_ADD_ON_CODE) {
+    return Math.max(0, Math.round(Number(posPaidOutletCount)) || 0);
+  }
   return 0;
 }
 
@@ -69,6 +77,7 @@ export const PlanAddOnCatalogRows = memo(
     omnichannelPaidSeats,
     omnichannelRosterActiveCount,
     leadMagnetActive = false,
+    posPaidOutletCount = 0,
     isMidCycleActive = false,
     isTrialPlan = false,
     isExpired = false,
@@ -85,10 +94,11 @@ export const PlanAddOnCatalogRows = memo(
         {catalogLinks.map((link) => {
           const code = link.subscription_add_ons.code;
           const sel = addOnSelections[code] ?? { included: false, quantity: 1 };
-          const seatCap = Math.max(1, memberCount);
-          const billedQty = Math.min(seatCap, Math.max(1, sel.quantity));
+          const qtyCap = addOnLineQuantityCap(code, memberCount);
+          const billedQty = Math.min(qtyCap, Math.max(1, sel.quantity));
           const unit = resolvePlanAddOnUnitMonthly(link);
           const isOmni = code === OMNICHANNEL_ROSTER_ADD_ON_CODE;
+          const isPos = code === POS_OUTLETS_ADD_ON_CODE;
           const isFlatOrg = isFlatPerOrganizationAddOn(link.subscription_add_ons.billing_unit);
           const effectiveQty = isFlatOrg ? 1 : billedQty;
           const lineAmount = computeCatalogAddOnLineAmountIdr({
@@ -107,17 +117,17 @@ export const PlanAddOnCatalogRows = memo(
           });
           const termLabel = formatBillingTermLabel(periodMonths, t);
 
-          const baseline = paidAddOnBaseline(code, omnichannelPaidSeats, leadMagnetActive);
+          const baseline = paidAddOnBaseline(code, omnichannelPaidSeats, leadMagnetActive, posPaidOutletCount);
           const toggleOffSchedulable =
             !isExpired &&
             isMidCycleActive &&
             sel.included &&
             baseline > 0 &&
-            (isOmni || code === LEAD_MAGNET_ADD_ON_CODE);
+            (isOmni || isPos || code === LEAD_MAGNET_ADD_ON_CODE);
           const sliderMin =
-            isMidCycleActive && !isExpired && isOmni && baseline > 0 ? Math.max(1, baseline) : 1;
+            isMidCycleActive && !isExpired && (isOmni || isPos) && baseline > 0 ? Math.max(1, baseline) : 1;
           const sliderIncreaseOnly =
-            !isExpired && isMidCycleActive && isOmni && baseline > 0 && sel.included && !isFlatOrg;
+            !isExpired && isMidCycleActive && (isOmni || isPos) && baseline > 0 && sel.included && !isFlatOrg;
 
           return (
             <div
@@ -180,7 +190,9 @@ export const PlanAddOnCatalogRows = memo(
               {!isFlatOrg && (
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">
-                    {t("subscription.plans.addOnQuantityLabel", { count: billedQty, max: seatCap })}
+                    {isPos
+                      ? t("subscription.plans.addOnQuantityOutletLabel", { count: billedQty, max: qtyCap })
+                      : t("subscription.plans.addOnQuantityLabel", { count: billedQty, max: qtyCap })}
                   </Label>
                   <Slider
                     value={[billedQty]}
@@ -190,10 +202,10 @@ export const PlanAddOnCatalogRows = memo(
                         : (value) =>
                             onAddOnQuantityChange(
                               code,
-                              Math.min(seatCap, Math.max(sliderMin, value[0])),
+                              Math.min(qtyCap, Math.max(sliderMin, value[0])),
                             )
                     }
-                    max={seatCap}
+                    max={qtyCap}
                     min={sliderMin}
                     step={1}
                     className={isTrialPlan || !sel.included ? "pointer-events-none opacity-50" : "w-full"}
@@ -201,7 +213,7 @@ export const PlanAddOnCatalogRows = memo(
                   />
                   <div className="flex justify-between text-[11px] text-muted-foreground">
                     <span>{sliderMin}</span>
-                    <span>{seatCap}</span>
+                    <span>{qtyCap}</span>
                   </div>
                 </div>
               )}
@@ -217,6 +229,7 @@ export const PlanAddOnCatalogRows = memo(
                       formatIDR(unit),
                       isFlatOrg,
                       t,
+                      isPos ? "outlet" : "seat",
                     )}
                     grossIdr={pricing.grossIdr}
                     netIdr={lineAmount}

@@ -1,7 +1,7 @@
 -- pg_cron → google-ads-upload-pending-conversions: send apikey header (secret-key projects).
 
 CREATE OR REPLACE FUNCTION public.invoke_google_ads_pending_conversions_edge()
-RETURNS voidhttps://supabase.com/dashboard/org/ictpjdxqnxabfqfvdkms
+RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public

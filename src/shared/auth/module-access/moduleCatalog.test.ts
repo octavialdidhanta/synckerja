@@ -47,7 +47,23 @@ describe("moduleCatalog", () => {
   it("uses longest-prefix match for nested paths", () => {
     expect(resolveSalesModuleForPath("/omnichannel/settings")).toBe("omnichannel");
     expect(resolveSalesModuleForPath("/operations/sales/stock-management")).toBe("operations");
-    expect(resolveSalesModuleForPath("/tools/default-prices")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/library/service-list")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/library/product-list")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/library/bundles")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/library/categories")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/library/brands")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/library/modifiers")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/library/gratuity")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/library/discounts")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/library/promos")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/library/sales-types")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/library/taxes")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/library/checkout")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/ingredient/list")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/ingredient/categories")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/ingredient/recipes")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/settings/outlets-list")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/settings/checkout")).toBe("operations");
     expect(resolveSalesModuleForPath("/finance/bank-mutations")).toBe("finance");
   });
 

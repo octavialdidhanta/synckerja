@@ -355,6 +355,57 @@ Deno.serve(async (req) => {
           }
         }
 
+        const prorateForBundledPos = payment.prorate_details as {
+          bundled_pos_outlet_units?: number | string;
+          renewal_full_period?: boolean | string;
+        } | null;
+        const isRenewalPos =
+          prorateForBundledPos?.renewal_full_period === true ||
+          prorateForBundledPos?.renewal_full_period === "true" ||
+          prorateForBundledPos?.renewal_full_period === 1 ||
+          prorateForBundledPos?.renewal_full_period === "1";
+        const rawBundledPos = prorateForBundledPos?.bundled_pos_outlet_units;
+        const bundledPosUnits =
+          typeof rawBundledPos === "number" && Number.isFinite(rawBundledPos)
+            ? Math.round(rawBundledPos)
+            : typeof rawBundledPos === "string" && rawBundledPos.trim() !== ""
+              ? Math.round(Number(rawBundledPos))
+              : 0;
+
+        if (bundledPosUnits > 0 || isRenewalPos) {
+          const alreadyBundledPos =
+            (payment as { bundled_pos_outlets_applied?: boolean }).bundled_pos_outlets_applied === true;
+          if (!alreadyBundledPos) {
+            const { data: claimedBundledPos } = await supabase
+              .from("payments")
+              .update({ bundled_pos_outlets_applied: true })
+              .eq("id", payment.id)
+              .eq("bundled_pos_outlets_applied", false)
+              .select("id");
+
+            if (claimedBundledPos && claimedBundledPos.length > 0) {
+              const targetPaid = Math.min(20, Math.max(0, bundledPosUnits));
+              const { data: subPaidPos } = await supabase
+                .from("organization_subscriptions")
+                .select("pos_paid_outlet_count")
+                .eq("organization_id", payment.organization_id)
+                .maybeSingle();
+              const curPaidPos = Number(
+                (subPaidPos as { pos_paid_outlet_count?: number } | null)?.pos_paid_outlet_count ?? 0,
+              );
+              const nextPaidPos = isRenewalPos ? targetPaid : Math.max(curPaidPos, targetPaid);
+              await supabase
+                .from("organization_subscriptions")
+                .update({
+                  pos_paid_outlet_count: nextPaidPos,
+                  last_payment_id: payment.id,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("organization_id", payment.organization_id);
+            }
+          }
+        }
+
         const { data: employeesToRemove, error: employeesError } = await supabase
           .from("employees")
           .select("id, full_name, email")

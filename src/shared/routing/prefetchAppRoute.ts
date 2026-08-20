@@ -213,8 +213,16 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/8-4-pph-21/pages/PPh21CalculatorPage"),
   },
   {
-    prefix: "/tools/default-prices",
+    prefix: "/operations/library",
     prefetch: () => import("@/8-2-1-default-prices/pages/DefaultPricesPage"),
+  },
+  {
+    prefix: "/operations/ingredient",
+    prefetch: () => import("@/8-2-3-ingredient/pages/IngredientPage"),
+  },
+  {
+    prefix: "/operations/settings",
+    prefetch: () => import("@/8-2-2-outlets/pages/OutletsListPage"),
   },
   {
     prefix: "/tools/pricing-tools",
@@ -538,7 +546,6 @@ function prefetchToolsModuleTabs(): void {
       })),
     () => import("@/8-PasswordManager/pages/PasswordManagerPage"),
     () => import("@/8-4-pph-21/pages/PPh21CalculatorPage"),
-    () => import("@/8-2-1-default-prices/pages/DefaultPricesPage"),
     () => import("@/8-2-pricing-tools/pages/PricingToolsPage"),
     () => import("@/8-2-promo-simulation/pages/PromoSimulationPage"),
     () => import("@/8-3-calculator/pages/CalculatorServicesPage"),
@@ -553,6 +560,10 @@ function prefetchSalesOperationsModuleTabs(): void {
   }));
   void import("@/5-2-jadwal-kunjungan/pages/VisitSchedulingRoute");
   void import("@/5-2-client_visits");
+  void import("@/8-2-1-default-prices/pages/DefaultPricesPage");
+  void import("@/8-2-3-ingredient/pages/IngredientPage");
+  void import("@/8-2-2-outlets/pages/OutletsListPage");
+  void import("@/8-2-2-outlets/pages/CheckoutSettingsPage");
 }
 
 function prefetchModuleSiblingTabs(base: string): void {
@@ -592,7 +603,7 @@ function prefetchModuleSiblingTabs(base: string): void {
     prefetchToolsModuleTabs();
     return;
   }
-  if (base.startsWith("/operations/sales")) {
+  if (base.startsWith("/operations/sales") || base.startsWith("/operations/library") || base.startsWith("/operations/ingredient") || base.startsWith("/operations/settings")) {
     prefetchSalesOperationsModuleTabs();
     return;
   }

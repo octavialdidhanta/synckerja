@@ -148,6 +148,7 @@ export function addOnTermFormulaCaption(
   unitFormatted: string,
   isFlatOrg: boolean,
   t: TFunction,
+  unitNoun: "seat" | "outlet" = "seat",
 ): string {
   if (isFlatOrg) {
     return resolveBillingPeriodLabel(months, {
@@ -155,6 +156,13 @@ export function addOnTermFormulaCaption(
       twelve: "subscription.plans.addOnFormula.perOrg.twelve",
       term: "subscription.plans.addOnFormula.perOrg.term",
     }, t, { unit: unitFormatted, months });
+  }
+  if (unitNoun === "outlet") {
+    return resolveBillingPeriodLabel(months, {
+      one: "subscription.plans.addOnFormula.perOutlet.one",
+      twelve: "subscription.plans.addOnFormula.perOutlet.twelve",
+      term: "subscription.plans.addOnFormula.perOutlet.term",
+    }, t, { qty: quantity, unit: unitFormatted, months });
   }
   return resolveBillingPeriodLabel(months, {
     one: "subscription.plans.addOnFormula.perSeat.one",

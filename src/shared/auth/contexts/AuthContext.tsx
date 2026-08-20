@@ -2,7 +2,8 @@ import React, { createContext, useContext, useEffect, useState, useRef, ReactNod
 import { useQueryClient } from '@tanstack/react-query';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { forceAuthReset } from '@/shared/auth/utils/authCleanup';
+import { forceAuthReset, cleanupAuthState } from '@/shared/auth/utils/authCleanup';
+import { isExpiredAuthError, isSessionAccessTokenExpired } from '@/shared/auth/utils/expiredAuth';
 import { retryableAuthOperation } from '@/shared/lib/supabaseRetry';
 import { resetIdentityQueriesForAuthUser } from '@/shared/auth/identityQuerySync';
 
@@ -258,7 +259,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           
           // Check for stale auth / refresh token errors (500 from server: "error finding refresh token: context canceled")
           const msg = (error.message || '').toLowerCase();
-          if (error.message?.includes('JWT expired') ||
+          if (isExpiredAuthError(error) ||
               error.message?.includes('User from sub claim in JWT does not exist') ||
               error.message?.includes('Invalid Refresh Token') ||
               error.message?.includes('Refresh Token Not Found') ||
@@ -279,6 +280,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         } else {
           // If we have a session, verify it's valid with timeout and retry
           if (session?.user) {
+            const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+            const onLoginPage = pathname === '/login' || pathname === '/login/';
+            let currentSession = session;
+
+            if (isSessionAccessTokenExpired(currentSession)) {
+              const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+              if (refreshError || !refreshed.session) {
+                setSession(null);
+                setUser(null);
+                setLoading(false);
+                await supabase.auth.signOut({ scope: "local" });
+                cleanupAuthState();
+                if (!onLoginPage) {
+                  forceAuthReset('session_expired');
+                }
+                return;
+              }
+              currentSession = refreshed.session;
+            }
+
             try {
               const getUserWithRetry = () => retryableAuthOperation(
                 () => supabase.auth.getUser(),
@@ -293,7 +314,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               const { error: userError } = await Promise.race([userPromise, userTimeoutPromise]) as any;
               
               if (userError) {
-                // Check for network errors first
                 const isNetworkError = userError.message?.includes('Failed to fetch') ||
                                       userError.message?.includes('ERR_CONNECTION_CLOSED') ||
                                       userError.name === 'AuthRetryableFetchError' ||
@@ -301,56 +321,70 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                                       userError.message === 'User check timeout';
                 
                 if (isNetworkError) {
-                  // Network timeout - assume session is valid since we already have it
-                  setSession(session);
-                  setUser(session?.user ?? null);
+                  setSession(currentSession);
+                  setUser(currentSession?.user ?? null);
                   return;
                 }
                 
                 const uMsg = (userError.message || '').toLowerCase();
-                if (userError.message?.includes('User from sub claim in JWT does not exist') ||
+                if (isExpiredAuthError(userError) ||
+                    userError.message?.includes('User from sub claim in JWT does not exist') ||
                     userError.message?.includes('user_not_found') ||
                     userError.message?.includes('Invalid Refresh Token') ||
                     userError.message?.includes('Refresh Token Not Found') ||
                     uMsg.includes('refresh token') ||
                     uMsg.includes('context canceled')) {
-                  console.warn('AuthContext: Invalid user or refresh token error, forcing reset');
-                  forceAuthReset('session_expired');
+                  console.warn('AuthContext: Invalid user or expired JWT, forcing reset');
+                  setSession(null);
+                  setUser(null);
+                  setLoading(false);
+                  cleanupAuthState();
+                  if (!onLoginPage) {
+                    forceAuthReset('session_expired');
+                  }
                   return;
                 }
               }
             } catch (userCheckError: any) {
-              // Check for network/timeout errors first
               const isNetworkError = userCheckError?.message?.includes('Failed to fetch') ||
                                     userCheckError?.message?.includes('ERR_CONNECTION_CLOSED') ||
                                     userCheckError?.name === 'AuthRetryableFetchError' ||
                                     userCheckError?.message?.includes('network') ||
                                     userCheckError?.message === 'User check timeout';
               
-              // Ignore network/timeout errors - session is probably valid
               if (isNetworkError) {
-                setSession(session);
-                setUser(session?.user ?? null);
+                setSession(currentSession);
+                setUser(currentSession?.user ?? null);
                 return;
               }
               
-              // Only log non-network errors
-              if (!isNetworkError) {
+              if (import.meta.env.DEV) {
                 console.warn('AuthContext: User verification failed:', userCheckError);
               }
               
               const cMsg = (userCheckError?.message || '').toLowerCase();
-              if (userCheckError?.status === 403 ||
+              if (isExpiredAuthError(userCheckError) ||
+                  userCheckError?.status === 403 ||
                   userCheckError?.message?.includes('User from sub claim in JWT does not exist') ||
                   userCheckError?.message?.includes('Invalid Refresh Token') ||
                   userCheckError?.message?.includes('Refresh Token Not Found') ||
                   cMsg.includes('refresh token') ||
                   cMsg.includes('context canceled')) {
-                console.warn('AuthContext: 403 or refresh token error, forcing reset');
-                forceAuthReset('session_expired');
+                console.warn('AuthContext: 403 or expired JWT, forcing reset');
+                setSession(null);
+                setUser(null);
+                setLoading(false);
+                cleanupAuthState();
+                if (!onLoginPage) {
+                  forceAuthReset('session_expired');
+                }
                 return;
               }
             }
+
+            setSession(currentSession);
+            setUser(currentSession?.user ?? null);
+            return;
           }
           
           setSession(session);
@@ -384,6 +418,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         const eMsg = (err?.message || '').toLowerCase();
         if (err?.message?.includes('User from sub claim in JWT does not exist') ||
             err?.status === 403 ||
+            isExpiredAuthError(err) ||
             err?.message?.includes('Invalid Refresh Token') ||
             err?.message?.includes('Refresh Token Not Found') ||
             eMsg.includes('refresh token') ||

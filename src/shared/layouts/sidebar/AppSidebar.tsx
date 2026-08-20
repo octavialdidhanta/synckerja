@@ -75,60 +75,82 @@ function SubSidebarPanel({ items, titleKey, isSubItemLocked }: SubSidebarPanelPr
   const { t } = useTranslation();
   const resolvedTitle = t(titleKey);
 
+  const sections: Array<{ title: string; items: NavSubItem[] }> = [];
+  for (const item of items) {
+    if (sections.length === 0 || item.sectionTitleKey) {
+      sections.push({
+        title: t(item.sectionTitleKey ?? titleKey),
+        items: [item],
+      });
+    } else {
+      sections[sections.length - 1].items.push(item);
+    }
+  }
+  if (sections[0]) sections[0].title = resolvedTitle;
+
+  const renderItem = (item: NavSubItem) => {
+    const isActive = isNavSubItemActive(item, location.pathname, location.search);
+    const locked = isSubItemLocked?.(item) ?? false;
+
+    return (
+      <button
+        key={`${item.titleKey}-${item.path}`}
+        type="button"
+        title={
+          locked
+            ? t("leadMagnet.sidebar.lockedHint", "Lead Magnet add-on is not activated")
+            : undefined
+        }
+        onMouseEnter={() => prefetchAppRoute(item.path)}
+        onFocus={() => prefetchAppRoute(item.path)}
+        onClick={() => navigate(item.path)}
+        className={cn(
+          "group relative flex w-full transform-none items-center gap-3 px-4 py-3 text-left text-[15px] font-normal transition-colors duration-200",
+          locked && "opacity-70",
+          isActive
+            ? "bg-brand-blue/10 text-brand-blue"
+            : "text-foreground hover:bg-brand-blue/10 hover:text-brand-blue",
+        )}
+        style={{
+          fontFamily: "system-ui, -apple-system, sans-serif",
+          letterSpacing: "-0.01em",
+        }}
+      >
+        <div
+          className={cn(
+            "h-0.5 w-0.5 flex-shrink-0 rounded-full transition-colors duration-200",
+            isActive ? "bg-brand-blue" : "bg-muted-foreground/60 group-hover:bg-brand-blue/80",
+          )}
+        />
+        <span className="flex-1 truncate">{t(item.titleKey)}</span>
+        {locked ? <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden /> : null}
+        {isActive && (
+          <div className="absolute bottom-0 left-0 top-0 w-1 bg-brand-blue" aria-hidden />
+        )}
+      </button>
+    );
+  };
+
+  const sectionHeaderClassName =
+    "box-border flex min-h-[3.25rem] shrink-0 items-center border-b border-slate-300 bg-muted/40 px-4 py-2 dark:border-slate-600";
+
   return (
     <div
       className="h-full w-64 overflow-hidden bg-card font-sans antialiased"
       style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
     >
       <div className="box-border flex h-full w-64 flex-col border-r border-slate-200 bg-card dark:border-slate-700/60">
-        <div className="box-border flex min-h-[3.25rem] shrink-0 items-center border-b border-slate-300 bg-muted/40 px-4 py-2 dark:border-slate-600">
-          <h3 className="truncate text-sm font-semibold leading-none text-foreground">{resolvedTitle}</h3>
-        </div>
-        <div className="flex-1 overflow-y-auto seamless-scroll pt-2">
-          <nav className="space-y-0">
-            {items.map((item) => {
-              const isActive = isNavSubItemActive(item, location.pathname, location.search);
-              const locked = isSubItemLocked?.(item) ?? false;
-
-              return (
-                <button
-                  key={`${item.titleKey}-${item.path}`}
-                  type="button"
-                  title={
-                    locked
-                      ? t("leadMagnet.sidebar.lockedHint", "Lead Magnet add-on is not activated")
-                      : undefined
-                  }
-                  onMouseEnter={() => prefetchAppRoute(item.path)}
-                  onFocus={() => prefetchAppRoute(item.path)}
-                  onClick={() => navigate(item.path)}
-                  className={cn(
-                    "group relative flex w-full transform-none items-center gap-3 px-4 py-3 text-left text-[15px] font-normal transition-colors duration-200",
-                    locked && "opacity-70",
-                    isActive
-                      ? "bg-brand-blue/10 text-brand-blue"
-                      : "text-foreground hover:bg-brand-blue/10 hover:text-brand-blue",
-                  )}
-                  style={{
-                    fontFamily: "system-ui, -apple-system, sans-serif",
-                    letterSpacing: "-0.01em",
-                  }}
-                >
-                  <div
-                    className={cn(
-                      "h-0.5 w-0.5 flex-shrink-0 rounded-full transition-colors duration-200",
-                      isActive ? "bg-brand-blue" : "bg-muted-foreground/60 group-hover:bg-brand-blue/80",
-                    )}
-                  />
-                  <span className="flex-1 truncate">{t(item.titleKey)}</span>
-                  {locked ? <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden /> : null}
-                  {isActive && (
-                    <div className="absolute bottom-0 left-0 top-0 w-1 bg-brand-blue" aria-hidden />
-                  )}
-                </button>
-              );
-            })}
-          </nav>
+        <div className="flex-1 overflow-y-auto seamless-scroll">
+          {sections.map((section) => (
+            <section key={section.title} className="flex flex-col">
+              <div className={sectionHeaderClassName}>
+                <h3 className="truncate text-sm font-semibold leading-none text-foreground">
+                  {section.title}
+                </h3>
+              </div>
+              <nav className="space-y-0 pt-2">{section.items.map(renderItem)}</nav>
+            </section>
+          ))}
         </div>
       </div>
     </div>
@@ -450,7 +472,7 @@ export function AppSidebar() {
               <SubSidebarPanel
                 key={panelContentMenu.id}
                 items={panelContentMenu.subItems}
-                titleKey={panelContentMenu.titleKey}
+                titleKey={panelContentMenu.panelTitleKey ?? panelContentMenu.titleKey}
                 isSubItemLocked={isSubItemLocked}
               />
             )}

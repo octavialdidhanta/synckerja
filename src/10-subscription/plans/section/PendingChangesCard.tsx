@@ -7,6 +7,7 @@ import { usePendingSubscriptionChanges } from "@/10-subscription/hooks/usePendin
 import {
   LEAD_MAGNET_ADD_ON_CODE,
   OMNICHANNEL_ROSTER_ADD_ON_CODE,
+  POS_OUTLETS_ADD_ON_CODE,
 } from "@/10-subscription/shared/subscriptionUtils";
 
 export function PendingChangesCard() {
@@ -33,6 +34,7 @@ export function PendingChangesCard() {
 
   const omniTarget = pending.target_addon_selections?.[OMNICHANNEL_ROSTER_ADD_ON_CODE];
   const lmTarget = pending.target_addon_selections?.[LEAD_MAGNET_ADD_ON_CODE];
+  const posTarget = pending.target_addon_selections?.[POS_OUTLETS_ADD_ON_CODE];
 
   return (
     <Card className="border-amber-200 bg-amber-50/80 dark:border-amber-900/50 dark:bg-amber-950/20">
@@ -68,6 +70,13 @@ export function PendingChangesCard() {
               {lmTarget.included
                 ? t("subscription.plans.pendingChanges.leadMagnetOn")
                 : t("subscription.plans.pendingChanges.leadMagnetOff")}
+            </li>
+          )}
+          {posTarget && (
+            <li>
+              {posTarget.included
+                ? t("subscription.plans.pendingChanges.posOutlets", { count: posTarget.quantity })
+                : t("subscription.plans.pendingChanges.posOff")}
             </li>
           )}
         </ul>

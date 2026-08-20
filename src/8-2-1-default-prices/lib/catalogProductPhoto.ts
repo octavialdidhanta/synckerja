@@ -21,6 +21,25 @@ export async function uploadCatalogProductPhoto(args: {
   return path;
 }
 
+export function catalogBundlePhotoObjectPath(organizationId: string, bundleId: string, fileName: string): string {
+  const safe = fileName.replace(/[^\w.\-]+/g, '_').slice(0, 80) || 'photo.jpg';
+  return `${organizationId}/bundles/${bundleId}/${safe}`;
+}
+
+export async function uploadCatalogBundlePhoto(args: {
+  organizationId: string;
+  bundleId: string;
+  file: File;
+}): Promise<string> {
+  const path = catalogBundlePhotoObjectPath(args.organizationId, args.bundleId, args.file.name);
+  const { error } = await supabase.storage.from(CATALOG_PRODUCT_PHOTOS_BUCKET).upload(path, args.file, {
+    upsert: true,
+    contentType: args.file.type || 'image/jpeg',
+  });
+  if (error) throw error;
+  return path;
+}
+
 export async function signCatalogProductPhotos(paths: string[]): Promise<Map<string, string>> {
   const unique = [...new Set(paths.map((p) => p.trim()).filter(Boolean))];
   const map = new Map<string, string>();

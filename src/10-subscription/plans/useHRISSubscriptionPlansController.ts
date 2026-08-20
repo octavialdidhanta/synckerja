@@ -13,6 +13,7 @@ import { useLastPaidSubscription } from "@/10-subscription/hooks/useLastPaidSubs
 import { useMidtransPayment } from "@/10-subscription/hooks/useMidtransPayment";
 import { useProRateCalculation } from "@/10-subscription/hooks/useProRateCalculation";
 import { useEmployeeCount } from "@/10-subscription/hooks/useEmployeeCount";
+import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
 import {
   getMonthlyPriceForMembers,
   getYearlyPriceForMembers,
@@ -24,6 +25,7 @@ import {
   catalogAddOnListAmountForMidtransSplit,
   bundledOmnichannelRosterUnitsFromSelections,
   bundledLeadMagnetFromSelections,
+  bundledPosOutletUnitsFromSelections,
   getOmnichannelAddonMonthlyTotalIdr,
   getOmnichannelRosterAddonConfig,
   isScaleUpSubscriptionPlanName,
@@ -35,6 +37,7 @@ import {
   mergePlanAddOnSelections,
   mergePlanAddOnSelectionsForCheckout,
   planEligibleForOmnichannelAddonDisplay,
+  addOnLineQuantityCap,
   OMNICHANNEL_ADDON_IDR_PER_STAFF_MONTHLY,
   hasCheckoutableCatalogAddOnDelta,
   hasSchedulableDowngrade,
@@ -144,8 +147,11 @@ export function useHRISSubscriptionPlansController(
   const { organizationId } = useActiveOrganization();
   const { data: omnichannelRoster = [] } = useOrganizationOmnichannelStaff();
   const rosterCount = omnichannelRoster.length;
+  const { rows: posOutlets = [] } = usePosOutlets();
+  const activeOutletCount = posOutlets.length;
   const omnichannelPaidSeats = subscriptionStatus?.omnichannel_paid_seat_count ?? 0;
   const leadMagnetActive = subscriptionStatus?.lead_magnet_active ?? false;
+  const posPaidOutletCount = subscriptionStatus?.pos_paid_outlet_count ?? 0;
   /** All rows returned for `is_active = true` (no extra client-side hiding). */
   const activePlans = useMemo(
     () => sortSubscriptionPlansForDisplay(plans ?? []),
@@ -359,8 +365,9 @@ export function useHRISSubscriptionPlansController(
         omnichannelPaidSeats,
         hrMemberCount,
         leadMagnetActive,
+        posPaidOutletCount,
       ),
-    [planAddOnUi, omnichannelPaidSeats, leadMagnetActive],
+    [planAddOnUi, omnichannelPaidSeats, leadMagnetActive, posPaidOutletCount],
   );
 
   /** Merged add-on map for the open checkout (`selectedPlan`), preferring the card snapshot from click time. */
@@ -389,6 +396,7 @@ export function useHRISSubscriptionPlansController(
       selections: mergeCheckoutSelectionsForSelectedPlan(),
       legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
       legacyLeadMagnetActive: leadMagnetActive,
+      legacyPosPaidOutletCount: posPaidOutletCount,
       calculation: proRatedData?.calculation,
     });
   }, [
@@ -398,6 +406,7 @@ export function useHRISSubscriptionPlansController(
     mergeCheckoutSelectionsForSelectedPlan,
     proRatedData?.calculation,
     leadMagnetActive,
+    posPaidOutletCount,
   ]);
 
   /** Add-on line for confirmation modal (full term list when billing-term upgrade only, else billing charge). */
@@ -444,7 +453,7 @@ export function useHRISSubscriptionPlansController(
 
   const handleAddOnQuantityChange = useCallback(
     (planId: string, code: string, quantity: number, hrMemberCap: number) => {
-      const cap = Math.max(1, Math.round(Number(hrMemberCap)) || 1);
+      const cap = addOnLineQuantityCap(code, hrMemberCap);
       const q = Math.min(cap, Math.max(1, Math.round(Number(quantity)) || 1));
       setPlanAddOnUi((prev) => {
         const cur = prev[planId]?.[code] ?? { included: false, quantity: 1 };
@@ -521,6 +530,7 @@ export function useHRISSubscriptionPlansController(
         selections: mergedAtClick,
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
         legacyLeadMagnetActive: leadMagnetActive,
+        legacyPosPaidOutletCount: posPaidOutletCount,
         isTargetPlanDowngrade: isPlanDowngradeTarget,
         currentEmployeeCount,
         rosterCount,
@@ -544,6 +554,7 @@ export function useHRISSubscriptionPlansController(
         isAddonSelectionDowngrade(plan, mergedAtClick, {
           omnichannelPaidSeats,
           leadMagnetActive,
+          posPaidOutletCount,
         }) &&
         rosterCount > bundledOmnichannelRosterUnitsFromSelections(mergedAtClick)
       ) {
@@ -551,6 +562,23 @@ export function useHRISSubscriptionPlansController(
           t("subscription.plans.downgrade.rosterExceedsMembers", {
             roster: rosterCount,
             members: bundledOmnichannelRosterUnitsFromSelections(mergedAtClick),
+          }),
+        );
+        return;
+      }
+      if (
+        schedDowngradePrecheck &&
+        isAddonSelectionDowngrade(plan, mergedAtClick, {
+          omnichannelPaidSeats,
+          leadMagnetActive,
+          posPaidOutletCount,
+        }) &&
+        activeOutletCount > 1 + bundledPosOutletUnitsFromSelections(mergedAtClick)
+      ) {
+        toast.error(
+          t("subscription.plans.downgrade.outletsExceedQuota", {
+            outlets: activeOutletCount,
+            quota: 1 + bundledPosOutletUnitsFromSelections(mergedAtClick),
           }),
         );
         return;
@@ -599,6 +627,7 @@ export function useHRISSubscriptionPlansController(
             selections: mergedAtClick,
             legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
             legacyLeadMagnetActive: leadMagnetActive,
+            legacyPosPaidOutletCount: posPaidOutletCount,
             isExpired: subscriptionStatus?.is_expired,
             remainingDays: effectiveRemainingDays,
           });
@@ -735,6 +764,7 @@ export function useHRISSubscriptionPlansController(
             prorate_percentage: 0,
             bundled_omnichannel_roster_units: bundledOmnichannelRosterUnitsFromSelections(selections),
             bundled_lead_magnet_included: bundledLeadMagnetFromSelections(selections),
+            bundled_pos_outlet_units: bundledPosOutletUnitsFromSelections(selections),
             renewal_full_period: true,
           },
           ...(itemDetails ? { itemDetails } : {}),
@@ -803,6 +833,9 @@ export function useHRISSubscriptionPlansController(
             bundled_lead_magnet_included: bundledLeadMagnetFromSelections(
               mergeCheckoutSelectionsForSelectedPlan(),
             ),
+            bundled_pos_outlet_units: bundledPosOutletUnitsFromSelections(
+              mergeCheckoutSelectionsForSelectedPlan(),
+            ),
           },
           ...(itemDetailsTerm ? { itemDetails: itemDetailsTerm } : {}),
         });
@@ -825,6 +858,7 @@ export function useHRISSubscriptionPlansController(
           selections: mergeCheckoutSelectionsForSelectedPlan(),
           legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
           legacyLeadMagnetActive: leadMagnetActive,
+          legacyPosPaidOutletCount: posPaidOutletCount,
           calculation: proRatedData.calculation,
         });
         if (catalogAddonOnly <= 0) {
@@ -863,6 +897,9 @@ export function useHRISSubscriptionPlansController(
             prorate_percentage: 0,
             bundled_omnichannel_roster_units: bundledUnitsAddonOnly,
             bundled_lead_magnet_included: bundledLeadMagnetAddonOnly,
+            bundled_pos_outlet_units: bundledPosOutletUnitsFromSelections(
+              mergeCheckoutSelectionsForSelectedPlan(),
+            ),
           },
         });
         setIsModalOpen(false);
@@ -895,6 +932,7 @@ export function useHRISSubscriptionPlansController(
           current_addon_snapshot: buildCurrentAddonSnapshot({
             omnichannelPaidSeats,
             leadMagnetActive,
+            posPaidOutletCount,
           }),
         };
 
@@ -928,6 +966,7 @@ export function useHRISSubscriptionPlansController(
         selections: mergeCheckoutSelectionsForSelectedPlan(),
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
         legacyLeadMagnetActive: leadMagnetActive,
+        legacyPosPaidOutletCount: posPaidOutletCount,
         calculation: proRatedData?.calculation,
       });
       const grossMain = finalAmount + catalogAddonMain;
@@ -966,6 +1005,9 @@ export function useHRISSubscriptionPlansController(
               prorate_percentage: proRatedData.calculation.prorate_percentage ?? 0,
               bundled_omnichannel_roster_units: bundledUnitsPay,
               bundled_lead_magnet_included: bundledLeadMagnetPay,
+              bundled_pos_outlet_units: bundledPosOutletUnitsFromSelections(
+                mergeCheckoutSelectionsForSelectedPlan(),
+              ),
             }
           : {
               is_member_upgrade: false,
@@ -976,6 +1018,9 @@ export function useHRISSubscriptionPlansController(
               prorate_percentage: 0,
               bundled_omnichannel_roster_units: bundledUnitsPay,
               bundled_lead_magnet_included: bundledLeadMagnetPay,
+              bundled_pos_outlet_units: bundledPosOutletUnitsFromSelections(
+                mergeCheckoutSelectionsForSelectedPlan(),
+              ),
             },
       });
       
@@ -1012,6 +1057,7 @@ export function useHRISSubscriptionPlansController(
         selections: mergeCheckoutSelectionsForSelectedPlan(),
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
         legacyLeadMagnetActive: leadMagnetActive,
+        legacyPosPaidOutletCount: posPaidOutletCount,
         calculation: proRatedData?.calculation,
       });
       const grossImmediate = finalAmount + catalogAddonImmediate;
@@ -1050,6 +1096,9 @@ export function useHRISSubscriptionPlansController(
               prorate_percentage: proRatedData.calculation.prorate_percentage ?? 0,
               bundled_omnichannel_roster_units: bundledUnitsImmediate,
               bundled_lead_magnet_included: bundledLeadMagnetImmediate,
+              bundled_pos_outlet_units: bundledPosOutletUnitsFromSelections(
+                mergeCheckoutSelectionsForSelectedPlan(),
+              ),
             }
           : {
               is_member_upgrade: false,
@@ -1060,6 +1109,9 @@ export function useHRISSubscriptionPlansController(
               prorate_percentage: 0,
               bundled_omnichannel_roster_units: bundledUnitsImmediate,
               bundled_lead_magnet_included: bundledLeadMagnetImmediate,
+              bundled_pos_outlet_units: bundledPosOutletUnitsFromSelections(
+                mergeCheckoutSelectionsForSelectedPlan(),
+              ),
             },
       });
       
@@ -1127,6 +1179,7 @@ export function useHRISSubscriptionPlansController(
         selections,
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
         legacyLeadMagnetActive: leadMagnetActive,
+        legacyPosPaidOutletCount: posPaidOutletCount,
         isTargetPlanDowngrade: Boolean(
           activePlanRow && !isCurrent && isTargetPlanDowngrade(activePlanRow, plan),
         ),
@@ -1152,6 +1205,7 @@ export function useHRISSubscriptionPlansController(
       currentMemberCount,
       omnichannelPaidSeats,
       leadMagnetActive,
+      posPaidOutletCount,
       currentEmployeeCount,
       rosterCount,
     ],
@@ -1197,6 +1251,7 @@ export function useHRISSubscriptionPlansController(
         isAddonSelectionDowngrade(plan, selections, {
           omnichannelPaidSeats,
           leadMagnetActive,
+          posPaidOutletCount,
         }));
     
     if (isCurrent) {
@@ -1211,6 +1266,7 @@ export function useHRISSubscriptionPlansController(
           isAddonSelectionDowngrade(plan, selections, {
             omnichannelPaidSeats,
             leadMagnetActive,
+            posPaidOutletCount,
           });
         return addonDiff
           ? t("subscription.plans.button.renewWithChanges")
@@ -1267,6 +1323,7 @@ export function useHRISSubscriptionPlansController(
         selections,
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
         legacyLeadMagnetActive: leadMagnetActive,
+        legacyPosPaidOutletCount: posPaidOutletCount,
         isExpired: subscriptionStatus?.is_expired,
         remainingDays: subscriptionRemainingDays,
       }),
@@ -1277,6 +1334,7 @@ export function useHRISSubscriptionPlansController(
       subscriptionStatus?.is_expired,
       omnichannelPaidSeats,
       leadMagnetActive,
+      posPaidOutletCount,
       subscriptionRemainingDays,
     ],
   );
@@ -1359,6 +1417,7 @@ export function useHRISSubscriptionPlansController(
     lastPaidAmount,
     lastPaidMemberCount,
     omnichannelPaidSeats,
+    posPaidOutletCount,
     rosterCount,
     memberCounts,
     billingCycles,

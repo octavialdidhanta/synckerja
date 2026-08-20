@@ -9,6 +9,7 @@ import { Label } from "@/shared/components/ui/label";
 import { Check, Loader2, X, type LucideIcon } from "lucide-react";
 import {
   OMNICHANNEL_ROSTER_ADD_ON_CODE,
+  POS_OUTLETS_ADD_ON_CODE,
   catalogAddOnListAmountForMidtransSplit,
   formatIDR,
   buildEnterpriseSalesWhatsAppUrl,
@@ -83,6 +84,7 @@ interface PlanCardProps {
   /** For omnichannel row copy + legacy headline when no junction rows. */
   omnichannelPaidSeats: number;
   omnichannelRosterActiveCount: number;
+  posPaidOutletCount?: number;
   onMemberCountChange: (planId: string, count: number) => void;
   onBillingCycleChange: (planId: string, isYearly: boolean) => void;
   onBillingTermChange?: (planId: string, months: BillingTermMonths) => void;
@@ -141,6 +143,7 @@ export const PlanCard = memo(
     onAddOnQuantityChange,
     omnichannelPaidSeats,
     omnichannelRosterActiveCount,
+    posPaidOutletCount = 0,
     onMemberCountChange,
     onBillingCycleChange,
     onBillingTermChange,
@@ -290,9 +293,12 @@ export const PlanCard = memo(
         const code = link.subscription_add_ons.code;
         const sel = addOnSelections[code];
         const isOmni = code === OMNICHANNEL_ROSTER_ADD_ON_CODE;
+        const isPos = code === POS_OUTLETS_ADD_ON_CODE;
         const visible = isOmni
           ? omnichannelPaidSeats > 0 || Boolean(sel?.included)
-          : Boolean(sel?.included);
+          : isPos
+            ? posPaidOutletCount > 0 || Boolean(sel?.included)
+            : Boolean(sel?.included);
         if (!visible) continue;
         const name = link.subscription_add_ons.name;
         if (isOmni) {
@@ -303,6 +309,17 @@ export const PlanCard = memo(
                 {t("subscription.plans.currentPlan.omnichannelSeatDetail", {
                   paid: omnichannelPaidSeats,
                   roster: omnichannelRosterActiveCount,
+                })}
+              </div>
+            </div>,
+          );
+        } else if (isPos) {
+          parts.push(
+            <div key={code} className="text-xs text-muted-foreground">
+              <div className="font-medium text-foreground">{name}</div>
+              <div className="mt-0.5">
+                {t("subscription.plans.currentPlan.posOutletDetail", {
+                  count: Math.max(posPaidOutletCount, sel?.quantity ?? 0),
                 })}
               </div>
             </div>,
@@ -340,6 +357,7 @@ export const PlanCard = memo(
       addOnSelections,
       omnichannelPaidSeats,
       omnichannelRosterActiveCount,
+      posPaidOutletCount,
       t,
     ]);
 
@@ -592,6 +610,7 @@ export const PlanCard = memo(
                 isMidCycleActive={isMidCycleActive}
                 isExpired={subscriptionStatus?.is_expired ?? false}
                 leadMagnetActive={subscriptionStatus?.lead_magnet_active ?? false}
+                posPaidOutletCount={posPaidOutletCount}
               />
             )}
           </div>

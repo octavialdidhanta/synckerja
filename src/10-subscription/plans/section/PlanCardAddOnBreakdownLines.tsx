@@ -5,9 +5,11 @@ import {
   type BillingTermMonths,
 } from "@/10-subscription/shared/billingTermUtils";
 import {
+  addOnLineQuantityCap,
   describeCatalogAddOnLinePricing,
   formatIDR,
   isFlatPerOrganizationAddOn,
+  isPerOutletMonthAddOn,
   resolvePlanAddOnUnitMonthly,
 } from "@/10-subscription/shared/subscriptionUtils";
 import type { SubscriptionPlan, SubscriptionPlanAddOnLink } from "@/10-subscription/types/SubscriptionPlanCatalog";
@@ -42,8 +44,8 @@ export const PlanCardAddOnBreakdownLines = memo(
           const sel = addOnSelections[code] ?? { included: false, quantity: 1 };
           if (!sel.included) return null;
 
-          const seatCap = Math.max(1, memberCount);
-          const billedQty = Math.min(seatCap, Math.max(1, sel.quantity));
+          const qtyCap = addOnLineQuantityCap(code, memberCount);
+          const billedQty = Math.min(qtyCap, Math.max(1, sel.quantity));
           const isFlatOrg = isFlatPerOrganizationAddOn(link.subscription_add_ons.billing_unit);
           const effectiveQty = isFlatOrg ? 1 : billedQty;
           const unit = resolvePlanAddOnUnitMonthly(link);
@@ -69,6 +71,7 @@ export const PlanCardAddOnBreakdownLines = memo(
                 formatIDR(unit),
                 isFlatOrg,
                 t,
+                isPerOutletMonthAddOn(link.subscription_add_ons.billing_unit) ? "outlet" : "seat",
               )}
               grossIdr={pricing.grossIdr}
               netIdr={pricing.netIdr}

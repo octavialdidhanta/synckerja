@@ -191,6 +191,18 @@ export const DefaultPricesPageSkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const OutletsListPageSkeleton = createDeferredSkeleton(() =>
+  import("@/8-2-2-outlets/skeletons/OutletsListPageSkeleton").then((m) => ({
+    default: m.OutletsListPageSkeleton,
+  })),
+);
+
+export const IngredientPageSkeleton = createDeferredSkeleton(() =>
+  import("@/8-2-3-ingredient/skeletons/IngredientPageSkeleton").then((m) => ({
+    default: m.IngredientPageSkeleton,
+  })),
+);
+
 export const ConsultantLivechatRouteLoadingShell = createDeferredSkeleton(() =>
   import("@/shared/components/mobile/ConsultantLivechatRouteLoadingShell").then((m) => ({
     default: m.ConsultantLivechatRouteLoadingShell,

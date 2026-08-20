@@ -57,6 +57,8 @@ export type NavSubItem = {
   inactiveWhenSearch?: Record<string, string>;
   /** Sub-item requires Lead Magnet add-on entitlement (in addition to parent module). */
   requiresLeadMagnetAddon?: boolean;
+  /** Optional group heading rendered above this item in the flyout. */
+  sectionTitleKey?: string;
 };
 
 export type MainNavItem = {
@@ -65,6 +67,8 @@ export type MainNavItem = {
   icon: LucideIcon;
   /** When set, row navigates here; when only subItems, hover opens sub-panel */
   path?: string;
+  /** Flyout panel heading; falls back to `titleKey` when omitted. */
+  panelTitleKey?: string;
   /** When set, highlight this nav row for any path under this prefix (e.g. /okr for all OKR tabs) */
   activePathPrefix?: string;
   /** Additional path prefixes for parent highlight (e.g. /my-info under Human Resources) */
@@ -235,18 +239,30 @@ export const mainNavItems: MainNavItem[] = [
   {
     id: "operations",
     titleKey: "sidebar.salesOperations.title",
+    panelTitleKey: "sidebar.salesOperations.panelTitle",
     icon: Briefcase,
-    activePathPrefixes: ["/operations/sales", "/tools/default-prices"],
+    activePathPrefixes: ["/operations/sales", "/operations/library", "/operations/ingredient", "/operations/settings"],
     subItems: [
       {
         titleKey: "sidebar.tools.defaultPrices.title",
-        path: "/tools/default-prices",
-        activePathPrefixes: ["/tools/default-prices"],
+        path: "/operations/library/service-list",
+        activePathPrefixes: ["/operations/library"],
+      },
+      {
+        titleKey: "sidebar.salesOperations.ingredient",
+        path: "/operations/ingredient/list",
+        activePathPrefixes: ["/operations/ingredient"],
+      },
+      {
+        titleKey: "sidebar.salesOperations.settings",
+        path: "/operations/settings/outlets-list",
+        activePathPrefixes: ["/operations/settings"],
       },
       {
         titleKey: "sidebar.operations.sales.title",
         path: "/operations/sales/activities",
         activePathPrefixes: ["/operations/sales/activities", "/operations/sales/jadwal-kunjungan", "/operations/sales/client-visits", "/operations/sales/customer-visits"],
+        sectionTitleKey: "sidebar.salesOperations.groupOperations",
       },
       {
         titleKey: "sidebar.operations.sales.tiktokShop.title",

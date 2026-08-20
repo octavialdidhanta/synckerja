@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import type { DefaultPriceRow } from "../types/defaultPrices";
+import { effectivePosStatus, effectiveUnitPrice } from "../product-outlets/lib/effectiveProductOutlet";
 
 function formatRupiah(n: number): string {
   return new Intl.NumberFormat("id-ID", { style: "decimal", minimumFractionDigits: 0 }).format(n);
@@ -36,12 +37,20 @@ function formatRupiah(n: number): string {
 export type DefaultProductsTableProps = {
   rows: DefaultPriceRow[];
   isLoading: boolean;
+  selectedOutletId?: string | null;
   onEdit: (row: DefaultPriceRow) => void;
   onDuplicate: (row: DefaultPriceRow) => void;
   onDelete: (id: string) => Promise<void>;
 };
 
-export function DefaultProductsTable({ rows, isLoading, onEdit, onDuplicate, onDelete }: DefaultProductsTableProps) {
+export function DefaultProductsTable({
+  rows,
+  isLoading,
+  selectedOutletId,
+  onEdit,
+  onDuplicate,
+  onDelete,
+}: DefaultProductsTableProps) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
   const [deleteTarget, setDeleteTarget] = useState<DefaultPriceRow | null>(null);
@@ -64,7 +73,9 @@ export function DefaultProductsTable({ rows, isLoading, onEdit, onDuplicate, onD
   if (rows.length === 0) {
     return (
       <div className="py-8 text-center text-muted-foreground">
-        {t("defaultPrices.product.empty", "No products yet. Add a retail or F&B item with a photo.")}
+        {selectedOutletId
+          ? t("defaultPrices.product.emptyOutlet", "No products assigned to this outlet.")
+          : t("defaultPrices.product.empty", "No products yet. Add a retail or F&B item with a photo.")}
       </div>
     );
   }
@@ -77,6 +88,7 @@ export function DefaultProductsTable({ rows, isLoading, onEdit, onDuplicate, onD
             <TableHead className="w-[72px]">{t("defaultPrices.product.photo", "Photo")}</TableHead>
             <TableHead>{t("defaultPrices.product.name", "Name")}</TableHead>
             <TableHead>{t("defaultPrices.product.category", "Category")}</TableHead>
+            <TableHead>{t("defaultPrices.product.brand", "Brand")}</TableHead>
             <TableHead className="w-[80px]">{t("defaultPrices.product.unit", "Unit")}</TableHead>
             <TableHead className="text-right">{t("defaultPrices.form.unitPrice", "Unit Price (Rp)")}</TableHead>
             <TableHead>{t("defaultPrices.product.posStatus", "POS")}</TableHead>
@@ -87,7 +99,10 @@ export function DefaultProductsTable({ rows, isLoading, onEdit, onDuplicate, onD
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => (
+          {rows.map((row) => {
+            const price = effectiveUnitPrice(row, selectedOutletId ?? null);
+            const status = effectivePosStatus(row, selectedOutletId ?? null);
+            return (
             <TableRow key={row.id}>
               <TableCell>
                 {row.photo_url ? (
@@ -100,10 +115,13 @@ export function DefaultProductsTable({ rows, isLoading, onEdit, onDuplicate, onD
               <TableCell className="max-w-[140px] truncate text-xs">
                 {row.product_category_name || t("defaultPrices.product.uncategorized", "Uncategorized")}
               </TableCell>
+              <TableCell className="max-w-[140px] truncate text-xs">
+                {row.product_brand_name || t("defaultPrices.product.unbranded", "Unbranded")}
+              </TableCell>
               <TableCell>{row.unit || "pcs"}</TableCell>
-              <TableCell className="text-right font-medium">{formatRupiah(row.unit_price)}</TableCell>
+              <TableCell className="text-right font-medium">{formatRupiah(price)}</TableCell>
               <TableCell className="text-xs">
-                {t(`defaultPrices.product.status.${row.pos_status ?? "available"}`, row.pos_status ?? "available")}
+                {t(`defaultPrices.product.status.${status}`, status)}
               </TableCell>
               <TableCell className="text-xs">
                 {row.track_stock
@@ -138,7 +156,8 @@ export function DefaultProductsTable({ rows, isLoading, onEdit, onDuplicate, onD
                 </DropdownMenu>
               </TableCell>
             </TableRow>
-          ))}
+            );
+          })}
         </TableBody>
       </Table>
 

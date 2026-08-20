@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   LEAD_MAGNET_ADD_ON_CODE,
   OMNICHANNEL_ROSTER_ADD_ON_CODE,
+  POS_OUTLETS_ADD_ON_CODE,
+  POS_OUTLETS_ADD_ON_MAX,
+  addOnLineQuantityCap,
   catalogAddOnIncrementalListAmountIdr,
   catalogAddonChargeForMidtransSplit,
   deriveSubscriptionDaysRemaining,
@@ -702,5 +705,56 @@ describe("shouldShowAddOnsSidebar", () => {
     const plan = planWithOmnichannel();
     expect(shouldShowAddOnsSidebar(plan, true)).toBe(true);
     expect(shouldShowAddOnsSidebar(plan, false)).toBe(false);
+  });
+});
+
+const posOutletsLink = {
+  display_order: 20,
+  unit_price_override_per_month: null as number | null,
+  subscription_add_ons: {
+    code: POS_OUTLETS_ADD_ON_CODE,
+    name: "POS",
+    is_active: true,
+    default_unit_price_per_month: 99_000,
+    follows_plan_annual_discount: true,
+    billing_unit: "per_outlet_month",
+  },
+};
+
+function planWithPosOutlets(): Pick<SubscriptionPlan, "name" | "base_price_per_member" | "plan_add_ons"> {
+  return {
+    name: "Scale Up Plan",
+    base_price_per_member: 50_000,
+    plan_add_ons: [posOutletsLink as SubscriptionPlan["plan_add_ons"][number]],
+  };
+}
+
+describe("POS outlets add-on", () => {
+  it("caps extra outlets at 20 independent of HR member count", () => {
+    expect(addOnLineQuantityCap(POS_OUTLETS_ADD_ON_CODE, 3)).toBe(POS_OUTLETS_ADD_ON_MAX);
+    const plan = planWithPosOutlets();
+    const merged = mergePlanAddOnSelections(
+      plan,
+      { [POS_OUTLETS_ADD_ON_CODE]: { included: true, quantity: 18 } },
+      true,
+      0,
+      3,
+      false,
+      2,
+    );
+    expect(merged[POS_OUTLETS_ADD_ON_CODE]).toEqual({ included: true, quantity: 18 });
+  });
+
+  it("bills only new extra outlets above paid baseline", () => {
+    const plan = planWithPosOutlets();
+    const amount = catalogAddOnIncrementalListAmountIdr({
+      plan,
+      billingCycle: "monthly",
+      annualDiscountPercent: 0,
+      selections: { [POS_OUTLETS_ADD_ON_CODE]: { included: true, quantity: 3 } },
+      legacyOmnichannelPaidSeatCount: 0,
+      legacyPosPaidOutletCount: 1,
+    });
+    expect(amount).toBe(99_000 * 2);
   });
 });

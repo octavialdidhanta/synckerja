@@ -19,6 +19,7 @@ import { MobileAppNavSuppressionProvider } from "@/shared/mobile/MobileAppNavSup
 import { CapacitorKeyboardInsetProvider } from "@/shared/native/useCapacitorKeyboardInset";
 import { NativeAppDisplayInit } from "@/shared/components/mobile/NativeAppDisplayInit";
 import { NativeSafeAreaCssVarsInit } from "@/shared/hooks/useNativeSafeAreaCssVars";
+import { LegacyDefaultPricesRedirect } from "@/8-2-1-default-prices/layout/DefaultPricesHeaderAndTab";
 import { NativeBootstrapSplashGate } from "@/shared/components/mobile/NativeBootstrapSplashGate";
 import { ShareIntentRouteSync } from "@/shared/native/ShareIntentRouteSync";
 import { AdaptiveAppLayout } from "@/shared/layouts";
@@ -38,6 +39,8 @@ import {
   ConsultantLivechatRouteLoadingShell,
   ContentCalendarPageSkeleton,
   DefaultPricesPageSkeleton,
+  OutletsListPageSkeleton,
+  IngredientPageSkeleton,
   EmailConnectPageSkeleton,
   InstagramConnectPageSkeleton,
   ThreadsConnectPageSkeleton,
@@ -161,6 +164,9 @@ const DailyTaskReportPage = lazy(() => import("@/8-2-DailyTaskReport/pages/Daily
 const PasswordManagerPage = lazy(() => import("@/8-PasswordManager/pages/PasswordManagerPage"));
 const PPh21CalculatorPage = lazy(() => import("@/8-4-pph-21/pages/PPh21CalculatorPage"));
 const DefaultPricesPage = lazy(() => import("@/8-2-1-default-prices/pages/DefaultPricesPage"));
+const OutletsListPage = lazy(() => import("@/8-2-2-outlets/pages/OutletsListPage"));
+const CheckoutSettingsPage = lazy(() => import("@/8-2-2-outlets/pages/CheckoutSettingsPage"));
+const IngredientPage = lazy(() => import("@/8-2-3-ingredient/pages/IngredientPage"));
 const CalculatorServicesPage = lazy(() => import("@/8-3-calculator/pages/CalculatorServicesPage"));
 const CalculatorSalesPage = lazy(() => import("@/8-3-calculator/pages/CalculatorSalesPage"));
 const PricingToolsPage = lazy(() => import("@/8-2-pricing-tools/pages/PricingToolsPage"));
@@ -1264,16 +1270,7 @@ function AppRoutes() {
                   </PageAccessGuard>
                 }
               />
-              <Route
-                path="/tools/default-prices"
-                element={
-                  <PageAccessGuard pagePath="/tools/default-prices" loadingShell={PAGE_GUARD_LOADING_SHELL}>
-                    <DefaultPricesSuspense>
-                      <DefaultPricesPage />
-                    </DefaultPricesSuspense>
-                  </PageAccessGuard>
-                }
-              />
+              <Route path="/tools/default-prices" element={<LegacyDefaultPricesRedirect />} />
               <Route
                 path="/tools/pricing-tools"
                 element={
@@ -1373,6 +1370,222 @@ function AppRoutes() {
               <Route path="/operations/customer-service/tickets" element={<Navigate to="/omnichannel/leads" replace />} />
               <Route path="/operations/customer-service" element={<Navigate to="/omnichannel/leads" replace />} />
               <Route path="/operations/consultant/sales-consultant" element={<Navigate to="/omnichannel/leads" replace />} />
+              <Route path="/operations/library" element={<Navigate to="/operations/library/service-list" replace />} />
+              <Route
+                path="/operations/library/service-list"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/library/service-list"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                  >
+                    <DefaultPricesSuspense>
+                      <DefaultPricesPage />
+                    </DefaultPricesSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/library/product-list"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/library/product-list"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                  >
+                    <DefaultPricesSuspense>
+                      <DefaultPricesPage />
+                    </DefaultPricesSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/library/bundles"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/library/bundles"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                  >
+                    <DefaultPricesSuspense>
+                      <DefaultPricesPage />
+                    </DefaultPricesSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/library/categories"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/library/categories"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                  >
+                    <DefaultPricesSuspense>
+                      <DefaultPricesPage />
+                    </DefaultPricesSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/library/brands"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/library/brands"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                  >
+                    <DefaultPricesSuspense>
+                      <DefaultPricesPage />
+                    </DefaultPricesSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/library/modifiers"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/library/modifiers"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                  >
+                    <DefaultPricesSuspense>
+                      <DefaultPricesPage />
+                    </DefaultPricesSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/library/gratuity"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/library/gratuity"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                  >
+                    <DefaultPricesSuspense>
+                      <DefaultPricesPage />
+                    </DefaultPricesSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/library/discounts"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/library/discounts"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                  >
+                    <DefaultPricesSuspense>
+                      <DefaultPricesPage />
+                    </DefaultPricesSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/library/promos"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/library/promos"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                  >
+                    <DefaultPricesSuspense>
+                      <DefaultPricesPage />
+                    </DefaultPricesSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/library/sales-types"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/library/sales-types"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                  >
+                    <DefaultPricesSuspense>
+                      <DefaultPricesPage />
+                    </DefaultPricesSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/library/taxes"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/library/taxes"
+                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                  >
+                    <DefaultPricesSuspense>
+                      <DefaultPricesPage />
+                    </DefaultPricesSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route path="/operations/library/checkout" element={<Navigate to="/operations/settings/checkout" replace />} />
+              <Route path="/operations/ingredient" element={<Navigate to="/operations/ingredient/list" replace />} />
+              <Route
+                path="/operations/ingredient/list"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/ingredient/list"
+                    loadingShell={<IngredientPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <IngredientSuspense>
+                      <IngredientPage />
+                    </IngredientSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/ingredient/categories"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/ingredient/categories"
+                    loadingShell={<IngredientPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <IngredientSuspense>
+                      <IngredientPage />
+                    </IngredientSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/ingredient/recipes"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/ingredient/recipes"
+                    loadingShell={<IngredientPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <IngredientSuspense>
+                      <IngredientPage />
+                    </IngredientSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/settings/outlets-list"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/settings/outlets-list"
+                    loadingShell={<OutletsListPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <OutletsListSuspense>
+                      <OutletsListPage />
+                    </OutletsListSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/settings/checkout"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/settings/checkout"
+                    loadingShell={<OutletsListPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <OutletsListSuspense>
+                      <CheckoutSettingsPage />
+                    </OutletsListSuspense>
+                  </PageAccessGuard>
+                }
+              />
               <Route path="/operations/sales" element={<Navigate to="/operations/sales/activities" replace />} />
               <Route
                 path="/operations/sales/activities"
@@ -1984,6 +2197,30 @@ const DefaultPricesSuspense = ({ children }: { children: ReactNode }) => (
     fallback={
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
         <DefaultPricesPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const OutletsListSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <OutletsListPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const IngredientSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <IngredientPageSkeleton />
       </div>
     }
   >
@@ -3464,19 +3701,7 @@ const App = () => (
                             </PageAccessGuard>
                           }
                         />
-                        <Route
-                          path="/tools/default-prices"
-                          element={
-                            <PageAccessGuard
-                              pagePath="/tools/default-prices"
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
-                            >
-                              <DefaultPricesSuspense>
-                                <DefaultPricesPage />
-                              </DefaultPricesSuspense>
-                            </PageAccessGuard>
-                          }
-                        />
+                        <Route path="/tools/default-prices" element={<LegacyDefaultPricesRedirect />} />
                         <Route
                           path="/tools/pricing-tools"
                           element={
@@ -3602,6 +3827,225 @@ const App = () => (
                         <Route
                           path="/operations/consultant/sales-consultant"
                           element={<Navigate to="/omnichannel/leads" replace />}
+                        />
+                        <Route
+                          path="/operations/library"
+                          element={<Navigate to="/operations/library/service-list" replace />}
+                        />
+                        <Route
+                          path="/operations/library/service-list"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/library/service-list"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                            >
+                              <DefaultPricesSuspense>
+                                <DefaultPricesPage />
+                              </DefaultPricesSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/library/product-list"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/library/product-list"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                            >
+                              <DefaultPricesSuspense>
+                                <DefaultPricesPage />
+                              </DefaultPricesSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/library/bundles"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/library/bundles"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                            >
+                              <DefaultPricesSuspense>
+                                <DefaultPricesPage />
+                              </DefaultPricesSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/library/categories"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/library/categories"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                            >
+                              <DefaultPricesSuspense>
+                                <DefaultPricesPage />
+                              </DefaultPricesSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/library/brands"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/library/brands"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                            >
+                              <DefaultPricesSuspense>
+                                <DefaultPricesPage />
+                              </DefaultPricesSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/library/modifiers"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/library/modifiers"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                            >
+                              <DefaultPricesSuspense>
+                                <DefaultPricesPage />
+                              </DefaultPricesSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/library/gratuity"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/library/gratuity"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                            >
+                              <DefaultPricesSuspense>
+                                <DefaultPricesPage />
+                              </DefaultPricesSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/library/discounts"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/library/discounts"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                            >
+                              <DefaultPricesSuspense>
+                                <DefaultPricesPage />
+                              </DefaultPricesSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/library/promos"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/library/promos"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                            >
+                              <DefaultPricesSuspense>
+                                <DefaultPricesPage />
+                              </DefaultPricesSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/library/sales-types"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/library/sales-types"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                            >
+                              <DefaultPricesSuspense>
+                                <DefaultPricesPage />
+                              </DefaultPricesSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/library/taxes"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/library/taxes"
+                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                            >
+                              <DefaultPricesSuspense>
+                                <DefaultPricesPage />
+                              </DefaultPricesSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route path="/operations/library/checkout" element={<Navigate to="/operations/settings/checkout" replace />} />
+                        <Route path="/operations/ingredient" element={<Navigate to="/operations/ingredient/list" replace />} />
+                        <Route
+                          path="/operations/ingredient/list"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/ingredient/list"
+                              loadingShell={<IngredientPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <IngredientSuspense>
+                                <IngredientPage />
+                              </IngredientSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/ingredient/categories"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/ingredient/categories"
+                              loadingShell={<IngredientPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <IngredientSuspense>
+                                <IngredientPage />
+                              </IngredientSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/ingredient/recipes"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/ingredient/recipes"
+                              loadingShell={<IngredientPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <IngredientSuspense>
+                                <IngredientPage />
+                              </IngredientSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/settings/outlets-list"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/settings/outlets-list"
+                              loadingShell={<OutletsListPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <OutletsListSuspense>
+                                <OutletsListPage />
+                              </OutletsListSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/settings/checkout"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/settings/checkout"
+                              loadingShell={<OutletsListPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <OutletsListSuspense>
+                                <CheckoutSettingsPage />
+                              </OutletsListSuspense>
+                            </PageAccessGuard>
+                          }
                         />
                         <Route path="/operations/sales" element={<Navigate to="/operations/sales/activities" replace />} />
                         <Route

@@ -1,4 +1,5 @@
 import type { CatalogPosStatus } from '../lib/catalogKind';
+import type { ProductOutletOverride } from '../product-outlets/types';
 
 export type CatalogKind = 'service' | 'product';
 
@@ -20,7 +21,11 @@ export interface DefaultPriceRow {
   available_qty?: number | null;
   product_category_id?: string | null;
   product_category_name?: string | null;
+  product_brand_id?: string | null;
+  product_brand_name?: string | null;
   pos_status?: CatalogPosStatus;
+  outlet_ids?: string[];
+  outlet_overrides?: Record<string, ProductOutletOverride>;
   created_at?: string;
   updated_at?: string;
   service_name?: string;
@@ -41,7 +46,13 @@ export interface DefaultPriceCreate {
   track_stock?: boolean;
   inventory_sku_id?: string | null;
   product_category_id?: string | null;
+  product_brand_id?: string | null;
   pos_status?: CatalogPosStatus;
+  outlet_ids?: string[];
+  selected_outlet_id?: string | null;
+  use_default_price?: boolean;
+  use_default_status?: boolean;
+  outlet_overrides?: Record<string, ProductOutletOverride>;
 }
 
 export interface DefaultPriceUpdate {
@@ -53,5 +64,11 @@ export interface DefaultPriceUpdate {
   track_stock?: boolean;
   inventory_sku_id?: string | null;
   product_category_id?: string | null;
+  product_brand_id?: string | null;
   pos_status?: CatalogPosStatus;
+  outlet_ids?: string[];
+  selected_outlet_id?: string | null;
+  use_default_price?: boolean;
+  use_default_status?: boolean;
+  outlet_overrides?: Record<string, ProductOutletOverride>;
 }
