@@ -225,6 +225,10 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/6-0-stock-management/pages/StockManagementDashboardPage"),
   },
   {
+    prefix: "/operations/inventory/adjustment",
+    prefetch: () => import("@/6-0-stock-management/pages/StockAdjustmentPage"),
+  },
+  {
     prefix: "/tools/pricing-tools",
     prefetch: () => import("@/8-2-pricing-tools/pages/PricingToolsPage"),
   },
