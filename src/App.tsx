@@ -25,6 +25,7 @@ import {
   STOCK_MANAGEMENT_LEGACY_BASE_PATH,
   STOCK_MANAGEMENT_LEGACY_MAPPING_PATH,
   STOCK_MANAGEMENT_LEGACY_SYNC_LOGS_PATH,
+  STOCK_MANAGEMENT_ADJUSTMENT_PATH,
   STOCK_MANAGEMENT_MAPPING_PATH,
   STOCK_MANAGEMENT_PAGE_ACCESS_PATH,
   STOCK_MANAGEMENT_SYNC_LOGS_PATH,
@@ -82,6 +83,7 @@ import {
   TikTokShopProductsPageSkeleton,
   StockManagementDashboardSkeleton,
   InventorySummarySkeleton,
+  InventoryAdjustmentSkeleton,
   EcommerceChatPageSkeleton,
   BlibliOrdersPageSkeleton,
   SocialMediaPerformanceHubPageSkeleton,
@@ -219,6 +221,7 @@ const StockManagementDashboardPage = lazy(
 const StockPlatformMappingPage = lazy(
   () => import("@/6-0-stock-management/pages/StockPlatformMappingPage"),
 );
+const StockAdjustmentPage = lazy(() => import("@/6-0-stock-management/pages/StockAdjustmentPage"));
 const StockSyncLogsPage = lazy(() => import("@/6-0-stock-management/pages/StockSyncLogsPage"));
 const EcommerceChatPage = lazy(() => import("@/6-0-ecommerce-chat/pages/EcommerceChatPage"));
 const BlibliOrdersPage = lazy(() => import("@/6-0-blibli-orders/pages/BlibliOrdersPage"));
@@ -2657,6 +2660,20 @@ function StockPlatformMappingPageRouteElement() {
   );
 }
 
+function StockAdjustmentPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <InventoryAdjustmentSkeleton />
+        </div>
+      }
+    >
+      <StockAdjustmentPage />
+    </Suspense>
+  );
+}
+
 function StockSyncLogsPageRouteElement() {
   return (
     <Suspense
@@ -4693,6 +4710,18 @@ const App = () => (
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <StockManagementDashboardPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path={STOCK_MANAGEMENT_ADJUSTMENT_PATH}
+                            element={
+                              <PageAccessGuard
+                                pagePath={STOCK_MANAGEMENT_PAGE_ACCESS_PATH}
+                                loadingShell={<InventoryAdjustmentSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <StockAdjustmentPageRouteElement />
                               </PageAccessGuard>
                             }
                           />

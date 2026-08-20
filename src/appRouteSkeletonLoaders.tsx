@@ -413,6 +413,12 @@ export const InventorySummarySkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const InventoryAdjustmentSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-stock-management/adjustment/skeletons/InventoryAdjustmentSkeleton").then((m) => ({
+    default: m.InventoryAdjustmentSkeleton,
+  })),
+);
+
 export const EcommerceChatPageSkeleton = createDeferredSkeleton(() =>
   import("@/6-0-ecommerce-chat/skeletons/EcommerceChatPageSkeleton").then((m) => ({
     default: m.EcommerceChatPageSkeleton,
