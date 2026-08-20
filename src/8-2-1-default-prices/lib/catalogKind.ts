@@ -38,11 +38,7 @@ export function isTrackedProduct(args: {
   trackStock?: boolean | null;
   inventorySkuId?: string | null;
 }): boolean {
-  return (
-    args.kind === 'product' &&
-    args.trackStock === true &&
-    Boolean(args.inventorySkuId && String(args.inventorySkuId).trim())
-  );
+  return args.kind === 'product' && args.trackStock === true;
 }
 
 export function isCatalogProductHidden(status: string | null | undefined): boolean {
@@ -58,11 +54,7 @@ export function isCatalogProductSoldOut(args: {
 }): boolean {
   if (args.kind !== 'product') return false;
   if (normalizeCatalogPosStatus(args.posStatus) === 'sold_out') return true;
-  return (
-    args.trackStock === true &&
-    Boolean(args.inventorySkuId && String(args.inventorySkuId).trim()) &&
-    Number(args.availableQty) <= 0
-  );
+  return args.trackStock === true && Number(args.availableQty) <= 0;
 }
 
 export function assertProductCatalogPayload(args: {
@@ -73,6 +65,5 @@ export function assertProductCatalogPayload(args: {
 }): string | null {
   if (!args.name.trim()) return 'product_name_required';
   if (!String(args.photoPath ?? '').trim()) return 'product_photo_required';
-  if (args.trackStock && !String(args.inventorySkuId ?? '').trim()) return 'product_sku_required';
   return null;
 }

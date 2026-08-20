@@ -129,7 +129,7 @@ export default function DefaultPricesPage() {
     return productRows.filter((row) => {
       if (selectedOutletId && !(row.outlet_ids ?? []).includes(selectedOutletId)) return false;
       if (q) {
-        const hay = `${row.name ?? ""} ${row.sku_code ?? ""}`.toLowerCase();
+        const hay = `${row.name ?? ""} ${row.sku_code ?? ""} ${row.catalog_sku ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       if (categoryFilter === "__none__") {
@@ -222,6 +222,12 @@ export default function DefaultPricesPage() {
             unit: payload.unit ?? "pcs",
             track_stock: payload.track_stock ?? false,
             inventory_sku_id: payload.inventory_sku_id ?? null,
+            catalog_sku: payload.catalog_sku ?? null,
+            use_sales_type_prices: payload.use_sales_type_prices ?? false,
+            variants: payload.variants,
+            sales_type_prices: payload.sales_type_prices,
+            selected_outlet_stock: payload.selected_outlet_stock,
+            variant_outlet_stocks: payload.variant_outlet_stocks,
             product_category_id: payload.product_category_id ?? null,
             product_brand_id: payload.product_brand_id ?? null,
             unit_price: payload.unit_price,

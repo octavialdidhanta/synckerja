@@ -9,10 +9,9 @@ import {
 } from './catalogKind';
 
 describe('isTrackedProduct', () => {
-  it('is true only for product + track_stock + sku', () => {
-    expect(isTrackedProduct({ kind: 'product', trackStock: true, inventorySkuId: 'sku-1' })).toBe(true);
+  it('is true for product + track_stock', () => {
+    expect(isTrackedProduct({ kind: 'product', trackStock: true, inventorySkuId: null })).toBe(true);
     expect(isTrackedProduct({ kind: 'product', trackStock: false, inventorySkuId: 'sku-1' })).toBe(false);
-    expect(isTrackedProduct({ kind: 'product', trackStock: true, inventorySkuId: null })).toBe(false);
     expect(isTrackedProduct({ kind: 'service', trackStock: true, inventorySkuId: 'sku-1' })).toBe(false);
   });
 });
@@ -24,7 +23,7 @@ describe('LEAD_CONVERSION_CATALOG_KIND', () => {
 });
 
 describe('assertProductCatalogPayload', () => {
-  it('requires name, photo, and sku when tracked', () => {
+  it('requires name and photo', () => {
     expect(assertProductCatalogPayload({ name: '', photoPath: 'p.jpg', trackStock: false, inventorySkuId: null })).toBe(
       'product_name_required',
     );
@@ -33,7 +32,7 @@ describe('assertProductCatalogPayload', () => {
     );
     expect(
       assertProductCatalogPayload({ name: 'Botol', photoPath: 'p.jpg', trackStock: true, inventorySkuId: null }),
-    ).toBe('product_sku_required');
+    ).toBeNull();
     expect(
       assertProductCatalogPayload({
         name: 'Menu',
@@ -59,7 +58,7 @@ describe('POS catalog visibility', () => {
         kind: 'product',
         posStatus: 'available',
         trackStock: true,
-        inventorySkuId: 'sku-1',
+        inventorySkuId: null,
         availableQty: 0,
       }),
     ).toBe(true);

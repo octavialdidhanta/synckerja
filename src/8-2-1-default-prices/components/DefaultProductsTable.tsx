@@ -29,6 +29,7 @@ import {
 } from "@/shared/components/ui/alert-dialog";
 import type { DefaultPriceRow } from "../types/defaultPrices";
 import { effectivePosStatus, effectiveUnitPrice } from "../product-outlets/lib/effectiveProductOutlet";
+import { displaySku, outletQtyForTable } from "../product-variants";
 
 function formatRupiah(n: number): string {
   return new Intl.NumberFormat("id-ID", { style: "decimal", minimumFractionDigits: 0 }).format(n);
@@ -102,6 +103,18 @@ export function DefaultProductsTable({
           {rows.map((row) => {
             const price = effectiveUnitPrice(row, selectedOutletId ?? null);
             const status = effectivePosStatus(row, selectedOutletId ?? null);
+            const qty = outletQtyForTable({
+              trackStock: Boolean(row.track_stock),
+              outletId: selectedOutletId ?? null,
+              variants: row.variants ?? [],
+              productStock: selectedOutletId ? row.outlet_stocks?.[selectedOutletId] : undefined,
+              variantStocks: row.variant_outlet_stocks,
+            });
+            const skuLabel = displaySku({
+              catalogSku: row.catalog_sku,
+              variants: row.variants ?? [],
+              inventorySkuCode: row.sku_code,
+            });
             return (
             <TableRow key={row.id}>
               <TableCell>
@@ -128,9 +141,9 @@ export function DefaultProductsTable({
                   ? t("defaultPrices.product.tracked", "Tracked")
                   : t("defaultPrices.product.untracked", "Menu (no stock)")}
               </TableCell>
-              <TableCell className="text-xs">{row.sku_code || "—"}</TableCell>
+              <TableCell className="text-xs">{skuLabel}</TableCell>
               <TableCell className="text-right tabular-nums">
-                {row.track_stock ? (row.available_qty ?? 0) : "—"}
+                {row.track_stock ? (qty ?? 0) : "—"}
               </TableCell>
               <TableCell>
                 <DropdownMenu>

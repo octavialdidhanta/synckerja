@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { signCatalogProductPhotos } from "@/8-2-1-default-prices/lib/catalogProductPhoto";
+import { syncCatalogStockToTarget } from "@/stock-management/catalog-ledger/applyCatalogStockMovement";
 import type {
   CatalogIngredient,
   CatalogIngredientCategoryAssignment,
@@ -82,6 +83,7 @@ export function useCatalogIngredients() {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: [CATALOG_INGREDIENTS_QUERY_KEY, organizationId] });
+    queryClient.invalidateQueries({ queryKey: ["inventory-summary"] });
   };
 
   const save = useMutation({
@@ -111,8 +113,9 @@ export function useCatalogIngredients() {
           : null;
 
       let ingredientId = payload.id ?? "";
+      const existing = payload.id ? (query.data ?? []).find((row) => row.id === payload.id) : undefined;
+      const previousStock = existing?.outlet_stocks.find((row) => row.outlet_id === payload.outlet_id);
       if (payload.id) {
-        const existing = (query.data ?? []).find((row) => row.id === payload.id);
         if (existing?.track_inventory) track_inventory = true;
         const { error } = await supabase
           .from("catalog_ingredients")
@@ -151,7 +154,7 @@ export function useCatalogIngredients() {
 
       const outletFields = {
         organization_id: organizationId,
-        in_stock: track_inventory ? in_stock : 0,
+        in_stock: previousStock?.in_stock ?? 0,
         alert_enabled: track_inventory && Boolean(payload.alert_enabled),
         alert_at: track_inventory ? alert_at : null,
         track_cogs,
@@ -167,6 +170,17 @@ export function useCatalogIngredients() {
         { onConflict: "ingredient_id,outlet_id" },
       );
       if (upsertError) throw upsertError;
+      if (track_inventory) {
+        await syncCatalogStockToTarget({
+          organizationId,
+          outletId: payload.outlet_id,
+          itemKind: "ingredient",
+          ingredientId,
+          previousQty: previousStock?.in_stock ?? 0,
+          targetQty: in_stock,
+          previouslyTracked: Boolean(existing?.track_inventory),
+        });
+      }
       return ingredientId;
     },
     onSuccess: invalidate,

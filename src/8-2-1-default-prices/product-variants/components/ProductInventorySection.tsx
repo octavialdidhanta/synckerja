@@ -1,0 +1,83 @@
+import { Info, Lock } from "lucide-react";
+import { Button } from "@/shared/components/ui/button";
+import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import type { InventoryRowDraft, VariantDraft } from "../types";
+import { ManageProductInventoryDialog } from "./ManageProductInventoryDialog";
+import { useState } from "react";
+
+export type ProductInventorySectionProps = {
+  productName: string;
+  unit: string;
+  variants: VariantDraft[];
+  rows: InventoryRowDraft[];
+  onRowsChange: (rows: InventoryRowDraft[]) => void;
+  lockTracking: boolean;
+};
+
+export function ProductInventorySection({
+  productName,
+  unit,
+  variants,
+  rows,
+  onRowsChange,
+  lockTracking,
+}: ProductInventorySectionProps) {
+  const { t } = useAppTranslation();
+  const [open, setOpen] = useState(false);
+  const tracking = lockTracking || rows.some((row) => row.trackStock);
+  const summaryQty = rows.reduce((sum, row) => sum + (Number(row.inStock) || 0), 0);
+
+  return (
+    <section className="space-y-3">
+      <p className="border-b pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {t("defaultPrices.product.inventory.section", "Inventory")}
+      </p>
+      {tracking ? (
+        <div className="flex items-center justify-between text-sm">
+          <span className="truncate">{productName || "—"}</span>
+          <div className="text-right">
+            <p className="text-[10px] font-medium uppercase text-muted-foreground">
+              {t("defaultPrices.product.inventory.inStock", "In Stock")}
+            </p>
+            <p>{summaryQty}</p>
+          </div>
+        </div>
+      ) : null}
+      <Button
+        type="button"
+        className="w-full"
+        onClick={() => {
+          if (!tracking) {
+            onRowsChange(rows.map((row) => ({ ...row, trackStock: true })));
+          }
+          setOpen(true);
+        }}
+      >
+        {tracking
+          ? t("defaultPrices.product.inventory.manage", "Manage Item Inventory and Alerts")
+          : t("defaultPrices.product.inventory.start", "Start Tracking Item Inventory and Alerts")}
+      </Button>
+      <p className="flex gap-2 text-xs text-muted-foreground">
+        {tracking ? (
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+        ) : (
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+        )}
+        {t(
+          "defaultPrices.product.inventory.immutable",
+          "Item stock can not be changed after saving the item, so please make sure that it is correct!",
+        )}
+      </p>
+      <ManageProductInventoryDialog
+        open={open}
+        onOpenChange={setOpen}
+        productName={productName}
+        unit={unit}
+        variants={variants}
+        rows={rows}
+        lockTracking={lockTracking}
+        onConfirm={onRowsChange}
+      />
+    </section>
+  );
+}

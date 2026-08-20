@@ -1,4 +1,5 @@
 export { default as DefaultPricesPage } from "./pages/DefaultPricesPage";
+export { ProductPricingSection, ProductInventorySection, ProductCogsSection } from "./product-variants";
 export { createTaskFromSop } from "./services/createTaskFromSop";
 export type { TaskFormDataForSop, CreateTaskFromSopParams } from "./services/createTaskFromSop";
 export {

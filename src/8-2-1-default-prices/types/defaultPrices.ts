@@ -1,5 +1,11 @@
 import type { CatalogPosStatus } from '../lib/catalogKind';
 import type { ProductOutletOverride } from '../product-outlets/types';
+import type {
+  CatalogProductSalesTypePrice,
+  CatalogProductVariant,
+  CatalogProductVariantOutletStock,
+  ProductOutletStock,
+} from '../product-variants/types';
 
 export type CatalogKind = 'service' | 'product';
 
@@ -18,6 +24,12 @@ export interface DefaultPriceRow {
   track_stock?: boolean;
   inventory_sku_id?: string | null;
   sku_code?: string | null;
+  catalog_sku?: string | null;
+  use_sales_type_prices?: boolean;
+  variants?: CatalogProductVariant[];
+  sales_type_prices?: CatalogProductSalesTypePrice[];
+  outlet_stocks?: Record<string, ProductOutletStock>;
+  variant_outlet_stocks?: CatalogProductVariantOutletStock[];
   available_qty?: number | null;
   product_category_id?: string | null;
   product_category_name?: string | null;
@@ -45,6 +57,12 @@ export interface DefaultPriceCreate {
   unit?: string | null;
   track_stock?: boolean;
   inventory_sku_id?: string | null;
+  catalog_sku?: string | null;
+  use_sales_type_prices?: boolean;
+  variants?: CatalogProductVariant[];
+  sales_type_prices?: CatalogProductSalesTypePrice[];
+  selected_outlet_stock?: ProductOutletStock | null;
+  variant_outlet_stocks?: CatalogProductVariantOutletStock[];
   product_category_id?: string | null;
   product_brand_id?: string | null;
   pos_status?: CatalogPosStatus;
@@ -63,6 +81,12 @@ export interface DefaultPriceUpdate {
   unit?: string | null;
   track_stock?: boolean;
   inventory_sku_id?: string | null;
+  catalog_sku?: string | null;
+  use_sales_type_prices?: boolean;
+  variants?: CatalogProductVariant[];
+  sales_type_prices?: CatalogProductSalesTypePrice[];
+  selected_outlet_stock?: ProductOutletStock | null;
+  variant_outlet_stocks?: CatalogProductVariantOutletStock[];
   product_category_id?: string | null;
   product_brand_id?: string | null;
   pos_status?: CatalogPosStatus;

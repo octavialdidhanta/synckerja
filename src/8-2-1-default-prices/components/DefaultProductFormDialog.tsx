@@ -18,8 +18,6 @@ import {
 } from "@/shared/components/ui/select";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { useInventorySkusQuery } from "@/stock-management/hooks/useInventorySkusQuery";
-import { createInventorySku } from "@/stock-management/lib/inventoryApi";
 import {
   CATALOG_POS_STATUSES,
   CATALOG_PRODUCT_UNIT_CUSTOM,
@@ -33,6 +31,7 @@ import {
 import { uploadCatalogProductPhoto } from "../lib/catalogProductPhoto";
 import { ProductCategoriesDialog, useCatalogProductCategories } from "../categories";
 import { useCatalogBrands } from "../brands";
+import { useCatalogModifierGroups } from "../modifiers";
 import type { DefaultPriceCreate, DefaultPriceRow } from "../types/defaultPrices";
 import { formatIdIntegerGrouping, parseGroupedIdInteger, stripToDigits } from "../utils/formatIdUnitPrice";
 import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
@@ -44,6 +43,17 @@ import {
   hasPriceOverride,
   hasStatusOverride,
 } from "../product-outlets/lib/effectiveProductOutlet";
+import {
+  ProductCogsSection,
+  ProductInventorySection,
+  ProductPricingSection,
+  draftToOutletStock,
+  masterUnitPriceFromVariants,
+  persistableSalesTypePrices,
+  persistableVariants,
+  stockToInventoryDraft,
+} from "../product-variants";
+import type { CogsRowDraft, InventoryRowDraft, VariantDraft } from "../product-variants/types";
 
 const NONE_CATEGORY = "__none__";
 const NONE_BRAND = "__none__";
@@ -70,10 +80,9 @@ export function DefaultProductFormDialog({
   const { t } = useAppTranslation();
   const { organizationId } = useCurrentOrg();
   const { rows: outlets } = usePosOutlets();
-  const skusQuery = useInventorySkusQuery(organizationId);
-  const skuRows = skusQuery.data?.rows ?? [];
   const categories = useCatalogProductCategories();
   const brands = useCatalogBrands();
+  const modifiers = useCatalogModifierGroups();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [name, setName] = useState("");
@@ -82,7 +91,15 @@ export function DefaultProductFormDialog({
   const [unitPreset, setUnitPreset] = useState<string>("pcs");
   const [customUnit, setCustomUnit] = useState("");
   const [trackStock, setTrackStock] = useState(false);
-  const [skuId, setSkuId] = useState("");
+  const [catalogSku, setCatalogSku] = useState("");
+  const [useSalesTypePrices, setUseSalesTypePrices] = useState(false);
+  const [variants, setVariants] = useState<VariantDraft[]>([]);
+  const [productSalesTypeDisplays, setProductSalesTypeDisplays] = useState<Record<string, string>>({});
+  const [variantSalesTypeDisplays, setVariantSalesTypeDisplays] = useState<Record<string, Record<string, string>>>({});
+  const [inventoryRows, setInventoryRows] = useState<InventoryRowDraft[]>([
+    { variantId: null, trackStock: false, inStock: "", alertEnabled: false, alertAt: "" },
+  ]);
+  const [cogsRows, setCogsRows] = useState<CogsRowDraft[]>([{ variantId: null, trackCogs: false, avgCost: "" }]);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [existingPhotoPath, setExistingPhotoPath] = useState<string | null>(null);
@@ -96,9 +113,6 @@ export function DefaultProductFormDialog({
   const [masterPrice, setMasterPrice] = useState(0);
   const [masterStatus, setMasterStatus] = useState<CatalogPosStatus>("available");
   const [categoriesOpen, setCategoriesOpen] = useState(false);
-  const [newSkuCode, setNewSkuCode] = useState("");
-  const [newSkuQty, setNewSkuQty] = useState("0");
-  const [creatingSku, setCreatingSku] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -135,7 +149,61 @@ export function DefaultProductFormDialog({
         setCustomUnit(unit);
       }
       setTrackStock(Boolean(sourceRow.track_stock));
-      setSkuId(sourceRow.inventory_sku_id ?? "");
+      setCatalogSku(sourceRow.catalog_sku ?? "");
+      setUseSalesTypePrices(Boolean(sourceRow.use_sales_type_prices));
+      const loadedVariants: VariantDraft[] = (sourceRow.variants ?? []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        sku: row.sku ?? "",
+        priceDisplay: row.price ? formatIdIntegerGrouping(String(Math.round(row.price))) : "",
+      }));
+      setVariants(loadedVariants);
+      const productDisplays: Record<string, string> = {};
+      const variantDisplays: Record<string, Record<string, string>> = {};
+      for (const row of sourceRow.sales_type_prices ?? []) {
+        const display = row.price ? formatIdIntegerGrouping(String(Math.round(row.price))) : "";
+        if (!row.variant_id) productDisplays[row.sales_type_id] = display;
+        else {
+          variantDisplays[row.variant_id] = {
+            ...(variantDisplays[row.variant_id] ?? {}),
+            [row.sales_type_id]: display,
+          };
+        }
+      }
+      setProductSalesTypeDisplays(productDisplays);
+      setVariantSalesTypeDisplays(variantDisplays);
+      const outletStock = selectedOutletId ? sourceRow.outlet_stocks?.[selectedOutletId] : undefined;
+      if (loadedVariants.length > 0) {
+        setInventoryRows(
+          loadedVariants.map((variant) => {
+            const stock = (sourceRow.variant_outlet_stocks ?? []).find(
+              (row) => row.variant_id === variant.id && row.outlet_id === selectedOutletId,
+            );
+            return stockToInventoryDraft(variant.id, stock, Boolean(sourceRow.track_stock));
+          }),
+        );
+        setCogsRows(
+          loadedVariants.map((variant) => {
+            const stock = (sourceRow.variant_outlet_stocks ?? []).find(
+              (row) => row.variant_id === variant.id && row.outlet_id === selectedOutletId,
+            );
+            return {
+              variantId: variant.id,
+              trackCogs: Boolean(stock?.track_cogs),
+              avgCost: stock?.avg_cost ? String(Math.round(stock.avg_cost)) : "",
+            };
+          }),
+        );
+      } else {
+        setInventoryRows([stockToInventoryDraft(null, outletStock, Boolean(sourceRow.track_stock))]);
+        setCogsRows([
+          {
+            variantId: null,
+            trackCogs: Boolean(outletStock?.track_cogs),
+            avgCost: outletStock?.avg_cost ? String(Math.round(outletStock.avg_cost)) : "",
+          },
+        ]);
+      }
       setExistingPhotoPath(sourceRow.photo_path ?? null);
       setExistingPhotoUrl(sourceRow.photo_url ?? null);
       setCategoryId(sourceRow.product_category_id ?? NONE_CATEGORY);
@@ -151,7 +219,13 @@ export function DefaultProductFormDialog({
       setUnitPreset("pcs");
       setCustomUnit("");
       setTrackStock(false);
-      setSkuId("");
+      setCatalogSku("");
+      setUseSalesTypePrices(false);
+      setVariants([]);
+      setProductSalesTypeDisplays({});
+      setVariantSalesTypeDisplays({});
+      setInventoryRows([{ variantId: null, trackStock: false, inStock: "", alertEnabled: false, alertAt: "" }]);
+      setCogsRows([{ variantId: null, trackCogs: false, avgCost: "" }]);
       setExistingPhotoPath(null);
       setExistingPhotoUrl(null);
       setCategoryId(NONE_CATEGORY);
@@ -165,8 +239,6 @@ export function DefaultProductFormDialog({
     }
     setFile(null);
     setPreviewUrl(null);
-    setNewSkuCode("");
-    setNewSkuQty("0");
     setError("");
   }, [open, sourceRow, selectedOutletId]);
 
@@ -191,38 +263,78 @@ export function DefaultProductFormDialog({
 
   const resolvedUnit =
     unitPreset === CATALOG_PRODUCT_UNIT_CUSTOM ? normalizeProductUnit(customUnit) : unitPreset;
+  const lockTracking = Boolean(editingRow?.track_stock);
+  const lockCogs = Boolean(
+    selectedOutletId &&
+      (editingRow?.outlet_stocks?.[selectedOutletId]?.track_cogs ||
+        editingRow?.variant_outlet_stocks?.some(
+          (row) => row.outlet_id === selectedOutletId && row.track_cogs,
+        )),
+  );
+  const linkedModifiers = useMemo(
+    () =>
+      editingRow
+        ? modifiers.rows.filter((row) => row.product_ids.includes(editingRow.id))
+        : [],
+    [editingRow, modifiers.rows],
+  );
 
-  const handleCreateSku = async () => {
-    if (!organizationId || !newSkuCode.trim()) {
-      setError(t("defaultPrices.product.skuCodeRequired", "Enter an internal SKU code."));
+  const syncVariantDependentRows = (nextVariants: VariantDraft[]) => {
+    setVariants(nextVariants);
+    if (nextVariants.length > 0 && variants.length === 0 && Object.keys(productSalesTypeDisplays).length > 0) {
+      const seeded: Record<string, Record<string, string>> = {};
+      for (const variant of nextVariants) {
+        seeded[variant.id] = { ...productSalesTypeDisplays };
+      }
+      setVariantSalesTypeDisplays(seeded);
+    }
+    if (nextVariants.length === 0) {
+      setInventoryRows((prev) => [
+        prev.find((row) => row.variantId == null) ?? {
+          variantId: null,
+          trackStock,
+          inStock: "",
+          alertEnabled: false,
+          alertAt: "",
+        },
+      ]);
+      setCogsRows((prev) => [
+        prev.find((row) => row.variantId == null) ?? { variantId: null, trackCogs: false, avgCost: "" },
+      ]);
       return;
     }
-    setCreatingSku(true);
-    setError("");
-    try {
-      const created = await createInventorySku(organizationId, {
-        internal_sku: newSkuCode.trim(),
-        name: name.trim() || newSkuCode.trim(),
-        product_name: name.trim() || newSkuCode.trim(),
-        initial_qty: Math.max(0, Math.floor(Number(newSkuQty) || 0)),
-        unit: resolvedUnit,
-      });
-      setSkuId(created.sku_id);
-      setTrackStock(true);
-      setNewSkuCode("");
-      await skusQuery.refetch();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("defaultPrices.product.skuCreateFailed", "Could not create SKU."));
-    } finally {
-      setCreatingSku(false);
-    }
+    setInventoryRows((prev) =>
+      nextVariants.map((variant) => {
+        const existing = prev.find((row) => row.variantId === variant.id);
+        return (
+          existing ?? {
+            variantId: variant.id,
+            trackStock,
+            inStock: "",
+            alertEnabled: false,
+            alertAt: "",
+          }
+        );
+      }),
+    );
+    setCogsRows((prev) =>
+      nextVariants.map((variant) => {
+        const existing = prev.find((row) => row.variantId === variant.id);
+        return existing ?? { variantId: variant.id, trackCogs: false, avgCost: "" };
+      }),
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     if (!organizationId) return;
-    const price = parseGroupedIdInteger(unitPrice);
+    const persistedVariants = persistableVariants(variants);
+    const inventoryOn = lockTracking || inventoryRows.some((row) => row.trackStock);
+    const price =
+      persistedVariants.length > 0
+        ? masterUnitPriceFromVariants(persistedVariants, 0)
+        : parseGroupedIdInteger(unitPrice);
     if (Number.isNaN(price) || price < 0) {
       setError(t("defaultPrices.form.priceInvalid", "Unit price must be a non-negative number."));
       return;
@@ -244,8 +356,8 @@ export function DefaultProductFormDialog({
     const invalid = assertProductCatalogPayload({
       name,
       photoPath,
-      trackStock,
-      inventorySkuId: skuId,
+      trackStock: inventoryOn,
+      inventorySkuId: null,
     });
     if (invalid === "product_name_required") {
       setError(t("defaultPrices.product.nameRequired", "Enter a product name."));
@@ -255,14 +367,42 @@ export function DefaultProductFormDialog({
       setError(t("defaultPrices.product.photoRequired", "Add a product photo."));
       return;
     }
-    if (invalid === "product_sku_required") {
-      setError(t("defaultPrices.product.skuRequired", "Select or create a SKU to track stock."));
-      return;
-    }
     if (outletIds.length < 1) {
       setError(t("outlets.assign.minOne", "Please select minimum one outlet"));
       return;
     }
+    const salesTypePrices = persistableSalesTypePrices({
+      useSalesTypePrices,
+      variants: persistedVariants,
+      productDisplays: productSalesTypeDisplays,
+      variantDisplays: variantSalesTypeDisplays,
+    });
+    const selectedStock =
+      persistedVariants.length === 0
+        ? draftToOutletStock(inventoryRows[0], cogsRows[0], lockTracking)
+        : null;
+    const variantOutletStocks =
+      persistedVariants.length > 0 && selectedOutletId
+        ? persistedVariants.map((variant) => {
+            const inv = inventoryRows.find((row) => row.variantId === variant.id);
+            const cogs = cogsRows.find((row) => row.variantId === variant.id);
+            return {
+              variant_id: variant.id,
+              outlet_id: selectedOutletId,
+              ...draftToOutletStock(
+                inv ?? {
+                  variantId: variant.id,
+                  trackStock: inventoryOn,
+                  inStock: "",
+                  alertEnabled: false,
+                  alertAt: "",
+                },
+                cogs,
+                lockTracking,
+              ),
+            };
+          })
+        : [];
     setLoading(true);
     try {
       await onSubmit({
@@ -276,8 +416,14 @@ export function DefaultProductFormDialog({
         description: description.trim() || null,
         photo_path: photoPath,
         unit: resolvedUnit,
-        track_stock: trackStock,
-        inventory_sku_id: trackStock ? skuId : null,
+        track_stock: inventoryOn,
+        inventory_sku_id: editingRow?.inventory_sku_id ?? prefillRow?.inventory_sku_id ?? null,
+        catalog_sku: persistedVariants.length > 0 ? null : catalogSku.trim() || null,
+        use_sales_type_prices: useSalesTypePrices,
+        variants: persistedVariants,
+        sales_type_prices: salesTypePrices,
+        selected_outlet_stock: selectedStock,
+        variant_outlet_stocks: variantOutletStocks,
         product_category_id: categoryId === NONE_CATEGORY ? null : categoryId,
         product_brand_id: brandId === NONE_BRAND ? null : brandId,
         pos_status: posStatus,
@@ -302,7 +448,7 @@ export function DefaultProductFormDialog({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="right"
-          className="flex w-full flex-col gap-0 p-0 sm:max-w-md"
+          className="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
           aria-describedby={undefined}
         >
           <SheetHeader className="shrink-0 border-b px-6 py-4 pr-12 text-left">
@@ -477,49 +623,24 @@ export function DefaultProductFormDialog({
                 </p>
               ) : null}
             </div>
-            <div>
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="product_price">
-                  {isEdit
-                    ? t("defaultPrices.product.priceForOutlet", "Unit Price (Rp) for {{outlet}}", { outlet: outletLabel })
-                    : t("defaultPrices.form.unitPrice", "Unit Price (Rp)")}{" "}
-                  *
-                </Label>
-                {isEdit && !useDefaultPrice ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2"
-                    onClick={() => {
-                      setUseDefaultPrice(true);
-                      const raw = String(Math.round(masterPrice));
-                      setUnitPrice(raw ? formatIdIntegerGrouping(stripToDigits(raw)) : "");
-                    }}
-                  >
-                    {t("defaultPrices.product.useDefaultPrice", "Use default price")}
-                  </Button>
-                ) : null}
-              </div>
-              <Input
-                id="product_price"
-                className="mt-1"
-                inputMode="numeric"
-                value={unitPrice}
-                onChange={(e) => {
-                  const digits = stripToDigits(e.target.value);
-                  setUseDefaultPrice(false);
-                  setUnitPrice(digits ? formatIdIntegerGrouping(digits) : "");
-                }}
-              />
-              {isEdit && !useDefaultPrice ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("defaultPrices.product.outletPriceHint", "This price applies only to {{outlet}}.", {
-                    outlet: outletLabel,
-                  })}
-                </p>
-              ) : null}
-            </div>
+            <ProductPricingSection
+              selectedOutletId={selectedOutletId ?? ""}
+              useSalesTypePrices={useSalesTypePrices}
+              onUseSalesTypePrices={setUseSalesTypePrices}
+              catalogSku={catalogSku}
+              onCatalogSku={setCatalogSku}
+              unitPrice={unitPrice}
+              onUnitPrice={(next) => {
+                setUseDefaultPrice(false);
+                setUnitPrice(next);
+              }}
+              variants={variants}
+              onVariants={syncVariantDependentRows}
+              productSalesTypeDisplays={productSalesTypeDisplays}
+              onProductSalesTypeDisplays={setProductSalesTypeDisplays}
+              variantSalesTypeDisplays={variantSalesTypeDisplays}
+              onVariantSalesTypeDisplays={setVariantSalesTypeDisplays}
+            />
             <div>
               <Label htmlFor="product_description">{t("defaultPrices.form.description", "Description")}</Label>
               <Textarea
@@ -530,57 +651,45 @@ export function DefaultProductFormDialog({
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={trackStock}
-                onChange={(e) => setTrackStock(e.target.checked)}
-              />
-              {t("defaultPrices.product.trackStock", "Track stock in Stock Management")}
-            </label>
-            <p className="text-xs text-muted-foreground">
-              {t(
-                "defaultPrices.product.untrackedHint",
-                "Menu / prepared F&B: sold without reducing inventory. Link a SKU only for packaged retail items.",
-              )}
-            </p>
-            {trackStock ? (
-              <div className="space-y-2 rounded-md border p-3">
-                <Label>{t("defaultPrices.product.sku", "SKU")}</Label>
-                <Select value={skuId || undefined} onValueChange={setSkuId}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder={t("defaultPrices.product.skuPlaceholder", "Select SKU")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {skuRows.map((row) => (
-                      <SelectItem key={row.id} value={row.id}>
-                        {row.internal_sku} · {row.name} ({row.available_qty})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {t("defaultPrices.product.orCreateSku", "Or create a SKU (appears on Stock Management)")}
+            <ProductInventorySection
+              productName={name.trim()}
+              unit={resolvedUnit}
+              variants={variants}
+              rows={inventoryRows}
+              onRowsChange={(rows) => {
+                setInventoryRows(rows);
+                setTrackStock(lockTracking || rows.some((row) => row.trackStock));
+              }}
+              lockTracking={lockTracking}
+            />
+            <ProductCogsSection
+              productName={name.trim()}
+              unit={resolvedUnit}
+              variants={variants}
+              inventoryOn={lockTracking || inventoryRows.some((row) => row.trackStock)}
+              rows={cogsRows}
+              onRowsChange={setCogsRows}
+              lockCogs={lockCogs}
+            />
+            <section className="space-y-3">
+              <p className="border-b pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t("defaultPrices.product.modifier.section", "Modifier")}
+              </p>
+              {linkedModifiers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {t("defaultPrices.product.modifier.empty", "No modifiers assigned. Assign groups from the Modifiers library.")}
                 </p>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder={t("defaultPrices.product.skuCode", "SKU code")}
-                    value={newSkuCode}
-                    onChange={(e) => setNewSkuCode(e.target.value)}
-                  />
-                  <Input
-                    className="w-24"
-                    inputMode="numeric"
-                    placeholder="0"
-                    value={newSkuQty}
-                    onChange={(e) => setNewSkuQty(e.target.value)}
-                  />
-                  <Button type="button" variant="outline" disabled={creatingSku} onClick={() => void handleCreateSku()}>
-                    {t("defaultPrices.product.createSku", "Create")}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
+              ) : (
+                <ul className="space-y-2">
+                  {linkedModifiers.map((row) => (
+                    <li key={row.id} className="flex items-center gap-2 text-sm">
+                      <span className="h-4 w-4 rounded-full border" />
+                      {row.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
             </div>
             <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">
