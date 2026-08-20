@@ -36,6 +36,7 @@ function invalidateStoreCheckoutQueries(
   queryClient.invalidateQueries({ queryKey: ['customer-visit-catalog', organizationId] });
   queryClient.invalidateQueries({ queryKey: ['default-prices', organizationId] });
   queryClient.invalidateQueries({ queryKey: ['inventory-skus', organizationId] });
+  queryClient.invalidateQueries({ queryKey: ['inventory-summary'] });
   queryClient.invalidateQueries({ queryKey: ['sales-activities', organizationId] });
   queryClient.invalidateQueries({ queryKey: ['leads', organizationId] });
   queryClient.invalidateQueries({ queryKey: ['income-transactions', organizationId] });
@@ -50,7 +51,13 @@ async function assertStoreCheckoutStock(lines: CustomerVisitCartLine[]): Promise
   const tracked = trackedStoreCheckoutLines(lines);
   if (tracked.length === 0) return;
 
-  const skuIds = [...new Set(tracked.map((line) => String(line.inventorySkuId)))];
+  const catalogInsufficient = findInsufficientStoreCheckoutStock(tracked);
+  if (catalogInsufficient) throw new Error('store_checkout_insufficient_stock');
+
+  const skuTracked = tracked.filter((line) => Boolean(line.inventorySkuId));
+  if (skuTracked.length === 0) return;
+
+  const skuIds = [...new Set(skuTracked.map((line) => String(line.inventorySkuId)))];
   const { data, error } = await supabase
     .from('inventory_stock_levels')
     .select('sku_id, available_qty')
@@ -59,7 +66,7 @@ async function assertStoreCheckoutStock(lines: CustomerVisitCartLine[]): Promise
 
   const qtyMap = new Map((data ?? []).map((row) => [String(row.sku_id), Number(row.available_qty)]));
   const insufficient = findInsufficientStoreCheckoutStock(
-    tracked.map((line) => ({
+    skuTracked.map((line) => ({
       ...line,
       availableQty: qtyMap.get(String(line.inventorySkuId)) ?? 0,
     })),

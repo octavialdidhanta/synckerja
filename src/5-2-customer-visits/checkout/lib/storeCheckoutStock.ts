@@ -2,6 +2,7 @@ import { isTrackedProduct } from '@/8-2-1-default-prices/lib/catalogKind';
 
 export type StoreCheckoutStockLine = {
   kind?: string | null;
+  catalogId?: string | null;
   trackStock?: boolean | null;
   inventorySkuId?: string | null;
   quantity: number;
@@ -41,10 +42,26 @@ export function offlineSalePayloads(
   activityId: string,
   lines: StoreCheckoutStockLine[],
 ): StoreCheckoutOfflineSalePayload[] {
-  return trackedStoreCheckoutLines(lines).map((line) => ({
-    skuId: String(line.inventorySkuId),
-    qty: line.quantity,
-    referenceType: 'store_checkout' as const,
-    referenceId: activityId,
-  }));
+  return trackedStoreCheckoutLines(lines)
+    .filter((line) => Boolean(line.inventorySkuId))
+    .map((line) => ({
+      skuId: String(line.inventorySkuId),
+      qty: line.quantity,
+      referenceType: 'store_checkout' as const,
+      referenceId: activityId,
+    }));
+}
+
+export type CatalogCheckoutSaleLine = {
+  productId: string;
+  qty: number;
+};
+
+export function catalogCheckoutSaleLines(lines: StoreCheckoutStockLine[]): CatalogCheckoutSaleLine[] {
+  return trackedStoreCheckoutLines(lines)
+    .filter((line) => Boolean(line.catalogId) && line.kind === 'product')
+    .map((line) => ({
+      productId: String(line.catalogId),
+      qty: line.quantity,
+    }));
 }

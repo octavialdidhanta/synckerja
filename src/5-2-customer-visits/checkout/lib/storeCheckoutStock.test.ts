@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  catalogCheckoutSaleLines,
   findInsufficientStoreCheckoutStock,
   isDuplicateOfflineSale,
   offlineSalePayloads,
@@ -24,6 +25,17 @@ describe('trackedStoreCheckoutLines', () => {
         { kind: 'service', trackStock: false, inventorySkuId: null, quantity: 1 },
       ]),
     ).toEqual([tracked]);
+  });
+
+  it('keeps tracked products without an inventory SKU', () => {
+    const catalogOnly = {
+      kind: 'product' as const,
+      trackStock: true,
+      inventorySkuId: null,
+      quantity: 1,
+      catalogId: 'p9',
+    };
+    expect(trackedStoreCheckoutLines([catalogOnly])).toEqual([catalogOnly]);
   });
 });
 
@@ -50,6 +62,21 @@ describe('isDuplicateOfflineSale', () => {
   it('is idempotent per activity id', () => {
     expect(isDuplicateOfflineSale({ existingReferenceIds: ['act-1'], activityId: 'act-1' })).toBe(true);
     expect(isDuplicateOfflineSale({ existingReferenceIds: ['act-1'], activityId: 'act-2' })).toBe(false);
+  });
+});
+
+describe('catalogCheckoutSaleLines', () => {
+  it('maps tracked catalog products even without a SKU', () => {
+    expect(
+      catalogCheckoutSaleLines([
+        { ...tracked, catalogId: 'p1' },
+        { kind: 'product', trackStock: true, inventorySkuId: null, quantity: 3, catalogId: 'p2' },
+        { kind: 'product', trackStock: false, inventorySkuId: null, quantity: 3, catalogId: 'p3' },
+      ]),
+    ).toEqual([
+      { productId: 'p1', qty: 2 },
+      { productId: 'p2', qty: 3 },
+    ]);
   });
 });
 

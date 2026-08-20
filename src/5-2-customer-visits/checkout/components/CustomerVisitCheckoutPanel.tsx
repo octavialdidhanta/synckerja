@@ -123,6 +123,7 @@ export function CustomerVisitCheckoutPanel({
               {t('customerVisits.checkout.emptyCart', 'Tap a catalog item to add it.')}
             </p>
           ) : (
+            <>
             <ul className="space-y-2">
               {lines.map((line) => (
                 <li key={line.catalogId} className="rounded-md border border-gray-200 p-2">
@@ -179,6 +180,13 @@ export function CustomerVisitCheckoutPanel({
                 </li>
               ))}
             </ul>
+            <p className="mt-2 text-[11px] text-gray-500">
+              {t(
+                'customerVisits.checkout.variantStockHint',
+                'Tracked items with variants deduct the first variant until POS variant picking is available.',
+              )}
+            </p>
+            </>
           )}
         </div>
 

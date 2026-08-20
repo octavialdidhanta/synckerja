@@ -1,6 +1,7 @@
 import { recordOfflineSale } from '@/stock-management/lib/inventoryApi';
+import { applyCatalogCheckoutStock } from '@/stock-management/catalog-ledger/applyCatalogCheckoutStock';
 import type { CustomerVisitCartLine } from './customerVisitCheckout.types';
-import { offlineSalePayloads } from './storeCheckoutStock';
+import { catalogCheckoutSaleLines, offlineSalePayloads } from './storeCheckoutStock';
 
 export async function applyStoreCheckoutOfflineSales(args: {
   organizationId: string;
@@ -17,5 +18,14 @@ export async function applyStoreCheckoutOfflineSales(args: {
     } catch (err) {
       console.error('applyStoreCheckoutOfflineSales', payload.skuId, args.activityId, err);
     }
+  }
+  try {
+    await applyCatalogCheckoutStock({
+      organizationId: args.organizationId,
+      activityId: args.activityId,
+      lines: catalogCheckoutSaleLines(args.lines),
+    });
+  } catch (err) {
+    console.error('applyStoreCheckoutCatalogStock', args.activityId, err);
   }
 }

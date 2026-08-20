@@ -41,8 +41,9 @@ export function useCustomerVisitCatalog() {
       const subIds = [...new Set(prices.map((p) => p.sub_service_id).filter(Boolean))] as string[];
       const skuIds = [...new Set(prices.map((p) => p.inventory_sku_id).filter(Boolean))] as string[];
       const categoryIds = [...new Set(prices.map((p) => p.product_category_id).filter(Boolean))] as string[];
+      const productIds = prices.filter((p) => p.kind === 'product').map((p) => p.id);
 
-      const [servicesRes, subRes, levelRes, categoryRes, photoMap] = await Promise.all([
+      const [servicesRes, subRes, levelRes, categoryRes, photoMap, outletRes, variantRes] = await Promise.all([
         serviceIds.length
           ? supabase.from('services').select('id, name').in('id', serviceIds)
           : { data: [] as Array<{ id: string; name: string }> },
@@ -56,18 +57,71 @@ export function useCustomerVisitCatalog() {
           ? supabase.from('catalog_product_categories').select('id, name').in('id', categoryIds)
           : { data: [] as Array<{ id: string; name: string }> },
         signCatalogProductPhotos(prices.map((p) => p.photo_path ?? '')),
+        productIds.length
+          ? supabase
+              .from('catalog_product_outlets')
+              .select('product_id, outlet_id, in_stock')
+              .in('product_id', productIds)
+          : { data: [] as Array<{ product_id: string; outlet_id: string; in_stock: number }> },
+        productIds.length
+          ? supabase
+              .from('catalog_product_variants')
+              .select('id, product_id, sort_order')
+              .in('product_id', productIds)
+              .order('sort_order', { ascending: true })
+          : { data: [] as Array<{ id: string; product_id: string; sort_order: number }> },
       ]);
+
+      const variantIds = (variantRes.data ?? []).map((row) => row.id);
+      const variantStockQuery = variantIds.length
+        ? await supabase
+            .from('catalog_product_variant_outlets')
+            .select('variant_id, outlet_id, in_stock')
+            .in('variant_id', variantIds)
+        : { data: [] as Array<{ variant_id: string; outlet_id: string; in_stock: number }> };
+
+      const { data: defaultOutlet } = await supabase
+        .from('pos_outlets')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .order('is_default', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const outletId = defaultOutlet?.id ?? null;
 
       const serviceMap = new Map((servicesRes.data ?? []).map((s) => [s.id, s.name]));
       const subMap = new Map((subRes.data ?? []).map((s) => [s.id, s.name]));
       const qtyMap = new Map((levelRes.data ?? []).map((s) => [s.sku_id, Number(s.available_qty)]));
       const categoryMap = new Map((categoryRes.data ?? []).map((s) => [s.id, s.name]));
+      const firstVariantByProduct = new Map<string, string>();
+      for (const row of variantRes.data ?? []) {
+        if (!firstVariantByProduct.has(row.product_id)) firstVariantByProduct.set(row.product_id, row.id);
+      }
+      const variantQty = new Map(
+        (variantStockQuery.data ?? [])
+          .filter((row) => !outletId || row.outlet_id === outletId)
+          .map((row) => [row.variant_id, Number(row.in_stock)]),
+      );
+      const productQty = new Map(
+        (outletRes.data ?? [])
+          .filter((row) => !outletId || row.outlet_id === outletId)
+          .map((row) => [row.product_id, Number(row.in_stock)]),
+      );
 
       return prices.map((row) => {
         const kind: CustomerVisitCatalogKind = row.kind === 'product' ? 'product' : 'service';
         const isProduct = kind === 'product';
         const skuId = row.inventory_sku_id ?? null;
         const categoryId = row.product_category_id ?? null;
+        const firstVariantId = firstVariantByProduct.get(row.id);
+        const catalogQty = firstVariantId
+          ? (variantQty.get(firstVariantId) ?? 0)
+          : (productQty.get(row.id) ?? 0);
+        const availableQty = Boolean(row.track_stock)
+          ? catalogQty
+          : skuId
+            ? (qtyMap.get(skuId) ?? 0)
+            : null;
         return {
           id: String(row.id),
           kind,
@@ -86,7 +140,7 @@ export function useCustomerVisitCatalog() {
           unit: row.unit ?? (isProduct ? 'pcs' : null),
           trackStock: Boolean(row.track_stock),
           inventorySkuId: skuId,
-          availableQty: skuId ? (qtyMap.get(skuId) ?? 0) : null,
+          availableQty,
           productCategoryId: isProduct ? categoryId : null,
           productCategoryName: isProduct && categoryId ? (categoryMap.get(categoryId) ?? null) : null,
           posStatus: isProduct ? normalizeCatalogPosStatus(row.pos_status) : 'available',
