@@ -22,9 +22,8 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useSalesActivityMasterData, type SalesActivity } from '@/shared/hooks/organized/sales';
 import { useToast } from '@/shared/components/ui/use-toast';
 import { devLog } from '@/shared/lib/logger';
-import { useIncomeTransactions } from '@/shared/hooks/organized/sales';
-import { useSalesActivityPayments } from '@/shared/hooks/organized/sales';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { addDaysToYmd, formatInvoiceNumberFromActivityId } from '@/8-2-10-reports/invoices/shared/lib/formatInvoiceNumber';
 import {
   CREATABLE_SALES_ACTIVITY_TYPES,
   formatActivityTypeLabel,
@@ -57,11 +56,6 @@ const formSchema = z.object({
   status: z.string().min(1, 'Status is required'),
   date: z.string().min(1, 'Date is required'),
   follow_up_date: z.string().optional(),
-  down_payment_amount: z.number().min(0).optional(),
-  remaining_amount: z.number().min(0).optional(),
-  is_down_payment: z.boolean().optional(),
-  payment_method: z.string().optional(),
-  is_paid: z.boolean().optional(),
   detail: z.string().optional(),
 });
 
@@ -73,12 +67,21 @@ interface SalesActivityFormProps {
   activity?: SalesActivity | null;
   /** Tampilkan data tanpa mengizinkan penyimpanan (mode lihat detail). */
   readOnly?: boolean;
+  /** After create, open shared payment recording when user opted in. */
+  onRecordPaymentRequested?: (args: { activityId: string; clientName: string }) => void;
 }
 
-export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = false }: SalesActivityFormProps) => {
+export const SalesActivityForm = ({
+  onSuccess,
+  onCancel,
+  activity,
+  readOnly = false,
+  onRecordPaymentRequested,
+}: SalesActivityFormProps) => {
   const { t } = useAppTranslation();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
+  const [recordPaymentAfterSave, setRecordPaymentAfterSave] = useState(false);
   const [selectedIncomeType, setSelectedIncomeType] = useState<string>('');
   const [selectedService, setSelectedService] = useState<string>('');
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
@@ -87,8 +90,6 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
   const itemsManagerRef = React.useRef<SalesActivityItemsManagerHandle>(null);
   const { organizationId } = useCurrentOrg();
   const { toast } = useToast();
-  const { createIncomeTransaction } = useIncomeTransactions();
-  const { handleDownPayment, handleFinalPayment, getPaymentHistory } = useSalesActivityPayments();
   const {
     incomeTypes,
     incomeTypesLoading,
@@ -128,17 +129,10 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
       status: activity.status || 'Active',
       date: activity.date || format(new Date(), 'yyyy-MM-dd'),
       follow_up_date: activity.follow_up_date || '',
-      down_payment_amount: activity.down_payment_amount || 0,
-      remaining_amount: activity.remaining_amount || 0,
-      is_down_payment: activity.is_down_payment || false,
-      payment_method: activity.payment_method ? activity.payment_method.toLowerCase() : '',
-      is_paid: activity.is_paid || false,
       detail: mergeActivityDetailForForm(activity),
     } : {
       date: format(new Date(), 'yyyy-MM-dd'),
       status: 'Active',
-      is_down_payment: false,
-      is_paid: false,
       detail: '',
     },
   });
@@ -155,20 +149,11 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
     }
   }, [activity, activity?.id, queryClient]);
 
-  const downPaymentAmount = watch('down_payment_amount');
-  const isDownPayment = watch('is_down_payment');
   const activityType = watch('activity_type');
   const lockActivityType =
     Boolean(activityType) &&
     (isStoreCheckoutActivityType(activityType) || !isCreatableSalesActivityType(activityType));
 
-  // Auto-calculate remaining amount when total from items or down payment changes
-  React.useEffect(() => {
-    if (totalAmountFromItems !== undefined && downPaymentAmount !== undefined) {
-      const remaining = (totalAmountFromItems || 0) - (downPaymentAmount || 0);
-      setValue('remaining_amount', Math.max(0, remaining));
-    }
-  }, [totalAmountFromItems, downPaymentAmount, setValue]);
 
   // Handler for total amount changes from items
   const handleTotalAmountChange = (total: number) => {
@@ -235,19 +220,15 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
         date: data.date,
         follow_up_date: data.follow_up_date || null,
         total_amount: totalAmountFromItems || null,
-        down_payment_amount: data.down_payment_amount || null,
-        remaining_amount: data.remaining_amount || null,
-        is_down_payment: data.is_down_payment || false,
-        payment_method: data.payment_method || null,
-        is_paid: data.is_paid || false,
         description: detailTrim || null,
         notes: null,
         receipt_url: receiptUrl,
         updated_at: new Date().toISOString(),
       };
 
+      let createdActivityId: string | null = null;
+
       if (activity) {
-        // Update existing activity
         const { error } = await supabase
           .from('sales_activities')
           .update(submitData)
@@ -260,99 +241,14 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
 
         devLog.debug('✅ Sales activity updated successfully');
 
-        // Handle payment history for updates
-        const effectiveReceiptUrl = receiptUrl || submitData.receipt_url || undefined;
-        
-        // Check if down payment increased
-        const oldDownPayment = activity.down_payment_amount || 0;
-        const newDownPayment = data.down_payment_amount || 0;
-        const downPaymentIncrease = newDownPayment - oldDownPayment;
-        
-        devLog.debug('🔍 Payment update check:', {
-          oldDownPayment,
-          newDownPayment,
-          downPaymentIncrease,
-          hasPaymentMethod: !!data.payment_method,
-          paymentMethod: data.payment_method
-        });
-        
-        if (downPaymentIncrease > 0 && data.payment_method) {
-          devLog.debug('💰 Creating additional down payment history for increase:', downPaymentIncrease);
-          
-          try {
-            // Get current user for created_by
-            const { data: { user } } = await supabase.auth.getUser();
-            
-            // Get current payment count to determine sequence
-            const existingPayments = await getPaymentHistory(activity.id);
-            const nextSequence = (existingPayments?.length || 0) + 1;
-            
-            await handleDownPayment(activity.id, {
-              payment_amount: downPaymentIncrease,
-              payment_date: data.date,
-              payment_method: data.payment_method,
-              payment_sequence: nextSequence,
-              organization_id: organizationId!,
-              created_by: user?.id || '',
-              receipt_url: effectiveReceiptUrl || null,
-              notes: detailTrim || null,
-            });
-
-            devLog.debug('✅ Additional down payment history created successfully');
-          } catch (paymentError) {
-            devLog.error('❌ Error creating additional down payment history:', paymentError);
-            toast({
-              title: "Warning",
-              description: "Sales activity updated but failed to create payment history",
-              variant: "destructive",
-            });
-          }
-        }
-        
-        // Check if activity was marked as paid (final payment)
-        const wasPaid = activity.is_paid || false;
-        const nowPaid = data.is_paid || false;
-        const remainingAmount = data.remaining_amount || 0;
-        
-        if (!wasPaid && nowPaid && remainingAmount > 0 && data.payment_method) {
-          devLog.debug('💰 Creating final payment history for remaining amount:', remainingAmount);
-          
-          try {
-            // Get current user for created_by
-            const { data: { user } } = await supabase.auth.getUser();
-            
-            // Get current payment count to determine sequence
-            const existingPayments = await getPaymentHistory(activity.id);
-            const nextSequence = (existingPayments?.length || 0) + 1;
-            
-            await handleFinalPayment(activity.id, {
-              payment_amount: remainingAmount,
-              payment_date: data.date,
-              payment_method: data.payment_method,
-              payment_sequence: nextSequence,
-              organization_id: organizationId!,
-              created_by: user?.id || '',
-              receipt_url: effectiveReceiptUrl || null,
-              notes: detailTrim || null,
-            });
-
-            devLog.debug('✅ Final payment history created successfully');
-          } catch (paymentError) {
-            devLog.error('❌ Error creating final payment history:', paymentError);
-            toast({
-              title: "Warning",
-              description: "Sales activity updated but failed to create final payment history",
-              variant: "destructive",
-            });
-          }
-        }
-
         toast({
           title: "Success",
           description: "Sales activity updated successfully",
         });
       } else {
-        // Create new activity
+        const invoiceEligible =
+          (totalAmountFromItems || 0) > 0 &&
+          !isStoreCheckoutActivityType(data.activity_type);
         const insertData = {
           ...submitData,
           created_by: user.id,
@@ -363,7 +259,7 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
           .insert(insertData)
           .select()
           .single();
- 
+
         if (error) {
           devLog.error('❌ Error inserting sales activity:', error);
           throw error;
@@ -371,8 +267,19 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
 
         devLog.debug('✅ Sales activity created successfully');
         setCurrentActivityId(createdActivity.id);
+        createdActivityId = createdActivity.id;
 
-        // Ensure primary service fields are set on the activity from first draft item
+        if (invoiceEligible) {
+          await supabase
+            .from('sales_activities')
+            .update({
+              invoice_number: formatInvoiceNumberFromActivityId(createdActivity.id),
+              invoice_due_date: addDaysToYmd(data.date, 30),
+              invoice_issued_at: createdActivity.created_at ?? new Date().toISOString(),
+            })
+            .eq('id', createdActivity.id);
+        }
+
         try {
           const draftPayloads = itemsManagerRef.current?.getDraftPayloads?.() || [];
           if (draftPayloads.length > 0) {
@@ -390,91 +297,26 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
           devLog.error('❌ Failed to set primary service on activity:', e);
         }
 
-        // Handle payment history creation based on payment type
-        const effectiveReceiptUrl = receiptUrl || createdActivity?.receipt_url || undefined;
-        
-        devLog.debug('🔍 New activity payment check:', {
-          is_down_payment: data.is_down_payment,
-          down_payment_amount: data.down_payment_amount,
-          payment_method: data.payment_method,
-          is_paid: data.is_paid,
-          total_amount: totalAmountFromItems
-        });
-        
-        // If down payment is made
-        if (data.is_down_payment && data.down_payment_amount && data.down_payment_amount > 0 && data.payment_method) {
-          devLog.debug('💰 Creating down payment history and income transaction');
-          
-          try {
-            // Get current user for created_by
-            const { data: { user } } = await supabase.auth.getUser();
-            
-            await handleDownPayment(createdActivity.id, {
-              payment_amount: data.down_payment_amount,
-              payment_date: data.date,
-              payment_method: data.payment_method,
-              payment_sequence: 1,
-              organization_id: organizationId!,
-              created_by: user?.id || '',
-              receipt_url: effectiveReceiptUrl || null,
-              notes: detailTrim || null,
-            });
-
-            devLog.debug('✅ Down payment history and income transaction created successfully');
-
-            // If fully paid (remaining amount is 0), also create final payment entry
-            if (data.is_paid && data.remaining_amount === 0) {
-              // The final payment amount would be 0 in this case, so we skip it
-              devLog.debug('📝 Activity fully paid with down payment only');
-            }
-          } catch (paymentError) {
-            devLog.error('❌ Error creating down payment history:', paymentError);
-            toast({
-              title: "Warning",
-              description: "Sales activity created but failed to create payment history",
-              variant: "destructive",
-            });
-          }
-        }
-        // If activity is marked as fully paid but no down payment (direct full payment)
-        else if (data.is_paid && totalAmountFromItems && totalAmountFromItems > 0 && data.payment_method) {
-          devLog.debug('💰 Creating full payment history and income transaction');
-          
-          try {
-            // Get current user for created_by
-            const { data: { user } } = await supabase.auth.getUser();
-            
-            await handleFinalPayment(createdActivity.id, {
-              payment_amount: totalAmountFromItems,
-              payment_date: data.date,
-              payment_method: data.payment_method,
-              payment_sequence: 1,
-              organization_id: organizationId!,
-              created_by: user?.id || '',
-              receipt_url: effectiveReceiptUrl || null,
-              notes: detailTrim || null,
-            });
-
-            devLog.debug('✅ Full payment history and income transaction created successfully');
-          } catch (paymentError) {
-            devLog.error('❌ Error creating full payment history:', paymentError);
-            toast({
-              title: "Warning",
-              description: "Sales activity created but failed to create payment history",
-              variant: "destructive",
-            });
-          }
-        }
-
         toast({
           title: "Success",
           description: "Sales activity created successfully",
         });
 
-        // Reset form only for new activities
         reset();
       }
-      
+
+      if (
+        createdActivityId &&
+        recordPaymentAfterSave &&
+        onRecordPaymentRequested &&
+        (totalAmountFromItems || 0) > 0
+      ) {
+        onRecordPaymentRequested({
+          activityId: createdActivityId,
+          clientName: data.client_name,
+        });
+      }
+
       devLog.debug('🎯 Calling onSuccess callback');
       onSuccess();
     } catch (error) {
@@ -725,98 +567,33 @@ export const SalesActivityForm = ({ onSuccess, onCancel, activity, readOnly = fa
               />
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="is_down_payment"
-                checked={isDownPayment}
-                disabled={readOnly}
-                onCheckedChange={(checked) => setValue('is_down_payment', !!checked)}
-              />
-              <Label htmlFor="is_down_payment" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Down Payment
-              </Label>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="is_paid"
-                checked={watch('is_paid')}
-                disabled={readOnly}
-                onCheckedChange={(checked) => setValue('is_paid', !!checked)}
-              />
-              <Label htmlFor="is_paid" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Mark as Paid
-              </Label>
-            </div>
-
-            {isDownPayment && (
-              <>
-                <div>
-                  <Label htmlFor="down_payment_amount" className="text-sm">Down Payment Amount</Label>
-                  <Input
-                    id="down_payment_amount"
-                    type="number"
-                    step="0.01"
-                    {...register('down_payment_amount', { valueAsNumber: true, ...rd })}
-                    placeholder="0.00"
-                    className="mt-1"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="remaining_amount" className="text-sm">Remaining Amount</Label>
-                  <Input
-                    id="remaining_amount"
-                    type="number"
-                    step="0.01"
-                    {...register('remaining_amount', { valueAsNumber: true, ...rd })}
-                    placeholder="0.00"
-                    readOnly
-                    className="mt-1"
-                  />
-                </div>
-              </>
-            )}
-
-            {/* Show payment method and receipt fields when either down payment or full payment */}
-            {(isDownPayment || watch('is_paid')) && (
-              <>
-                <div>
-                  <Label htmlFor="payment_method" className="text-sm">Payment Method</Label>
-                  <Select disabled={readOnly} onValueChange={(value) => setValue('payment_method', value)}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select payment method" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background">
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                      <SelectItem value="credit_card">Credit Card</SelectItem>
-                      <SelectItem value="debit_card">Debit Card</SelectItem>
-                      <SelectItem value="digital_wallet">Digital Wallet</SelectItem>
-                      <SelectItem value="check">Check</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="receipt" className="text-sm">Receipt Upload</Label>
-                  <Input
-                    id="receipt"
-                    type="file"
-                    accept="image/*,.pdf"
-                    disabled={readOnly}
-                    onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
-                    className="text-sm mt-1"
-                  />
-                  {receiptFile && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Selected: {receiptFile.name}
-                    </p>
+            {!activity && !readOnly && (totalAmountFromItems || 0) > 0 ? (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="record_payment_after_save"
+                  checked={recordPaymentAfterSave}
+                  onCheckedChange={(checked) => setRecordPaymentAfterSave(!!checked)}
+                />
+                <Label
+                  htmlFor="record_payment_after_save"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  {t(
+                    "salesActivities.recordPaymentAfterSave",
+                    "Record payment after save",
                   )}
-                </div>
-              </>
-            )}
+                </Label>
+              </div>
+            ) : null}
+
+            {activity && !readOnly ? (
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  "salesActivities.recordPaymentHint",
+                  "Use Record Payment in the dialog header to add payments.",
+                )}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       </div>

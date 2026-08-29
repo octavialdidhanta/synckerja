@@ -241,8 +241,18 @@ export const mainNavItems: MainNavItem[] = [
     titleKey: "sidebar.salesOperations.title",
     panelTitleKey: "sidebar.salesOperations.panelTitle",
     icon: Briefcase,
-    activePathPrefixes: ["/operations/sales", "/operations/library", "/operations/ingredient", "/operations/settings", "/operations/inventory"],
+    activePathPrefixes: ["/operations/sales", "/operations/library", "/operations/ingredient", "/operations/settings", "/operations/customers-list", "/operations/customers-feedback", "/operations/employees-staff", "/operations/table-management", "/operations/dashboard", "/operations/reports", "/operations/inventory"],
     subItems: [
+      {
+        titleKey: "sidebar.salesOperations.dashboard",
+        path: "/operations/dashboard",
+        activePathPrefixes: ["/operations/dashboard"],
+      },
+      {
+        titleKey: "sidebar.salesOperations.reports",
+        path: "/operations/reports/sales/summary",
+        activePathPrefixes: ["/operations/reports"],
+      },
       {
         titleKey: "sidebar.tools.defaultPrices.title",
         path: "/operations/library/service-list",
@@ -252,6 +262,21 @@ export const mainNavItems: MainNavItem[] = [
         titleKey: "sidebar.salesOperations.ingredient",
         path: "/operations/ingredient/list",
         activePathPrefixes: ["/operations/ingredient"],
+      },
+      {
+        titleKey: "sidebar.salesOperations.customers",
+        path: "/operations/customers-list",
+        activePathPrefixes: ["/operations/customers-list", "/operations/customers-feedback"],
+      },
+      {
+        titleKey: "sidebar.salesOperations.employees",
+        path: "/operations/employees-staff/slots",
+        activePathPrefixes: ["/operations/employees-staff"],
+      },
+      {
+        titleKey: "sidebar.salesOperations.tableManagement",
+        path: "/operations/table-management/group",
+        activePathPrefixes: ["/operations/table-management"],
       },
       {
         titleKey: "sidebar.salesOperations.settings",

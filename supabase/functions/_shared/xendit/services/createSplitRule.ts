@@ -31,29 +31,63 @@ function extractSplitRuleId(body: unknown): string | null {
   return trimmed || null;
 }
 
+function splitRuleRoutesValid(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  const routes = (body as Record<string, unknown>).routes;
+  if (!Array.isArray(routes) || routes.length === 0) return false;
+  return routes.every((route) => {
+    if (!route || typeof route !== "object") return false;
+    const destination = String((route as Record<string, unknown>).destination_account_id ?? "").trim();
+    const referenceId = String((route as Record<string, unknown>).reference_id ?? "").trim();
+    return Boolean(destination) && /^[a-zA-Z0-9 ]+$/.test(referenceId);
+  });
+}
+
+export async function resolvePlatformBusinessId(
+  admin: SupabaseClient,
+  env: XenditEnvConfig,
+): Promise<string> {
+  const envId = Deno.env.get("XENDIT_PLATFORM_BUSINESS_ID")?.trim();
+  if (envId) return envId;
+
+  const { data } = await admin
+    .from("xendit_platform_config")
+    .select("master_account_id")
+    .eq("id", 1)
+    .maybeSingle();
+  const stored = data?.master_account_id != null ? String(data.master_account_id).trim() : "";
+  if (stored) return stored;
+
+  throw new Error(
+    "xendit_platform_business_id_missing: Set XENDIT_PLATFORM_BUSINESS_ID in Supabase secrets (Master Business ID from Xendit Dashboard).",
+  );
+}
+
 async function probeSplitRuleExists(
   env: XenditEnvConfig,
   splitRuleId: string,
-): Promise<boolean> {
+): Promise<{ ok: boolean; body: unknown }> {
   const probe = await xenditRequestProbe(env.secretKey, {
     method: "GET",
     path: `/split_rules/${encodeURIComponent(splitRuleId)}`,
   });
-  return probe.ok;
+  return { ok: probe.ok, body: probe.body };
 }
 
 async function createXenditSplitRule(
   env: XenditEnvConfig,
   flatFeeAmount: number,
+  destinationAccountId: string,
 ): Promise<string> {
   const body: Record<string, unknown> = {
     name: "synckerja_platform_flat_fee",
-    description: `Synckerja platform flat fee Rp ${flatFeeAmount} per VA transaction`,
+    description: `Synckerja platform flat fee Rp ${flatFeeAmount} per transaction`,
     routes: [
       {
         flat_amount: flatFeeAmount,
         currency: "IDR",
-        reference_id: "synckerja_platform_fee",
+        destination_account_id: destinationAccountId,
+        reference_id: "synckerjaPlatformFee",
       },
     ],
   };
@@ -61,7 +95,7 @@ async function createXenditSplitRule(
   const res = await xenditRequest<SplitRuleResponse>(env.secretKey, {
     method: "POST",
     path: "/split_rules",
-    idempotencyKey: `synckerja-split-flat-${flatFeeAmount}`,
+    idempotencyKey: `synckerja-split-flat-v2-${flatFeeAmount}`,
     body,
   });
 
@@ -96,15 +130,21 @@ export async function ensureSplitRule(
   }
 
   if (splitRuleId) {
-    const exists = await probeSplitRuleExists(env, splitRuleId);
-    if (!exists) {
-      console.warn(`xendit: stored split_rule_id ${splitRuleId} not found — recreating`);
+    const probe = await probeSplitRuleExists(env, splitRuleId);
+    if (!probe.ok || !splitRuleRoutesValid(probe.body)) {
+      console.warn(`xendit: stored split_rule_id ${splitRuleId} invalid or outdated — recreating`);
       splitRuleId = null;
     }
   }
 
   if (!splitRuleId) {
-    splitRuleId = await createXenditSplitRule(env, flatFeeAmount);
+    const destinationAccountId = await resolvePlatformBusinessId(admin, env);
+    splitRuleId = await createXenditSplitRule(env, flatFeeAmount, destinationAccountId);
+    await admin.from("xendit_platform_config").upsert({
+      id: 1,
+      master_account_id: destinationAccountId,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "id" });
   }
 
   await admin.from("xendit_platform_config").upsert({

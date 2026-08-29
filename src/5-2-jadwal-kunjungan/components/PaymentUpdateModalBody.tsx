@@ -391,44 +391,51 @@ export function PaymentUpdateModalBody({ layout, model }: PaymentUpdateModalBody
             ) : paymentHistory.length === 0 ? (
               <div className="p-6 text-center text-slate-500">No payments found</div>
             ) : (
-              <div className={cn(isDesktop ? 'overflow-auto max-h-[300px]' : 'min-h-0 overflow-x-auto overflow-y-auto', '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden')} role="region" aria-label="Payment history table">
-                <table className={cn('w-full', !isDesktop && 'min-w-[720px]')}>
-                  <thead className="bg-slate-50/80 border-b border-slate-100 sticky top-0">
+              <div
+                className={cn(
+                  'min-h-0 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                  isDesktop ? 'max-h-[300px]' : 'min-h-0',
+                )}
+                role="region"
+                aria-label="Payment history table"
+              >
+                <table className="w-full min-w-[720px]">
+                  <thead className="sticky top-0 border-b border-slate-100 bg-slate-50/80">
                     <tr>
-                      <th className="text-left p-3 text-xs font-medium text-slate-600 uppercase tracking-wider">Date</th>
-                      <th className="text-left p-3 text-xs font-medium text-slate-600 uppercase tracking-wider">Type</th>
-                      <th className="text-right p-3 text-xs font-medium text-slate-600 uppercase tracking-wider">Amount</th>
-                      <th className="text-right p-3 text-xs font-medium text-slate-600 uppercase tracking-wider">Remaining</th>
-                      <th className="text-left p-3 text-xs font-medium text-slate-600 uppercase tracking-wider">Method</th>
-                      <th className="text-left p-3 text-xs font-medium text-slate-600 uppercase tracking-wider">Notes</th>
-                      <th className="text-left p-3 text-xs font-medium text-slate-600 uppercase tracking-wider">Actions</th>
+                      <th className="whitespace-nowrap p-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Date</th>
+                      <th className="whitespace-nowrap p-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Type</th>
+                      <th className="whitespace-nowrap p-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600">Amount</th>
+                      <th className="whitespace-nowrap p-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600">Remaining</th>
+                      <th className="whitespace-nowrap p-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Method</th>
+                      <th className="p-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Notes</th>
+                      <th className="whitespace-nowrap p-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 bg-white">
                     {progressivePayments.map((payment, index) => (
                       <tr key={payment.id || `payment-${index}-${payment.payment_date}`} className="hover:bg-slate-50/50">
-                        <td className="p-3 text-xs text-slate-700">
+                        <td className="whitespace-nowrap p-3 text-xs text-slate-700">
                           {formatPaymentDate(payment.payment_date)}
                         </td>
-                        <td className="p-3">
+                        <td className="whitespace-nowrap p-3">
                           <div className="flex items-center gap-2">
                             {getPaymentTypeBadge(payment.payment_type || 'partial_payment')}
-                            <span className="text-xs text-slate-500">#{payment.payment_sequence || index + 1}</span>
+                            <span className="whitespace-nowrap text-xs text-slate-500">#{payment.payment_sequence || index + 1}</span>
                           </div>
                         </td>
-                        <td className="p-3 text-xs text-slate-700 text-right font-medium">
+                        <td className="whitespace-nowrap p-3 text-right text-xs font-medium text-slate-700">
                           {formatPaymentCurrency(payment.payment_amount || payment.paymentAmount || 0)}
                         </td>
-                        <td className="p-3 text-xs text-right">
+                        <td className="whitespace-nowrap p-3 text-right text-xs">
                           <div className={`font-medium ${getPaymentStatusColor(payment)}`}>
                             {formatPaymentCurrency(payment.remainingAfterPayment || 0)}
                           </div>
-                          <div className="text-xs text-slate-400">
+                          <div className="whitespace-nowrap text-xs text-slate-400">
                             {payment.progressPercentage?.toFixed(1)}% paid
                           </div>
                         </td>
-                        <td className="p-3 text-xs text-slate-600">
-                          {payment.payment_method?.replace('_', ' ') || '-'}
+                        <td className="whitespace-nowrap p-3 text-xs capitalize text-slate-600">
+                          {payment.payment_method?.replace(/_/g, ' ') || '-'}
                         </td>
                         <td className="p-3 text-xs text-slate-600 max-w-32">
                           {payment.notes ? (

@@ -66,6 +66,18 @@ describe("moduleCatalog", () => {
     expect(resolveSalesModuleForPath("/operations/ingredient/recipes")).toBe("operations");
     expect(resolveSalesModuleForPath("/operations/settings/outlets-list")).toBe("operations");
     expect(resolveSalesModuleForPath("/operations/settings/checkout")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/settings/email-notifications")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/settings/receipt")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/customers-list")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/customers-feedback")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/employees-staff")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/employees-staff/slots")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/employees-staff/access")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/employees-staff/pin-access")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/table-management")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/table-management/group")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/table-management/map")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/table-management/report")).toBe("operations");
     expect(resolveSalesModuleForPath("/finance/bank-mutations")).toBe("finance");
   });
 

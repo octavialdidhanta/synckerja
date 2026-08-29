@@ -17,6 +17,9 @@ const emptyValues = (): SupplierFormValues => ({
   city: "",
   state: "",
   zip: "",
+  bankCode: "",
+  bankAccountNumber: "",
+  bankAccountHolder: "",
 });
 
 export function CreateSupplierDialog(props: {
@@ -40,6 +43,9 @@ export function CreateSupplierDialog(props: {
         city: props.supplier.city ?? "",
         state: props.supplier.state ?? "",
         zip: props.supplier.zip ?? "",
+        bankCode: props.supplier.bankCode ?? "",
+        bankAccountNumber: props.supplier.bankAccountNumber ?? "",
+        bankAccountHolder: props.supplier.bankAccountHolder ?? "",
       });
     } else {
       setValues(emptyValues());
@@ -122,6 +128,30 @@ export function CreateSupplierDialog(props: {
             <div className="space-y-1">
               <Label>{t("operations.inventory.suppliers.fieldZip", "Zip")}</Label>
               <Input value={values.zip} onChange={(e) => setValues((v) => ({ ...v, zip: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label>{t("operations.inventory.suppliers.fieldBankCode", "Bank code")}</Label>
+              <Input
+                value={values.bankCode}
+                onChange={(e) => setValues((v) => ({ ...v, bankCode: e.target.value }))}
+                placeholder="BCA"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>{t("operations.inventory.suppliers.fieldBankAccountNumber", "Account number")}</Label>
+              <Input
+                value={values.bankAccountNumber}
+                onChange={(e) => setValues((v) => ({ ...v, bankAccountNumber: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>{t("operations.inventory.suppliers.fieldBankAccountHolder", "Account holder")}</Label>
+              <Input
+                value={values.bankAccountHolder}
+                onChange={(e) => setValues((v) => ({ ...v, bankAccountHolder: e.target.value }))}
+              />
             </div>
           </div>
         </div>

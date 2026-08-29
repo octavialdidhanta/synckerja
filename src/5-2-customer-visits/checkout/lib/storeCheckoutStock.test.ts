@@ -74,8 +74,67 @@ describe('catalogCheckoutSaleLines', () => {
         { kind: 'product', trackStock: false, inventorySkuId: null, quantity: 3, catalogId: 'p3' },
       ]),
     ).toEqual([
-      { productId: 'p1', qty: 2 },
-      { productId: 'p2', qty: 3 },
+      { productId: 'p1', qty: 2, variantId: null, modifierOptionIds: [] },
+      { productId: 'p2', qty: 3, variantId: null, modifierOptionIds: [] },
+      { productId: 'p3', qty: 3, variantId: null, modifierOptionIds: [] },
+    ]);
+  });
+
+  it('includes variant and modifier option ids', () => {
+    expect(
+      catalogCheckoutSaleLines([
+        {
+          kind: 'product',
+          trackStock: true,
+          inventorySkuId: null,
+          quantity: 1,
+          catalogId: 'p3',
+          variantId: 'v1',
+          modifiers: [{ optionId: 'opt-a' }, { optionId: 'opt-b' }],
+        },
+      ]),
+    ).toEqual([
+      {
+        productId: 'p3',
+        qty: 1,
+        variantId: 'v1',
+        modifierOptionIds: ['opt-a', 'opt-b'],
+      },
+    ]);
+  });
+
+  it('includes untracked menu products so base recipes can consume on pay', () => {
+    expect(
+      catalogCheckoutSaleLines([
+        {
+          kind: 'product',
+          trackStock: false,
+          inventorySkuId: null,
+          quantity: 2,
+          catalogId: 'p4',
+        },
+        {
+          kind: 'product',
+          trackStock: false,
+          inventorySkuId: null,
+          quantity: 2,
+          catalogId: 'p5',
+          modifiers: [{ optionId: 'opt-x' }],
+        },
+      ]),
+    ).toEqual([
+      {
+        productId: 'p4',
+        qty: 2,
+        variantId: null,
+        modifierOptionIds: [],
+      },
+      {
+        productId: 'p5',
+        qty: 2,
+        variantId: null,
+        modifierOptionIds: ['opt-x'],
+      },
     ]);
   });
 });

@@ -46,6 +46,10 @@ export function deepMerge(
   for (const [k, v] of Object.entries(override)) {
     if (isPlainObject(v) && isPlainObject(result[k])) {
       result[k] = deepMerge(result[k] as Record<string, unknown>, v);
+    } else if (typeof result[k] === "string" && isPlainObject(v)) {
+      // Keep string leaves (e.g. posCashier.pay) — a nested flat key like
+      // posCashier.pay.foo must not turn the Pay label into an object.
+      continue;
     } else {
       result[k] = v;
     }

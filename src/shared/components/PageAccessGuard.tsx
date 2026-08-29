@@ -10,6 +10,8 @@ import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import { useAuthSurface } from "@/shared/hooks/useAuthSurface";
+import { usePosStaffPermissions } from "@/8-2-8-employees-staff/hooks/usePosStaffPermissions";
+import { resolveBackofficePermissionForPath } from "@/8-2-8-employees-staff/lib/posAccessPermissionCatalog";
 
 const MobileAccessDeniedPage = lazy(() =>
   import("@/mobile/pages/access-denied/AccessDeniedPage").then((m) => ({ default: m.AccessDeniedPage })),
@@ -65,6 +67,7 @@ export function PageAccessGuard({
   const { t } = useAppTranslation();
   const { isMobile } = useAuthSurface();
   const location = useLocation();
+  const posStaffPermissions = usePosStaffPermissions();
   const {
     canAccessPage,
     getDepartmentRestrictionMessage,
@@ -84,6 +87,16 @@ export function PageAccessGuard({
   } = useCentralizedUserData();
 
   const pathToCheck = pagePath || location.pathname;
+  const posBackofficeKey = resolveBackofficePermissionForPath(pathToCheck);
+  const posAclPending =
+    Boolean(posBackofficeKey) &&
+    posStaffPermissions.isLoading &&
+    !posStaffPermissions.unrestricted;
+  const posAclDenied =
+    Boolean(posBackofficeKey) &&
+    !posStaffPermissions.isLoading &&
+    !posStaffPermissions.unrestricted &&
+    !posStaffPermissions.canPath(pathToCheck);
 
   const hadUserDataRef = useRef(false);
   if (userData) {
@@ -114,7 +127,8 @@ export function PageAccessGuard({
     (requiresPermissions && configBootstrapPending) ||
     (requiresPermissions && rolesResolutionPending) ||
     (requiresPermissions && accessDecisionPending) ||
-    isLoadingOrgData;
+    isLoadingOrgData ||
+    posAclPending;
 
   const [showDeniedAfterDebounce, setShowDeniedAfterDebounce] = useState(false);
   const denyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -379,6 +393,33 @@ export function PageAccessGuard({
       }
       return <Navigate to="/" replace />;
     }
+  }
+
+  if (posAclDenied) {
+    if (showAccessDeniedPage) {
+      return (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-6">
+          <div className="mx-auto max-w-md text-center">
+            <div className="bg-destructive/10 mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full">
+              <XCircle className="text-destructive h-12 w-12" />
+            </div>
+            <h2 className="text-foreground mb-3 text-xl font-semibold">
+              {t("accessDenied.title", "Access denied")}
+            </h2>
+            <p className="text-muted-foreground mb-6">
+              {t(
+                "employeesStaff.access.posAclDenied",
+                "Your POS employee role does not include this back-office page.",
+              )}
+            </p>
+            <Button className="w-full" onClick={() => (window.location.href = "/")}>
+              {t("accessDenied.backToHome", "Back to home")}
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

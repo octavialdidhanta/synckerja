@@ -14,6 +14,9 @@ function mapRow(row: {
   city: string | null;
   state: string | null;
   zip: string | null;
+  bank_code: string | null;
+  bank_account_number: string | null;
+  bank_account_holder: string | null;
 }): CatalogSupplier {
   return {
     id: row.id,
@@ -25,6 +28,9 @@ function mapRow(row: {
     city: row.city,
     state: row.state,
     zip: row.zip,
+    bankCode: row.bank_code,
+    bankAccountNumber: row.bank_account_number,
+    bankAccountHolder: row.bank_account_holder,
   };
 }
 
@@ -37,7 +43,7 @@ export function useSuppliersQuery(args: { organizationId: string | null; search?
 
       const { data, error } = await supabase
         .from("catalog_suppliers")
-        .select("id, organization_id, name, phone, email, address, city, state, zip")
+        .select("id, organization_id, name, phone, email, address, city, state, zip, bank_code, bank_account_number, bank_account_holder")
         .eq("organization_id", args.organizationId)
         .eq("is_deleted", false)
         .order("name");

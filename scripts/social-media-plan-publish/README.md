@@ -14,7 +14,7 @@ npm run supabase:functions:deploy:social-media-publish-bundle
 
 Post-deploy checks (Supabase Dashboard → Edge Functions):
 
-- `social-media-plan-publish`: `wall_clock_duration` = **400** (from `supabase/config.toml`)
+- `social-media-plan-publish`: wall-clock limit **400s** on paid plan (hosted default; not set in `config.toml`)
 - Optional secrets: `TIKTOK_PULL_FROM_URL_ENABLED` (default on), `PLAN_PUBLISH_SEQUENTIAL` (default off)
 
 ## Manual tests

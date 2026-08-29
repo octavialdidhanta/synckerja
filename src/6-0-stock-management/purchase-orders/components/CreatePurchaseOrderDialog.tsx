@@ -23,6 +23,7 @@ import { useSuppliersQuery } from "@/6-0-stock-management/suppliers/hooks/useSup
 import { formatToRupiah } from "@/shared/utils/formatCurrency";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { calcLineSubtotal, calcPoTotal, hasValidPoLines } from "../lib/poFormMath";
+import { mapCatalogPoRpcError } from "../finance/mapCatalogPoRpcError";
 import { useCreatePurchaseOrder, useUpdatePurchaseOrder } from "../hooks/usePurchaseOrderMutations";
 import type { PurchaseOrderKindFilter, PurchaseOrderLineDraft } from "../types";
 import { PoAddItemPickerDialog } from "./PoAddItemPickerDialog";
@@ -47,6 +48,7 @@ export function CreatePurchaseOrderDialog(props: {
   initialSupplierId?: string | null;
   initialNote?: string;
   initialLines?: PurchaseOrderLineDraft[];
+  poMode?: "simple" | "advanced";
 }) {
   const { t } = useAppTranslation();
   const isProductMode = props.kind === "item_library";
@@ -149,7 +151,7 @@ export function CreatePurchaseOrderDialog(props: {
     });
   };
 
-  const submit = async (createAndFulfill: boolean) => {
+  const submit = async () => {
     if (!canSubmit) return;
     try {
       if (isEdit && props.editPurchaseOrderId) {
@@ -169,18 +171,24 @@ export function CreatePurchaseOrderDialog(props: {
           kind: props.kind,
           note,
           lines,
-          createAndFulfill,
+          createAndFulfill: (props.poMode ?? "simple") === "simple",
         });
         toast.success(
-          createAndFulfill
-            ? t("operations.inventory.purchaseOrders.createdAndFulfilled", "Purchase order created and fulfilled.")
-            : t("operations.inventory.purchaseOrders.created", "Purchase order created."),
+          (props.poMode ?? "simple") === "simple"
+            ? t(
+                "operations.inventory.purchaseOrders.createdFulfilled",
+                "Purchase order created and stock received.",
+              )
+            : t(
+                "operations.inventory.purchaseOrders.createdSubmitted",
+                "Purchase order created and sent to Approvals.",
+              ),
         );
       }
       reset();
       props.onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("common.error", "Something went wrong."));
+      toast.error(mapCatalogPoRpcError(err, t("common.error", "Something went wrong.")));
     }
   };
 
@@ -200,6 +208,19 @@ export function CreatePurchaseOrderDialog(props: {
                 ? t("operations.inventory.purchaseOrders.editTitle", "Edit Purchase Order")
                 : t("operations.inventory.purchaseOrders.createTitle", "Create Purchase Order")}
             </DialogTitle>
+            {!isEdit ? (
+              <p className="text-sm text-muted-foreground">
+                {props.poMode === "advanced"
+                  ? t(
+                      "operations.inventory.purchaseOrders.createAdvancedHint",
+                      "Advanced mode: PO is submitted for approval before fulfillment.",
+                    )
+                  : t(
+                      "operations.inventory.purchaseOrders.createSimpleHint",
+                      "Simple mode: stock is received immediately when the PO is created.",
+                    )}
+              </p>
+            ) : null}
           </DialogHeader>
 
           <div className="grid gap-3 md:grid-cols-2">
@@ -303,18 +324,13 @@ export function CreatePurchaseOrderDialog(props: {
               {t("common.cancel", "Cancel")}
             </Button>
             {isEdit ? (
-              <Button type="button" onClick={() => submit(false)} disabled={!canSubmit || busy}>
+              <Button type="button" onClick={() => submit()} disabled={!canSubmit || busy}>
                 {t("common.save", "Save")}
               </Button>
             ) : (
-              <div className="flex gap-2">
-                <Button type="button" variant="secondary" onClick={() => submit(true)} disabled={!canSubmit || busy}>
-                  {t("operations.inventory.purchaseOrders.createAndFulfill", "Create & Fulfill")}
-                </Button>
-                <Button type="button" onClick={() => submit(false)} disabled={!canSubmit || busy}>
-                  {t("operations.inventory.purchaseOrders.createOnly", "Create")}
-                </Button>
-              </div>
+              <Button type="button" onClick={() => submit()} disabled={!canSubmit || busy}>
+                {t("operations.inventory.purchaseOrders.createOnly", "Create")}
+              </Button>
             )}
           </DialogFooter>
         </DialogContent>

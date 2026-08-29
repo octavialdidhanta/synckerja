@@ -12,6 +12,14 @@ https://<project-ref>.supabase.co/functions/v1/xendit-api
 
 After migration from `xendit-webhook`, delete the old `xendit-webhook` function in Supabase Dashboard to free edge function quota.
 
+**QRIS webhook:** Register the same URL under Xendit → Webhooks → **QR Code** → *QR code terbayarkan & di-refund* (`qr.payment` event).
+
+```
+https://wqdzqqshoifwyrltzgvx.supabase.co/functions/v1/xendit-api
+```
+
+**Webhook token sync:** Copy **Verification Token** from Xendit Dashboard → set Supabase secret `XENDIT_WEBHOOK_VERIFICATION_TOKEN` to the **exact same value**. Xendit sends it as header `x-callback-token`. Mismatch returns `401 Invalid webhook token`.
+
 ```bash
 supabase functions deploy xendit-api --no-verify-jwt
 ```
@@ -25,6 +33,7 @@ supabase functions deploy xendit-api --no-verify-jwt
 | `XENDIT_WEBHOOK_VERIFICATION_TOKEN` | Yes (prod) | `x-callback-token` for webhooks |
 | `XENDIT_ENV` | No | `sandbox` (default) or `production` |
 | `XENDIT_PLATFORM_FLAT_FEE` | No | Override flat fee (default `2500` IDR) |
+| `XENDIT_PLATFORM_BUSINESS_ID` | Yes (VA split rule) | Master xenPlatform Business ID (Dashboard → Settings). Required when recreating split rules with `destination_account_id`. QRIS POS does not use split header; fee is netted in settlement. |
 | `XENDIT_MIN_DISBURSEMENT_AMOUNT` | No | Minimum gateway withdrawal / disburse amount (default `10000` IDR) |
 | `XENDIT_WEBHOOK_SKIP_VERIFY` | No | `true` for local dev only |
 | `XENDIT_INTERNAL_ORG_IDS` | No | Comma-separated org UUIDs that skip JIT KYC and use `OWNED` sub-accounts (Synckerja internal) |

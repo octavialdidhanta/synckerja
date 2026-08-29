@@ -43,6 +43,9 @@
       "@/ios-mobile/*": [
         "./IOS-mobile/*"
       ],
+      "@/pos-mobile/*": [
+        "./POS-kasir-mobile/*"
+      ],
       "@/*": [
         "./src/*"
       ]
@@ -61,6 +64,7 @@
     "src",
     "android-mobile",
     "IOS-mobile",
+    "POS-kasir-mobile",
     "supabase/types.ts",
     "vite-env.d.ts"
   ]

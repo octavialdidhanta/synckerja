@@ -21,5 +21,10 @@ export const useCurrentEmployee = () => {
     gcTime: 10 * 60 * 1000,
     retry: 1,
     refetchOnWindowFocus: false,
+    refetchOnMount: (query) => {
+      const data = query.state.data as { profile_photo_url?: string | null } | null | undefined;
+      if (!data?.profile_photo_url) return true;
+      return false;
+    },
   });
 };

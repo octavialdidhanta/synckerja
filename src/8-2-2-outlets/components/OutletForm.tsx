@@ -37,6 +37,7 @@ export function OutletForm({ outlet, onClose }: OutletFormProps) {
         address: draft.address,
         city: draft.city,
         province: draft.province,
+        postal_code: draft.postal_code,
         phone: draft.phone,
         is_active: draft.is_active,
       });
@@ -95,7 +96,7 @@ export function OutletForm({ outlet, onClose }: OutletFormProps) {
             rows={3}
           />
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="outlet-city">{t("outlets.cityLabel", "City")}</Label>
             <Input
@@ -110,6 +111,14 @@ export function OutletForm({ outlet, onClose }: OutletFormProps) {
               id="outlet-province"
               value={draft.province}
               onChange={(e) => setDraft((prev) => ({ ...prev, province: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="outlet-postal">{t("outlets.postalCodeLabel", "Postal Code")}</Label>
+            <Input
+              id="outlet-postal"
+              value={draft.postal_code}
+              onChange={(e) => setDraft((prev) => ({ ...prev, postal_code: e.target.value }))}
             />
           </div>
         </div>

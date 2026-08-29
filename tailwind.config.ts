@@ -8,6 +8,7 @@ export default {
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
     "./android-mobile/**/*.{ts,tsx}",
+    "./POS-kasir-mobile/**/*.{ts,tsx}",
   ],
   prefix: "",
   theme: {

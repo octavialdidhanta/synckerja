@@ -1,0 +1,1 @@
+export { PosNewBillDialog } from "./PosNewBillDialog";

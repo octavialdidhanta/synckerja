@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useMfaStepUp } from "@/shared/auth/mfa";
 import {
+  enableXenditForOrg,
   executeXenditDisbursement,
   executeXenditGatewayWithdrawal,
   retryPayrollEscrowTransfer,
@@ -15,6 +16,12 @@ import {
 /** Xendit mutations that require MFA step-up (AAL2). */
 export function useSecureXenditActions() {
   const { ensureAal2 } = useMfaStepUp();
+
+  const secureEnableXendit = useCallback(
+    (organizationId: string, enabled: boolean) =>
+      enableXenditForOrg(organizationId, enabled, ensureAal2),
+    [ensureAal2],
+  );
 
   const secureDisbursement = useCallback(
     (organizationId: string, payload: Record<string, unknown>) =>
@@ -71,6 +78,7 @@ export function useSecureXenditActions() {
 
   return {
     ensureAal2,
+    secureEnableXendit,
     secureDisbursement,
     secureGatewayWithdrawal,
     secureSetPrimarySubAccount,

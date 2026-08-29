@@ -47,8 +47,8 @@ Native uses **Google Sign-In SDK** (`@capgo/capacitor-social-login`) and Supabas
 **Google Cloud Console (same project as Supabase Google provider):**
 
 1. **Web client** — already used by Supabase Auth.
-2. **Android client** — package `id.synckerja.app` + SHA-1 (debug + release) from your keystore.
-3. **MainActivity** — `android/app/.../MainActivity.java` implements `ModifiedMainActivityForSocialLoginPlugin` (required by Capgo; do not pass custom `scopes` from JS unless this is in place).
+2. **Android client** — package `id.synckerja.app` + SHA-1 (debug + release) from your keystore. For **Synckerja POS** native (`android-pos/`), add a separate Android OAuth client for package `id.synckerja.pos` (see [`android-pos/README.md`](../../android-pos/README.md)).
+3. **MainActivity** — `android/app/.../MainActivity.java` implements `ModifiedMainActivityForSocialLoginPlugin` (required by Capgo; do not pass custom `scopes` from JS unless this is in place). POS shell: `android-pos/.../MainActivity.java` (same Capgo marker).
 4. **Android SHA-1** — use **two** Android OAuth clients for `id.synckerja.app`: (a) **debug** SHA-1 from `.\gradlew.bat :app:signingReport` for Android Studio installs; (b) **Play App signing** SHA-1 from Play Console → App integrity for store installs. Do not delete the Play SHA-1 client when debug works locally. See [`android/README-GOOGLE-SIGNIN.md`](../android/README-GOOGLE-SIGNIN.md).
 5. **Web client ID only in app** — `initialize` / `VITE_GOOGLE_SSO_WEB_CLIENT_ID` must be the **Web** client (same as Supabase Auth → Google), never the Android client ID string.
 6. **iOS client** — bundle ID `id.synckerja.app` (when building iOS).

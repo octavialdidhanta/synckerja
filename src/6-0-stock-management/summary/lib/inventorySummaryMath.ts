@@ -88,7 +88,7 @@ export function buildInventorySummaryLines(args: {
     return {
       ...item,
       beginning: qtyAt({ currentQty: item.currentQty, movements: rows, at: args.period.start }),
-      purchaseOrder: sumType(rows, args.period, ["purchase_order"]),
+      purchaseOrder: sumType(rows, args.period, ["purchase_order", "production"]),
       sales: sumType(rows, args.period, ["sale", "recipe_consume"]),
       transfer: sumType(rows, args.period, ["transfer"]),
       adjustment: sumType(rows, args.period, ["adjustment", "opening"]),

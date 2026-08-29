@@ -1,3 +1,8 @@
+export type CatalogModifierOptionIngredient = {
+  ingredient_id: string;
+  quantity: number;
+};
+
 export type CatalogModifierOption = {
   id: string;
   group_id: string;
@@ -7,6 +12,9 @@ export type CatalogModifierOption = {
   sort_order: number;
   is_active: boolean;
   inventory_sku_id: string | null;
+  /** Option-level BOM (one ingredient per option in v1). */
+  stock_ingredient_id: string | null;
+  stock_quantity: number | null;
 };
 
 export type CatalogModifierGroup = {
@@ -17,6 +25,7 @@ export type CatalogModifierGroup = {
   is_active: boolean;
   limit_enabled: boolean;
   is_required: boolean;
+  min_selected: number;
   max_selected: number;
   stock_enabled: boolean;
   options: CatalogModifierOption[];
@@ -29,6 +38,8 @@ export type CatalogModifierOptionInput = {
   name: string;
   extra_price: number;
   inventory_sku_id?: string | null;
+  stock_ingredient_id?: string | null;
+  stock_quantity?: number | null;
 };
 
 export type CatalogModifierGroupSave = {
@@ -36,6 +47,7 @@ export type CatalogModifierGroupSave = {
   name: string;
   limit_enabled: boolean;
   is_required: boolean;
+  min_selected: number;
   max_selected: number;
   stock_enabled: boolean;
   options: CatalogModifierOptionInput[];

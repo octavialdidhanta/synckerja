@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { supabase } from "@/shared/lib/supabaseClient";
 import { pickProfilePhotoUrl } from "@/shared/lib/profilePhotoStorage";
 import { useAuth } from "@/shared/auth/contexts/AuthContext";
+import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { profileQueryKey } from "@/shared/auth/identityQuerySync";
 
 export const PROFILE_QUERY_KEY = "profile" as const;
@@ -85,13 +86,19 @@ async function fetchProfile(): Promise<ProfileRow | null> {
 
 export function useProfile() {
   const { user } = useAuth();
+  const { centralProfileHydrated } = useCentralizedUserData();
   return useQuery({
     queryKey: profileQueryKey(user?.id),
     queryFn: fetchProfile,
-    enabled: !!user?.id,
+    enabled: !!user?.id && centralProfileHydrated,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,
+    refetchOnMount: (query) => {
+      const data = query.state.data as ProfileRow | null | undefined;
+      if (!data?.profile_photo_url) return true;
+      return false;
+    },
   });
 }
 

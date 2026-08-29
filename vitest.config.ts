@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "POS-kasir-mobile/**/*.{test,spec}.{ts,tsx}"],
     passWithNoTests: true,
   },
   resolve: {
@@ -27,6 +27,10 @@ export default defineConfig({
       {
         find: /^@\/mobile\/(.*)$/,
         replacement: `${path.resolve(__dirname, "android-mobile")}/$1`,
+      },
+      {
+        find: /^@\/pos-mobile\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "POS-kasir-mobile")}/$1`,
       },
       { find: "@", replacement: path.resolve(__dirname, "./src") },
     ],

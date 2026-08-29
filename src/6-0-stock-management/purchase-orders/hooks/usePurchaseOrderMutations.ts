@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { invalidateCatalogStockCaches } from "@/8-2-3-ingredient/library/hooks/invalidateCatalogStockCaches";
 import { supabase } from "@/shared/lib/supabaseClient";
 import type { PurchaseOrderLineDraft, PurchaseOrderKindFilter } from "../types";
 import { PURCHASE_ORDERS_QUERY_KEY } from "./usePurchaseOrdersQuery";
@@ -24,13 +25,18 @@ function toRpcLines(kind: PurchaseOrderKindFilter, lines: PurchaseOrderLineDraft
     }));
 }
 
-async function invalidatePoQueries(queryClient: ReturnType<typeof useQueryClient>) {
+async function invalidatePoQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  organizationId?: string | null,
+) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: [PURCHASE_ORDERS_QUERY_KEY] }),
     queryClient.invalidateQueries({ queryKey: [PURCHASE_ORDER_DETAIL_QUERY_KEY] }),
-    queryClient.invalidateQueries({ queryKey: ["inventory-summary"] }),
     queryClient.invalidateQueries({ queryKey: [INVENTORY_ADJUSTABLE_PRODUCTS_QUERY_KEY] }),
     queryClient.invalidateQueries({ queryKey: [INVENTORY_ADJUSTABLE_INGREDIENTS_QUERY_KEY] }),
+    queryClient.invalidateQueries({ queryKey: ["purchase-requests"] }),
+    queryClient.invalidateQueries({ queryKey: ["expenses"] }),
+    invalidateCatalogStockCaches(queryClient, organizationId),
   ]);
 }
 
@@ -45,7 +51,7 @@ export function useCreatePurchaseOrder() {
       kind: PurchaseOrderKindFilter;
       note: string;
       lines: PurchaseOrderLineDraft[];
-      createAndFulfill: boolean;
+      createAndFulfill?: boolean;
     }) => {
       const { data, error } = await supabase.rpc("create_catalog_purchase_order", {
         p_organization_id: args.organizationId,
@@ -54,13 +60,13 @@ export function useCreatePurchaseOrder() {
         p_item_kind: kindToDb(args.kind),
         p_note: args.note,
         p_lines: toRpcLines(args.kind, args.lines),
-        p_create_and_fulfill: args.createAndFulfill,
+        p_create_and_fulfill: args.createAndFulfill ?? false,
       });
       if (error) throw error;
       return data as { id: string };
     },
-    onSuccess: async () => {
-      await invalidatePoQueries(queryClient);
+    onSuccess: async (_data, vars) => {
+      await invalidatePoQueries(queryClient, vars.organizationId);
     },
   });
 }
@@ -78,8 +84,8 @@ export function useFulfillPurchaseOrder() {
       if (error) throw error;
       return data;
     },
-    onSuccess: async () => {
-      await invalidatePoQueries(queryClient);
+    onSuccess: async (_data, vars) => {
+      await invalidatePoQueries(queryClient, vars.organizationId);
     },
   });
 }
@@ -97,8 +103,8 @@ export function useCancelPurchaseOrder() {
       if (error) throw error;
       return data;
     },
-    onSuccess: async () => {
-      await invalidatePoQueries(queryClient);
+    onSuccess: async (_data, vars) => {
+      await invalidatePoQueries(queryClient, vars.organizationId);
     },
   });
 }
@@ -123,8 +129,26 @@ export function useUpdatePurchaseOrder() {
       if (error) throw error;
       return data;
     },
-    onSuccess: async () => {
-      await invalidatePoQueries(queryClient);
+    onSuccess: async (_data, vars) => {
+      await invalidatePoQueries(queryClient, vars.organizationId);
+    },
+  });
+}
+
+export function useResubmitPurchaseOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: { organizationId: string; purchaseOrderId: string }) => {
+      const { data, error } = await supabase.rpc("resubmit_catalog_po_purchase_request", {
+        p_organization_id: args.organizationId,
+        p_purchase_order_id: args.purchaseOrderId,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: async (_data, vars) => {
+      await invalidatePoQueries(queryClient, vars.organizationId);
     },
   });
 }

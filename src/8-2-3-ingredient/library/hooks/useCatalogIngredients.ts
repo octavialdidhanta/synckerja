@@ -10,8 +10,12 @@ import type {
   CatalogIngredientOutletStock,
   CatalogIngredientSave,
 } from "../types";
+import { CATALOG_INGREDIENTS_QUERY_KEY } from "./catalogIngredientsQueryKey";
+import { invalidateCatalogStockCaches } from "./invalidateCatalogStockCaches";
+import { useCatalogIngredientStockRealtime } from "./useCatalogIngredientStockRealtime";
 
-export const CATALOG_INGREDIENTS_QUERY_KEY = "catalog-ingredients";
+export { CATALOG_INGREDIENTS_QUERY_KEY } from "./catalogIngredientsQueryKey";
+export { invalidateCatalogStockCaches } from "./invalidateCatalogStockCaches";
 
 type IngredientRow = Omit<CatalogIngredient, "outlet_ids" | "outlet_stocks"> & {
   catalog_ingredient_outlets?: Array<{
@@ -57,6 +61,7 @@ function mapRow(row: IngredientRow, photo_url: string | null = null): CatalogIng
 export function useCatalogIngredients() {
   const { organizationId } = useCurrentOrg();
   const queryClient = useQueryClient();
+  useCatalogIngredientStockRealtime(organizationId, "library");
 
   const query = useQuery({
     queryKey: [CATALOG_INGREDIENTS_QUERY_KEY, organizationId],
@@ -82,8 +87,7 @@ export function useCatalogIngredients() {
   });
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: [CATALOG_INGREDIENTS_QUERY_KEY, organizationId] });
-    queryClient.invalidateQueries({ queryKey: ["inventory-summary"] });
+    void invalidateCatalogStockCaches(queryClient, organizationId);
   };
 
   const save = useMutation({
@@ -117,7 +121,7 @@ export function useCatalogIngredients() {
       const previousStock = existing?.outlet_stocks.find((row) => row.outlet_id === payload.outlet_id);
       if (payload.id) {
         if (existing?.track_inventory) track_inventory = true;
-        const { error } = await supabase
+        const { data: updated, error } = await supabase
           .from("catalog_ingredients")
           .update({
             name,
@@ -127,9 +131,35 @@ export function useCatalogIngredients() {
             track_inventory,
             photo_path: payload.photo_path ?? null,
           })
-          .eq("id", payload.id);
+          .eq("id", payload.id)
+          .eq("organization_id", organizationId)
+          .select("id")
+          .maybeSingle();
         if (error) throw error;
-        ingredientId = payload.id;
+        if (updated?.id) {
+          ingredientId = payload.id;
+        } else {
+          // Client may pre-generate UUID (e.g. photo path) before the row exists.
+          const insertRow: Record<string, unknown> = {
+            id: payload.id,
+            organization_id: organizationId,
+            name,
+            kind,
+            category_id: payload.category_id ?? null,
+            unit_code,
+            track_inventory,
+            sort_order: (query.data?.length ?? 0) + 1,
+            is_deleted: false,
+          };
+          if (payload.photo_path != null) insertRow.photo_path = payload.photo_path;
+          const { data, error: insertError } = await supabase
+            .from("catalog_ingredients")
+            .insert(insertRow)
+            .select("id")
+            .single();
+          if (insertError) throw insertError;
+          ingredientId = data.id as string;
+        }
       } else {
         const insertRow: Record<string, unknown> = {
           organization_id: organizationId,
@@ -141,7 +171,6 @@ export function useCatalogIngredients() {
           sort_order: (query.data?.length ?? 0) + 1,
           is_deleted: false,
         };
-        if (payload.id) insertRow.id = payload.id;
         if (payload.photo_path != null) insertRow.photo_path = payload.photo_path;
         const { data, error } = await supabase
           .from("catalog_ingredients")

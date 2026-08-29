@@ -23,6 +23,8 @@ export type ManageIngredientCogsDialogProps = {
   unitCode: string;
   value: CogsDraft;
   onConfirm: (next: CogsDraft) => void;
+  /** Override footer hint (e.g. recipe-driven COGS for semi-finished). */
+  hint?: string;
 };
 
 export function ManageIngredientCogsDialog({
@@ -32,6 +34,7 @@ export function ManageIngredientCogsDialog({
   unitCode,
   value,
   onConfirm,
+  hint,
 }: ManageIngredientCogsDialogProps) {
   const { t } = useAppTranslation();
   const [draft, setDraft] = useState<CogsDraft>(value);
@@ -90,7 +93,7 @@ export function ManageIngredientCogsDialog({
             {t("common.cancel", "Cancel")}
           </Button>
           <p className="flex-1 text-center text-xs italic text-muted-foreground">
-            {t("ingredient.library.cogsHint", "*Use the Purchase Order Page to manage Avg Cost")}
+            {hint ?? t("ingredient.library.cogsHint", "*Use the Purchase Order Page to manage Avg Cost")}
           </p>
           <Button type="button" onClick={handleConfirm}>
             {t("ingredient.library.confirm", "Confirm")}

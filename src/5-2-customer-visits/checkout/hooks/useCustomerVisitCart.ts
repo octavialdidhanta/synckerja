@@ -3,8 +3,19 @@ import type { CustomerVisitCartLine, CustomerVisitCatalogItem } from '../lib/cus
 import { isCatalogItemOutOfStock } from '../lib/catalogLabel';
 import { sumCustomerVisitCart } from '../lib/sumCustomerVisitCart';
 
+function isPlainLine(line: CustomerVisitCartLine): boolean {
+  return (
+    !line.isCustomAmount &&
+    !line.variantId &&
+    !(line.modifiers && line.modifiers.length > 0) &&
+    !line.lineDiscount &&
+    !line.lineSalesTypeId
+  );
+}
+
 function toCartLine(item: CustomerVisitCatalogItem, quantity = 1): CustomerVisitCartLine {
   return {
+    lineKey: `plain:${item.id}`,
     catalogId: item.id,
     kind: item.kind,
     serviceId: item.serviceId,
@@ -18,6 +29,8 @@ function toCartLine(item: CustomerVisitCatalogItem, quantity = 1): CustomerVisit
     trackStock: item.trackStock,
     inventorySkuId: item.inventorySkuId,
     availableQty: item.availableQty,
+    productCategoryId: item.productCategoryId,
+    productCategoryName: item.productCategoryName,
   };
 }
 
@@ -29,7 +42,9 @@ export function useCustomerVisitCart() {
     if (!(item.unitPrice > 0)) return;
     if (isCatalogItemOutOfStock(item)) return;
     setLines((prev) => {
-      const existing = prev.find((line) => line.catalogId === item.id);
+      const existing = prev.find(
+        (line) => line.catalogId === item.id && isPlainLine(line),
+      );
       if (existing) {
         const nextQty = existing.quantity + 1;
         if (
@@ -41,18 +56,54 @@ export function useCustomerVisitCart() {
           return prev;
         }
         return prev.map((line) =>
-          line.catalogId === item.id ? { ...line, quantity: nextQty, availableQty: item.availableQty } : line,
+          line.lineKey === existing.lineKey
+            ? { ...line, quantity: nextQty, availableQty: item.availableQty }
+            : line,
         );
       }
       return [...prev, toCartLine(item)];
     });
   };
 
-  const updateQty = (catalogId: string, quantity: number) => {
+  const addCustomizedLine = (line: CustomerVisitCartLine) => {
+    if (!(line.unitPrice > 0) || line.quantity <= 0) return;
+    const key = line.lineKey || `plain:${line.catalogId}`;
     setLines((prev) => {
-      if (quantity <= 0) return prev.filter((line) => line.catalogId !== catalogId);
+      const existing = prev.find((row) => row.lineKey === key);
+      if (existing) {
+        const nextQty = existing.quantity + line.quantity;
+        if (
+          line.kind === 'product' &&
+          line.trackStock &&
+          line.availableQty != null &&
+          nextQty > line.availableQty
+        ) {
+          return prev;
+        }
+        return prev.map((row) =>
+          row.lineKey === key
+            ? { ...row, quantity: nextQty, availableQty: line.availableQty }
+            : row,
+        );
+      }
+      return [...prev, { ...line, lineKey: key }];
+    });
+  };
+
+  const addCustomAmount = (line: CustomerVisitCartLine) => {
+    if (!line.isCustomAmount || !(line.unitPrice > 0)) return;
+    const withKey: CustomerVisitCartLine = {
+      ...line,
+      lineKey: line.lineKey || `custom:${crypto.randomUUID()}`,
+    };
+    setLines((prev) => [...prev, withKey]);
+  };
+
+  const updateQty = (lineKey: string, quantity: number) => {
+    setLines((prev) => {
+      if (quantity <= 0) return prev.filter((line) => line.lineKey !== lineKey);
       return prev.map((line) => {
-        if (line.catalogId !== catalogId) return line;
+        if (line.lineKey !== lineKey) return line;
         if (
           line.kind === 'product' &&
           line.trackStock &&
@@ -66,13 +117,38 @@ export function useCustomerVisitCart() {
     });
   };
 
-  const updatePrice = (catalogId: string, unitPrice: number) => {
+  const updatePrice = (lineKey: string, unitPrice: number) => {
     setLines((prev) =>
-      prev.map((line) => (line.catalogId === catalogId ? { ...line, unitPrice } : line)),
+      prev.map((line) => (line.lineKey === lineKey ? { ...line, unitPrice } : line)),
     );
   };
 
   const reset = () => setLines([]);
 
-  return { lines, totals, addItem, updateQty, updatePrice, reset };
+  const replaceLines = (next: CustomerVisitCartLine[]) => {
+    setLines(
+      (Array.isArray(next) ? next : []).map((line) => ({
+        ...line,
+        lineKey:
+          line.lineKey ||
+          (line.isCustomAmount
+            ? `custom:${crypto.randomUUID()}`
+            : isPlainLine(line)
+              ? `plain:${line.catalogId}`
+              : `plain:${line.catalogId}`),
+      })),
+    );
+  };
+
+  return {
+    lines,
+    totals,
+    addItem,
+    addCustomizedLine,
+    addCustomAmount,
+    updateQty,
+    updatePrice,
+    reset,
+    replaceLines,
+  };
 }

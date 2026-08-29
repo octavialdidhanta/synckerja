@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { parseAttendanceInstant } from '@/1-home/utils/attendanceDateTime';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
@@ -25,10 +25,22 @@ export const SectionQuickMenu = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const navigate = useNavigate();
   const { data: employeeData, isLoading: employeeLoading } = useCurrentEmployee();
+  const [deferTeamLoad, setDeferTeamLoad] = useState(false);
+
+  useEffect(() => {
+    const enable = () => setDeferTeamLoad(true);
+    if (typeof requestIdleCallback === 'function') {
+      const id = requestIdleCallback(enable, { timeout: 800 });
+      return () => cancelIdleCallback(id);
+    }
+    const timer = window.setTimeout(enable, 400);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const {
     data: teamAvailability = [],
     isLoading: isTeamLoading,
-  } = useTeamAvailability({ enabled: true });
+  } = useTeamAvailability({ enabled: deferTeamLoad });
 
   const calculateWorkingHours = (record: Record<string, unknown>) => {
     const checkIn = parseAttendanceInstant(

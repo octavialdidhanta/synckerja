@@ -197,9 +197,69 @@ export const OutletsListPageSkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const ReceiptSettingsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/8-2-6-receipt/skeletons/ReceiptSettingsPageSkeleton").then((m) => ({
+    default: m.ReceiptSettingsPageSkeleton,
+  })),
+);
+
 export const IngredientPageSkeleton = createDeferredSkeleton(() =>
   import("@/8-2-3-ingredient/skeletons/IngredientPageSkeleton").then((m) => ({
     default: m.IngredientPageSkeleton,
+  })),
+);
+
+export const CustomersPageSkeleton = createDeferredSkeleton(() =>
+  import("@/8-2-7-customers/skeletons/CustomersPageSkeleton").then((m) => ({
+    default: m.CustomersPageSkeleton,
+  })),
+);
+
+export const CustomersFeedbackPageSkeleton = createDeferredSkeleton(() =>
+  import("@/8-2-7-customers/skeletons/CustomersFeedbackPageSkeleton").then((m) => ({
+    default: m.CustomersFeedbackPageSkeleton,
+  })),
+);
+
+export const EmployeesStaffPageSkeleton = createDeferredSkeleton(() =>
+  import("@/8-2-8-employees-staff/pages/EmployeesStaffPageSkeleton").then((m) => ({
+    default: m.EmployeesStaffPageSkeleton,
+  })),
+);
+
+export const TableManagementPageSkeleton = createDeferredSkeleton(() =>
+  import("@/8-2-9-table-management/pages/TableManagementPageSkeleton").then((m) => ({
+    default: m.TableManagementPageSkeleton,
+  })),
+);
+
+export const ReportsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/8-2-10-reports/pages/ReportsPageSkeleton").then((m) => ({
+    default: m.ReportsPageSkeleton,
+  })),
+);
+
+export const InvoicesReportsRouteSkeleton = createDeferredSkeleton(() =>
+  import("@/8-2-10-reports/invoices/pages/InvoicesReportsRouteSkeleton").then((m) => ({
+    default: m.InvoicesReportsRouteSkeleton,
+  })),
+);
+
+export const ShiftReportsRouteSkeleton = createDeferredSkeleton(() =>
+  import("@/8-2-10-reports/shift/pages/ShiftReportsRouteSkeleton").then((m) => ({
+    default: m.ShiftReportsRouteSkeleton,
+  })),
+);
+
+export const TransactionsReportsRouteSkeleton = createDeferredSkeleton(() =>
+  import("@/8-2-10-reports/transactions/pages/TransactionsReportsRouteSkeleton").then((m) => ({
+    default: m.TransactionsReportsRouteSkeleton,
+  })),
+);
+
+export const OperationsDashboardPageSkeleton = createDeferredSkeleton(() =>
+  import("@/8-2-11-dashboard/pages/OperationsDashboardPageSkeleton").then((m) => ({
+    default: m.OperationsDashboardPageSkeleton,
   })),
 );
 
@@ -425,6 +485,12 @@ export const InventoryPurchaseOrdersSkeleton = createDeferredSkeleton(() =>
       default: m.InventoryPurchaseOrdersSkeleton,
     }),
   ),
+);
+
+export const InventoryTransferSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-stock-management/transfer/skeletons/InventoryTransferSkeleton").then((m) => ({
+    default: m.InventoryTransferSkeleton,
+  })),
 );
 
 export const InventorySuppliersSkeleton = createDeferredSkeleton(() =>

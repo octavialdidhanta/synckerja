@@ -2,6 +2,7 @@ import { Download, Plus } from "lucide-react";
 import { endOfDay, startOfDay } from "date-fns";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { OutletFilterSelect } from "@/8-2-2-outlets/components/OutletFilterSelect";
 import { InventorySummaryDateControl } from "@/6-0-stock-management/summary/components/InventorySummaryDateControl";
 import {
@@ -28,17 +29,22 @@ export function PurchaseOrdersToolbar(props: {
   onSearchChange: (value: string) => void;
   onExport: () => void;
   onCreate: () => void;
+  createDisabled?: boolean;
+  createDisabledReason?: string;
+  workflowMode?: "simple" | "advanced";
 }) {
   const { t } = useAppTranslation();
+  const modeLabel =
+    props.workflowMode === "advanced"
+      ? t("operations.inventory.purchaseOrders.advanced", "Advanced")
+      : t("operations.inventory.purchaseOrders.simple", "Simple");
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-base font-semibold">
           {t("operations.inventory.purchaseOrders.heading", "Purchase Order")}
-          <span className="ml-1 font-normal text-muted-foreground">
-            ({t("operations.inventory.purchaseOrders.simple", "Simple")})
-          </span>
+          <span className="ml-1 font-normal text-muted-foreground">({modeLabel})</span>
         </h2>
         <Select value={props.kind} onValueChange={(v) => props.onKindChange(v as PurchaseOrderKindFilter)}>
           <SelectTrigger className="h-9 w-[140px]">
@@ -91,10 +97,26 @@ export function PurchaseOrdersToolbar(props: {
           <Download className="mr-1 h-4 w-4" />
           {t("operations.inventory.purchaseOrders.export", "Export")}
         </Button>
-        <Button type="button" className="h-9" onClick={props.onCreate}>
-          <Plus className="mr-1 h-4 w-4" />
-          {t("operations.inventory.purchaseOrders.create", "Create PO")}
-        </Button>
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  className="h-9"
+                  onClick={props.onCreate}
+                  disabled={props.createDisabled}
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  {t("operations.inventory.purchaseOrders.create", "Create PO")}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {props.createDisabled && props.createDisabledReason ? (
+              <TooltipContent>{props.createDisabledReason}</TooltipContent>
+            ) : null}
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </div>
   );

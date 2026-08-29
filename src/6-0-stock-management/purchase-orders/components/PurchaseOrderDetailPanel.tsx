@@ -17,13 +17,20 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { formatToRupiah } from "@/shared/utils/formatCurrency";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { usePurchaseOrderDetailQuery } from "../hooks/usePurchaseOrderDetailQuery";
+import { useInventoryFeatureAccessCheck } from "@/8-2-5-inventory-settings/hooks/useInventoryFeatureAccess";
+import { usePoWorkflowMode } from "@/6-0-stock-management/hooks/useCatalogInventoryWorkflowModes";
 import {
   useCancelPurchaseOrder,
   useFulfillPurchaseOrder,
+  useResubmitPurchaseOrder,
 } from "../hooks/usePurchaseOrderMutations";
+import { usePurchaseOrderDetailQuery } from "../hooks/usePurchaseOrderDetailQuery";
+import { mapCatalogPoRpcError } from "../finance/mapCatalogPoRpcError";
+import { PurchaseOrderFinanceBadge } from "../finance/PurchaseOrderFinanceBadge";
+import { usePurchaseOrderFinance } from "../finance/usePurchaseOrderFinance";
 import type { PurchaseOrderKindFilter } from "../types";
 import { PurchaseOrderStatusBadge } from "./PurchaseOrderStatusBadge";
 import { PoHistoryLog } from "./PoHistoryLog";
@@ -40,6 +47,9 @@ export function PurchaseOrderDetailPanel(props: {
   const { t } = useAppTranslation();
   const [editOpen, setEditOpen] = useState(false);
 
+  const { poMode } = usePoWorkflowMode();
+  const fulfillAccess = useInventoryFeatureAccessCheck(poMode === "advanced" ? "po_fulfillment" : null);
+
   const detailQuery = usePurchaseOrderDetailQuery({
     organizationId: props.organizationId,
     purchaseOrderId: props.purchaseOrderId,
@@ -48,17 +58,29 @@ export function PurchaseOrderDetailPanel(props: {
 
   const fulfillMutation = useFulfillPurchaseOrder();
   const cancelMutation = useCancelPurchaseOrder();
+  const resubmitMutation = useResubmitPurchaseOrder();
 
   const detail = detailQuery.data;
   const isWaiting = detail?.status === "waiting";
-  const busy = fulfillMutation.isPending || cancelMutation.isPending || detailQuery.isLoading;
+  const finance = usePurchaseOrderFinance({
+    poStatus: detail?.status,
+    linkedRequest: detail?.finance,
+  });
+  const busy =
+    fulfillMutation.isPending ||
+    cancelMutation.isPending ||
+    resubmitMutation.isPending ||
+    detailQuery.isLoading;
 
   const handlePrint = () => {
     window.print();
   };
 
+  const canFulfillAction =
+    finance.canFulfill && (poMode !== "advanced" || fulfillAccess.data === true);
+
   const handleFulfill = async () => {
-    if (!detail) return;
+    if (!detail || !canFulfillAction) return;
     try {
       await fulfillMutation.mutateAsync({
         organizationId: props.organizationId,
@@ -66,12 +88,12 @@ export function PurchaseOrderDetailPanel(props: {
       });
       toast.success(t("operations.inventory.purchaseOrders.fulfilled", "Purchase order marked as fulfilled."));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("common.error", "Something went wrong."));
+      toast.error(mapCatalogPoRpcError(err, t("common.error", "Something went wrong.")));
     }
   };
 
   const handleCancel = async () => {
-    if (!detail) return;
+    if (!detail || !finance.canCancel) return;
     try {
       await cancelMutation.mutateAsync({
         organizationId: props.organizationId,
@@ -79,7 +101,22 @@ export function PurchaseOrderDetailPanel(props: {
       });
       toast.success(t("operations.inventory.purchaseOrders.cancelled", "Purchase order cancelled."));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("common.error", "Something went wrong."));
+      toast.error(mapCatalogPoRpcError(err, t("common.error", "Something went wrong.")));
+    }
+  };
+
+  const handleResubmit = async () => {
+    if (!detail || !finance.canResubmit) return;
+    try {
+      await resubmitMutation.mutateAsync({
+        organizationId: props.organizationId,
+        purchaseOrderId: detail.id,
+      });
+      toast.success(
+        t("operations.inventory.purchaseOrders.resubmitted", "Purchase order resubmitted to Approvals."),
+      );
+    } catch (err) {
+      toast.error(mapCatalogPoRpcError(err, t("common.error", "Something went wrong.")));
     }
   };
 
@@ -105,7 +142,12 @@ export function PurchaseOrderDetailPanel(props: {
           <SheetHeader className="shrink-0 border-b px-6 py-4 pr-12 text-left">
             <div className="flex items-start justify-between gap-3">
               <SheetTitle>{t("operations.inventory.purchaseOrders.detailTitle", "Purchase Order Detail")}</SheetTitle>
-              {detail ? <PurchaseOrderStatusBadge status={detail.status} /> : null}
+              {detail ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <PurchaseOrderStatusBadge status={detail.status} />
+                  <PurchaseOrderFinanceBadge status={finance.financeStatus} />
+                </div>
+              ) : null}
             </div>
           </SheetHeader>
 
@@ -204,19 +246,47 @@ export function PurchaseOrderDetailPanel(props: {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleCancel}>
+                    <DropdownMenuItem onClick={handleCancel} disabled={!finance.canCancel}>
                       {t("operations.inventory.purchaseOrders.cancelPo", "Cancel PO")}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setEditOpen(true)}>
-                      {t("operations.inventory.purchaseOrders.editPo", "Edit")}
-                    </DropdownMenuItem>
+                    {finance.canEdit ? (
+                      <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                        {t("operations.inventory.purchaseOrders.editPo", "Edit")}
+                      </DropdownMenuItem>
+                    ) : null}
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : null}
-              {isWaiting ? (
-                <Button type="button" onClick={handleFulfill} disabled={busy}>
-                  {t("operations.inventory.purchaseOrders.markAsFulfilled", "Mark as Fulfilled")}
+              {finance.canResubmit ? (
+                <Button type="button" variant="outline" onClick={handleResubmit} disabled={busy}>
+                  {t("operations.inventory.purchaseOrders.resubmit", "Resubmit to Approvals")}
                 </Button>
+              ) : null}
+              {isWaiting ? (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Button type="button" onClick={handleFulfill} disabled={busy || !canFulfillAction}>
+                          {t("operations.inventory.purchaseOrders.markAsFulfilled", "Mark as Fulfilled")}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {!canFulfillAction ? (
+                      <TooltipContent>
+                        {poMode === "advanced" && fulfillAccess.data === false
+                          ? t(
+                              "operations.inventory.purchaseOrders.fulfillRoleLocked",
+                              "You do not have PO Fulfillment access.",
+                            )
+                          : t(
+                              "operations.inventory.purchaseOrders.fulfillLocked",
+                              "Available after this PO is approved and paid.",
+                            )}
+                      </TooltipContent>
+                    ) : null}
+                  </Tooltip>
+                </TooltipProvider>
               ) : null}
             </div>
           </SheetFooter>
@@ -225,7 +295,7 @@ export function PurchaseOrderDetailPanel(props: {
 
       {detail ? <PurchaseOrderPrintView detail={detail} /> : null}
 
-      {detail && isWaiting ? (
+      {detail && isWaiting && finance.canEdit ? (
         <CreatePurchaseOrderDialog
           open={editOpen}
           onOpenChange={setEditOpen}

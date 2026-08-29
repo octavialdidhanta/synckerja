@@ -1,5 +1,7 @@
 import { supabase } from "@/shared/lib/supabaseClient";
 import { isSessionAccessTokenExpired } from "@/shared/auth/utils/expiredAuth";
+import { isPosAuthSurface } from "@/pos-mobile/0-auth/lib/posAuthSurface";
+import { POS_AUTH_PATHS } from "@/pos-mobile/0-auth/lib/posAuthPaths";
 
 export function safeInternalRedirectPath(raw: string | null): string | null {
   if (raw == null || raw === "") return null;
@@ -36,7 +38,7 @@ export async function routeAfterLogin(
       p_email: (user.email ?? "").trim(),
     });
     if (verifyErr || !hasVerifiedToken) {
-      navigate("/register", { replace: true });
+      navigate(isPosAuthSurface() ? POS_AUTH_PATHS.register : "/register", { replace: true });
       return;
     }
     navigate("/create-organization", { replace: true });
@@ -67,5 +69,9 @@ export async function routeAfterLogin(
   }
 
   const next = safeInternalRedirectPath(redirectToParam ?? null);
-  navigate(next ?? "/", { replace: true });
+  if (next) {
+    navigate(next, { replace: true });
+    return;
+  }
+  navigate(isPosAuthSurface() ? POS_AUTH_PATHS.selectOutlet : "/", { replace: true });
 }

@@ -7,9 +7,9 @@ import { SalesActivitiesSidebarFooter } from './SalesActivitiesSidebarFooter';
 import { SalesActivityDialog } from './SalesActivityDialog';
 import type { TaskFormData } from '@/8-2-DailyTask/section/CreateTaskDialog';
 
-const PaymentUpdateModal = lazy(() =>
-  import('@/5-2-jadwal-kunjungan/components/PaymentUpdateModal').then((m) => ({
-    default: m.PaymentUpdateModal,
+const PaymentRecordingSheet = lazy(() =>
+  import('@/shared/sales-payments').then((m) => ({
+    default: m.PaymentRecordingSheet,
   })),
 );
 const CreateTaskDialog = lazy(() =>
@@ -190,11 +190,24 @@ export const SalesActivitiesPageContent = () => {
         onSuccess={handleDialogSuccess}
         activity={editingActivity}
         readOnly={activityDialogReadOnly}
+        onRecordPaymentRequested={(args) => {
+          setSelectedActivityForPayment({
+            id: args.activityId,
+            client_name: args.clientName,
+          } as SalesActivity);
+          setPaymentModalViewOnly(false);
+          setShowPaymentModal(true);
+        }}
+        onRecordPaymentFromHeader={
+          editingActivity && !activityDialogReadOnly
+            ? () => handleUpdatePayment(editingActivity)
+            : undefined
+        }
       />
 
       {showPaymentModal && (
         <Suspense fallback={null}>
-          <PaymentUpdateModal
+          <PaymentRecordingSheet
             open={showPaymentModal}
             onClose={handleClosePaymentModal}
             salesActivityId={selectedActivityForPayment?.id || ''}

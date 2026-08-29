@@ -37,6 +37,7 @@ import { formatIdIntegerGrouping, parseGroupedIdInteger, stripToDigits } from ".
 import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
 import { activePosOutletIds } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { ProductOutletsSection } from "../product-outlets";
+import { ProductSalesStockHint } from "../products";
 import {
   effectivePosStatus,
   effectiveUnitPrice,
@@ -661,6 +662,9 @@ export function DefaultProductFormDialog({
                 setTrackStock(lockTracking || rows.some((row) => row.trackStock));
               }}
               lockTracking={lockTracking}
+            />
+            <ProductSalesStockHint
+              trackStock={lockTracking || inventoryRows.some((row) => row.trackStock)}
             />
             <ProductCogsSection
               productName={name.trim()}

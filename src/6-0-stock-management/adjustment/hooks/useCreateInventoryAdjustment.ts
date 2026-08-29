@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { invalidateCatalogStockCaches } from "@/8-2-3-ingredient/library/hooks/invalidateCatalogStockCaches";
 import { applyCatalogStockMovement } from "@/stock-management/catalog-ledger/applyCatalogStockMovement";
 
 const INVENTORY_ADJUSTMENT_REFERENCE_TYPE = "inventory_adjustment";
@@ -63,10 +64,11 @@ export function useCreateInventoryAdjustment() {
 
       return { referenceId };
     },
-    onSuccess: async () => {
-      // Refresh both the adjustment list and summary ledger column.
-      await queryClient.invalidateQueries({ queryKey: ["inventory-adjustments"] });
-      await queryClient.invalidateQueries({ queryKey: ["inventory-summary"] });
+    onSuccess: async (_data, vars) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["inventory-adjustments"] }),
+        invalidateCatalogStockCaches(queryClient, vars.organizationId),
+      ]);
     },
   });
 }

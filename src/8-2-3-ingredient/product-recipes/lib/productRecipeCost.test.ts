@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CatalogIngredient } from "../../library/types";
-import { formatRecipeCost, lineAvgCost, totalAvgCost } from "./productRecipeCost";
+import { formatRecipeCost, lineAvgCost, recipeUnitAvgCost, totalAvgCost } from "./productRecipeCost";
 
 const milk: CatalogIngredient = {
   id: "i1",
@@ -44,6 +44,19 @@ describe("totalAvgCost", () => {
   it("sums line costs", () => {
     const map = new Map([["i1", milk]]);
     expect(totalAvgCost([{ ingredient_id: "i1", quantity: 1 }], map, "o1")).toBe(3500);
+  });
+});
+
+describe("recipeUnitAvgCost", () => {
+  it("divides total recipe cost by yield", () => {
+    const map = new Map([["i1", milk]]);
+    expect(recipeUnitAvgCost([{ ingredient_id: "i1", quantity: 2 }], 10, map, "o1")).toBe(700);
+  });
+
+  it("returns null when yield or cost is invalid", () => {
+    const map = new Map([["i1", milk]]);
+    expect(recipeUnitAvgCost([{ ingredient_id: "i1", quantity: 2 }], 0, map, "o1")).toBeNull();
+    expect(recipeUnitAvgCost([], 10, map, "o1")).toBeNull();
   });
 });
 

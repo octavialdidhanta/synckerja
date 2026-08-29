@@ -15,7 +15,7 @@ export function usePosOutlets() {
       if (!organizationId) return [];
       const { data, error } = await supabase
         .from("pos_outlets")
-        .select("id, organization_id, name, address, city, province, phone, is_active, is_default, sort_order")
+        .select("id, organization_id, name, address, city, province, postal_code, phone, is_active, is_default, sort_order")
         .eq("organization_id", organizationId)
         .eq("is_deleted", false)
         .order("is_default", { ascending: false })
@@ -43,6 +43,7 @@ export function usePosOutlets() {
         address: payload.address?.trim() || null,
         city: payload.city?.trim() || null,
         province: payload.province?.trim() || null,
+        postal_code: payload.postal_code?.trim() || null,
         phone,
         is_active: Boolean(payload.is_active),
         is_deleted: false,

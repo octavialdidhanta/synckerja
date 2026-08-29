@@ -27,6 +27,21 @@ max_enrolled_factors = 10
 [functions.send-confirmation-email]
 verify_jwt = false
 
+[functions.send-operational-email-verification]
+verify_jwt = false
+
+[functions.send-operational-daily-sales]
+verify_jwt = false
+
+[functions.send-operational-inventory-alerts]
+verify_jwt = false
+
+[functions.dispatch-operational-inventory-alert]
+verify_jwt = false
+
+[functions.dispatch-pos-shift-recap]
+verify_jwt = false
+
 [functions.send-payroll-paid-email]
 verify_jwt = false
 
@@ -212,7 +227,7 @@ verify_jwt = false
 
 [functions.social-media-plan-publish]
 verify_jwt = false
-wall_clock_duration = 400
+# Wall-clock limit (400s paid / 150s free) is plan-based on hosted Supabase — not configurable via config.toml.
 
 [functions.share-caption-suggest]
 verify_jwt = false

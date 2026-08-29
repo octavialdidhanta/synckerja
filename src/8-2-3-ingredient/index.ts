@@ -16,5 +16,5 @@ export {
   LibraryIngredientCategoriesManager,
   useCatalogIngredientCategories,
 } from "./categories";
-export { useCatalogIngredientRecipes, ManageRecipeDialog } from "./recipes";
+export { useCatalogIngredientRecipes, ManageRecipeDialog, ProduceStockDialog } from "./recipes";
 export { ProductRecipesManager, useCatalogProductRecipes } from "./product-recipes";

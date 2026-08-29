@@ -20,6 +20,7 @@ export async function logMfaChallengeAbandoned(): Promise<void> {
 export async function abandonMfaChallengeAndReturnToLogin(
   navigate: (path: string, opts?: { replace?: boolean }) => void,
   signOut: () => Promise<void>,
+  loginPath = "/login",
 ): Promise<void> {
   await logMfaChallengeAbandoned();
   try {
@@ -27,5 +28,5 @@ export async function abandonMfaChallengeAndReturnToLogin(
   } catch {
     cleanupAuthState();
   }
-  navigate("/login", { replace: true });
+  navigate(loginPath, { replace: true });
 }

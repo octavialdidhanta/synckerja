@@ -32,6 +32,8 @@ export type MfaVerifyScreenProps = {
   onFieldFocus?: () => void;
   onFieldBlur?: () => void;
   submitButtonRef?: RefObject<HTMLButtonElement | null>;
+  /** Where to send the user if session is missing or they abandon MFA (default `/login`). */
+  loginPath?: string;
 };
 
 const defaultBrandMark = <SynckerjaBrandLogo className="h-10 w-auto sm:h-12" width={48} height={48} />;
@@ -41,6 +43,7 @@ export function MfaVerifyScreen({
   onFieldFocus,
   onFieldBlur,
   submitButtonRef,
+  loginPath = "/login",
 }: MfaVerifyScreenProps = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -63,7 +66,7 @@ export function MfaVerifyScreen({
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) {
-        navigate("/login", { replace: true });
+        navigate(loginPath, { replace: true });
         return;
       }
       if (await hasAal2Session()) {
@@ -75,7 +78,7 @@ export function MfaVerifyScreen({
         await routeAfterLogin(navigate, searchParams.get("redirectTo"));
       }
     })();
-  }, [navigate, searchParams]);
+  }, [navigate, searchParams, loginPath]);
 
   const finishLogin = async () => {
     for (let attempt = 0; attempt < 15; attempt += 1) {
@@ -131,7 +134,7 @@ export function MfaVerifyScreen({
     if (backToLoginDisabled) return;
     setAbandoning(true);
     try {
-      await abandonMfaChallengeAndReturnToLogin(navigate, signOut);
+      await abandonMfaChallengeAndReturnToLogin(navigate, signOut, loginPath);
     } finally {
       setAbandoning(false);
     }

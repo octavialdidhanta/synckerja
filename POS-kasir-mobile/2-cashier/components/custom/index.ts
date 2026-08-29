@@ -1,0 +1,1 @@
+export { PosCustomKeypad } from "./PosCustomKeypad";

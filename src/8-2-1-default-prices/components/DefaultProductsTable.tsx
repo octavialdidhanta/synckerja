@@ -27,9 +27,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
+import { useOutletRecipeAvailability } from "@/stock-management/recipe-availability";
 import type { DefaultPriceRow } from "../types/defaultPrices";
-import { effectivePosStatus, effectiveUnitPrice } from "../product-outlets/lib/effectiveProductOutlet";
+import { effectiveUnitPrice, effectivePosStatus } from "../product-outlets/lib/effectiveProductOutlet";
 import { displaySku, outletQtyForTable } from "../product-variants";
+import { useProductIdsWithBaseRecipe } from "../products";
+import {
+  displayPosStatusForTable,
+  recipeStockBadge,
+} from "../lib/displayRecipePosStatus";
 
 function formatRupiah(n: number): string {
   return new Intl.NumberFormat("id-ID", { style: "decimal", minimumFractionDigits: 0 }).format(n);
@@ -55,6 +61,9 @@ export function DefaultProductsTable({
   const { t } = useAppTranslation();
   const { toast } = useToast();
   const [deleteTarget, setDeleteTarget] = useState<DefaultPriceRow | null>(null);
+  const { data: recipeProductIds } = useProductIdsWithBaseRecipe(rows.map((row) => row.id));
+  const hasBaseRecipe = recipeProductIds ?? new Set<string>();
+  const { byProduct: recipeByProduct } = useOutletRecipeAvailability(selectedOutletId);
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
@@ -102,7 +111,21 @@ export function DefaultProductsTable({
         <TableBody>
           {rows.map((row) => {
             const price = effectiveUnitPrice(row, selectedOutletId ?? null);
-            const status = effectivePosStatus(row, selectedOutletId ?? null);
+            const recipeAvail = recipeByProduct.get(row.id);
+            const isRecipe = hasBaseRecipe.has(row.id);
+            const status = displayPosStatusForTable(
+              row,
+              selectedOutletId ?? null,
+              recipeAvail,
+              isRecipe,
+            );
+            const recipeDrivenOos =
+              status === "sold_out" &&
+              !row.track_stock &&
+              isRecipe &&
+              recipeAvail?.maxServings != null &&
+              recipeAvail.maxServings <= 0 &&
+              effectivePosStatus(row, selectedOutletId ?? null) === "available";
             const qty = outletQtyForTable({
               trackStock: Boolean(row.track_stock),
               outletId: selectedOutletId ?? null,
@@ -115,6 +138,25 @@ export function DefaultProductsTable({
               variants: row.variants ?? [],
               inventorySkuCode: row.sku_code,
             });
+            const badge = recipeStockBadge(recipeAvail, isRecipe, Boolean(row.track_stock));
+            const recipeQty =
+              !row.track_stock && isRecipe && recipeAvail?.maxServings != null
+                ? recipeAvail.maxServings
+                : null;
+            const limiting = recipeAvail?.limiting;
+            const qtyTitle =
+              limiting && recipeQty != null
+                ? t(
+                    "defaultPrices.product.limitedByIngredient",
+                    "Limited by {{name}} ({{available}}/{{needed}})",
+                    {
+                      name: limiting.ingredientName,
+                      available: String(limiting.available),
+                      needed: String(limiting.needed),
+                    },
+                  )
+                : undefined;
+
             return (
             <TableRow key={row.id}>
               <TableCell>
@@ -134,16 +176,36 @@ export function DefaultProductsTable({
               <TableCell>{row.unit || "pcs"}</TableCell>
               <TableCell className="text-right font-medium">{formatRupiah(price)}</TableCell>
               <TableCell className="text-xs">
-                {t(`defaultPrices.product.status.${status}`, status)}
+                {recipeDrivenOos
+                  ? t("defaultPrices.product.status.recipe_out_of_stock", "Out of stock")
+                  : t(`defaultPrices.product.status.${status}`, status)}
               </TableCell>
               <TableCell className="text-xs">
-                {row.track_stock
-                  ? t("defaultPrices.product.tracked", "Tracked")
-                  : t("defaultPrices.product.untracked", "Menu (no stock)")}
+                <span className="inline-flex flex-wrap items-center gap-1">
+                  {row.track_stock
+                    ? t("defaultPrices.product.tracked", "Tracked")
+                    : isRecipe
+                      ? t("defaultPrices.product.menuRecipe", "Menu (recipe)")
+                      : t("defaultPrices.product.untracked", "Menu (no stock)")}
+                  {badge === "out" ? (
+                    <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-700">
+                      {t("defaultPrices.product.recipeStockOut", "Out")}
+                    </span>
+                  ) : null}
+                  {badge === "low" ? (
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                      {t("defaultPrices.product.recipeStockLow", "Low")}
+                    </span>
+                  ) : null}
+                </span>
               </TableCell>
               <TableCell className="text-xs">{skuLabel}</TableCell>
-              <TableCell className="text-right tabular-nums">
-                {row.track_stock ? (qty ?? 0) : "—"}
+              <TableCell className="text-right tabular-nums" title={qtyTitle}>
+                {row.track_stock
+                  ? (qty ?? 0)
+                  : recipeQty != null
+                    ? recipeQty
+                    : "—"}
               </TableCell>
               <TableCell>
                 <DropdownMenu>
@@ -174,20 +236,17 @@ export function DefaultProductsTable({
         </TableBody>
       </Table>
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("defaultPrices.product.deleteTitle", "Delete product")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("defaultPrices.confirmDeleteTitle", "Delete product?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("defaultPrices.product.deleteBody", "This product will be removed from the store catalog.")}
+              {t("defaultPrices.confirmDeleteBody", "This cannot be undone.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel", "Cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => void handleConfirmDelete()}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
+            <AlertDialogAction onClick={() => void handleConfirmDelete()}>
               {t("common.delete", "Delete")}
             </AlertDialogAction>
           </AlertDialogFooter>

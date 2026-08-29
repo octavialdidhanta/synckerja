@@ -1,4 +1,4 @@
-import { LayoutDashboard, Link2, ScrollText, Scale, ClipboardList, Truck } from "lucide-react";
+import { LayoutDashboard, Link2, ScrollText, Scale, ClipboardList, Truck, ArrowLeftRight } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ModuleTabNavItem } from "@/shared/auth/page-access/ModuleTabNavItem";
@@ -6,6 +6,7 @@ import {
   STOCK_MANAGEMENT_DASHBOARD_PATH,
   STOCK_MANAGEMENT_ADJUSTMENT_PATH,
   STOCK_MANAGEMENT_PURCHASE_ORDERS_PATH,
+  STOCK_MANAGEMENT_TRANSFER_PATH,
   STOCK_MANAGEMENT_SUPPLIERS_PATH,
   STOCK_MANAGEMENT_MAPPING_PATH,
   STOCK_MANAGEMENT_PAGE_ACCESS_PATH,
@@ -23,6 +24,7 @@ export function StockManagementHeaderAndTab() {
   const isDashboard = location.pathname === STOCK_MANAGEMENT_DASHBOARD_PATH;
   const isAdjustment = location.pathname.startsWith(STOCK_MANAGEMENT_ADJUSTMENT_PATH);
   const isPurchaseOrders = location.pathname.startsWith(STOCK_MANAGEMENT_PURCHASE_ORDERS_PATH);
+  const isTransfer = location.pathname.startsWith(STOCK_MANAGEMENT_TRANSFER_PATH);
   const isSuppliers = location.pathname.startsWith(STOCK_MANAGEMENT_SUPPLIERS_PATH);
   const isMapping = location.pathname.startsWith(STOCK_MANAGEMENT_MAPPING_PATH);
   const isSyncLogs = location.pathname.startsWith(STOCK_MANAGEMENT_SYNC_LOGS_PATH);
@@ -67,6 +69,15 @@ export function StockManagementHeaderAndTab() {
             icon={ClipboardList}
             isActive={isPurchaseOrders}
             onActivate={() => navigate(STOCK_MANAGEMENT_PURCHASE_ORDERS_PATH)}
+            activeClassName={tabActive}
+            inactiveClassName={tabInactive}
+          />
+          <ModuleTabNavItem
+            pagePath={STOCK_MANAGEMENT_PAGE_ACCESS_PATH}
+            label={t("operations.stockManagement.tabTransfer", "Transfer")}
+            icon={ArrowLeftRight}
+            isActive={isTransfer}
+            onActivate={() => navigate(STOCK_MANAGEMENT_TRANSFER_PATH)}
             activeClassName={tabActive}
             inactiveClassName={tabInactive}
           />

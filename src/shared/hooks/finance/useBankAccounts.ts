@@ -34,6 +34,7 @@ export interface CreateBankAccountData {
   account_number?: string;
   bank_name?: string;
   account_holder?: string;
+  gateway_payout_bank_code?: string | null;
 }
 
 export interface UpdateBankAccountData {
@@ -44,7 +45,7 @@ export interface UpdateBankAccountData {
   is_active?: boolean;
   use_for_omnichannel_income?: boolean;
   use_for_gateway_payout?: boolean;
-  gateway_payout_bank_code?: string;
+  gateway_payout_bank_code?: string | null;
 }
 
 export type UseBankAccountsOptions = {
@@ -100,6 +101,7 @@ export const useBankAccounts = (options?: UseBankAccountsOptions) => {
           account_number: bankAccountData.account_number || null,
           bank_name: bankAccountData.bank_name || null,
           account_holder: bankAccountData.account_holder || null,
+          gateway_payout_bank_code: bankAccountData.gateway_payout_bank_code ?? null,
           organization_id: organizationId,
           is_active: true,
           created_by: userId || null,
@@ -116,6 +118,7 @@ export const useBankAccounts = (options?: UseBankAccountsOptions) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['ops-bank-accounts', organizationId] });
       toast({
         title: 'Success',
         description: 'Bank account created successfully',
@@ -168,6 +171,7 @@ export const useBankAccounts = (options?: UseBankAccountsOptions) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['ops-bank-accounts', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['omnichannel-income-bank-account', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['xendit-settings', organizationId] });
       toast({
@@ -216,6 +220,7 @@ export const useBankAccounts = (options?: UseBankAccountsOptions) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['ops-bank-accounts', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['omnichannel-income-bank-account', organizationId] });
       queryClient.invalidateQueries({ queryKey: ['bank-account-balances', organizationId] });
       toast({

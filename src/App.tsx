@@ -27,6 +27,7 @@ import {
   STOCK_MANAGEMENT_LEGACY_SYNC_LOGS_PATH,
   STOCK_MANAGEMENT_ADJUSTMENT_PATH,
   STOCK_MANAGEMENT_PURCHASE_ORDERS_PATH,
+  STOCK_MANAGEMENT_TRANSFER_PATH,
   STOCK_MANAGEMENT_SUPPLIERS_PATH,
   STOCK_MANAGEMENT_MAPPING_PATH,
   STOCK_MANAGEMENT_PAGE_ACCESS_PATH,
@@ -52,7 +53,17 @@ import {
   ContentCalendarPageSkeleton,
   DefaultPricesPageSkeleton,
   OutletsListPageSkeleton,
+  ReceiptSettingsPageSkeleton,
   IngredientPageSkeleton,
+  CustomersPageSkeleton,
+  CustomersFeedbackPageSkeleton,
+  EmployeesStaffPageSkeleton,
+  TableManagementPageSkeleton,
+  ReportsPageSkeleton,
+  TransactionsReportsRouteSkeleton,
+  InvoicesReportsRouteSkeleton,
+  ShiftReportsRouteSkeleton,
+  OperationsDashboardPageSkeleton,
   EmailConnectPageSkeleton,
   InstagramConnectPageSkeleton,
   ThreadsConnectPageSkeleton,
@@ -87,6 +98,7 @@ import {
   InventorySummarySkeleton,
   InventoryAdjustmentSkeleton,
   InventoryPurchaseOrdersSkeleton,
+  InventoryTransferSkeleton,
   InventorySuppliersSkeleton,
   EcommerceChatPageSkeleton,
   BlibliOrdersPageSkeleton,
@@ -123,6 +135,11 @@ import {
   CustomerSurveyPublicThanksPage,
   SurveyPublicShell,
 } from "@/features/customer-survey/public/SurveyPublicRoutes";
+import {
+  ReceiptFeedbackPublicFormPage,
+  ReceiptFeedbackPublicShell,
+  ReceiptFeedbackPublicThanksPage,
+} from "@/pos-receipt-feedback/public/ReceiptFeedbackPublicRoutes";
 // Route elements are lazy-loaded below to keep the initial JS small.
 import { SubscriptionExpiryGuard } from "@/10-subscription/shared/SubscriptionExpiryGuard";
 import { SubscriptionRoleGuard } from "@/10-subscription/shared/SubscriptionRoleGuard";
@@ -182,7 +199,39 @@ const PPh21CalculatorPage = lazy(() => import("@/8-4-pph-21/pages/PPh21Calculato
 const DefaultPricesPage = lazy(() => import("@/8-2-1-default-prices/pages/DefaultPricesPage"));
 const OutletsListPage = lazy(() => import("@/8-2-2-outlets/pages/OutletsListPage"));
 const CheckoutSettingsPage = lazy(() => import("@/8-2-2-outlets/pages/CheckoutSettingsPage"));
+const EmailNotificationsPage = lazy(() => import("@/8-2-2-outlets/pages/EmailNotificationsPage"));
+const ReceiptSettingsPage = lazy(() => import("@/8-2-2-outlets/pages/ReceiptSettingsPage"));
+const InventorySettingsPage = lazy(() => import("@/8-2-2-outlets/pages/InventorySettingsPage"));
+const BankAccountSettingsPage = lazy(() => import("@/8-2-2-outlets/pages/BankAccountSettingsPage"));
+const VerifyOperationalEmailPage = lazy(
+  () => import("@/0-verify-operational-email/pages/VerifyOperationalEmailPage"),
+);
 const IngredientPage = lazy(() => import("@/8-2-3-ingredient/pages/IngredientPage"));
+const CustomersPage = lazy(() => import("@/8-2-7-customers/pages/CustomersPage"));
+const CustomersFeedbackPage = lazy(() => import("@/8-2-7-customers/pages/CustomersFeedbackPage"));
+const EmployeesStaffSlotsPage = lazy(
+  () => import("@/8-2-8-employees-staff/pages/EmployeesStaffSlotsPage"),
+);
+const EmployeesStaffAccessPage = lazy(
+  () => import("@/8-2-8-employees-staff/pages/EmployeesStaffAccessPage"),
+);
+const EmployeesStaffPinPage = lazy(
+  () => import("@/8-2-8-employees-staff/pages/EmployeesStaffPinPage"),
+);
+const TableGroupPage = lazy(() => import("@/8-2-9-table-management/pages/TableGroupPage"));
+const TableMapPage = lazy(() => import("@/8-2-9-table-management/pages/TableMapPage"));
+const TableReportPage = lazy(() => import("@/8-2-9-table-management/pages/TableReportPage"));
+const ReportsSalesSummaryPage = lazy(
+  () => import("@/8-2-10-reports/pages/ReportsSalesSummaryPage"),
+);
+const ReportsTransactionsPage = lazy(
+  () => import("@/8-2-10-reports/pages/ReportsTransactionsPage"),
+);
+const ReportsInvoicesPage = lazy(() => import("@/8-2-10-reports/pages/ReportsInvoicesPage"));
+const ReportsShiftPage = lazy(() => import("@/8-2-10-reports/pages/ReportsShiftPage"));
+const OperationsDashboardPage = lazy(
+  () => import("@/8-2-11-dashboard/pages/OperationsDashboardPage"),
+);
 const CalculatorServicesPage = lazy(() => import("@/8-3-calculator/pages/CalculatorServicesPage"));
 const CalculatorSalesPage = lazy(() => import("@/8-3-calculator/pages/CalculatorSalesPage"));
 const PricingToolsPage = lazy(() => import("@/8-2-pricing-tools/pages/PricingToolsPage"));
@@ -229,6 +278,7 @@ const StockAdjustmentPage = lazy(() => import("@/6-0-stock-management/pages/Stoc
 const StockPurchaseOrdersPage = lazy(
   () => import("@/6-0-stock-management/pages/StockPurchaseOrdersPage"),
 );
+const StockTransferPage = lazy(() => import("@/6-0-stock-management/pages/StockTransferPage"));
 const StockSuppliersPage = lazy(() => import("@/6-0-stock-management/pages/StockSuppliersPage"));
 const StockSyncLogsPage = lazy(() => import("@/6-0-stock-management/pages/StockSyncLogsPage"));
 const EcommerceChatPage = lazy(() => import("@/6-0-ecommerce-chat/pages/EcommerceChatPage"));
@@ -481,6 +531,19 @@ const CompanyOrganizationPage = lazy(() => import("@/2-8-organization/pages/Comp
 const LoginRouteElement = lazy(() =>
   import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({ default: m.LoginRouteElement })),
 );
+const PosWelcomePage = lazy(() => import("@/pos-mobile/0-welcome/pages/PosWelcomePage"));
+const PosLoginPage = lazy(() => import("@/pos-mobile/0-auth/pages/PosLoginPage"));
+const PosLoginPasswordPage = lazy(() => import("@/pos-mobile/0-auth/pages/PosLoginPasswordPage"));
+const PosRegisterPage = lazy(() => import("@/pos-mobile/0-auth/pages/PosRegisterPage"));
+const PosForgotPasswordPage = lazy(() => import("@/pos-mobile/0-auth/pages/PosForgotPasswordPage"));
+const PosMfaVerifyPage = lazy(() => import("@/pos-mobile/0-auth/pages/PosMfaVerifyPage"));
+const PosSelectOutletPage = lazy(() => import("@/pos-mobile/1-outlet-select/pages/PosSelectOutletPage"));
+const PosCashierPage = lazy(() => import("@/pos-mobile/2-cashier/pages/PosCashierPage"));
+const PosSettingsPage = lazy(() => import("@/pos-mobile/3-settings/pages/PosSettingsPage"));
+const PosShiftPage = lazy(() => import("@/pos-mobile/4-shift/pages/PosShiftPage"));
+const PosTableMapPage = lazy(() => import("@/pos-mobile/5-table-map/pages/PosTableMapPage"));
+const PosInventoryPage = lazy(() => import("@/pos-mobile/6-inventory/pages/PosInventoryPage"));
+const PosActivityPage = lazy(() => import("@/pos-mobile/7-activity/pages/PosActivityPage"));
 const MfaVerifyRouteElement = lazy(() =>
   import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
     default: m.MfaVerifyRouteElement,
@@ -715,6 +778,12 @@ function AppRoutes() {
     <Suspense fallback={fallback}>
       <Routes>
         <Route path="/login" element={<LoginRouteElement />} />
+        <Route path="/pos" element={<PosWelcomePage />} />
+        <Route path="/pos/login" element={<PosLoginPage />} />
+        <Route path="/pos/login/password" element={<PosLoginPasswordPage />} />
+        <Route path="/pos/login/mfa" element={<PosMfaVerifyPage />} />
+        <Route path="/pos/register" element={<PosRegisterPage />} />
+        <Route path="/pos/forgot-password" element={<PosForgotPasswordPage />} />
         <Route path="/login/mfa" element={<MfaVerifyRouteElement />} />
         <Route path="/first-login" element={<FirstLoginRouteElement />} />
         <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
@@ -731,6 +800,14 @@ function AppRoutes() {
         <Route path="/register" element={<RegisterRouteElement />} />
         <Route path="/verify-email" element={<VerifyEmailRouteElement />} />
         <Route path="/email-verified" element={<EmailVerifiedRouteElement />} />
+        <Route
+          path="/verify-operational-email"
+          element={
+            <Suspense fallback={null}>
+              <VerifyOperationalEmailPage />
+            </Suspense>
+          }
+        />
         <Route path="/terms-and-conditions" element={<TermsAndConditionsRouteElement />} />
         <Route path="/policy/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/policy/terms" element={<TermsOfServicePage />} />
@@ -851,6 +928,62 @@ function AppRoutes() {
           <Route element={<RequireMfaSession />}>
           <Route element={<OrganizationAccessGuard />}>
           <Route element={<SubscriptionExpiryGuard />}>
+            <Route
+              path="/pos/select-outlet"
+              element={
+                <Suspense fallback={null}>
+                  <PosSelectOutletPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/pos/cashier"
+              element={
+                <Suspense fallback={null}>
+                  <PosCashierPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/pos/settings"
+              element={
+                <Suspense fallback={null}>
+                  <PosSettingsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/pos/shift"
+              element={
+                <Suspense fallback={null}>
+                  <PosShiftPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/pos/table-map"
+              element={
+                <Suspense fallback={null}>
+                  <PosTableMapPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/pos/inventory"
+              element={
+                <Suspense fallback={null}>
+                  <PosInventoryPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/pos/activity"
+              element={
+                <Suspense fallback={null}>
+                  <PosActivityPage />
+                </Suspense>
+              }
+            />
             <Route element={<AdaptiveAppLayout />}>
               <Route
                 path="/"
@@ -1607,6 +1740,279 @@ function AppRoutes() {
                   </PageAccessGuard>
                 }
               />
+              <Route
+                path="/operations/settings/receipt"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/settings/receipt"
+                    loadingShell={<ReceiptSettingsPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <ReceiptSettingsSuspense>
+                      <ReceiptSettingsPage />
+                    </ReceiptSettingsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/settings/email-notifications"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/settings/email-notifications"
+                    loadingShell={<OutletsListPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <OutletsListSuspense>
+                      <EmailNotificationsPage />
+                    </OutletsListSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/settings/inventory"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/settings/inventory"
+                    loadingShell={<OutletsListPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <OutletsListSuspense>
+                      <InventorySettingsPage />
+                    </OutletsListSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/settings/bank-account"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/settings/bank-account"
+                    loadingShell={<OutletsListPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <OutletsListSuspense>
+                      <BankAccountSettingsPage />
+                    </OutletsListSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/customers-list"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/customers-list"
+                    loadingShell={<CustomersPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <CustomersSuspense>
+                      <CustomersPage />
+                    </CustomersSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/customers-feedback"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/customers-feedback"
+                    loadingShell={<CustomersFeedbackPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <CustomersSuspense>
+                      <CustomersFeedbackPage />
+                    </CustomersSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/employees-staff"
+                element={<Navigate to="/operations/employees-staff/slots" replace />}
+              />
+              <Route
+                path="/operations/employees-staff/slots"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/employees-staff/slots"
+                    loadingShell={<EmployeesStaffPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <EmployeesStaffSuspense>
+                      <EmployeesStaffSlotsPage />
+                    </EmployeesStaffSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/employees-staff/access"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/employees-staff/access"
+                    loadingShell={<EmployeesStaffPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <EmployeesStaffSuspense>
+                      <EmployeesStaffAccessPage />
+                    </EmployeesStaffSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/employees-staff/pin-access"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/employees-staff/pin-access"
+                    loadingShell={<EmployeesStaffPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <EmployeesStaffSuspense>
+                      <EmployeesStaffPinPage />
+                    </EmployeesStaffSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/table-management"
+                element={<Navigate to="/operations/table-management/group" replace />}
+              />
+              <Route
+                path="/operations/table-management/group"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/table-management/group"
+                    loadingShell={<TableManagementPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <TableManagementSuspense>
+                      <TableGroupPage />
+                    </TableManagementSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/table-management/map"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/table-management/map"
+                    loadingShell={<TableManagementPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <TableManagementSuspense>
+                      <TableMapPage />
+                    </TableManagementSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/table-management/report"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/table-management/report"
+                    loadingShell={<TableManagementPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <TableManagementSuspense>
+                      <TableReportPage />
+                    </TableManagementSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/dashboard"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/dashboard"
+                    loadingShell={<OperationsDashboardPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <OperationsDashboardSuspense>
+                      <OperationsDashboardPage />
+                    </OperationsDashboardSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/reports"
+                element={<Navigate to="/operations/reports/sales/summary" replace />}
+              />
+              <Route
+                path="/operations/reports/sales"
+                element={<Navigate to="/operations/reports/sales/summary" replace />}
+              />
+              {(
+                [
+                  "/operations/reports/sales/summary",
+                  "/operations/reports/sales/gross-profit",
+                  "/operations/reports/sales/payment-methods",
+                  "/operations/reports/sales/sales-type",
+                  "/operations/reports/sales/item-sales",
+                  "/operations/reports/sales/category-sales",
+                  "/operations/reports/sales/brand-sales",
+                  "/operations/reports/sales/modifier-sales",
+                  "/operations/reports/sales/discounts",
+                  "/operations/reports/sales/taxes",
+                  "/operations/reports/sales/gratuity",
+                  "/operations/reports/sales/collected-by",
+                  "/operations/reports/sales/served-by",
+                ] as const
+              ).map((salesPath) => (
+                <Route
+                  key={salesPath}
+                  path={salesPath}
+                  element={
+                    <PageAccessGuard
+                      pagePath="/operations/reports/sales/summary"
+                      loadingShell={<ReportsPageSkeleton />}
+                      loadingShellWrapperClassName="bg-gray-100"
+                    >
+                      <ReportsSuspense>
+                        <ReportsSalesSummaryPage />
+                      </ReportsSuspense>
+                    </PageAccessGuard>
+                  }
+                />
+              ))}
+              <Route
+                path="/operations/reports/transactions"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/reports/transactions"
+                    loadingShell={<TransactionsReportsRouteSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <TransactionsReportsSuspense>
+                      <ReportsTransactionsPage />
+                    </TransactionsReportsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/reports/invoices"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/reports/invoices"
+                    loadingShell={<InvoicesReportsRouteSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <InvoicesReportsSuspense>
+                      <ReportsInvoicesPage />
+                    </InvoicesReportsSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/operations/reports/shift"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/reports/shift"
+                    loadingShell={<ShiftReportsRouteSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <ShiftReportsSuspense>
+                      <ReportsShiftPage />
+                    </ShiftReportsSuspense>
+                  </PageAccessGuard>
+                }
+              />
               <Route path="/operations/sales" element={<Navigate to="/operations/sales/activities" replace />} />
               <Route
                 path="/operations/sales/activities"
@@ -2237,11 +2643,119 @@ const OutletsListSuspense = ({ children }: { children: ReactNode }) => (
   </Suspense>
 );
 
+const ReceiptSettingsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <ReceiptSettingsPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
 const IngredientSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
         <IngredientPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const CustomersSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <CustomersPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const EmployeesStaffSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <EmployeesStaffPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const TableManagementSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <TableManagementPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const InvoicesReportsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <InvoicesReportsRouteSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const ShiftReportsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <ShiftReportsRouteSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const TransactionsReportsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <TransactionsReportsRouteSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const ReportsSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <ReportsPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const OperationsDashboardSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <OperationsDashboardPageSkeleton />
       </div>
     }
   >
@@ -2696,6 +3210,20 @@ function StockPurchaseOrdersPageRouteElement() {
   );
 }
 
+function StockTransferPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <InventoryTransferSkeleton />
+        </div>
+      }
+    >
+      <StockTransferPage />
+    </Suspense>
+  );
+}
+
 function StockSuppliersPageRouteElement() {
   return (
     <Suspense
@@ -3128,6 +3656,12 @@ const App = () => (
                   <Suspense fallback={<AppRoutesSuspenseFallback />}>
                     <Routes>
                   <Route path="/login" element={<LoginRouteElement />} />
+                  <Route path="/pos" element={<PosWelcomePage />} />
+                  <Route path="/pos/login" element={<PosLoginPage />} />
+                  <Route path="/pos/login/password" element={<PosLoginPasswordPage />} />
+                  <Route path="/pos/login/mfa" element={<PosMfaVerifyPage />} />
+                  <Route path="/pos/register" element={<PosRegisterPage />} />
+                  <Route path="/pos/forgot-password" element={<PosForgotPasswordPage />} />
                   <Route path="/login/mfa" element={<MfaVerifyRouteElement />} />
                   <Route path="/first-login" element={<FirstLoginRouteElement />} />
                   <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
@@ -3144,6 +3678,14 @@ const App = () => (
                   <Route path="/register" element={<RegisterRouteElement />} />
                   <Route path="/verify-email" element={<VerifyEmailRouteElement />} />
                   <Route path="/email-verified" element={<EmailVerifiedRouteElement />} />
+                  <Route
+                    path="/verify-operational-email"
+                    element={
+                      <Suspense fallback={null}>
+                        <VerifyOperationalEmailPage />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/terms-and-conditions" element={<TermsAndConditionsRouteElement />} />
                   <Route path="/policy/privacy" element={<PrivacyPolicyPage />} />
                   <Route path="/policy/terms" element={<TermsOfServicePage />} />
@@ -3265,6 +3807,23 @@ const App = () => (
                   />
 
                   <Route
+                    path="/r/:token/thanks"
+                    element={
+                      <ReceiptFeedbackPublicShell>
+                        <ReceiptFeedbackPublicThanksPage />
+                      </ReceiptFeedbackPublicShell>
+                    }
+                  />
+                  <Route
+                    path="/r/:token"
+                    element={
+                      <ReceiptFeedbackPublicShell>
+                        <ReceiptFeedbackPublicFormPage />
+                      </ReceiptFeedbackPublicShell>
+                    }
+                  />
+
+                  <Route
                     path="/s/:token/thanks"
                     element={
                       <SurveyPublicShell>
@@ -3285,6 +3844,62 @@ const App = () => (
                     <Route element={<RequireMfaSession />}>
                     <Route element={<OrganizationAccessGuard />}>
                     <Route element={<SubscriptionExpiryGuard />}>
+                      <Route
+                        path="/pos/select-outlet"
+                        element={
+                          <Suspense fallback={null}>
+                            <PosSelectOutletPage />
+                          </Suspense>
+                        }
+                      />
+                      <Route
+                        path="/pos/cashier"
+                        element={
+                          <Suspense fallback={null}>
+                            <PosCashierPage />
+                          </Suspense>
+                        }
+                      />
+                      <Route
+                        path="/pos/settings"
+                        element={
+                          <Suspense fallback={null}>
+                            <PosSettingsPage />
+                          </Suspense>
+                        }
+                      />
+                      <Route
+                        path="/pos/shift"
+                        element={
+                          <Suspense fallback={null}>
+                            <PosShiftPage />
+                          </Suspense>
+                        }
+                      />
+                      <Route
+                        path="/pos/table-map"
+                        element={
+                          <Suspense fallback={null}>
+                            <PosTableMapPage />
+                          </Suspense>
+                        }
+                      />
+                      <Route
+                        path="/pos/inventory"
+                        element={
+                          <Suspense fallback={null}>
+                            <PosInventoryPage />
+                          </Suspense>
+                        }
+                      />
+                      <Route
+                        path="/pos/activity"
+                        element={
+                          <Suspense fallback={null}>
+                            <PosActivityPage />
+                          </Suspense>
+                        }
+                      />
                       <Route element={<AdaptiveAppLayout />}>
                         <Route
                           path="/"
@@ -4110,6 +4725,279 @@ const App = () => (
                             </PageAccessGuard>
                           }
                         />
+                        <Route
+                          path="/operations/settings/receipt"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/settings/receipt"
+                              loadingShell={<ReceiptSettingsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <ReceiptSettingsSuspense>
+                                <ReceiptSettingsPage />
+                              </ReceiptSettingsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/settings/email-notifications"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/settings/email-notifications"
+                              loadingShell={<OutletsListPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <OutletsListSuspense>
+                                <EmailNotificationsPage />
+                              </OutletsListSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/settings/inventory"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/settings/inventory"
+                              loadingShell={<OutletsListPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <OutletsListSuspense>
+                                <InventorySettingsPage />
+                              </OutletsListSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/settings/bank-account"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/settings/bank-account"
+                              loadingShell={<OutletsListPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <OutletsListSuspense>
+                                <BankAccountSettingsPage />
+                              </OutletsListSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/customers-list"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/customers-list"
+                              loadingShell={<CustomersPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <CustomersSuspense>
+                                <CustomersPage />
+                              </CustomersSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/customers-feedback"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/customers-feedback"
+                              loadingShell={<CustomersFeedbackPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <CustomersSuspense>
+                                <CustomersFeedbackPage />
+                              </CustomersSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/employees-staff"
+                          element={<Navigate to="/operations/employees-staff/slots" replace />}
+                        />
+                        <Route
+                          path="/operations/employees-staff/slots"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/employees-staff/slots"
+                              loadingShell={<EmployeesStaffPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <EmployeesStaffSuspense>
+                                <EmployeesStaffSlotsPage />
+                              </EmployeesStaffSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/employees-staff/access"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/employees-staff/access"
+                              loadingShell={<EmployeesStaffPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <EmployeesStaffSuspense>
+                                <EmployeesStaffAccessPage />
+                              </EmployeesStaffSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/employees-staff/pin-access"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/employees-staff/pin-access"
+                              loadingShell={<EmployeesStaffPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <EmployeesStaffSuspense>
+                                <EmployeesStaffPinPage />
+                              </EmployeesStaffSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/table-management"
+                          element={<Navigate to="/operations/table-management/group" replace />}
+                        />
+                        <Route
+                          path="/operations/table-management/group"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/table-management/group"
+                              loadingShell={<TableManagementPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <TableManagementSuspense>
+                                <TableGroupPage />
+                              </TableManagementSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/table-management/map"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/table-management/map"
+                              loadingShell={<TableManagementPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <TableManagementSuspense>
+                                <TableMapPage />
+                              </TableManagementSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/table-management/report"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/table-management/report"
+                              loadingShell={<TableManagementPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <TableManagementSuspense>
+                                <TableReportPage />
+                              </TableManagementSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/dashboard"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/dashboard"
+                              loadingShell={<OperationsDashboardPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <OperationsDashboardSuspense>
+                                <OperationsDashboardPage />
+                              </OperationsDashboardSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/reports"
+                          element={<Navigate to="/operations/reports/sales/summary" replace />}
+                        />
+                        <Route
+                          path="/operations/reports/sales"
+                          element={<Navigate to="/operations/reports/sales/summary" replace />}
+                        />
+                        {(
+                          [
+                            "/operations/reports/sales/summary",
+                            "/operations/reports/sales/gross-profit",
+                            "/operations/reports/sales/payment-methods",
+                            "/operations/reports/sales/sales-type",
+                            "/operations/reports/sales/item-sales",
+                            "/operations/reports/sales/category-sales",
+                            "/operations/reports/sales/brand-sales",
+                            "/operations/reports/sales/modifier-sales",
+                            "/operations/reports/sales/discounts",
+                            "/operations/reports/sales/taxes",
+                            "/operations/reports/sales/gratuity",
+                            "/operations/reports/sales/collected-by",
+                            "/operations/reports/sales/served-by",
+                          ] as const
+                        ).map((salesPath) => (
+                          <Route
+                            key={`m-${salesPath}`}
+                            path={salesPath}
+                            element={
+                              <PageAccessGuard
+                                pagePath="/operations/reports/sales/summary"
+                                loadingShell={<ReportsPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <ReportsSuspense>
+                                  <ReportsSalesSummaryPage />
+                                </ReportsSuspense>
+                              </PageAccessGuard>
+                            }
+                          />
+                        ))}
+                        <Route
+                          path="/operations/reports/transactions"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/reports/transactions"
+                              loadingShell={<TransactionsReportsRouteSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <TransactionsReportsSuspense>
+                                <ReportsTransactionsPage />
+                              </TransactionsReportsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/reports/invoices"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/reports/invoices"
+                              loadingShell={<InvoicesReportsRouteSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <InvoicesReportsSuspense>
+                                <ReportsInvoicesPage />
+                              </InvoicesReportsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/reports/shift"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/reports/shift"
+                              loadingShell={<ShiftReportsRouteSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <ShiftReportsSuspense>
+                                <ReportsShiftPage />
+                              </ShiftReportsSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
                         <Route path="/operations/sales" element={<Navigate to="/operations/sales/activities" replace />} />
                         <Route
                           path="/operations/sales/activities"
@@ -4770,6 +5658,18 @@ const App = () => (
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <StockPurchaseOrdersPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path={STOCK_MANAGEMENT_TRANSFER_PATH}
+                            element={
+                              <PageAccessGuard
+                                pagePath={STOCK_MANAGEMENT_PAGE_ACCESS_PATH}
+                                loadingShell={<InventoryTransferSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <StockTransferPageRouteElement />
                               </PageAccessGuard>
                             }
                           />

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
+import { normalizeModifierLimit } from "../lib/modifierLimit";
 import type {
   CatalogModifierGroup,
   CatalogModifierGroupSave,
@@ -9,20 +10,39 @@ import type {
 
 const QUERY_KEY = "catalog-modifier-groups";
 
+type OptionRow = CatalogModifierOption & {
+  catalog_modifier_option_ingredients?: Array<{
+    ingredient_id: string;
+    quantity: number | string;
+  }> | null;
+};
+
 type GroupRow = Omit<CatalogModifierGroup, "options" | "product_ids" | "outlet_ids"> & {
-  catalog_modifier_options?: CatalogModifierOption[] | null;
+  catalog_modifier_options?: OptionRow[] | null;
   catalog_product_modifiers?: Array<{ product_id: string }> | null;
   catalog_modifier_outlets?: Array<{ outlet_id: string }> | null;
 };
+
+function mapOption(opt: OptionRow): CatalogModifierOption {
+  const stock = (opt.catalog_modifier_option_ingredients ?? [])[0];
+  const qty = stock != null ? Number(stock.quantity) : NaN;
+  const {
+    catalog_modifier_option_ingredients: _stock,
+    ...rest
+  } = opt;
+  return {
+    ...rest,
+    extra_price: Number(opt.extra_price) || 0,
+    stock_ingredient_id: stock?.ingredient_id ?? null,
+    stock_quantity: Number.isFinite(qty) && qty > 0 ? qty : null,
+  };
+}
 
 function mapGroup(row: GroupRow): CatalogModifierGroup {
   const options = (row.catalog_modifier_options ?? [])
     .filter((opt) => opt.is_active)
     .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
-    .map((opt) => ({
-      ...opt,
-      extra_price: Number(opt.extra_price) || 0,
-    }));
+    .map(mapOption);
   const {
     catalog_modifier_options: _opts,
     catalog_product_modifiers: links,
@@ -31,10 +51,45 @@ function mapGroup(row: GroupRow): CatalogModifierGroup {
   } = row;
   return {
     ...rest,
+    min_selected: Number(rest.min_selected) || 0,
+    max_selected: Math.max(1, Number(rest.max_selected) || 1),
     options,
     product_ids: (links ?? []).map((link) => link.product_id),
     outlet_ids: (outletLinks ?? []).map((link) => link.outlet_id),
   };
+}
+
+async function syncOptionIngredient(args: {
+  organizationId: string;
+  optionId: string;
+  ingredientId: string | null | undefined;
+  quantity: number | null | undefined;
+}) {
+  const qty =
+    args.quantity != null && Number.isFinite(args.quantity) && args.quantity > 0
+      ? args.quantity
+      : null;
+  const ingredientId = args.ingredientId?.trim() || null;
+
+  if (!ingredientId || qty == null) {
+    const { error } = await supabase
+      .from("catalog_modifier_option_ingredients")
+      .delete()
+      .eq("option_id", args.optionId);
+    if (error) throw error;
+    return;
+  }
+
+  const { error } = await supabase.from("catalog_modifier_option_ingredients").upsert(
+    {
+      organization_id: args.organizationId,
+      option_id: args.optionId,
+      ingredient_id: ingredientId,
+      quantity: qty,
+    },
+    { onConflict: "option_id" },
+  );
+  if (error) throw error;
 }
 
 export function useCatalogModifierGroups() {
@@ -48,7 +103,7 @@ export function useCatalogModifierGroups() {
       const { data, error } = await supabase
         .from("catalog_modifier_groups")
         .select(
-          "id, organization_id, name, sort_order, is_active, limit_enabled, is_required, max_selected, stock_enabled, catalog_modifier_options(id, group_id, organization_id, name, extra_price, sort_order, is_active, inventory_sku_id), catalog_product_modifiers(product_id), catalog_modifier_outlets(outlet_id)",
+          "id, organization_id, name, sort_order, is_active, limit_enabled, is_required, min_selected, max_selected, stock_enabled, catalog_modifier_options(id, group_id, organization_id, name, extra_price, sort_order, is_active, inventory_sku_id, catalog_modifier_option_ingredients(ingredient_id, quantity)), catalog_product_modifiers(product_id), catalog_modifier_outlets(outlet_id)",
         )
         .eq("organization_id", organizationId)
         .eq("is_active", true)
@@ -76,11 +131,18 @@ export function useCatalogModifierGroups() {
         .filter((opt) => opt.name);
       if (options.length === 0) throw new Error("modifier_options_required");
 
+      const limit = normalizeModifierLimit({
+        limitEnabled: payload.limit_enabled,
+        isRequired: payload.is_required,
+        minSelected: payload.min_selected,
+        maxSelected: payload.max_selected,
+      });
       const groupFields = {
         name,
         limit_enabled: payload.limit_enabled,
         is_required: payload.limit_enabled ? payload.is_required : false,
-        max_selected: payload.limit_enabled ? Math.max(1, payload.max_selected) : 1,
+        min_selected: limit.min,
+        max_selected: limit.max,
         stock_enabled: payload.stock_enabled,
         is_active: true,
       };
@@ -121,6 +183,7 @@ export function useCatalogModifierGroups() {
         if (error) throw error;
       }
 
+      const savedOptionIds: string[] = [];
       for (let i = 0; i < options.length; i += 1) {
         const opt = options[i];
         const row = {
@@ -130,14 +193,35 @@ export function useCatalogModifierGroups() {
           extra_price: opt.extra_price,
           sort_order: i + 1,
           is_active: true,
-          inventory_sku_id: payload.stock_enabled ? (opt.inventory_sku_id || null) : null,
+          inventory_sku_id: null as string | null,
         };
         if (opt.id) {
           const { error } = await supabase.from("catalog_modifier_options").update(row).eq("id", opt.id);
           if (error) throw error;
+          savedOptionIds.push(opt.id);
         } else {
-          const { error } = await supabase.from("catalog_modifier_options").insert(row);
+          const { data, error } = await supabase
+            .from("catalog_modifier_options")
+            .insert(row)
+            .select("id")
+            .single();
           if (error) throw error;
+          savedOptionIds.push(data.id as string);
+        }
+      }
+
+      if (payload.stock_enabled) {
+        for (let i = 0; i < options.length; i += 1) {
+          const opt = options[i];
+          const optionId = savedOptionIds[i];
+          const qtyRaw = Number(opt.stock_quantity);
+          const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : null;
+          await syncOptionIngredient({
+            organizationId,
+            optionId,
+            ingredientId: opt.stock_ingredient_id,
+            quantity: qty,
+          });
         }
       }
 

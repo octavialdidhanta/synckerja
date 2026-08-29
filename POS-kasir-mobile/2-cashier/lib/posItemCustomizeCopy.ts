@@ -1,0 +1,13 @@
+export const POS_ITEM_CUSTOMIZE_I18N = {
+  cancel: "posCashier.itemCustomize.cancel",
+  save: "posCashier.itemCustomize.save",
+  variant: "posCashier.itemCustomize.variant",
+  pickOne: "posCashier.itemCustomize.pickOne",
+  pickMany: "posCashier.itemCustomize.pickMany",
+  qty: "posCashier.itemCustomize.qty",
+  discount: "posCashier.itemCustomize.discount",
+  salesType: "posCashier.itemCustomize.salesType",
+  loading: "posCashier.itemCustomize.loading",
+  customAmount: "posCashier.itemCustomize.customAmount",
+  optionOutOfStock: "posCashier.itemCustomize.optionOutOfStock",
+} as const;

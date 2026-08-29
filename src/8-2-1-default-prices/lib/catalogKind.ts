@@ -52,6 +52,7 @@ export function isCatalogProductSoldOut(args: {
   inventorySkuId?: string | null;
   availableQty?: number | null;
 }): boolean {
+  // POS bundles use kind "bundle" and are not stock-gated in this phase.
   if (args.kind !== 'product') return false;
   if (normalizeCatalogPosStatus(args.posStatus) === 'sold_out') return true;
   return args.trackStock === true && Number(args.availableQty) <= 0;

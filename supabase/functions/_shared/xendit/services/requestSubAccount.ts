@@ -17,6 +17,7 @@ export type RequestSubAccountResult = {
 export async function requestSubAccount(
   admin: SupabaseClient,
   organizationId: string,
+  opts?: { isSandbox?: boolean },
 ): Promise<RequestSubAccountResult> {
   const settings = await getOrgXenditSettings(admin, organizationId);
   if (!settings?.is_enabled) {
@@ -25,11 +26,12 @@ export async function requestSubAccount(
 
   const isInternal = isInternalXenditOrg(organizationId);
   if (isInternal) {
+    // Live Indonesia rejects OWNED (UNSUPPORTED_COUNTRY). Sandbox keeps OWNED for QA.
     return {
       require_kyc: false,
       can_create: true,
       is_internal: true,
-      account_type: "OWNED",
+      account_type: opts?.isSandbox === true ? "OWNED" : "MANAGED",
       kyc_status: null,
     };
   }

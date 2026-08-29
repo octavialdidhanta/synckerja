@@ -43,7 +43,10 @@ export type XenditVaBank = { code: string; label: string };
 export type XenditPaymentRequest = {
   id: string;
   organization_id: string;
-  sales_activity_payment_id: string;
+  sales_activity_payment_id: string | null;
+  payment_type?: "va" | "qris";
+  pos_pending_checkout_id?: string | null;
+  sales_activity_id?: string | null;
   bank_code: string;
   account_number: string | null;
   expected_amount: number;
@@ -53,6 +56,8 @@ export type XenditPaymentRequest = {
   status: string;
   expires_at: string | null;
   external_id: string;
+  qr_string?: string | null;
+  xendit_qr_id?: string | null;
 };
 
 export type XenditDisbursementRow = {

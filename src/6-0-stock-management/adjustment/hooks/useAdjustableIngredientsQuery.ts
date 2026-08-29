@@ -4,6 +4,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 export type AdjustableIngredient = {
   ingredientId: string;
   ingredientName: string;
+  unit?: string;
   inStock: number;
 };
 
@@ -23,7 +24,7 @@ export function useAdjustableIngredientsQuery(args: { organizationId: string | n
 
       const { data, error } = await supabase
         .from("catalog_ingredients")
-        .select("id, name, track_inventory, catalog_ingredient_outlets(outlet_id, in_stock)")
+        .select("id, name, unit_code, track_inventory, catalog_ingredient_outlets(outlet_id, in_stock)")
         .eq("organization_id", args.organizationId)
         .eq("is_deleted", false)
         .eq("track_inventory", true);
@@ -33,6 +34,7 @@ export function useAdjustableIngredientsQuery(args: { organizationId: string | n
       const rows = (data ?? []) as Array<{
         id: string;
         name: string | null;
+        unit_code: string | null;
         catalog_ingredient_outlets: Array<{ outlet_id: string; in_stock: number | string }> | null;
       }>;
 
@@ -44,6 +46,7 @@ export function useAdjustableIngredientsQuery(args: { organizationId: string | n
         adjustable.push({
           ingredientId: String(row.id),
           ingredientName: row.name?.trim() || "—",
+          unit: row.unit_code?.trim() || undefined,
           inStock: num(stock.in_stock),
         });
       }

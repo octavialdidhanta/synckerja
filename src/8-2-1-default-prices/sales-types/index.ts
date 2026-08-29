@@ -4,3 +4,8 @@ export { LibrarySalesTypesManager } from "./components/LibrarySalesTypesManager"
 export { SalesTypeFormSheet } from "./components/SalesTypeFormSheet";
 export { AssignSalesTypeOutletDialog } from "./components/AssignSalesTypeOutletDialog";
 export { SalesTypeOutletsSection } from "./components/SalesTypeOutletsSection";
+export {
+  filterGratuitiesForSalesTypeOutlets,
+  listSalesTypesMissingGratuity,
+  salesTypeMissingGratuity,
+} from "./lib";

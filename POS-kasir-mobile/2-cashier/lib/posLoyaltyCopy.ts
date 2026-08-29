@@ -1,0 +1,16 @@
+export const POS_LOYALTY_I18N = {
+  title: "posCashier.loyaltyDialog.title",
+  cancel: "posCashier.loyaltyDialog.cancel",
+  skip: "posCashier.loyaltyDialog.skip",
+  registerOrSearch: "posCashier.loyaltyDialog.registerOrSearch",
+  check: "posCashier.loyaltyDialog.check",
+  phonePlaceholder: "posCashier.loyaltyDialog.phonePlaceholder",
+  found: "posCashier.loyaltyDialog.found",
+  notFound: "posCashier.loyaltyDialog.notFound",
+  rewardsHeading: "posCashier.loyaltyDialog.rewardsHeading",
+  hide: "posCashier.loyaltyDialog.hide",
+  show: "posCashier.loyaltyDialog.show",
+  emptyRewards: "posCashier.loyaltyDialog.emptyRewards",
+  pointsHint: "posCashier.loyaltyDialog.pointsHint",
+  continue: "posCashier.loyaltyDialog.continue",
+} as const;

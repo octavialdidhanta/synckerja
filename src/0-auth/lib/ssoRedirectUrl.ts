@@ -1,7 +1,12 @@
 import { Capacitor } from "@capacitor/core";
+import {
+  getNativeSsoAppScheme,
+  NATIVE_APP_ID_OFFICE,
+  NATIVE_APP_ID_POS,
+} from "@/shared/native/appSurface";
 
-/** Must match `appId` in capacitor.config.ts and Android/iOS URL scheme registration. */
-export const NATIVE_SSO_APP_SCHEME = "id.synckerja.app";
+/** @deprecated Prefer {@link getNativeSsoAppScheme} — Office default for static imports. */
+export const NATIVE_SSO_APP_SCHEME = NATIVE_APP_ID_OFFICE;
 
 export const NATIVE_SSO_CALLBACK_PATH = "/auth/sso/callback";
 
@@ -16,7 +21,8 @@ export function isNativeCapacitorAuth(): boolean {
 /** Supabase `redirectTo` — web origin on browser; custom scheme on native so OAuth returns to the app. */
 export function getSsoRedirectUrl(): string {
   if (isNativeCapacitorAuth()) {
-    return `${NATIVE_SSO_APP_SCHEME}://${NATIVE_SSO_CALLBACK_PATH.replace(/^\//, "")}`;
+    const scheme = getNativeSsoAppScheme();
+    return `${scheme}://${NATIVE_SSO_CALLBACK_PATH.replace(/^\//, "")}`;
   }
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   return `${origin}${NATIVE_SSO_CALLBACK_PATH}`;
@@ -28,15 +34,21 @@ export type ParsedNativeSsoCallback = {
   hash: string;
 };
 
-/** Parses `id.synckerja.app://auth/sso/callback?code=...` into in-app router path. */
+const NATIVE_SSO_SCHEMES = [NATIVE_APP_ID_OFFICE, NATIVE_APP_ID_POS] as const;
+
+/** Parses `id.synckerja.app|pos://auth/sso/callback?code=...` into in-app router path. */
 export function parseNativeSsoCallbackUrl(raw: string): ParsedNativeSsoCallback | null {
   const trimmed = raw.trim();
-  const prefix = `${NATIVE_SSO_APP_SCHEME}://`;
-  if (!trimmed.toLowerCase().startsWith(prefix.toLowerCase())) {
-    return null;
+  let rest: string | null = null;
+  for (const scheme of NATIVE_SSO_SCHEMES) {
+    const prefix = `${scheme}://`;
+    if (trimmed.toLowerCase().startsWith(prefix.toLowerCase())) {
+      rest = trimmed.slice(prefix.length);
+      break;
+    }
   }
+  if (rest == null) return null;
 
-  const rest = trimmed.slice(prefix.length);
   const hashIdx = rest.indexOf("#");
   const beforeHash = hashIdx >= 0 ? rest.slice(0, hashIdx) : rest;
   const hash = hashIdx >= 0 ? rest.slice(hashIdx) : "";

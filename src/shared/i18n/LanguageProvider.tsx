@@ -27,7 +27,7 @@ interface LanguageContextValue {
 const LanguageContext = createContext<LanguageContextValue | undefined>(undefined);
 
 const PUBLIC_AUTH_PATH =
-  /^\/(?:login|register|forgot-password|reset-password|verify-email|email-verified|terms-and-conditions)(?:\/|$)/;
+  /^\/(?:pos|login|register|forgot-password|reset-password|verify-email|email-verified|verify-operational-email|terms-and-conditions)(?:\/|$)/;
 
 const loadInitialLanguage = (): AppLanguage => {
   if (typeof window === "undefined") return DEFAULT_LANGUAGE;

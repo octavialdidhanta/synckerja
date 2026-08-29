@@ -4,6 +4,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 export type AdjustableProduct = {
   productId: string;
   productName: string;
+  unit?: string;
   // If variants.length > 0, adjustment is done per-variant (parent qty is not used).
   variants: Array<{ variantId: string; variantName: string; inStock: number }>;
   inStock: number; // for non-variant products only
@@ -25,7 +26,7 @@ export function useAdjustableProductsQuery(args: { organizationId: string | null
 
       const { data, error } = await supabase
         .from("default_prices")
-        .select("id, name, track_stock, catalog_product_outlets(outlet_id, in_stock), catalog_product_variants(id, name, sort_order)")
+        .select("id, name, unit, track_stock, catalog_product_outlets(outlet_id, in_stock), catalog_product_variants(id, name, sort_order)")
         .eq("organization_id", args.organizationId)
         .eq("kind", "product")
         .eq("track_stock", true);
@@ -34,6 +35,7 @@ export function useAdjustableProductsQuery(args: { organizationId: string | null
       const products = (data ?? []) as Array<{
         id: string;
         name: string | null;
+        unit: string | null;
         catalog_product_outlets: Array<{ outlet_id: string; in_stock: number | string }> | null;
         catalog_product_variants: Array<{ id: string; name: string; sort_order: number }> | null;
       }>;
@@ -59,10 +61,12 @@ export function useAdjustableProductsQuery(args: { organizationId: string | null
 
         const variants = (row.catalog_product_variants ?? []).sort((a, b) => a.sort_order - b.sort_order);
         const productName = row.name?.trim() || "—";
+        const unit = row.unit?.trim() || undefined;
         if (variants.length > 0) {
           adjustable.push({
             productId: row.id,
             productName,
+            unit,
             variants: variants.map((v) => ({
               variantId: v.id,
               variantName: v.name,
@@ -77,6 +81,7 @@ export function useAdjustableProductsQuery(args: { organizationId: string | null
         adjustable.push({
           productId: row.id,
           productName,
+          unit,
           variants: [],
           inStock: productStock,
         });

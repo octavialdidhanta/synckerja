@@ -59,7 +59,7 @@ export function formatPaymentDate(dateString: string | null | undefined) {
 export function getPaymentTypeBadge(type: string | null | undefined) {
   if (!type) {
     return (
-      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+      <Badge variant="secondary" className="whitespace-nowrap text-xs bg-gray-100 text-gray-700 border-gray-200">
         Unknown
       </Badge>
     );
@@ -69,26 +69,26 @@ export function getPaymentTypeBadge(type: string | null | undefined) {
       return (
         <Badge
           variant="secondary"
-          className="text-xs bg-brand-blue-soft text-brand-blue-deep border-brand-blue/25"
+          className="whitespace-nowrap text-xs bg-brand-blue-soft text-brand-blue-deep border-brand-blue/25"
         >
           Down Payment
         </Badge>
       );
     case 'final_payment':
       return (
-        <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 border-green-200">
+        <Badge variant="secondary" className="whitespace-nowrap text-xs bg-green-100 text-green-700 border-green-200">
           Final Payment
         </Badge>
       );
     case 'partial_payment':
       return (
-        <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700 border-orange-200">
+        <Badge variant="secondary" className="whitespace-nowrap text-xs bg-orange-100 text-orange-700 border-orange-200">
           Partial Payment
         </Badge>
       );
     default:
       return (
-        <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 border-gray-200">
+        <Badge variant="secondary" className="whitespace-nowrap text-xs bg-gray-100 text-gray-700 border-gray-200">
           Unknown
         </Badge>
       );

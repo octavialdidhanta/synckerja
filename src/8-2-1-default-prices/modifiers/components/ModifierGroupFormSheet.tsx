@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { CircleHelp, Minus, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CircleHelp, Trash2 } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -12,13 +12,6 @@ import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -30,21 +23,28 @@ import {
 } from "@/shared/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { useToast } from "@/shared/components/ui/use-toast";
-import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { useInventorySkusQuery } from "@/stock-management/hooks/useInventorySkusQuery";
-import { createInventorySku } from "@/stock-management/lib/inventoryApi";
 import { formatIdIntegerGrouping, parseGroupedIdInteger, stripToDigits } from "../../utils/formatIdUnitPrice";
 import { useCatalogModifierGroups } from "../hooks/useCatalogModifierGroups";
+import {
+  applyModifierMax,
+  applyModifierMin,
+  isModifierLimitValid,
+  normalizeModifierLimit,
+} from "../lib/modifierLimit";
+import { parseModifierStockQty, validateModifierStockDrafts } from "../lib/modifierStockDraft";
 import type { CatalogModifierGroup } from "../types";
 import { ModifierOutletsSection } from "./ModifierOutletsSection";
+import { ModifierSelectedCountRow } from "./ModifierSelectedCountRow";
+import { ModifierStockSection } from "./stock";
 
 type DraftOption = {
   key: string;
   id?: string;
   name: string;
   priceDisplay: string;
-  inventory_sku_id: string;
+  stock_ingredient_id: string | null;
+  stock_qty_display: string;
 };
 
 function emptyOption(): DraftOption {
@@ -52,7 +52,8 @@ function emptyOption(): DraftOption {
     key: crypto.randomUUID(),
     name: "",
     priceDisplay: "",
-    inventory_sku_id: "",
+    stock_ingredient_id: null,
+    stock_qty_display: "",
   };
 }
 
@@ -86,20 +87,16 @@ export function ModifierGroupFormSheet({
 }: ModifierGroupFormSheetProps) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
-  const { organizationId } = useCurrentOrg();
   const { save, isSaving } = useCatalogModifierGroups();
-  const skusQuery = useInventorySkusQuery(organizationId);
-  const skuRows = skusQuery.data?.rows ?? [];
 
   const [name, setName] = useState("");
   const [options, setOptions] = useState<DraftOption[]>([emptyOption()]);
   const [limitEnabled, setLimitEnabled] = useState(false);
   const [isRequired, setIsRequired] = useState(false);
+  const [minSelected, setMinSelected] = useState(0);
   const [maxSelected, setMaxSelected] = useState(1);
   const [stockEnabled, setStockEnabled] = useState(false);
   const [outletIds, setOutletIds] = useState<string[]>([]);
-  const [skuDraft, setSkuDraft] = useState({ optionKey: "", code: "", qty: "0" });
-  const [creatingSku, setCreatingSku] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<DraftOption | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -113,14 +110,29 @@ export function ModifierGroupFormSheet({
               key: opt.id,
               id: opt.id,
               name: opt.name,
-              priceDisplay: opt.extra_price ? formatIdIntegerGrouping(String(Math.round(opt.extra_price))) : "",
-              inventory_sku_id: opt.inventory_sku_id ?? "",
+              priceDisplay: opt.extra_price
+                ? formatIdIntegerGrouping(String(Math.round(opt.extra_price)))
+                : "",
+              stock_ingredient_id: opt.stock_ingredient_id,
+              stock_qty_display:
+                opt.stock_quantity != null && opt.stock_quantity > 0
+                  ? String(opt.stock_quantity)
+                  : "",
             }))
           : [emptyOption()],
       );
       setLimitEnabled(group.limit_enabled);
       setIsRequired(group.is_required);
-      setMaxSelected(Math.max(1, group.max_selected));
+      {
+        const limit = normalizeModifierLimit({
+          limitEnabled: group.limit_enabled,
+          isRequired: group.is_required,
+          minSelected: group.min_selected,
+          maxSelected: group.max_selected,
+        });
+        setMinSelected(limit.min);
+        setMaxSelected(limit.max);
+      }
       setStockEnabled(group.stock_enabled);
       setOutletIds([...(group.outlet_ids ?? [])]);
     } else {
@@ -128,11 +140,11 @@ export function ModifierGroupFormSheet({
       setOptions([emptyOption()]);
       setLimitEnabled(false);
       setIsRequired(false);
+      setMinSelected(0);
       setMaxSelected(1);
       setStockEnabled(false);
       setOutletIds(selectedOutletId ? [selectedOutletId] : []);
     }
-    setSkuDraft({ optionKey: "", code: "", qty: "0" });
   }, [open, group, selectedOutletId]);
 
   const title = group
@@ -158,30 +170,6 @@ export function ModifierGroupFormSheet({
     setRemoveTarget(null);
   };
 
-  const handleCreateSku = async (optionKey: string) => {
-    if (!organizationId || !skuDraft.code.trim()) return;
-    setCreatingSku(true);
-    try {
-      const created = await createInventorySku(organizationId, {
-        internal_sku: skuDraft.code.trim(),
-        name: skuDraft.code.trim(),
-        product_name: skuDraft.code.trim(),
-        initial_qty: Math.max(0, Math.floor(Number(skuDraft.qty) || 0)),
-        unit: "pcs",
-      });
-      updateOption(optionKey, { inventory_sku_id: created.sku_id });
-      setSkuDraft({ optionKey: "", code: "", qty: "0" });
-      await skusQuery.refetch();
-    } catch {
-      toast({
-        title: t("defaultPrices.product.skuCreateFailed", "Could not create SKU."),
-        variant: "destructive",
-      });
-    } finally {
-      setCreatingSku(false);
-    }
-  };
-
   const handleSave = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -199,7 +187,9 @@ export function ModifierGroupFormSheet({
           const n = parseGroupedIdInteger(opt.priceDisplay);
           return Number.isNaN(n) ? 0 : n;
         })(),
-        inventory_sku_id: stockEnabled ? opt.inventory_sku_id || null : null,
+        inventory_sku_id: null as string | null,
+        stock_ingredient_id: opt.stock_ingredient_id,
+        stock_quantity: parseModifierStockQty(opt.stock_qty_display),
       }))
       .filter((opt) => opt.name);
     if (mapped.length === 0) {
@@ -216,6 +206,42 @@ export function ModifierGroupFormSheet({
       });
       return;
     }
+    if (
+      !isModifierLimitValid({
+        limitEnabled,
+        isRequired,
+        minSelected,
+        maxSelected,
+      })
+    ) {
+      toast({
+        title: t(
+          "defaultPrices.modifiers.limitInvalid",
+          "Min cannot be greater than max, and required groups need at least 1.",
+        ),
+        variant: "destructive",
+      });
+      return;
+    }
+    const stockCheck = validateModifierStockDrafts(
+      stockEnabled,
+      options.map((opt) => ({
+        key: opt.key,
+        optionName: opt.name,
+        ingredientId: opt.stock_ingredient_id,
+        quantityDisplay: opt.stock_qty_display,
+      })),
+    );
+    if (!stockCheck.ok) {
+      toast({
+        title: t(
+          "defaultPrices.modifiers.stockIncomplete",
+          "Link an ingredient and quantity for every option when Modifier Stock is on.",
+        ),
+        variant: "destructive",
+      });
+      return;
+    }
     setSaving(true);
     try {
       await save({
@@ -223,6 +249,7 @@ export function ModifierGroupFormSheet({
         name: trimmed,
         limit_enabled: limitEnabled,
         is_required: isRequired,
+        min_selected: minSelected,
         max_selected: maxSelected,
         stock_enabled: stockEnabled,
         options: mapped,
@@ -241,7 +268,6 @@ export function ModifierGroupFormSheet({
   };
 
   const busy = saving || isSaving;
-  const skuSelectValue = useMemo(() => skuRows, [skuRows]);
 
   return (
     <>
@@ -279,84 +305,33 @@ export function ModifierGroupFormSheet({
                   <span />
                 </div>
                 {options.map((opt) => (
-                  <div key={opt.key} className="space-y-2">
-                    <div className="grid grid-cols-[1fr_96px_32px] items-center gap-2">
-                      <Input
-                        value={opt.name}
-                        onChange={(e) => updateOption(opt.key, { name: e.target.value })}
-                        placeholder={t("defaultPrices.modifiers.namePlaceholder", "Name")}
-                      />
-                      <Input
-                        inputMode="numeric"
-                        value={opt.priceDisplay}
-                        onChange={(e) => {
-                          const digits = stripToDigits(e.target.value);
-                          updateOption(opt.key, {
-                            priceDisplay: digits ? formatIdIntegerGrouping(digits) : "",
-                          });
-                        }}
-                        placeholder={t("defaultPrices.modifiers.pricePlaceholder", "Rp")}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        disabled={options.length <= 1}
-                        onClick={() => requestRemoveOption(opt)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    {stockEnabled ? (
-                      <div className="space-y-2 rounded-md border p-2">
-                        <Select
-                          value={opt.inventory_sku_id || undefined}
-                          onValueChange={(value) => updateOption(opt.key, { inventory_sku_id: value })}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder={t("defaultPrices.product.skuPlaceholder", "Select SKU")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {skuSelectValue.map((row) => (
-                              <SelectItem key={row.id} value={row.id}>
-                                {row.internal_sku} · {row.name} ({row.available_qty})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder={t("defaultPrices.product.skuCode", "SKU code")}
-                            value={skuDraft.optionKey === opt.key ? skuDraft.code : ""}
-                            onChange={(e) =>
-                              setSkuDraft({ optionKey: opt.key, code: e.target.value, qty: skuDraft.qty })
-                            }
-                          />
-                          <Input
-                            className="w-20"
-                            inputMode="numeric"
-                            placeholder="0"
-                            value={skuDraft.optionKey === opt.key ? skuDraft.qty : "0"}
-                            onChange={(e) =>
-                              setSkuDraft({
-                                optionKey: opt.key,
-                                code: skuDraft.optionKey === opt.key ? skuDraft.code : "",
-                                qty: e.target.value,
-                              })
-                            }
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            disabled={creatingSku}
-                            onClick={() => void handleCreateSku(opt.key)}
-                          >
-                            {t("defaultPrices.product.createSku", "Create")}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : null}
+                  <div key={opt.key} className="grid grid-cols-[1fr_96px_32px] items-center gap-2">
+                    <Input
+                      value={opt.name}
+                      onChange={(e) => updateOption(opt.key, { name: e.target.value })}
+                      placeholder={t("defaultPrices.modifiers.namePlaceholder", "Name")}
+                    />
+                    <Input
+                      inputMode="numeric"
+                      value={opt.priceDisplay}
+                      onChange={(e) => {
+                        const digits = stripToDigits(e.target.value);
+                        updateOption(opt.key, {
+                          priceDisplay: digits ? formatIdIntegerGrouping(digits) : "",
+                        });
+                      }}
+                      placeholder={t("defaultPrices.modifiers.pricePlaceholder", "Rp")}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      disabled={options.length <= 1}
+                      onClick={() => requestRemoveOption(opt)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 ))}
                 <Button type="button" className="w-full" onClick={() => setOptions((prev) => [...prev, emptyOption()])}>
@@ -373,7 +348,7 @@ export function ModifierGroupFormSheet({
                     <InfoTip
                       text={t(
                         "defaultPrices.modifiers.limitTooltip",
-                        "(Online order only) If activated, you can set a limit of minimum or maximum number when selecting this modifier.",
+                        "If activated, you can set whether this modifier is required and the maximum number of options customers can select (online orders and POS).",
                       )}
                     />
                   </div>
@@ -384,7 +359,7 @@ export function ModifierGroupFormSheet({
                     <p className="text-xs text-muted-foreground">
                       {t(
                         "defaultPrices.modifiers.limitOnlineNote",
-                        "This configuration is applied only to online order users and will not be reflected on the POS.",
+                        "This limit applies to online orders and the POS cashier when customizing an item.",
                       )}
                     </p>
                     <div>
@@ -396,13 +371,26 @@ export function ModifierGroupFormSheet({
                         <InfoTip
                           text={t(
                             "defaultPrices.modifiers.requiredTooltip",
-                            "Set modifier configuration to control how customers select modifiers in online orders.",
+                            "Control whether customers must select this modifier in online orders and on POS.",
                           )}
                         />
                       </div>
                       <RadioGroup
                         value={isRequired ? "yes" : "no"}
-                        onValueChange={(value) => setIsRequired(value === "yes")}
+                        onValueChange={(value) => {
+                          const nextRequired = value === "yes";
+                          setIsRequired(nextRequired);
+                          if (nextRequired) {
+                            const next = applyModifierMin({
+                              minSelected: Math.max(1, minSelected),
+                              maxSelected,
+                            });
+                            setMinSelected(next.min);
+                            setMaxSelected(next.max);
+                          } else {
+                            setMinSelected(0);
+                          }
+                        }}
                         className="gap-3"
                       >
                         <label className="flex items-start gap-2">
@@ -425,58 +413,66 @@ export function ModifierGroupFormSheet({
                         </label>
                       </RadioGroup>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <Label>{t("defaultPrices.modifiers.maxSelected", "Max. number of modifier selected")}</Label>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setMaxSelected((n) => Math.max(1, n - 1))}
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </Button>
-                        <Input
-                          className="h-8 w-14 text-center"
-                          inputMode="numeric"
-                          value={String(maxSelected)}
-                          onChange={(e) => {
-                            const n = parseInt(stripToDigits(e.target.value) || "1", 10);
-                            setMaxSelected(Number.isFinite(n) ? Math.max(1, n) : 1);
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setMaxSelected((n) => n + 1)}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
+                    {isRequired ? (
+                      <ModifierSelectedCountRow
+                        label={t(
+                          "defaultPrices.modifiers.minSelected",
+                          "Min. number of modifier selected",
+                        )}
+                        value={minSelected}
+                        onChange={(n) => {
+                          const next = applyModifierMin({
+                            minSelected: n,
+                            maxSelected,
+                          });
+                          setMinSelected(next.min);
+                          setMaxSelected(next.max);
+                        }}
+                      />
+                    ) : null}
+                    <ModifierSelectedCountRow
+                      label={t("defaultPrices.modifiers.maxSelected", "Max. number of modifier selected")}
+                      value={maxSelected}
+                      onChange={(n) => {
+                        const next = applyModifierMax({
+                          minSelected,
+                          maxSelected: n,
+                          isRequired,
+                        });
+                        setMinSelected(next.min);
+                        setMaxSelected(next.max);
+                      }}
+                    />
                   </div>
                 ) : null}
               </section>
 
-              <section className="border-t pt-4">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {t("defaultPrices.modifiers.stockSection", "Modifier stock")}
-                    </p>
-                    <InfoTip
-                      text={t(
-                        "defaultPrices.modifiers.stockTooltip",
-                        "If activated, you can track ingredient stock used in the modifier options and monitor it in the inventory summary.",
-                      )}
-                    />
-                  </div>
-                  <Switch checked={stockEnabled} onCheckedChange={setStockEnabled} />
-                </div>
-              </section>
+              <ModifierStockSection
+                stockEnabled={stockEnabled}
+                onStockEnabledChange={setStockEnabled}
+                rows={options.map((opt) => ({
+                  key: opt.key,
+                  optionName: opt.name,
+                  ingredientId: opt.stock_ingredient_id,
+                  quantityDisplay: opt.stock_qty_display,
+                }))}
+                onRowChange={(key, patch) => {
+                  setOptions((prev) =>
+                    prev.map((opt) => {
+                      if (opt.key !== key) return opt;
+                      return {
+                        ...opt,
+                        ...(patch.ingredientId !== undefined
+                          ? { stock_ingredient_id: patch.ingredientId }
+                          : {}),
+                        ...(patch.quantityDisplay !== undefined
+                          ? { stock_qty_display: patch.quantityDisplay }
+                          : {}),
+                      };
+                    }),
+                  );
+                }}
+              />
             </div>
           </TooltipProvider>
           <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">

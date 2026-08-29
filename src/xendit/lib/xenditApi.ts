@@ -78,12 +78,20 @@ export async function verifyXenditConnection(organizationId: string) {
   }>({ action: "verifyCredentials", organization_id: organizationId });
 }
 
-export async function enableXenditForOrg(organizationId: string, enabled: boolean) {
-  return invokeXenditApi<{ ok: boolean; enabled: boolean }>({
+export async function enableXenditForOrg(
+  organizationId: string,
+  enabled: boolean,
+  ensureAal2?: () => Promise<boolean>,
+) {
+  const body = {
     action: "enableXendit",
     organization_id: organizationId,
     enabled,
-  });
+  };
+  if (ensureAal2) {
+    return invokeXenditApiWithMfaStepUp<{ ok: boolean; enabled: boolean }>(body, ensureAal2);
+  }
+  return invokeXenditApi<{ ok: boolean; enabled: boolean }>(body);
 }
 
 export type CreateXenditSubAccountInput = {

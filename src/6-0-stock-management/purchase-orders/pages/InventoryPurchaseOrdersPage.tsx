@@ -8,6 +8,8 @@ import { useSelectedPosOutlet } from "@/8-2-2-outlets/hooks/useSelectedPosOutlet
 import { POS_OUTLET_FILTER_ALL } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { StockManagementModuleShell } from "@/6-0-stock-management/layout/StockManagementModuleShell";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { usePoWorkflowMode } from "@/6-0-stock-management/hooks/useCatalogInventoryWorkflowModes";
+import { useInventoryFeatureAccessCheck } from "@/8-2-5-inventory-settings/hooks/useInventoryFeatureAccess";
 import { InventoryPurchaseOrdersSkeleton } from "../skeletons/InventoryPurchaseOrdersSkeleton";
 import { PurchaseOrdersToolbar } from "../components/PurchaseOrdersToolbar";
 import { PurchaseOrdersTable } from "../components/PurchaseOrdersTable";
@@ -31,6 +33,9 @@ export function InventoryPurchaseOrdersPage() {
     outlets,
     isLoading: outletLoading,
   } = useSelectedPosOutlet(true, { allowAll: true });
+
+  const { poMode } = usePoWorkflowMode();
+  const poRequestAccess = useInventoryFeatureAccessCheck(poMode === "advanced" ? "po_request" : null);
 
   const [kind, setKind] = useState<PurchaseOrderKindFilter>("item_library");
   const [status, setStatus] = useState<PurchaseOrderStatusFilter>("all");
@@ -59,6 +64,17 @@ export function InventoryPurchaseOrdersPage() {
     if (selectedOutletId && selectedOutletId !== POS_OUTLET_FILTER_ALL) return selectedOutletId;
     return outlets.find((o) => o.is_active)?.id ?? outlets[0]?.id ?? "";
   }, [selectedOutletId, outlets]);
+
+  const poCreateBlockedByRole =
+    poMode === "advanced" && (poRequestAccess.isLoading || poRequestAccess.data === false);
+  const canCreatePo = canManage && Boolean(createOutletId) && !poCreateBlockedByRole;
+  const createDisabledReason =
+    poMode === "advanced" && poRequestAccess.data === false
+      ? t(
+          "operations.inventory.purchaseOrders.noFeatureAccess",
+          "You do not have PO Request access. Ask an admin to assign it in Inventory Settings.",
+        )
+      : undefined;
 
   const filename = useMemo(() => `purchase-orders-${format(new Date(), "yyyy-MM-dd")}.xlsx`, []);
 
@@ -101,9 +117,12 @@ export function InventoryPurchaseOrdersPage() {
                   );
                 }}
                 onCreate={() => {
-                  if (!canManage || !createOutletId) return;
+                  if (!canCreatePo) return;
                   setCreateOpen(true);
                 }}
+                createDisabled={!canCreatePo}
+                createDisabledReason={createDisabledReason}
+                workflowMode={poMode}
               />
             </div>
 
@@ -128,6 +147,7 @@ export function InventoryPurchaseOrdersPage() {
           organizationId={orgId}
           defaultOutletId={createOutletId}
           kind={kind}
+          poMode={poMode}
         />
       ) : null}
 

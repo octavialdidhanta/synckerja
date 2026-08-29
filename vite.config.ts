@@ -289,6 +289,10 @@ export default defineConfig(({ mode }) => {
         find: /^@\/ios-mobile\/(.*)$/,
         replacement: `${path.resolve(__dirname, "IOS-mobile")}/$1`,
       },
+      {
+        find: /^@\/pos-mobile\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "POS-kasir-mobile")}/$1`,
+      },
       { find: "@", replacement: path.resolve(__dirname, "./src") },
     ],
     dedupe: ["react", "react-dom", "scheduler", "react/jsx-runtime", "react/jsx-dev-runtime"],

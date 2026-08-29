@@ -48,6 +48,7 @@ import { useExpenseTypes } from '@/shared/hooks/finance/useExpenseTypes';
 import { useExpenseCategories } from '@/shared/hooks/finance/useExpenseCategories';
 import { useDebtsForExpense } from '@/shared/hooks/finance/useDebtsForExpense';
 import { useBankAccountBalances } from '@/shared/hooks/finance/useBankAccountBalances';
+import { isInventoryPurchaseType } from '@/6-0-stock-management/purchase-orders/finance/resolvePoExpenseClassification';
 import { useWithdrawalFromBalanceOptions } from '@/shared/hooks/finance/useWithdrawalFromBalanceOptions';
 
 const SCROLL_HIDE =
@@ -508,9 +509,12 @@ export const PaymentTable = ({
       }
 
       const expenseId = expenseCreated?.id ?? existingExpense?.id;
-      // Step 4b: For Physical Item, create one company_assets row per unit (no quantity column)
+      // Step 4b: For Physical Item, create one company_assets row per unit (no quantity column).
+      // Inventory POs use purchase_type Inventory / Inventory Item and must not become company assets.
       if (
         selectedRequest.purchase_type === 'Physical Item' &&
+        !selectedRequest.catalog_purchase_order_id &&
+        !isInventoryPurchaseType(selectedRequest.purchase_type) &&
         expenseId &&
         organizationId
       ) {

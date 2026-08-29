@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/shared/components/ui/button";
 import type { ReactNode } from "react";
 import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
+import { isPosAuthSurface } from "@/pos-mobile/0-auth/lib/posAuthSurface";
+import { POS_AUTH_PATHS } from "@/pos-mobile/0-auth/lib/posAuthPaths";
 
 const brandRed = "hsl(var(--brand-red))";
 
@@ -20,7 +22,7 @@ export function EmployeeWelcomeContent({ brandMark = defaultBrand }: { brandMark
 
   const onContinue = () => {
     localStorage.setItem("hasSeenEmployeeWelcome", "true");
-    navigate("/", { replace: true });
+    navigate(isPosAuthSurface() ? POS_AUTH_PATHS.selectOutlet : "/", { replace: true });
   };
 
   return (

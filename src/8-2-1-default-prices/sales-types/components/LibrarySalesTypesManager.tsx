@@ -32,6 +32,8 @@ import { cn } from "@/shared/lib/utils";
 import { OutletFilterSelect } from "@/8-2-2-outlets/components/OutletFilterSelect";
 import { useSelectedPosOutlet } from "@/8-2-2-outlets/hooks/useSelectedPosOutlet";
 import { useCatalogSalesTypes } from "../hooks/useCatalogSalesTypes";
+import { useCatalogCheckoutSettings } from "@/8-2-1-default-prices/checkout/hooks/useCatalogCheckoutSettings";
+import { salesTypeMissingGratuity } from "../lib/salesTypeGratuityWarnings";
 import type { CatalogSalesType } from "../types";
 import { SalesTypeFormSheet } from "./SalesTypeFormSheet";
 
@@ -43,6 +45,7 @@ export function LibrarySalesTypesManager({ listClassName }: LibrarySalesTypesMan
   const { t } = useAppTranslation();
   const { toast } = useToast();
   const { rows, isLoading, remove } = useCatalogSalesTypes();
+  const { settings: checkoutSettings } = useCatalogCheckoutSettings();
   const { selectedOutletId, setSelectedOutletId } = useSelectedPosOutlet();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CatalogSalesType | null>(null);
@@ -133,7 +136,17 @@ export function LibrarySalesTypesManager({ listClassName }: LibrarySalesTypesMan
                 <TableRow key={row.id}>
                   <TableCell className="font-medium">{row.name}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {gratuityCountLabel(row.gratuity_ids.length)}
+                    <div className="space-y-1">
+                      <span>{gratuityCountLabel(row.gratuity_ids.length)}</span>
+                      {salesTypeMissingGratuity(row, checkoutSettings.gratuity_enabled) ? (
+                        <p className="text-xs text-amber-700">
+                          {t(
+                            "defaultPrices.salesType.noGratuityWarning",
+                            "No gratuity assigned — checkout will not collect service charge.",
+                          )}
+                        </p>
+                      ) : null}
+                    </div>
                   </TableCell>
                   <TableCell>
                     {row.is_active ? (

@@ -37,12 +37,20 @@ export type RegistrationFormKeyboardProps = {
   onKeyboardInputBlur?: () => void;
   /** When set, replaces the default favicon header mark. */
   brandMark?: ReactNode;
+  /** “Already have an account? Log in” link target (default `/login`). */
+  loginHref?: string;
 };
 
 const defaultRegistrationBrand = <SynckerjaBrandLogo className="h-10 w-auto sm:h-12" width={48} height={48} />;
 
 export function RegistrationForm(props: RegistrationFormKeyboardProps) {
-  const { submitButtonRef, onKeyboardInputFocus, onKeyboardInputBlur, brandMark = defaultRegistrationBrand } = props;
+  const {
+    submitButtonRef,
+    onKeyboardInputFocus,
+    onKeyboardInputBlur,
+    brandMark = defaultRegistrationBrand,
+    loginHref = "/login",
+  } = props;
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState(searchParams.get("email") || "");
@@ -356,7 +364,7 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
           </p>
           <p className={authFormFooterTextClass}>
             {t("auth.register.hasAccount")}{" "}
-            <Link to="/login" className="font-semibold hover:underline" style={{ color: brandBlue }}>
+            <Link to={loginHref} className="font-semibold hover:underline" style={{ color: brandBlue }}>
               {t("auth.register.login")}
             </Link>
           </p>

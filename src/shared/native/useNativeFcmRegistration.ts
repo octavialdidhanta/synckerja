@@ -5,8 +5,20 @@ import type { PluginListenerHandle } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { useAuth } from "@/shared/auth/contexts/AuthContext";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { FirebaseReady } from "@/shared/native/firebaseReadyPlugin";
 
 const CONTEXTS = ["livechat", "general"] as const;
+
+/** False when POS native has no initialized FirebaseApp (missing google-services.json). */
+async function isNativeFirebaseReady(): Promise<boolean> {
+  if (!Capacitor.isPluginAvailable("FirebaseReady")) return true;
+  try {
+    const { ready } = await FirebaseReady.isReady();
+    return Boolean(ready);
+  } catch {
+    return false;
+  }
+}
 
 async function persistFcmToken(fcmToken: string, platform: "android" | "ios") {
   await Promise.all(
@@ -51,61 +63,75 @@ export function useNativeFcmRegistration() {
     };
 
     const run = async () => {
-      await clearListeners();
+      try {
+        if (!(await isNativeFirebaseReady())) {
+          console.warn("[FCM] skipped: FirebaseApp is not initialized");
+          return;
+        }
 
-      const {
-        data: { session: preSession },
-      } = await supabase.auth.getSession();
-      if (cancelled) return;
-      if (!preSession?.access_token) return;
-
-      const regHandle = await PushNotifications.addListener("registration", async (ev) => {
-        if (cancelled) return;
-        const token = typeof ev.value === "string" ? ev.value.trim() : "";
-        if (!token) return;
-
-        const platform = Capacitor.getPlatform();
-        if (platform !== "android" && platform !== "ios") return;
-
-        const prev = lastPersistedRef.current;
-        if (prev?.userId === userId && prev.token === token) return;
+        await clearListeners();
 
         const {
-          data: { session: live },
+          data: { session: preSession },
         } = await supabase.auth.getSession();
-        if (!live?.user || live.user.id !== userId) return;
+        if (cancelled) return;
+        if (!preSession?.access_token) return;
 
-        await persistFcmToken(token, platform);
-        lastPersistedRef.current = { userId, token };
-      });
-
-      const errHandle = await PushNotifications.addListener("registrationError", (err) => {
-        console.warn("[FCM] registrationError", err);
-      });
-
-      handlesRef.current = [regHandle, errHandle];
-
-      const perm = await PushNotifications.requestPermissions();
-      if (cancelled) return;
-      if (perm.receive !== "granted") return;
-
-      await PushNotifications.register();
-
-      // Setelah user mengaktifkan notifikasi di pengaturan sistem, `register()` perlu dipanggil lagi.
-      if (Capacitor.isPluginAvailable("App")) {
-        const resumeH = await App.addListener("resume", () => {
+        const regHandle = await PushNotifications.addListener("registration", async (ev) => {
           if (cancelled) return;
-          void (async () => {
-            const {
-              data: { session: s },
-            } = await supabase.auth.getSession();
-            if (!s?.user || s.user.id !== userId) return;
-            const p = await PushNotifications.requestPermissions();
-            if (p.receive !== "granted") return;
-            await PushNotifications.register();
-          })();
+          const token = typeof ev.value === "string" ? ev.value.trim() : "";
+          if (!token) return;
+
+          const platform = Capacitor.getPlatform();
+          if (platform !== "android" && platform !== "ios") return;
+
+          const prev = lastPersistedRef.current;
+          if (prev?.userId === userId && prev.token === token) return;
+
+          const {
+            data: { session: live },
+          } = await supabase.auth.getSession();
+          if (!live?.user || live.user.id !== userId) return;
+
+          await persistFcmToken(token, platform);
+          lastPersistedRef.current = { userId, token };
         });
-        handlesRef.current.push(resumeH);
+
+        const errHandle = await PushNotifications.addListener("registrationError", (err) => {
+          console.warn("[FCM] registrationError", err);
+        });
+
+        handlesRef.current = [regHandle, errHandle];
+
+        const perm = await PushNotifications.requestPermissions();
+        if (cancelled) return;
+        if (perm.receive !== "granted") return;
+
+        await PushNotifications.register();
+
+        // Setelah user mengaktifkan notifikasi di pengaturan sistem, `register()` perlu dipanggil lagi.
+        if (Capacitor.isPluginAvailable("App")) {
+          const resumeH = await App.addListener("resume", () => {
+            if (cancelled) return;
+            void (async () => {
+              try {
+                if (!(await isNativeFirebaseReady())) return;
+                const {
+                  data: { session: s },
+                } = await supabase.auth.getSession();
+                if (!s?.user || s.user.id !== userId) return;
+                const p = await PushNotifications.requestPermissions();
+                if (p.receive !== "granted") return;
+                await PushNotifications.register();
+              } catch (err) {
+                console.warn("[FCM] resume register failed", err);
+              }
+            })();
+          });
+          handlesRef.current.push(resumeH);
+        }
+      } catch (err) {
+        console.warn("[FCM] registration failed", err);
       }
     };
 

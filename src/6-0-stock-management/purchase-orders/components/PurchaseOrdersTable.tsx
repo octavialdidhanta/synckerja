@@ -4,6 +4,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatToRupiah } from "@/shared/utils/formatCurrency";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { groupPurchaseOrdersByDate } from "../lib/poListGrouping";
+import { derivePoFinanceStatus } from "../finance/poFinanceStatus";
+import { PurchaseOrderFinanceBadge } from "../finance/PurchaseOrderFinanceBadge";
 import type { PurchaseOrderListRow } from "../types";
 import { PurchaseOrderStatusBadge } from "./PurchaseOrderStatusBadge";
 
@@ -35,13 +37,14 @@ export function PurchaseOrdersTable(props: {
               {t("operations.inventory.purchaseOrders.colTotal", "Total Value")}
             </TableHead>
             <TableHead>{t("operations.inventory.purchaseOrders.colStatus", "Status")}</TableHead>
+            <TableHead>{t("operations.inventory.purchaseOrders.colFinance", "Finance")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {groups.map((group) => (
             <Fragment key={group.dateKey}>
               <TableRow key={group.dateKey} className="bg-muted/60 hover:bg-muted/60">
-                <TableCell colSpan={6} className="py-2 text-xs font-semibold text-foreground">
+                <TableCell colSpan={7} className="py-2 text-xs font-semibold text-foreground">
                   {group.label}
                 </TableCell>
               </TableRow>
@@ -58,6 +61,9 @@ export function PurchaseOrdersTable(props: {
                   <TableCell className="text-right tabular-nums">{formatToRupiah(row.totalValue)}</TableCell>
                   <TableCell>
                     <PurchaseOrderStatusBadge status={row.status} />
+                  </TableCell>
+                  <TableCell>
+                    <PurchaseOrderFinanceBadge status={derivePoFinanceStatus(row.finance)} />
                   </TableCell>
                 </TableRow>
               ))}

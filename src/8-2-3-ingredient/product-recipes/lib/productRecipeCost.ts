@@ -23,6 +23,19 @@ export function totalAvgCost(
   }, 0);
 }
 
+/** Recipe batch cost ÷ yield → avg cost per output unit (null if no COGS lines / invalid yield). */
+export function recipeUnitAvgCost(
+  lines: ProductRecipeLineDraft[],
+  yieldQty: number,
+  ingredientsById: Map<string, CatalogIngredient>,
+  outletId: string,
+): number | null {
+  if (!(yieldQty > 0) || !Number.isFinite(yieldQty)) return null;
+  const total = totalAvgCost(lines, ingredientsById, outletId);
+  if (!(total > 0)) return null;
+  return total / yieldQty;
+}
+
 export function formatRecipeCost(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return `Rp ${Math.round(value).toLocaleString("id-ID")}`;

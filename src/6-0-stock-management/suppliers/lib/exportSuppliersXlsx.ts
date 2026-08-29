@@ -2,7 +2,7 @@ import * as XLSX from "xlsx";
 import type { CatalogSupplier } from "../types";
 
 export function exportSuppliersXlsx(args: { rows: CatalogSupplier[]; filename: string }): void {
-  const header = ["Name", "Address", "Phone", "Email", "City", "State", "Zip"];
+  const header = ["Name", "Address", "Phone", "Email", "City", "State", "Zip", "Bank Code", "Account Number", "Account Holder"];
   const body = args.rows.map((row) => [
     row.name,
     row.address ?? "",
@@ -11,6 +11,9 @@ export function exportSuppliersXlsx(args: { rows: CatalogSupplier[]; filename: s
     row.city ?? "",
     row.state ?? "",
     row.zip ?? "",
+    row.bankCode ?? "",
+    row.bankAccountNumber ?? "",
+    row.bankAccountHolder ?? "",
   ]);
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([header, ...body]);

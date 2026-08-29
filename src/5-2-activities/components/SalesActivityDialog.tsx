@@ -1,4 +1,5 @@
 import React from 'react';
+import { Button } from '@/shared/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -6,6 +7,7 @@ import {
   DialogTitle,
 } from '@/shared/components/ui/dialog';
 import { cn } from '@/shared/lib/utils';
+import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { SalesActivityForm } from './SalesActivityForm';
 
 /** Scrollable body: keeps scroll behavior, hides visible scrollbar (cross-browser). */
@@ -19,6 +21,8 @@ interface SalesActivityDialogProps {
   activity?: any;
   /** Hanya lihat data; form tidak bisa disimpan dari dialog ini. */
   readOnly?: boolean;
+  onRecordPaymentRequested?: (args: { activityId: string; clientName: string }) => void;
+  onRecordPaymentFromHeader?: () => void;
 }
 
 export const SalesActivityDialog = ({
@@ -27,10 +31,13 @@ export const SalesActivityDialog = ({
   onSuccess,
   activity,
   readOnly = false,
+  onRecordPaymentRequested,
+  onRecordPaymentFromHeader,
 }: SalesActivityDialogProps) => {
+  const { t } = useAppTranslation();
+
   const handleSuccess = () => {
     onSuccess();
-    // Close dialog after successful creation
     onOpenChange(false);
   };
 
@@ -47,13 +54,20 @@ export const SalesActivityDialog = ({
         )}
       >
         <DialogHeader className="shrink-0 space-y-0 border-b px-6 pb-4 pt-12 text-left sm:pr-14">
-          <DialogTitle className="pr-8">
-            {readOnly
-              ? 'Sales activity details'
-              : activity
-                ? 'Edit Sales Activity'
-                : 'Add New Sales Activity'}
-          </DialogTitle>
+          <div className="flex flex-wrap items-start justify-between gap-2 pr-8">
+            <DialogTitle>
+              {readOnly
+                ? t('salesActivities.dialog.viewTitle', 'Sales activity details')
+                : activity
+                  ? t('salesActivities.dialog.editTitle', 'Edit Sales Activity')
+                  : t('salesActivities.dialog.createTitle', 'Add New Sales Activity')}
+            </DialogTitle>
+            {activity && !readOnly && onRecordPaymentFromHeader ? (
+              <Button type="button" size="sm" variant="outline" onClick={onRecordPaymentFromHeader}>
+                {t('salesActivities.recordPayment', 'Record Payment')}
+              </Button>
+            ) : null}
+          </div>
         </DialogHeader>
         <div className={cn(dialogBodyScrollClasses, 'px-6 py-4')}>
           <SalesActivityForm
@@ -61,6 +75,7 @@ export const SalesActivityDialog = ({
             onCancel={handleCancel}
             activity={activity}
             readOnly={readOnly}
+            onRecordPaymentRequested={onRecordPaymentRequested}
           />
         </div>
       </DialogContent>

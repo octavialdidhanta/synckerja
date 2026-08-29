@@ -1,10 +1,17 @@
 import { useCallback, useState } from "react";
-import { Lock, PanelLeftClose, PanelLeftOpen, ShoppingCart, Store } from "lucide-react";
+import { Lock, Landmark, Mail, Package, PanelLeftClose, PanelLeftOpen, Receipt, ShoppingCart, Store } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
-import { OUTLETS_LIST_PATH, SETTINGS_CHECKOUT_PATH } from "../layout/OutletsHeaderAndTab";
+import {
+  OUTLETS_LIST_PATH,
+  SETTINGS_CHECKOUT_PATH,
+  SETTINGS_RECEIPT_PATH,
+  EMAIL_NOTIFICATIONS_PATH,
+  INVENTORY_SETTINGS_PATH,
+  SETTINGS_BANK_ACCOUNT_PATH,
+} from "../layout/OutletsHeaderAndTab";
 
 const COLLAPSED_STORAGE_KEY = "synckerja.settings-item-nav.collapsed";
 
@@ -43,6 +50,38 @@ export function SettingsItemNav() {
       icon: ShoppingCart,
       active: location.pathname.startsWith(SETTINGS_CHECKOUT_PATH),
       locked: isTabLocked(SETTINGS_CHECKOUT_PATH),
+    },
+    {
+      id: "receipt" as const,
+      path: SETTINGS_RECEIPT_PATH,
+      label: t("outlets.nav.receipt", "Receipt"),
+      icon: Receipt,
+      active: location.pathname.startsWith(SETTINGS_RECEIPT_PATH),
+      locked: isTabLocked(SETTINGS_RECEIPT_PATH),
+    },
+    {
+      id: "email-notifications" as const,
+      path: EMAIL_NOTIFICATIONS_PATH,
+      label: t("outlets.nav.emailNotifications", "Email Notification"),
+      icon: Mail,
+      active: location.pathname.startsWith(EMAIL_NOTIFICATIONS_PATH),
+      locked: isTabLocked(EMAIL_NOTIFICATIONS_PATH),
+    },
+    {
+      id: "inventory" as const,
+      path: INVENTORY_SETTINGS_PATH,
+      label: t("outlets.nav.inventory", "Inventory"),
+      icon: Package,
+      active: location.pathname.startsWith(INVENTORY_SETTINGS_PATH),
+      locked: isTabLocked(INVENTORY_SETTINGS_PATH),
+    },
+    {
+      id: "bank-account" as const,
+      path: SETTINGS_BANK_ACCOUNT_PATH,
+      label: t("outlets.nav.bankAccount", "Bank Account"),
+      icon: Landmark,
+      active: location.pathname.startsWith(SETTINGS_BANK_ACCOUNT_PATH),
+      locked: isTabLocked(SETTINGS_BANK_ACCOUNT_PATH),
     },
   ];
 
@@ -138,7 +177,7 @@ export function SettingsItemNav() {
                     onClick={() => goTo(item.path, item.locked)}
                     title={item.locked ? noAccess : item.label}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                      "flex w-full items-center justify-start gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
                       item.locked
                         ? "cursor-not-allowed text-muted-foreground opacity-60"
                         : item.active

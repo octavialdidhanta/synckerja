@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cold start: background + logo hi-res di tengah (`public/pwa-512.png` → app_brand_logo). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/splash_screen_background" />
+        </shape>
+    </item>
+    <item android:gravity="center" android:drawable="@drawable/app_brand_logo" />
+</layer-list>

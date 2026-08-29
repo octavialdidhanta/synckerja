@@ -20,6 +20,11 @@ import { BrickLinkStatusBadge } from '@/shared/components/finance/BrickLinkTable
 import { validateGatewayPayoutBank } from '@/xendit/lib/xenditApi';
 import { mapBankNameToXenditCode } from '@/xendit/lib/bankCodes';
 import { cn } from '@/shared/lib/utils';
+import {
+  BankNameSelect,
+  mapBankNameToGatewayCode,
+  normalizeIndonesiaBankName,
+} from '@/8-2-12-bank-account';
 
 export const BankAccountManagement: React.FC = () => {
   const { t } = useAppTranslation();
@@ -62,7 +67,9 @@ export const BankAccountManagement: React.FC = () => {
     setFormData({
       name: bankAccount.name,
       account_number: bankAccount.account_number || '',
-      bank_name: bankAccount.bank_name || '',
+      bank_name: normalizeIndonesiaBankName(
+        bankAccount.bank_name || bankAccount.name,
+      ),
       account_holder: bankAccount.account_holder || '',
     });
     setEditingBankAccount(bankAccount);
@@ -73,12 +80,23 @@ export const BankAccountManagement: React.FC = () => {
     e.preventDefault();
     if (!formData.name.trim()) return;
 
+    const bankName = normalizeIndonesiaBankName(formData.bank_name);
+    const payload = {
+      name: formData.name.trim(),
+      account_number: formData.account_number.trim() || undefined,
+      bank_name: bankName || undefined,
+      account_holder: formData.account_holder.trim() || undefined,
+      gateway_payout_bank_code: bankName
+        ? mapBankNameToGatewayCode(bankName)
+        : null,
+    };
+
     setSubmitting(true);
     try {
       if (editingBankAccount) {
-        await updateBankAccount(editingBankAccount.id, formData);
+        await updateBankAccount(editingBankAccount.id, payload);
       } else {
-        await createBankAccount(formData);
+        await createBankAccount(payload);
       }
       setIsEditing(false);
       setFormData({ name: '', account_number: '', bank_name: '', account_holder: '' });
@@ -212,13 +230,16 @@ export const BankAccountManagement: React.FC = () => {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="bank_name" className="text-xs">Bank Name</Label>
-              <Input
-                id="bank_name"
+              <Label className="text-xs">
+                {t('incomes.bankAccounts.bankName', 'Bank Name')}
+              </Label>
+              <BankNameSelect
                 value={formData.bank_name}
-                onChange={(e) => setFormData((prev) => ({ ...prev, bank_name: e.target.value }))}
-                placeholder="Mandiri, BCA, BRI…"
-                className="h-8 text-sm"
+                onChange={(bank_name) =>
+                  setFormData((prev) => ({ ...prev, bank_name }))
+                }
+                disabled={submitting}
+                triggerClassName="h-8 text-sm"
               />
             </div>
           </div>
@@ -283,23 +304,33 @@ export const BankAccountManagement: React.FC = () => {
       ) : (
         <div className="border rounded-lg overflow-hidden flex-shrink-0 flex flex-col max-h-[320px]">
           <div className="overflow-x-auto overflow-y-auto seamless-scroll nested-scroll-touch-chain min-h-0 flex-1">
-            <Table className="min-w-[1080px] table-fixed">
+            <Table className="min-w-[1280px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[12%] text-xs">Name</TableHead>
-                  <TableHead className="w-[8%] text-xs">Bank</TableHead>
-                  <TableHead className="min-w-[10rem] w-[18%] text-xs">Account Number</TableHead>
-                  <TableHead className="w-[14%] text-xs">Brick</TableHead>
-                  <TableHead className="w-[16%] text-xs">
+                  <TableHead className="min-w-[10rem] whitespace-nowrap text-xs">
+                    Name
+                  </TableHead>
+                  <TableHead className="min-w-[14rem] whitespace-nowrap text-xs">
+                    Bank
+                  </TableHead>
+                  <TableHead className="min-w-[10rem] whitespace-nowrap text-xs">
+                    Account Number
+                  </TableHead>
+                  <TableHead className="min-w-[7rem] whitespace-nowrap text-xs">
+                    Brick
+                  </TableHead>
+                  <TableHead className="min-w-[11rem] whitespace-nowrap text-xs">
                     {t('incomes.brick.balanceCompare', 'Saldo ERP / Brick')}
                   </TableHead>
-                  <TableHead className="text-xs w-24 shrink-0">
+                  <TableHead className="w-24 shrink-0 whitespace-nowrap text-xs">
                     {t('incomes.bankAccounts.omnichannelToggle', 'Omnichannel')}
                   </TableHead>
-                  <TableHead className="text-xs w-28 shrink-0">
+                  <TableHead className="w-28 shrink-0 whitespace-nowrap text-xs">
                     {t('incomes.bankAccounts.gatewayPayoutToggle', 'Gateway payout')}
                   </TableHead>
-                  <TableHead className="text-xs w-28 shrink-0">Actions</TableHead>
+                  <TableHead className="w-28 shrink-0 whitespace-nowrap text-xs">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -310,14 +341,20 @@ export const BankAccountManagement: React.FC = () => {
 
                   return (
                     <TableRow key={bankAccount.id}>
-                      <TableCell className="text-xs font-medium">{bankAccount.name}</TableCell>
-                      <TableCell className="text-xs text-gray-600">
-                        {bankAccount.bank_name || '-'}
+                      <TableCell className="whitespace-nowrap text-xs font-medium">
+                        {bankAccount.name}
                       </TableCell>
-                      <TableCell className="text-xs text-gray-600 whitespace-nowrap">
+                      <TableCell className="whitespace-nowrap text-xs text-gray-600">
+                        {normalizeIndonesiaBankName(
+                          bankAccount.bank_name || '',
+                        ) ||
+                          bankAccount.bank_name ||
+                          '-'}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs text-gray-600">
                         {bankAccount.account_number || '-'}
                       </TableCell>
-                      <TableCell className="text-xs">
+                      <TableCell className="whitespace-nowrap text-xs">
                         <BrickLinkStatusBadge
                           status={bankAccount.brick_link_status}
                           lastSyncAt={bankAccount.brick_last_sync_at}
@@ -327,8 +364,8 @@ export const BankAccountManagement: React.FC = () => {
                           t={t}
                         />
                       </TableCell>
-                      <TableCell className="text-xs">
-                        <div className="text-[10px] leading-snug">
+                      <TableCell className="whitespace-nowrap text-xs">
+                        <div className="text-[10px] leading-snug whitespace-nowrap">
                           ERP: {formatToRupiah(erp ?? 0)}
                         </div>
                       </TableCell>

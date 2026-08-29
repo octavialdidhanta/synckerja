@@ -92,7 +92,11 @@ export function useCatalogIngredientCategories() {
           outlet_id: outletId,
           organization_id: organizationId,
         });
-        if (outletError) throw outletError;
+        if (outletError) {
+          // Avoid orphan categories (unique name blocks retry; dropdown filters by outlet).
+          await supabase.from("catalog_ingredient_categories").delete().eq("id", categoryId);
+          throw outletError;
+        }
         outletIds.push(outletId);
       }
 

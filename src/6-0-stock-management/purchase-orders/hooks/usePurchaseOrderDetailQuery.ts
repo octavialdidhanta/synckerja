@@ -17,13 +17,15 @@ export function usePurchaseOrderDetailQuery(args: {
   return useQuery({
     queryKey: [PURCHASE_ORDER_DETAIL_QUERY_KEY, args.organizationId, args.purchaseOrderId],
     enabled: Boolean(args.organizationId && args.purchaseOrderId),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async (): Promise<PurchaseOrderDetail | null> => {
       if (!args.organizationId || !args.purchaseOrderId) return null;
 
       const { data: po, error: poError } = await supabase
         .from("catalog_purchase_orders")
         .select(
-          "id, order_number, outlet_id, supplier_id, item_kind, status, total_value, occurred_at, note, fulfilled_at, cancelled_at, pos_outlets(name), catalog_suppliers(name, phone, email, address, city, state, zip)",
+          "id, order_number, outlet_id, supplier_id, item_kind, status, total_value, occurred_at, note, fulfilled_at, cancelled_at, pos_outlets(name), catalog_suppliers(name, phone, email, address, city, state, zip), purchase_requests(id, status, payment_status, paid_at)",
         )
         .eq("organization_id", args.organizationId)
         .eq("id", args.purchaseOrderId)
@@ -152,6 +154,22 @@ export function usePurchaseOrderDetailQuery(args: {
         totalValue: num(po.total_value),
         occurredAt: po.occurred_at,
         note: po.note,
+        finance: (() => {
+          const prRel = (po as { purchase_requests?: unknown }).purchase_requests as
+            | { id: string; status: string; payment_status: string | null; paid_at: string | null }
+            | Array<{ id: string; status: string; payment_status: string | null; paid_at: string | null }>
+            | null
+            | undefined;
+          const pr = Array.isArray(prRel) ? prRel[0] : prRel;
+          return pr?.id
+            ? {
+                id: pr.id,
+                status: pr.status,
+                payment_status: pr.payment_status,
+                paid_at: pr.paid_at,
+              }
+            : null;
+        })(),
         fulfilledAt: po.fulfilled_at,
         cancelledAt: po.cancelled_at,
         supplier: supplier

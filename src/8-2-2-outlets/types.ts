@@ -5,6 +5,7 @@ export type PosOutlet = {
   address: string | null;
   city: string | null;
   province: string | null;
+  postal_code: string | null;
   phone: string | null;
   is_active: boolean;
   is_default: boolean;
@@ -17,6 +18,7 @@ export type PosOutletSave = {
   address: string | null;
   city: string | null;
   province: string | null;
+  postal_code: string | null;
   phone: string | null;
   is_active: boolean;
 };
@@ -27,6 +29,7 @@ export type OutletDraft = {
   address: string;
   city: string;
   province: string;
+  postal_code: string;
   phone: string;
   is_active: boolean;
   is_default: boolean;
@@ -38,6 +41,7 @@ export function emptyOutletDraft(): OutletDraft {
     address: "",
     city: "",
     province: "",
+    postal_code: "",
     phone: "",
     is_active: true,
     is_default: false,
@@ -51,6 +55,7 @@ export function draftFromOutlet(row: PosOutlet): OutletDraft {
     address: row.address ?? "",
     city: row.city ?? "",
     province: row.province ?? "",
+    postal_code: row.postal_code ?? "",
     phone: row.phone ?? "",
     is_active: row.is_active,
     is_default: row.is_default,

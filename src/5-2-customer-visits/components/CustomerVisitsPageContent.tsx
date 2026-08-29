@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, AlertDescription } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { getLocalDateYmd } from '@/shared/lib/date/getLocalDateYmd';
+import { defaultPosOutletId } from '@/8-2-2-outlets/lib/assignedOutlets';
+import { usePosOutlets } from '@/8-2-2-outlets/hooks/usePosOutlets';
+import { readPosSelectedOutletId } from '@/pos-mobile/1-outlet-select/lib/posSelectedOutletStorage';
 import {
   SALES_OPS_CARD_FOOTER,
   SALES_OPS_MAIN_COLUMN,
@@ -13,9 +16,11 @@ import {
 import { CustomerVisitCatalogPane } from '../checkout/components/CustomerVisitCatalogPane';
 import { CustomerVisitCheckoutPanel } from '../checkout/components/CustomerVisitCheckoutPanel';
 import { useCustomerVisitCart } from '../checkout/hooks/useCustomerVisitCart';
+import { useStoreCheckoutPricing } from '../checkout/hooks/useStoreCheckoutPricing';
 import { useSubmitCustomerVisitCheckout } from '../checkout/hooks/useSubmitCustomerVisitCheckout';
 import type { CustomerVisitCartLine, CustomerVisitCheckoutPaymentMethod } from '../checkout/lib/customerVisitCheckout.types';
 import { parseStoreCheckoutIncomeErrorCode } from '../checkout/lib/recordStoreCheckoutIncome';
+import { resolveCheckoutFailureToast } from '@/stock-management/catalog-ledger/lib/checkoutStockToast';
 import { CustomerVisitCheckInCard } from './CustomerVisitCheckInCard';
 import { CustomerVisitMatchPanel } from './CustomerVisitMatchPanel';
 import { CustomerVisitReceiptPanel } from './CustomerVisitReceiptPanel';
@@ -44,6 +49,34 @@ export function CustomerVisitsPageContent() {
   const recordVisit = useRecordCustomerVisit();
   const submitCheckout = useSubmitCustomerVisitCheckout();
   const cart = useCustomerVisitCart();
+  const { rows: outlets } = usePosOutlets();
+  const [selectedOutletId, setSelectedOutletId] = useState('');
+  const [selectedSalesTypeId, setSelectedSalesTypeId] = useState('');
+  const pricing = useStoreCheckoutPricing(selectedOutletId || null, selectedSalesTypeId || null);
+
+  useEffect(() => {
+    if (selectedOutletId || outlets.length === 0) return;
+    const stashedId = readPosSelectedOutletId();
+    if (stashedId && outlets.some((row) => row.id === stashedId && row.is_active)) {
+      setSelectedOutletId(stashedId);
+      return;
+    }
+    const defaultId = defaultPosOutletId(outlets);
+    if (defaultId) setSelectedOutletId(defaultId);
+  }, [outlets, selectedOutletId]);
+
+  useEffect(() => {
+    const options = pricing.outletSalesTypes;
+    if (options.length === 0) {
+      setSelectedSalesTypeId('');
+      return;
+    }
+    if (!options.some((row) => row.id === selectedSalesTypeId)) {
+      setSelectedSalesTypeId(options[0].id);
+    }
+  }, [pricing.outletSalesTypes, selectedSalesTypeId]);
+
+  const checkoutTotals = useMemo(() => pricing.compute(cart.lines), [pricing, cart.lines]);
 
   const [kind, setKind] = useState<CustomerVisitLookupKind>('phone');
   const [query, setQuery] = useState('');
@@ -82,6 +115,11 @@ export function CustomerVisitsPageContent() {
                 table_number: shownSale.table_number ?? null,
                 date: shownSale.date ?? null,
                 created_at: shownSale.created_at ?? null,
+                pos_outlet_id: shownSale.pos_outlet_id ?? null,
+                catalog_sales_type_id: shownSale.catalog_sales_type_id ?? null,
+                checkout_subtotal: shownSale.checkout_subtotal ?? null,
+                checkout_tax_amount: shownSale.checkout_tax_amount ?? null,
+                checkout_gratuity_amount: shownSale.checkout_gratuity_amount ?? null,
               }
             : receiptVisit.sales_activities,
           table_number:
@@ -308,7 +346,8 @@ export function CustomerVisitsPageContent() {
     cashTendered?: number | null;
     tableNumber?: string | null;
   }) => {
-    if (!checkoutSession) return;
+    if (!checkoutSession || !selectedOutletId) return;
+    const totalsForPay = pricing.compute(args.lines);
     try {
       const activityId = await submitCheckout.mutateAsync({
         visitId: checkoutSession.visitId,
@@ -319,11 +358,14 @@ export function CustomerVisitsPageContent() {
         paymentReference: args.paymentReference ?? null,
         cashTendered: args.cashTendered ?? null,
         tableNumber: args.tableNumber ?? null,
+        outletId: selectedOutletId,
+        salesTypeId: selectedSalesTypeId || null,
+        checkoutTotals: totalsForPay,
         lines: args.lines,
       });
       const paidAt = new Date().toISOString();
       const tableNumber = args.tableNumber?.trim() || null;
-      const ticketTotal = args.lines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
+      const ticketTotal = totalsForPay.grandTotal;
       const paidVisit =
         visits.find((visit) => visit.id === checkoutSession.visitId) ??
         ({
@@ -351,6 +393,11 @@ export function CustomerVisitsPageContent() {
         table_number: tableNumber,
         date: getLocalDateYmd(),
         created_at: paidAt,
+        pos_outlet_id: selectedOutletId,
+        catalog_sales_type_id: selectedSalesTypeId || null,
+        checkout_subtotal: totalsForPay.subtotal,
+        checkout_tax_amount: totalsForPay.taxTotal,
+        checkout_gratuity_amount: totalsForPay.gratuityTotal,
       };
       cart.reset();
       setPaymentMethod('cash');
@@ -366,33 +413,21 @@ export function CustomerVisitsPageContent() {
     } catch (err) {
       const code = parseStoreCheckoutIncomeErrorCode(err instanceof Error ? err.message : null);
       const message = err instanceof Error ? err.message : '';
+      const failureToast = resolveCheckoutFailureToast(err, t, {
+        lines: cart.lines.map((line) => ({
+          kind: line.kind,
+          trackStock: line.trackStock,
+          serviceName: line.serviceName,
+          availableQty: line.availableQty,
+          quantity: line.quantity,
+          inventorySkuId: line.inventorySkuId,
+        })),
+        includeRollbackHint: true,
+        incomeErrorCode: code,
+        message,
+      });
       toast({
-        title:
-          message === 'store_checkout_insufficient_stock'
-            ? t('customerVisits.toast.insufficientStockTitle', 'Not enough stock')
-            : message === 'store_checkout_already_paid'
-              ? t('customerVisits.toast.alreadyPaidTitle', 'Already paid')
-              : t('customerVisits.toast.checkoutErrorTitle', 'Could not record payment'),
-        description:
-          message === 'store_checkout_insufficient_stock'
-            ? t('customerVisits.checkout.insufficientStock', '{{name}} only has {{qty}} left.', {
-                name: t('customerVisits.checkout.products', 'Products'),
-                qty: 0,
-              })
-            : message === 'store_checkout_already_paid'
-              ? t(
-                  'customerVisits.toast.alreadyPaidDescription',
-                  'This visit already has a receipt. Checkout was not started again.',
-                )
-            : code === 'store_checkout_omnichannel_bank_missing'
-              ? t(
-                  'customerVisits.toast.checkoutBankMissing',
-                  'Set an omnichannel income bank account before taking store payments.',
-                )
-              : t(
-                  'customerVisits.toast.checkoutIncomeFailed',
-                  'Payment was not saved. The receipt was rolled back.',
-                ),
+        ...failureToast,
         variant: 'destructive',
       });
     }
@@ -411,6 +446,7 @@ export function CustomerVisitsPageContent() {
         {isCheckout ? (
           <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
             <CustomerVisitCatalogPane
+              outletId={selectedOutletId || null}
               submitting={submitCheckout.isPending}
               qtyByCatalogId={qtyByCatalogId}
               onAddItem={cart.addItem}
@@ -465,6 +501,12 @@ export function CustomerVisitsPageContent() {
               lead={checkoutSession.lead}
               lines={cart.lines}
               totals={cart.totals}
+              checkoutTotals={checkoutTotals}
+              outletId={selectedOutletId}
+              onOutletChange={setSelectedOutletId}
+              salesTypeId={selectedSalesTypeId}
+              onSalesTypeChange={setSelectedSalesTypeId}
+              salesTypeOptions={pricing.outletSalesTypes.map((row) => ({ id: row.id, name: row.name }))}
               paymentMethod={paymentMethod}
               onPaymentMethodChange={setPaymentMethod}
               onUpdateQty={cart.updateQty}

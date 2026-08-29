@@ -10,10 +10,10 @@ import {
 } from '../lib/customerVisit.types';
 
 const CUSTOMER_VISITS_SELECT =
-  'id, organization_id, visit_date, status, lead_id, lookup_kind, lookup_raw, lookup_normalized, match_status, notes, table_number, sales_activity_id, created_at, leads(id, client, ticket_id, source, phone_number, attribution, attribution_label), sales_activities!sales_activity_id(id, total_amount, payment_method, payment_reference, cash_tendered, table_number, date, created_at)';
+  'id, organization_id, visit_date, status, lead_id, lookup_kind, lookup_raw, lookup_normalized, match_status, notes, table_number, sales_activity_id, created_at, leads(id, client, ticket_id, source, phone_number, attribution, attribution_label), sales_activities!sales_activity_id(id, total_amount, payment_method, payment_reference, cash_tendered, table_number, date, created_at, pos_outlet_id, catalog_sales_type_id, checkout_subtotal, checkout_tax_amount, checkout_gratuity_amount)';
 
 const STORE_TICKETS_SELECT =
-  'id, customer_visit_id, total_amount, payment_method, payment_reference, cash_tendered, table_number, date, created_at';
+  'id, customer_visit_id, total_amount, payment_method, payment_reference, cash_tendered, table_number, date, created_at, pos_outlet_id, catalog_sales_type_id, checkout_subtotal, checkout_tax_amount, checkout_gratuity_amount';
 
 const ENROLLMENT_CONTENT_SELECT =
   'lead_id, created_at, media_id, platform, lead_magnet_campaigns(name, lead_magnet_campaign_posts(media_id, media_caption, media_permalink, platform))';

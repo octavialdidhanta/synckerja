@@ -21,6 +21,9 @@ export function useSaveSupplier() {
         city: args.values.city.trim() || null,
         state: args.values.state.trim() || null,
         zip: args.values.zip.trim() || null,
+        bank_code: args.values.bankCode.trim() || null,
+        bank_account_number: args.values.bankAccountNumber.trim() || null,
+        bank_account_holder: args.values.bankAccountHolder.trim() || null,
       };
 
       if (args.supplierId) {

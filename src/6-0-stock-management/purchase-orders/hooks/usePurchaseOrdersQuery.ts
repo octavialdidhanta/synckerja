@@ -40,13 +40,15 @@ export function usePurchaseOrdersQuery(args: {
       args.search ?? "",
     ],
     enabled: Boolean(args.organizationId),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async (): Promise<PurchaseOrderListRow[]> => {
       if (!args.organizationId) return [];
 
       let query = supabase
         .from("catalog_purchase_orders")
         .select(
-          "id, order_number, outlet_id, supplier_id, item_kind, status, total_value, occurred_at, note, pos_outlets(name), catalog_suppliers(name)",
+          "id, order_number, outlet_id, supplier_id, item_kind, status, total_value, occurred_at, note, pos_outlets(name), catalog_suppliers(name), purchase_requests(id, status, payment_status, paid_at)",
         )
         .eq("organization_id", args.organizationId)
         .eq("item_kind", kindToDb(args.kind))
@@ -76,6 +78,10 @@ export function usePurchaseOrdersQuery(args: {
         note: string | null;
         pos_outlets: { name: string } | { name: string }[] | null;
         catalog_suppliers: { name: string } | { name: string }[] | null;
+        purchase_requests:
+          | { id: string; status: string; payment_status: string | null; paid_at: string | null }
+          | Array<{ id: string; status: string; payment_status: string | null; paid_at: string | null }>
+          | null;
       };
 
       const q = args.search?.trim().toLowerCase();
@@ -85,6 +91,8 @@ export function usePurchaseOrdersQuery(args: {
         const supplierRel = row.catalog_suppliers;
         const outletName = Array.isArray(outletRel) ? outletRel[0]?.name : outletRel?.name;
         const supplierNameRaw = Array.isArray(supplierRel) ? supplierRel[0]?.name : supplierRel?.name;
+        const prRel = row.purchase_requests;
+        const pr = Array.isArray(prRel) ? prRel[0] : prRel;
 
         return {
           id: row.id,
@@ -98,6 +106,14 @@ export function usePurchaseOrdersQuery(args: {
           totalValue: num(row.total_value),
           occurredAt: row.occurred_at,
           note: row.note,
+          finance: pr?.id
+            ? {
+                id: pr.id,
+                status: pr.status,
+                payment_status: pr.payment_status,
+                paid_at: pr.paid_at,
+              }
+            : null,
         };
       });
 

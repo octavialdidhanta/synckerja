@@ -5,11 +5,14 @@ import { normalizeXenditError } from "../xenditErrors.ts";
 import {
   detectXenditEventType,
   extractXenditEventId,
+  unwrapXenditWebhookPayload,
   verifyXenditWebhookToken,
 } from "./verifyWebhook.ts";
 import { handleVaPaidWebhook } from "./handleVaPaid.ts";
+import { handleQrisPaidWebhook } from "./handleQrisPaid.ts";
 import { handleDisbursementWebhook } from "./handleDisbursement.ts";
 import { handleAccountWebhook, isAccountWebhookEvent } from "./handleAccountWebhook.ts";
+import { handleSplitPaymentWebhook } from "./handleSplitPayment.ts";
 
 export function isXenditWebhookRequest(req: Request): boolean {
   const token = req.headers.get("x-callback-token") ?? req.headers.get("X-CALLBACK-TOKEN") ?? "";
@@ -57,7 +60,22 @@ export async function processXenditWebhook(
     if (eventType === "split.payment") {
       await handleSplitPaymentWebhook(admin, payload);
     }
-    if (eventType.startsWith("virtual_account") || payload.external_id && payload.amount) {
+    if (eventType === "qr.payment") {
+      await handleQrisPaidWebhook(admin, payload);
+    } else {
+      const flat = unwrapXenditWebhookPayload(payload);
+      const qrExt = String(
+        flat.external_id
+          ?? flat.reference_id
+          ?? payload.external_id
+          ?? (payload.qr_code as Record<string, unknown> | undefined)?.external_id
+          ?? "",
+      );
+      if (qrExt.startsWith("synckerja:") && qrExt.includes(":pos_qris:")) {
+        await handleQrisPaidWebhook(admin, payload);
+      }
+    }
+    if (eventType.startsWith("virtual_account") || (payload.external_id && payload.amount)) {
       const ext = String(payload.external_id ?? "");
       if (ext.startsWith("synckerja:") && ext.includes(":sap:")) {
         await handleVaPaidWebhook(admin, payload);

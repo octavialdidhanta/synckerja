@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -16,6 +16,7 @@ import { useCatalogGratuities } from "../../gratuity";
 import { useCatalogSalesTypes } from "../hooks/useCatalogSalesTypes";
 import type { CatalogSalesType } from "../types";
 import { SalesTypeOutletsSection } from "./SalesTypeOutletsSection";
+import { filterGratuitiesForSalesTypeOutlets } from "../lib/filterGratuitiesForSalesTypeOutlets";
 
 export type SalesTypeFormSheetProps = {
   salesType: CatalogSalesType | null;
@@ -111,6 +112,10 @@ export function SalesTypeFormSheet({
   };
 
   const busy = saving || isSaving;
+  const gratuityOptions = useMemo(
+    () => filterGratuitiesForSalesTypeOutlets(gratuities, outletIds, selectedIds),
+    [gratuities, outletIds, selectedIds],
+  );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -160,7 +165,7 @@ export function SalesTypeFormSheet({
               </p>
             ) : (
               <ul className="space-y-1">
-                {gratuities.map((row) => {
+                {gratuityOptions.selectable.map((row) => {
                   const checked = selectedIds.has(row.id);
                   return (
                     <li key={row.id}>
@@ -177,6 +182,29 @@ export function SalesTypeFormSheet({
                     </li>
                   );
                 })}
+                {gratuityOptions.selectedOutsideOutlets.map((row) => (
+                  <li key={row.id}>
+                    <div
+                      className="flex items-center gap-3 rounded-md px-2 py-1.5 opacity-70"
+                      title={t(
+                        "defaultPrices.salesType.gratuityOutsideOutletsHint",
+                        "This gratuity is not assigned to the selected outlets.",
+                      )}
+                    >
+                      <Checkbox checked disabled aria-hidden />
+                      <span className="min-w-0 flex-1 truncate text-sm">{row.name}</span>
+                      <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+                        {formatPercent(row.amount_percent)}
+                      </span>
+                    </div>
+                    <p className="px-2 pb-1 text-xs text-amber-700">
+                      {t(
+                        "defaultPrices.salesType.gratuityOutsideOutletsHint",
+                        "This gratuity is not assigned to the selected outlets.",
+                      )}
+                    </p>
+                  </li>
+                ))}
               </ul>
             )}
           </section>

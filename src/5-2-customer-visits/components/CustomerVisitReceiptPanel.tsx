@@ -1,11 +1,15 @@
+import { useMemo } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
-import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
-import { formatToRupiah } from '@/shared/utils/formatCurrency';
+import { computeCatalogCheckoutTotals } from '@/8-2-1-default-prices/checkout/lib/computeCatalogCheckoutTotals';
+import { PosReceiptDocument } from '@/8-2-6-receipt/components/PosReceiptDocument';
+import { useResolvedPosReceipt } from '@/8-2-6-receipt/hooks/useResolvedPosReceipt';
+import { buildPosReceiptText } from '@/8-2-6-receipt/lib/buildPosReceiptText';
+import { mapStoreCheckoutReceiptTransaction } from '@/8-2-6-receipt/lib/mapStoreCheckoutReceipt';
+import { useStoreCheckoutPricing } from '../checkout/hooks/useStoreCheckoutPricing';
 import { changeDue } from '../checkout/lib/cashChange';
 import {
-  buildStoreReceiptText,
   formatStoreReceiptDateTime,
   formatStoreReceiptNumber,
 } from '../checkout/lib/formatStoreReceiptNumber';
@@ -21,22 +25,15 @@ type Props = {
   onOrderAgain?: () => void;
 };
 
-function ReceiptRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div className="flex justify-between gap-2 text-sm">
-      <span className="text-gray-500">{label}</span>
-      <span className={`text-gray-900 ${strong ? 'font-semibold tabular-nums' : 'tabular-nums'}`}>{value}</span>
-    </div>
-  );
-}
-
 export function CustomerVisitReceiptPanel({ visit, justPaid, onClose, onNextCheckIn, onOrderAgain }: Props) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
-  const { organization } = useCentralizedUserData();
-  const storeName = organization?.company_name?.trim() || t('customerVisits.receipt.storeFallback', 'Store');
   const lead = customerVisitLead(visit);
   const sale = customerVisitSale(visit);
+  const outletId = sale?.pos_outlet_id ?? null;
+  const salesTypeId = sale?.catalog_sales_type_id ?? null;
+  const { branding, isLoading: brandingLoading } = useResolvedPosReceipt(outletId);
+  const pricing = useStoreCheckoutPricing(outletId, salesTypeId);
   const amountRaw = Number(sale?.total_amount);
   const amount = Number.isFinite(amountRaw) && amountRaw > 0 ? amountRaw : null;
   const receipt = useCustomerVisitReceipt(visit.sales_activity_id);
@@ -61,37 +58,40 @@ export function CustomerVisitReceiptPanel({ visit, justPaid, onClose, onNextChec
   const change = showCash && amount != null ? changeDue(amount, cashTendered) : null;
   const tableNumber = (sale?.table_number ?? visit.table_number)?.trim() || null;
   const items = receipt.data ?? [];
-  const totalLabel = amount != null ? formatToRupiah(amount) : '—';
+
+  const recomputedTotals = useMemo(() => {
+    const subtotal = Number(sale?.checkout_subtotal);
+    if (!Number.isFinite(subtotal) || subtotal <= 0) return null;
+    return computeCatalogCheckoutTotals({
+      subtotal,
+      settings: pricing.settings,
+      taxes: pricing.outletTaxes,
+      gratuities: pricing.outletGratuities,
+    });
+  }, [pricing.settings, pricing.outletTaxes, pricing.outletGratuities, sale?.checkout_subtotal]);
+
+  const transaction = mapStoreCheckoutReceiptTransaction({
+    sale,
+    items,
+    receiptNumber,
+    datetime,
+    clientName: lead?.client || '—',
+    ticketId: lead?.ticket_id || visit.lookup_raw,
+    tableNumber,
+    payMethod,
+    paymentReference,
+    cashTendered: showCash ? cashTendered : null,
+    change,
+    taxLines: recomputedTotals?.taxLines,
+    gratuityLines: recomputedTotals?.gratuityLines,
+  });
 
   const handlePrint = () => {
     window.print();
   };
 
   const handleCopy = async () => {
-    const text = buildStoreReceiptText({
-      storeName,
-      receiptNumber,
-      datetime,
-      clientName: lead?.client || '—',
-      ticketId: lead?.ticket_id || visit.lookup_raw,
-      payMethod,
-      paymentReference,
-      tableNumber,
-      cashReceived: showCash ? formatToRupiah(cashTendered) : null,
-      change: change != null ? formatToRupiah(change) : null,
-      items: items.map((item) => {
-        const name = item.sub_service_name
-          ? `${item.service_name} · ${item.sub_service_name}`
-          : item.service_name;
-        return {
-          name,
-          quantity: item.quantity,
-          unitPrice: formatToRupiah(item.unit_price),
-          lineTotal: formatToRupiah(item.total_price),
-        };
-      }),
-      total: totalLabel,
-    });
+    const text = buildPosReceiptText({ branding, transaction });
     try {
       await navigator.clipboard.writeText(text);
       toast({ title: t('customerVisits.receipt.copied', 'Receipt copied') });
@@ -115,90 +115,29 @@ export function CustomerVisitReceiptPanel({ visit, justPaid, onClose, onNextChec
       </div>
       <div
         id="store-receipt-print"
-        className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 justify-center overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <div className="text-center">
-          <p className="text-sm font-semibold text-gray-900">{storeName}</p>
-          {tableNumber ? (
-            <p className="mt-1 text-2xl font-bold tracking-wide text-gray-900">
-              {t('customerVisits.receipt.table', 'Table')} {tableNumber}
-            </p>
-          ) : null}
-          {receiptNumber ? (
-            <p className="mt-0.5 text-xs tabular-nums text-gray-600">{receiptNumber}</p>
-          ) : null}
-          {datetime ? (
-            <p
-              className="mt-0.5 text-xs text-gray-500"
-              aria-label={t('customerVisits.receipt.dateTime', 'Date & time')}
-            >
-              {datetime}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3">
-          <p className="text-sm font-medium text-gray-900">{lead?.client || '—'}</p>
-          <p className="mt-0.5 text-xs text-gray-500">{lead?.ticket_id || visit.lookup_raw}</p>
-        </div>
-
-        <div className="mt-4 space-y-1">
-          <ReceiptRow label={t('customerVisits.table.pay', 'Pay')} value={payMethod} />
-          {paymentReference ? (
-            <ReceiptRow
-              label={t('customerVisits.checkout.paymentReference', 'Payment reference')}
-              value={paymentReference}
-            />
-          ) : null}
-          {showCash ? (
-            <ReceiptRow
-              label={t('customerVisits.checkout.tendered', 'Cash received')}
-              value={formatToRupiah(cashTendered)}
-            />
-          ) : null}
-          {change != null ? (
-            <ReceiptRow label={t('customerVisits.checkout.change', 'Change')} value={formatToRupiah(change)} />
-          ) : null}
-          <ReceiptRow label={t('customerVisits.checkout.total', 'Total')} value={totalLabel} strong />
-        </div>
-
-        <div className="mt-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-            {t('customerVisits.receipt.items', 'Items')}
+        {receipt.isLoading || brandingLoading ? (
+          <p className="text-sm text-gray-500">{t('customerVisits.receipt.loading', 'Loading receipt…')}</p>
+        ) : receipt.isError ? (
+          <p className="text-sm text-gray-600">
+            {t('customerVisits.receipt.error', 'Could not load receipt items.')}
           </p>
-          {receipt.isLoading ? (
-            <p className="mt-2 text-sm text-gray-500">
-              {t('customerVisits.receipt.loading', 'Loading receipt…')}
-            </p>
-          ) : receipt.isError ? (
-            <p className="mt-2 text-sm text-gray-600">
-              {t('customerVisits.receipt.error', 'Could not load receipt items.')}
-            </p>
-          ) : items.length === 0 ? (
-            <p className="mt-2 text-sm text-gray-500">
-              {t('customerVisits.receipt.empty', 'No line items on this receipt.')}
-            </p>
-          ) : (
-            <ul className="mt-2 space-y-2">
-              {items.map((item) => {
-                const name = item.sub_service_name
-                  ? `${item.service_name} · ${item.sub_service_name}`
-                  : item.service_name;
-                return (
-                  <li key={item.id} className="rounded-md border border-gray-200 p-2">
-                    <p className="truncate text-sm font-medium text-gray-900">{name}</p>
-                    <div className="mt-1 flex justify-between text-xs text-gray-500">
-                      <span>
-                        {item.quantity} × {formatToRupiah(item.unit_price)}
-                      </span>
-                      <span className="tabular-nums text-gray-700">{formatToRupiah(item.total_price)}</span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+        ) : (
+          <PosReceiptDocument
+            branding={branding}
+            transaction={transaction}
+            showClientBlock
+            showLinks={Boolean(
+              branding.social.websiteUrl ||
+                branding.social.twitterUrl ||
+                branding.social.facebookUrl ||
+                branding.social.instagramUrl,
+            )}
+            showNote={Boolean(branding.display.notes)}
+            className="print:shadow-none print:ring-0"
+          />
+        )}
       </div>
       <div className="flex-shrink-0 space-y-2 border-t bg-gray-50 px-4 py-3 print:hidden">
         {justPaid ? (

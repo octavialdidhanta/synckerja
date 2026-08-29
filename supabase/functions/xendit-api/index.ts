@@ -14,6 +14,9 @@ import { SUB_ACCOUNT_EMAIL_EXISTS_CODE } from "../_shared/xendit/services/resolv
 import { XENDIT_VA_BANKS } from "../_shared/xendit/xenditTypes.ts";
 import { createTenantSubAccount, setPrimarySubAccount } from "../_shared/xendit/services/createSubAccount.ts";
 import { createTenantInvoiceVA } from "../_shared/xendit/services/createInvoiceVa.ts";
+import { createPosQrisPayment } from "../_shared/xendit/services/createPosQris.ts";
+import { cancelPosQrisPayment } from "../_shared/xendit/services/cancelPosQris.ts";
+import { simulatePosQrisPayment } from "../_shared/xendit/services/simulatePosQris.ts";
 import { executeTenantDisbursement } from "../_shared/xendit/services/executeDisbursement.ts";
 import {
   executeGatewayWithdrawal,
@@ -32,6 +35,7 @@ import { submitKycAndCreate, updateKycAndRetryDocuments, uploadKycForManagedSubA
 import { parseFullKycFromBody, parsePartialKycFromBody } from "../_shared/xendit/services/kycApiBody.ts";
 import { isInternalXenditOrg } from "../_shared/xendit/internalOrg.ts";
 import {
+  isXenditWebhookRequest,
   processXenditWebhook,
 } from "../_shared/xendit/webhooks/processXenditWebhook.ts";
 import {
@@ -196,11 +200,8 @@ Deno.serve(async (req: Request) => {
 
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
-    const callbackToken = req.headers.get("x-callback-token")
-      ?? req.headers.get("X-CALLBACK-TOKEN")
-      ?? "";
-
-    if (callbackToken && env?.webhookToken && callbackToken === env.webhookToken) {
+    // Xendit webhooks: header x-callback-token (verified inside processXenditWebhook).
+    if (isXenditWebhookRequest(req)) {
       if (!env) return xenditJson({ error: "Xendit not configured on server" }, 503);
       return await processXenditWebhook(admin, env, req);
     }
@@ -321,7 +322,9 @@ Deno.serve(async (req: Request) => {
         return xenditJson({ ok: true, sub_account_id: result.subAccountId, account: result.row }, 200);
       }
       case "requestSubAccount": {
-        const gate = await requestSubAccount(admin, organizationId);
+        const gate = await requestSubAccount(admin, organizationId, {
+          isSandbox: env.isSandbox,
+        });
         return xenditJson({ ok: true, ...gate }, 200);
       }
       case "submitKycAndCreate": {
@@ -383,6 +386,35 @@ Deno.serve(async (req: Request) => {
           name: body.name != null ? String(body.name) : undefined,
         });
         return xenditJson({ ok: true, va: row }, 200);
+      }
+      case "createPosQrisPayment": {
+        const row = await createPosQrisPayment(admin, env, organizationId, {
+          pending_checkout_id: String(body.pending_checkout_id ?? ""),
+        });
+        return xenditJson({ ok: true, payment_request: row }, 200);
+      }
+      case "cancelPosQrisPayment": {
+        const result = await cancelPosQrisPayment(admin, env, organizationId, {
+          pending_checkout_id: body.pending_checkout_id != null
+            ? String(body.pending_checkout_id)
+            : undefined,
+          payment_request_id: body.payment_request_id != null
+            ? String(body.payment_request_id)
+            : undefined,
+          reason: body.reason != null ? String(body.reason) : undefined,
+        });
+        return xenditJson(result, 200);
+      }
+      case "simulatePosQrisPayment": {
+        const result = await simulatePosQrisPayment(admin, env, organizationId, {
+          payment_request_id: body.payment_request_id != null
+            ? String(body.payment_request_id)
+            : undefined,
+          pending_checkout_id: body.pending_checkout_id != null
+            ? String(body.pending_checkout_id)
+            : undefined,
+        });
+        return xenditJson(result, 200);
       }
       case "listVaBanks":
         return xenditJson({ banks: XENDIT_VA_BANKS }, 200);

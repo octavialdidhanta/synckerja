@@ -1,0 +1,27 @@
+/** Format shift open/close timestamps for dialogs and reports. */
+export function formatPosShiftDateTime(
+  iso: string,
+  language: string,
+  opts?: { includeWeekday?: boolean },
+): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const locale = language.startsWith("en") ? "en-US" : "id-ID";
+  const includeWeekday = opts?.includeWeekday !== false;
+  const weekday = includeWeekday
+    ? `${d.toLocaleDateString(locale, { weekday: "long" })}, `
+    : "";
+  const date = d.toLocaleDateString(locale, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const time = d.toLocaleTimeString(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  if (locale.startsWith("en")) {
+    return `${weekday}${date} at ${time}`;
+  }
+  return `${weekday}${date} pada ${time}`;
+}

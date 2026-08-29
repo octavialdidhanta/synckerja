@@ -16,6 +16,16 @@ export function useLiveChatFCM() {
     if (!Capacitor.isPluginAvailable("PushNotifications")) return;
 
     const setup = async () => {
+      if (Capacitor.isPluginAvailable("FirebaseReady")) {
+        try {
+          const { FirebaseReady } = await import("@/shared/native/firebaseReadyPlugin");
+          const { ready } = await FirebaseReady.isReady();
+          if (!ready) return;
+        } catch {
+          return;
+        }
+      }
+
       const h = await PushNotifications.addListener(
         "pushNotificationReceived",
         (ev: { data?: Record<string, string>; title?: string; body?: string }) => {

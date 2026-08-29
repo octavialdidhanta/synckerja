@@ -60,11 +60,8 @@ export async function createTenantSubAccount(
   const businessName = input.business_name.trim();
   const email = normalizeEmail(input.email);
   const isInternal = isInternalXenditOrg(organizationId);
-  const accountType = isInternal
-    ? "OWNED"
-    : (input.type?.trim() || "MANAGED").toUpperCase() === "OWNED"
-    ? "MANAGED"
-    : "MANAGED";
+  // Indonesia Live rejects OWNED (UNSUPPORTED_COUNTRY). Sandbox still allows OWNED for internal QA.
+  const accountType = isInternal && env.isSandbox ? "OWNED" : "MANAGED";
   const payoutBankCode = String(input.payout_bank_code ?? "").trim();
   const payoutAccountNumber = String(input.payout_account_number ?? "").trim();
   const payoutAccountHolder = String(input.payout_account_holder_name ?? "").trim();

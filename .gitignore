@@ -31,6 +31,7 @@ dist-ssr
 .cursor/_payroll*
 .cursor/debug*.log
 .tmp-*
+tmp-*
 scripts/.tmp-*
 
 # Supabase: temporary chunk/invoke artifacts (real migrations use YYYYMMDDHHMMSS_*.sql)

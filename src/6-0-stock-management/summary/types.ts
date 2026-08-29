@@ -6,7 +6,8 @@ export type CatalogStockMovementType =
   | "sale"
   | "transfer"
   | "adjustment"
-  | "recipe_consume";
+  | "recipe_consume"
+  | "production";
 
 export type CatalogStockMovementRow = {
   id: string;

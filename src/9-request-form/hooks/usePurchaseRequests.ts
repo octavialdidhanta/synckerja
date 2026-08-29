@@ -4,6 +4,7 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
 import { useCurrentUserEmployee } from '@/1-home/components/HomeOKRDashboard/component/SectionGreetingsImport/useCurrentUserEmployee';
 import { useToast } from '@/shared/components/ui/use-toast';
+import { mapInventoryRpcError } from '@/8-2-5-inventory-settings/lib/mapInventoryRpcError';
 
 export interface PurchaseRequestFormData {
   purchaseType?: string;
@@ -84,6 +85,7 @@ export interface PurchaseRequest {
   vendor_bank_code?: string | null;
   vendor_bank_account_number?: string | null;
   vendor_bank_account_holder?: string | null;
+  catalog_purchase_order_id?: string | null;
   expense_types?: {
     name: string;
     description?: string;
@@ -406,10 +408,10 @@ export const useUpdatePurchaseRequestStatus = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-requests'] });
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: "Error",
-        description: "Failed to update status. Please try again.",
+        description: mapInventoryRpcError(error, "Failed to update status. Please try again."),
         variant: "destructive",
       });
     },

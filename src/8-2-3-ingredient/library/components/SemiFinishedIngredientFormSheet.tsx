@@ -27,9 +27,11 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import { useCatalogIngredientCategories } from "../../categories/hooks/useCatalogIngredientCategories";
 import { ManageRecipeDialog } from "../../recipes/components/ManageRecipeDialog";
+import { ProduceStockDialog } from "../../recipes/production/components/ProduceStockDialog";
 import { useCatalogIngredientRecipes } from "../../recipes/hooks/useCatalogIngredientRecipes";
 import { isRecipeDraftComplete } from "../../recipes/lib/recipeCompleteness";
 import { emptyRecipeDraft, type RecipeDraft } from "../../recipes/types";
+import { recipeUnitAvgCost } from "../../product-recipes/lib/productRecipeCost";
 import { useCatalogIngredients } from "../hooks/useCatalogIngredients";
 import { uploadCatalogIngredientPhoto } from "../lib/catalogIngredientPhoto";
 import { ingredientInitials } from "../lib/ingredientInitials";
@@ -63,7 +65,7 @@ export function SemiFinishedIngredientFormSheet({
   const { t } = useAppTranslation();
   const { toast } = useToast();
   const { organizationId } = useCurrentOrg();
-  const { save, remove, isSaving } = useCatalogIngredients();
+  const { save, remove, isSaving, rows: ingredientRows } = useCatalogIngredients();
   const recipes = useCatalogIngredientRecipes();
   const recipesRef = useRef(recipes);
   recipesRef.current = recipes;
@@ -81,6 +83,8 @@ export function SemiFinishedIngredientFormSheet({
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [cogsOpen, setCogsOpen] = useState(false);
   const [recipeOpen, setRecipeOpen] = useState(false);
+  const [produceOpen, setProduceOpen] = useState(false);
+  const [persistedId, setPersistedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [infoTipOpen, setInfoTipOpen] = useState(false);
   const [infoTipReady, setInfoTipReady] = useState(false);
@@ -90,6 +94,19 @@ export function SemiFinishedIngredientFormSheet({
 
   const lockTracking = Boolean(ingredient?.track_inventory);
   const recipeComplete = isRecipeDraftComplete(recipeDraft);
+
+  const ingredientsById = useMemo(() => {
+    const map = new Map<string, CatalogIngredient>();
+    for (const row of ingredientRows) map.set(row.id, row);
+    return map;
+  }, [ingredientRows]);
+
+  const resolvedIngredient = useMemo(() => {
+    const id = ingredient?.id ?? persistedId;
+    if (!id) return null;
+    // Prefer live query row so Produce / stock edits refresh IN STOCK without remount.
+    return ingredientRows.find((row) => row.id === id) ?? ingredient ?? null;
+  }, [ingredient, persistedId, ingredientRows]);
 
   useEffect(() => {
     if (!open) return;
@@ -133,10 +150,13 @@ export function SemiFinishedIngredientFormSheet({
       setPhotoFile(null);
       setPhotoPreview(null);
       setExistingPhotoPath(null);
+      setPersistedId(null);
     }
+    if (ingredient?.id) setPersistedId(ingredient.id);
     setInventoryOpen(false);
     setCogsOpen(false);
     setRecipeOpen(false);
+    setProduceOpen(false);
     setInfoTipOpen(false);
     setInfoTipReady(false);
   }, [open, ingredient, selectedOutletId]);
@@ -170,6 +190,41 @@ export function SemiFinishedIngredientFormSheet({
     });
   }, [ingredient, open, recipes.rows]);
 
+  useEffect(() => {
+    if (!open || !resolvedIngredient) return;
+    const stock = stockForOutlet(resolvedIngredient, selectedOutletId);
+    setInStock(toStockDisplay(stock.in_stock));
+    setAvgCost(stock.avg_cost ? String(Math.round(stock.avg_cost)) : "");
+    setTrackCogs(stock.track_cogs);
+    if (resolvedIngredient.track_inventory) setTrackInventory(true);
+  }, [open, resolvedIngredient, selectedOutletId]);
+
+  const derivedRecipeAvg = useMemo(
+    () =>
+      recipeUnitAvgCost(recipeDraft.lines, recipeDraft.yieldQty, ingredientsById, selectedOutletId),
+    [recipeDraft.lines, recipeDraft.yieldQty, ingredientsById, selectedOutletId],
+  );
+
+  // Backfill COGS from recipe when avg cost is still empty (e.g. recipe saved before this behavior).
+  useEffect(() => {
+    if (!open || !recipeComplete || derivedRecipeAvg == null) return;
+    if (Number(avgCost) > 0) return;
+    const stockNum =
+      Number(inStock.trim() === "" ? "0" : inStock) ||
+      (resolvedIngredient ? stockForOutlet(resolvedIngredient, selectedOutletId).in_stock : 0);
+    if (stockNum > 0) return;
+    setTrackCogs(true);
+    setAvgCost(String(Math.round(derivedRecipeAvg)));
+  }, [
+    open,
+    recipeComplete,
+    derivedRecipeAvg,
+    avgCost,
+    inStock,
+    resolvedIngredient,
+    selectedOutletId,
+  ]);
+
   const outletCategories = useMemo(() => {
     const forOutlet = categoryRows.filter((row) => (row.outlet_ids ?? []).includes(selectedOutletId));
     const currentId = ingredient?.category_id;
@@ -182,7 +237,15 @@ export function SemiFinishedIngredientFormSheet({
 
   const nameValid = name.trim().length > 0;
   const initials = ingredientInitials(name);
-  const isEdit = Boolean(ingredient);
+  const isEdit = Boolean(ingredient ?? resolvedIngredient);
+  const canProduce = Boolean(
+    nameValid &&
+      unitCode.trim() &&
+      recipeComplete &&
+      trackInventory &&
+      selectedOutletId &&
+      organizationId,
+  );
   const title = isEdit
     ? t("ingredient.semiFinished.editTitle", "Edit Semi-Finished Ingredient")
     : t("ingredient.semiFinished.createTitle", "Create Semi-Finished Ingredient");
@@ -211,44 +274,91 @@ export function SemiFinishedIngredientFormSheet({
 
   const handleRecipeSave = async (next: RecipeDraft) => {
     setRecipeDraft(next);
-    if (ingredient?.id) {
+    const unitCost = recipeUnitAvgCost(next.lines, next.yieldQty, ingredientsById, selectedOutletId);
+    const roundedAvg = unitCost != null ? Math.round(unitCost) : null;
+    const currentStock =
+      Number(inStock.trim() === "" ? "0" : inStock) ||
+      (resolvedIngredient ? stockForOutlet(resolvedIngredient, selectedOutletId).in_stock : 0);
+    const currentAvg = Number(avgCost) || 0;
+    // Seed COGS from recipe on first save / while no stock yet (produce later weights avg).
+    const shouldSeedCogs = roundedAvg != null && (currentStock <= 0 || currentAvg <= 0);
+
+    if (roundedAvg != null) {
+      setTrackCogs(true);
+      if (shouldSeedCogs) setAvgCost(String(roundedAvg));
+    }
+
+    const outputId = resolvedIngredient?.id ?? persistedId ?? ingredient?.id;
+    if (outputId) {
       await recipes.save({
-        outputIngredientId: ingredient.id,
+        outputIngredientId: outputId,
         yieldQty: next.yieldQty,
         lines: next.lines,
       });
     }
+
+    const allowInventory = lockTracking || trackInventory;
+    if (outputId && allowInventory && shouldSeedCogs && roundedAvg != null && organizationId && selectedOutletId) {
+      const stockRaw = inStock.trim();
+      const stockValue = stockRaw === "" ? 0 : Number(stockRaw);
+      await save({
+        id: outputId,
+        name: name.trim() || resolvedIngredient?.name || "—",
+        kind: "semi_finished",
+        category_id: categoryId === UNCATEGORIZED_VALUE ? null : categoryId,
+        unit_code: unitCode,
+        track_inventory: true,
+        outlet_id: selectedOutletId,
+        in_stock: Number.isFinite(stockValue) && stockValue >= 0 ? stockValue : 0,
+        alert_enabled: alertEnabled,
+        alert_at: alertAt.trim() ? Number(alertAt) : null,
+        track_cogs: true,
+        avg_cost: roundedAvg,
+        photo_path: existingPhotoPath,
+      });
+    }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (opts?: { silent?: boolean }): Promise<string | null | undefined> => {
     if (!nameValid) {
       toast({
         title: t("ingredient.library.nameRequired", "Enter an ingredient name."),
         variant: "destructive",
       });
-      return;
+      return null;
     }
     if (!selectedOutletId) {
       toast({
         title: t("ingredient.library.outletRequired", "Select an outlet first."),
         variant: "destructive",
       });
-      return;
+      return null;
     }
-    if (!organizationId) return;
+    if (!organizationId) return null;
     const complete = isRecipeDraftComplete(recipeDraft);
     const allowInventory = complete && (lockTracking || trackInventory);
-    const stockValue = Number(inStock);
-    if (allowInventory && !(inStock.trim().length > 0 && Number.isFinite(stockValue) && stockValue >= 0)) {
+    // Empty opening stock = 0 (Produce will add qty). Only reject invalid/negative input.
+    const stockRaw = inStock.trim();
+    const stockValue = stockRaw === "" ? 0 : Number(stockRaw);
+    if (allowInventory && (!Number.isFinite(stockValue) || stockValue < 0)) {
       toast({
         title: t("ingredient.library.stockRequired", "Enter a valid in-stock quantity."),
         variant: "destructive",
       });
-      return;
+      return null;
+    }
+    const recipeAvg = derivedRecipeAvg;
+    const resolvedAvgCost =
+      Number(avgCost) || (recipeAvg != null && allowInventory ? Math.round(recipeAvg) : 0);
+    const resolvedTrackCogs =
+      allowInventory && (trackCogs || (recipeAvg != null && recipeAvg > 0));
+    if (resolvedTrackCogs && recipeAvg != null && !(Number(avgCost) > 0)) {
+      setTrackCogs(true);
+      setAvgCost(String(Math.round(recipeAvg)));
     }
     setSaving(true);
     try {
-      const draftId = ingredient?.id ?? crypto.randomUUID();
+      const draftId = ingredient?.id ?? persistedId ?? crypto.randomUUID();
       let photoPath = existingPhotoPath;
       if (photoFile) {
         try {
@@ -262,7 +372,7 @@ export function SemiFinishedIngredientFormSheet({
             title: t("ingredient.library.photoUploadFailed", "Could not upload photo."),
             variant: "destructive",
           });
-          return;
+          return null;
         }
       }
       const ingredientId = await save({
@@ -273,11 +383,11 @@ export function SemiFinishedIngredientFormSheet({
         unit_code: unitCode,
         track_inventory: allowInventory,
         outlet_id: selectedOutletId,
-        in_stock: Number.isFinite(stockValue) ? stockValue : 0,
+        in_stock: stockValue,
         alert_enabled: allowInventory && alertEnabled,
         alert_at: allowInventory && alertAt.trim() ? Number(alertAt) : null,
-        track_cogs: allowInventory && trackCogs,
-        avg_cost: Number(avgCost) || 0,
+        track_cogs: resolvedTrackCogs,
+        avg_cost: resolvedTrackCogs ? resolvedAvgCost : 0,
         photo_path: photoPath,
       });
       if (complete) {
@@ -287,17 +397,78 @@ export function SemiFinishedIngredientFormSheet({
           lines: recipeDraft.lines,
         });
       }
-      toast({ title: t("ingredient.library.saved", "Ingredient saved.") });
-      onOpenChange(false);
+      setPersistedId(ingredientId);
+      if (stockRaw === "" && allowInventory) setInStock("0");
+      if (!opts?.silent) {
+        toast({ title: t("ingredient.library.saved", "Ingredient saved.") });
+      }
+      return ingredientId;
     } catch {
       toast({
         title: t("defaultPrices.form.saveFailed", "Failed to save."),
         variant: "destructive",
       });
+      return null;
     } finally {
       setSaving(false);
     }
   };
+
+  const handleProduceClick = async () => {
+    if (!canProduce) return;
+    if (!(resolvedIngredient?.id || persistedId)) {
+      const id = await handleSave({ silent: true });
+      if (!id) return;
+    }
+    setProduceOpen(true);
+  };
+
+  const produceOutput = useMemo((): CatalogIngredient | null => {
+    if (resolvedIngredient) return resolvedIngredient;
+    if (!persistedId || !organizationId) return null;
+    const stockValue = Number(inStock);
+    return {
+      id: persistedId,
+      organization_id: organizationId,
+      name: name.trim() || "—",
+      kind: "semi_finished",
+      category_id: categoryId === UNCATEGORIZED_VALUE ? null : categoryId,
+      unit_code: unitCode,
+      track_inventory: trackInventory,
+      sort_order: 0,
+      photo_path: existingPhotoPath,
+      photo_url: photoPreview,
+      outlet_ids: selectedOutletId ? [selectedOutletId] : [],
+      outlet_stocks: selectedOutletId
+        ? [
+            {
+              outlet_id: selectedOutletId,
+              in_stock: Number.isFinite(stockValue) ? stockValue : 0,
+              alert_enabled: alertEnabled,
+              alert_at: alertAt.trim() ? Number(alertAt) : null,
+              track_cogs: trackCogs,
+              avg_cost: Number(avgCost) || 0,
+            },
+          ]
+        : [],
+    };
+  }, [
+    resolvedIngredient,
+    persistedId,
+    organizationId,
+    name,
+    categoryId,
+    unitCode,
+    trackInventory,
+    existingPhotoPath,
+    photoPreview,
+    selectedOutletId,
+    inStock,
+    alertEnabled,
+    alertAt,
+    trackCogs,
+    avgCost,
+  ]);
 
   const handleDelete = async () => {
     if (!ingredient) return;
@@ -472,17 +643,42 @@ export function SemiFinishedIngredientFormSheet({
             <p className="border-b pb-2 text-sm font-medium">
               {t("ingredient.semiFinished.productionSection", "Production")}
             </p>
-            <Button type="button" className="w-full" disabled>
+            <Button
+              type="button"
+              className="w-full"
+              disabled={!canProduce || busy}
+              onClick={() => void handleProduceClick()}
+            >
               {t("ingredient.semiFinished.produce", "Produce")}
             </Button>
             <p className="flex gap-2 text-xs text-muted-foreground">
-              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-              {recipeComplete
-                ? t("ingredient.semiFinished.produceSoon", "Production is coming soon.")
-                : t(
-                    "ingredient.semiFinished.productionLocked",
-                    "Production can be used after Recipe has been created.",
+              {canProduce ? (
+                <>
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                  {t(
+                    "ingredient.semiFinished.produceHint",
+                    "Produce stock from the recipe. Raw ingredients will be deducted automatically.",
                   )}
+                </>
+              ) : (
+                <>
+                  <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                  {!recipeComplete
+                    ? t(
+                        "ingredient.semiFinished.productionLocked",
+                        "Production can be used after Recipe has been created.",
+                      )
+                    : !trackInventory
+                      ? t(
+                          "ingredient.semiFinished.produceInventoryLocked",
+                          "Enable inventory tracking before producing stock.",
+                        )
+                      : t(
+                          "ingredient.semiFinished.produceNeedsName",
+                          "Enter a name and unit before producing stock.",
+                        )}
+                </>
+              )}
             </p>
           </section>
 
@@ -573,11 +769,21 @@ export function SemiFinishedIngredientFormSheet({
         onOpenChange={setRecipeOpen}
         outputName={name.trim()}
         unitCode={unitCode}
-        outputIngredientId={ingredient?.id}
+        outputIngredientId={resolvedIngredient?.id ?? ingredient?.id}
         selectedOutletId={selectedOutletId}
         draft={recipeDraft}
         onSave={handleRecipeSave}
       />
+      {produceOutput ? (
+        <ProduceStockDialog
+          open={produceOpen}
+          onOpenChange={setProduceOpen}
+          outletId={selectedOutletId}
+          output={produceOutput}
+          recipe={recipeDraft}
+          ingredientsById={ingredientsById}
+        />
+      ) : null}
       <ManageIngredientInventoryDialog
         open={inventoryOpen}
         onOpenChange={setInventoryOpen}
@@ -601,6 +807,10 @@ export function SemiFinishedIngredientFormSheet({
         name={name.trim()}
         unitCode={unitCode}
         value={cogsDraft}
+        hint={t(
+          "ingredient.semiFinished.cogsHint",
+          "*Avg Cost is calculated from the recipe when you save Manage Recipe",
+        )}
         onConfirm={(next) => {
           setTrackCogs(next.trackCogs);
           setAvgCost(next.avgCost);

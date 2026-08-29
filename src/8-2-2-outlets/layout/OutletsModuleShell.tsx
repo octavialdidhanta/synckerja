@@ -7,12 +7,13 @@ import { OutletsListPageSkeleton } from "../skeletons/OutletsListPageSkeleton";
 type OutletsModuleShellProps = {
   children: ReactNode;
   showContent: boolean;
+  overlaySkeleton?: ReactNode;
 };
 
 const MAIN_SCROLL =
   "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
-export function OutletsModuleShell({ children, showContent }: OutletsModuleShellProps) {
+export function OutletsModuleShell({ children, showContent, overlaySkeleton }: OutletsModuleShellProps) {
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <div
@@ -41,7 +42,7 @@ export function OutletsModuleShell({ children, showContent }: OutletsModuleShell
           className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-auto bg-gray-100"
           aria-busy
         >
-          <OutletsListPageSkeleton />
+          {overlaySkeleton ?? <OutletsListPageSkeleton />}
         </div>
       ) : null}
     </div>

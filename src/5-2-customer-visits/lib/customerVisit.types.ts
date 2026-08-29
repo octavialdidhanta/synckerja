@@ -41,6 +41,11 @@ export type CustomerVisitSaleEmbed = {
   table_number?: string | null;
   date?: string | null;
   created_at?: string | null;
+  pos_outlet_id?: string | null;
+  catalog_sales_type_id?: string | null;
+  checkout_subtotal?: number | null;
+  checkout_tax_amount?: number | null;
+  checkout_gratuity_amount?: number | null;
 };
 
 export type CustomerVisitRow = {

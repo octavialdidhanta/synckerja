@@ -32,7 +32,7 @@ const LEGACY_STORAGE_KEY = "synckerja_language";
 const localeBundlesReady = new Set<AppLanguage>();
 
 const PUBLIC_AUTH_PATH =
-  /^\/(?:login|register|forgot-password|reset-password|verify-email|email-verified|terms-and-conditions)(?:\/|$)/;
+  /^\/(?:pos|login|register|forgot-password|reset-password|verify-email|email-verified|verify-operational-email|terms-and-conditions)(?:\/|$)/;
 
 function isPublicAuthRoute(): boolean {
   if (typeof window === "undefined") return false;
@@ -92,7 +92,9 @@ export async function ensureLocaleBundleReady(lng: AppLanguage): Promise<void> {
   if (localeBundlesReady.has(lng)) return;
 
   const merged = await buildResourcesForLanguage(lng);
-  i18n.addResourceBundle(lng, "translation", merged, true, true);
+  // deep=false so top-level keys (e.g. posCashier) replace wholesale — avoids a
+  // stale nested object under posCashier.pay surviving from a prior bad flat key.
+  i18n.addResourceBundle(lng, "translation", merged, false, true);
   localeBundlesReady.add(lng);
 }
 
@@ -109,6 +111,16 @@ if (import.meta.hot) {
     initPromise = null;
     localeBundlesReady.clear();
   });
+  import.meta.hot.accept(
+    ["./translations", "./translations-en", "./translations-id"],
+    () => {
+      localeBundlesReady.clear();
+      const lng = (i18n.language === "id" || i18n.language === "en"
+        ? i18n.language
+        : DEFAULT_LANGUAGE) as AppLanguage;
+      void ensureLocaleBundleReady(lng);
+    },
+  );
 }
 
 /**

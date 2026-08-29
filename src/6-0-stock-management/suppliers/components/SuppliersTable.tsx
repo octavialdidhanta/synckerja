@@ -25,6 +25,7 @@ export function SuppliersTable(props: {
             <TableHead>{t("operations.inventory.suppliers.colAddress", "Address")}</TableHead>
             <TableHead>{t("operations.inventory.suppliers.colPhone", "Phone")}</TableHead>
             <TableHead>{t("operations.inventory.suppliers.colEmail", "Email")}</TableHead>
+            <TableHead>{t("operations.inventory.suppliers.fieldBankAccountNumber", "Account number")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -38,6 +39,7 @@ export function SuppliersTable(props: {
               <TableCell>{row.address ?? "—"}</TableCell>
               <TableCell>{row.phone ? (row.phone.startsWith("62") ? `+${row.phone}` : row.phone) : "—"}</TableCell>
               <TableCell>{row.email ?? "—"}</TableCell>
+              <TableCell>{row.bankAccountNumber ?? "—"}</TableCell>
             </TableRow>
           ))}
         </TableBody>

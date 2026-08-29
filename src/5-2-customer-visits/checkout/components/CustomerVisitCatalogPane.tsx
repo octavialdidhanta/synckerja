@@ -7,6 +7,7 @@ import type { CustomerVisitCatalogItem } from '../lib/customerVisitCheckout.type
 import { catalogItemLabel, formatStoreCheckoutRp, isCatalogItemOutOfStock } from '../lib/catalogLabel';
 
 type Props = {
+  outletId: string | null;
   submitting?: boolean;
   qtyByCatalogId?: Record<string, number>;
   onAddItem: (item: CustomerVisitCatalogItem) => void;
@@ -14,9 +15,9 @@ type Props = {
 
 const ALL_CATEGORIES = '__all__';
 
-export function CustomerVisitCatalogPane({ submitting, qtyByCatalogId = {}, onAddItem }: Props) {
+export function CustomerVisitCatalogPane({ outletId, submitting, qtyByCatalogId = {}, onAddItem }: Props) {
   const { t } = useAppTranslation();
-  const catalog = useCustomerVisitCatalog();
+  const catalog = useCustomerVisitCatalog(outletId);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState(ALL_CATEGORIES);
 

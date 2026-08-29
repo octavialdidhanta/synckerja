@@ -221,10 +221,6 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/8-2-3-ingredient/pages/IngredientPage"),
   },
   {
-    prefix: "/operations/inventory",
-    prefetch: () => import("@/6-0-stock-management/pages/StockManagementDashboardPage"),
-  },
-  {
     prefix: "/operations/inventory/adjustment",
     prefetch: () => import("@/6-0-stock-management/pages/StockAdjustmentPage"),
   },
@@ -233,8 +229,16 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/6-0-stock-management/pages/StockPurchaseOrdersPage"),
   },
   {
+    prefix: "/operations/inventory/transfer",
+    prefetch: () => import("@/6-0-stock-management/pages/StockTransferPage"),
+  },
+  {
     prefix: "/operations/inventory/suppliers",
     prefetch: () => import("@/6-0-stock-management/pages/StockSuppliersPage"),
+  },
+  {
+    prefix: "/operations/inventory",
+    prefetch: () => import("@/6-0-stock-management/pages/StockManagementDashboardPage"),
   },
   {
     prefix: "/tools/pricing-tools",
@@ -576,6 +580,9 @@ function prefetchSalesOperationsModuleTabs(): void {
   void import("@/8-2-3-ingredient/pages/IngredientPage");
   void import("@/8-2-2-outlets/pages/OutletsListPage");
   void import("@/8-2-2-outlets/pages/CheckoutSettingsPage");
+  void import("@/8-2-2-outlets/pages/EmailNotificationsPage");
+  void import("@/8-2-2-outlets/pages/ReceiptSettingsPage");
+  void import("@/8-2-2-outlets/pages/InventorySettingsPage");
   void import("@/6-0-stock-management/pages/StockManagementDashboardPage");
 }
 

@@ -101,11 +101,20 @@ describe("buildInventorySummaryLines", () => {
           qty_delta: -2,
           occurred_at: "2026-08-20T08:00:00.000Z",
         }),
+        movement({
+          item_kind: "ingredient",
+          product_id: null,
+          ingredient_id: "i1",
+          movement_type: "production",
+          qty_delta: 5,
+          occurred_at: "2026-08-20T09:00:00.000Z",
+        }),
       ],
       period,
     });
     expect(lines[0].adjustment).toBe(10);
     expect(lines[0].sales).toBe(-2);
+    expect(lines[0].purchaseOrder).toBe(5);
   });
 
   it("leaves parent product rows blank", () => {

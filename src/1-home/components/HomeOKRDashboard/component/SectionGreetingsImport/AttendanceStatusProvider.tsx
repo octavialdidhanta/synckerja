@@ -1,7 +1,9 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
+import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { logger } from '@/shared/lib/logger';
 
 interface AttendanceStatusContextType {
@@ -34,54 +36,35 @@ export const AttendanceStatusProvider = ({ children }: AttendanceStatusProviderP
   const [todayRecord, setTodayRecord] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { organizationId } = useCurrentOrg();
+  const { employee: centralEmployee, centralProfileHydrated } = useCentralizedUserData();
+  const { data: currentEmployee } = useCurrentEmployee();
+  const employeeId = centralEmployee?.id ?? currentEmployee?.id ?? null;
 
-  const refreshStatus = async () => {
+  const refreshStatus = useCallback(async () => {
     if (!organizationId) {
       logger.debug('⚠️ No organization ID, skipping status refresh');
       setIsLoading(false);
       return;
     }
 
+    if (!centralProfileHydrated) {
+      return;
+    }
+
+    if (!employeeId) {
+      setTodayRecord(null);
+      setHasCheckedIn(false);
+      setHasCheckedOut(false);
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        logger.debug('⚠️ No authenticated user');
-        setIsLoading(false);
-        return;
-      }
-
-      // Get employee record
-      const { data: employee, error: employeeError } = await supabase
-        .from('employees')
-        .select('id, full_name')
-        .eq('user_id', user.id)
-        .eq('organization_id', organizationId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (employeeError) {
-        logger.debug("AttendanceStatusProvider employee fetch failed", employeeError);
-        setIsLoading(false);
-        return;
-      }
-      if (!employee) {
-        // Normal for some users/orgs (e.g. owner without employee row yet).
-        setTodayRecord(null);
-        setHasCheckedIn(false);
-        setHasCheckedOut(false);
-        setIsLoading(false);
-        return;
-      }
-
-      logger.debug('👤 Employee found:', employee);
-
-      // Get today's attendance record with penalties - simplified query to avoid 406 errors
       const today = new Date().toISOString().split('T')[0];
       const { data: record, error: recordError } = await supabase
         .from('attendance_records')
         .select('*')
-        .eq('employee_id', employee.id)
+        .eq('employee_id', employeeId)
         .eq('organization_id', organizationId)
         .eq('attendance_date', today)
         .maybeSingle();
@@ -115,11 +98,11 @@ export const AttendanceStatusProvider = ({ children }: AttendanceStatusProviderP
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [organizationId, employeeId, centralProfileHydrated]);
 
   useEffect(() => {
-    refreshStatus();
-  }, [organizationId]);
+    void refreshStatus();
+  }, [refreshStatus]);
 
   const contextValue = {
     hasCheckedIn,

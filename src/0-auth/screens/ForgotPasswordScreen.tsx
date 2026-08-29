@@ -30,6 +30,8 @@ export type ForgotPasswordScreenProps = {
   onFieldBlur?: () => void;
   /** Mobile auth routes omit the instructional subtitle under the title. */
   hideSubtitle?: boolean;
+  /** Back-to-login link target (default `/login`). Use `/pos/login` for POS. */
+  loginHref?: string;
 };
 
 export function ForgotPasswordScreen({
@@ -38,6 +40,7 @@ export function ForgotPasswordScreen({
   onFieldFocus,
   onFieldBlur,
   hideSubtitle = false,
+  loginHref = "/login",
 }: ForgotPasswordScreenProps) {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
@@ -110,7 +113,7 @@ export function ForgotPasswordScreen({
         </Button>
 
         <p className={authFormFooterTextClass}>
-          <Link to="/login" className="font-semibold hover:underline" style={{ color: brandBlue }}>
+          <Link to={loginHref} className="font-semibold hover:underline" style={{ color: brandBlue }}>
             {t("auth.forgotPassword.backToLogin")}
           </Link>
         </p>

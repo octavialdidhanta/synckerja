@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { useCatalogIngredientStockRealtime } from "@/8-2-3-ingredient/library/hooks/useCatalogIngredientStockRealtime";
 import { buildInventorySummaryLines, filterSummaryLines } from "../lib/inventorySummaryMath";
 import type {
   CatalogStockMovementRow,
@@ -169,6 +170,8 @@ export function useInventorySummaryQuery(args: {
   periodEnd: Date;
   search: string;
 }) {
+  useCatalogIngredientStockRealtime(args.organizationId, "inventory-summary");
+
   return useQuery({
     queryKey: [
       INVENTORY_SUMMARY_QUERY_KEY,

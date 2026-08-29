@@ -84,7 +84,13 @@ registerServiceWorker();
 const surveyHost = import.meta.env.VITE_PUBLIC_SURVEY_HOSTNAME?.trim();
 const rootEl = document.getElementById("root")!;
 
-void initI18n({ preferFastBoot: true }).then((i18n) => {
+void (async () => {
+  const [{ ensureNativeAppSurface }, i18n] = await Promise.all([
+    import("@/shared/native/appSurface"),
+    initI18n({ preferFastBoot: true }),
+  ]);
+  await ensureNativeAppSurface();
+
   const isSurveyHost =
     typeof window !== "undefined" &&
     surveyHost &&
@@ -97,4 +103,4 @@ void initI18n({ preferFastBoot: true }).then((i18n) => {
       </Suspense>
     </I18nextProvider>,
   );
-});
+})();

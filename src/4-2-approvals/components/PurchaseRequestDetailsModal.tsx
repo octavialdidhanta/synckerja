@@ -37,6 +37,13 @@ import {
 import { PurchaseRequestPDFViewer } from './PurchaseRequestPDFViewer';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
+import { Link } from 'react-router-dom';
+import { STOCK_MANAGEMENT_PURCHASE_ORDERS_PATH } from '@/stock-management/lib/inventoryPaths';
+import { isInventoryPurchaseType } from '@/6-0-stock-management/purchase-orders/finance/resolvePoExpenseClassification';
+import { usePoWorkflowMode } from '@/6-0-stock-management/hooks/useCatalogInventoryWorkflowModes';
+import { useInventoryFeatureAccessCheck } from '@/8-2-5-inventory-settings/hooks/useInventoryFeatureAccess';
+import { mapInventoryRpcError } from '@/8-2-5-inventory-settings/lib/mapInventoryRpcError';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
 
 const SCROLL_HIDE =
   'scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
@@ -57,12 +64,20 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
   const updateStatus = useUpdatePurchaseRequestStatus();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { poMode } = usePoWorkflowMode();
+  const isCatalogPo = Boolean(request?.catalog_purchase_order_id);
+  const poApprovalAccess = useInventoryFeatureAccessCheck(
+    isCatalogPo && poMode === 'advanced' ? 'po_approval' : null,
+  );
 
   if (!request) return null;
 
   const normalizedUserRole = typeof userRole === 'string' ? userRole : null;
   const canApprove = !!normalizedUserRole && ['owner', 'admin', 'hr'].includes(normalizedUserRole);
   const canTakeAction = canApprove && (request.status === 'submitted' || request.status === 'pending_approval');
+  const poApprovalLocked =
+    isCatalogPo && poMode === 'advanced' && poApprovalAccess.data === false;
+  const approvalActionsEnabled = canTakeAction && !poApprovalLocked;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -95,7 +110,7 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
       console.error('Approval error:', error);
       toast({
         title: "Error",
-        description: "Failed to approve request. Please try again.",
+        description: mapInventoryRpcError(error, "Failed to approve request. Please try again."),
         variant: "destructive",
       });
     }
@@ -126,6 +141,11 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
       setShowRejectionTextarea(false);
     } catch (error) {
       console.error('Rejection error:', error);
+      toast({
+        title: "Error",
+        description: mapInventoryRpcError(error, "Failed to reject request. Please try again."),
+        variant: "destructive",
+      });
     }
   };
 
@@ -287,6 +307,28 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
               </CardContent>
             </Card>
           </div>
+
+          {request.catalog_purchase_order_id ? (
+            <Card className="border-slate-200">
+              <CardHeader className="px-4 py-3 pb-2">
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  Inventory PO
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 py-3 space-y-2">
+                <p className="font-medium text-slate-900 break-words">{request.request_title}</p>
+                {isInventoryPurchaseType(request.purchase_type) ? (
+                  <p className="text-sm text-slate-600">{request.purchase_type}</p>
+                ) : null}
+                <Link
+                  to={STOCK_MANAGEMENT_PURCHASE_ORDERS_PATH}
+                  className="text-sm text-brand-blue hover:underline"
+                >
+                  Open purchase orders
+                </Link>
+              </CardContent>
+            </Card>
+          ) : null}
 
           {/* Purchase Details */}
           {request.request_type === 'purchase' && (
@@ -467,48 +509,110 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
               {/* Action Buttons */}
               <div className="flex gap-2.5 justify-end pt-2">
                 {!showRejectionTextarea ? (
-                  <>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setShowRejectionTextarea(true)}
-                      className="text-brand-red border-brand-red/30 hover:bg-brand-red/10 hover:border-brand-red/50"
-                    >
-                      <ThumbsDown className="mr-2 h-4 w-4" />
-                      Reject
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={handleApprove}
-                      disabled={updateStatus.isPending}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <ThumbsUp className="mr-2 h-4 w-4" />
-                      {updateStatus.isPending ? 'Approving...' : 'Approve'}
-                    </Button>
-                  </>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowRejectionTextarea(true)}
+                            disabled={!approvalActionsEnabled || updateStatus.isPending}
+                            className="text-brand-red border-brand-red/30 hover:bg-brand-red/10 hover:border-brand-red/50"
+                          >
+                            <ThumbsDown className="mr-2 h-4 w-4" />
+                            Reject
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {poApprovalLocked ? (
+                        <TooltipContent>
+                          {t(
+                            'approvals.inventory.poApprovalLocked',
+                            'You do not have PO Approval access for inventory purchase orders.',
+                          )}
+                        </TooltipContent>
+                      ) : null}
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button
+                            type="button"
+                            onClick={handleApprove}
+                            disabled={!approvalActionsEnabled || updateStatus.isPending}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <ThumbsUp className="mr-2 h-4 w-4" />
+                            {updateStatus.isPending ? 'Approving...' : 'Approve'}
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {poApprovalLocked ? (
+                        <TooltipContent>
+                          {t(
+                            'approvals.inventory.poApprovalLocked',
+                            'You do not have PO Approval access for inventory purchase orders.',
+                          )}
+                        </TooltipContent>
+                      ) : null}
+                    </Tooltip>
+                  </TooltipProvider>
                 ) : (
-                  <>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setShowRejectionTextarea(false);
-                        setRejectionReason('');
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={handleReject}
-                      disabled={updateStatus.isPending || !rejectionReason.trim()}
-                    >
-                      <ThumbsDown className="mr-2 h-4 w-4" />
-                      {updateStatus.isPending ? 'Rejecting...' : 'Confirm Reject'}
-                    </Button>
-                  </>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setShowRejectionTextarea(false);
+                              setRejectionReason('');
+                            }}
+                            disabled={!approvalActionsEnabled || updateStatus.isPending}
+                          >
+                            Cancel
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {poApprovalLocked ? (
+                        <TooltipContent>
+                          {t(
+                            'approvals.inventory.poApprovalLocked',
+                            'You do not have PO Approval access for inventory purchase orders.',
+                          )}
+                        </TooltipContent>
+                      ) : null}
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={handleReject}
+                            disabled={
+                              !approvalActionsEnabled ||
+                              updateStatus.isPending ||
+                              !rejectionReason.trim()
+                            }
+                          >
+                            <ThumbsDown className="mr-2 h-4 w-4" />
+                            {updateStatus.isPending ? 'Rejecting...' : 'Confirm Reject'}
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {poApprovalLocked ? (
+                        <TooltipContent>
+                          {t(
+                            'approvals.inventory.poApprovalLocked',
+                            'You do not have PO Approval access for inventory purchase orders.',
+                          )}
+                        </TooltipContent>
+                      ) : null}
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
             </>

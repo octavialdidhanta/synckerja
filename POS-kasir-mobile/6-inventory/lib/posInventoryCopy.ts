@@ -1,0 +1,17 @@
+export const POS_INVENTORY_I18N = {
+  title: "posInventory.title",
+  search: "posInventory.search",
+  columnName: "posInventory.columnName",
+  columnStock: "posInventory.columnStock",
+  columnUnit: "posInventory.columnUnit",
+  columnAlert: "posInventory.columnAlert",
+  empty: "posInventory.empty",
+  loadError: "posInventory.loadError",
+  retry: "posInventory.retry",
+  menu: "posInventory.menu",
+  noAccess: "posInventory.noAccess",
+  filterAllKinds: "posInventory.filterAllKinds",
+  filterRaw: "posInventory.filterRaw",
+  filterSemi: "posInventory.filterSemi",
+  filterAllInventory: "posInventory.filterAllInventory",
+} as const;

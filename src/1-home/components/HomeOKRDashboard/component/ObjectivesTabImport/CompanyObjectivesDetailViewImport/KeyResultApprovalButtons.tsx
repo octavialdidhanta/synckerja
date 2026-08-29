@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Label } from '@/shared/components/ui/label';
 import { useApproveKeyResult, useRejectKeyResult, useGetKeyResultApproval, useCreateKeyResultApproval } from '../../../../../hooks/useKeyResultApprovals';
-import { useCurrentUserRole } from '../../../../../hooks/useCurrentUserRole';
+import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { useCurrentOrg } from '../../../hooks/useCurrentOrg';
 
 interface KeyResultApprovalButtonsProps {
@@ -19,7 +19,7 @@ export const KeyResultApprovalButtons: React.FC<KeyResultApprovalButtonsProps> =
   keyResultId,
   isDepartmentLevel
 }) => {
-  const { data: userRole } = useCurrentUserRole();
+  const { userRole } = useCentralizedUserData();
   const { organizationId } = useCurrentOrg();
   const { data: approval } = useGetKeyResultApproval(keyResultId);
   const approveKeyResult = useApproveKeyResult();

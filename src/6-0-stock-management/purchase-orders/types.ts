@@ -1,10 +1,13 @@
 import type { InventorySummaryKindFilter } from "@/6-0-stock-management/summary/types";
+import type { PoFinanceStatus, PoLinkedPurchaseRequest } from "./finance/poFinanceStatus";
 
 export type PurchaseOrderKindFilter = InventorySummaryKindFilter;
 
 export type PurchaseOrderStatus = "waiting" | "completed" | "cancelled";
 
 export type PurchaseOrderStatusFilter = PurchaseOrderStatus | "all";
+
+export type { PoFinanceStatus, PoLinkedPurchaseRequest };
 
 export type PurchaseOrderListRow = {
   id: string;
@@ -18,6 +21,7 @@ export type PurchaseOrderListRow = {
   totalValue: number;
   occurredAt: string;
   note: string | null;
+  finance: PoLinkedPurchaseRequest | null;
 };
 
 export type PurchaseOrderLine = {

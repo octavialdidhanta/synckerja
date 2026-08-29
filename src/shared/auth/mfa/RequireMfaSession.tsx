@@ -1,6 +1,8 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { mfaLoginChallengePath } from "./mfaLoginPaths";
 import { useRequireMfaSession } from "./useRequireMfaSession";
+import { shouldUsePosLoginRedirect } from "@/pos-mobile/0-auth/lib/posAuthSurface";
+import { POS_AUTH_PATHS } from "@/pos-mobile/0-auth/lib/posAuthPaths";
 
 function AuthResolvingShell() {
   return (
@@ -28,7 +30,10 @@ export function RequireMfaSession() {
 
   if (gateStatus === "challenge") {
     const redirectTo = location.pathname + location.search;
-    return <Navigate to={mfaLoginChallengePath(redirectTo)} replace />;
+    const mfaBase = shouldUsePosLoginRedirect(location.pathname)
+      ? POS_AUTH_PATHS.loginMfa
+      : "/login/mfa";
+    return <Navigate to={mfaLoginChallengePath(redirectTo, mfaBase)} replace />;
   }
 
   return <Outlet />;

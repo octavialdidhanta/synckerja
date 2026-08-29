@@ -19,6 +19,10 @@ import { LiveChatAppBadgeSync } from "@/5-3-whatsapp/components/LiveChatAppBadge
 import { SYNCKERJA_BRAND_LOGO_SRC } from "@/shared/brand/brandLogo";
 import { useLeadMagnetEntitlement } from "@/6-1-lead-magnet/hooks/useLeadMagnetEntitlement";
 import { prefetchAppRoute } from "@/shared/routing/prefetchAppRoute";
+import {
+  filterPosBackofficeNavItems,
+  usePosStaffPermissions,
+} from "@/8-2-8-employees-staff/hooks/usePosStaffPermissions";
 
 interface SubSidebarPanelProps {
   items: NavSubItem[];
@@ -168,6 +172,7 @@ export function AppSidebar() {
   const { isModuleGatingActive, isModuleEnabled } = useEffectiveModuleAccess();
   const { hasEntitlement: hasLeadMagnetEntitlement, isPending: leadMagnetPending } =
     useLeadMagnetEntitlement();
+  const posStaffPermissions = usePosStaffPermissions();
 
   const isSubItemLocked = (item: NavSubItem) => {
     if (!item.requiresLeadMagnetAddon) return false;
@@ -199,9 +204,28 @@ export function AppSidebar() {
 
   const subSidebarPanelRef = useRef<HTMLDivElement | null>(null);
 
-  const activeMenuItem = visibleNavItems.find(
+  const activeMenuItemRaw = visibleNavItems.find(
     (item) => item.id === activeSubSidebar && item.subItems && item.subItems.length > 0,
   );
+  const posPermissionKeySig = [...posStaffPermissions.permissionKeys].sort().join("|");
+  const activeMenuItem = useMemo(() => {
+    if (!activeMenuItemRaw) return undefined;
+    if (activeMenuItemRaw.id !== "operations" || !activeMenuItemRaw.subItems) {
+      return activeMenuItemRaw;
+    }
+    return {
+      ...activeMenuItemRaw,
+      subItems: filterPosBackofficeNavItems(activeMenuItemRaw.subItems, {
+        unrestricted: posStaffPermissions.unrestricted,
+        permissionKeys: posStaffPermissions.permissionKeys,
+      }),
+    };
+  }, [
+    activeMenuItemRaw,
+    posStaffPermissions.unrestricted,
+    posStaffPermissions.permissionKeys,
+    posPermissionKeySig,
+  ]);
   const subSidebarOpen = Boolean(activeSubSidebar && activeMenuItem);
 
   const [subSidebarPaintOpen, setSubSidebarPaintOpen] = useState(false);

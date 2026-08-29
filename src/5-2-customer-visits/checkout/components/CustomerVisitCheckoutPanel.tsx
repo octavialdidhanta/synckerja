@@ -7,6 +7,8 @@ import { useToast } from '@/shared/hooks/use-toast';
 import { useOmnichannelIncomeBankAccount } from '@/shared/hooks/finance/useOmnichannelIncomeBankAccount';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { formatIdIntegerGrouping, stripToDigits } from '@/8-2-1-default-prices/utils/formatIdUnitPrice';
+import type { CatalogCheckoutTotals } from '@/8-2-1-default-prices/checkout/lib/computeCatalogCheckoutTotals';
+import { formatCatalogCheckoutLineLabel } from '@/8-2-1-default-prices/checkout/lib/formatCatalogCheckoutLineLabel';
 import type {
   CustomerVisitCartLine,
   CustomerVisitCartTotals,
@@ -17,14 +19,28 @@ import { changeDue, isTenderedEnough, parseTenderedAmount } from '../lib/cashCha
 import { findInsufficientStoreCheckoutStock } from '../lib/storeCheckoutStock';
 import { lineTotal } from '../lib/sumCustomerVisitCart';
 import type { CustomerVisitLeadCandidate } from '../../lib/matchCustomerVisitParty';
+import { OutletFilterSelect } from '@/8-2-2-outlets/components/OutletFilterSelect';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/components/ui/select';
 
 type Props = {
   lead: CustomerVisitLeadCandidate;
   lines: CustomerVisitCartLine[];
   totals: CustomerVisitCartTotals;
+  checkoutTotals: CatalogCheckoutTotals;
+  outletId: string;
+  onOutletChange: (id: string) => void;
+  salesTypeId: string;
+  onSalesTypeChange: (id: string) => void;
+  salesTypeOptions: Array<{ id: string; name: string }>;
   paymentMethod: CustomerVisitCheckoutPaymentMethod;
   onPaymentMethodChange: (method: CustomerVisitCheckoutPaymentMethod) => void;
-  onUpdateQty: (catalogId: string, quantity: number) => void;
+  onUpdateQty: (lineKey: string, quantity: number) => void;
   onUpdatePrice: (catalogId: string, unitPrice: number) => void;
   submitting?: boolean;
   alreadyPaid?: boolean;
@@ -45,6 +61,12 @@ export function CustomerVisitCheckoutPanel({
   lead,
   lines,
   totals,
+  checkoutTotals,
+  outletId,
+  onOutletChange,
+  salesTypeId,
+  onSalesTypeChange,
+  salesTypeOptions,
   paymentMethod,
   onPaymentMethodChange,
   onUpdateQty,
@@ -55,7 +77,7 @@ export function CustomerVisitCheckoutPanel({
   onSkip,
   onPay,
 }: Props) {
-  const { t } = useAppTranslation();
+  const { t, language } = useAppTranslation();
   const { toast } = useToast();
   const { omnichannelBank, loading: bankLoading } = useOmnichannelIncomeBankAccount();
   const [tendered, setTendered] = useState('');
@@ -64,9 +86,10 @@ export function CustomerVisitCheckoutPanel({
   const needsBank = paymentMethod === 'bank_transfer' || paymentMethod === 'e_wallet';
   const bankMissing = needsBank && !bankLoading && !omnichannelBank;
   const tenderedAmount = paymentMethod === 'cash' ? parseTenderedAmount(tendered) : null;
-  const change = paymentMethod === 'cash' ? changeDue(totals.total, tenderedAmount) : null;
-  const tenderOk = paymentMethod !== 'cash' || isTenderedEnough(totals.total, tenderedAmount);
-  const canPay = totals.total > 0 && !submitting && !(needsBank && bankLoading) && !bankMissing && tenderOk;
+  const grandTotal = checkoutTotals.grandTotal;
+  const change = paymentMethod === 'cash' ? changeDue(grandTotal, tenderedAmount) : null;
+  const tenderOk = paymentMethod !== 'cash' || isTenderedEnough(grandTotal, tenderedAmount);
+  const canPay = grandTotal > 0 && !submitting && !(needsBank && bankLoading) && !bankMissing && tenderOk && Boolean(outletId);
 
   const handlePay = () => {
     const insufficient = findInsufficientStoreCheckoutStock(
@@ -110,6 +133,23 @@ export function CustomerVisitCheckoutPanel({
         <p className="mt-1 text-xs text-gray-500">
           {t('customerVisits.checkout.subtitle', 'Add items, then take payment.')}
         </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <OutletFilterSelect value={outletId} onChange={onOutletChange} disabled={submitting} />
+          {salesTypeOptions.length > 0 ? (
+            <Select value={salesTypeId || undefined} onValueChange={onSalesTypeChange} disabled={submitting}>
+              <SelectTrigger className="h-9 w-[180px]" aria-label={t('customerVisits.checkout.salesType', 'Sales type')}>
+                <SelectValue placeholder={t('customerVisits.checkout.salesType', 'Sales type')} />
+              </SelectTrigger>
+              <SelectContent>
+                {salesTypeOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+        </div>
       </div>
       <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="rounded-md border border-brand-blue bg-brand-blue-soft/60 p-3">
@@ -126,7 +166,7 @@ export function CustomerVisitCheckoutPanel({
             <>
             <ul className="space-y-2">
               {lines.map((line) => (
-                <li key={line.catalogId} className="rounded-md border border-gray-200 p-2">
+                <li key={line.lineKey} className="rounded-md border border-gray-200 p-2">
                   <p className="truncate text-sm font-medium text-gray-900">{catalogItemLabel(line)}</p>
                   <div className="mt-2 flex flex-wrap items-end gap-2">
                     <div className="flex items-center gap-1">
@@ -136,7 +176,7 @@ export function CustomerVisitCheckoutPanel({
                         size="icon"
                         className="h-8 w-8"
                         disabled={submitting}
-                        onClick={() => onUpdateQty(line.catalogId, line.quantity - 1)}
+                        onClick={() => onUpdateQty(line.lineKey, line.quantity - 1)}
                       >
                         <Minus className="h-3.5 w-3.5" />
                       </Button>
@@ -153,7 +193,7 @@ export function CustomerVisitCheckoutPanel({
                             line.availableQty != null &&
                             line.quantity >= line.availableQty)
                         }
-                        onClick={() => onUpdateQty(line.catalogId, line.quantity + 1)}
+                        onClick={() => onUpdateQty(line.lineKey, line.quantity + 1)}
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </Button>
@@ -278,8 +318,36 @@ export function CustomerVisitCheckoutPanel({
           </p>
         ) : null}
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-600">{t('customerVisits.checkout.total', 'Total')}</span>
-          <span className="font-semibold tabular-nums text-gray-900">{formatStoreCheckoutRp(totals.total)}</span>
+          <span className="text-gray-600">{t('customerVisits.checkout.subtotal', 'Subtotal')}</span>
+          <span className="tabular-nums text-gray-900">{formatStoreCheckoutRp(checkoutTotals.subtotal)}</span>
+        </div>
+        {checkoutTotals.gratuityLines.map((line) => (
+          <div key={`gratuity-${line.name}`} className="flex items-center justify-between text-sm">
+            <span className="text-gray-600">
+              {formatCatalogCheckoutLineLabel({
+                name: line.name,
+                amountPercent: line.amount_percent,
+                locale: language,
+              })}
+            </span>
+            <span className="tabular-nums text-gray-900">{formatStoreCheckoutRp(line.amount)}</span>
+          </div>
+        ))}
+        {checkoutTotals.taxLines.map((line) => (
+          <div key={`tax-${line.name}`} className="flex items-center justify-between text-sm">
+            <span className="text-gray-600">
+              {formatCatalogCheckoutLineLabel({
+                name: line.name,
+                amountPercent: line.amount_percent,
+                locale: language,
+              })}
+            </span>
+            <span className="tabular-nums text-gray-900">{formatStoreCheckoutRp(line.amount)}</span>
+          </div>
+        ))}
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-medium text-gray-600">{t('customerVisits.checkout.total', 'Total')}</span>
+          <span className="font-semibold tabular-nums text-gray-900">{formatStoreCheckoutRp(grandTotal)}</span>
         </div>
         <Button type="button" className="w-full" disabled={!canPay} onClick={handlePay}>
           {t('customerVisits.checkout.pay', 'Take payment')}

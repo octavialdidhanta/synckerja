@@ -8,6 +8,9 @@ export type CatalogSupplier = {
   city: string | null;
   state: string | null;
   zip: string | null;
+  bankCode: string | null;
+  bankAccountNumber: string | null;
+  bankAccountHolder: string | null;
 };
 
 export type SupplierFormValues = {
@@ -18,4 +21,7 @@ export type SupplierFormValues = {
   city: string;
   state: string;
   zip: string;
+  bankCode: string;
+  bankAccountNumber: string;
+  bankAccountHolder: string;
 };
