@@ -9058,7 +9058,6 @@ export const idTranslations: TranslationDictionary = {
   "posCashier.recipeOutOfStock": "Stok habis",
   "posCashier.recipeOutOfStockWithReasons": "Stok habis · {{names}}",
   "posCashier.soon": "Segera hadir",
-  "posCashier.recipeOutOfStockWithReasons": "Stok habis · {{names}}",
   "posCashier.stockCommit.kitchenCommitted": "Stok dapur di-commit",
   "posCashier.stockCommit.kitchenCommitFailed": "Commit stok dapur gagal",
   "posCashier.stockCommit.printAfterCommitWarning": "Cetak tiket gagal; stok sudah di-commit.",
