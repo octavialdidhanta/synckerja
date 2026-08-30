@@ -10,6 +10,7 @@ export type PosSettingsSectionId =
   | "barcode-scanner"
   | "gobiz-edc"
   | "customer-display"
+  | "kitchen-display"
   | "language"
   | "profile"
   | "support";
@@ -111,6 +112,15 @@ export const POS_SETTINGS_NAV: readonly PosSettingsNavItem[] = [
     panelTitleFallback: "Customer Display",
   },
   {
+    id: "kitchen-display",
+    sectionKey: POS_SETTINGS_I18N.sectionHardware,
+    sectionFallback: "Hardware",
+    labelKey: POS_SETTINGS_I18N.navKitchenDisplay,
+    labelFallback: "Kitchen Display System",
+    panelTitleKey: POS_SETTINGS_I18N.kitchenDisplayTitle,
+    panelTitleFallback: "Kitchen Display System",
+  },
+  {
     id: "language",
     sectionKey: POS_SETTINGS_I18N.sectionAccount,
     sectionFallback: "Account",
@@ -151,6 +161,7 @@ const SECTION_IDS: readonly PosSettingsSectionId[] = [
   "barcode-scanner",
   "gobiz-edc",
   "customer-display",
+  "kitchen-display",
   "language",
   "profile",
   "support",

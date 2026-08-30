@@ -1,6 +1,7 @@
 import { supabase } from "@/shared/lib/supabaseClient";
-import { normalizeCustomerVisitPhone } from "@/5-2-customer-visits/lib/normalizeCustomerVisitPhone";
 import { personalCustomerName } from "@/pos-receipt-feedback/lib/isGenericCustomerName";
+import { normalizeCustomerVisitPhone } from "@/5-2-customer-visits/lib/normalizeCustomerVisitPhone";
+import { rematchPosReceiptLead } from "@/5-2-customer-visits/checkout/pos-bind";
 
 export type PosDigitalReceiptChannel = "email" | "sms";
 
@@ -98,14 +99,18 @@ export async function sendPosDigitalReceipt(
       return { ok: false, code: "invalid_phone", message: "invalid_phone" };
     }
     phone = key;
-    const leadPatch: Record<string, string> = { phone_number: phone };
-    if (personalName) leadPatch.client = personalName;
-    const { error: leadErr } = await supabase
-      .from("leads")
-      .update(leadPatch)
-      .eq("id", args.leadId);
-    if (leadErr) {
-      return { ok: false, code: "enqueue_failed", message: leadErr.message };
+    try {
+      await rematchPosReceiptLead({
+        organizationId: args.organizationId,
+        salesActivityId: args.salesActivityId,
+        currentLeadId: args.leadId,
+        phoneKey: key,
+        clientName: args.clientName ?? null,
+        createdBy: args.createdByUserId ?? null,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, code: "enqueue_failed", message };
     }
   }
 

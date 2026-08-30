@@ -39,6 +39,7 @@ export const POS_CASHIER_I18N = {
   includedInPrice: "posCashier.includedInPrice",
   navTableMap: "posCashier.nav.tableMap",
   navPointOfSale: "posCashier.nav.pointOfSale",
+  navKitchen: "posCashier.nav.kitchen",
   navOnlineOrders: "posCashier.nav.onlineOrders",
   navActivity: "posCashier.nav.activity",
   navInventory: "posCashier.nav.inventory",

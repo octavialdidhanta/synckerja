@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/shared/auth/contexts/AuthContext";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
@@ -20,9 +21,11 @@ export type PosStaffPermissionsState = {
   hasStaffMembership: boolean;
   permissionKeys: Set<string>;
   /**
-   * When true, skip POS ACL.
-   * Org owner/admin always unrestricted (even with a staff row);
-   * users without a staff row are also unrestricted.
+   * When true, skip POS ACL for **Office backoffice** only.
+   * Org owner/admin always unrestricted in Office (even with a staff row);
+   * users without a staff row are also unrestricted in Office.
+   * Tablet App Permissions (`usePosAppPermissions`) ignore this flag and
+   * require explicit staff role keys (e.g. `app.kitchen_display`).
    */
   unrestricted: boolean;
 };
@@ -41,6 +44,7 @@ function canKey(keys: Set<string>, key: string): boolean {
 export function usePosStaffPermissions() {
   const { user } = useAuth();
   const { organizationId } = useCurrentOrg();
+  const queryClient = useQueryClient();
   const { userRole, organizationMemberRoles, centralProfileHydrated } =
     useCentralizedUserData();
 
@@ -94,6 +98,45 @@ export function usePosStaffPermissions() {
       };
     },
   });
+
+  // Live ACL: BO Employee Access checklist / staff role assign → tablet without reload.
+  const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!organizationId || !user?.id) return;
+
+    const bump = () => {
+      if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
+      invalidateTimerRef.current = setTimeout(() => {
+        void queryClient.invalidateQueries({
+          queryKey: [POS_CURRENT_STAFF_PERMISSIONS_KEY, organizationId, user.id],
+        });
+      }, 150);
+    };
+
+    const channel = supabase
+      .channel(`pos-staff-acl-${organizationId}-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "pos_employee_role_permissions" },
+        bump,
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pos_employee_staff",
+          filter: `organization_id=eq.${organizationId}`,
+        },
+        bump,
+      )
+      .subscribe();
+
+    return () => {
+      if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
+      void supabase.removeChannel(channel);
+    };
+  }, [organizationId, user?.id, queryClient]);
 
   const base = query.data ?? {
     hasStaffMembership: false,

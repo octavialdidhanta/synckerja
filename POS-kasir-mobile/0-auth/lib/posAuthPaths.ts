@@ -14,12 +14,16 @@ export const POS_AUTH_PATHS = {
   inventory: "/pos/inventory",
   shift: "/pos/shift",
   settings: "/pos/settings",
+  kitchen: "/pos/kitchen",
 } as const;
 
 /** Default post-auth land for a ready POS session (outlet gate before cashier). */
 export const POS_POST_LOGIN_REDIRECT = POS_AUTH_PATHS.selectOutlet;
 
-/** Land after outlet is chosen — dedicated POS cashier (not Office `/`). */
+/**
+ * Default land after outlet is chosen when caller does not resolve role capabilities.
+ * Prefer `resolvePosPostOutletPath` for staff ACL-aware redirects.
+ */
 export const POS_AFTER_OUTLET_REDIRECT = POS_AUTH_PATHS.cashier;
 
 export type PosAuthPath = (typeof POS_AUTH_PATHS)[keyof typeof POS_AUTH_PATHS];

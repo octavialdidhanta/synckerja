@@ -88,6 +88,8 @@ export interface SubscriptionStatus {
   lead_magnet_entitled?: boolean;
   /** Purchased extra POS outlets (HQ is always 1). */
   pos_paid_outlet_count?: number;
+  /** POS product included (Plans Sertakan); may be true with 0 extras. */
+  pos_addon_active?: boolean;
 }
 
 export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptions) {
@@ -158,7 +160,7 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         }),
         supabase
           .from("organization_subscriptions")
-          .select("omnichannel_paid_seat_count, member_count, lead_magnet_active, lead_magnet_grace_until, pos_paid_outlet_count")
+          .select("omnichannel_paid_seat_count, member_count, lead_magnet_active, lead_magnet_grace_until, pos_paid_outlet_count, pos_addon_active")
           .eq("organization_id", organizationId)
           .maybeSingle(),
       ]);
@@ -211,6 +213,12 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         ? Math.max(0, tablePos, rpcPos)
         : Math.max(0, rpcPos);
 
+      const posAddonRpc = Boolean(raw.pos_addon_active);
+      const posAddonTable = Boolean(
+        (osRes.data as { pos_addon_active?: boolean } | null)?.pos_addon_active,
+      );
+      const posAddonActive = posAddonTable || posAddonRpc || paidPos > 0;
+
       const isExpired = Boolean(raw.is_expired);
       const isTrial = Boolean(raw.is_trial ?? raw.status === "trial");
       const mapped: SubscriptionStatus = {
@@ -242,6 +250,7 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         lead_magnet_grace_until: graceRaw ?? null,
         lead_magnet_entitled: leadMagnetEntitled,
         pos_paid_outlet_count: paidPos,
+        pos_addon_active: posAddonActive,
       };
       const daysRem = isExpired ? 0 : deriveSubscriptionDaysRemaining(mapped);
       mapped.days_until_expiry = daysRem;

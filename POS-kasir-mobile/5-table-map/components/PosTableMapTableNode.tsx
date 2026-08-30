@@ -1,5 +1,6 @@
 import { cn } from "@/shared/lib/utils";
 import type { PosTable } from "@/8-2-9-table-management/lib/posTableTypes";
+import type { TableOccupancyState } from "@/8-2-9-table-management/sessions";
 import { isSidewaysRotation } from "@/8-2-9-table-management/lib/tableRotation";
 import { TABLE_MAP_CELL_PX } from "@/8-2-9-table-management/lib/tableShapeLayout";
 import {
@@ -10,7 +11,12 @@ import {
 type Props = {
   table: PosTable;
   selected?: boolean;
+  /** @deprecated Prefer occupancyState */
   occupied?: boolean;
+  occupancyState?: TableOccupancyState;
+  /** e.g. "1/5" used/capacity */
+  occupancyLabel?: string | null;
+  disabled?: boolean;
   durationLabel?: string | null;
   onSelect: (table: PosTable) => void;
 };
@@ -164,11 +170,14 @@ function TableSeats({
   );
 }
 
-/** Read-only floor-plan table node — vacant (green) / occupied (amber). */
+/** Read-only floor-plan table node — vacant / partial / full. */
 export function PosTableMapTableNode({
   table,
   selected,
   occupied,
+  occupancyState,
+  occupancyLabel,
+  disabled,
   durationLabel,
   onSelect,
 }: Props) {
@@ -179,6 +188,10 @@ export function PosTableMapTableNode({
   const sideways =
     (table.shape === "rectangle" || table.shape === "one_sided") &&
     isSidewaysRotation(table.rotation);
+
+  const state: TableOccupancyState =
+    occupancyState ?? (occupied ? "full" : "empty");
+  const isBusy = state === "partial" || state === "full";
 
   const cellW = table.grid_w * TABLE_MAP_CELL_PX;
   const cellH = Math.max(table.grid_h * TABLE_MAP_CELL_PX, TABLE_MAP_CELL_PX);
@@ -191,9 +204,11 @@ export function PosTableMapTableNode({
   return (
     <button
       type="button"
+      disabled={disabled}
       className={cn(
         "absolute touch-manipulation select-none overflow-visible bg-transparent p-0 transition-shadow",
         selected && "z-10",
+        disabled && "cursor-not-allowed opacity-80",
       )}
       style={{
         left: table.grid_x * TABLE_MAP_CELL_PX,
@@ -208,30 +223,32 @@ export function PosTableMapTableNode({
             ? `rotate(${table.rotation}deg)`
             : undefined,
       }}
-      onClick={() => onSelect(table)}
-      aria-label={`${table.name}, ${table.pax} pax${occupied && durationLabel ? `, ${durationLabel}` : ""}`}
+      onClick={() => {
+        if (disabled) return;
+        onSelect(table);
+      }}
+      aria-label={`${table.name}, ${occupancyLabel ?? `${table.pax} pax`}${durationLabel ? `, ${durationLabel}` : ""}${disabled ? ", locked" : ""}`}
     >
       <span
         className={cn(
           "absolute flex flex-col items-center justify-center border-2 text-center shadow-md",
-          occupied
-            ? "bg-gradient-to-b from-amber-50 to-orange-100/90"
-            : "bg-gradient-to-b from-emerald-50 to-emerald-100/80",
-          occupied
-            ? selected
-              ? "border-orange-700 ring-2 ring-orange-400/50"
-              : "border-orange-500"
-            : selected
-              ? "border-emerald-700 ring-2 ring-emerald-400/50"
-              : "border-emerald-500",
+          state === "empty" && "bg-gradient-to-b from-emerald-50 to-emerald-100/80",
+          state === "partial" && "bg-gradient-to-b from-amber-50 to-amber-100/90",
+          state === "full" && "bg-gradient-to-b from-orange-50 to-orange-100/90",
+          state === "empty" &&
+            (selected ? "border-emerald-700 ring-2 ring-emerald-400/50" : "border-emerald-500"),
+          state === "partial" &&
+            (selected ? "border-amber-700 ring-2 ring-amber-400/50" : "border-amber-500"),
+          state === "full" &&
+            (selected ? "border-orange-800 ring-2 ring-orange-500/50" : "border-orange-600"),
           isCircle && "rounded-full",
           !isCircle && "rounded-lg",
           isOneSided &&
             !sideways &&
-            (occupied ? "border-b-[3px] border-b-orange-700" : "border-b-[3px] border-b-emerald-700"),
+            (isBusy ? "border-b-[3px] border-b-orange-700" : "border-b-[3px] border-b-emerald-700"),
           isOneSided &&
             sideways &&
-            (occupied ? "border-r-[3px] border-r-orange-700" : "border-r-[3px] border-r-emerald-700"),
+            (isBusy ? "border-r-[3px] border-r-orange-700" : "border-r-[3px] border-r-emerald-700"),
         )}
         style={{
           left: useSideGutter ? seatGutter / 2 + 3 : isCircle ? 16 : 6,
@@ -241,27 +258,40 @@ export function PosTableMapTableNode({
         }}
       >
         <span
-          className="relative z-[1] flex max-w-full flex-col items-center"
+          className="relative z-[1] flex flex-col items-center"
           style={{
-            transform:
-              (isCircle || isSquare) && table.rotation
+            transform: sideways
+              ? "rotate(-90deg)"
+              : (isCircle || isSquare) && table.rotation
                 ? `rotate(${-table.rotation}deg)`
                 : undefined,
+            maxWidth: sideways
+              ? Math.max(28, cellH - 18)
+              : undefined,
           }}
         >
           <span
             className={cn(
               "max-w-full truncate px-1 text-xs font-semibold leading-tight",
-              occupied ? "text-orange-950" : "text-emerald-950",
+              state === "empty" && "text-emerald-950",
+              state === "partial" && "text-amber-950",
+              state === "full" && "text-orange-950",
             )}
           >
             {table.name}
           </span>
-          {occupied && durationLabel ? (
+          {durationLabel ? (
             <span className="text-[10px] font-medium text-orange-800">{durationLabel}</span>
           ) : (
-            <span className={cn("text-[10px]", occupied ? "text-orange-700/80" : "text-emerald-700/80")}>
-              {table.pax} pax
+            <span
+              className={cn(
+                "text-[10px]",
+                state === "empty" && "text-emerald-700/80",
+                state === "partial" && "text-amber-800/90",
+                state === "full" && "text-orange-800/90",
+              )}
+            >
+              {occupancyLabel ?? `${table.pax} pax`}
             </span>
           )}
         </span>

@@ -247,12 +247,14 @@ export function TableMapTableNode({
           }}
         >
           <span
-            className="relative z-[1] flex max-w-full flex-col items-center"
+            className="relative z-[1] flex flex-col items-center"
             style={{
-              transform:
-                (isCircle || isSquare) && table.rotation
+              transform: sideways
+                ? "rotate(-90deg)"
+                : (isCircle || isSquare) && table.rotation
                   ? `rotate(${-table.rotation}deg)`
                   : undefined,
+              maxWidth: sideways ? Math.max(28, cellH - 18) : undefined,
             }}
           >
             <span className="max-w-full truncate px-1 text-xs font-semibold leading-tight text-slate-800">

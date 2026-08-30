@@ -23,10 +23,12 @@ Sidebar: POS group → **Table Management** (after Employees).
 ## Table Map
 
 - Outlet + Table Group filters (`?outlet=` + `?group=`).
-- Grid canvas with drag-and-drop; **Save Changes** batch upsert/soft-delete.
+- Grid canvas with drag-and-drop; **Save Changes** batch upsert/soft-delete for tables **and** floor fixtures.
 - Shapes: `circle`, `square` (pax locked 2), `rectangle` (length ≈ ceil(pax/2)), `one_sided` (length ≈ pax).
 - Data: `pos_tables` (FK group, grid_x/y/w/h, rotation).
-- Runtime occupancy lives on **POS-kasir-mobile** (`pos_table_sessions`).
+- Floor fixtures (cashier, stairs, door, kitchen, washbasin, kiosk, parking): `pos_floor_fixtures` — layout-only, no sessions/orders; package under `fixtures/`.
+- Toolbar **Add** → Table | Floor Item; fixtures render under tables; POS `/pos/table-map` shows them muted and non-clickable.
+- Runtime occupancy lives on **POS-kasir-mobile** (`pos_table_sessions`) for tables only.
 
 ## Table Report
 
@@ -37,8 +39,11 @@ Sidebar: POS group → **Table Management** (after Employees).
 
 ## Shared session model
 
-- `pos_table_sessions` — open/paid/cancelled; unique one open session per table.
-- Hooks: `usePosOpenTableSessions`, `usePosTableSessionMutations`, `usePosTableReport`.
+- `pos_table_sessions` — open/paid/cancelled; **multiple open bills per table** allowed (soft capacity: `sum(open.pax) <= table.pax`).
+- Guest label: optional `customer_name` / `customer_phone` (Add Customer → bill list column).
+- Occupancy helpers: `sessions/lib/tableOccupancy.ts` (`empty` | `partial` | `full`).
+- Hooks: `usePosOpenTableSessions` (`sessionsByTableId: Map<tableId, session[]>`), `usePosTableSessionMutations` (new bill = always insert), `usePosTableReport`.
+- POS Select Table / Table Map: partial tables open a bill picker; New Bill clamps pax to remaining capacity.
 
 ## Permissions
 
@@ -48,6 +53,8 @@ Backoffice keys: `bo.table_management`, `.group`, `.map`, `.report` (Administrat
 
 - [ ] Nav POS → Table Management opens `/operations/table-management/group`
 - [ ] Create / edit / delete / duplicate table group for selected outlet
-- [ ] Table Map: add shapes, drag, edit, delete, Save; reload persists
+- [ ] Table Map: add shapes / floor items, drag, edit, delete, Save; reload persists
+- [ ] POS Table Map: fixtures visible muted; only tables open session sheet
 - [ ] Table Report: filter outlet/date/table; open transaction detail
+- [ ] POS: solo guest with pax=1 on 5-top; second bill can open on same table until capacity full
 - [ ] Staff without `bo.table_management.*` do not see nav / are denied by guard

@@ -28,6 +28,7 @@ import {
 } from "@/shared/components/ui/alert-dialog";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useToast } from "@/shared/components/ui/use-toast";
+import { isDefaultCatalogSalesTypeName } from "../lib/defaultCatalogSalesTypes";
 import { cn } from "@/shared/lib/utils";
 import { OutletFilterSelect } from "@/8-2-2-outlets/components/OutletFilterSelect";
 import { useSelectedPosOutlet } from "@/8-2-2-outlets/hooks/useSelectedPosOutlet";
@@ -70,6 +71,17 @@ export function LibrarySalesTypesManager({ listClassName }: LibrarySalesTypesMan
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
+    if (isDefaultCatalogSalesTypeName(deleteTarget.name)) {
+      toast({
+        title: t(
+          "defaultPrices.salesType.deleteProtected",
+          "Default sales types cannot be deleted.",
+        ),
+        variant: "destructive",
+      });
+      setDeleteTarget(null);
+      return;
+    }
     try {
       await remove(deleteTarget.id);
     } catch {
@@ -137,8 +149,11 @@ export function LibrarySalesTypesManager({ listClassName }: LibrarySalesTypesMan
                   <TableCell className="font-medium">{row.name}</TableCell>
                   <TableCell className="text-muted-foreground">
                     <div className="space-y-1">
-                      <span>{gratuityCountLabel(row.gratuity_ids.length)}</span>
-                      {salesTypeMissingGratuity(row, checkoutSettings.gratuity_enabled) ? (
+                      <span>{gratuityCountLabel((row.gratuity_ids ?? []).length)}</span>
+                      {salesTypeMissingGratuity(
+                        row,
+                        Boolean(checkoutSettings?.gratuity_enabled),
+                      ) ? (
                         <p className="text-xs text-amber-700">
                           {t(
                             "defaultPrices.salesType.noGratuityWarning",
@@ -171,10 +186,15 @@ export function LibrarySalesTypesManager({ listClassName }: LibrarySalesTypesMan
                           <Pencil className="mr-2 h-4 w-4" />
                           {t("common.edit", "Edit")}
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(row)}>
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          {t("common.delete", "Delete")}
-                        </DropdownMenuItem>
+                        {!isDefaultCatalogSalesTypeName(row.name) ? (
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => setDeleteTarget(row)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            {t("common.delete", "Delete")}
+                          </DropdownMenuItem>
+                        ) : null}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

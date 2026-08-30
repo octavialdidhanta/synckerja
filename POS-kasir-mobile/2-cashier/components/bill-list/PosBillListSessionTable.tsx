@@ -12,6 +12,8 @@ type Props = {
   emptyKey: string;
   emptyFallback: string;
   showReason?: boolean;
+  /** Hide MEJA column (e.g. table-scoped bill picker). */
+  hideTableColumn?: boolean;
   onSelect?: (row: PosBillListRow) => void;
   onCancelBill?: (row: PosBillListRow) => void;
   onFulfillBill?: (row: PosBillListRow) => void;
@@ -22,6 +24,7 @@ function matchesQuery(row: PosBillListRow, q: string, includeReason?: boolean): 
   if (!needle) return true;
   const hay = [
     row.session.table_name,
+    row.session.customer_name ?? "",
     row.groupName,
     row.waiterName,
     includeReason ? row.session.cancel_reason ?? "" : "",
@@ -38,6 +41,7 @@ export function PosBillListSessionTable({
   emptyKey,
   emptyFallback,
   showReason,
+  hideTableColumn,
   onSelect,
   onCancelBill,
   onFulfillBill,
@@ -56,11 +60,19 @@ export function PosBillListSessionTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+    <div className="scrollbar-hide overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <table
+        className={cn(
+          "w-full border-collapse text-left text-sm",
+          hideTableColumn ? "min-w-[520px]" : "min-w-[640px]",
+        )}
+      >
         <thead>
           <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-800">
-            <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colTable, "Table")}</th>
+            {hideTableColumn ? null : (
+              <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colTable, "Table")}</th>
+            )}
+            <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colCustomer, "Customer")}</th>
             <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colGroup, "Table group")}</th>
             <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colWaiter, "Waiter")}</th>
             <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colTime, "Time")}</th>
@@ -68,7 +80,9 @@ export function PosBillListSessionTable({
               <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colReason, "Reason")}</th>
             ) : null}
             <th className="px-3 py-2 text-center">{t(POS_BILL_LIST_I18N.colSync, "Sync")}</th>
-            {onCancelBill || onFulfillBill ? <th className="px-3 py-2" /> : null}
+            {onCancelBill || onFulfillBill ? (
+              <th className="px-3 py-2 text-right">{t(POS_BILL_LIST_I18N.colAction, "Action")}</th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -86,8 +100,13 @@ export function PosBillListSessionTable({
                 )}
                 onClick={() => onSelect?.(row)}
               >
-                <td className="px-3 py-2.5 font-medium text-slate-900">
-                  {row.session.table_name || "—"}
+                {hideTableColumn ? null : (
+                  <td className="px-3 py-2.5 font-medium text-slate-900">
+                    {row.session.table_name || "—"}
+                  </td>
+                )}
+                <td className="px-3 py-2.5 text-slate-700">
+                  {row.session.customer_name?.trim() || "—"}
                 </td>
                 <td className="px-3 py-2.5 text-slate-700">{row.groupName}</td>
                 <td className="px-3 py-2.5 text-slate-700">{row.waiterName}</td>

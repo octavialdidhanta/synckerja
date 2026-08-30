@@ -209,6 +209,21 @@ export function bundledPosOutletUnitsFromSelections(
   return Math.min(POS_OUTLETS_ADD_ON_MAX, q);
 }
 
+/** Whether POS product (Sertakan) is included — may be true with 0 extra outlets. */
+export function bundledPosAddonFromSelections(
+  selections: Record<string, { included: boolean; quantity: number } | undefined>,
+): boolean {
+  return Boolean(selections[POS_OUTLETS_ADD_ON_CODE]?.included);
+}
+
+/** True when checkout enables POS product that was previously inactive. */
+export function hasPosAddonEnableDelta(
+  selections: Record<string, { included: boolean; quantity: number } | undefined>,
+  legacyPosAddonActive: boolean,
+): boolean {
+  return bundledPosAddonFromSelections(selections) && !legacyPosAddonActive;
+}
+
 export type OmnichannelRosterAddonResolved = {
   eligible: boolean;
   unitPricePerStaffMonthly: number;
@@ -504,6 +519,8 @@ export type PaidAddOnBaselines = {
   omnichannelPaidSeats: number;
   leadMagnetActive: boolean;
   posPaidOutletCount?: number;
+  /** POS product active (Sertakan), independent of extra outlet qty. */
+  posAddonActive?: boolean;
 };
 
 /** Paid entitlement baseline per add-on code (from DB, not UI). */
@@ -521,6 +538,12 @@ export function paidAddOnBaselineQty(
   return 0;
 }
 
+/** Whether POS product is entitled (flag or legacy paid extras). */
+export function isPosAddonActiveFromBaselines(baselines: PaidAddOnBaselines): boolean {
+  if (baselines.posAddonActive === true) return true;
+  return Math.max(0, Math.round(Number(baselines.posPaidOutletCount ?? 0)) || 0) > 0;
+}
+
 function clampAddonSelectionQty(
   code: string,
   included: boolean,
@@ -528,8 +551,16 @@ function clampAddonSelectionQty(
   cap: number,
   isFlatOrg: boolean,
 ): number {
-  if (!included) return isFlatOrg ? 1 : Math.max(0, Math.round(Number(quantity)) || 0);
+  if (!included) {
+    if (code === POS_OUTLETS_ADD_ON_CODE) {
+      return Math.min(cap, Math.max(0, Math.round(Number(quantity)) || 0));
+    }
+    return isFlatOrg ? 1 : Math.max(0, Math.round(Number(quantity)) || 0);
+  }
   if (isFlatOrg) return 1;
+  if (code === POS_OUTLETS_ADD_ON_CODE) {
+    return Math.min(cap, Math.max(0, Math.round(Number(quantity)) || 0));
+  }
   return Math.min(cap, Math.max(1, Math.round(Number(quantity)) || 1));
 }
 
@@ -547,9 +578,15 @@ export function mergePlanAddOnSelections(
   maxAddonQuantityPerLine: number,
   leadMagnetActive = false,
   posPaidOutletCount = 0,
+  posAddonActive = false,
 ): Record<string, { included: boolean; quantity: number }> {
   const cap = Math.max(1, Math.round(Number(maxAddonQuantityPerLine)) || 1);
-  const baselines: PaidAddOnBaselines = { omnichannelPaidSeats, leadMagnetActive, posPaidOutletCount };
+  const baselines: PaidAddOnBaselines = {
+    omnichannelPaidSeats,
+    leadMagnetActive,
+    posPaidOutletCount,
+    posAddonActive,
+  };
 
   const out: Record<string, { included: boolean; quantity: number }> = {};
   for (const link of sortPlanAddOnLinks(plan)) {
@@ -580,13 +617,17 @@ export function mergePlanAddOnSelections(
     }
     if (code === POS_OUTLETS_ADD_ON_CODE && isCurrentPlan) {
       const paid = Math.max(0, Math.round(Number(posPaidOutletCount)) || 0);
+      const active = isPosAddonActiveFromBaselines(baselines);
       out[code] = {
-        included: paid > 0,
-        quantity: paid > 0 ? Math.min(lineCap, Math.max(1, paid)) : 1,
+        included: active,
+        quantity: Math.min(lineCap, Math.max(0, paid)),
       };
       continue;
     }
-    out[code] = { included: false, quantity: 1 };
+    out[code] = {
+      included: false,
+      quantity: code === POS_OUTLETS_ADD_ON_CODE ? 0 : 1,
+    };
   }
   return out;
 }
@@ -599,9 +640,17 @@ export function isAddonSelectionDowngrade(
 ): boolean {
   for (const link of sortPlanAddOnLinks(plan)) {
     const code = link.subscription_add_ons.code;
+    const sel = selections[code];
+    if (code === POS_OUTLETS_ADD_ON_CODE) {
+      if (isPosAddonActiveFromBaselines(baselines) && !sel?.included) return true;
+      const qtyBaseline = paidAddOnBaselineQty(code, baselines);
+      if (qtyBaseline <= 0) continue;
+      const selectedQty = Math.max(0, Math.round(Number(sel?.quantity)) || 0);
+      if (selectedQty < qtyBaseline) return true;
+      continue;
+    }
     const baseline = paidAddOnBaselineQty(code, baselines);
     if (baseline <= 0) continue;
-    const sel = selections[code];
     if (!sel?.included) return true;
     const isFlatOrg = isFlatPerOrganizationAddOn(link.subscription_add_ons.billing_unit);
     const selectedQty = isFlatOrg ? 1 : Math.max(0, Math.round(Number(sel.quantity)) || 0);
@@ -621,6 +670,7 @@ export type SchedulableDowngradeParams = {
   legacyOmnichannelPaidSeatCount: number;
   legacyLeadMagnetActive?: boolean;
   legacyPosPaidOutletCount?: number;
+  legacyPosAddonActive?: boolean;
   isTargetPlanDowngrade?: boolean;
   currentEmployeeCount?: number;
   rosterCount?: number;
@@ -655,6 +705,7 @@ export function hasSchedulableDowngrade(params: SchedulableDowngradeParams): boo
       omnichannelPaidSeats: params.legacyOmnichannelPaidSeatCount,
       leadMagnetActive: Boolean(params.legacyLeadMagnetActive),
       posPaidOutletCount: params.legacyPosPaidOutletCount ?? 0,
+      posAddonActive: Boolean(params.legacyPosAddonActive),
     },
   );
   if (addonDowngrade && params.isRenewWindow) {
@@ -676,10 +727,11 @@ export function mergePlanAddOnSelectionsForCheckout(
 export function buildCurrentAddonSnapshot(baselines: PaidAddOnBaselines): Record<string, { included: boolean; quantity: number }> {
   const omni = Math.max(0, Math.round(Number(baselines.omnichannelPaidSeats)) || 0);
   const pos = Math.max(0, Math.round(Number(baselines.posPaidOutletCount ?? 0)) || 0);
+  const posActive = isPosAddonActiveFromBaselines(baselines);
   return {
     [OMNICHANNEL_ROSTER_ADD_ON_CODE]: { included: omni > 0, quantity: omni },
     [LEAD_MAGNET_ADD_ON_CODE]: { included: baselines.leadMagnetActive, quantity: baselines.leadMagnetActive ? 1 : 0 },
-    [POS_OUTLETS_ADD_ON_CODE]: { included: pos > 0, quantity: pos },
+    [POS_OUTLETS_ADD_ON_CODE]: { included: posActive, quantity: pos },
   };
 }
 
@@ -770,6 +822,7 @@ export function hasCheckoutableCatalogAddOnDelta(params: {
   legacyOmnichannelPaidSeatCount: number;
   legacyLeadMagnetActive?: boolean;
   legacyPosPaidOutletCount?: number;
+  legacyPosAddonActive?: boolean;
   isExpired?: boolean;
   remainingDays?: number | null;
 }): boolean {
@@ -779,6 +832,9 @@ export function hasCheckoutableCatalogAddOnDelta(params: {
   if (params.billingCycle !== params.currentBillingCycle) return false;
   const rem = Math.max(0, Math.round(Number(params.remainingDays ?? 0)));
   if (rem <= 0) return false;
+  if (hasPosAddonEnableDelta(params.selections, Boolean(params.legacyPosAddonActive))) {
+    return true;
+  }
   return (
     catalogAddOnIncrementalListAmountIdr({
       plan: params.plan,
@@ -788,6 +844,7 @@ export function hasCheckoutableCatalogAddOnDelta(params: {
       legacyOmnichannelPaidSeatCount: params.legacyOmnichannelPaidSeatCount,
       legacyLeadMagnetActive: params.legacyLeadMagnetActive,
       legacyPosPaidOutletCount: params.legacyPosPaidOutletCount,
+      legacyPosAddonActive: params.legacyPosAddonActive,
     }) > 0
   );
 }
@@ -805,6 +862,7 @@ export function isAddOnOnlyMidCycleCheckout(params: {
   legacyOmnichannelPaidSeatCount: number;
   legacyLeadMagnetActive?: boolean;
   legacyPosPaidOutletCount?: number;
+  legacyPosAddonActive?: boolean;
   isExpired?: boolean;
   remainingDays: number;
 }): boolean {
@@ -828,6 +886,7 @@ export function catalogAddOnIncrementalListAmountIdr(params: {
   legacyOmnichannelPaidSeatCount: number;
   legacyLeadMagnetActive?: boolean;
   legacyPosPaidOutletCount?: number;
+  legacyPosAddonActive?: boolean;
 }): number {
   const termMonths = resolveBillingPeriodMonths(params.billingCycle, params.billingTermMonths);
   const paidOmnichannel = Math.max(0, Math.round(Number(params.legacyOmnichannelPaidSeatCount)) || 0);
@@ -843,6 +902,7 @@ export function catalogAddOnIncrementalListAmountIdr(params: {
         omnichannelPaidSeats: paidOmnichannel,
         leadMagnetActive: Boolean(params.legacyLeadMagnetActive),
         posPaidOutletCount: paidPos,
+        posAddonActive: Boolean(params.legacyPosAddonActive),
       });
       const deltaQty = Math.max(0, Math.round(Number(sel.quantity)) - baseline);
       if (deltaQty < 1) continue;
@@ -904,6 +964,7 @@ export function catalogAddonChargeForMidtransSplit(params: {
   legacyOmnichannelPaidSeatCount: number;
   legacyLeadMagnetActive?: boolean;
   legacyPosPaidOutletCount?: number;
+  legacyPosAddonActive?: boolean;
   calculation: AddonBillingCalculationSlice | null | undefined;
 }): number {
   if (usesMidCycleIncrementalAddonProrate(params.calculation)) {
@@ -916,6 +977,7 @@ export function catalogAddonChargeForMidtransSplit(params: {
       legacyOmnichannelPaidSeatCount: params.legacyOmnichannelPaidSeatCount,
       legacyLeadMagnetActive: params.legacyLeadMagnetActive,
       legacyPosPaidOutletCount: params.legacyPosPaidOutletCount,
+      legacyPosAddonActive: params.legacyPosAddonActive,
     });
     return proratedCatalogAddonChargeIdr({
       incrementalListAmountIdr: inc,

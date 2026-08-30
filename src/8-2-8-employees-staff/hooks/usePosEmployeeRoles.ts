@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { POS_EMPLOYEE_STAFF_QUERY_KEY } from "./usePosEmployeeStaff";
+import { POS_CURRENT_STAFF_PERMISSIONS_KEY } from "./usePosStaffPermissions";
 import {
   legacyPosRoleFromSlug,
   slugifyPosRoleName,
@@ -121,6 +122,10 @@ export function usePosEmployeeRoles() {
     });
     void queryClient.invalidateQueries({
       queryKey: [POS_EMPLOYEE_STAFF_QUERY_KEY, organizationId],
+    });
+    // Same-tab ACL + broadcast via realtime for other clients (tablet).
+    void queryClient.invalidateQueries({
+      queryKey: [POS_CURRENT_STAFF_PERMISSIONS_KEY],
     });
   };
 

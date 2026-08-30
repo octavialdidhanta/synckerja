@@ -285,6 +285,7 @@ Deno.serve(async (req) => {
         bundled_lead_magnet_applied: false,
         pos_outlets_applied: false,
         bundled_pos_outlets_applied: false,
+        bundled_pos_addon_applied: false,
         created_at: new Date().toISOString(),
       })
       .select()

@@ -51,6 +51,8 @@ export interface PaymentParams {
     bundled_lead_magnet_included?: boolean;
     /** Extra POS outlets in this checkout; webhook applies to org entitlement. */
     bundled_pos_outlet_units?: number;
+    /** POS product included (Sertakan); may be true with 0 extra outlets. */
+    bundled_pos_addon_included?: boolean;
     /** Full-period renewal checkout — webhook assigns add-on entitlements (not max with prior). */
     renewal_full_period?: boolean;
   };

@@ -33,6 +33,14 @@ WHERE schemaname = 'public'
   )
 ORDER BY tablename;
 
+SELECT relname, relrowsecurity
+FROM pg_class
+WHERE relname IN (
+  'operational_inventory_alert_staging',
+  'operational_inventory_alert_tx_flush'
+)
+ORDER BY relname;
+
 SELECT tgname
 FROM pg_trigger
 WHERE tgname IN (

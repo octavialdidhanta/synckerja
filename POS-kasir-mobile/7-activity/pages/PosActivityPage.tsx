@@ -17,6 +17,7 @@ import { sendPosDigitalReceipt } from "@/pos-mobile/2-cashier/lib/sendPosDigital
 import { usePosCheckoutRefund } from "@/pos-mobile/2-cashier/hooks/usePosCheckoutRefund";
 import { usePosOpenShift } from "@/pos-mobile/4-shift/lib/usePosCashierShift";
 import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
+import { resolvePosPostOutletPath } from "@/pos-mobile/shared/access";
 import { usePosPinGate } from "@/pos-mobile/shared/hooks/usePosPinGate";
 import { POS_PIN_FEATURES } from "@/pos-mobile/shared/lib/posPinFeatures";
 import { useCatalogSalesTypes } from "@/8-2-1-default-prices/sales-types/hooks/useCatalogSalesTypes";
@@ -140,6 +141,22 @@ export default function PosActivityPage() {
 
   if (!outletId) {
     return <Navigate to={POS_AUTH_PATHS.selectOutlet} replace />;
+  }
+
+  if (permissions.isLoading) {
+    return <PosActivityPageSkeleton />;
+  }
+
+  if (!permissions.canCharge()) {
+    return (
+      <Navigate
+        to={resolvePosPostOutletPath({
+          canCharge: false,
+          canKitchenDisplay: permissions.canKitchenDisplay(),
+        })}
+        replace
+      />
+    );
   }
 
   if (listQuery.isLoading && allRows.length === 0) {

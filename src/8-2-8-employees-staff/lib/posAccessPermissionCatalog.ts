@@ -27,6 +27,7 @@ export const POS_ALL_PERMISSION_KEYS: readonly PosPermissionKey[] = [
   "app.table_map",
   "app.online_orders",
   "app.inventory",
+  "app.kitchen_display",
   "bo.library",
   "bo.library.products",
   "bo.library.bundles",
@@ -153,6 +154,14 @@ export const POS_APP_PERMISSION_TREE: PosPermissionNode[] = [
     labelKey: "employeesStaff.perm.app.inventory",
     labelFallback: "Inventory (App)",
     soon: true,
+  },
+  {
+    key: "app.kitchen_display",
+    labelKey: "employeesStaff.perm.app.kitchenDisplay",
+    labelFallback: "Kitchen Display System",
+    descriptionKey: "employeesStaff.perm.app.kitchenDisplayHint",
+    descriptionFallback: "Access the kitchen display for assigned outlets",
+    soon: false,
   },
 ];
 

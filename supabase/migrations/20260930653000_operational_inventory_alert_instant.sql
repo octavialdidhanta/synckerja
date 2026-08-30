@@ -391,7 +391,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  SELECT COALESCE(i.track_inventory, false), COALESCE(i.name, 'Ingredient'), COALESCE(i.unit, '')
+  SELECT COALESCE(i.track_inventory, false), COALESCE(i.name, 'Ingredient'), COALESCE(i.unit_code, '')
   INTO v_track, v_name, v_unit
   FROM public.catalog_ingredients i
   WHERE i.id = NEW.ingredient_id;

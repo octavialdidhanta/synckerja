@@ -10,6 +10,7 @@ import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { InventoryRowDraft, VariantDraft } from "../types";
+import { lockItemTrackingCheckbox } from "../../lib/displayRecipePosStatus";
 
 export type ManageProductInventoryDialogProps = {
   open: boolean;
@@ -19,6 +20,7 @@ export type ManageProductInventoryDialogProps = {
   variants: VariantDraft[];
   rows: InventoryRowDraft[];
   lockTracking: boolean;
+  hasBaseRecipe?: boolean;
   onConfirm: (rows: InventoryRowDraft[]) => void;
 };
 
@@ -30,10 +32,12 @@ export function ManageProductInventoryDialog({
   variants,
   rows,
   lockTracking,
+  hasBaseRecipe = false,
   onConfirm,
 }: ManageProductInventoryDialogProps) {
   const { t } = useAppTranslation();
   const [draft, setDraft] = useState(rows);
+  const lockTrackStock = lockItemTrackingCheckbox(lockTracking, hasBaseRecipe);
 
   useEffect(() => {
     if (!open) return;
@@ -70,7 +74,7 @@ export function ManageProductInventoryDialog({
               <div className="flex justify-center">
                 <Checkbox
                   checked={lockTracking || row.trackStock}
-                  disabled={lockTracking}
+                  disabled={lockTrackStock}
                   onCheckedChange={(checked) =>
                     setDraft((prev) =>
                       prev.map((item, i) => (i === index ? { ...item, trackStock: checked === true } : item)),
@@ -123,7 +127,12 @@ export function ManageProductInventoryDialog({
             {t("common.cancel", "Cancel")}
           </Button>
           <p className="flex-1 text-center text-xs italic text-muted-foreground">
-            {t("defaultPrices.product.inventory.hint", "*Use the Inventory page to manage stock")}
+            {hasBaseRecipe
+              ? t(
+                  "defaultPrices.product.inventory.recipeLocksTrackingHint",
+                  "Living quantity follows the ingredient recipe. Item stock is not the live Qty.",
+                )
+              : t("defaultPrices.product.inventory.hint", "*Use the Inventory page to manage stock")}
           </p>
           <Button
             type="button"

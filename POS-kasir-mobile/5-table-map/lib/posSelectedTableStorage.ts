@@ -28,24 +28,38 @@ export function readPosSelectedTable(): PosSelectedTable | null {
     const raw = sessionStorage.getItem(POS_SELECTED_TABLE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<PosSelectedTable>;
-    if (
-      !parsed?.id ||
-      !parsed?.name ||
-      !parsed?.groupId ||
-      !parsed?.outletId ||
-      typeof parsed.pax !== "number"
-    ) {
+    if (!parsed?.outletId || typeof parsed.pax !== "number") {
+      return null;
+    }
+    // Walk-in resume: sessionId without a real table id.
+    if (parsed.sessionId && (!parsed.id || parsed.id === "__walkin__")) {
+      return {
+        id: "",
+        name: String(parsed.name || "Walk-in"),
+        groupId: "",
+        pax: parsed.pax,
+        outletId: String(parsed.outletId),
+        sessionId: String(parsed.sessionId),
+        seatedAt: parsed.seatedAt ?? null,
+        cartSnapshot: Array.isArray(parsed.cartSnapshot)
+          ? parsed.cartSnapshot
+          : null,
+      };
+    }
+    if (!parsed?.id || !parsed?.name || !parsed?.groupId) {
       return null;
     }
     return {
-      id: parsed.id,
-      name: parsed.name,
-      groupId: parsed.groupId,
+      id: String(parsed.id),
+      name: String(parsed.name),
+      groupId: String(parsed.groupId),
       pax: parsed.pax,
-      outletId: parsed.outletId,
+      outletId: String(parsed.outletId),
       sessionId: parsed.sessionId ?? null,
       seatedAt: parsed.seatedAt ?? null,
-      cartSnapshot: Array.isArray(parsed.cartSnapshot) ? parsed.cartSnapshot : null,
+      cartSnapshot: Array.isArray(parsed.cartSnapshot)
+        ? parsed.cartSnapshot
+        : null,
     };
   } catch {
     return null;

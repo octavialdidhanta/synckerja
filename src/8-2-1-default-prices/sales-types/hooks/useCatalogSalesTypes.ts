@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import type { CatalogSalesType, CatalogSalesTypeSave } from "../types";
+import { isDefaultCatalogSalesTypeName } from "../lib/defaultCatalogSalesTypes";
 
 const QUERY_KEY = "catalog-sales-types";
 
@@ -128,6 +129,10 @@ export function useCatalogSalesTypes() {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
+      const row = (query.data ?? []).find((r) => r.id === id);
+      if (row && isDefaultCatalogSalesTypeName(row.name)) {
+        throw new Error("default_sales_type_protected");
+      }
       const { error } = await supabase.from("catalog_sales_types").delete().eq("id", id);
       if (error) throw error;
     },

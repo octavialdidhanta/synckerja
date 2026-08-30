@@ -3,6 +3,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Clock,
+  CookingPot,
   LayoutGrid,
   Settings,
   Table2,
@@ -14,6 +15,7 @@ import { POS_CASHIER_I18N } from "../../lib/posCashierCopy";
 export type PosSidebarItemId =
   | "tableMap"
   | "pointOfSale"
+  | "kitchen"
   | "onlineOrders"
   | "activity"
   | "inventory"
@@ -45,6 +47,14 @@ export const POS_SIDEBAR_ITEMS: readonly PosSidebarItem[] = [
     labelKey: POS_CASHIER_I18N.navPointOfSale,
     labelFallback: "Point of Sale",
     path: POS_AUTH_PATHS.cashier,
+    soon: false,
+  },
+  {
+    id: "kitchen",
+    icon: CookingPot,
+    labelKey: POS_CASHIER_I18N.navKitchen,
+    labelFallback: "Kitchen Display",
+    path: POS_AUTH_PATHS.kitchen,
     soon: false,
   },
   {

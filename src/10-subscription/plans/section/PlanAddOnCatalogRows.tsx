@@ -38,6 +38,7 @@ type PlanAddOnCatalogRowsProps = {
   omnichannelRosterActiveCount: number;
   leadMagnetActive?: boolean;
   posPaidOutletCount?: number;
+  posAddonActive?: boolean;
   isMidCycleActive?: boolean;
   isTrialPlan?: boolean;
   isExpired?: boolean;
@@ -54,6 +55,7 @@ function paidAddOnBaseline(
   omnichannelPaidSeats: number,
   leadMagnetActive: boolean,
   posPaidOutletCount: number,
+  posAddonActive: boolean,
 ): number {
   if (code === OMNICHANNEL_ROSTER_ADD_ON_CODE) {
     return Math.max(0, Math.round(Number(omnichannelPaidSeats)) || 0);
@@ -62,6 +64,7 @@ function paidAddOnBaseline(
   if (code === POS_OUTLETS_ADD_ON_CODE) {
     return Math.max(0, Math.round(Number(posPaidOutletCount)) || 0);
   }
+  void posAddonActive;
   return 0;
 }
 
@@ -78,6 +81,7 @@ export const PlanAddOnCatalogRows = memo(
     omnichannelRosterActiveCount,
     leadMagnetActive = false,
     posPaidOutletCount = 0,
+    posAddonActive = false,
     isMidCycleActive = false,
     isTrialPlan = false,
     isExpired = false,
@@ -93,12 +97,17 @@ export const PlanAddOnCatalogRows = memo(
       <div className="space-y-3">
         {catalogLinks.map((link) => {
           const code = link.subscription_add_ons.code;
-          const sel = addOnSelections[code] ?? { included: false, quantity: 1 };
+          const sel = addOnSelections[code] ?? {
+            included: false,
+            quantity: code === POS_OUTLETS_ADD_ON_CODE ? 0 : 1,
+          };
           const qtyCap = addOnLineQuantityCap(code, memberCount);
-          const billedQty = Math.min(qtyCap, Math.max(1, sel.quantity));
-          const unit = resolvePlanAddOnUnitMonthly(link);
           const isOmni = code === OMNICHANNEL_ROSTER_ADD_ON_CODE;
           const isPos = code === POS_OUTLETS_ADD_ON_CODE;
+          const billedQty = isPos
+            ? Math.min(qtyCap, Math.max(0, sel.quantity))
+            : Math.min(qtyCap, Math.max(1, sel.quantity));
+          const unit = resolvePlanAddOnUnitMonthly(link);
           const isFlatOrg = isFlatPerOrganizationAddOn(link.subscription_add_ons.billing_unit);
           const effectiveQty = isFlatOrg ? 1 : billedQty;
           const lineAmount = computeCatalogAddOnLineAmountIdr({
@@ -117,17 +126,35 @@ export const PlanAddOnCatalogRows = memo(
           });
           const termLabel = formatBillingTermLabel(periodMonths, t);
 
-          const baseline = paidAddOnBaseline(code, omnichannelPaidSeats, leadMagnetActive, posPaidOutletCount);
+          const qtyBaseline = paidAddOnBaseline(
+            code,
+            omnichannelPaidSeats,
+            leadMagnetActive,
+            posPaidOutletCount,
+            posAddonActive,
+          );
+          const posProductActive = posAddonActive || posPaidOutletCount > 0;
           const toggleOffSchedulable =
             !isExpired &&
             isMidCycleActive &&
             sel.included &&
-            baseline > 0 &&
-            (isOmni || isPos || code === LEAD_MAGNET_ADD_ON_CODE);
-          const sliderMin =
-            isMidCycleActive && !isExpired && (isOmni || isPos) && baseline > 0 ? Math.max(1, baseline) : 1;
+            (isPos
+              ? posProductActive
+              : qtyBaseline > 0 && (isOmni || code === LEAD_MAGNET_ADD_ON_CODE));
+          const sliderMin = isPos
+            ? !isExpired && isMidCycleActive && qtyBaseline > 0
+              ? qtyBaseline
+              : 0
+            : isMidCycleActive && !isExpired && isOmni && qtyBaseline > 0
+              ? Math.max(1, qtyBaseline)
+              : 1;
           const sliderIncreaseOnly =
-            !isExpired && isMidCycleActive && (isOmni || isPos) && baseline > 0 && sel.included && !isFlatOrg;
+            !isExpired &&
+            isMidCycleActive &&
+            (isOmni || isPos) &&
+            qtyBaseline > 0 &&
+            sel.included &&
+            !isFlatOrg;
 
           return (
             <div
@@ -154,7 +181,7 @@ export const PlanAddOnCatalogRows = memo(
                       {t("subscription.plans.addOnExpiredCheckoutHint")}
                     </p>
                   )}
-                  {sliderIncreaseOnly && sel.quantity > baseline && (
+                  {sliderIncreaseOnly && sel.quantity > qtyBaseline && (
                     <p className="text-[11px] text-muted-foreground">
                       {t("subscription.plans.addOnMidCycleIncreaseHint")}
                     </p>

@@ -1,7 +1,7 @@
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { POS_SETTINGS_I18N } from "../../lib/posSettingsCopy";
 
-/** Placeholder for Barcode Scanner / EDC / Customer Display. */
+/** Placeholder for Barcode Scanner / EDC / Customer Display / Kitchen Display. */
 export function PosHardwareSoonPanel() {
   const { t } = useAppTranslation();
 

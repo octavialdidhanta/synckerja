@@ -201,7 +201,7 @@ export function PosPaymentMethodDialog({
           </Button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/80 px-4 py-3">
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/80 px-4 py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="mb-3 space-y-1">
             <p className="text-xs text-slate-500">
               {t(POS_PAYMENT_DIALOG_I18N.server, "Server")} | {serverName || "—"}

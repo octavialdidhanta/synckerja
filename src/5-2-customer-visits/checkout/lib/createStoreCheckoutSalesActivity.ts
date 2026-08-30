@@ -60,8 +60,35 @@ export function sumCartLineDiscounts(lines: CustomerVisitCartLine[]): number {
 }
 
 export async function rollbackStoreCheckoutSalesActivity(activityId: string): Promise<void> {
+  const { error: rpcError } = await supabase.rpc('rollback_store_checkout_sales_activity', {
+    p_activity_id: activityId,
+  });
+  if (!rpcError) return;
+
+  const { data: pays, error: payErr } = await supabase
+    .from('sales_activity_payments')
+    .select('id')
+    .eq('sales_activity_id', activityId);
+  if (payErr) {
+    console.error('createStoreCheckoutSalesActivity: rollback payment lookup failed', payErr);
+  }
+  const payIds = (pays ?? []).map((row) => String(row.id)).filter(Boolean);
+  if (payIds.length > 0) {
+    const { error: incomeErr } = await supabase
+      .from('income_transactions')
+      .delete()
+      .in('sales_activity_payment_id', payIds);
+    if (incomeErr) {
+      console.error('createStoreCheckoutSalesActivity: rollback income failed', incomeErr);
+    }
+  }
+
   const { error } = await supabase.from('sales_activities').delete().eq('id', activityId);
-  if (error) console.error('createStoreCheckoutSalesActivity: rollback failed', error);
+  if (error) {
+    console.error('createStoreCheckoutSalesActivity: rollback failed', rpcError, error);
+  } else {
+    console.error('createStoreCheckoutSalesActivity: rollback used client fallback', rpcError);
+  }
 }
 
 /** Insert a paid store checkout activity + items. Income is recorded by RPC after this. */

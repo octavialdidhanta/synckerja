@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import type { PosFloorFixture } from "@/8-2-9-table-management/fixtures";
 import type { PosTable } from "@/8-2-9-table-management/lib/posTableTypes";
 import type { PosTableSession } from "@/8-2-9-table-management/lib/posTableSessionTypes";
+import { computeTableOccupancy } from "@/8-2-9-table-management/sessions";
 import {
   TABLE_MAP_CELL_PX,
   TABLE_MAP_MIN_COLS,
@@ -9,14 +11,18 @@ import {
 } from "@/8-2-9-table-management/lib/tableShapeLayout";
 import { formatPosTableDuration } from "../lib/formatPosTableDuration";
 import { POS_TABLE_MAP_I18N } from "../lib/posTableMapCopy";
+import { PosTableMapFixtureNode } from "./PosTableMapFixtureNode";
 import { PosTableMapTableNode } from "./PosTableMapTableNode";
+
+const EMPTY_SESSIONS_BY_TABLE = new Map<string, PosTableSession[]>();
 
 type Props = {
   tables: PosTable[];
+  fixtures?: PosFloorFixture[];
   selectedId: string | null;
-  sessionsByTableId: Map<string, PosTableSession>;
+  sessionsByTableId?: Map<string, PosTableSession[]> | null;
   nowMs: number;
-  onSelect: (table: PosTable, session: PosTableSession | null) => void;
+  onSelect: (table: PosTable) => void;
   empty?: boolean;
   loading?: boolean;
 };
@@ -24,6 +30,7 @@ type Props = {
 /** Read-only floor plan canvas (no drag / edit). */
 export function PosTableMapCanvas({
   tables,
+  fixtures = [],
   selectedId,
   sessionsByTableId,
   nowMs,
@@ -32,6 +39,7 @@ export function PosTableMapCanvas({
   loading,
 }: Props) {
   const { t } = useAppTranslation();
+  const sessionMap = sessionsByTableId ?? EMPTY_SESSIONS_BY_TABLE;
 
   const bounds = useMemo(() => {
     let maxX = TABLE_MAP_MIN_COLS;
@@ -40,8 +48,12 @@ export function PosTableMapCanvas({
       maxX = Math.max(maxX, table.grid_x + table.grid_w + 2);
       maxY = Math.max(maxY, table.grid_y + table.grid_h + 2);
     }
+    for (const fixture of fixtures) {
+      maxX = Math.max(maxX, fixture.grid_x + fixture.grid_w + 2);
+      maxY = Math.max(maxY, fixture.grid_y + fixture.grid_h + 2);
+    }
     return { cols: maxX, rows: maxY };
-  }, [tables]);
+  }, [fixtures, tables]);
 
   const widthPx = bounds.cols * TABLE_MAP_CELL_PX;
   const heightPx = bounds.rows * TABLE_MAP_CELL_PX;
@@ -58,7 +70,7 @@ export function PosTableMapCanvas({
     );
   }
 
-  if (empty) {
+  if (empty && fixtures.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
         <p className="text-sm font-medium text-slate-700">
@@ -80,19 +92,30 @@ export function PosTableMapCanvas({
         className="relative mx-auto rounded-lg border border-slate-200 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[length:56px_56px] shadow-inner"
         style={{ width: widthPx, height: heightPx, minWidth: widthPx, minHeight: heightPx }}
       >
+        {fixtures.map((fixture) => (
+          <PosTableMapFixtureNode key={fixture.id} fixture={fixture} />
+        ))}
         {tables.map((table) => {
-          const session = sessionsByTableId.get(table.id) ?? null;
-          const occupied = Boolean(session);
+          const sessions = sessionMap.get(table.id) ?? [];
+          const occupancy = computeTableOccupancy(sessions, table.pax);
+          const oldest = sessions[0] ?? null;
+          const label =
+            occupancy.state === "empty"
+              ? `${table.pax} pax`
+              : `${occupancy.usedPax}/${occupancy.capacity}`;
           return (
             <PosTableMapTableNode
               key={table.id}
               table={table}
               selected={table.id === selectedId}
-              occupied={occupied}
+              occupancyState={occupancy.state}
+              occupancyLabel={label}
               durationLabel={
-                session ? formatPosTableDuration(session.seated_at, nowMs) : null
+                oldest && occupancy.state !== "empty"
+                  ? formatPosTableDuration(oldest.seated_at, nowMs)
+                  : null
               }
-              onSelect={() => onSelect(table, session)}
+              onSelect={() => onSelect(table)}
             />
           );
         })}

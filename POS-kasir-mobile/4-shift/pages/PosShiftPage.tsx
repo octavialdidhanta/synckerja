@@ -4,6 +4,8 @@ import { useAuth } from "@/shared/auth/contexts/AuthContext";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { usePosTabletShell } from "@/pos-mobile/shared/hooks/usePosTabletShell";
+import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
+import { resolvePosPostOutletPath } from "@/pos-mobile/shared/access";
 import { useMarkPosAuthSurface } from "@/pos-mobile/0-auth/lib/useMarkPosAuthSurface";
 import { POS_AUTH_PATHS } from "@/pos-mobile/0-auth/lib/posAuthPaths";
 import {
@@ -48,6 +50,7 @@ export default function PosShiftPage() {
   const { t } = useAppTranslation();
   const { user } = useAuth();
   const { loading: orgLoading } = useCentralizedUserData();
+  const permissions = usePosAppPermissions();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const outletId = readPosSelectedOutletId();
@@ -142,6 +145,22 @@ export default function PosShiftPage() {
 
   if (orgLoading && !user) {
     return <PosShiftSkeleton />;
+  }
+
+  if (permissions.isLoading) {
+    return <PosShiftSkeleton />;
+  }
+
+  if (!permissions.canViewShift()) {
+    return (
+      <Navigate
+        to={resolvePosPostOutletPath({
+          canCharge: permissions.canCharge(),
+          canKitchenDisplay: permissions.canKitchenDisplay(),
+        })}
+        replace
+      />
+    );
   }
 
   const displayName = cashierName.name;

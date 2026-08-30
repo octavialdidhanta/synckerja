@@ -12,6 +12,7 @@ import {
 import { PosCashierMenuDrawer } from "@/pos-mobile/2-cashier/components/PosCashierMenuDrawer";
 import { PosAppFooterBar } from "@/pos-mobile/shared/layout/PosAppFooterBar";
 import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
+import { resolvePosPostOutletPath } from "@/pos-mobile/shared/access";
 import { PosInventoryTable } from "../components/PosInventoryTable";
 import { PosInventoryToolbar } from "../components/PosInventoryToolbar";
 import {
@@ -60,8 +61,20 @@ export default function PosInventoryPage() {
     return <Navigate to={POS_AUTH_PATHS.selectOutlet} replace />;
   }
 
-  if (!permissions.unrestricted && !permissions.canViewInventory()) {
-    return <Navigate to={POS_AUTH_PATHS.cashier} replace />;
+  if (permissions.isLoading) {
+    return <PosInventoryPageSkeleton />;
+  }
+
+  if (!permissions.canViewInventory()) {
+    return (
+      <Navigate
+        to={resolvePosPostOutletPath({
+          canCharge: permissions.canCharge(),
+          canKitchenDisplay: permissions.canKitchenDisplay(),
+        })}
+        replace
+      />
+    );
   }
 
   if (isLoading && rows.length === 0) {

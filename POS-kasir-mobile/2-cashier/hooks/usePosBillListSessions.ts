@@ -120,7 +120,7 @@ export function usePosBillListCancelledSessions(outletId: string | null | undefi
       const { data, error } = await supabase
         .from("pos_table_sessions")
         .select(
-          "id, organization_id, outlet_id, group_id, pos_table_id, table_name, pax, seated_at, closed_at, status, opened_by, closed_by, waiter_id, sales_activity_id, cart_snapshot, cancel_reason, created_at, updated_at",
+          "id, organization_id, outlet_id, group_id, pos_table_id, table_name, pax, seated_at, closed_at, status, opened_by, closed_by, waiter_id, sales_activity_id, cart_snapshot, cancel_reason, customer_name, customer_phone, created_at, updated_at",
         )
         .eq("organization_id", organizationId)
         .eq("outlet_id", outletId)
@@ -136,6 +136,8 @@ export function usePosBillListCancelledSessions(outletId: string | null | undefi
           pos_table_id: r.pos_table_id ?? null,
           waiter_id: r.waiter_id ?? null,
           cancel_reason: r.cancel_reason ?? null,
+          customer_name: r.customer_name ?? null,
+          customer_phone: r.customer_phone ?? null,
           cart_snapshot: Array.isArray(r.cart_snapshot) ? r.cart_snapshot : [],
         };
       });
@@ -163,7 +165,7 @@ export function usePosBillListPaidSessions(outletId: string | null | undefined) 
       const { data, error } = await supabase
         .from("pos_table_sessions")
         .select(
-          "id, organization_id, outlet_id, group_id, pos_table_id, table_name, pax, seated_at, closed_at, status, opened_by, closed_by, waiter_id, sales_activity_id, cart_snapshot, cancel_reason, created_at, updated_at",
+          "id, organization_id, outlet_id, group_id, pos_table_id, table_name, pax, seated_at, closed_at, status, opened_by, closed_by, waiter_id, sales_activity_id, cart_snapshot, cancel_reason, customer_name, customer_phone, created_at, updated_at",
         )
         .eq("organization_id", organizationId)
         .eq("outlet_id", outletId)
@@ -180,6 +182,8 @@ export function usePosBillListPaidSessions(outletId: string | null | undefined) 
           pos_table_id: r.pos_table_id ?? null,
           waiter_id: r.waiter_id ?? null,
           cancel_reason: r.cancel_reason ?? null,
+          customer_name: r.customer_name ?? null,
+          customer_phone: r.customer_phone ?? null,
           cart_snapshot: Array.isArray(r.cart_snapshot) ? r.cart_snapshot : [],
         };
       });

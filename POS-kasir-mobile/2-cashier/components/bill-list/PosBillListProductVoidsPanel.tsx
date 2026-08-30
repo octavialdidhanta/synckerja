@@ -31,7 +31,7 @@ export function PosBillListProductVoidsPanel({ voids, query }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="scrollbar-hide overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <table className="w-full min-w-[640px] border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-800">

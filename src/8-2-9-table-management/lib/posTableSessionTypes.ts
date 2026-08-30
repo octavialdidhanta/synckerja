@@ -19,6 +19,8 @@ export type PosTableSession = {
   sales_activity_id: string | null;
   cart_snapshot: CustomerVisitCartLine[];
   cancel_reason: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -34,4 +36,19 @@ export type PosTableSessionUpsertPayload = {
   cartLines: CustomerVisitCartLine[];
   /** Assigned waiter (shift opener). */
   waiterId?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
 };
+
+/** Normalize blank guest fields to null for DB storage. */
+export function normalizeSessionCustomer(
+  name?: string | null,
+  phone?: string | null,
+): { customer_name: string | null; customer_phone: string | null } {
+  const n = (name ?? "").trim();
+  const p = (phone ?? "").trim();
+  return {
+    customer_name: n.length > 0 ? n : null,
+    customer_phone: p.length > 0 ? p : null,
+  };
+}

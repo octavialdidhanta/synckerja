@@ -144,6 +144,7 @@ import {
 import { SubscriptionExpiryGuard } from "@/10-subscription/shared/SubscriptionExpiryGuard";
 import { SubscriptionRoleGuard } from "@/10-subscription/shared/SubscriptionRoleGuard";
 import { OrganizationAccessGuard } from "@/shared/components/OrganizationAccessGuard";
+import { RequirePosTabletAccess } from "@/pos-mobile/0-auth/components/RequirePosTabletAccess";
 import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
 import { AuthProvider } from "@/shared/auth/contexts/AuthContext";
 import { MfaStepUpProvider } from "@/shared/auth/mfa";
@@ -544,6 +545,7 @@ const PosShiftPage = lazy(() => import("@/pos-mobile/4-shift/pages/PosShiftPage"
 const PosTableMapPage = lazy(() => import("@/pos-mobile/5-table-map/pages/PosTableMapPage"));
 const PosInventoryPage = lazy(() => import("@/pos-mobile/6-inventory/pages/PosInventoryPage"));
 const PosActivityPage = lazy(() => import("@/pos-mobile/7-activity/pages/PosActivityPage"));
+const PosKitchenPage = lazy(() => import("@/pos-mobile/8-kitchen/pages/PosKitchenPage"));
 const MfaVerifyRouteElement = lazy(() =>
   import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({
     default: m.MfaVerifyRouteElement,
@@ -928,6 +930,7 @@ function AppRoutes() {
           <Route element={<RequireMfaSession />}>
           <Route element={<OrganizationAccessGuard />}>
           <Route element={<SubscriptionExpiryGuard />}>
+            <Route element={<RequirePosTabletAccess />}>
             <Route
               path="/pos/select-outlet"
               element={
@@ -941,6 +944,14 @@ function AppRoutes() {
               element={
                 <Suspense fallback={null}>
                   <PosCashierPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/pos/kitchen"
+              element={
+                <Suspense fallback={null}>
+                  <PosKitchenPage />
                 </Suspense>
               }
             />
@@ -984,6 +995,7 @@ function AppRoutes() {
                 </Suspense>
               }
             />
+            </Route>
             <Route element={<AdaptiveAppLayout />}>
               <Route
                 path="/"
@@ -3844,6 +3856,7 @@ const App = () => (
                     <Route element={<RequireMfaSession />}>
                     <Route element={<OrganizationAccessGuard />}>
                     <Route element={<SubscriptionExpiryGuard />}>
+                      <Route element={<RequirePosTabletAccess />}>
                       <Route
                         path="/pos/select-outlet"
                         element={
@@ -3857,6 +3870,14 @@ const App = () => (
                         element={
                           <Suspense fallback={null}>
                             <PosCashierPage />
+                          </Suspense>
+                        }
+                      />
+                      <Route
+                        path="/pos/kitchen"
+                        element={
+                          <Suspense fallback={null}>
+                            <PosKitchenPage />
                           </Suspense>
                         }
                       />
@@ -3900,6 +3921,7 @@ const App = () => (
                           </Suspense>
                         }
                       />
+                      </Route>
                       <Route element={<AdaptiveAppLayout />}>
                         <Route
                           path="/"

@@ -16,6 +16,8 @@ export const POS_CASHIER_DEFAULT_PERMISSIONS: string[] = [
   "app.settings.view",
 ];
 
+export const POS_KITCHEN_DEFAULT_PERMISSIONS: string[] = ["app.kitchen_display"];
+
 export function slugifyPosRoleName(name: string): string {
   return name
     .trim()
@@ -28,5 +30,6 @@ export function slugifyPosRoleName(name: string): string {
 /** Sync legacy pos_role enum from role slug when possible. */
 export function legacyPosRoleFromSlug(slug: string): "administrator" | "cashier" {
   if (slug === "administrator") return "administrator";
+  // kitchen (and any custom role) uses cashier outlet rules
   return "cashier";
 }

@@ -545,6 +545,24 @@ export const useSalesActivities = () => {
         devLog.debug('✅ Sales activity items deleted');
       }
 
+      const { data: paymentRows, error: paymentLookupError } = await supabase
+        .from('sales_activity_payments')
+        .select('id')
+        .eq('sales_activity_id', activityId);
+      if (paymentLookupError) {
+        devLog.error('⚠️ Error listing payment history:', paymentLookupError);
+      }
+      const paymentIds = (paymentRows ?? []).map((row) => String(row.id)).filter(Boolean);
+      if (paymentIds.length > 0) {
+        const { error: incomeError } = await supabase
+          .from('income_transactions')
+          .delete()
+          .in('sales_activity_payment_id', paymentIds);
+        if (incomeError) {
+          devLog.error('⚠️ Error deleting linked income:', incomeError);
+        }
+      }
+
       // Step 2: Delete Payment History (sales_activity_payments)
       const { error: paymentsError } = await supabase
         .from('sales_activity_payments')
@@ -918,6 +936,12 @@ export const useSalesActivityPayments = () => {
   };
 
   const deletePaymentHistory = async (paymentId: string) => {
+    const { error: incomeErr } = await supabase
+      .from('income_transactions')
+      .delete()
+      .eq('sales_activity_payment_id', paymentId);
+    if (incomeErr) throw incomeErr;
+
     const { error } = await supabase.from('sales_activity_payments').delete().eq('id', paymentId);
 
     if (error) throw error;

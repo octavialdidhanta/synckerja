@@ -1,5 +1,11 @@
 import { Button } from "@/shared/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -8,6 +14,7 @@ import {
 } from "@/shared/components/ui/select";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { OutletFilterSelect } from "@/8-2-2-outlets/components/OutletFilterSelect";
+import { ChevronDown, Plus } from "lucide-react";
 import type { PosTableGroup } from "../../lib/posTableGroupTypes";
 
 type Props = {
@@ -18,6 +25,7 @@ type Props = {
   onGroupChange: (id: string) => void;
   groupsLoading?: boolean;
   onAddTable: () => void;
+  onAddFloorItem: () => void;
   onSave: () => void;
   saveDisabled?: boolean;
   saving?: boolean;
@@ -32,6 +40,7 @@ export function TableMapToolbar({
   onGroupChange,
   groupsLoading,
   onAddTable,
+  onAddFloorItem,
   onSave,
   saveDisabled,
   saving,
@@ -73,9 +82,23 @@ export function TableMapToolbar({
               ))}
             </SelectContent>
           </Select>
-          <Button type="button" variant="outline" onClick={onAddTable} disabled={!groupId}>
-            {t("tableManagement.map.addTable", "Add Table")}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" disabled={!groupId}>
+                <Plus className="mr-1 h-4 w-4" />
+                {t("tableManagement.map.add", "Add")}
+                <ChevronDown className="ml-1 h-3.5 w-3.5 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={onAddTable}>
+                {t("tableManagement.map.addTable", "Add Table")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onAddFloorItem}>
+                {t("tableManagement.fixture.addFloorItem", "Add Floor Item")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       <div className="flex flex-col items-end gap-1">

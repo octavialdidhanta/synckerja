@@ -357,6 +357,7 @@ Deno.serve(async (req) => {
 
         const prorateForBundledPos = payment.prorate_details as {
           bundled_pos_outlet_units?: number | string;
+          bundled_pos_addon_included?: boolean | string;
           renewal_full_period?: boolean | string;
         } | null;
         const isRenewalPos =
@@ -371,14 +372,24 @@ Deno.serve(async (req) => {
             : typeof rawBundledPos === "string" && rawBundledPos.trim() !== ""
               ? Math.round(Number(rawBundledPos))
               : 0;
+        const rawBundledPosAddon = prorateForBundledPos?.bundled_pos_addon_included;
+        const bundledPosAddon =
+          rawBundledPosAddon === true ||
+          rawBundledPosAddon === "true" ||
+          rawBundledPosAddon === 1 ||
+          rawBundledPosAddon === "1" ||
+          bundledPosUnits > 0;
 
-        if (bundledPosUnits > 0 || isRenewalPos) {
+        if (bundledPosUnits > 0 || bundledPosAddon || isRenewalPos) {
           const alreadyBundledPos =
             (payment as { bundled_pos_outlets_applied?: boolean }).bundled_pos_outlets_applied === true;
           if (!alreadyBundledPos) {
             const { data: claimedBundledPos } = await supabase
               .from("payments")
-              .update({ bundled_pos_outlets_applied: true })
+              .update({
+                bundled_pos_outlets_applied: true,
+                bundled_pos_addon_applied: true,
+              })
               .eq("id", payment.id)
               .eq("bundled_pos_outlets_applied", false)
               .select("id");
@@ -387,17 +398,21 @@ Deno.serve(async (req) => {
               const targetPaid = Math.min(20, Math.max(0, bundledPosUnits));
               const { data: subPaidPos } = await supabase
                 .from("organization_subscriptions")
-                .select("pos_paid_outlet_count")
+                .select("pos_paid_outlet_count, pos_addon_active")
                 .eq("organization_id", payment.organization_id)
                 .maybeSingle();
               const curPaidPos = Number(
                 (subPaidPos as { pos_paid_outlet_count?: number } | null)?.pos_paid_outlet_count ?? 0,
               );
               const nextPaidPos = isRenewalPos ? targetPaid : Math.max(curPaidPos, targetPaid);
+              const nextPosAddon = isRenewalPos
+                ? bundledPosAddon
+                : bundledPosAddon || nextPaidPos > 0;
               await supabase
                 .from("organization_subscriptions")
                 .update({
                   pos_paid_outlet_count: nextPaidPos,
+                  pos_addon_active: nextPosAddon,
                   last_payment_id: payment.id,
                   updated_at: new Date().toISOString(),
                 })

@@ -95,7 +95,7 @@ async function buildDigestForOrg(
   const { data: ingredientRows } = await admin
     .from("catalog_ingredients")
     .select(
-      "id, name, unit, track_inventory, catalog_ingredient_outlets(outlet_id, in_stock, alert_enabled, alert_at)",
+      "id, name, unit_code, track_inventory, catalog_ingredient_outlets(outlet_id, in_stock, alert_enabled, alert_at)",
     )
     .eq("organization_id", orgId)
     .eq("is_deleted", false)
@@ -103,7 +103,7 @@ async function buildDigestForOrg(
 
   for (const row of ingredientRows ?? []) {
     const name = String((row as { name?: string }).name ?? "").trim() || "Ingredient";
-    const unit = String((row as { unit?: string }).unit ?? "").trim() || "";
+    const unit = String((row as { unit_code?: string }).unit_code ?? "").trim() || "";
     const links =
       (
         row as {

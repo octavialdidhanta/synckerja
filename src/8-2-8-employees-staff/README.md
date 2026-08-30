@@ -19,20 +19,39 @@ Moka-like **roles table** (not the HR `/access-permissions` ACL page).
 
 | Concept | Detail |
 |---------|--------|
-| Roles | Custom per org + system seeds **Administrator** / **Cashier** (`pos_ensure_default_roles`) |
-| App Permission | Keys for `POS-kasir-mobile` (`app.pos.*`, `app.shift.*`, `app.settings.*`, …) |
+| Roles | Custom per org + system seeds **Administrator** / **Cashier** / **Kitchen** (`pos_ensure_default_roles`) |
+| App Permission | Keys for `POS-kasir-mobile` (`app.pos.*`, `app.shift.*`, `app.settings.*`, `app.kitchen_display`, …) |
 | Backoffice Permission | Office POS strip only: Library → Inventory (`bo.*`) |
-| Assign | One staff → one `role_id`; Slots/PIN display **role name** from Access; legacy `pos_role` synced only as admin/cashier outlet bucket |
+| Assign | One staff → one `role_id`; Slots/PIN display **role name** from Access; legacy `pos_role` synced only as admin/cashier outlet bucket (`kitchen` → cashier rules) |
 | Summary | App & Back-office / App Only / Back-office Only + privilege count |
 
 Tables: `pos_employee_roles`, `pos_employee_role_permissions`, `pos_employee_staff.role_id`.
 
-**Enforcement (v1, light):**
+**Kitchen (system):** default permission `app.kitchen_display` only. Tablet: land `/pos/kitchen`, hard-blocked from Point of Sale (`app.pos.charge`). Requires ≥1 outlet assignment.
 
-- Office: filter Operations POS nav by backoffice keys; `PageAccessGuard` denies POS paths when staff membership lacks the key.
-- **Org Owner / Admin always bypass** POS staff ACL (even if they also have a `pos_employee_staff` row, e.g. Cashier). Enforcement applies only to non-privileged roles with an active staff membership.
-- Users without a staff row stay unrestricted (fail-open).
-- Mobile: `usePosAppPermissions` filters cashier sidebar + `can('…')` helpers for future action gates.
+**Enforcement:**
+
+### Tablet `/pos/*` (fail-closed)
+
+- Guard: `RequirePosTabletAccess` (`POS-kasir-mobile/0-auth`) + `usePosTabletAccess`.
+- **Allowed only when both:**
+  1. Organization has **POS add-on active** (`organization_subscriptions.pos_addon_active` — Plans **Sertakan**; independent of extra outlet qty).
+  2. User has an **active** `pos_employee_staff` row with **`role_id`** (Slot Karyawan + Access).
+- **Owner / Admin do not bypass** the tablet gate without a staff slot + role.
+- Without add-on → deny page CTA to `/subscription/plans`. Without slot → deny + logout.
+- Loading is fail-closed (skeleton until subscription + membership ready).
+- Select-outlet filters by `pos_employee_staff_outlets` (empty assignment = all active outlets).
+- Soft sidebar ACL still uses `usePosAppPermissions` (`app.*`) for staff with a role (staff membership honors role keys even for Owner).
+- Kitchen-only staff → `/pos/kitchen` after outlet select; cannot open `/pos/cashier` without `app.pos.charge`.
+- **Realtime ACL:** `usePosStaffPermissions` subscribes to `pos_employee_role_permissions` + `pos_employee_staff` so checklist / role assign in Employee Access updates the open tablet session without reload.
+- Office `/operations/employees-staff/*` remains reachable without POS add-on (so owners can invite staff before enabling).
+
+### Office `/operations/*` (unchanged fail-open for non-staff)
+
+- Filter Operations POS nav by backoffice keys; `PageAccessGuard` denies POS paths when staff membership lacks the key.
+- **Org Owner / Admin always bypass** POS staff ACL (even if they also have a `pos_employee_staff` row, e.g. Cashier).
+- Users without a staff row stay unrestricted in Office (fail-open) so HR non-POS employees are not locked out.
+- Mobile soft helpers: `usePosAppPermissions` filters cashier sidebar + `can('…')` for action gates.
 
 PIN Access stays a separate tab; App Permission form links to it.
 
@@ -62,7 +81,7 @@ RPCs: `pos_staff_verify_pin`, `pos_verify_admin_pin_for_outlet`. Mobile: `usePos
 ## Role rules (v1)
 
 - **Administrator**: empty outlet selection → auto-assign all active outlets
-- **Cashier**: must have ≥1 outlet on save/invite
+- **Cashier** / **Kitchen** (legacy outlet bucket): must have ≥1 outlet on save/invite
 - Soft warning if demoting last active administrator
 - PIN optional for both roles; staff PIN is exactly **4 numeric digits** (set from Employee Slots detail)
 
@@ -100,3 +119,8 @@ Slot quota uses `organization_subscriptions.member_limit`.
 - [ ] Owner without `pos_employee_staff` still sees full Office POS nav
 - [ ] Owner who is also POS staff (e.g. Cashier) still sees Library…Inventory and is not Access-denied on POS paths
 - [ ] Org Admin with staff row also unrestricted; Employee + Cashier staff still filtered
+- [ ] Tablet `/pos/*`: member without Slot Karyawan → access denied page (not cashier)
+- [ ] Tablet: Owner/Admin without staff row → can open select-outlet + cashier
+- [ ] Tablet: active staff with role → allowed; outlets filtered by assignment (empty = all)
+- [ ] Tablet: staff `is_active = false` or missing `role_id` → denied
+- [ ] Stashed outlet not in assignment / not in org → cleared; redirected to select-outlet

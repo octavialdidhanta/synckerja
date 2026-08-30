@@ -34,6 +34,9 @@ import { displaySku, outletQtyForTable } from "../product-variants";
 import { useProductIdsWithBaseRecipe } from "../products";
 import {
   displayPosStatusForTable,
+  displayProductListQty,
+  isRecipeDrivenOutOfStock,
+  productListStockModeLabel,
   recipeStockBadge,
 } from "../lib/displayRecipePosStatus";
 
@@ -119,33 +122,35 @@ export function DefaultProductsTable({
               recipeAvail,
               isRecipe,
             );
-            const recipeDrivenOos =
-              status === "sold_out" &&
-              !row.track_stock &&
-              isRecipe &&
-              recipeAvail?.maxServings != null &&
-              recipeAvail.maxServings <= 0 &&
-              effectivePosStatus(row, selectedOutletId ?? null) === "available";
-            const qty = outletQtyForTable({
+            const finishedGoodsQty = outletQtyForTable({
               trackStock: Boolean(row.track_stock),
               outletId: selectedOutletId ?? null,
               variants: row.variants ?? [],
               productStock: selectedOutletId ? row.outlet_stocks?.[selectedOutletId] : undefined,
               variantStocks: row.variant_outlet_stocks,
             });
+            const liveQty = displayProductListQty({
+              hasBaseRecipe: isRecipe,
+              maxServings: recipeAvail?.maxServings,
+              trackStock: Boolean(row.track_stock),
+              finishedGoodsQty,
+            });
+            const recipeDrivenOos = isRecipeDrivenOutOfStock({
+              displayStatus: status,
+              flagStatus: effectivePosStatus(row, selectedOutletId ?? null),
+              hasBaseRecipe: isRecipe,
+              maxServings: recipeAvail?.maxServings,
+            });
             const skuLabel = displaySku({
               catalogSku: row.catalog_sku,
               variants: row.variants ?? [],
               inventorySkuCode: row.sku_code,
             });
-            const badge = recipeStockBadge(recipeAvail, isRecipe, Boolean(row.track_stock));
-            const recipeQty =
-              !row.track_stock && isRecipe && recipeAvail?.maxServings != null
-                ? recipeAvail.maxServings
-                : null;
+            const badge = recipeStockBadge(recipeAvail, isRecipe);
+            const stockMode = productListStockModeLabel(isRecipe, Boolean(row.track_stock));
             const limiting = recipeAvail?.limiting;
             const qtyTitle =
-              limiting && recipeQty != null
+              limiting && isRecipe && liveQty != null
                 ? t(
                     "defaultPrices.product.limitedByIngredient",
                     "Limited by {{name}} ({{available}}/{{needed}})",
@@ -182,10 +187,10 @@ export function DefaultProductsTable({
               </TableCell>
               <TableCell className="text-xs">
                 <span className="inline-flex flex-wrap items-center gap-1">
-                  {row.track_stock
-                    ? t("defaultPrices.product.tracked", "Tracked")
-                    : isRecipe
-                      ? t("defaultPrices.product.menuRecipe", "Menu (recipe)")
+                  {stockMode === "menuRecipe"
+                    ? t("defaultPrices.product.menuRecipe", "Menu (recipe)")
+                    : stockMode === "tracked"
+                      ? t("defaultPrices.product.tracked", "Tracked")
                       : t("defaultPrices.product.untracked", "Menu (no stock)")}
                   {badge === "out" ? (
                     <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-700">
@@ -201,11 +206,7 @@ export function DefaultProductsTable({
               </TableCell>
               <TableCell className="text-xs">{skuLabel}</TableCell>
               <TableCell className="text-right tabular-nums" title={qtyTitle}>
-                {row.track_stock
-                  ? (qty ?? 0)
-                  : recipeQty != null
-                    ? recipeQty
-                    : "—"}
+                {liveQty != null ? liveQty : "—"}
               </TableCell>
               <TableCell>
                 <DropdownMenu>

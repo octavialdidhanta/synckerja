@@ -20,8 +20,8 @@ UI surface for **Synckerja POS** (tablet-first), separate from Synckerja Office 
 | `/pos/settings` | Settings (master–detail) | Authenticated |
 | `/pos/shift` | Shift / cash drawer (master–detail) | Authenticated |
 | `/pos/inventory` | Inventory (read-only ingredient stock) | Authenticated |
-
-Reserved path constants (not routed yet): `/pos/orders`, `/pos/activity`.
+| `/pos/kitchen` | Kitchen Display (ticket board) | Authenticated (`app.kitchen_display`) |
+| `/pos/activity` | Activity / sales history | Authenticated |
 
 Office routes `/login`, `/register`, and `/` are **not** POS entry/land points.
 
@@ -52,13 +52,19 @@ POS-kasir-mobile/
     components/
     lib/                # filter + copy
     pages/
+  7-activity/           # Sales history master–detail
+  8-kitchen/            # Kitchen Display System (KDS board)
+    components/         # Board, tabs, ticket cards
+    hooks/              # Tickets query + status mutations
+    lib/                # Types, create/void/done helpers, copy
+    pages/
   shared/
     layout/
     hooks/
+    access/             # Tablet entitlement + post-outlet path
     printing/           # Bridge + ESC/POS + posPrintService
   index.ts
 ```
-
 Import alias: `@/pos-mobile/*` → this folder.
 
 ## Flow
@@ -78,13 +84,25 @@ Brand-blue left drawer:
 |------|----------|
 | Denah Meja | → `/pos/table-map` |
 | Point of Sale | → `/pos/cashier` |
+| Kitchen | → `/pos/kitchen` (role with `app.kitchen_display`) |
 | Pesanan Online | Coming soon toast |
-| Aktivitas | Coming soon toast |
+| Aktivitas | → `/pos/activity` |
 | Inventori | → `/pos/inventory` |
 | Shift | → `/pos/shift` |
 | Pengaturan | → `/pos/settings` |
 | Ganti outlet (footer) | → `/pos/select-outlet` |
 | Keluar (footer) | Clear POS surface → `/pos/login` |
+
+## Kitchen Display (`/pos/kitchen`)
+
+Phase 1 board for dine-in **Simpan Bill**:
+
+1. Kasir: cart → Simpan Bill → meja → session open → **KDS ticket** created (independent of Bluetooth printer / `printTicketOnPay`).
+2. Dapur: tabs Baru | Sedang | Siap — tap card advances status; Ready → Done leaves the board.
+3. Bayar / cancel bill closes or voids active tickets for that session.
+4. Product void on tickets still `new` reduces lines; cooking tickets unchanged.
+
+Realtime: `pos_kitchen_tickets` filtered by `outlet_id`. Schema: `scripts/qa/verify-pos-kitchen-tickets.sql`.
 
 ## Settings (`/pos/settings`)
 

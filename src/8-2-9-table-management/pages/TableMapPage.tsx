@@ -10,14 +10,26 @@ import { Link, useSearchParams } from "react-router-dom";
 import { TableManagementModuleShell } from "../layout/TableManagementModuleShell";
 import { TABLE_MANAGEMENT_GROUP_PATH } from "../layout/tableManagementTabs";
 import { TableMapToolbar } from "../components/map/TableMapToolbar";
-import { TableMapCanvas } from "../components/map/TableMapCanvas";
+import {
+  TableMapCanvas,
+  type MapSelectionKind,
+} from "../components/map/TableMapCanvas";
 import {
   AddEditTableDialog,
   type TableDialogValues,
 } from "../components/map/AddEditTableDialog";
+import {
+  AddFloorFixtureDialog,
+  type FloorFixtureDialogValues,
+} from "../fixtures/components/AddFloorFixtureDialog";
 import { usePosTableGroups } from "../hooks/usePosTableGroups";
 import { usePosTables } from "../hooks/usePosTables";
+import { usePosFloorFixtures } from "../fixtures/hooks/usePosFloorFixtures";
 import type { PosTable } from "../lib/posTableTypes";
+import type {
+  PosFloorFixture,
+  PosFloorFixtureType,
+} from "../fixtures/lib/posFloorFixtureTypes";
 import {
   applyTableRotation,
   axisAlignedFootprint,
@@ -29,8 +41,22 @@ import {
   footprintForShape,
   normalizePaxForShape,
 } from "../lib/tableShapeLayout";
+import {
+  applyFixtureRotation,
+  defaultFootprintForType,
+  findFixtureFreeCell,
+} from "../fixtures/lib/fixtureLayout";
+import { nextFixtureName } from "../fixtures/lib/fixtureNaming";
+import {
+  fixtureTypeFallback,
+  fixtureTypeLabelKey,
+} from "../fixtures/lib/fixtureVisuals";
 
 function cloneTables(rows: PosTable[]): PosTable[] {
+  return rows.map((r) => ({ ...r, isNew: false }));
+}
+
+function cloneFixtures(rows: PosFloorFixture[]): PosFloorFixture[] {
   return rows.map((r) => ({ ...r, isNew: false }));
 }
 
@@ -38,9 +64,39 @@ function tablesEqual(a: PosTable[], b: PosTable[]): boolean {
   if (a.length !== b.length) return false;
   const key = (t: PosTable) =>
     `${t.id}|${t.name}|${t.shape}|${t.pax}|${t.grid_x}|${t.grid_y}|${t.grid_w}|${t.grid_h}|${t.rotation}|${t.isNew ? 1 : 0}`;
-  const sa = [...a].map(key).sort().join(";");
-  const sb = [...b].map(key).sort().join(";");
-  return sa === sb;
+  return [...a].map(key).sort().join(";") === [...b].map(key).sort().join(";");
+}
+
+function fixturesEqual(a: PosFloorFixture[], b: PosFloorFixture[]): boolean {
+  if (a.length !== b.length) return false;
+  const key = (f: PosFloorFixture) =>
+    `${f.id}|${f.fixture_type}|${f.name}|${f.grid_x}|${f.grid_y}|${f.grid_w}|${f.grid_h}|${f.rotation}|${f.isNew ? 1 : 0}`;
+  return [...a].map(key).sort().join(";") === [...b].map(key).sort().join(";");
+}
+
+function occupancyFromDrafts(
+  tables: PosTable[],
+  fixtures: PosFloorFixture[],
+) {
+  return [
+    ...tables.map((row) => {
+      const a = axisAlignedFootprint(row);
+      return {
+        id: row.id,
+        grid_x: row.grid_x,
+        grid_y: row.grid_y,
+        grid_w: a.grid_w,
+        grid_h: a.grid_h,
+      };
+    }),
+    ...fixtures.map((f) => ({
+      id: f.id,
+      grid_x: f.grid_x,
+      grid_y: f.grid_y,
+      grid_w: f.grid_w,
+      grid_h: f.grid_h,
+    })),
+  ];
 }
 
 export default function TableMapPage() {
@@ -51,10 +107,14 @@ export default function TableMapPage() {
     useSelectedPosOutlet(true);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const { groups, isLoading: groupsLoading } = usePosTableGroups(selectedOutletId || null);
+  const { groups, isLoading: groupsLoading } = usePosTableGroups(
+    selectedOutletId || null,
+  );
   const groupFromUrl = searchParams.get("group");
   const selectedGroupId = useMemo(() => {
-    if (groupFromUrl && groups.some((g) => g.id === groupFromUrl)) return groupFromUrl;
+    if (groupFromUrl && groups.some((g) => g.id === groupFromUrl)) {
+      return groupFromUrl;
+    }
     return groups[0]?.id ?? "";
   }, [groupFromUrl, groups]);
 
@@ -69,13 +129,38 @@ export default function TableMapPage() {
     saveBatch,
   } = usePosTables(selectedGroupId || null);
 
+  const {
+    fixtures: serverFixtures,
+    isLoading: fixturesLoading,
+    refetch: refetchFixtures,
+    saveBatch: saveFixturesBatch,
+  } = usePosFloorFixtures(selectedGroupId || null);
+
   const [draft, setDraft] = useState<PosTable[]>([]);
   const [baseline, setBaseline] = useState<PosTable[]>([]);
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
+  const [draftFixtures, setDraftFixtures] = useState<PosFloorFixture[]>([]);
+  const [baselineFixtures, setBaselineFixtures] = useState<PosFloorFixture[]>(
+    [],
+  );
+  const [deletedFixtureIds, setDeletedFixtureIds] = useState<string[]>([]);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"add" | "edit">("add");
   const [editing, setEditing] = useState<PosTable | null>(null);
+
+  const [fixtureDialogOpen, setFixtureDialogOpen] = useState(false);
+  const [fixtureDialogMode, setFixtureDialogMode] = useState<"add" | "edit">(
+    "add",
+  );
+  const [editingFixture, setEditingFixture] = useState<PosFloorFixture | null>(
+    null,
+  );
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedKind, setSelectedKind] = useState<MapSelectionKind | null>(
+    null,
+  );
   const skipClickRef = useRef(false);
 
   useEffect(() => {
@@ -103,18 +188,39 @@ export default function TableMapPage() {
   ]);
 
   useEffect(() => {
-    if (tablesLoading) return;
+    if (tablesLoading || fixturesLoading) return;
     const cloned = cloneTables(serverTables);
     setDraft(cloned);
     setBaseline(cloned);
     setDeletedIds([]);
+    const clonedF = cloneFixtures(serverFixtures);
+    setDraftFixtures(clonedF);
+    setBaselineFixtures(clonedF);
+    setDeletedFixtureIds([]);
     setSelectedId(null);
-  }, [serverTables, tablesLoading, selectedGroupId]);
+    setSelectedKind(null);
+  }, [
+    serverTables,
+    serverFixtures,
+    tablesLoading,
+    fixturesLoading,
+    selectedGroupId,
+  ]);
 
   const dirty = useMemo(() => {
-    if (deletedIds.length > 0) return true;
-    return !tablesEqual(draft, baseline);
-  }, [baseline, deletedIds, draft]);
+    if (deletedIds.length > 0 || deletedFixtureIds.length > 0) return true;
+    return (
+      !tablesEqual(draft, baseline) ||
+      !fixturesEqual(draftFixtures, baselineFixtures)
+    );
+  }, [
+    baseline,
+    baselineFixtures,
+    deletedFixtureIds,
+    deletedIds,
+    draft,
+    draftFixtures,
+  ]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -131,13 +237,18 @@ export default function TableMapPage() {
       orgBootstrapPending ||
       outletsLoading ||
       groupsLoading ||
-      (Boolean(selectedGroupId) && tablesLoading)
+      (Boolean(selectedGroupId) && (tablesLoading || fixturesLoading))
     ),
     200,
   );
 
   const setGroupId = (id: string) => {
-    if (dirty && !window.confirm(t("tableManagement.map.discardConfirm", "Discard unsaved changes?"))) {
+    if (
+      dirty &&
+      !window.confirm(
+        t("tableManagement.map.discardConfirm", "Discard unsaved changes?"),
+      )
+    ) {
       return;
     }
     const next = new URLSearchParams(searchParams);
@@ -146,7 +257,12 @@ export default function TableMapPage() {
   };
 
   const handleOutletChange = (id: string) => {
-    if (dirty && !window.confirm(t("tableManagement.map.discardConfirm", "Discard unsaved changes?"))) {
+    if (
+      dirty &&
+      !window.confirm(
+        t("tableManagement.map.discardConfirm", "Discard unsaved changes?"),
+      )
+    ) {
       return;
     }
     setSelectedOutletId(id);
@@ -158,12 +274,40 @@ export default function TableMapPage() {
     setDialogOpen(true);
   };
 
-  const handleSelect = (table: PosTable) => {
+  const suggestFixtureName = useCallback(
+    (type: PosFloorFixtureType) => {
+      const label = t(fixtureTypeLabelKey(type), fixtureTypeFallback(type));
+      return nextFixtureName(
+        type,
+        draftFixtures.map((f) => f.name),
+        label,
+      );
+    },
+    [draftFixtures, t],
+  );
+
+  const openAddFixture = () => {
+    setFixtureDialogMode("add");
+    setEditingFixture(null);
+    setFixtureDialogOpen(true);
+  };
+
+  const handleSelectTable = (table: PosTable) => {
     if (skipClickRef.current) {
       skipClickRef.current = false;
       return;
     }
     setSelectedId(table.id);
+    setSelectedKind("table");
+  };
+
+  const handleSelectFixture = (fixture: PosFloorFixture) => {
+    if (skipClickRef.current) {
+      skipClickRef.current = false;
+      return;
+    }
+    setSelectedId(fixture.id);
+    setSelectedKind("fixture");
   };
 
   const openEdit = (table: PosTable) => {
@@ -174,16 +318,43 @@ export default function TableMapPage() {
     setDialogMode("edit");
     setEditing(table);
     setSelectedId(table.id);
+    setSelectedKind("table");
     setDialogOpen(true);
   };
 
-  const handleRotate = useCallback(
+  const openEditFixture = (fixture: PosFloorFixture) => {
+    if (skipClickRef.current) {
+      skipClickRef.current = false;
+      return;
+    }
+    setFixtureDialogMode("edit");
+    setEditingFixture(fixture);
+    setSelectedId(fixture.id);
+    setSelectedKind("fixture");
+    setFixtureDialogOpen(true);
+  };
+
+  const handleRotateTable = useCallback(
     (table: PosTable) => {
       const toRot = nextRotation(normalizeRotation(table.rotation));
-      const result = applyTableRotation(table, toRot, draft);
+      const others = [
+        ...draft,
+        ...draftFixtures.map((f) => ({
+          id: f.id,
+          grid_x: f.grid_x,
+          grid_y: f.grid_y,
+          grid_w: f.grid_w,
+          grid_h: f.grid_h,
+          rotation: f.rotation,
+        })),
+      ];
+      const result = applyTableRotation(table, toRot, others);
       if (!result.ok) {
         toast({
-          title: t("tableManagement.map.overlap", "Cannot place table over another table."),
+          title: t(
+            "tableManagement.map.overlap",
+            "Cannot place table over another table.",
+          ),
           variant: "destructive",
         });
         return;
@@ -201,14 +372,50 @@ export default function TableMapPage() {
         ),
       );
       setSelectedId(table.id);
+      setSelectedKind("table");
     },
-    [draft, t, toast],
+    [draft, draftFixtures, t, toast],
+  );
+
+  const handleRotateFixture = useCallback(
+    (fixture: PosFloorFixture) => {
+      const toRot = nextRotation(normalizeRotation(fixture.rotation));
+      const occupied = occupancyFromDrafts(draft, draftFixtures);
+      const result = applyFixtureRotation(fixture, toRot, occupied);
+      if (!result.ok) {
+        toast({
+          title: t(
+            "tableManagement.map.overlap",
+            "Cannot place table over another table.",
+          ),
+          variant: "destructive",
+        });
+        return;
+      }
+      setDraftFixtures((prev) =>
+        prev.map((row) => (row.id === fixture.id ? result.fixture : row)),
+      );
+      setSelectedId(fixture.id);
+      setSelectedKind("fixture");
+    },
+    [draft, draftFixtures, t, toast],
   );
 
   const handleDialogSubmit = (values: TableDialogValues) => {
     const pax = normalizePaxForShape(values.shape, values.pax);
     const fp = footprintForShape(values.shape, pax);
     const rotation = normalizeRotation(values.rotation);
+    const othersForRotate = [
+      ...draft,
+      ...draftFixtures.map((f) => ({
+        id: f.id,
+        grid_x: f.grid_x,
+        grid_y: f.grid_y,
+        grid_w: f.grid_w,
+        grid_h: f.grid_h,
+        rotation: f.rotation,
+      })),
+    ];
 
     if (dialogMode === "edit" && editing) {
       const candidate = {
@@ -220,10 +427,13 @@ export default function TableMapPage() {
         grid_h: fp.grid_h,
         rotation: 0 as const,
       };
-      const rotated = applyTableRotation(candidate, rotation, draft);
+      const rotated = applyTableRotation(candidate, rotation, othersForRotate);
       if (!rotated.ok) {
         toast({
-          title: t("tableManagement.map.overlap", "Cannot place table over another table."),
+          title: t(
+            "tableManagement.map.overlap",
+            "Cannot place table over another table.",
+          ),
           variant: "destructive",
         });
         return;
@@ -244,16 +454,7 @@ export default function TableMapPage() {
         ),
       );
     } else {
-      const occupied = draft.map((row) => {
-        const a = axisAlignedFootprint(row);
-        return {
-          id: row.id,
-          grid_x: row.grid_x,
-          grid_y: row.grid_y,
-          grid_w: a.grid_w,
-          grid_h: a.grid_h,
-        };
-      });
+      const occupied = occupancyFromDrafts(draft, draftFixtures);
       const placeFp =
         rotation === 90 || rotation === 270
           ? { grid_w: fp.grid_h, grid_h: fp.grid_w }
@@ -283,28 +484,149 @@ export default function TableMapPage() {
         },
       ]);
       setSelectedId(id);
+      setSelectedKind("table");
     }
     setDialogOpen(false);
     setEditing(null);
+  };
+
+  const handleFixtureDialogSubmit = (values: FloorFixtureDialogValues) => {
+    if (fixtureDialogMode === "edit" && editingFixture) {
+      const occupied = occupancyFromDrafts(draft, draftFixtures).filter(
+        (o) => o.id !== editingFixture.id,
+      );
+      const candidate = {
+        x: editingFixture.grid_x,
+        y: editingFixture.grid_y,
+        w: values.grid_w,
+        h: values.grid_h,
+      };
+      const clash = occupied.some(
+        (o) =>
+          !(
+            candidate.x + candidate.w <= o.grid_x ||
+            o.grid_x + o.grid_w <= candidate.x ||
+            candidate.y + candidate.h <= o.grid_y ||
+            o.grid_y + o.grid_h <= candidate.y
+          ),
+      );
+      if (clash) {
+        toast({
+          title: t(
+            "tableManagement.map.overlap",
+            "Cannot place table over another table.",
+          ),
+          variant: "destructive",
+        });
+        return;
+      }
+      setDraftFixtures((prev) =>
+        prev.map((row) =>
+          row.id === editingFixture.id
+            ? {
+                ...row,
+                name: values.name,
+                grid_w: values.grid_w,
+                grid_h: values.grid_h,
+              }
+            : row,
+        ),
+      );
+    } else {
+      const defaults = defaultFootprintForType(values.fixture_type);
+      const fp = {
+        grid_w: Math.max(1, values.grid_w || defaults.grid_w),
+        grid_h: Math.max(1, values.grid_h || defaults.grid_h),
+      };
+      const occupied = occupancyFromDrafts(draft, draftFixtures);
+      const pos = findFixtureFreeCell(occupied, fp);
+      const id = crypto.randomUUID();
+      setDraftFixtures((prev) => [
+        ...prev,
+        {
+          id,
+          organization_id: "",
+          outlet_id: selectedOutletId,
+          group_id: selectedGroupId,
+          fixture_type: values.fixture_type,
+          name: values.name,
+          grid_x: pos.grid_x,
+          grid_y: pos.grid_y,
+          grid_w: fp.grid_w,
+          grid_h: fp.grid_h,
+          rotation: 0,
+          is_deleted: false,
+          deleted_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          isNew: true,
+        },
+      ]);
+      setSelectedId(id);
+      setSelectedKind("fixture");
+    }
+    setFixtureDialogOpen(false);
+    setEditingFixture(null);
   };
 
   const handleDeleteFromDialog = () => {
     if (!editing) return;
     if (!editing.isNew) {
-      setDeletedIds((prev) => (prev.includes(editing.id) ? prev : [...prev, editing.id]));
+      setDeletedIds((prev) =>
+        prev.includes(editing.id) ? prev : [...prev, editing.id],
+      );
     }
-    setDraft((prev) => prev.filter((t) => t.id !== editing.id));
+    setDraft((prev) => prev.filter((row) => row.id !== editing.id));
     setDialogOpen(false);
     setEditing(null);
     setSelectedId(null);
+    setSelectedKind(null);
   };
 
-  const handleMove = useCallback((id: string, grid_x: number, grid_y: number) => {
+  const handleDeleteFixture = () => {
+    if (!editingFixture) return;
+    if (
+      !window.confirm(
+        t(
+          "tableManagement.fixture.deleteConfirm",
+          "Remove this floor item from the map?",
+        ),
+      )
+    ) {
+      return;
+    }
+    if (!editingFixture.isNew) {
+      setDeletedFixtureIds((prev) =>
+        prev.includes(editingFixture.id)
+          ? prev
+          : [...prev, editingFixture.id],
+      );
+    }
+    setDraftFixtures((prev) =>
+      prev.filter((row) => row.id !== editingFixture.id),
+    );
+    setFixtureDialogOpen(false);
+    setEditingFixture(null);
+    setSelectedId(null);
+    setSelectedKind(null);
+  };
+
+  const handleMoveTable = useCallback((id: string, grid_x: number, grid_y: number) => {
     skipClickRef.current = true;
     setDraft((prev) =>
       prev.map((row) => (row.id === id ? { ...row, grid_x, grid_y } : row)),
     );
   }, []);
+
+  const handleMoveFixture = useCallback(
+    (id: string, grid_x: number, grid_y: number) => {
+      skipClickRef.current = true;
+      setDraftFixtures((prev) =>
+        prev.map((row) => (row.id === id ? { ...row, grid_x, grid_y } : row)),
+      );
+    },
+    [],
+  );
 
   const handleSave = async () => {
     if (!selectedOutletId || !selectedGroupId) return;
@@ -315,8 +637,14 @@ export default function TableMapPage() {
         tables: draft,
         deletedIds,
       });
+      await saveFixturesBatch.mutateAsync({
+        outletId: selectedOutletId,
+        groupId: selectedGroupId,
+        fixtures: draftFixtures,
+        deletedIds: deletedFixtureIds,
+      });
       toast({ title: t("tableManagement.map.saved", "Table map saved.") });
-      await refetch();
+      await Promise.all([refetch(), refetchFixtures()]);
     } catch (err) {
       toast({
         title: t("tableManagement.map.saveError", "Failed to save table map."),
@@ -325,6 +653,9 @@ export default function TableMapPage() {
       });
     }
   };
+
+  const saving = saveBatch.isPending || saveFixturesBatch.isPending;
+  const anyDialogOpen = dialogOpen || fixtureDialogOpen;
 
   return (
     <TableManagementModuleShell showContent={showContent}>
@@ -339,9 +670,10 @@ export default function TableMapPage() {
               onGroupChange={setGroupId}
               groupsLoading={groupsLoading}
               onAddTable={openAdd}
+              onAddFloorItem={openAddFixture}
               onSave={() => void handleSave()}
               saveDisabled={!dirty || !selectedGroupId}
-              saving={saveBatch.isPending}
+              saving={saving}
               groupActive={selectedGroup?.is_active ?? null}
             />
           </div>
@@ -352,9 +684,16 @@ export default function TableMapPage() {
                   <span>
                     {error instanceof Error
                       ? error.message
-                      : t("tableManagement.map.loadError", "Failed to load tables.")}
+                      : t(
+                          "tableManagement.map.loadError",
+                          "Failed to load tables.",
+                        )}
                   </span>
-                  <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void refetch()}
+                  >
                     {t("common.retry", "Retry")}
                   </Button>
                 </AlertDescription>
@@ -363,7 +702,10 @@ export default function TableMapPage() {
 
             {!selectedOutletId ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                {t("tableManagement.map.pickOutlet", "Select an outlet to edit the table map.")}
+                {t(
+                  "tableManagement.map.pickOutlet",
+                  "Select an outlet to edit the table map.",
+                )}
               </p>
             ) : groups.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center">
@@ -383,12 +725,18 @@ export default function TableMapPage() {
             ) : (
               <TableMapCanvas
                 tables={draft}
+                fixtures={draftFixtures}
                 selectedId={selectedId}
-                dialogOpen={dialogOpen}
-                onSelect={handleSelect}
-                onEdit={openEdit}
-                onMove={handleMove}
-                onRotate={handleRotate}
+                selectedKind={selectedKind}
+                dialogOpen={anyDialogOpen}
+                onSelectTable={handleSelectTable}
+                onSelectFixture={handleSelectFixture}
+                onEditTable={openEdit}
+                onEditFixture={openEditFixture}
+                onMoveTable={handleMoveTable}
+                onMoveFixture={handleMoveFixture}
+                onRotateTable={handleRotateTable}
+                onRotateFixture={handleRotateFixture}
               />
             )}
           </div>
@@ -418,6 +766,30 @@ export default function TableMapPage() {
         }
         onSubmit={handleDialogSubmit}
         onDelete={dialogMode === "edit" ? handleDeleteFromDialog : undefined}
+      />
+
+      <AddFloorFixtureDialog
+        open={fixtureDialogOpen}
+        onOpenChange={(open) => {
+          setFixtureDialogOpen(open);
+          if (!open) setEditingFixture(null);
+        }}
+        mode={fixtureDialogMode}
+        initial={
+          editingFixture
+            ? {
+                fixture_type: editingFixture.fixture_type,
+                name: editingFixture.name,
+                grid_w: editingFixture.grid_w,
+                grid_h: editingFixture.grid_h,
+              }
+            : null
+        }
+        suggestName={suggestFixtureName}
+        onSubmit={handleFixtureDialogSubmit}
+        onDelete={
+          fixtureDialogMode === "edit" ? handleDeleteFixture : undefined
+        }
       />
     </TableManagementModuleShell>
   );

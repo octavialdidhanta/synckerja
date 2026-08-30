@@ -13,6 +13,8 @@ import { invalidateCatalogStockCaches } from "@/8-2-3-ingredient/library/hooks/i
 import { usePosTabletShell } from "@/pos-mobile/shared/hooks/usePosTabletShell";
 import { useMarkPosAuthSurface } from "@/pos-mobile/0-auth/lib/useMarkPosAuthSurface";
 import { POS_AUTH_PATHS } from "@/pos-mobile/0-auth/lib/posAuthPaths";
+import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
+import { resolvePosPostOutletPath } from "@/pos-mobile/shared/access";
 import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
 import {
   readPosSelectedOutlet,
@@ -51,6 +53,8 @@ import { PosQrisPaymentDialog } from "../payment/qris";
 import { preparePosQrisCheckout } from "../payment/qris/lib/preparePosQrisCheckout";
 import { usePosQrisEligibility } from "@/shared/pos-qris";
 import { markLeadConvertedIfNeeded } from "@/5-2-customer-visits/checkout/lib/createStoreCheckoutSalesActivity";
+import { recordPosPaidCustomerVisit } from "@/5-2-customer-visits/checkout/pos-bind";
+import { normalizeCustomerVisitPhone } from "@/5-2-customer-visits/lib/normalizeCustomerVisitPhone";
 import type { BuildPendingCheckoutPayloadArgs } from "@/shared/pos-qris/lib/buildPendingCheckoutPayload";
 import type { CatalogCheckoutTotals } from "@/8-2-1-default-prices/checkout/lib/computeCatalogCheckoutTotals";
 import {
@@ -99,10 +103,20 @@ import { usePosFulfillmentStockCommit } from "../hooks/usePosFulfillmentStockCom
 import { usePosOutletStockSettings } from "@/stock-management/stock-commit/hooks/usePosOutletStockSettings";
 import { resolvePosPayFailureToast } from "@/stock-management/catalog-ledger/lib/checkoutStockToast";
 import { resolveCheckoutStockToast } from "@/stock-management/catalog-ledger/lib/checkoutStockToast";
-import {
-  commitKitchenStockAndPrint,
-} from "../hooks/usePosKitchenStockCommit";
 import { reverseKitchenStockForVoid } from "@/stock-management/stock-commit/lib/stockCommitOrchestrator";
+import {
+  applyKitchenTicketLineVoid,
+} from "@/pos-mobile/8-kitchen/lib/createPosKitchenTickets";
+import { fireKitchenForCheckout } from "@/pos-mobile/8-kitchen/lib/fireKitchenForCheckout";
+import { shouldAutoDoneKitchenOnPay } from "@/pos-mobile/8-kitchen/lib/shouldAutoDoneKitchenOnPay";
+import {
+  applyKitchenAutoDoneOnPay,
+  buildKitchenPayCheckoutContext,
+  runKitchenFireOnPay,
+  toastKitchenFireResult,
+  type KitchenPayCheckoutContext,
+} from "../lib/kitchenCheckoutContext";
+import { cartLineFingerprint } from "../lib/cartLineFingerprint";
 import { POS_STOCK_COMMIT_I18N } from "../lib/posStockCommitCopy";
 import { usePosOutletFavorites } from "../hooks/usePosOutletFavorites";
 import { usePosLibraryCategoryOrder } from "../hooks/usePosLibraryCategoryOrder";
@@ -125,7 +139,6 @@ import { recipeOutOfStockLabel } from "../lib/recipeOutOfStockLabel";
 import { POS_SETTINGS_I18N } from "@/pos-mobile/3-settings/lib/posSettingsCopy";
 import {
   getPosTicketPrintPrefs,
-  printPosOrderTickets,
   printPosReceiptBill,
 } from "@/pos-mobile/shared/printing/posPrintService";
 import { PosPrinterUnavailableError } from "@/pos-mobile/shared/printing/PosPrinterBridge";
@@ -144,6 +157,7 @@ export default function PosCashierPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
+  const permissions = usePosAppPermissions();
 
   const outletId = readPosSelectedOutletId();
   const outletMeta = readPosSelectedOutlet();
@@ -242,6 +256,8 @@ export default function PosCashierPage() {
   const [qrisFlow, setQrisFlow] = useState<{
     checkout: BuildPendingCheckoutPayloadArgs;
     leadId: string;
+    boundByPhone: boolean;
+    clientPhone: string | null;
     amountDue: number;
     splitLines: CustomerVisitCartLine[];
     paidCatalogTotals: CatalogCheckoutTotals;
@@ -250,6 +266,10 @@ export default function PosCashierPage() {
     catalogLines: CustomerVisitCartLine[];
     keepOpen: boolean;
     remainderLines: CustomerVisitCartLine[];
+    kitchenCheckout: KitchenPayCheckoutContext;
+    paySessionId: string | null;
+    posTableId: string | null;
+    servedByUserId: string | null;
   } | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [sendingSms, setSendingSms] = useState(false);
@@ -295,6 +315,28 @@ export default function PosCashierPage() {
     setCartRestored(true);
     stashPosSelectedTable({ ...selectedTable!, cartSnapshot: null });
   }, [cart, cartRestored, selectedTable]);
+
+  // Walk-in resume from table-map bill list: keep session + cart, clear fake table badge.
+  useEffect(() => {
+    if (!cartRestored) return;
+    if (!selectedTable || selectedTable.id) return;
+    if (!selectedTable.sessionId) return;
+    clearPosSelectedTable();
+    setSelectedTable(null);
+  }, [cartRestored, selectedTable]);
+
+  // Hydrate guest from open session (e.g. resume walk-in from table map).
+  useEffect(() => {
+    if (customer) return;
+    const sid = selectedTable?.sessionId ?? activeOpenSessionId;
+    if (!sid) return;
+    const row = billListOpenSessions.rows.find((r) => r.session.id === sid);
+    if (!row) return;
+    const guestName = row.session.customer_name?.trim() || "";
+    const guestPhone = row.session.customer_phone?.trim() || "";
+    if (!guestName && !guestPhone) return;
+    setCustomer({ name: guestName || "Walk-in", phone: guestPhone });
+  }, [activeOpenSessionId, billListOpenSessions.rows, customer, selectedTable?.sessionId]);
 
   const openSessionId = selectedTable?.sessionId ?? activeOpenSessionId;
   const cartPersistRef = useRef<string>("");
@@ -478,6 +520,22 @@ export default function PosCashierPage() {
     return <Navigate to={POS_AUTH_PATHS.selectOutlet} replace />;
   }
 
+  if (permissions.isLoading) {
+    return null;
+  }
+
+  if (!permissions.canCharge()) {
+    return (
+      <Navigate
+        to={resolvePosPostOutletPath({
+          canCharge: false,
+          canKitchenDisplay: permissions.canKitchenDisplay(),
+        })}
+        replace
+      />
+    );
+  }
+
   const salesTypeLabel =
     pricing.outletSalesTypes.find((row) => row.id === salesTypeId)?.name || "Dine in";
 
@@ -568,60 +626,37 @@ export default function PosCashierPage() {
     });
   };
 
-  const maybePrintKitchenTickets = async (
+  const fireKitchenOnSaveBill = async (
     linesSnapshot: typeof cart.lines,
-    sessionId: string | null,
+    sessionId: string,
+    meta: { posTableId?: string | null; tableName: string },
   ) => {
-    const prefs = getPosTicketPrintPrefs(outletId);
-    if (prefs.printTicketOnPay) return;
-
-    if (!organizationId || !outletId || !sessionId) {
-      try {
-        await printPosOrderTickets({
-          outletId,
-          outletName,
-          lines: linesSnapshot.filter((line) => !line.isCustomAmount),
-          customerName: customer?.name,
-        });
-        toast({ title: t(POS_SETTINGS_I18N.printerTicketPrinted, "Order ticket printed") });
-      } catch (err) {
-        printErrorToast(err);
-      }
-      return;
-    }
+    if (!organizationId || !outletId) return;
     try {
-      const result = await commitKitchenStockAndPrint({
+      const result = await fireKitchenForCheckout({
         organizationId,
         outletId,
         outletName,
         sessionId,
         cartLines: linesSnapshot,
-        customerName: customer?.name,
+        event: "save_bill",
+        salesTypeLabel,
+        salesTypeId: salesTypeId || null,
+        tableName: meta.tableName,
+        posTableId: meta.posTableId ?? null,
+        customerName: customer?.name ?? null,
       });
-      if (result.committed) {
+      if (result.stockCommitted) {
         void invalidateCatalogStockCaches(queryClient, organizationId);
-        toast({
-          title: t(POS_STOCK_COMMIT_I18N.kitchenCommitted, "Kitchen stock committed"),
-        });
       }
-      if (result.printError) {
-        toast({
-          title: t(
-            POS_STOCK_COMMIT_I18N.printAfterCommitWarning,
-            "Order ticket print failed; stock was already committed.",
-          ),
-          description: result.printError.message,
-          variant: "destructive",
-        });
-      } else if (result.printed) {
-        toast({ title: t(POS_SETTINGS_I18N.printerTicketPrinted, "Order ticket printed") });
-      }
+      toastKitchenFireResult({ result, t, toast });
     } catch (err) {
       const stockToast = resolveCheckoutStockToast(err, t);
       if (stockToast) {
         toast({ ...stockToast, variant: "destructive" });
         return;
       }
+      console.error("fireKitchenForCheckout save_bill failed", err);
       printErrorToast(err);
     }
   };
@@ -633,6 +668,7 @@ export default function PosCashierPage() {
     setActiveOpenSessionId(null);
     setNewBillPick(null);
     setSelectTableOpen(false);
+    setCustomer(null);
   };
 
   const ensureShiftForSave = (): boolean => {
@@ -669,6 +705,8 @@ export default function PosCashierPage() {
         pax: 1,
         cartLines: linesSnapshot,
         waiterId: shiftWaiter.waiter!.userId,
+        customerName: customer?.name ?? null,
+        customerPhone: customer?.phone ?? null,
       });
       toast({ title: t(POS_SELECT_TABLE_I18N.saved, "Bill saved") });
       if (organizationId) {
@@ -683,7 +721,10 @@ export default function PosCashierPage() {
         });
       }
       finishSavedBill();
-      await maybePrintKitchenTickets(linesSnapshot, session.id);
+      await fireKitchenOnSaveBill(linesSnapshot, session.id, {
+        posTableId: null,
+        tableName: t(POS_SELECT_TABLE_I18N.walkInName, "Walk-in"),
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       toast({
@@ -715,6 +756,8 @@ export default function PosCashierPage() {
         pax: args.pax,
         cartLines: linesSnapshot,
         waiterId: args.waiterId,
+        customerName: customer?.name ?? null,
+        customerPhone: customer?.phone ?? null,
       });
       toast({ title: t(POS_NEW_BILL_I18N.saved, "Bill saved") });
       if (organizationId) {
@@ -729,7 +772,10 @@ export default function PosCashierPage() {
         });
       }
       finishSavedBill();
-      await maybePrintKitchenTickets(linesSnapshot, session.id);
+      await fireKitchenOnSaveBill(linesSnapshot, session.id, {
+        posTableId: pick.id,
+        tableName: pick.name,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       toast({
@@ -845,6 +891,17 @@ export default function PosCashierPage() {
               reverseId: crypto.randomUUID(),
             });
             void invalidateCatalogStockCaches(queryClient, organizationId);
+            if (!payload.line.isCustomAmount) {
+              try {
+                await applyKitchenTicketLineVoid({
+                  sessionId,
+                  lineFingerprint: cartLineFingerprint(payload.line),
+                  voidQty: payload.voidQty,
+                });
+              } catch (kdsErr) {
+                console.error("applyKitchenTicketLineVoid failed", kdsErr);
+              }
+            }
           }
           cart.updateQty(payload.lineKey, payload.nextQty);
         } catch (err) {
@@ -878,6 +935,13 @@ export default function PosCashierPage() {
       ? row.session.cart_snapshot
       : [];
     setActiveOpenSessionId(row.session.id);
+    const guestName = row.session.customer_name?.trim() || "";
+    const guestPhone = row.session.customer_phone?.trim() || "";
+    setCustomer(
+      guestName || guestPhone
+        ? { name: guestName || "Walk-in", phone: guestPhone }
+        : null,
+    );
     if (!row.session.pos_table_id || !row.session.group_id) {
       clearPosSelectedTable();
       setSelectedTable(null);
@@ -1071,41 +1135,63 @@ export default function PosCashierPage() {
       clientName,
       catalogLines,
       leadId,
+      boundByPhone,
+      clientPhone,
+      kitchenCheckout,
+      paySessionId,
+      posTableId,
+      servedByUserId,
     } = qrisFlow;
 
     setQrisOpen(false);
 
-    const prefs = getPosTicketPrintPrefs(outletId);
-    const sid = selectedTable?.sessionId ?? activeOpenSessionId;
-    if (
-      prefs.printTicketOnPay &&
-      prefs.hasTicketPrinter &&
-      sid &&
-      catalogLines.length > 0
-    ) {
+    if (args.salesActivityId && boundByPhone) {
+      const phoneKey = normalizeCustomerVisitPhone(clientPhone);
+      if (phoneKey) {
+        try {
+          await recordPosPaidCustomerVisit({
+            organizationId,
+            leadId,
+            salesActivityId: args.salesActivityId,
+            phoneKey,
+            lookupRaw: clientPhone,
+            boundByPhone: true,
+          });
+        } catch (visitErr) {
+          console.error("recordPosPaidCustomerVisit qris failed", visitErr);
+        }
+      }
+    }
+
+    if (args.salesActivityId && catalogLines.length > 0) {
       try {
-        const kitchenResult = await commitKitchenStockAndPrint({
+        const { sessionId: kdsSessionId, result } = await runKitchenFireOnPay({
           organizationId,
           outletId,
           outletName,
-          sessionId: sid,
+          sessionId: paySessionId,
           cartLines: catalogLines,
-          customerName: clientName,
+          salesTypeId: salesTypeId || null,
+          posTableId,
+          clientPhone: null,
+          servedByUserId,
+          salesActivityId: args.salesActivityId,
+          kitchenCheckout,
         });
-        if (kitchenResult.committed) {
+        if (result.stockCommitted) {
           void invalidateCatalogStockCaches(queryClient, organizationId);
         }
-        if (!kitchenResult.printed && !kitchenResult.printError) {
-          await printPosOrderTickets({
-            outletId,
-            outletName,
-            lines: catalogLines,
-            customerName: clientName,
+        toastKitchenFireResult({ result, t, toast });
+        if (kdsSessionId && !keepOpen) {
+          await applyKitchenAutoDoneOnPay({
+            sessionId: kdsSessionId,
+            kitchenCheckout,
           });
         }
       } catch (kitchenErr) {
         const stockToast = resolveCheckoutStockToast(kitchenErr, t);
         if (stockToast) toast({ ...stockToast, variant: "destructive" });
+        else console.error("runKitchenFireOnPay qris failed", kitchenErr);
       }
     }
 
@@ -1130,6 +1216,7 @@ export default function PosCashierPage() {
     }
 
     void queryClient.invalidateQueries({ queryKey: ["customer-visit-catalog", organizationId] });
+    void queryClient.invalidateQueries({ queryKey: ["customer-visits", organizationId] });
     void queryClient.invalidateQueries({ queryKey: ["sales-activities", organizationId] });
     void queryClient.invalidateQueries({ queryKey: ["income-transactions", organizationId] });
     void invalidateCatalogStockCaches(queryClient, organizationId);
@@ -1153,6 +1240,7 @@ export default function PosCashierPage() {
       totalsSnapshot,
     });
 
+    const prefs = getPosTicketPrintPrefs(outletId);
     try {
       if (prefs.hasReceiptPrinter && catalogLines.length > 0) {
         await printPosReceiptBill({
@@ -1185,10 +1273,19 @@ export default function PosCashierPage() {
           }
         : catalogTotals;
     const keepOpen = remainderLines.length > 0;
+    const liveOpenSession = openSessionId
+      ? billListOpenSessions.rows.find((r) => r.session.id === openSessionId)?.session
+      : null;
     const clientName =
-      loyaltyResult.customer?.name || customer?.name || "Walk-in";
+      loyaltyResult.customer?.name ||
+      customer?.name ||
+      liveOpenSession?.customer_name?.trim() ||
+      "Walk-in";
     const clientPhone =
-      loyaltyResult.customer?.phone || customer?.phone || null;
+      loyaltyResult.customer?.phone ||
+      customer?.phone ||
+      liveOpenSession?.customer_phone?.trim() ||
+      null;
 
     if (payload.paymentMethod === "qris") {
       if (catalogLines.length === 0 || paidCatalogTotals.grandTotal <= 0) {
@@ -1213,7 +1310,20 @@ export default function PosCashierPage() {
         }
 
         const paySessionId = selectedTable?.sessionId ?? activeOpenSessionId;
-        const { checkout, leadId } = await preparePosQrisCheckout({
+        const kitchenTableName =
+          selectedTable?.name ?? t(POS_SELECT_TABLE_I18N.walkInName, "Walk-in");
+        const kitchenCheckout = await buildKitchenPayCheckoutContext({
+          organizationId,
+          outletId,
+          outletName,
+          sessionId: paySessionId,
+          tableName: kitchenTableName,
+          salesTypeLabel,
+          salesTypeId: salesTypeId || null,
+          customerName: clientName,
+        });
+        const servedByUserId = resolveServedByUserId(paySessionId);
+        const { checkout, leadId, boundByPhone } = await preparePosQrisCheckout({
           organizationId,
           outletId,
           clientName,
@@ -1225,7 +1335,7 @@ export default function PosCashierPage() {
           posTableId: selectedTable?.id ?? null,
           sessionId: paySessionId,
           seatedAt: selectedTable?.seatedAt ?? null,
-          servedByUserId: resolveServedByUserId(paySessionId),
+          servedByUserId,
           keepSessionOpen: keepOpen,
           remainderCartLines: keepOpen ? remainderLines : null,
           paymentChannelId: payload.paymentChannelId,
@@ -1234,6 +1344,8 @@ export default function PosCashierPage() {
         setQrisFlow({
           checkout,
           leadId,
+          boundByPhone,
+          clientPhone,
           amountDue:
             paidCatalogTotals.grandTotal + Math.max(0, Math.round(customTotal)),
           splitLines,
@@ -1243,6 +1355,10 @@ export default function PosCashierPage() {
           catalogLines,
           keepOpen,
           remainderLines,
+          kitchenCheckout,
+          paySessionId,
+          posTableId: selectedTable?.id ?? null,
+          servedByUserId,
         });
         setPaymentOpen(false);
         setQrisOpen(true);
@@ -1285,52 +1401,22 @@ export default function PosCashierPage() {
       let leadId: string | null = null;
 
       if (catalogLines.length > 0 && paidCatalogTotals.grandTotal > 0) {
-        const sid = selectedTable?.sessionId ?? activeOpenSessionId;
-        const prefs = getPosTicketPrintPrefs(outletId);
-        let kitchenPrintedOnPay = false;
-        if (
-          prefs.printTicketOnPay &&
-          prefs.hasTicketPrinter &&
-          organizationId &&
-          sid
-        ) {
-          try {
-            const kitchenResult = await commitKitchenStockAndPrint({
+        const paySessionId = selectedTable?.sessionId ?? activeOpenSessionId;
+        const kitchenTableName =
+          selectedTable?.name ?? t(POS_SELECT_TABLE_I18N.walkInName, "Walk-in");
+        const kitchenCheckout = organizationId
+          ? await buildKitchenPayCheckoutContext({
               organizationId,
               outletId,
               outletName,
-              sessionId: sid,
-              cartLines: catalogLines,
+              sessionId: paySessionId,
+              tableName: kitchenTableName,
+              salesTypeLabel,
+              salesTypeId: salesTypeId || null,
               customerName: clientName,
-            });
-            kitchenPrintedOnPay = kitchenResult.printed;
-            if (kitchenResult.committed) {
-              void invalidateCatalogStockCaches(queryClient, organizationId);
-              toast({
-                title: t(POS_STOCK_COMMIT_I18N.kitchenCommitted, "Kitchen stock committed"),
-              });
-            }
-            if (kitchenResult.printError) {
-              toast({
-                title: t(
-                  POS_STOCK_COMMIT_I18N.printAfterCommitWarning,
-                  "Order ticket print failed; stock was already committed.",
-                ),
-                description: kitchenResult.printError.message,
-                variant: "destructive",
-              });
-            }
-          } catch (kitchenErr) {
-            const stockToast = resolveCheckoutStockToast(kitchenErr, t);
-            if (stockToast) {
-              toast({ ...stockToast, variant: "destructive" });
-              return;
-            }
-            throw kitchenErr;
-          }
-        }
+            })
+          : undefined;
 
-        const paySessionId = selectedTable?.sessionId ?? activeOpenSessionId;
         const result = await pay.mutateAsync({
           clientName,
           clientPhone,
@@ -1352,27 +1438,15 @@ export default function PosCashierPage() {
           servedByUserId: resolveServedByUserId(paySessionId),
           keepSessionOpen: keepOpen,
           remainderCartLines: keepOpen ? remainderLines : null,
+          kitchenCheckout,
         });
         activityId = result.activityId;
         leadId = result.leadId;
-
-        const prefsAfter = getPosTicketPrintPrefs(outletId);
-        if (
-          prefsAfter.printTicketOnPay &&
-          prefsAfter.hasTicketPrinter &&
-          catalogLines.length > 0 &&
-          !kitchenPrintedOnPay
-        ) {
-          try {
-            await printPosOrderTickets({
-              outletId,
-              outletName,
-              lines: catalogLines,
-              customerName: clientName,
-            });
-          } catch (printErr) {
-            printErrorToast(printErr);
+        if (result.kitchenFireResult && organizationId) {
+          if (result.kitchenFireResult.stockCommitted) {
+            void invalidateCatalogStockCaches(queryClient, organizationId);
           }
+          toastKitchenFireResult({ result: result.kitchenFireResult, t, toast });
         }
       } else if (customTotal <= 0) {
         return;
@@ -1385,7 +1459,31 @@ export default function PosCashierPage() {
               cartLines: remainderLines,
             });
           } else {
-            await sessionMutations.closeOpenCustomOnly.mutateAsync({ sessionId: sid });
+            let autoDoneKitchen = true;
+            if (organizationId) {
+              const kitchenTableName =
+                selectedTable?.name ?? t(POS_SELECT_TABLE_I18N.walkInName, "Walk-in");
+              const kitchenCheckout = await buildKitchenPayCheckoutContext({
+                organizationId,
+                outletId,
+                outletName,
+                sessionId: sid,
+                tableName: kitchenTableName,
+                salesTypeLabel,
+                salesTypeId: salesTypeId || null,
+                customerName: clientName,
+              });
+              autoDoneKitchen = shouldAutoDoneKitchenOnPay({
+                hadKitchenTicketsBeforePay: kitchenCheckout.hadKitchenTicketsBeforePay,
+                sessionWasOpenBeforePay: kitchenCheckout.sessionWasOpenBeforePay,
+                salesTypeLabel: kitchenCheckout.salesTypeLabel,
+                settings: kitchenCheckout.firePolicy,
+              });
+            }
+            await sessionMutations.closeOpenCustomOnly.mutateAsync({
+              sessionId: sid,
+              autoDoneKitchen,
+            });
           }
         }
       }
@@ -1442,6 +1540,16 @@ export default function PosCashierPage() {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("pos_table_multiple_open_sessions")) {
+        toast({
+          title: t(
+            POS_SELECT_TABLE_I18N.multipleOpenError,
+            "This table has multiple open bills. Open the bill from the list or table map first.",
+          ),
+          variant: "destructive",
+        });
+        return;
+      }
       if (message.includes("shift_required") || message.includes("shift_not_open")) {
         toast({
           title: t(POS_SHIFT_I18N.shiftRequired, "Start a shift before taking payments."),
@@ -1719,7 +1827,17 @@ export default function PosCashierPage() {
         open={customerOpen}
         onOpenChange={setCustomerOpen}
         initial={customer}
-        onSave={setCustomer}
+        onSave={(next) => {
+          setCustomer(next);
+          const sid = selectedTable?.sessionId ?? activeOpenSessionId;
+          if (sid) {
+            void sessionMutations.updateOpenCustomer.mutateAsync({
+              sessionId: sid,
+              customerName: next.name,
+              customerPhone: next.phone,
+            });
+          }
+        }}
       />
       <PosAddFavoriteDialog
         open={addFavoriteOpen}
@@ -1747,6 +1865,20 @@ export default function PosCashierPage() {
         }}
         onContinue={(result) => {
           setLoyaltyResult(result);
+          if (result.customer) {
+            setCustomer({
+              name: result.customer.name,
+              phone: result.customer.phone,
+            });
+            const sid = selectedTable?.sessionId ?? activeOpenSessionId;
+            if (sid) {
+              void sessionMutations.updateOpenCustomer.mutateAsync({
+                sessionId: sid,
+                customerName: result.customer.name,
+                customerPhone: result.customer.phone,
+              });
+            }
+          }
           setLoyaltyOpen(false);
           setPaymentOpen(true);
         }}
@@ -1822,8 +1954,16 @@ export default function PosCashierPage() {
         onCancel={() => setSelectTableOpen(false)}
         onSaveAsBill={() => void onSaveAsWalkInBill()}
         onContinue={onContinueSelectTable}
-      />
-      <PosNewBillDialog
+        onResumeSession={(session) => {
+          setSelectTableOpen(false);
+          const row: PosBillListRow = {
+            session,
+            groupName: "",
+            waiterName: "",
+          };
+          onSelectOpenBill(row);
+        }}
+      />      <PosNewBillDialog
         open={Boolean(newBillPick)}
         onOpenChange={(open) => {
           if (!open) setNewBillPick(null);
@@ -1831,6 +1971,7 @@ export default function PosCashierPage() {
         tableLabel={newBillPick?.name ?? ""}
         groupLabel={newBillPick?.groupName ?? ""}
         defaultPax={newBillPick?.pax ?? 1}
+        maxPax={newBillPick?.maxPax ?? newBillPick?.pax ?? 20}
         waiter={shiftWaiter.waiter}
         waiterLoading={shiftWaiter.isLoading}
         confirming={saveBusy}

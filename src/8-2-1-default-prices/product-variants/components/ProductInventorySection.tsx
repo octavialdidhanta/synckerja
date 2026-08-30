@@ -4,6 +4,9 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { InventoryRowDraft, VariantDraft } from "../types";
 import { ManageProductInventoryDialog } from "./ManageProductInventoryDialog";
 import { useState } from "react";
+import {
+  canStartItemInventoryTracking,
+} from "../../lib/displayRecipePosStatus";
 
 export type ProductInventorySectionProps = {
   productName: string;
@@ -12,6 +15,7 @@ export type ProductInventorySectionProps = {
   rows: InventoryRowDraft[];
   onRowsChange: (rows: InventoryRowDraft[]) => void;
   lockTracking: boolean;
+  hasBaseRecipe?: boolean;
 };
 
 export function ProductInventorySection({
@@ -21,10 +25,13 @@ export function ProductInventorySection({
   rows,
   onRowsChange,
   lockTracking,
+  hasBaseRecipe = false,
 }: ProductInventorySectionProps) {
   const { t } = useAppTranslation();
   const [open, setOpen] = useState(false);
   const tracking = lockTracking || rows.some((row) => row.trackStock);
+  const canStartTracking = canStartItemInventoryTracking(hasBaseRecipe);
+  const recipeLocksStart = hasBaseRecipe && !tracking;
   const summaryQty = rows.reduce((sum, row) => sum + (Number(row.inStock) || 0), 0);
 
   return (
@@ -46,8 +53,11 @@ export function ProductInventorySection({
       <Button
         type="button"
         className="w-full"
+        disabled={recipeLocksStart}
         onClick={() => {
+          if (recipeLocksStart) return;
           if (!tracking) {
+            if (!canStartTracking) return;
             onRowsChange(rows.map((row) => ({ ...row, trackStock: true })));
           }
           setOpen(true);
@@ -58,15 +68,22 @@ export function ProductInventorySection({
           : t("defaultPrices.product.inventory.start", "Start Tracking Item Inventory and Alerts")}
       </Button>
       <p className="flex gap-2 text-xs text-muted-foreground">
-        {tracking ? (
+        {hasBaseRecipe ? (
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+        ) : tracking ? (
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
         ) : (
           <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
         )}
-        {t(
-          "defaultPrices.product.inventory.immutable",
-          "Item stock can not be changed after saving the item, so please make sure that it is correct!",
-        )}
+        {hasBaseRecipe
+          ? t(
+              "defaultPrices.product.inventory.recipeLocksTracking",
+              "Living stock comes from the ingredient recipe. Do not track finished-goods item stock for this menu.",
+            )
+          : t(
+              "defaultPrices.product.inventory.immutable",
+              "Item stock can not be changed after saving the item, so please make sure that it is correct!",
+            )}
       </p>
       <ManageProductInventoryDialog
         open={open}
@@ -76,6 +93,7 @@ export function ProductInventorySection({
         variants={variants}
         rows={rows}
         lockTracking={lockTracking}
+        hasBaseRecipe={hasBaseRecipe}
         onConfirm={onRowsChange}
       />
     </section>

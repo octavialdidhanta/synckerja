@@ -17,6 +17,8 @@ type Props = {
   tableLabel: string;
   groupLabel: string;
   defaultPax: number;
+  /** Soft capacity remaining on the table for this new bill. */
+  maxPax?: number;
   waiter: PosShiftWaiterCandidate | null;
   waiterLoading?: boolean;
   confirming?: boolean;
@@ -29,20 +31,25 @@ export function PosNewBillDialog({
   tableLabel,
   groupLabel,
   defaultPax,
+  maxPax = 20,
   waiter,
   waiterLoading,
   confirming,
   onConfirm,
 }: Props) {
   const { t } = useAppTranslation();
-  const [pax, setPax] = useState(Math.min(20, Math.max(1, defaultPax || 1)));
+  const paxCeiling = Math.min(20, Math.max(1, Math.floor(maxPax) || 1));
+  const [pax, setPax] = useState(
+    Math.min(paxCeiling, Math.max(1, defaultPax || 1)),
+  );
   const [selectedWaiterId, setSelectedWaiterId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setPax(Math.min(20, Math.max(1, defaultPax || 1)));
+    const ceiling = Math.min(20, Math.max(1, Math.floor(maxPax) || 1));
+    setPax(Math.min(ceiling, Math.max(1, defaultPax || 1)));
     setSelectedWaiterId(waiter?.userId ?? null);
-  }, [open, defaultPax, waiter?.userId]);
+  }, [open, defaultPax, maxPax, waiter?.userId]);
 
   const canConfirm = Boolean(selectedWaiterId) && !confirming && !waiterLoading;
 
@@ -107,8 +114,8 @@ export function PosNewBillDialog({
               size="sm"
               variant="outline"
               className="h-8 w-8 p-0"
-              disabled={pax >= 20 || confirming}
-              onClick={() => setPax((v) => Math.min(20, v + 1))}
+              disabled={pax >= paxCeiling || confirming}
+              onClick={() => setPax((v) => Math.min(paxCeiling, v + 1))}
             >
               +
             </Button>

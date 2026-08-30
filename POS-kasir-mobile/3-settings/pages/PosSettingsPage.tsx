@@ -8,6 +8,8 @@ import { useAuth } from "@/shared/auth/contexts/AuthContext";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { usePosTabletShell } from "@/pos-mobile/shared/hooks/usePosTabletShell";
+import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
+import { resolvePosPostOutletPath } from "@/pos-mobile/shared/access";
 import { useMarkPosAuthSurface } from "@/pos-mobile/0-auth/lib/useMarkPosAuthSurface";
 import { POS_AUTH_PATHS } from "@/pos-mobile/0-auth/lib/posAuthPaths";
 import {
@@ -90,6 +92,7 @@ function PosSettingsRightPanel({
     section === "barcode-scanner" ||
     section === "gobiz-edc" ||
     section === "customer-display" ||
+    section === "kitchen-display" ||
     section === "support"
   ) {
     return <PosHardwareSoonPanel />;
@@ -114,6 +117,7 @@ export default function PosSettingsPage() {
   const { t, language } = useAppTranslation();
   const { user } = useAuth();
   const { organizationName, loading: orgLoading } = useCentralizedUserData();
+  const permissions = usePosAppPermissions();
   const [searchParams, setSearchParams] = useSearchParams();
   const checkout = useCatalogCheckoutSettings();
   const { rows: outlets } = usePosOutlets();
@@ -208,6 +212,22 @@ export default function PosSettingsPage() {
 
   if (orgLoading && !user) {
     return <PosSettingsSkeleton />;
+  }
+
+  if (permissions.isLoading) {
+    return <PosSettingsSkeleton />;
+  }
+
+  if (!permissions.canViewSettings()) {
+    return (
+      <Navigate
+        to={resolvePosPostOutletPath({
+          canCharge: permissions.canCharge(),
+          canKitchenDisplay: permissions.canKitchenDisplay(),
+        })}
+        replace
+      />
+    );
   }
 
   const displayOutletName = outletName || outletId || "";

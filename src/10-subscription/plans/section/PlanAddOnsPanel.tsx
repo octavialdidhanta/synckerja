@@ -24,6 +24,7 @@ type PlanAddOnsPanelProps = {
   omnichannelRosterActiveCount: number;
   leadMagnetActive?: boolean;
   posPaidOutletCount?: number;
+  posAddonActive?: boolean;
   isMidCycleActive?: boolean;
   isTrialPlan?: boolean;
   isExpired?: boolean;
@@ -44,6 +45,7 @@ export const PlanAddOnsPanel = memo(
     omnichannelRosterActiveCount,
     leadMagnetActive = false,
     posPaidOutletCount = 0,
+    posAddonActive = false,
     isMidCycleActive = false,
     isTrialPlan = false,
     isExpired = false,
@@ -93,6 +95,7 @@ export const PlanAddOnsPanel = memo(
           omnichannelRosterActiveCount={omnichannelRosterActiveCount}
           leadMagnetActive={leadMagnetActive}
           posPaidOutletCount={posPaidOutletCount}
+          posAddonActive={posAddonActive}
           isMidCycleActive={isMidCycleActive}
           isTrialPlan={isTrialPlan}
           isExpired={isExpired}

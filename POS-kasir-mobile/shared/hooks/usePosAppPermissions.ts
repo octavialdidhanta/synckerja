@@ -5,13 +5,19 @@ import {
   type PosSidebarItem,
   type PosSidebarItemId,
 } from "@/pos-mobile/2-cashier/components/sidebar/posSidebarItems";
+import { resolvePosAppCan } from "./resolvePosAppCan";
+
+const APP_POS_CHARGE = "app.pos.charge";
+const APP_KITCHEN_DISPLAY = "app.kitchen_display";
 
 /** Map POS mobile sidebar entries → App Permission keys (null = always show). */
 export const POS_SIDEBAR_PERMISSION_KEY: Record<PosSidebarItemId, string | null> = {
   tableMap: "app.table_map",
-  pointOfSale: "app.pos.charge",
+  pointOfSale: APP_POS_CHARGE,
+  kitchen: APP_KITCHEN_DISPLAY,
   onlineOrders: "app.online_orders",
-  activity: null,
+  /** Kitchen-only staff must not see Activity. */
+  activity: APP_POS_CHARGE,
   inventory: "app.inventory",
   shift: "app.shift.view_print",
   settings: "app.settings.view",
@@ -19,12 +25,21 @@ export const POS_SIDEBAR_PERMISSION_KEY: Record<PosSidebarItemId, string | null>
 
 /**
  * Light App Permission helper for POS-kasir-mobile.
- * Fail-open when the signed-in user has no POS staff membership.
+ * Fail-closed: staff role keys only. Office Owner/Admin `unrestricted` does not
+ * grant tablet features (e.g. KDS) without `app.kitchen_display` on the staff role.
  */
 export function usePosAppPermissions() {
   const acl = usePosStaffPermissions();
 
-  const can = (key: string) => acl.can(key);
+  const can = (key: string) =>
+    resolvePosAppCan(
+      {
+        isLoading: acl.isLoading,
+        hasStaffMembership: acl.hasStaffMembership,
+        permissionKeys: acl.permissionKeys,
+      },
+      key,
+    );
 
   const permissionKeySig = [...acl.permissionKeys].sort().join("|");
 
@@ -34,14 +49,13 @@ export function usePosAppPermissions() {
       if (!key) return true;
       return can(key);
     });
-  }, [acl.unrestricted, permissionKeySig]);
+  }, [acl.isLoading, acl.hasStaffMembership, permissionKeySig]);
 
   return {
     ...acl,
     can,
     sidebarItems,
-    /** Gate ready for actions not yet in UI (refund, discount, etc.). */
-    canCharge: () => can("app.pos.charge"),
+    canCharge: () => can(APP_POS_CHARGE),
     canManageOpenBills: () => can("app.pos.manage_open_bills"),
     canDiscount: () => can("app.pos.discounts"),
     canRefund: () => can("app.pos.refunds"),
@@ -53,6 +67,7 @@ export function usePosAppPermissions() {
     canEditSettings: () => can("app.settings.edit"),
     canEditCustomers: () => can("app.customers.edit"),
     canViewInventory: () => can("app.inventory"),
+    canKitchenDisplay: () => can(APP_KITCHEN_DISPLAY),
   };
 }
 

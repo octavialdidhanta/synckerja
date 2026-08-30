@@ -28,6 +28,4 @@ export const POS_TABLE_MAP_I18N = {
   sheetDeleteError: "posTableMap.sheet.deleteError",
   sheetEmptyBill: "posTableMap.sheet.emptyBill",
   billListTitle: "posTableMap.billList.title",
-  billListSubtitle: "posTableMap.billList.subtitle",
-  billListEmpty: "posTableMap.billList.empty",
 } as const;

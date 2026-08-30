@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { useOptimizedSubscription } from "@/10-subscription/hooks/useOptimizedSubscription";
 import { EmployeesStaffModuleShell } from "../layout/EmployeesStaffModuleShell";
 import { usePosEmployeeStaff } from "../hooks/usePosEmployeeStaff";
 import { usePosStaffInvite } from "../hooks/usePosStaffInvite";
@@ -22,6 +24,8 @@ export default function EmployeesStaffSlotsPage() {
   const { t } = useAppTranslation();
   const { toast } = useToast();
   const { orgBootstrapPending } = useOrgBootstrapPending();
+  const { subscriptionStatus } = useOptimizedSubscription({ includePlans: false });
+  const posAddonActive = Boolean(subscriptionStatus?.pos_addon_active);
   const { staff, slotRows, expiryDate, memberLimit, isLoading, isError, error, refetch } =
     usePosEmployeeStaff();
   const { resendInvitation } = usePosStaffInvite();
@@ -99,6 +103,19 @@ export default function EmployeesStaffSlotsPage() {
       <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
         <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <div className="flex-shrink-0 space-y-3 border-b px-4 py-3">
+            {!posAddonActive && (
+              <Alert>
+                <AlertDescription className="text-sm">
+                  {t(
+                    "employeesStaff.slots.posAddonInactiveHint",
+                    "Enable the POS add-on on Plans so staff can log in to the cashier tablet.",
+                  )}{" "}
+                  <Link to="/subscription/plans" className="font-medium text-primary underline">
+                    {t("employeesStaff.slots.posAddonInactiveCta", "Open Plans")}
+                  </Link>
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-base font-semibold">

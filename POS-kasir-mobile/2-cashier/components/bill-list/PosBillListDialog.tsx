@@ -117,7 +117,7 @@ export function PosBillListDialog({
           </Button>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto border-b border-slate-100 px-3 py-2">
+        <div className="scrollbar-hide flex gap-2 overflow-x-auto border-b border-slate-100 px-3 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map((item) => (
             <button
               key={item.id}
@@ -148,7 +148,7 @@ export function PosBillListDialog({
           <Search className="pointer-events-none absolute right-5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tab === "open" ? (
             <PosBillListSessionTable
               rows={openRows}

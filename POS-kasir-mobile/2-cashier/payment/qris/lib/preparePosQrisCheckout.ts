@@ -11,6 +11,7 @@ import {
 import type { CustomerVisitCartLine } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
 import type { CatalogCheckoutTotals } from "@/8-2-1-default-prices/checkout/lib/computeCatalogCheckoutTotals";
 import type { BuildPendingCheckoutPayloadArgs } from "@/shared/pos-qris/lib/buildPendingCheckoutPayload";
+import { ensurePosCheckoutLead } from "@/5-2-customer-visits/checkout/pos-bind";
 
 export type PreparePosQrisCheckoutInput = {
   organizationId: string;
@@ -30,45 +31,14 @@ export type PreparePosQrisCheckoutInput = {
   paymentChannelId?: string | null;
 };
 
-async function ensureWalkInLead(args: {
-  organizationId: string;
-  clientName: string;
-  clientPhone: string | null;
-  userId: string | null;
-}): Promise<string> {
-  const { data: defaultStatusRows } = await supabase
-    .from("lead_statuses")
-    .select("id")
-    .or(`organization_id.eq.${args.organizationId},organization_id.is.null`)
-    .order("sort_order", { ascending: true })
-    .limit(1);
-  const statusId = defaultStatusRows?.[0]?.id ?? null;
-
-  const { data, error } = await supabase
-    .from("leads")
-    .insert({
-      ticket_id: `pos-walkin-${crypto.randomUUID()}`,
-      client: args.clientName.trim() || "Walk-in",
-      title: "POS Walk-in",
-      category: "POS",
-      created_by: args.userId ?? "00000000-0000-0000-0000-000000000000",
-      created_by_name: "Synckerja POS",
-      assignee: "",
-      status_id: statusId,
-      organization_id: args.organizationId,
-      source: "POS",
-      followup: 0,
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-  if (!data?.id) throw new Error("pos_cashier_lead_create_failed");
-  return data.id as string;
-}
-
 export async function preparePosQrisCheckout(
   input: PreparePosQrisCheckoutInput,
-): Promise<{ checkout: BuildPendingCheckoutPayloadArgs; leadId: string; posShiftId: string | null }> {
+): Promise<{
+  checkout: BuildPendingCheckoutPayloadArgs;
+  leadId: string;
+  posShiftId: string | null;
+  boundByPhone: boolean;
+}> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -76,13 +46,20 @@ export async function preparePosQrisCheckout(
   let sessionId = input.sessionId ?? null;
   let seatedAt = input.seatedAt ?? null;
   if (input.posTableId && !sessionId) {
-    const open = await findOpenSessionForTable({
-      organizationId: input.organizationId,
-      posTableId: input.posTableId,
-    });
-    if (open) {
-      sessionId = open.id;
-      seatedAt = open.seated_at;
+    try {
+      const open = await findOpenSessionForTable({
+        organizationId: input.organizationId,
+        posTableId: input.posTableId,
+      });
+      if (open) {
+        sessionId = open.id;
+        seatedAt = open.seated_at;
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message === "pos_table_multiple_open_sessions") {
+        throw new Error("pos_table_multiple_open_sessions");
+      }
+      throw err;
     }
   }
 
@@ -103,12 +80,13 @@ export async function preparePosQrisCheckout(
     outletId: input.outletId,
   });
 
-  const leadId = await ensureWalkInLead({
+  const ensured = await ensurePosCheckoutLead({
     organizationId: input.organizationId,
+    phone: input.clientPhone,
     clientName: input.clientName,
-    clientPhone: input.clientPhone,
     userId: user?.id ?? null,
   });
+  const leadId = ensured.leadId;
 
   const tableDurationMinutes = seatedAt ? durationMinutesSince(seatedAt) : null;
 
@@ -134,5 +112,5 @@ export async function preparePosQrisCheckout(
     remainderCartLines: input.remainderCartLines,
   };
 
-  return { checkout, leadId, posShiftId };
+  return { checkout, leadId, posShiftId, boundByPhone: ensured.boundByPhone };
 }

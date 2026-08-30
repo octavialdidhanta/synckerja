@@ -9,4 +9,12 @@ export const POS_SELECT_TABLE_I18N = {
   walkInName: "posCashier.selectTable.walkInName",
   saved: "posCashier.selectTable.saved",
   saveError: "posCashier.selectTable.saveError",
+  pickBill: "posCashier.sharedTable.pickBill",
+  newBillOnTable: "posCashier.sharedTable.newBillOnTable",
+  noCapacity: "posCashier.sharedTable.noCapacity",
+  sharedCapacity: "posCashier.sharedTable.capacity",
+  sharedBills: "posCashier.sharedTable.bills",
+  sharedSessionPax: "posCashier.sharedTable.sessionPax",
+  remainingPax: "posCashier.sharedTable.remainingPax",
+  multipleOpenError: "posCashier.sharedTable.multipleOpenError",
 } as const;

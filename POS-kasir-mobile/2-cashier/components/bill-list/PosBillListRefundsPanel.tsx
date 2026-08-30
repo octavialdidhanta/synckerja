@@ -16,7 +16,13 @@ type Props = {
 function matchesQuery(row: PosBillListRow, q: string): boolean {
   const needle = q.trim().toLowerCase();
   if (!needle) return true;
-  const hay = [row.session.table_name, row.groupName, row.waiterName, row.session.sales_activity_id ?? ""]
+  const hay = [
+    row.session.table_name,
+    row.session.customer_name ?? "",
+    row.groupName,
+    row.waiterName,
+    row.session.sales_activity_id ?? "",
+  ]
     .join(" ")
     .toLowerCase();
   return hay.includes(needle);
@@ -43,11 +49,12 @@ export function PosBillListRefundsPanel({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="scrollbar-hide overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <table className="w-full min-w-[640px] border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-800">
             <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colTable, "Table")}</th>
+            <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colCustomer, "Customer")}</th>
             <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colWaiter, "Waiter")}</th>
             <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colTime, "Time")}</th>
             <th className="px-3 py-2 text-right">{t(POS_BILL_LIST_I18N.refundStock, "Refund")}</th>
@@ -65,6 +72,9 @@ export function PosBillListRefundsPanel({
               <tr key={row.session.id} className="border-b border-slate-100">
                 <td className="px-3 py-2.5 font-medium text-slate-900">
                   {row.session.table_name || "—"}
+                </td>
+                <td className="px-3 py-2.5 text-slate-700">
+                  {row.session.customer_name?.trim() || "—"}
                 </td>
                 <td className="px-3 py-2.5 text-slate-700">{row.waiterName}</td>
                 <td className="px-3 py-2.5 text-slate-700">{duration}</td>

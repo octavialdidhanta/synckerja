@@ -30,6 +30,7 @@ const HRISSubscriptionPlansTab = () => {
     lastPaidMemberCount,
     omnichannelPaidSeats,
     posPaidOutletCount,
+    posAddonActive,
     rosterCount,
     currentPlanId,
     currentMemberCount,
@@ -194,6 +195,7 @@ const HRISSubscriptionPlansTab = () => {
                           omnichannelPaidSeats={omnichannelPaidSeats}
                           omnichannelRosterActiveCount={rosterCount}
                           posPaidOutletCount={posPaidOutletCount}
+                          posAddonActive={posAddonActive}
                           onRenew={handleRenew}
                           onMemberCountChange={handleMemberCountChange}
                           onBillingCycleChange={handleBillingCycleChange}
@@ -269,6 +271,7 @@ const HRISSubscriptionPlansTab = () => {
                 omnichannelRosterActiveCount={rosterCount}
                 leadMagnetActive={subscriptionStatus?.lead_magnet_active ?? false}
                 posPaidOutletCount={posPaidOutletCount}
+                posAddonActive={posAddonActive}
                 isMidCycleActive={isMidCycleActive}
                 isTrialPlan={sidebarAddOnContext.isTrialPlan}
                 isExpired={subscriptionStatus?.is_expired ?? false}

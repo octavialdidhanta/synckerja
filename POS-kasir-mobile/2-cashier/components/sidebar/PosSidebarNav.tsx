@@ -17,7 +17,10 @@ export function PosSidebarNav({ activeId, badges, onSelect }: Props) {
   const { sidebarItems } = usePosAppPermissions();
 
   return (
-    <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto py-1" aria-label="POS">
+    <nav
+      className="scrollbar-hide flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      aria-label="POS"
+    >
       {sidebarItems.map((item) => (
         <PosSidebarNavItem
           key={item.id}

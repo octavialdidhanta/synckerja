@@ -63,6 +63,9 @@ export function PosCashierBillPanel({
   const { subtotal, gratuityLines, taxLines, grandTotal, applicationMethod } = checkoutTotals;
   const showBreakdown =
     lines.length > 0 && (gratuityLines.length > 0 || taxLines.length > 0);
+  const salesTypeValue = salesTypeOptions.some((opt) => opt.id === salesTypeId)
+    ? salesTypeId
+    : (salesTypeOptions[0]?.id ?? "");
 
   return (
     <aside className="flex h-full min-h-0 w-full max-w-md flex-col border-l border-slate-200 bg-white">
@@ -108,18 +111,22 @@ export function PosCashierBillPanel({
       ) : null}
 
       <div className="border-b border-slate-100 px-3 py-2">
-        <Select value={salesTypeId || undefined} onValueChange={onSalesTypeChange}>
-          <SelectTrigger className="h-10 w-full border-slate-200 bg-white">
-            <SelectValue placeholder="—" />
-          </SelectTrigger>
-          <SelectContent>
-            {salesTypeOptions.map((opt) => (
-              <SelectItem key={opt.id} value={opt.id}>
-                {opt.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {salesTypeValue ? (
+          <Select value={salesTypeValue} onValueChange={onSalesTypeChange}>
+            <SelectTrigger className="h-10 w-full border-slate-200 bg-white">
+              <SelectValue placeholder="—" />
+            </SelectTrigger>
+            <SelectContent>
+              {salesTypeOptions.map((opt) => (
+                <SelectItem key={opt.id} value={opt.id}>
+                  {opt.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="h-10 w-full rounded-md border border-slate-200 bg-white" aria-hidden />
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">

@@ -37,7 +37,7 @@ import { formatIdIntegerGrouping, parseGroupedIdInteger, stripToDigits } from ".
 import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
 import { activePosOutletIds } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { ProductOutletsSection } from "../product-outlets";
-import { ProductSalesStockHint } from "../products";
+import { ProductSalesStockHint, useProductIdsWithBaseRecipe } from "../products";
 import {
   effectivePosStatus,
   effectiveUnitPrice,
@@ -265,6 +265,10 @@ export function DefaultProductFormDialog({
   const resolvedUnit =
     unitPreset === CATALOG_PRODUCT_UNIT_CUSTOM ? normalizeProductUnit(customUnit) : unitPreset;
   const lockTracking = Boolean(editingRow?.track_stock);
+  const { data: recipeProductIds } = useProductIdsWithBaseRecipe(
+    editingRow?.id ? [editingRow.id] : [],
+  );
+  const hasBaseRecipe = Boolean(editingRow?.id && recipeProductIds?.has(editingRow.id));
   const lockCogs = Boolean(
     selectedOutletId &&
       (editingRow?.outlet_stocks?.[selectedOutletId]?.track_cogs ||
@@ -662,9 +666,11 @@ export function DefaultProductFormDialog({
                 setTrackStock(lockTracking || rows.some((row) => row.trackStock));
               }}
               lockTracking={lockTracking}
+              hasBaseRecipe={hasBaseRecipe}
             />
             <ProductSalesStockHint
               trackStock={lockTracking || inventoryRows.some((row) => row.trackStock)}
+              hasBaseRecipe={hasBaseRecipe}
             />
             <ProductCogsSection
               productName={name.trim()}

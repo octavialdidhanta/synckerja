@@ -85,6 +85,7 @@ interface PlanCardProps {
   omnichannelPaidSeats: number;
   omnichannelRosterActiveCount: number;
   posPaidOutletCount?: number;
+  posAddonActive?: boolean;
   onMemberCountChange: (planId: string, count: number) => void;
   onBillingCycleChange: (planId: string, isYearly: boolean) => void;
   onBillingTermChange?: (planId: string, months: BillingTermMonths) => void;
@@ -144,6 +145,7 @@ export const PlanCard = memo(
     omnichannelPaidSeats,
     omnichannelRosterActiveCount,
     posPaidOutletCount = 0,
+    posAddonActive = false,
     onMemberCountChange,
     onBillingCycleChange,
     onBillingTermChange,
@@ -297,7 +299,7 @@ export const PlanCard = memo(
         const visible = isOmni
           ? omnichannelPaidSeats > 0 || Boolean(sel?.included)
           : isPos
-            ? posPaidOutletCount > 0 || Boolean(sel?.included)
+            ? posAddonActive || posPaidOutletCount > 0 || Boolean(sel?.included)
             : Boolean(sel?.included);
         if (!visible) continue;
         const name = link.subscription_add_ons.name;
@@ -318,9 +320,13 @@ export const PlanCard = memo(
             <div key={code} className="text-xs text-muted-foreground">
               <div className="font-medium text-foreground">{name}</div>
               <div className="mt-0.5">
-                {t("subscription.plans.currentPlan.posOutletDetail", {
-                  count: Math.max(posPaidOutletCount, sel?.quantity ?? 0),
-                })}
+                {(posAddonActive || posPaidOutletCount > 0 || Boolean(sel?.included))
+                  ? t("subscription.plans.currentPlan.posAddonActiveWithOutlets", {
+                      count: Math.max(posPaidOutletCount, sel?.quantity ?? 0),
+                    })
+                  : t("subscription.plans.currentPlan.posOutletDetail", {
+                      count: Math.max(posPaidOutletCount, sel?.quantity ?? 0),
+                    })}
               </div>
             </div>,
           );
@@ -358,6 +364,7 @@ export const PlanCard = memo(
       omnichannelPaidSeats,
       omnichannelRosterActiveCount,
       posPaidOutletCount,
+      posAddonActive,
       t,
     ]);
 
@@ -611,6 +618,7 @@ export const PlanCard = memo(
                 isExpired={subscriptionStatus?.is_expired ?? false}
                 leadMagnetActive={subscriptionStatus?.lead_magnet_active ?? false}
                 posPaidOutletCount={posPaidOutletCount}
+                posAddonActive={posAddonActive}
               />
             )}
           </div>

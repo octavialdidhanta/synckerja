@@ -6,23 +6,26 @@ import { productSalesStockMode } from "@/stock-management/catalog-ledger/lib/pro
 
 export type ProductSalesStockHintProps = {
   trackStock: boolean;
-  /** When known, improves menu copy; omit if unknown. */
   hasBaseRecipe?: boolean;
 };
 
 export function ProductSalesStockHint({
   trackStock,
-  hasBaseRecipe,
+  hasBaseRecipe = false,
 }: ProductSalesStockHintProps) {
   const { t } = useAppTranslation();
   const mode = productSalesStockMode({
     kind: "product",
     trackStock,
-    hasBaseRecipe: hasBaseRecipe ?? !trackStock,
+    hasBaseRecipe,
   });
 
-  const body =
-    mode === "retailTracked"
+  const body = hasBaseRecipe
+    ? t(
+        "defaultPrices.product.stockModeMenuRecipe",
+        "Selling deducts ingredient stock from recipes on pay (not finished goods). Manage recipes under Ingredient → Recipes.",
+      )
+    : mode === "retailTracked"
       ? t(
           "defaultPrices.product.stockModeRetail",
           "Selling deducts finished goods stock on pay. Optional recipes also deduct Ingredient Library stock.",

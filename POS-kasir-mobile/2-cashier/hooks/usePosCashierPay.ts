@@ -10,6 +10,11 @@ import {
   rollbackStoreCheckoutSalesActivity,
 } from "@/5-2-customer-visits/checkout/lib/createStoreCheckoutSalesActivity";
 import {
+  ensurePosCheckoutLead,
+  recordPosPaidCustomerVisit,
+} from "@/5-2-customer-visits/checkout/pos-bind";
+import { normalizeCustomerVisitPhone } from "@/5-2-customer-visits/lib/normalizeCustomerVisitPhone";
+import {
   recordStoreCheckoutIncome,
   storeCheckoutNeedsOmnichannelBank,
 } from "@/5-2-customer-visits/checkout/lib/recordStoreCheckoutIncome";
@@ -27,6 +32,14 @@ import {
   POS_CASHIER_SHIFTS_QUERY_KEY,
   resolvePosShiftForPay,
 } from "@/pos-mobile/4-shift/lib/usePosCashierShift";
+import { markKitchenTicketsDoneForSession } from "@/pos-mobile/8-kitchen/lib/createPosKitchenTickets";
+import {
+  fireKitchenForCheckout,
+  type FireKitchenForCheckoutResult,
+} from "@/pos-mobile/8-kitchen/lib/fireKitchenForCheckout";
+import { shouldAutoDoneKitchenOnPay } from "@/pos-mobile/8-kitchen/lib/shouldAutoDoneKitchenOnPay";
+import type { KitchenFireBySalesType } from "@/pos-mobile/8-kitchen/lib/kitchenFirePolicy";
+import { ensurePayFirstKitchenSession } from "@/pos-mobile/2-cashier/lib/ensurePayFirstKitchenSession";
 import {
   durationMinutesSince,
   findOpenSessionForTable,
@@ -54,6 +67,16 @@ export type PosCashierPayInput = {
   remainderCartLines?: CustomerVisitCartLine[] | null;
   /** Waiter / order taker (from table session at pay). */
   servedByUserId?: string | null;
+  /** Kitchen fire on pay + auto-done gating. */
+  kitchenCheckout?: {
+    outletName: string;
+    tableName: string;
+    salesTypeLabel: string;
+    customerName?: string | null;
+    hadKitchenTicketsBeforePay: boolean;
+    sessionWasOpenBeforePay: boolean;
+    firePolicy: KitchenFireBySalesType;
+  };
 };
 
 async function resolveServedByUserId(args: {
@@ -70,42 +93,6 @@ async function resolveServedByUserId(args: {
   if (error) throw error;
   if (!data) return null;
   return (data.waiter_id as string | null) ?? (data.opened_by as string | null) ?? null;
-}
-
-async function ensureWalkInLead(args: {
-  organizationId: string;
-  clientName: string;
-  clientPhone: string | null;
-  userId: string | null;
-}): Promise<string> {
-  const { data: defaultStatusRows } = await supabase
-    .from("lead_statuses")
-    .select("id")
-    .or(`organization_id.eq.${args.organizationId},organization_id.is.null`)
-    .order("sort_order", { ascending: true })
-    .limit(1);
-  const statusId = defaultStatusRows?.[0]?.id ?? null;
-
-  const { data, error } = await supabase
-    .from("leads")
-    .insert({
-      ticket_id: `pos-walkin-${crypto.randomUUID()}`,
-      client: args.clientName.trim() || "Walk-in",
-      title: "POS Walk-in",
-      category: "POS",
-      created_by: args.userId ?? "00000000-0000-0000-0000-000000000000",
-      created_by_name: "Synckerja POS",
-      assignee: "",
-      status_id: statusId,
-      organization_id: args.organizationId,
-      source: "POS",
-      followup: 0,
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-  if (!data?.id) throw new Error("pos_cashier_lead_create_failed");
-  return data.id as string;
 }
 
 export function usePosCashierPay() {
@@ -131,14 +118,22 @@ export function usePosCashierPay() {
 
       let seatedAt = input.seatedAt ?? null;
       let sessionId = input.sessionId ?? null;
+      const originalSessionId = sessionId;
       if (input.posTableId && !sessionId) {
-        const open = await findOpenSessionForTable({
-          organizationId,
-          posTableId: input.posTableId,
-        });
-        if (open) {
-          sessionId = open.id;
-          seatedAt = open.seated_at;
+        try {
+          const open = await findOpenSessionForTable({
+            organizationId,
+            posTableId: input.posTableId,
+          });
+          if (open) {
+            sessionId = open.id;
+            seatedAt = open.seated_at;
+          }
+        } catch (err) {
+          if (err instanceof Error && err.message === "pos_table_multiple_open_sessions") {
+            throw new Error("pos_table_multiple_open_sessions");
+          }
+          throw err;
         }
       }
 
@@ -159,14 +154,16 @@ export function usePosCashierPay() {
         outletId: input.outletId,
       });
 
-      const leadId = await ensureWalkInLead({
+      const ensured = await ensurePosCheckoutLead({
         organizationId,
+        phone: input.clientPhone,
         clientName: input.clientName,
-        clientPhone: input.clientPhone,
         userId: user?.id ?? null,
       });
+      const leadId = ensured.leadId;
 
       let activityId: string | null = null;
+      let kitchenFireResult: FireKitchenForCheckoutResult | null = null;
       try {
         const tableDurationMinutes = seatedAt ? durationMinutesSince(seatedAt) : null;
 
@@ -191,6 +188,19 @@ export function usePosCashierPay() {
           lines: input.lines,
         });
 
+        const phoneKey = normalizeCustomerVisitPhone(input.clientPhone);
+        if (ensured.boundByPhone && phoneKey) {
+          await recordPosPaidCustomerVisit({
+            organizationId,
+            leadId,
+            salesActivityId: activityId,
+            phoneKey,
+            lookupRaw: input.clientPhone,
+            createdBy: user?.id ?? null,
+            boundByPhone: true,
+          });
+        }
+
         await applyStoreCheckoutOfflineSales({
           organizationId,
           activityId,
@@ -210,14 +220,48 @@ export function usePosCashierPay() {
           changedBy: user?.id ?? null,
         });
 
-        if (sessionId) {
+        if (input.kitchenCheckout) {
+          let kdsSessionId = originalSessionId;
+          if (!kdsSessionId) {
+            kdsSessionId = await ensurePayFirstKitchenSession({
+              organizationId,
+              outletId: input.outletId,
+              tableName: input.kitchenCheckout.tableName,
+              posTableId: input.posTableId ?? null,
+              customerName: input.kitchenCheckout.customerName,
+              customerPhone: input.clientPhone,
+              salesActivityId: activityId,
+              closedBy: user?.id ?? null,
+              waiterId: servedByUserId,
+            });
+          }
+
+          kitchenFireResult = await fireKitchenForCheckout({
+            organizationId,
+            outletId: input.outletId,
+            outletName: input.kitchenCheckout.outletName,
+            sessionId: kdsSessionId,
+            cartLines: input.lines,
+            event: "on_pay",
+            salesTypeLabel: input.kitchenCheckout.salesTypeLabel,
+            salesTypeId: input.salesTypeId ?? null,
+            tableName: input.kitchenCheckout.tableName,
+            posTableId: input.posTableId ?? null,
+            customerName: input.kitchenCheckout.customerName,
+            hadKitchenTicketsBeforePay: input.kitchenCheckout.hadKitchenTicketsBeforePay,
+            firePolicy: input.kitchenCheckout.firePolicy,
+            createdBy: user?.id ?? null,
+          });
+        }
+
+        if (originalSessionId) {
           if (input.keepSessionOpen) {
             const { error: updErr } = await supabase
               .from("pos_table_sessions")
               .update({
                 cart_snapshot: input.remainderCartLines ?? [],
               })
-              .eq("id", sessionId)
+              .eq("id", originalSessionId)
               .eq("status", "open");
             if (updErr) throw updErr;
           } else {
@@ -229,9 +273,28 @@ export function usePosCashierPay() {
                 sales_activity_id: activityId,
                 closed_by: user?.id ?? null,
               })
-              .eq("id", sessionId)
+              .eq("id", originalSessionId)
               .eq("status", "open");
             if (closeErr) throw closeErr;
+
+            const autoDone = input.kitchenCheckout
+              ? shouldAutoDoneKitchenOnPay({
+                  hadKitchenTicketsBeforePay:
+                    input.kitchenCheckout.hadKitchenTicketsBeforePay,
+                  sessionWasOpenBeforePay:
+                    input.kitchenCheckout.sessionWasOpenBeforePay,
+                  salesTypeLabel: input.kitchenCheckout.salesTypeLabel,
+                  settings: input.kitchenCheckout.firePolicy,
+                })
+              : true;
+
+            if (autoDone) {
+              try {
+                await markKitchenTicketsDoneForSession(originalSessionId);
+              } catch (kdsErr) {
+                console.error("markKitchenTicketsDoneForSession failed", kdsErr);
+              }
+            }
           }
         }
       } catch (err) {
@@ -246,11 +309,12 @@ export function usePosCashierPay() {
         throw err;
       }
 
-      return { activityId, leadId, posShiftId };
+      return { activityId, leadId, posShiftId, kitchenFireResult };
     },
     onSuccess: () => {
       if (!organizationId) return;
       queryClient.invalidateQueries({ queryKey: ["customer-visit-catalog", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["customer-visits", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["sales-activities", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["income-transactions", organizationId] });
       void invalidateCatalogStockCaches(queryClient, organizationId);
