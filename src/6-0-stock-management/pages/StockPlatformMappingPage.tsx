@@ -10,6 +10,10 @@ import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/ho
 import { DefaultProductFormDialog } from "@/8-2-1-default-prices/components/DefaultProductFormDialog";
 import { useDefaultPrices } from "@/8-2-1-default-prices/hooks/useDefaultPrices";
 import type { DefaultPriceCreate, DefaultPriceRow } from "@/8-2-1-default-prices/types/defaultPrices";
+import {
+  invalidateOrderCatalogQueries,
+  syncProductOrderPublish,
+} from "@/synckerja-order/5-backoffice-shell/hooks/useProductOrderPublish";
 import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
 import { defaultPosOutletId } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { Button } from "@/shared/components/ui/button";
@@ -149,18 +153,29 @@ function StockPlatformMappingContent() {
   const handleCreateProductFromSku = useCallback(
     async (payload: DefaultPriceCreate) => {
       if (!organizationId) return;
-      await create({
+      const created = await create({
         ...payload,
         organization_id: organizationId,
         kind: "product",
         selected_outlet_id: defaultOutletId,
       });
+      const productId = String(created?.id ?? payload.id ?? "");
+      if (productId) {
+        await syncProductOrderPublish({
+          organizationId,
+          productId,
+          selectedOutletId: defaultOutletId,
+          assignedOutletIds: payload.outlet_ids ?? (defaultOutletId ? [defaultOutletId] : []),
+          wantPublish: Boolean(payload.order_publish),
+        });
+        invalidateOrderCatalogQueries(queryClient, organizationId);
+      }
       toast.success(t("operations.inventory.orphanSku.productCreated", "Product created from SKU."));
       setProductDialogOpen(false);
       setProductPrefill(null);
       invalidate();
     },
-    [create, defaultOutletId, invalidate, organizationId, t],
+    [create, defaultOutletId, invalidate, organizationId, queryClient, t],
   );
 
   if (gatePending || (isLoading && mappings.length === 0)) {

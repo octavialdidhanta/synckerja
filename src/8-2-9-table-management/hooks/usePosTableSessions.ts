@@ -13,6 +13,7 @@ import {
   markKitchenTicketsDoneForSession,
   voidKitchenTicketsForSession,
 } from "@/pos-mobile/8-kitchen/lib/createPosKitchenTickets";
+import { planClearSeatedSessionUpdate } from "@/pos-mobile/2-cashier/lib/pay-first-seating";
 
 export const POS_TABLE_SESSIONS_QUERY_KEY = "pos-table-sessions";
 
@@ -77,6 +78,7 @@ export function usePosOpenTableSessions(outletId: string | null | undefined) {
         .eq("organization_id", organizationId)
         .eq("outlet_id", outletId)
         .eq("status", "open")
+        .eq("awaiting_cashier_claim", false)
         .is("closed_at", null)
         .order("seated_at", { ascending: true });
       if (error) throw error;
@@ -145,6 +147,9 @@ export function usePosTableSessionMutations(outletId: string | null | undefined)
     });
     void queryClient.invalidateQueries({
       queryKey: [POS_TABLE_SESSIONS_QUERY_KEY, "cancelled", organizationId, outletId],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: [POS_TABLE_SESSIONS_QUERY_KEY, "paid", organizationId, outletId],
     });
   };
 
@@ -350,6 +355,30 @@ export function usePosTableSessionMutations(outletId: string | null | undefined)
     onSuccess: invalidate,
   });
 
+  /**
+   * Pay-first dine-in seating: close OPEN → paid so the floor plan goes vacant.
+   * Does not reverse stock, auto-done KDS tickets, or refund the sale.
+   */
+  const clearSeatedOpenSession = useMutation({
+    mutationFn: async (args: { sessionId: string }): Promise<void> => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const patch = planClearSeatedSessionUpdate({
+        nowIso: new Date().toISOString(),
+        closedBy: user?.id ?? null,
+      });
+      const { error } = await supabase
+        .from("pos_table_sessions")
+        .update(patch)
+        .eq("id", args.sessionId)
+        .eq("status", "open")
+        .not("sales_activity_id", "is", null);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+
   return {
     upsertOpen,
     closePaid,
@@ -357,6 +386,7 @@ export function usePosTableSessionMutations(outletId: string | null | undefined)
     updateOpenCart,
     updateOpenCustomer,
     closeOpenCustomOnly,
+    clearSeatedOpenSession,
     invalidate,
   };
 }
@@ -377,6 +407,7 @@ export async function findOpenSessionForTable(args: {
     .eq("organization_id", args.organizationId)
     .eq("pos_table_id", args.posTableId)
     .eq("status", "open")
+    .eq("awaiting_cashier_claim", false)
     .is("closed_at", null)
     .order("seated_at", { ascending: true });
   if (error) throw error;

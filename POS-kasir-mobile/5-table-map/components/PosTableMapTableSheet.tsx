@@ -1,4 +1,4 @@
-import { FileText, Printer, Trash2, X } from "lucide-react";
+import { DoorOpen, FileText, Printer, Trash2, X } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   Dialog,
@@ -11,6 +11,7 @@ import { formatStoreCheckoutRp } from "@/5-2-customer-visits/checkout/lib/catalo
 import { sumCustomerVisitCart } from "@/5-2-customer-visits/checkout/lib/sumCustomerVisitCart";
 import type { PosTable } from "@/8-2-9-table-management/lib/posTableTypes";
 import type { PosTableSession } from "@/8-2-9-table-management/lib/posTableSessionTypes";
+import { isPaidSeatingSession } from "@/pos-mobile/2-cashier/lib/pay-first-seating";
 import { formatPosTableDuration } from "../lib/formatPosTableDuration";
 import { POS_TABLE_MAP_I18N } from "../lib/posTableMapCopy";
 
@@ -29,6 +30,7 @@ type Props = {
   onCreateOrder: () => void;
   onPrintBill: () => void;
   onDeleteBill: () => void;
+  onClearTable?: () => void;
   busy?: boolean;
 };
 
@@ -41,6 +43,7 @@ export function PosTableMapTableSheet({
   onCreateOrder,
   onPrintBill,
   onDeleteBill,
+  onClearTable,
   busy,
 }: Props) {
   const { t } = useAppTranslation();
@@ -48,6 +51,7 @@ export function PosTableMapTableSheet({
 
   const { table, groupName, session } = target;
   const occupied = Boolean(session);
+  const paidSeating = isPaidSeatingSession(session);
   const title = `${table.name} - ${groupName}`;
   const cartTotal = session
     ? sumCustomerVisitCart(session.cart_snapshot).total
@@ -75,8 +79,12 @@ export function PosTableMapTableSheet({
             <div className="mt-2 space-y-0.5 text-sm text-slate-600">
               <p>
                 {duration}
-                <span className="mx-1.5 text-slate-300">·</span>
-                {formatStoreCheckoutRp(cartTotal)}
+                {paidSeating ? null : (
+                  <>
+                    <span className="mx-1.5 text-slate-300">·</span>
+                    {formatStoreCheckoutRp(cartTotal)}
+                  </>
+                )}
               </p>
               <p className="text-xs text-slate-500">
                 {t(POS_TABLE_MAP_I18N.sheetPax, "{{count}} pax", { count: pax })}
@@ -94,7 +102,16 @@ export function PosTableMapTableSheet({
           )}
         </div>
 
-        {occupied ? (
+        {occupied && paidSeating ? (
+          <div className="flex flex-col divide-y divide-slate-100">
+            <ActionRow
+              icon={<DoorOpen className="h-5 w-5" />}
+              label={t(POS_TABLE_MAP_I18N.sheetClearTable, "Clear table")}
+              onClick={() => onClearTable?.()}
+              disabled={busy}
+            />
+          </div>
+        ) : occupied ? (
           <div className="flex flex-col divide-y divide-slate-100">
             <ActionRow
               icon={<FileText className="h-5 w-5" />}

@@ -10,6 +10,7 @@ import type {
   CustomerVisitCheckoutPaymentMethod,
 } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
 import { personalCustomerName } from "@/pos-receipt-feedback/lib/isGenericCustomerName";
+import { isPaySuccessNewTransactionBlocked } from "../../lib/pay-first-seating";
 import { POS_PAY_SUCCESS_I18N } from "../../lib/posPaySuccessCopy";
 
 export type PosPaySuccessPayload = {
@@ -22,6 +23,12 @@ export type PosPaySuccessPayload = {
   leadId: string | null;
   linesSnapshot: CustomerVisitCartLine[];
   totalsSnapshot: CatalogCheckoutTotals;
+  /** Pay-first KDS session to bind a table after dine-in pay. */
+  sessionId?: string | null;
+  needsTablePick?: boolean;
+  tableLabel?: string | null;
+  /** Hide email/SMS receipt block for Synckerja Order pay-at-cashier. */
+  checkoutChannel?: "synckerja_cashier" | "qris" | null;
 };
 
 type Props = {
@@ -31,9 +38,11 @@ type Props = {
   sendingEmail?: boolean;
   sendingSms?: boolean;
   printing?: boolean;
+  pickingTable?: boolean;
   onSendEmail: (email: string, customerName: string) => void;
   onSendSms: (phoneLocal: string, customerName: string) => void;
   onPrint: () => void;
+  onPickTable?: () => void;
   onNewTransaction: () => void;
 };
 
@@ -60,9 +69,11 @@ export function PosPaySuccessScreen({
   sendingEmail,
   sendingSms,
   printing,
+  pickingTable,
   onSendEmail,
   onSendSms,
   onPrint,
+  onPickTable,
   onNewTransaction,
 }: Props) {
   const { t } = useAppTranslation();
@@ -84,125 +95,166 @@ export function PosPaySuccessScreen({
       ? Math.max(0, Math.round(payload.cashTendered) - Math.round(payload.amountDue))
       : null;
   const showChange = payload.paymentMethod === "cash";
+  const newTxBlocked = isPaySuccessNewTransactionBlocked({
+    needsTablePick: payload.needsTablePick,
+    tableLabel: payload.tableLabel,
+  });
+  const showPickTable =
+    Boolean(payload.needsTablePick && !payload.tableLabel && onPickTable);
+  const showDigitalReceipt =
+    digitalEnabled && payload.checkoutChannel !== "synckerja_cashier";
 
   return (
-    <div className="fixed inset-0 z-[70] flex flex-col bg-slate-100">
-      <div className="px-4 pt-4">
+    <div className="fixed inset-0 z-[70] flex flex-col overflow-hidden bg-slate-100">
+      <div className="flex-shrink-0 px-4 pt-3 sm:pt-4">
         <p className="text-sm font-bold uppercase tracking-wide text-primary">
           {methodLabel(payload, t)}
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col items-center px-6 pb-8">
-        <div className="flex w-full max-w-md flex-1 flex-col">
-          <div className="flex flex-1 flex-col items-center justify-center">
-            <p className="text-sm text-slate-600">
-              {t(POS_PAY_SUCCESS_I18N.paid, "Paid {{amount}}", {
-                amount: formatStoreCheckoutRp(payload.amountDue),
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="mx-auto flex min-h-full w-full max-w-md flex-col items-center justify-center py-3">
+          <p className="text-sm text-slate-600">
+            {t(POS_PAY_SUCCESS_I18N.paid, "Paid {{amount}}", {
+              amount: formatStoreCheckoutRp(payload.amountDue),
+            })}
+          </p>
+
+          {showChange ? (
+            <>
+              <p className="mt-2 text-3xl font-bold text-primary sm:mt-3 sm:text-4xl">
+                {t(POS_PAY_SUCCESS_I18N.change, "Change")}
+              </p>
+              <p className="mt-1 text-3xl font-bold tabular-nums text-primary sm:text-4xl">
+                {formatStoreCheckoutRp(change ?? 0)}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-3xl font-bold text-primary sm:mt-3 sm:text-4xl">
+              {formatStoreCheckoutRp(payload.amountDue)}
+            </p>
+          )}
+
+          <span className="mt-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md sm:mt-6 sm:h-16 sm:w-16">
+            <Check className="h-8 w-8 sm:h-9 sm:w-9" strokeWidth={3} aria-hidden />
+          </span>
+
+          {payload.tableLabel ? (
+            <p className="mt-3 text-sm font-medium text-slate-700">
+              {t(POS_PAY_SUCCESS_I18N.tableAssigned, "Table: {{name}}", {
+                name: payload.tableLabel,
               })}
             </p>
+          ) : payload.needsTablePick ? (
+            <p className="mt-3 text-center text-xs text-slate-500">
+              {t(
+                POS_PAY_SUCCESS_I18N.needTable,
+                "Choose a table before starting a new transaction.",
+              )}
+            </p>
+          ) : null}
 
-            {showChange ? (
-              <>
-                <p className="mt-3 text-3xl font-bold text-primary sm:text-4xl">
-                  {t(POS_PAY_SUCCESS_I18N.change, "Change")}
-                </p>
-                <p className="mt-1 text-3xl font-bold tabular-nums text-primary sm:text-4xl">
-                  {formatStoreCheckoutRp(change ?? 0)}
-                </p>
-              </>
-            ) : (
-              <p className="mt-3 text-3xl font-bold text-primary sm:text-4xl">
-                {formatStoreCheckoutRp(payload.amountDue)}
-              </p>
-            )}
-
-            <span className="mt-6 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md">
-              <Check className="h-9 w-9" strokeWidth={3} aria-hidden />
-            </span>
-
-            {!digitalEnabled ? (
-              <p className="mt-8 text-center text-xs text-slate-500">
-                {t(
-                  POS_PAY_SUCCESS_I18N.digitalDisabled,
-                  "Digital receipt is only available for catalog sales.",
-                )}
-              </p>
-            ) : (
-              <div className="mt-8 w-full space-y-3">
+          {!showDigitalReceipt ? (
+            payload.checkoutChannel === "synckerja_cashier" ? null : (
+            <p className="mt-6 text-center text-xs text-slate-500">
+              {t(
+                POS_PAY_SUCCESS_I18N.digitalDisabled,
+                "Digital receipt is only available for catalog sales.",
+              )}
+            </p>
+            )
+          ) : (
+            <div className="mt-5 w-full space-y-3 sm:mt-8">
+              <Input
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder={t(POS_PAY_SUCCESS_I18N.namePlaceholder, "Customer name (optional)")}
+                className="h-11 bg-white"
+                disabled={sendingEmail || sendingSms}
+              />
+              <div className="flex gap-2">
                 <Input
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder={t(POS_PAY_SUCCESS_I18N.namePlaceholder, "Customer name (optional)")}
-                  className="h-11 bg-white"
-                  disabled={sendingEmail || sendingSms}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t(POS_PAY_SUCCESS_I18N.emailPlaceholder, "Email receipt")}
+                  className="h-11 flex-1 bg-white"
+                  disabled={sendingEmail}
                 />
-                <div className="flex gap-2">
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={t(POS_PAY_SUCCESS_I18N.emailPlaceholder, "Email receipt")}
-                    className="h-11 flex-1 bg-white"
-                    disabled={sendingEmail}
-                  />
-                  <Button
-                    type="button"
-                    className="h-11 shrink-0 px-5"
-                    disabled={sendingEmail || !email.trim()}
-                    onClick={() => onSendEmail(email.trim(), customerName.trim())}
-                  >
-                    {t(POS_PAY_SUCCESS_I18N.send, "Send")}
-                  </Button>
-                </div>
-                <div className="flex gap-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-white px-2">
-                    <span className="shrink-0 text-sm font-medium text-slate-600">+62</span>
-                    <Input
-                      value={phoneLocal}
-                      onChange={(e) => setPhoneLocal(e.target.value.replace(/\D/g, ""))}
-                      placeholder={t(POS_PAY_SUCCESS_I18N.smsPlaceholder, "SMS receipt")}
-                      className="h-11 border-0 shadow-none focus-visible:ring-0"
-                      inputMode="tel"
-                      disabled={sendingSms}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    className="h-11 shrink-0 px-5"
-                    disabled={sendingSms || phoneLocal.length < 8 || phoneLocal.length > 15}
-                    onClick={() => onSendSms(phoneLocal, customerName.trim())}
-                  >
-                    {t(POS_PAY_SUCCESS_I18N.send, "Send")}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  className="h-11 shrink-0 px-5"
+                  disabled={sendingEmail || !email.trim()}
+                  onClick={() => onSendEmail(email.trim(), customerName.trim())}
+                >
+                  {t(POS_PAY_SUCCESS_I18N.send, "Send")}
+                </Button>
               </div>
-            )}
-          </div>
+              <div className="flex gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-white px-2">
+                  <span className="shrink-0 text-sm font-medium text-slate-600">+62</span>
+                  <Input
+                    value={phoneLocal}
+                    onChange={(e) => setPhoneLocal(e.target.value.replace(/\D/g, ""))}
+                    placeholder={t(POS_PAY_SUCCESS_I18N.smsPlaceholder, "SMS receipt")}
+                    className="h-11 border-0 shadow-none focus-visible:ring-0"
+                    inputMode="tel"
+                    disabled={sendingSms}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  className="h-11 shrink-0 px-5"
+                  disabled={sendingSms || phoneLocal.length < 8 || phoneLocal.length > 15}
+                  onClick={() => onSendSms(phoneLocal, customerName.trim())}
+                >
+                  {t(POS_PAY_SUCCESS_I18N.send, "Send")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
-          <div className="mt-6 w-full space-y-2">
+      <div className="flex-shrink-0 border-t border-slate-200 bg-slate-100 px-6 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+        <div className="mx-auto w-full max-w-md space-y-2">
+          {showPickTable ? (
             <Button
               type="button"
               className="h-12 w-full text-base font-semibold"
-              disabled={printing || payload.linesSnapshot.length === 0}
-              onClick={onPrint}
+              disabled={pickingTable}
+              onClick={() => onPickTable?.()}
             >
-              {t(POS_PAY_SUCCESS_I18N.print, "Print Receipt")}
+              {t(POS_PAY_SUCCESS_I18N.pickTable, "Pick table")}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12 w-full border-primary text-base font-semibold text-primary"
-              onClick={() => {
-                setCustomerName("");
-                setEmail("");
-                setPhoneLocal("");
-                onNewTransaction();
-              }}
-            >
-              {t(POS_PAY_SUCCESS_I18N.newTransaction, "New Transaction")}
-            </Button>
-          </div>
+          ) : null}
+          <Button
+            type="button"
+            variant={showPickTable ? "outline" : "default"}
+            className={
+              showPickTable
+                ? "h-12 w-full border-primary text-base font-semibold text-primary"
+                : "h-12 w-full text-base font-semibold"
+            }
+            disabled={printing || payload.linesSnapshot.length === 0}
+            onClick={onPrint}
+          >
+            {t(POS_PAY_SUCCESS_I18N.print, "Print Receipt")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 w-full border-primary text-base font-semibold text-primary"
+            disabled={newTxBlocked}
+            onClick={() => {
+              setCustomerName("");
+              setEmail("");
+              setPhoneLocal("");
+              onNewTransaction();
+            }}
+          >
+            {t(POS_PAY_SUCCESS_I18N.newTransaction, "New Transaction")}
+          </Button>
         </div>
       </div>
     </div>

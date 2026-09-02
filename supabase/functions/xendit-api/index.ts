@@ -212,15 +212,48 @@ Deno.serve(async (req: Request) => {
 
     if (!env) return xenditJson({ error: "Xendit not configured on server" }, 503);
 
-    const userRes = await getUserFromBearer(admin, req.headers.get("Authorization"));
-    if ("error" in userRes) return userRes.error;
-
     let body: Record<string, unknown>;
     try {
       body = (await req.json()) as Record<string, unknown>;
     } catch {
       return xenditJson({ error: "Invalid JSON body" }, 400);
     }
+
+    const actionEarly = String(body.action ?? "").trim();
+    if (actionEarly === "createPublicOrderQris") {
+      const code = String(body.public_code ?? "").trim().toLowerCase();
+      const pendingId = String(body.pending_checkout_id ?? "").trim();
+      if (!/^[a-z0-9]{6}$/.test(code) || !pendingId) {
+        return xenditJson({ error: "Missing public_code or pending_checkout_id" }, 400);
+      }
+      const { data: outlet } = await admin
+        .from("pos_outlets")
+        .select("id, organization_id, public_code, is_deleted, is_active")
+        .eq("public_code", code)
+        .eq("is_deleted", false)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!outlet) return xenditJson({ error: "not_found" }, 404);
+      const { data: pending } = await admin
+        .from("pos_pending_checkouts")
+        .select("id, organization_id, pos_outlet_id, status")
+        .eq("id", pendingId)
+        .maybeSingle();
+      if (
+        !pending
+        || pending.organization_id !== outlet.organization_id
+        || pending.pos_outlet_id !== outlet.id
+      ) {
+        return xenditJson({ error: "forbidden" }, 403);
+      }
+      const row = await createPosQrisPayment(admin, env, String(outlet.organization_id), {
+        pending_checkout_id: pendingId,
+      });
+      return xenditJson({ ok: true, payment_request: row }, 200);
+    }
+
+    const userRes = await getUserFromBearer(admin, req.headers.get("Authorization"));
+    if ("error" in userRes) return userRes.error;
 
     const organizationId = String(body.organization_id ?? "").trim();
     if (!organizationId) return xenditJson({ error: "Missing organization_id" }, 400);

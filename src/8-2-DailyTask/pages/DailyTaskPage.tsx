@@ -11,7 +11,6 @@ import { TaskInitiativeFooter } from '../section/TaskInitiativeFooter';
 import { CreateDailyTemplateModal } from '../section/CreateDailyTemplateModal';
 import { DailyTaskProvider, useDailyTask } from '../context/DailyTaskContext';
 import { ApplyPendingApprovalFocusFromState } from '../components/ApplyPendingApprovalFocusFromState';
-import { MeetingNotesProvider } from '@/8-1-meeting-notes/context/MeetingNotesContext';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import { JobDescTracker, type JobDescTrackerStats } from '../section/JobDescTracker';
 import { JobDescSidebarFooter } from '../section/JobDescSidebarFooter';
@@ -35,12 +34,10 @@ import {
 
 const DailyTaskPage = () => {
   return (
-    <MeetingNotesProvider>
-      <DailyTaskProvider>
-        <ApplyPendingApprovalFocusFromState />
-        <DailyTaskContent />
-      </DailyTaskProvider>
-    </MeetingNotesProvider>
+    <DailyTaskProvider>
+      <ApplyPendingApprovalFocusFromState />
+      <DailyTaskContent />
+    </DailyTaskProvider>
   );
 };
 

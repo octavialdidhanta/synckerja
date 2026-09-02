@@ -3,6 +3,7 @@ import {
   CookingPot,
   DoorOpen,
   Footprints,
+  Minus,
   MonitorSmartphone,
   SquareParking,
   Store,
@@ -36,6 +37,12 @@ export const FIXTURE_VISUALS: Record<PosFloorFixtureType, FixtureVisual> = {
     fillClass: "bg-sky-100/90",
     borderClass: "border-sky-400",
     iconClass: "text-sky-700",
+  },
+  wall: {
+    icon: Minus,
+    fillClass: "bg-stone-400/95",
+    borderClass: "border-stone-600",
+    iconClass: "text-stone-800",
   },
   kitchen: {
     icon: CookingPot,
@@ -72,6 +79,7 @@ export function fixtureTypeFallback(type: PosFloorFixtureType): string {
     cashier: "Cashier",
     stairs: "Stairs",
     door: "Door",
+    wall: "Wall",
     kitchen: "Kitchen",
     washbasin: "Washbasin",
     kiosk: "Kiosk",

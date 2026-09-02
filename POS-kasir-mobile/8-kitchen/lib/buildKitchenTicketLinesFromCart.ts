@@ -1,18 +1,28 @@
 import { catalogItemLabel } from "@/5-2-customer-visits/checkout/lib/catalogLabel";
 import type { CustomerVisitCartLine } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
 import { cartLineFingerprint } from "@/pos-mobile/2-cashier/lib/cartLineFingerprint";
+import { sanitizeKitchenNote } from "@/synckerja-order/0-storefront/customize/lib/orderLineKitchenNote";
 import type { PosKitchenTicketLineInsert } from "./posKitchenTypes";
+
+function modifierLabel(name: string | undefined, quantity: number | undefined): string | null {
+  const label = name?.trim();
+  if (!label) return null;
+  const qty = Math.max(1, Math.round(Number(quantity) || 1));
+  return qty > 1 ? `${label} ×${qty}` : label;
+}
 
 function modifiersText(line: CustomerVisitCartLine): string | null {
   const parts: string[] = [];
   const variant = line.variantName?.trim();
   if (variant) parts.push(variant);
   for (const m of line.modifiers ?? []) {
-    const name = m.name?.trim();
-    if (name) parts.push(name);
+    const label = modifierLabel(m.name, m.quantity);
+    if (label) parts.push(label);
   }
   const sales = line.lineSalesTypeLabel?.trim();
   if (sales) parts.push(sales);
+  const note = sanitizeKitchenNote(line.kitchenNote);
+  if (note) parts.push(`Catatan: ${note}`);
   if (parts.length === 0) return null;
   return parts.join(" · ");
 }

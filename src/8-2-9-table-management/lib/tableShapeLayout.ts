@@ -1,6 +1,8 @@
 import type { PosTableShape } from "./posTableTypes";
 
 export const TABLE_MAP_CELL_PX = 56;
+/** One-sided tables occupy half a cell on the thin axis (counter / bar). */
+export const ONE_SIDED_THIN_RATIO = 0.5;
 export const TABLE_MAP_MIN_COLS = 12;
 export const TABLE_MAP_MIN_ROWS = 8;
 

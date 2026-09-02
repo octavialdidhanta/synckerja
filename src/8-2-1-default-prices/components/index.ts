@@ -2,6 +2,7 @@ export { DefaultPricesTable } from "./DefaultPricesTable";
 export { DefaultPriceFormDialog } from "./DefaultPriceFormDialog";
 export { DefaultProductFormDialog } from "./DefaultProductFormDialog";
 export { DefaultProductsTable } from "./DefaultProductsTable";
+export { FieldInfoTip } from "./FieldInfoTip";
 export { ProductCategoriesDialog, ProductCategoriesManager, AssignCategoryToItemsDialog } from "../categories";
 export { SopWorkflowModal } from "./SopWorkflowModal";
 export { ServicesManagementDialog } from "./ServicesManagementDialog";

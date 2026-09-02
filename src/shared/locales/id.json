@@ -1169,6 +1169,13 @@
   "posCashier": {
     "noProducts": "Tidak Ada Produk",
     "addCustomer": "+ Tambah Pelanggan",
+    "addCustomerTitle": "Tambah Pelanggan",
+    "customerRemove": "Hapus dari bill",
+    "useThisMember": "Pakai member ini",
+    "guestWithoutPhone": "Tamu tanpa nomor",
+    "guestWithoutPhoneHint": "Nama hanya di bill ini. Tidak disimpan sebagai member loyalty.",
+    "guestWithoutPhoneSave": "Simpan tamu di bill",
+    "guestNamePlaceholder": "Nama tamu",
     "billList": "Daftar Bill",
     "saveBill": "Simpan Bill",
     "printBill": "Cetak Bill",
@@ -1187,6 +1194,8 @@
     "customerSkip": "Lewati",
     "paySuccess": "Pembayaran berhasil",
     "payError": "Pembayaran gagal",
+    "cashierQrClaimSuccess": "Pesanan tamu dimuat",
+    "cashierQrClaimError": "Gagal memuat pesanan",
     "payAmountDueInvalid": "Tidak bisa membuka pembayaran: jumlah tagihan nol.",
     "recipeOutOfStock": "Stok habis",
     "allCategories": "Semua",
@@ -1272,7 +1281,8 @@
       "notFoundTitle": "Member tidak ditemukan",
       "unnamedMember": "Belum ada nama",
       "registerNewMember": "Daftar nomor ini",
-      "foundHint": "Sudah dipilih. Ketuk Lanjutkan untuk bayar. Ketuk kartu ini hanya jika ingin ubah nama.",
+      "foundHint": "Sudah dipilih. Ketuk Pakai member ini atau Lanjutkan. Nama CRM tidak bisa diubah di kasir.",
+      "nameLockedHint": "Nama ini dari CRM. Pakai member ini untuk menempel ke bill.",
       "tapToSetName": "Ketuk kartu ini untuk simpan nama",
       "saveNameTitle": "Nama pelanggan",
       "saveNamePlaceholder": "Nama lengkap",
@@ -1319,7 +1329,10 @@
       "invalidPhone": "Masukkan nomor telepon yang valid",
       "sendSuccess": "Struk terkirim",
       "sendError": "Gagal mengirim struk",
-      "printError": "Gagal mencetak"
+      "printError": "Gagal mencetak",
+      "pickTable": "Pilih meja",
+      "tableAssigned": "Meja: {{name}}",
+      "needTable": "Pilih meja sebelum Transaksi Baru."
     },
     "itemCustomize": {
       "cancel": "Batal",
@@ -1420,7 +1433,11 @@
       "printSuccess": "Bill dicetak",
       "printError": "Gagal mencetak",
       "deleteError": "Gagal menghapus bill",
-      "emptyBill": "Tidak ada produk pada bill ini"
+      "emptyBill": "Tidak ada produk pada bill ini",
+      "clearTable": "Kosongkan meja",
+      "confirmClear": "Kosongkan meja ini? Sesi duduk akan ditutup. Pembayaran tidak di-refund.",
+      "clearSuccess": "Meja dikosongkan",
+      "clearError": "Gagal mengosongkan meja"
     },
     "billList": {
       "title": "Daftar Bill",

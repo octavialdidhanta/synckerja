@@ -3,6 +3,9 @@ import { TaskFilters } from './useTaskFilters';
 
 const FILTER_STORAGE_KEY = 'daily-task-filters-v3'; // v3: default department = All Departments (ignore saved department)
 
+/** Default date filter on `/tools/daily-task?view=summary` (and the shared task list). */
+export const DEFAULT_PLAN_DATE_RANGE = 'this_month_plan' as const;
+
 const defaultFilters: TaskFilters = {
   search: '',
   status: '',
@@ -11,13 +14,46 @@ const defaultFilters: TaskFilters = {
   dateRange: undefined,
   customStartDate: undefined,
   customEndDate: undefined,
-  planDateRange: undefined, // Default "All Dates & Plans" so task list is not empty; user can switch to "This Month Plan" etc.
+  planDateRange: DEFAULT_PLAN_DATE_RANGE,
   customPlanMonth: undefined,
   pic: '',
   myTask: 'all', // Default to "All" so users see all org tasks; switch to "My Task" to filter
   department: undefined, // Default "All Departments" so list shows all; user can filter by department if needed
   objectiveLink: 'all', // 'unlinked' = only tasks with no Individual Objective
 };
+
+function hasSavedDateRange(parsed: Partial<TaskFilters>): boolean {
+  return typeof parsed.dateRange === 'string' && parsed.dateRange.length > 0;
+}
+
+function hasSavedPlanDateRange(parsed: Partial<TaskFilters>): boolean {
+  return typeof parsed.planDateRange === 'string' && parsed.planDateRange.length > 0;
+}
+
+/** Merge persisted filters with defaults without combining a due-date + plan filter. */
+export function mergeSavedTaskFilters(parsed: Partial<TaskFilters>): TaskFilters {
+  const savedDateRange = hasSavedDateRange(parsed);
+  const savedPlanDateRange = hasSavedPlanDateRange(parsed);
+
+  return {
+    ...defaultFilters,
+    ...parsed,
+    department: defaultFilters.department,
+    myTask: parsed.myTask === 'all' || parsed.myTask === 'my_task'
+      ? parsed.myTask
+      : defaultFilters.myTask,
+    picLevel: parsed.picLevel === 'all' ? 'task' : (parsed.picLevel || undefined),
+    objectiveLink: parsed.objectiveLink === 'all' || parsed.objectiveLink === 'unlinked'
+      ? parsed.objectiveLink
+      : defaultFilters.objectiveLink,
+    dateRange: savedDateRange ? parsed.dateRange : undefined,
+    planDateRange: savedPlanDateRange
+      ? parsed.planDateRange
+      : savedDateRange
+        ? undefined
+        : defaultFilters.planDateRange,
+  };
+}
 
 export interface UseTaskFilterStateOptions {
   onStorageError?: (message: string) => void;
@@ -33,20 +69,8 @@ export const useTaskFilterState = (options?: UseTaskFilterStateOptions) => {
     try {
       const saved = localStorage.getItem(FILTER_STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        // Validate and merge with defaults; always use All Departments as default (ignore saved department)
-        return {
-          ...defaultFilters,
-          ...parsed,
-          department: defaultFilters.department, // Always default "All Departments"
-          myTask: parsed.myTask === 'all' || parsed.myTask === 'my_task'
-            ? parsed.myTask
-            : defaultFilters.myTask,
-          picLevel: parsed.picLevel === 'all' ? 'task' : (parsed.picLevel || undefined),
-          objectiveLink: parsed.objectiveLink === 'all' || parsed.objectiveLink === 'unlinked'
-            ? parsed.objectiveLink
-            : defaultFilters.objectiveLink,
-        };
+        const parsed = JSON.parse(saved) as Partial<TaskFilters>;
+        return mergeSavedTaskFilters(parsed);
       }
     } catch (error) {
       console.warn('Failed to load filters from localStorage:', error);

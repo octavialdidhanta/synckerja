@@ -18,4 +18,7 @@ export const POS_PAY_SUCCESS_I18N = {
   sendSuccess: "posCashier.paySuccessScreen.sendSuccess",
   sendError: "posCashier.paySuccessScreen.sendError",
   printError: "posCashier.paySuccessScreen.printError",
+  pickTable: "posCashier.paySuccessScreen.pickTable",
+  tableAssigned: "posCashier.paySuccessScreen.tableAssigned",
+  needTable: "posCashier.paySuccessScreen.needTable",
 } as const;

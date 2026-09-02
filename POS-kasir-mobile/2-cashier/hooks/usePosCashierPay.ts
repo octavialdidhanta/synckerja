@@ -40,6 +40,7 @@ import {
 import { shouldAutoDoneKitchenOnPay } from "@/pos-mobile/8-kitchen/lib/shouldAutoDoneKitchenOnPay";
 import type { KitchenFireBySalesType } from "@/pos-mobile/8-kitchen/lib/kitchenFirePolicy";
 import { ensurePayFirstKitchenSession } from "@/pos-mobile/2-cashier/lib/ensurePayFirstKitchenSession";
+import { shouldKeepPayFirstSessionOpen } from "@/pos-mobile/2-cashier/lib/pay-first-seating";
 import {
   durationMinutesSince,
   findOpenSessionForTable,
@@ -164,6 +165,7 @@ export function usePosCashierPay() {
 
       let activityId: string | null = null;
       let kitchenFireResult: FireKitchenForCheckoutResult | null = null;
+      let resolvedSessionId: string | null = originalSessionId;
       try {
         const tableDurationMinutes = seatedAt ? durationMinutesSince(seatedAt) : null;
 
@@ -233,6 +235,10 @@ export function usePosCashierPay() {
               salesActivityId: activityId,
               closedBy: user?.id ?? null,
               waiterId: servedByUserId,
+              keepOpen: shouldKeepPayFirstSessionOpen({
+                existingSessionId: originalSessionId,
+                salesTypeLabel: input.kitchenCheckout.salesTypeLabel,
+              }),
             });
           }
 
@@ -252,6 +258,7 @@ export function usePosCashierPay() {
             firePolicy: input.kitchenCheckout.firePolicy,
             createdBy: user?.id ?? null,
           });
+          resolvedSessionId = kdsSessionId;
         }
 
         if (originalSessionId) {
@@ -309,7 +316,13 @@ export function usePosCashierPay() {
         throw err;
       }
 
-      return { activityId, leadId, posShiftId, kitchenFireResult };
+      return {
+        activityId,
+        leadId,
+        posShiftId,
+        kitchenFireResult,
+        sessionId: resolvedSessionId,
+      };
     },
     onSuccess: () => {
       if (!organizationId) return;

@@ -27,5 +27,9 @@ export const POS_TABLE_MAP_I18N = {
   sheetPrintError: "posTableMap.sheet.printError",
   sheetDeleteError: "posTableMap.sheet.deleteError",
   sheetEmptyBill: "posTableMap.sheet.emptyBill",
+  sheetClearTable: "posTableMap.sheet.clearTable",
+  sheetConfirmClear: "posTableMap.sheet.confirmClear",
+  sheetClearSuccess: "posTableMap.sheet.clearSuccess",
+  sheetClearError: "posTableMap.sheet.clearError",
   billListTitle: "posTableMap.billList.title",
 } as const;

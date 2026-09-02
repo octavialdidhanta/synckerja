@@ -1,4 +1,5 @@
 import { supabase } from "@/shared/lib/supabaseClient";
+import { planPayFirstSessionInsert } from "./pay-first-seating";
 
 export type EnsurePayFirstKitchenSessionArgs = {
   organizationId: string;
@@ -14,10 +15,16 @@ export type EnsurePayFirstKitchenSessionArgs = {
   customerPhone?: string | null;
   salesActivityId?: string | null;
   closedBy?: string | null;
+  /**
+   * Dine-in pay-first: insert OPEN (cart empty, activity id set) so the
+   * floor plan can occupy a table until Kosongkan meja.
+   * Takeaway / default: insert paid + closed_at.
+   */
+  keepOpen?: boolean;
 };
 
 /**
- * For pay-first checkout without an open bill: insert a paid walk-in/table session
+ * For pay-first checkout without an open bill: insert a walk-in/table session
  * so KDS tickets can reference session_id (NOT NULL FK).
  */
 export async function ensurePayFirstKitchenSession(
@@ -31,6 +38,12 @@ export async function ensurePayFirstKitchenSession(
 
   const now = new Date().toISOString();
   const tableName = args.tableName.trim() || "Walk-in";
+  const planned = planPayFirstSessionInsert({
+    keepOpen: Boolean(args.keepOpen),
+    nowIso: now,
+    closedBy: args.closedBy ?? user?.id ?? null,
+    pax: args.pax,
+  });
 
   const { data, error } = await supabase
     .from("pos_table_sessions")
@@ -40,14 +53,14 @@ export async function ensurePayFirstKitchenSession(
       group_id: args.posTableId ? args.groupId ?? null : null,
       pos_table_id: args.posTableId ?? null,
       table_name: tableName,
-      pax: args.pax ?? 1,
-      status: "paid",
+      pax: planned.pax,
+      status: planned.status,
       opened_by: user?.id ?? null,
       waiter_id: args.waiterId ?? user?.id ?? null,
-      closed_at: now,
-      closed_by: args.closedBy ?? user?.id ?? null,
+      closed_at: planned.closed_at,
+      closed_by: planned.closed_by,
       sales_activity_id: args.salesActivityId ?? null,
-      cart_snapshot: [],
+      cart_snapshot: planned.cart_snapshot,
       customer_name: args.customerName?.trim() || null,
       customer_phone: args.customerPhone?.trim() || null,
     })

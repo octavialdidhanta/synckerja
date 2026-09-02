@@ -19,7 +19,7 @@ export function PosSelectTableGroupTabs({
   if (groups.length === 0) return null;
 
   return (
-    <div className="flex items-stretch gap-1 overflow-x-auto bg-primary px-2 py-2">
+    <div className="scrollbar-hide flex items-stretch gap-1 overflow-x-auto bg-primary px-2 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {groups.map((group) => {
         const active = group.id === activeGroupId;
         const occupied = occupiedByGroupId.get(group.id) ?? 0;

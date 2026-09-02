@@ -1,7 +1,9 @@
 import { cn } from "@/shared/lib/utils";
 import type { PosFloorFixture } from "../lib/posFloorFixtureTypes";
-import { FIXTURE_VISUALS } from "../lib/fixtureVisuals";
+import { FIXTURE_VISUALS, type FixtureVisual } from "../lib/fixtureVisuals";
 import { TABLE_MAP_CELL_PX } from "../../lib/tableShapeLayout";
+import { isSidewaysRotation } from "../../lib/tableRotation";
+import { edgeStripLayout, isEdgeStripFixtureType, isFixedCellFixtureType } from "../lib/fixtureLayout";
 
 type Props = {
   fixture: Pick<
@@ -13,7 +15,7 @@ type Props = {
   className?: string;
 };
 
-/** Type-specific floor-plan silhouette (door strip, stair steps, etc.). */
+/** Type-specific floor-plan silhouette (door strip, stair box, etc.). */
 export function FixtureShapeBody({
   fixture,
   selected,
@@ -25,32 +27,88 @@ export function FixtureShapeBody({
   const Icon = visual.icon;
   const sideways = fixture.grid_h > fixture.grid_w;
 
-  if (fixture.fixture_type === "door") {
+  if (isEdgeStripFixtureType(fixture.fixture_type)) {
+    const { vertical, pinEnd } = edgeStripLayout(fixture);
+    return (
+      <EdgeStripBody
+        visual={visual}
+        selected={selected}
+        muted={muted}
+        vertical={vertical}
+        pinEnd={pinEnd}
+        label={fixture.fixture_type === "door" ? fixture.name : undefined}
+        className={className}
+      />
+    );
+  }
+
+  if (isFixedCellFixtureType(fixture.fixture_type)) {
+    const { vertical, pinEnd } = edgeStripLayout(fixture);
     return (
       <span
         className={cn(
-          "absolute inset-0 flex items-center justify-center",
+          "absolute inset-0 flex",
+          vertical
+            ? pinEnd
+              ? "justify-end"
+              : "justify-start"
+            : pinEnd
+              ? "items-end"
+              : "items-start",
           className,
         )}
       >
         <span
           className={cn(
-            "relative flex items-center justify-center border-2 shadow-sm",
+            "flex items-center justify-center overflow-hidden rounded-none border-2 px-0.5 text-center shadow-none",
             visual.fillClass,
             visual.borderClass,
             selected && "ring-2 ring-primary/40",
             muted && "opacity-90",
-            sideways
-              ? "h-full w-[26%] min-w-[8px] max-w-[16px] rounded-sm"
-              : "h-[26%] min-h-[8px] max-h-[16px] w-full rounded-sm",
+            vertical ? "h-full w-1/2 min-w-[22px]" : "h-1/2 min-h-[22px] w-full",
           )}
         >
-          <span
-            className={cn(
-              "truncate px-0.5 text-[9px] font-semibold leading-none text-slate-800",
-              sideways && "rotate-90 whitespace-nowrap",
-            )}
-          >
+          <span className="flex max-w-full flex-col items-center justify-center gap-0">
+            <Icon className={cn("h-3.5 w-3.5 shrink-0", visual.iconClass)} aria-hidden />
+            <span className="max-w-full truncate text-[8px] font-semibold leading-tight text-slate-800">
+              {fixture.name}
+            </span>
+          </span>
+        </span>
+      </span>
+    );
+  }
+
+  if (fixture.fixture_type === "parking") {
+    return (
+      <span
+        className={cn(
+          "absolute inset-0 flex items-center justify-center overflow-hidden rounded-none border-2 px-1 text-center shadow-none",
+          visual.fillClass,
+          visual.borderClass,
+          selected && "ring-2 ring-primary/40",
+          muted && "opacity-90",
+          className,
+        )}
+      >
+        <span
+          className={cn(
+            "flex max-w-full flex-col items-center justify-center gap-0.5",
+            sideways && "-rotate-90",
+          )}
+          style={
+            sideways
+              ? {
+                  maxWidth: Math.max(
+                    24,
+                    fixture.grid_h * TABLE_MAP_CELL_PX - 16,
+                  ),
+                }
+              : undefined
+          }
+        >
+          <Icon className={cn("h-4 w-4 shrink-0", visual.iconClass)} aria-hidden />
+          <span className="max-w-full truncate text-[10px] font-semibold leading-tight text-slate-800">
             {fixture.name}
           </span>
         </span>
@@ -59,62 +117,39 @@ export function FixtureShapeBody({
   }
 
   if (fixture.fixture_type === "stairs") {
-    const steps = Math.max(
-      3,
-      Math.min(6, Math.round(Math.max(fixture.grid_w, fixture.grid_h) + 1)),
-    );
+    const cols = Math.max(1, fixture.grid_w);
+    const rows = Math.max(1, fixture.grid_h);
+    const vertical = isSidewaysRotation(fixture.rotation);
     return (
-      <span className={cn("absolute inset-0", muted && "opacity-80", className)}>
-        <svg
-          viewBox="0 0 100 100"
-          className="absolute inset-0 h-full w-full overflow-visible"
-          preserveAspectRatio="none"
-          aria-hidden
-        >
-          <path
-            d={buildStairSilhouette(steps)}
-            fill="#94a3b8"
-            fillOpacity={0.75}
-            stroke={selected ? "hsl(var(--primary))" : "#475569"}
-            strokeWidth={1.75}
-            vectorEffect="non-scaling-stroke"
-          />
-          {Array.from({ length: steps - 1 }).map((_, i) => {
-            const stepW = 100 / steps;
-            const x = (i + 1) * stepW;
-            const y = 100 - ((i + 1) / steps) * 100;
-            return (
-              <path
-                key={i}
-                d={`M ${x} 100 L ${x} ${y} L ${x + stepW} ${y}`}
-                fill="none"
-                stroke="#475569"
-                strokeWidth={1.25}
-                vectorEffect="non-scaling-stroke"
-              />
-            );
-          })}
-        </svg>
-        <span
-          className={cn(
-            "pointer-events-none absolute text-center text-[9px] font-semibold leading-none text-slate-700 drop-shadow-[0_0_2px_rgba(255,255,255,0.9)]",
-            sideways
-              ? "left-1/2 top-1/2 max-w-[90%] -translate-x-1/2 -translate-y-1/2 -rotate-90 truncate"
-              : "bottom-1 left-1/2 max-w-[90%] -translate-x-1/2 truncate",
-          )}
-          style={
-            sideways
-              ? {
-                  maxWidth: Math.max(
-                    24,
-                    fixture.grid_h * TABLE_MAP_CELL_PX - 12,
-                  ),
-                }
-              : undefined
-          }
-        >
-          {fixture.name}
-        </span>
+      <span
+        className={cn(
+          "absolute inset-0 grid overflow-hidden rounded-none border-2 shadow-none",
+          visual.fillClass,
+          visual.borderClass,
+          selected && "ring-2 ring-primary/40",
+          muted && "opacity-90",
+          className,
+        )}
+        style={{
+          gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+        }}
+      >
+        {Array.from({ length: cols * rows }, (_, i) => {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          return (
+            <StairCell
+              key={i}
+              vertical={vertical}
+              className={cn(
+                visual.borderClass,
+                col < cols - 1 && "border-r-2",
+                row < rows - 1 && "border-b-2",
+              )}
+            />
+          );
+        })}
       </span>
     );
   }
@@ -122,7 +157,7 @@ export function FixtureShapeBody({
   return (
     <span
       className={cn(
-        "absolute inset-1 flex items-center justify-center overflow-hidden rounded-md border-2 px-1 text-center shadow-sm",
+        "absolute inset-0 flex items-center justify-center overflow-hidden rounded-none border-2 px-1 text-center shadow-none",
         visual.fillClass,
         visual.borderClass,
         selected && "ring-2 ring-primary/40",
@@ -155,18 +190,89 @@ export function FixtureShapeBody({
   );
 }
 
-/** Filled stair block rising left → right. */
-function buildStairSilhouette(steps: number): string {
-  const parts: string[] = ["M 0 100"];
-  for (let i = 0; i < steps; i += 1) {
-    const x0 = (i / steps) * 100;
-    const x1 = ((i + 1) / steps) * 100;
-    const yRise = 100 - (i / steps) * 100;
-    const yNext = 100 - ((i + 1) / steps) * 100;
-    parts.push(`L ${x0} ${yRise}`);
-    parts.push(`L ${x1} ${yRise}`);
-    parts.push(`L ${x1} ${yNext}`);
-  }
-  parts.push("L 100 100 Z");
-  return parts.join(" ");
+function EdgeStripBody({
+  visual,
+  selected,
+  muted,
+  vertical,
+  pinEnd,
+  label,
+  className,
+}: {
+  visual: FixtureVisual;
+  selected?: boolean;
+  muted?: boolean;
+  vertical: boolean;
+  pinEnd: boolean;
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "absolute inset-0 flex",
+        vertical
+          ? pinEnd
+            ? "justify-end"
+            : "justify-start"
+          : pinEnd
+            ? "items-end"
+            : "items-start",
+        className,
+      )}
+    >
+      <span
+        className={cn(
+          "relative flex items-center justify-center rounded-none border-2 shadow-none",
+          visual.fillClass,
+          visual.borderClass,
+          selected && "ring-2 ring-primary/40",
+          muted && "opacity-90",
+          vertical ? "h-full w-3.5 min-w-[12px]" : "h-3.5 min-h-[12px] w-full",
+        )}
+      >
+        {label ? (
+          <span
+            className={cn(
+              "truncate px-0.5 text-[9px] font-semibold leading-none text-slate-800",
+              vertical && "rotate-90 whitespace-nowrap",
+            )}
+          >
+            {label}
+          </span>
+        ) : null}
+      </span>
+    </span>
+  );
+}
+
+function StairCell({
+  vertical,
+  className,
+}: {
+  vertical: boolean;
+  className?: string;
+}) {
+  const stairLine = vertical ? "h-full bg-slate-600" : "w-full bg-slate-600";
+  return (
+    <span className={cn("min-h-0 min-w-0 overflow-hidden", className)}>
+      <span
+        className={cn(
+          "grid h-full w-full",
+          vertical
+            ? "grid-cols-[1fr_2px_1fr_2px_1fr_2px_1fr]"
+            : "grid-rows-[1fr_2px_1fr_2px_1fr_2px_1fr]",
+        )}
+        aria-hidden
+      >
+        <span />
+        <span className={stairLine} />
+        <span />
+        <span className={stairLine} />
+        <span />
+        <span className={stairLine} />
+        <span />
+      </span>
+    </span>
+  );
 }

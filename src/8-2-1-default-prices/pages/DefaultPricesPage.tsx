@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -38,12 +39,17 @@ import type { DefaultPriceRow, DefaultPriceCreate, DefaultPriceUpdate } from "..
 import { OutletFilterSelect } from "@/8-2-2-outlets/components/OutletFilterSelect";
 import { useSelectedPosOutlet } from "@/8-2-2-outlets/hooks/useSelectedPosOutlet";
 import { effectivePosStatus } from "../product-outlets/lib/effectiveProductOutlet";
+import {
+  invalidateOrderCatalogQueries,
+  syncProductOrderPublish,
+} from "@/synckerja-order/5-backoffice-shell/hooks/useProductOrderPublish";
 
 const FILTER_ALL = "__all__";
 
 export default function DefaultPricesPage() {
   const { t } = useAppTranslation();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const catalogTab = catalogTabFromPathname(location.pathname);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<DefaultPriceRow | null>(null);
@@ -212,6 +218,7 @@ export default function DefaultPricesPage() {
 
   const handleSubmitProduct = useCallback(
     async (payload: DefaultPriceCreate) => {
+      let productId = editingRow?.id ?? payload.id ?? "";
       if (editingRow) {
         await update({
           id: editingRow.id,
@@ -240,13 +247,24 @@ export default function DefaultPricesPage() {
           },
         });
       } else {
-        await create(payload);
+        const created = await create(payload);
+        productId = String(created?.id ?? payload.id ?? "");
+      }
+      if (organizationId && productId) {
+        await syncProductOrderPublish({
+          organizationId,
+          productId,
+          selectedOutletId: payload.selected_outlet_id,
+          assignedOutletIds: payload.outlet_ids ?? [],
+          wantPublish: Boolean(payload.order_publish),
+        });
+        invalidateOrderCatalogQueries(queryClient, organizationId);
       }
       setDialogOpen(false);
       setEditingRow(null);
       setPrefillRow(null);
     },
-    [editingRow, create, update],
+    [editingRow, create, update, organizationId, queryClient],
   );
 
   return (

@@ -1169,6 +1169,13 @@
   "posCashier": {
     "noProducts": "No Products",
     "addCustomer": "+ Add Customer",
+    "addCustomerTitle": "Add customer",
+    "customerRemove": "Remove from bill",
+    "useThisMember": "Use this member",
+    "guestWithoutPhone": "Guest without a phone",
+    "guestWithoutPhoneHint": "Name only on this bill. Not saved as a loyalty member.",
+    "guestWithoutPhoneSave": "Save guest on bill",
+    "guestNamePlaceholder": "Guest name",
     "billList": "Bill List",
     "saveBill": "Save Bill",
     "printBill": "Print Bill",
@@ -1187,6 +1194,8 @@
     "customerSkip": "Skip",
     "paySuccess": "Payment recorded",
     "payError": "Payment failed",
+    "cashierQrClaimSuccess": "Guest order loaded",
+    "cashierQrClaimError": "Could not load order",
     "payAmountDueInvalid": "Cannot open payment: bill amount is zero.",
     "recipeOutOfStock": "Out of stock",
     "allCategories": "All",
@@ -1272,7 +1281,8 @@
       "notFoundTitle": "Member not found",
       "unnamedMember": "No name yet",
       "registerNewMember": "Register this number",
-      "foundHint": "Already selected. Tap Continue to pay. Tap this card only to change the name.",
+      "foundHint": "Already selected. Tap Use this member or Continue. The CRM name cannot be changed in POS.",
+      "nameLockedHint": "This name comes from CRM. Use this member to attach the bill.",
       "tapToSetName": "Tap this card to save a name",
       "saveNameTitle": "Customer name",
       "saveNamePlaceholder": "Full name",
@@ -1319,7 +1329,10 @@
       "invalidPhone": "Enter a valid phone number",
       "sendSuccess": "Receipt sent",
       "sendError": "Failed to send receipt",
-      "printError": "Print failed"
+      "printError": "Print failed",
+      "pickTable": "Pick table",
+      "tableAssigned": "Table: {{name}}",
+      "needTable": "Choose a table before starting a new transaction."
     },
     "itemCustomize": {
       "cancel": "Cancel",
@@ -1420,7 +1433,11 @@
       "printSuccess": "Bill printed",
       "printError": "Print failed",
       "deleteError": "Failed to delete bill",
-      "emptyBill": "No products on this bill"
+      "emptyBill": "No products on this bill",
+      "clearTable": "Clear table",
+      "confirmClear": "Clear this table? The dining session will close. Payment is not refunded.",
+      "clearSuccess": "Table cleared",
+      "clearError": "Failed to clear table"
     },
     "billList": {
       "title": "Bill List",

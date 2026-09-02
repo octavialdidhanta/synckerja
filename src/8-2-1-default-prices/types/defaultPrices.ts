@@ -71,6 +71,7 @@ export interface DefaultPriceCreate {
   use_default_price?: boolean;
   use_default_status?: boolean;
   outlet_overrides?: Record<string, ProductOutletOverride>;
+  order_publish?: boolean;
 }
 
 export interface DefaultPriceUpdate {
@@ -95,4 +96,5 @@ export interface DefaultPriceUpdate {
   use_default_price?: boolean;
   use_default_status?: boolean;
   outlet_overrides?: Record<string, ProductOutletOverride>;
+  order_publish?: boolean;
 }

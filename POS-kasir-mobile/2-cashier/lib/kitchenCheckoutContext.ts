@@ -94,10 +94,11 @@ export type RunKitchenFireOnPayArgs = {
   servedByUserId?: string | null;
   salesActivityId: string;
   closedBy?: string | null;
+  keepPayFirstSessionOpen?: boolean;
   kitchenCheckout: KitchenPayCheckoutContext;
 };
 
-/** Fire KDS on pay; returns session id (may create pay-first paid session). */
+/** Fire KDS on pay; returns session id (may create pay-first walk-in session). */
 export async function runKitchenFireOnPay(
   args: RunKitchenFireOnPayArgs,
 ): Promise<{ sessionId: string | null; result: FireKitchenForCheckoutResult }> {
@@ -118,6 +119,7 @@ export async function runKitchenFireOnPay(
       salesActivityId: args.salesActivityId,
       closedBy: args.closedBy ?? null,
       waiterId: args.servedByUserId ?? null,
+      keepOpen: Boolean(args.keepPayFirstSessionOpen),
     });
   }
 

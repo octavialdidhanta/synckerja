@@ -92,6 +92,7 @@ export default defineConfig(({ mode }) => {
   server: {
     host: "::",
     port: 8080,
+    allowedHosts: true,
     ...(devHttps ? { https: {} } : {}),
     hmr: {
       overlay: false,
@@ -292,6 +293,10 @@ export default defineConfig(({ mode }) => {
       {
         find: /^@\/pos-mobile\/(.*)$/,
         replacement: `${path.resolve(__dirname, "POS-kasir-mobile")}/$1`,
+      },
+      {
+        find: /^@\/synckerja-order\/(.*)$/,
+        replacement: `${path.resolve(__dirname, "synckerja-order")}/$1`,
       },
       { find: "@", replacement: path.resolve(__dirname, "./src") },
     ],

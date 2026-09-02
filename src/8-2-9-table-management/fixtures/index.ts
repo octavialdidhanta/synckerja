@@ -7,6 +7,9 @@ export {
   POS_FLOOR_FIXTURE_TYPES,
   FIXTURE_DEFAULT_FOOTPRINT,
   FIXTURE_SIZE_EDITABLE_ON_ADD,
+  EDGE_STRIP_FIXTURE_TYPES,
+  LENGTH_RESIZABLE_FIXTURE_TYPES,
+  FIXED_CELL_FIXTURE_TYPES,
 } from "./lib/posFloorFixtureTypes";
 export {
   usePosFloorFixtures,
@@ -27,5 +30,11 @@ export {
   applyFixtureRotation,
   findFixtureFreeCell,
   fixtureAxisBox,
+  edgeStripLayout,
+  isEdgeStripFixtureType,
+  isFixedCellFixtureType,
+  normalizeEdgeStripFootprint,
+  normalizeFixedCellFootprint,
+  resizeFixtureAlongAxis,
 } from "./lib/fixtureLayout";
-export type { OccupancyBox } from "./lib/fixtureLayout";
+export type { OccupancyBox, FixtureRect, FixtureLengthEdge } from "./lib/fixtureLayout";

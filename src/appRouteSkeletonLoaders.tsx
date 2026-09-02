@@ -233,6 +233,12 @@ export const TableManagementPageSkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const SynckerjaOrderPageSkeleton = createDeferredSkeleton(() =>
+  import("@/synckerja-order/5-backoffice-shell/pages/SynckerjaOrderPageSkeleton").then((m) => ({
+    default: m.SynckerjaOrderPageSkeleton,
+  })),
+);
+
 export const ReportsPageSkeleton = createDeferredSkeleton(() =>
   import("@/8-2-10-reports/pages/ReportsPageSkeleton").then((m) => ({
     default: m.ReportsPageSkeleton,

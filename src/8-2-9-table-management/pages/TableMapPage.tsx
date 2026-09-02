@@ -45,12 +45,22 @@ import {
   applyFixtureRotation,
   defaultFootprintForType,
   findFixtureFreeCell,
+  isEdgeStripFixtureType,
+  isFixedCellFixtureType,
+  normalizeEdgeStripFootprint,
+  normalizeFixedCellFootprint,
 } from "../fixtures/lib/fixtureLayout";
+import type { FixtureRect } from "../fixtures/lib/fixtureLayout";
 import { nextFixtureName } from "../fixtures/lib/fixtureNaming";
 import {
   fixtureTypeFallback,
   fixtureTypeLabelKey,
 } from "../fixtures/lib/fixtureVisuals";
+import {
+  findPasteCell,
+  nextUniqueMapName,
+  type MapClipboardItem,
+} from "../lib/mapClipboard";
 
 function cloneTables(rows: PosTable[]): PosTable[] {
   return rows.map((r) => ({ ...r, isNew: false }));
@@ -161,6 +171,7 @@ export default function TableMapPage() {
   const [selectedKind, setSelectedKind] = useState<MapSelectionKind | null>(
     null,
   );
+  const [clipboard, setClipboard] = useState<MapClipboardItem | null>(null);
   const skipClickRef = useRef(false);
 
   useEffect(() => {
@@ -199,6 +210,7 @@ export default function TableMapPage() {
     setDeletedFixtureIds([]);
     setSelectedId(null);
     setSelectedKind(null);
+    setClipboard(null);
   }, [
     serverTables,
     serverFixtures,
@@ -309,6 +321,152 @@ export default function TableMapPage() {
     setSelectedId(fixture.id);
     setSelectedKind("fixture");
   };
+
+  const handleCopy = useCallback(() => {
+    if (selectedKind === "table") {
+      const row = draft.find((t) => t.id === selectedId);
+      if (!row) {
+        toast({
+          title: t(
+            "tableManagement.map.copyEmpty",
+            "Select a table or floor item to copy.",
+          ),
+        });
+        return;
+      }
+      setClipboard({ kind: "table", source: { ...row } });
+      toast({ title: t("tableManagement.map.copied", "Copied.") });
+      return;
+    }
+    if (selectedKind === "fixture") {
+      const row = draftFixtures.find((f) => f.id === selectedId);
+      if (!row) {
+        toast({
+          title: t(
+            "tableManagement.map.copyEmpty",
+            "Select a table or floor item to copy.",
+          ),
+        });
+        return;
+      }
+      setClipboard({ kind: "fixture", source: { ...row } });
+      toast({ title: t("tableManagement.map.copied", "Copied.") });
+      return;
+    }
+    toast({
+      title: t(
+        "tableManagement.map.copyEmpty",
+        "Select a table or floor item to copy.",
+      ),
+    });
+  }, [draft, draftFixtures, selectedId, selectedKind, t, toast]);
+
+  const pasteFromClipboardItem = useCallback(
+    (item: MapClipboardItem) => {
+      if (!selectedOutletId || !selectedGroupId) return;
+      const occupied = occupancyFromDrafts(draft, draftFixtures);
+      const now = new Date().toISOString();
+      if (item.kind === "table") {
+        const src = item.source;
+        const pos = findPasteCell(occupied, src, src);
+        const id = crypto.randomUUID();
+        setDraft((prev) => [
+          ...prev,
+          {
+            ...src,
+            id,
+            name: nextUniqueMapName(
+              src.name,
+              prev.map((row) => row.name),
+            ),
+            outlet_id: selectedOutletId,
+            group_id: selectedGroupId,
+            grid_x: pos.grid_x,
+            grid_y: pos.grid_y,
+            is_deleted: false,
+            deleted_at: null,
+            created_at: now,
+            updated_at: now,
+            isNew: true,
+          },
+        ]);
+        setSelectedId(id);
+        setSelectedKind("table");
+        return;
+      }
+      const src = item.source;
+      const pos = findPasteCell(occupied, src, src);
+      const id = crypto.randomUUID();
+      setDraftFixtures((prev) => [
+        ...prev,
+        {
+          ...src,
+          id,
+          name: nextUniqueMapName(
+            src.name,
+            prev.map((row) => row.name),
+          ),
+          outlet_id: selectedOutletId,
+          group_id: selectedGroupId,
+          grid_x: pos.grid_x,
+          grid_y: pos.grid_y,
+          is_deleted: false,
+          deleted_at: null,
+          created_at: now,
+          updated_at: now,
+          isNew: true,
+        },
+      ]);
+      setSelectedId(id);
+      setSelectedKind("fixture");
+    },
+    [draft, draftFixtures, selectedGroupId, selectedOutletId],
+  );
+
+  const handlePaste = useCallback(() => {
+    if (!clipboard) {
+      toast({
+        title: t(
+          "tableManagement.map.pasteEmpty",
+          "Copy an item first, then paste.",
+        ),
+      });
+      return;
+    }
+    pasteFromClipboardItem(clipboard);
+    toast({ title: t("tableManagement.map.pasted", "Pasted.") });
+  }, [clipboard, pasteFromClipboardItem, t, toast]);
+
+  const handleDuplicate = useCallback(() => {
+    let item: MapClipboardItem | null = null;
+    if (selectedKind === "table") {
+      const row = draft.find((t) => t.id === selectedId);
+      if (row) item = { kind: "table", source: { ...row } };
+    } else if (selectedKind === "fixture") {
+      const row = draftFixtures.find((f) => f.id === selectedId);
+      if (row) item = { kind: "fixture", source: { ...row } };
+    }
+    if (!item) {
+      toast({
+        title: t(
+          "tableManagement.map.copyEmpty",
+          "Select a table or floor item to copy.",
+        ),
+      });
+      return;
+    }
+    setClipboard(item);
+    pasteFromClipboardItem(item);
+    toast({ title: t("tableManagement.map.pasted", "Pasted.") });
+  }, [
+    draft,
+    draftFixtures,
+    pasteFromClipboardItem,
+    selectedId,
+    selectedKind,
+    t,
+    toast,
+  ]);
 
   const openEdit = (table: PosTable) => {
     if (skipClickRef.current) {
@@ -491,6 +649,18 @@ export default function TableMapPage() {
   };
 
   const handleFixtureDialogSubmit = (values: FloorFixtureDialogValues) => {
+    const rotation =
+      fixtureDialogMode === "edit" && editingFixture
+        ? editingFixture.rotation
+        : 0;
+    const size = isFixedCellFixtureType(values.fixture_type)
+      ? normalizeFixedCellFootprint()
+      : isEdgeStripFixtureType(values.fixture_type)
+      ? normalizeEdgeStripFootprint(values.grid_w, values.grid_h, rotation)
+      : {
+          grid_w: Math.max(1, values.grid_w),
+          grid_h: Math.max(1, values.grid_h),
+        };
     if (fixtureDialogMode === "edit" && editingFixture) {
       const occupied = occupancyFromDrafts(draft, draftFixtures).filter(
         (o) => o.id !== editingFixture.id,
@@ -498,8 +668,8 @@ export default function TableMapPage() {
       const candidate = {
         x: editingFixture.grid_x,
         y: editingFixture.grid_y,
-        w: values.grid_w,
-        h: values.grid_h,
+        w: size.grid_w,
+        h: size.grid_h,
       };
       const clash = occupied.some(
         (o) =>
@@ -526,8 +696,8 @@ export default function TableMapPage() {
             ? {
                 ...row,
                 name: values.name,
-                grid_w: values.grid_w,
-                grid_h: values.grid_h,
+                grid_w: size.grid_w,
+                grid_h: size.grid_h,
               }
             : row,
         ),
@@ -535,8 +705,8 @@ export default function TableMapPage() {
     } else {
       const defaults = defaultFootprintForType(values.fixture_type);
       const fp = {
-        grid_w: Math.max(1, values.grid_w || defaults.grid_w),
-        grid_h: Math.max(1, values.grid_h || defaults.grid_h),
+        grid_w: Math.max(1, size.grid_w || defaults.grid_w),
+        grid_h: Math.max(1, size.grid_h || defaults.grid_h),
       };
       const occupied = occupancyFromDrafts(draft, draftFixtures);
       const pos = findFixtureFreeCell(occupied, fp);
@@ -628,6 +798,37 @@ export default function TableMapPage() {
     [],
   );
 
+  const handleResizeFixture = useCallback(
+    (fixture: PosFloorFixture, next: FixtureRect) => {
+      const occupied = occupancyFromDrafts(draft, draftFixtures);
+      const clash = occupied.some((o) => {
+        if (o.id === fixture.id) return false;
+        return !(
+          next.grid_x + next.grid_w <= o.grid_x ||
+          o.grid_x + o.grid_w <= next.grid_x ||
+          next.grid_y + next.grid_h <= o.grid_y ||
+          o.grid_y + o.grid_h <= next.grid_y
+        );
+      });
+      if (clash) return;
+      skipClickRef.current = true;
+      setDraftFixtures((prev) =>
+        prev.map((row) =>
+          row.id === fixture.id
+            ? {
+                ...row,
+                grid_x: next.grid_x,
+                grid_y: next.grid_y,
+                grid_w: next.grid_w,
+                grid_h: next.grid_h,
+              }
+            : row,
+        ),
+      );
+    },
+    [draft, draftFixtures],
+  );
+
   const handleSave = async () => {
     if (!selectedOutletId || !selectedGroupId) return;
     try {
@@ -671,6 +872,10 @@ export default function TableMapPage() {
               groupsLoading={groupsLoading}
               onAddTable={openAdd}
               onAddFloorItem={openAddFixture}
+              onCopy={handleCopy}
+              onPaste={handlePaste}
+              canCopy={Boolean(selectedId && selectedKind)}
+              canPaste={Boolean(clipboard)}
               onSave={() => void handleSave()}
               saveDisabled={!dirty || !selectedGroupId}
               saving={saving}
@@ -735,8 +940,12 @@ export default function TableMapPage() {
                 onEditFixture={openEditFixture}
                 onMoveTable={handleMoveTable}
                 onMoveFixture={handleMoveFixture}
+                onResizeFixture={handleResizeFixture}
                 onRotateTable={handleRotateTable}
                 onRotateFixture={handleRotateFixture}
+                onCopy={handleCopy}
+                onPaste={handlePaste}
+                onDuplicate={handleDuplicate}
               />
             )}
           </div>

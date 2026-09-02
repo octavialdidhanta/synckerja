@@ -1,3 +1,4 @@
+import { DEFAULT_PLAN_DATE_RANGE } from '@/shared/hooks/daily-task/useTaskFilterState';
 import type { TaskFilters } from '@/shared/hooks/daily-task/useTaskFilters';
 
 /**
@@ -7,7 +8,6 @@ import type { TaskFilters } from '@/shared/hooks/daily-task/useTaskFilters';
 const DEFAULT_SEARCH = '';
 const DEFAULT_MY_TASK: 'all' | 'my_task' = 'all';
 const DEFAULT_STATUS = '';
-const DEFAULT_PLAN_DATE_RANGE = 'this_month_plan' as const;
 
 /**
  * Returns true if any of the mobile-visible filters differ from default.

@@ -27,8 +27,15 @@ type Props = {
   onEditFixture: (fixture: PosFloorFixture) => void;
   onMoveTable: (id: string, grid_x: number, grid_y: number) => void;
   onMoveFixture: (id: string, grid_x: number, grid_y: number) => void;
+  onResizeFixture: (
+    fixture: PosFloorFixture,
+    next: { grid_x: number; grid_y: number; grid_w: number; grid_h: number },
+  ) => void;
   onRotateTable: (table: PosTable) => void;
   onRotateFixture: (fixture: PosFloorFixture) => void;
+  onCopy?: () => void;
+  onPaste?: () => void;
+  onDuplicate?: () => void;
 };
 
 type DragKind = MapSelectionKind;
@@ -45,8 +52,12 @@ export function TableMapCanvas({
   onEditFixture,
   onMoveTable,
   onMoveFixture,
+  onResizeFixture,
   onRotateTable,
   onRotateFixture,
+  onCopy,
+  onPaste,
+  onDuplicate,
 }: Props) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
@@ -193,7 +204,6 @@ export function TableMapCanvas({
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (dialogOpen) return;
-      if (e.key !== "r" && e.key !== "R") return;
       const target = e.target as HTMLElement | null;
       if (
         target &&
@@ -204,6 +214,27 @@ export function TableMapCanvas({
       ) {
         return;
       }
+      const key = e.key.toLowerCase();
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && key === "c") {
+        if (!selectedId || !selectedKind) return;
+        e.preventDefault();
+        onCopy?.();
+        return;
+      }
+      if (mod && key === "v") {
+        e.preventDefault();
+        onPaste?.();
+        return;
+      }
+      if (mod && key === "d") {
+        if (!selectedId || !selectedKind) return;
+        e.preventDefault();
+        onDuplicate?.();
+        return;
+      }
+      if (key !== "r") return;
+      if (mod) return;
       if (!selectedId || !selectedKind) return;
       e.preventDefault();
       if (selectedKind === "table") {
@@ -219,6 +250,9 @@ export function TableMapCanvas({
   }, [
     dialogOpen,
     fixtures,
+    onCopy,
+    onPaste,
+    onDuplicate,
     onRotateFixture,
     onRotateTable,
     selectedId,
@@ -289,6 +323,7 @@ export function TableMapCanvas({
             }}
             onDoubleClick={onEditFixture}
             onRotate={onRotateFixture}
+            onResize={onResizeFixture}
           />
         ))}
 

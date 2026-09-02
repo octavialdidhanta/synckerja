@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { I18nextProvider } from "react-i18next";
 import { initI18n } from "@/shared/i18n/index.ts";
 import { RouteSkeletonBootShell } from "@/shared/components/route-loading/createDeferredSkeleton";
+import { shouldMountOrderStoreApp } from "@/synckerja-order/shared/lib/orderUrls";
 import "./index.css";
 
 const ASSET_RELOAD_KEY = "sj-asset-reload";
@@ -18,6 +19,13 @@ const SurveyPublicApp = lazy(() =>
   import("@/features/customer-survey/public/SurveyPublicApp.tsx").then((m) => {
     sessionStorage.removeItem(ASSET_RELOAD_KEY);
     return { default: m.SurveyPublicApp };
+  }),
+);
+
+const OrderStoreApp = lazy(() =>
+  import("@/synckerja-order/0-storefront/OrderStoreApp.tsx").then((m) => {
+    sessionStorage.removeItem(ASSET_RELOAD_KEY);
+    return { default: m.OrderStoreApp };
   }),
 );
 
@@ -82,6 +90,7 @@ setupAssetLoadRecovery();
 registerServiceWorker();
 
 const surveyHost = import.meta.env.VITE_PUBLIC_SURVEY_HOSTNAME?.trim();
+const orderHost = import.meta.env.VITE_PUBLIC_ORDER_HOSTNAME?.trim();
 const rootEl = document.getElementById("root")!;
 
 void (async () => {
@@ -91,15 +100,20 @@ void (async () => {
   ]);
   await ensureNativeAppSurface();
 
-  const isSurveyHost =
-    typeof window !== "undefined" &&
-    surveyHost &&
-    window.location.hostname.toLowerCase() === surveyHost.toLowerCase();
+  const hostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "/";
+  const isSurveyHost = Boolean(surveyHost && hostname === surveyHost.toLowerCase());
+  const isOrderHost = shouldMountOrderStoreApp({
+    hostname,
+    pathname,
+    expectedHost: orderHost || undefined,
+    allowLanStorefront: import.meta.env.DEV,
+  });
 
   createRoot(rootEl).render(
     <I18nextProvider i18n={i18n}>
       <Suspense fallback={<RouteSkeletonBootShell className="min-h-screen" />}>
-        {isSurveyHost ? <SurveyPublicApp /> : <App />}
+        {isOrderHost ? <OrderStoreApp /> : isSurveyHost ? <SurveyPublicApp /> : <App />}
       </Suspense>
     </I18nextProvider>,
   );

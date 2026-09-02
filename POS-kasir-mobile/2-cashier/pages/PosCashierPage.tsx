@@ -35,8 +35,17 @@ import {
   usePosOpenShift,
 } from "@/pos-mobile/4-shift/lib/usePosCashierShift";
 import { POS_SHIFT_I18N } from "@/pos-mobile/4-shift/lib/posShiftCopy";
-import { PosAddCustomerDialog, type PosCashierCustomer } from "../components/PosAddCustomerDialog";
+import { lookupPosCheckoutLeadByPhone } from "@/5-2-customer-visits/checkout/pos-bind";
+import { PosAddCustomerDialog } from "../components/add-customer";
 import { PosCashierBillPanel } from "../components/PosCashierBillPanel";
+import {
+  posCashierCustomerBillLabel,
+  posCashierCustomerFromLoyalty,
+  posLoyaltyIdentityFromCashier,
+  type PosCashierCustomer,
+} from "../lib/posCashierCustomer";
+import { hydratePosBillCustomer } from "../lib/hydratePosBillCustomer";
+import { loyaltySkipResult } from "../lib/posLoyaltyIdentity";
 import { PosBillListDialog, PosBillReasonDialog } from "../components/bill-list";
 import {
   PosSelectTableOverlay,
@@ -65,6 +74,12 @@ import { buildFullCartSelection, splitCartLinesByQty } from "../lib/splitCartLin
 import { applyPosRewardToTotal } from "../hooks/usePosOutletRewards";
 import { sendPosDigitalReceipt } from "../lib/sendPosDigitalReceipt";
 import { POS_PAY_SUCCESS_I18N } from "../lib/posPaySuccessCopy";
+import {
+  assignPayFirstTable,
+  paySuccessTablePickState,
+  shouldKeepPayFirstSessionOpen,
+} from "../lib/pay-first-seating";
+import { POS_KITCHEN_TICKETS_QUERY_KEY } from "@/pos-mobile/8-kitchen/lib/posKitchenTypes";
 import { usePosShiftWaiterCandidate } from "../hooks/usePosShiftWaiterCandidate";
 import { POS_SELECT_TABLE_I18N } from "../lib/posSelectTableCopy";
 import { POS_NEW_BILL_I18N } from "../lib/posNewBillCopy";
@@ -108,6 +123,14 @@ import {
   applyKitchenTicketLineVoid,
 } from "@/pos-mobile/8-kitchen/lib/createPosKitchenTickets";
 import { fireKitchenForCheckout } from "@/pos-mobile/8-kitchen/lib/fireKitchenForCheckout";
+import {
+  claimSynckerjaCashierCheckout,
+  claimedCashierToBillSession,
+  completeSynckerjaCashierCheckout,
+  markSynckerjaCashierKitchenFired,
+  resolveCashierQrClaimErrorMessage,
+} from "../lib/claimSynckerjaCashierCheckout";
+import { usePosCashierQrScan } from "../hooks/usePosCashierQrScan";
 import { shouldAutoDoneKitchenOnPay } from "@/pos-mobile/8-kitchen/lib/shouldAutoDoneKitchenOnPay";
 import {
   applyKitchenAutoDoneOnPay,
@@ -215,6 +238,8 @@ export default function PosCashierPage() {
     | { type: "soon"; title: string }
   >("home");
   const [customer, setCustomer] = useState<PosCashierCustomer | null>(null);
+  const guestHydrateGen = useRef(0);
+  const lastHydratedSessionId = useRef<string | null>(null);
   const [selectedTable, setSelectedTable] = useState<PosSelectedTable | null>(() => {
     const stored = readPosSelectedTable();
     if (!stored) return null;
@@ -252,6 +277,8 @@ export default function PosCashierPage() {
   });
   const [portionPayBusy, setPortionPayBusy] = useState(false);
   const [paySuccess, setPaySuccess] = useState<PosPaySuccessPayload | null>(null);
+  const [pickTableAfterPayOpen, setPickTableAfterPayOpen] = useState(false);
+  const [assignTableBusy, setAssignTableBusy] = useState(false);
   const [qrisOpen, setQrisOpen] = useState(false);
   const [qrisFlow, setQrisFlow] = useState<{
     checkout: BuildPendingCheckoutPayloadArgs;
@@ -281,6 +308,26 @@ export default function PosCashierPage() {
     const stored = readPosSelectedTable();
     return stored?.sessionId ?? null;
   });
+  const [synckerjaCashierCheckout, setSynckerjaCashierCheckout] = useState<{
+    pendingCheckoutId: string;
+    kitchenFired: boolean;
+  } | null>(null);
+  const claimScanBusyRef = useRef(false);
+
+  const markSynckerjaKitchenIfNeeded = async () => {
+    if (!outletId || !synckerjaCashierCheckout || synckerjaCashierCheckout.kitchenFired) {
+      return;
+    }
+    await markSynckerjaCashierKitchenFired({
+      pendingCheckoutId: synckerjaCashierCheckout.pendingCheckoutId,
+      outletId,
+    });
+    setSynckerjaCashierCheckout((prev) => (prev ? { ...prev, kitchenFired: true } : prev));
+  };
+
+  const paySuccessCheckoutChannel = synckerjaCashierCheckout
+    ? ("synckerja_cashier" as const)
+    : undefined;
 
   const shiftWaiter = usePosShiftWaiterCandidate(outletId);
 
@@ -325,18 +372,72 @@ export default function PosCashierPage() {
     setSelectedTable(null);
   }, [cartRestored, selectedTable]);
 
-  // Hydrate guest from open session (e.g. resume walk-in from table map).
-  useEffect(() => {
-    if (customer) return;
+  const applySessionGuest = (
+    sessionId: string,
+    guestName: string,
+    guestPhone: string,
+  ) => {
+    const gen = ++guestHydrateGen.current;
+    lastHydratedSessionId.current = sessionId;
+    setCustomer(
+      hydratePosBillCustomer({
+        sessionName: guestName,
+        sessionPhone: guestPhone,
+        lead: null,
+      }),
+    );
+    if (!guestPhone.trim() || !organizationId) return;
+    void lookupPosCheckoutLeadByPhone({
+      organizationId,
+      rawPhone: guestPhone,
+    })
+      .then((found) => {
+        if (guestHydrateGen.current !== gen) return;
+        setCustomer(
+          hydratePosBillCustomer({
+            sessionName: guestName,
+            sessionPhone: guestPhone,
+            lead: found?.lead ?? null,
+          }),
+        );
+      })
+      .catch(() => {
+        /* keep session text */
+      });
+  };
+
+  const persistBillCustomer = (next: PosCashierCustomer | null) => {
+    guestHydrateGen.current += 1;
+    setCustomer(next);
     const sid = selectedTable?.sessionId ?? activeOpenSessionId;
     if (!sid) return;
+    void sessionMutations.updateOpenCustomer.mutateAsync({
+      sessionId: sid,
+      customerName: next?.name ?? null,
+      customerPhone: next?.phone ?? null,
+    });
+  };
+
+  // Hydrate guest from open session (e.g. resume walk-in from table map).
+  useEffect(() => {
+    const sid = selectedTable?.sessionId ?? activeOpenSessionId;
+    if (!sid) {
+      lastHydratedSessionId.current = null;
+      return;
+    }
+    if (lastHydratedSessionId.current === sid) return;
     const row = billListOpenSessions.rows.find((r) => r.session.id === sid);
     if (!row) return;
     const guestName = row.session.customer_name?.trim() || "";
     const guestPhone = row.session.customer_phone?.trim() || "";
-    if (!guestName && !guestPhone) return;
-    setCustomer({ name: guestName || "Walk-in", phone: guestPhone });
-  }, [activeOpenSessionId, billListOpenSessions.rows, customer, selectedTable?.sessionId]);
+    if (!guestName && !guestPhone) {
+      lastHydratedSessionId.current = sid;
+      return;
+    }
+    applySessionGuest(sid, guestName, guestPhone);
+    // applySessionGuest is stable enough for session-id keyed hydrate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOpenSessionId, billListOpenSessions.rows, organizationId, selectedTable?.sessionId]);
 
   const openSessionId = selectedTable?.sessionId ?? activeOpenSessionId;
   const cartPersistRef = useRef<string>("");
@@ -545,7 +646,10 @@ export default function PosCashierPage() {
   const openLoyaltyForPortion = (mode: "split" | "full", selection: Map<string, number>) => {
     setCheckoutMode(mode);
     setSplitSelection(selection);
-    setLoyaltyResult({ customer: null, reward: null });
+    setLoyaltyResult({
+      customer: posLoyaltyIdentityFromCashier(customer),
+      reward: null,
+    });
     setSplitBillOpen(false);
     setLoyaltyOpen(true);
   };
@@ -650,6 +754,15 @@ export default function PosCashierPage() {
         void invalidateCatalogStockCaches(queryClient, organizationId);
       }
       toastKitchenFireResult({ result, t, toast });
+      if (synckerjaCashierCheckout && !synckerjaCashierCheckout.kitchenFired) {
+        await markSynckerjaCashierKitchenFired({
+          pendingCheckoutId: synckerjaCashierCheckout.pendingCheckoutId,
+          outletId,
+        });
+        setSynckerjaCashierCheckout((prev) =>
+          prev ? { ...prev, kitchenFired: true } : prev,
+        );
+      }
     } catch (err) {
       const stockToast = resolveCheckoutStockToast(err, t);
       if (stockToast) {
@@ -666,8 +779,11 @@ export default function PosCashierPage() {
     clearPosSelectedTable();
     setSelectedTable(null);
     setActiveOpenSessionId(null);
+    setSynckerjaCashierCheckout(null);
     setNewBillPick(null);
     setSelectTableOpen(false);
+    guestHydrateGen.current += 1;
+    lastHydratedSessionId.current = null;
     setCustomer(null);
   };
 
@@ -740,6 +856,36 @@ export default function PosCashierPage() {
   const onContinueSelectTable = (pick: PosSelectTablePick) => {
     if (!ensureShiftForSave()) return;
     setNewBillPick(pick);
+  };
+
+  const onAssignPayFirstTable = async (pick: PosSelectTablePick) => {
+    if (!paySuccess?.sessionId) return;
+    setAssignTableBusy(true);
+    try {
+      await assignPayFirstTable({
+        sessionId: paySuccess.sessionId,
+        posTableId: pick.id,
+        groupId: pick.groupId,
+        tableName: pick.name,
+      });
+      setPaySuccess((prev) =>
+        prev
+          ? { ...prev, tableLabel: pick.name, needsTablePick: true }
+          : prev,
+      );
+      setPickTableAfterPayOpen(false);
+      void queryClient.invalidateQueries({ queryKey: [POS_TABLE_SESSIONS_QUERY_KEY] });
+      void queryClient.invalidateQueries({ queryKey: [POS_KITCHEN_TICKETS_QUERY_KEY] });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({
+        title: t(POS_SELECT_TABLE_I18N.saveError, "Failed to save bill"),
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setAssignTableBusy(false);
+    }
   };
 
   const onConfirmNewBill = async (args: { pax: number; waiterId: string }) => {
@@ -937,11 +1083,13 @@ export default function PosCashierPage() {
     setActiveOpenSessionId(row.session.id);
     const guestName = row.session.customer_name?.trim() || "";
     const guestPhone = row.session.customer_phone?.trim() || "";
-    setCustomer(
-      guestName || guestPhone
-        ? { name: guestName || "Walk-in", phone: guestPhone }
-        : null,
-    );
+    if (guestName || guestPhone) {
+      applySessionGuest(row.session.id, guestName, guestPhone);
+    } else {
+      guestHydrateGen.current += 1;
+      lastHydratedSessionId.current = row.session.id;
+      setCustomer(null);
+    }
     if (!row.session.pos_table_id || !row.session.group_id) {
       clearPosSelectedTable();
       setSelectedTable(null);
@@ -966,6 +1114,77 @@ export default function PosCashierPage() {
     setCartRestored(true);
     setBillListOpen(false);
   };
+
+  const onClaimCashierQr = (claimToken: string) => {
+    if (!outletId || !organizationId || claimScanBusyRef.current) return;
+    claimScanBusyRef.current = true;
+    void (async () => {
+      try {
+        const claim = await claimSynckerjaCashierCheckout({
+          claimToken,
+          outletId,
+        });
+        if (!claim.ok || !claim.session_id) {
+          toast({
+            title: t(POS_CASHIER_I18N.cashierQrClaimError, "Could not load order"),
+            description: resolveCashierQrClaimErrorMessage(claim.error, t),
+            variant: "destructive",
+          });
+          return;
+        }
+        const session = claimedCashierToBillSession(claim, outletId, organizationId);
+        if (!session) {
+          toast({
+            title: t(POS_CASHIER_I18N.cashierQrClaimError, "Could not load order"),
+            variant: "destructive",
+          });
+          return;
+        }
+        onSelectOpenBill({ session, groupName: "", waiterName: "" });
+        const salesTypes = pricing.outletSalesTypes;
+        const matchById = claim.catalog_sales_type_id
+          ? salesTypes.find((row) => row.id === claim.catalog_sales_type_id)
+          : undefined;
+        const label = (claim.sales_type_label ?? "").toLowerCase();
+        const matchByLabel =
+          matchById ??
+          salesTypes.find((row) => {
+            const name = row.name.toLowerCase();
+            if (claim.fulfillment === "takeaway" || label.includes("take") || label.includes("bawa")) {
+              return name.includes("take") || name.includes("bawa");
+            }
+            return name.includes("dine");
+          });
+        if (matchByLabel?.id) {
+          setSalesTypeId(matchByLabel.id);
+        }
+        if (claim.pending_checkout_id) {
+          setSynckerjaCashierCheckout({
+            pendingCheckoutId: claim.pending_checkout_id,
+            kitchenFired: Boolean(claim.kitchen_fired),
+          });
+        }
+        void queryClient.invalidateQueries({ queryKey: [POS_TABLE_SESSIONS_QUERY_KEY] });
+        const fulfillmentHint =
+          claim.fulfillment === "takeaway" ||
+          (claim.sales_type_label ?? "").toLowerCase().includes("take") ||
+          (claim.sales_type_label ?? "").toLowerCase().includes("bawa")
+            ? "Take Away"
+            : "Dine In";
+        toast({
+          title: t(POS_CASHIER_I18N.cashierQrClaimSuccess, "Guest order loaded"),
+          description: `${fulfillmentHint} · ${session.table_name}`,
+        });
+      } finally {
+        claimScanBusyRef.current = false;
+      }
+    })();
+  };
+
+  usePosCashierQrScan({
+    enabled: Boolean(outletId && organizationId),
+    onScan: onClaimCashierQr,
+  });
 
   const onFulfillOpenBill = (row: PosBillListRow) => {
     if (!outletId) return;
@@ -1163,6 +1382,7 @@ export default function PosCashierPage() {
       }
     }
 
+    let paidSessionId: string | null = paySessionId;
     if (args.salesActivityId && catalogLines.length > 0) {
       try {
         const { sessionId: kdsSessionId, result } = await runKitchenFireOnPay({
@@ -1177,7 +1397,12 @@ export default function PosCashierPage() {
           servedByUserId,
           salesActivityId: args.salesActivityId,
           kitchenCheckout,
+          keepPayFirstSessionOpen: shouldKeepPayFirstSessionOpen({
+            existingSessionId: paySessionId,
+            salesTypeLabel: kitchenCheckout.salesTypeLabel,
+          }),
         });
+        paidSessionId = kdsSessionId;
         if (result.stockCommitted) {
           void invalidateCatalogStockCaches(queryClient, organizationId);
         }
@@ -1228,6 +1453,21 @@ export default function PosCashierPage() {
       paidCatalogTotals.grandTotal + Math.max(0, Math.round(customTotal));
 
     clearCheckoutFlow();
+    if (synckerjaCashierCheckout && outletId && paidSessionId) {
+      await completeSynckerjaCashierCheckout({
+        pendingCheckoutId: synckerjaCashierCheckout.pendingCheckoutId,
+        sessionId: paidSessionId,
+        salesActivityId: args.salesActivityId,
+        outletId,
+      });
+    }
+    const qrisSeating = paySuccessTablePickState({
+      salesTypeLabel,
+      hadOpenSessionBeforePay: Boolean(paySessionId),
+      posTableId,
+      sessionId: paidSessionId,
+      tableName: selectedTable?.name ?? kitchenCheckout.tableName,
+    });
     setPaySuccess({
       amountDue: displayAmountDue,
       cashTendered: null,
@@ -1238,7 +1478,12 @@ export default function PosCashierPage() {
       leadId,
       linesSnapshot: splitLines,
       totalsSnapshot,
+      sessionId: paidSessionId,
+      needsTablePick: qrisSeating.needsTablePick,
+      tableLabel: qrisSeating.tableLabel,
+      checkoutChannel: paySuccessCheckoutChannel,
     });
+    void markSynckerjaKitchenIfNeeded();
 
     const prefs = getPosTicketPrintPrefs(outletId);
     try {
@@ -1399,9 +1644,10 @@ export default function PosCashierPage() {
 
       let activityId: string | null = null;
       let leadId: string | null = null;
+      const paySessionId = selectedTable?.sessionId ?? activeOpenSessionId;
+      let paidSessionId: string | null = paySessionId;
 
       if (catalogLines.length > 0 && paidCatalogTotals.grandTotal > 0) {
-        const paySessionId = selectedTable?.sessionId ?? activeOpenSessionId;
         const kitchenTableName =
           selectedTable?.name ?? t(POS_SELECT_TABLE_I18N.walkInName, "Walk-in");
         const kitchenCheckout = organizationId
@@ -1442,6 +1688,7 @@ export default function PosCashierPage() {
         });
         activityId = result.activityId;
         leadId = result.leadId;
+        paidSessionId = result.sessionId ?? paidSessionId;
         if (result.kitchenFireResult && organizationId) {
           if (result.kitchenFireResult.stockCommitted) {
             void invalidateCatalogStockCaches(queryClient, organizationId);
@@ -1500,6 +1747,7 @@ export default function PosCashierPage() {
         clearPosSelectedTable();
         setSelectedTable(null);
         setActiveOpenSessionId(null);
+        setSynckerjaCashierCheckout(null);
       }
 
       const totalsSnapshot = mergePosCheckoutTotalsWithCustom(
@@ -1510,6 +1758,21 @@ export default function PosCashierPage() {
         paidCatalogTotals.grandTotal + Math.max(0, Math.round(customTotal));
 
       clearCheckoutFlow();
+      if (synckerjaCashierCheckout && outletId && paidSessionId) {
+        await completeSynckerjaCashierCheckout({
+          pendingCheckoutId: synckerjaCashierCheckout.pendingCheckoutId,
+          sessionId: paidSessionId,
+          salesActivityId: activityId,
+          outletId,
+        });
+      }
+      const cashSeating = paySuccessTablePickState({
+        salesTypeLabel,
+        hadOpenSessionBeforePay: Boolean(paySessionId),
+        posTableId: selectedTable?.id ?? null,
+        sessionId: paidSessionId,
+        tableName: selectedTable?.name ?? null,
+      });
       setPaySuccess({
         amountDue: displayAmountDue,
         cashTendered:
@@ -1521,7 +1784,12 @@ export default function PosCashierPage() {
         leadId,
         linesSnapshot: splitLines,
         totalsSnapshot,
+        sessionId: paidSessionId,
+        needsTablePick: cashSeating.needsTablePick,
+        tableLabel: cashSeating.tableLabel,
+        checkoutChannel: paySuccessCheckoutChannel,
       });
+      void markSynckerjaKitchenIfNeeded();
 
       const prefs = getPosTicketPrintPrefs(outletId);
       try {
@@ -1772,7 +2040,7 @@ export default function PosCashierPage() {
             salesTypeId={salesTypeId}
             salesTypeOptions={pricing.outletSalesTypes}
             onSalesTypeChange={setSalesTypeId}
-            customerLabel={customer?.name ?? null}
+            customerLabel={posCashierCustomerBillLabel(customer)}
             onAddCustomer={() => setCustomerOpen(true)}
             tableLabel={selectedTable?.name ?? null}
             tableDuration={
@@ -1827,17 +2095,8 @@ export default function PosCashierPage() {
         open={customerOpen}
         onOpenChange={setCustomerOpen}
         initial={customer}
-        onSave={(next) => {
-          setCustomer(next);
-          const sid = selectedTable?.sessionId ?? activeOpenSessionId;
-          if (sid) {
-            void sessionMutations.updateOpenCustomer.mutateAsync({
-              sessionId: sid,
-              customerName: next.name,
-              customerPhone: next.phone,
-            });
-          }
-        }}
+        onSave={(next) => persistBillCustomer(next)}
+        onRemove={() => persistBillCustomer(null)}
       />
       <PosAddFavoriteDialog
         open={addFavoriteOpen}
@@ -1857,27 +2116,17 @@ export default function PosCashierPage() {
       <PosLoyaltyDialog
         open={loyaltyOpen}
         onOpenChange={setLoyaltyOpen}
-        outletId={outletId}
+        outletId={outletId ?? ""}
+        initialCustomer={customer}
         onSkip={() => {
-          setLoyaltyResult({ customer: null, reward: null });
+          setLoyaltyResult(loyaltySkipResult(posLoyaltyIdentityFromCashier(customer)));
           setLoyaltyOpen(false);
           setPaymentOpen(true);
         }}
         onContinue={(result) => {
           setLoyaltyResult(result);
           if (result.customer) {
-            setCustomer({
-              name: result.customer.name,
-              phone: result.customer.phone,
-            });
-            const sid = selectedTable?.sessionId ?? activeOpenSessionId;
-            if (sid) {
-              void sessionMutations.updateOpenCustomer.mutateAsync({
-                sessionId: sid,
-                customerName: result.customer.name,
-                customerPhone: result.customer.phone,
-              });
-            }
+            persistBillCustomer(posCashierCustomerFromLoyalty(result.customer));
           }
           setLoyaltyOpen(false);
           setPaymentOpen(true);
@@ -1930,10 +2179,16 @@ export default function PosCashierPage() {
         sendingEmail={sendingEmail}
         sendingSms={sendingSms}
         printing={printingReceipt}
+        pickingTable={pickTableAfterPayOpen || assignTableBusy}
         onSendEmail={(email, name) => void onSendPaySuccessEmail(email, name)}
         onSendSms={(phone, name) => void onSendPaySuccessSms(phone, name)}
         onPrint={() => void onPrintPaySuccessReceipt()}
-        onNewTransaction={() => setPaySuccess(null)}
+        onPickTable={() => setPickTableAfterPayOpen(true)}
+        onNewTransaction={() => {
+          setPickTableAfterPayOpen(false);
+          setSynckerjaCashierCheckout(null);
+          setPaySuccess(null);
+        }}
       />
       <PosItemCustomizeDialog
         open={Boolean(customizeItem)}
@@ -1947,14 +2202,28 @@ export default function PosCashierPage() {
         }}
       />
       <PosSelectTableOverlay
-        open={selectTableOpen}
-        outletId={outletId}
-        initialTableId={selectedTable?.id ?? null}
-        busy={saveBusy}
-        onCancel={() => setSelectTableOpen(false)}
-        onSaveAsBill={() => void onSaveAsWalkInBill()}
-        onContinue={onContinueSelectTable}
+        open={selectTableOpen || pickTableAfterPayOpen}
+        outletId={outletId ?? ""}
+        initialTableId={pickTableAfterPayOpen ? null : selectedTable?.id ?? null}
+        busy={saveBusy || assignTableBusy}
+        pickOnly={pickTableAfterPayOpen}
+        onCancel={() => {
+          if (pickTableAfterPayOpen) setPickTableAfterPayOpen(false);
+          else setSelectTableOpen(false);
+        }}
+        onSaveAsBill={() => {
+          if (pickTableAfterPayOpen) return;
+          void onSaveAsWalkInBill();
+        }}
+        onContinue={(pick) => {
+          if (pickTableAfterPayOpen) {
+            void onAssignPayFirstTable(pick);
+            return;
+          }
+          onContinueSelectTable(pick);
+        }}
         onResumeSession={(session) => {
+          if (pickTableAfterPayOpen) return;
           setSelectTableOpen(false);
           const row: PosBillListRow = {
             session,
@@ -1963,7 +2232,8 @@ export default function PosCashierPage() {
           };
           onSelectOpenBill(row);
         }}
-      />      <PosNewBillDialog
+      />
+      <PosNewBillDialog
         open={Boolean(newBillPick)}
         onOpenChange={(open) => {
           if (!open) setNewBillPick(null);

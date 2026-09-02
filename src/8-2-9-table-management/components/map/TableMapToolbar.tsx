@@ -14,7 +14,7 @@ import {
 } from "@/shared/components/ui/select";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { OutletFilterSelect } from "@/8-2-2-outlets/components/OutletFilterSelect";
-import { ChevronDown, Plus } from "lucide-react";
+import { Copy, ClipboardPaste, ChevronDown, Plus } from "lucide-react";
 import type { PosTableGroup } from "../../lib/posTableGroupTypes";
 
 type Props = {
@@ -26,6 +26,10 @@ type Props = {
   groupsLoading?: boolean;
   onAddTable: () => void;
   onAddFloorItem: () => void;
+  onCopy?: () => void;
+  onPaste?: () => void;
+  canCopy?: boolean;
+  canPaste?: boolean;
   onSave: () => void;
   saveDisabled?: boolean;
   saving?: boolean;
@@ -41,6 +45,10 @@ export function TableMapToolbar({
   groupsLoading,
   onAddTable,
   onAddFloorItem,
+  onCopy,
+  onPaste,
+  canCopy = false,
+  canPaste = false,
   onSave,
   saveDisabled,
   saving,
@@ -99,6 +107,24 @@ export function TableMapToolbar({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!groupId || !canCopy}
+            onClick={onCopy}
+          >
+            <Copy className="mr-1 h-4 w-4" />
+            {t("tableManagement.map.copy", "Copy")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!groupId || !canPaste}
+            onClick={onPaste}
+          >
+            <ClipboardPaste className="mr-1 h-4 w-4" />
+            {t("tableManagement.map.paste", "Paste")}
+          </Button>
         </div>
       </div>
       <div className="flex flex-col items-end gap-1">

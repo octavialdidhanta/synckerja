@@ -59,6 +59,7 @@ import {
   CustomersFeedbackPageSkeleton,
   EmployeesStaffPageSkeleton,
   TableManagementPageSkeleton,
+  SynckerjaOrderPageSkeleton,
   ReportsPageSkeleton,
   TransactionsReportsRouteSkeleton,
   InvoicesReportsRouteSkeleton,
@@ -222,6 +223,9 @@ const EmployeesStaffPinPage = lazy(
 const TableGroupPage = lazy(() => import("@/8-2-9-table-management/pages/TableGroupPage"));
 const TableMapPage = lazy(() => import("@/8-2-9-table-management/pages/TableMapPage"));
 const TableReportPage = lazy(() => import("@/8-2-9-table-management/pages/TableReportPage"));
+const SynckerjaOrderPage = lazy(
+  () => import("@/synckerja-order/5-backoffice-shell/pages/SynckerjaOrderPage"),
+);
 const ReportsSalesSummaryPage = lazy(
   () => import("@/8-2-10-reports/pages/ReportsSalesSummaryPage"),
 );
@@ -1929,6 +1933,20 @@ function AppRoutes() {
                 }
               />
               <Route
+                path="/operations/synckerja-order/*"
+                element={
+                  <PageAccessGuard
+                    pagePath="/operations/synckerja-order"
+                    loadingShell={<SynckerjaOrderPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <SynckerjaOrderSuspense>
+                      <SynckerjaOrderPage />
+                    </SynckerjaOrderSuspense>
+                  </PageAccessGuard>
+                }
+              />
+              <Route
                 path="/operations/dashboard"
                 element={
                   <PageAccessGuard
@@ -2708,6 +2726,18 @@ const TableManagementSuspense = ({ children }: { children: ReactNode }) => (
     fallback={
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
         <TableManagementPageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const SynckerjaOrderSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+        <SynckerjaOrderPageSkeleton />
       </div>
     }
   >
@@ -4920,6 +4950,20 @@ const App = () => (
                               <TableManagementSuspense>
                                 <TableReportPage />
                               </TableManagementSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/operations/synckerja-order/*"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/operations/synckerja-order"
+                              loadingShell={<SynckerjaOrderPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <SynckerjaOrderSuspense>
+                                <SynckerjaOrderPage />
+                              </SynckerjaOrderSuspense>
                             </PageAccessGuard>
                           }
                         />

@@ -9,6 +9,7 @@ export default {
     "./src/**/*.{ts,tsx}",
     "./android-mobile/**/*.{ts,tsx}",
     "./POS-kasir-mobile/**/*.{ts,tsx}",
+    "./synckerja-order/**/*.{ts,tsx}",
   ],
   prefix: "",
   theme: {

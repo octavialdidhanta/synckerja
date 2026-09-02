@@ -3,10 +3,11 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { isGenericCustomerName } from "@/pos-receipt-feedback/lib/isGenericCustomerName";
 import { cn } from "@/shared/lib/utils";
 import { POS_LOYALTY_I18N } from "../../lib/posLoyaltyCopy";
-import type { PosLoyaltyCustomer } from "../../hooks/usePosCustomerPhoneLookup";
+import { shouldLockPosMemberName } from "../../lib/posMemberNameLock";
+import type { PosMemberLookupCustomer } from "./types";
 
 type Props = {
-  customer: PosLoyaltyCustomer | null;
+  customer: PosMemberLookupCustomer | null;
   checked: boolean;
   phoneLocal: string;
   onOpenSaveName: () => void;
@@ -19,7 +20,7 @@ function displayPhone(phone: string): string {
   return phone;
 }
 
-export function PosLoyaltyCheckResult({
+export function PosMemberCheckResult({
   customer,
   checked,
   phoneLocal,
@@ -31,6 +32,7 @@ export function PosLoyaltyCheckResult({
   const found = Boolean(customer);
   const name = customer?.name?.trim() || "";
   const generic = !found || isGenericCustomerName(name);
+  const locked = found && shouldLockPosMemberName(name);
 
   return (
     <button
@@ -41,8 +43,12 @@ export function PosLoyaltyCheckResult({
         found
           ? "border-emerald-200 bg-emerald-50 hover:bg-emerald-100/80"
           : "border-amber-200 bg-amber-50 hover:bg-amber-100/80",
+        locked && "cursor-default hover:bg-emerald-50",
       )}
-      onClick={onOpenSaveName}
+      onClick={() => {
+        if (locked) return;
+        onOpenSaveName();
+      }}
     >
       <span className="flex items-start gap-3">
         <span
@@ -79,15 +85,20 @@ export function PosLoyaltyCheckResult({
                 : null}
           </span>
           <span className="mt-2 block text-sm leading-snug text-slate-600">
-            {found && !generic
+            {locked
               ? t(
-                  POS_LOYALTY_I18N.foundHint,
-                  "Already selected. Tap Continue to pay. Tap this card only to change the name.",
+                  POS_LOYALTY_I18N.nameLockedHint,
+                  "This name comes from CRM. Use this member to attach the bill.",
                 )
-              : t(
-                  POS_LOYALTY_I18N.tapToSetName,
-                  "Tap this card to save a name",
-                )}
+              : found && !generic
+                ? t(
+                    POS_LOYALTY_I18N.foundHint,
+                    "Already selected. Continue to attach this member.",
+                  )
+                : t(
+                    POS_LOYALTY_I18N.tapToSetName,
+                    "Tap this card to save a name",
+                  )}
           </span>
         </span>
       </span>

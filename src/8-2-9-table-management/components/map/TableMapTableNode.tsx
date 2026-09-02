@@ -1,8 +1,13 @@
 import { cn } from "@/shared/lib/utils";
 import type { PosTable } from "../../lib/posTableTypes";
 import { isSidewaysRotation } from "../../lib/tableRotation";
-import { TABLE_MAP_CELL_PX } from "../../lib/tableShapeLayout";
-import { TableMapChair, type ChairFacing } from "./TableMapChair";
+import { TABLE_MAP_CELL_PX, ONE_SIDED_THIN_RATIO } from "../../lib/tableShapeLayout";
+import {
+  TableMapChair,
+  CHAIR_EDGE_WIDTH_PX,
+  chairDepthPx,
+  type ChairFacing,
+} from "./TableMapChair";
 import { TableMapRotateControl } from "./TableMapRotateControl";
 
 type Props = {
@@ -42,10 +47,13 @@ function TableSeats({
   table,
   edgeWidthPx,
   sideways,
+  oneSidedChairCenterPct,
 }: {
   table: PosTable;
   edgeWidthPx: number;
   sideways: boolean;
+  /** Center of the chair along the thin axis, as % of the node. */
+  oneSidedChairCenterPct?: number;
 }) {
   const pax = Math.max(1, table.pax);
 
@@ -83,7 +91,8 @@ function TableSeats({
   }
 
   if (table.shape === "one_sided") {
-    const widthPx = chairWidthForEdge(edgeWidthPx, pax);
+    const widthPx = CHAIR_EDGE_WIDTH_PX;
+    const attachPct = oneSidedChairCenterPct ?? 90;
     if (sideways) {
       return (
         <>
@@ -92,7 +101,7 @@ function TableSeats({
               key={i}
               facing="right"
               widthPx={widthPx}
-              style={{ left: "90%", top: `${top}%` }}
+              style={{ left: `${attachPct}%`, top: `${top}%` }}
             />
           ))}
         </>
@@ -105,7 +114,7 @@ function TableSeats({
             key={i}
             facing="bottom"
             widthPx={widthPx}
-            style={{ left: `${left}%`, top: "90%" }}
+            style={{ left: `${left}%`, top: `${attachPct}%` }}
           />
         ))}
       </>
@@ -182,25 +191,57 @@ export function TableMapTableNode({
 
   const cellW = table.grid_w * TABLE_MAP_CELL_PX;
   const cellH = Math.max(table.grid_h * TABLE_MAP_CELL_PX, TABLE_MAP_CELL_PX);
+  const oneSidedThinPx = TABLE_MAP_CELL_PX * ONE_SIDED_THIN_RATIO;
+  const oneSidedChairDepth = chairDepthPx(CHAIR_EDGE_WIDTH_PX);
 
-  // Axis-aligned layout: sideways tables expand width for side chairs (like square).
-  const nodeWidth = isSquare || sideways
-    ? cellW + seatGutter
-    : Math.max(cellW, isCircle ? TABLE_MAP_CELL_PX + 18 : cellW);
-  const h = isSquare || sideways ? cellH : cellH + seatGutter;
-  const useSideGutter = isSquare || sideways;
+  let nodeWidth: number;
+  let h: number;
+  let useSideGutter = isSquare || (sideways && !isOneSided);
+  let left = table.grid_x * TABLE_MAP_CELL_PX;
+  let top = table.grid_y * TABLE_MAP_CELL_PX;
+  let marginLeft = 0;
+  let bodyInset = { left: 6, right: 6, top: 6, bottom: 6 };
+  let oneSidedChairCenterPct: number | undefined;
+
+  if (isOneSided && sideways) {
+    nodeWidth = oneSidedThinPx + oneSidedChairDepth;
+    h = cellH;
+    bodyInset = { left: 2, right: oneSidedChairDepth, top: 2, bottom: 2 };
+    oneSidedChairCenterPct =
+      ((oneSidedThinPx + oneSidedChairDepth / 2) / nodeWidth) * 100;
+  } else if (isOneSided) {
+    nodeWidth = cellW;
+    h = oneSidedThinPx + oneSidedChairDepth;
+    bodyInset = { left: 2, right: 2, top: 2, bottom: oneSidedChairDepth };
+    oneSidedChairCenterPct =
+      ((oneSidedThinPx + oneSidedChairDepth / 2) / h) * 100;
+  } else {
+    useSideGutter = isSquare || sideways;
+    nodeWidth = useSideGutter
+      ? cellW + seatGutter
+      : Math.max(cellW, isCircle ? TABLE_MAP_CELL_PX + 18 : cellW);
+    h = useSideGutter ? cellH : cellH + seatGutter;
+    top = useSideGutter
+      ? table.grid_y * TABLE_MAP_CELL_PX
+      : table.grid_y * TABLE_MAP_CELL_PX - seatGutter / 2;
+    marginLeft = useSideGutter ? -seatGutter / 2 : isCircle ? -9 : 0;
+    bodyInset = {
+      left: useSideGutter ? seatGutter / 2 + 3 : isCircle ? 16 : 6,
+      right: useSideGutter ? seatGutter / 2 + 3 : isCircle ? 16 : 6,
+      top: useSideGutter ? 6 : seatGutter / 2 + 3,
+      bottom: useSideGutter ? 6 : seatGutter / 2 + 3,
+    };
+  }
 
   return (
     <div
       className={cn("absolute touch-none select-none", selected && "z-10")}
       style={{
-        left: table.grid_x * TABLE_MAP_CELL_PX,
-        top: useSideGutter
-          ? table.grid_y * TABLE_MAP_CELL_PX
-          : table.grid_y * TABLE_MAP_CELL_PX - seatGutter / 2,
+        left,
+        top,
         width: nodeWidth,
         height: h,
-        marginLeft: useSideGutter ? -seatGutter / 2 : isCircle ? -9 : 0,
+        marginLeft,
       }}
     >
       {selected && onRotate ? (
@@ -235,15 +276,15 @@ export function TableMapTableNode({
             "absolute flex flex-col items-center justify-center border-2 bg-gradient-to-b from-white to-slate-50 text-center shadow-md",
             selected ? "border-primary ring-2 ring-primary/30" : "border-slate-400",
             isCircle && "rounded-full",
-            !isCircle && "rounded-lg",
+            !isCircle && "rounded-none",
             isOneSided && !sideways && "border-b-[3px] border-b-sky-600",
             isOneSided && sideways && "border-r-[3px] border-r-sky-600",
           )}
           style={{
-            left: useSideGutter ? seatGutter / 2 + 3 : isCircle ? 16 : 6,
-            right: useSideGutter ? seatGutter / 2 + 3 : isCircle ? 16 : 6,
-            top: useSideGutter ? 6 : seatGutter / 2 + 3,
-            bottom: useSideGutter ? 6 : seatGutter / 2 + 3,
+            left: bodyInset.left,
+            right: bodyInset.right,
+            top: bodyInset.top,
+            bottom: bodyInset.bottom,
           }}
         >
           <span
@@ -254,7 +295,11 @@ export function TableMapTableNode({
                 : (isCircle || isSquare) && table.rotation
                   ? `rotate(${-table.rotation}deg)`
                   : undefined,
-              maxWidth: sideways ? Math.max(28, cellH - 18) : undefined,
+              maxWidth: sideways
+                ? Math.max(isOneSided ? 18 : 28, cellH - 18)
+                : isOneSided
+                  ? Math.max(24, cellW - 12)
+                  : undefined,
             }}
           >
             <span className="max-w-full truncate px-1 text-xs font-semibold leading-tight text-slate-800">
@@ -269,6 +314,7 @@ export function TableMapTableNode({
             table={table}
             edgeWidthPx={(sideways ? h : nodeWidth) - 12}
             sideways={sideways}
+            oneSidedChairCenterPct={oneSidedChairCenterPct}
           />
         </span>
       </button>

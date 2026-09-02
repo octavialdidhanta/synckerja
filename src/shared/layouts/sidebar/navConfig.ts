@@ -241,7 +241,7 @@ export const mainNavItems: MainNavItem[] = [
     titleKey: "sidebar.salesOperations.title",
     panelTitleKey: "sidebar.salesOperations.panelTitle",
     icon: Briefcase,
-    activePathPrefixes: ["/operations/sales", "/operations/library", "/operations/ingredient", "/operations/settings", "/operations/customers-list", "/operations/customers-feedback", "/operations/employees-staff", "/operations/table-management", "/operations/dashboard", "/operations/reports", "/operations/inventory"],
+    activePathPrefixes: ["/operations/sales", "/operations/library", "/operations/ingredient", "/operations/settings", "/operations/customers-list", "/operations/customers-feedback", "/operations/employees-staff", "/operations/table-management", "/operations/synckerja-order", "/operations/dashboard", "/operations/reports", "/operations/inventory"],
     subItems: [
       {
         titleKey: "sidebar.salesOperations.dashboard",
@@ -279,9 +279,16 @@ export const mainNavItems: MainNavItem[] = [
         activePathPrefixes: ["/operations/table-management"],
       },
       {
+        titleKey: "sidebar.salesOperations.synckerjaOrder",
+        path: "/operations/synckerja-order",
+        activePathPrefixes: ["/operations/synckerja-order"],
+        sectionTitleKey: "sidebar.salesOperations.groupOnlineChannels",
+      },
+      {
         titleKey: "sidebar.salesOperations.settings",
         path: "/operations/settings/outlets-list",
         activePathPrefixes: ["/operations/settings"],
+        sectionTitleKey: "sidebar.salesOperations.settings",
       },
       {
         titleKey: "sidebar.operations.sales.stockManagement.title",

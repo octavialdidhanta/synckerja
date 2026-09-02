@@ -16,6 +16,7 @@ import { usePosMobileTableGroups } from "@/pos-mobile/5-table-map/hooks/usePosMo
 import { usePosMobileTables } from "@/pos-mobile/5-table-map/hooks/usePosMobileTables";
 import { usePosBillListOpenSessions } from "../../hooks/usePosBillListSessions";
 import { POS_SELECT_TABLE_I18N } from "../../lib/posSelectTableCopy";
+import { canPickTableForPayFirst } from "../../lib/pay-first-seating";
 import { PosSelectTableBillSheet } from "./PosSelectTableBillSheet";
 import { PosSelectTableGroupTabs } from "./PosSelectTableGroupTabs";
 import { PosSelectTableMap } from "./PosSelectTableMap";
@@ -41,6 +42,11 @@ type Props = {
   onContinue: (pick: PosSelectTablePick) => void;
   /** Resume an existing open bill (replaces current cart like bill list). */
   onResumeSession?: (session: PosTableSession) => void;
+  /**
+   * Pay-first dine-in: pick a vacant/partial table only.
+   * Hides Simpan Bill, skips resume, no New Bill dialog.
+   */
+  pickOnly?: boolean;
 };
 
 export function PosSelectTableOverlay({
@@ -52,6 +58,7 @@ export function PosSelectTableOverlay({
   onSaveAsBill,
   onContinue,
   onResumeSession,
+  pickOnly = false,
 }: Props) {
   const { t } = useAppTranslation();
   const { organizationId } = useCurrentOrg();
@@ -173,6 +180,11 @@ export function PosSelectTableOverlay({
   };
 
   const onTapTable = (table: PosTable, occupancy: TableOccupancy) => {
+    if (pickOnly) {
+      if (!canPickTableForPayFirst(occupancy)) return;
+      selectEmptyTable(table, occupancy);
+      return;
+    }
     if (occupancy.state === "empty") {
       selectEmptyTable(table, occupancy);
       return;
@@ -196,7 +208,13 @@ export function PosSelectTableOverlay({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-slate-100">
+    <div
+      className={
+        pickOnly
+          ? "fixed inset-0 z-[80] flex flex-col bg-slate-100"
+          : "fixed inset-0 z-[60] flex flex-col bg-slate-100"
+      }
+    >
       <header className="relative flex items-center justify-center border-b border-slate-200 bg-white px-3 py-3">
         <Button
           type="button"
@@ -212,7 +230,7 @@ export function PosSelectTableOverlay({
           {t(POS_SELECT_TABLE_I18N.title, "Select Table")}
         </h1>
         <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
-          {!hasSelection ? (
+          {!hasSelection && !pickOnly ? (
             <Button
               type="button"
               variant="outline"
@@ -277,7 +295,7 @@ export function PosSelectTableOverlay({
       />
 
       <PosSelectTableBillSheet
-        open={Boolean(billSheetTable)}
+        open={!pickOnly && Boolean(billSheetTable)}
         onOpenChange={(next) => {
           if (!next) setBillSheetTable(null);
         }}

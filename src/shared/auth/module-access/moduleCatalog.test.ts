@@ -78,6 +78,7 @@ describe("moduleCatalog", () => {
     expect(resolveSalesModuleForPath("/operations/table-management/group")).toBe("operations");
     expect(resolveSalesModuleForPath("/operations/table-management/map")).toBe("operations");
     expect(resolveSalesModuleForPath("/operations/table-management/report")).toBe("operations");
+    expect(resolveSalesModuleForPath("/operations/synckerja-order")).toBe("operations");
     expect(resolveSalesModuleForPath("/finance/bank-mutations")).toBe("finance");
   });
 

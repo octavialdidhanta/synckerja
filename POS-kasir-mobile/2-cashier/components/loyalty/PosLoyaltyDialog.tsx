@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -13,9 +12,10 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { normalizeCustomerVisitPhone } from "@/5-2-customer-visits/lib/normalizeCustomerVisitPhone";
 import {
   ensurePosCheckoutLead,
+  lookupPosCheckoutLeadByPhone,
   POS_CHECKOUT_WALK_IN_CLIENT,
 } from "@/5-2-customer-visits/checkout/pos-bind";
-import { isGenericCustomerName } from "@/pos-receipt-feedback/lib/isGenericCustomerName";
+import { isGenericCustomerName, personalCustomerName } from "@/pos-receipt-feedback/lib/isGenericCustomerName";
 import { POS_LOYALTY_I18N } from "../../lib/posLoyaltyCopy";
 import {
   usePosCustomerPhoneLookup,
@@ -25,8 +25,12 @@ import {
   usePosOutletRewards,
   type PosOutletReward,
 } from "../../hooks/usePosOutletRewards";
-import { PosLoyaltyCheckResult } from "./PosLoyaltyCheckResult";
-import { PosLoyaltySaveNameSheet } from "./PosLoyaltySaveNameSheet";
+import { loyaltyOpenStateFromCashier } from "../../lib/posLoyaltyIdentity";
+import type { PosCashierCustomer } from "../../lib/posCashierCustomer";
+import {
+  PosMemberLookupPanel,
+  PosMemberSaveNameSheet,
+} from "../member-lookup";
 import { PosLoyaltyRewardsList } from "./PosLoyaltyRewardsList";
 
 export type PosLoyaltyResult = {
@@ -38,12 +42,16 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   outletId: string;
+  initialCustomer?: PosCashierCustomer | null;
   onSkip: () => void;
   onContinue: (result: PosLoyaltyResult) => void;
   onBack: () => void;
 };
 
-function customerFromPhone(phoneLocal: string, existing?: PosLoyaltyCustomer | null): PosLoyaltyCustomer {
+function customerFromPhone(
+  phoneLocal: string,
+  existing?: PosLoyaltyCustomer | null,
+): PosLoyaltyCustomer {
   const phone = normalizeCustomerVisitPhone(phoneLocal) ?? phoneLocal;
   const name = existing?.name?.trim();
   return {
@@ -57,6 +65,7 @@ export function PosLoyaltyDialog({
   open,
   onOpenChange,
   outletId,
+  initialCustomer,
   onSkip,
   onContinue,
   onBack,
@@ -75,13 +84,16 @@ export function PosLoyaltyDialog({
 
   useEffect(() => {
     if (!open) return;
-    setPhoneLocal("");
-    setCustomer(null);
-    setChecked(false);
+    const prefill = loyaltyOpenStateFromCashier(initialCustomer);
+    setPhoneLocal(prefill.phoneLocal);
+    setCustomer(prefill.customer);
+    setChecked(prefill.checked);
     setSaveNameOpen(false);
     setSavingName(false);
     setSelectedRewardId(null);
     setRewardsOpen(true);
+    // Prefill only when the dialog opens so a late session hydrate cannot reset Check.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const rewards = rewardsQuery.data ?? [];
@@ -112,8 +124,20 @@ export function PosLoyaltyDialog({
         clientName: name,
         userId: user?.id ?? null,
       });
-      const phone = normalizeCustomerVisitPhone(phoneLocal) ?? phoneLocal;
-      setCustomer({ id: ensured.leadId, name, phone });
+      const matched = await lookupPosCheckoutLeadByPhone({
+        organizationId,
+        rawPhone: phoneLocal,
+      });
+      const phone =
+        matched?.lead?.phone_number ??
+        matched?.phoneKey ??
+        normalizeCustomerVisitPhone(phoneLocal) ??
+        phoneLocal;
+      setCustomer({
+        id: matched?.lead?.id ?? ensured.leadId,
+        name: personalCustomerName(matched?.lead?.client) ?? name,
+        phone,
+      });
       setChecked(true);
       setSaveNameOpen(false);
     } finally {
@@ -192,37 +216,17 @@ export function PosLoyaltyDialog({
             </p>
           </div>
 
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            {t(POS_LOYALTY_I18N.registerOrSearch, "Register or find member")}
-          </p>
-          <div className="flex gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-slate-200 px-2">
-              <span className="shrink-0 text-sm font-medium text-slate-600">+62</span>
-              <Input
-                value={phoneLocal}
-                onChange={(e) => {
-                  setPhoneLocal(e.target.value.replace(/\D/g, ""));
-                  setChecked(false);
-                  setCustomer(null);
-                }}
-                placeholder={t(POS_LOYALTY_I18N.phonePlaceholder, "812…")}
-                className="h-10 border-0 shadow-none focus-visible:ring-0"
-                inputMode="tel"
-              />
-            </div>
-            <Button
-              type="button"
-              className="h-10 shrink-0 px-4"
-              disabled={lookup.isPending || phoneLocal.length < 8}
-              onClick={() => void runCheck()}
-            >
-              {t(POS_LOYALTY_I18N.check, "Check")}
-            </Button>
-          </div>
-          <PosLoyaltyCheckResult
-            customer={customer}
-            checked={checked}
+          <PosMemberLookupPanel
             phoneLocal={phoneLocal}
+            onPhoneLocalChange={(value) => {
+              setPhoneLocal(value);
+              setChecked(false);
+              setCustomer(null);
+            }}
+            checking={lookup.isPending}
+            checked={checked}
+            customer={customer}
+            onCheck={() => void runCheck()}
             onOpenSaveName={() => setSaveNameOpen(true)}
           />
 
@@ -241,7 +245,7 @@ export function PosLoyaltyDialog({
           </Button>
         </div>
 
-        <PosLoyaltySaveNameSheet
+        <PosMemberSaveNameSheet
           open={saveNameOpen}
           phoneLocal={phoneLocal}
           initialName={

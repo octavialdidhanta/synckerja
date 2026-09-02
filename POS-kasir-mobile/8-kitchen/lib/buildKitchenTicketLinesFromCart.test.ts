@@ -51,6 +51,19 @@ describe("buildKitchenTicketLinesFromCart", () => {
     expect(lines[0]?.modifiers_text).toContain("Pedas");
     expect(lines[0]?.modifiers_text).toContain("Extra telur");
   });
+
+  it("appends option qty and kitchen note", () => {
+    const lines = buildKitchenTicketLinesFromCart([
+      productLine({
+        catalogId: "c",
+        quantity: 1,
+        modifiers: [{ optionId: "m1", name: "Lemon Tea - Iced", extraPrice: 0, quantity: 2 }],
+        kitchenNote: "kurang es",
+      }),
+    ]);
+    expect(lines[0]?.modifiers_text).toContain("Lemon Tea - Iced ×2");
+    expect(lines[0]?.modifiers_text).toContain("Catatan: kurang es");
+  });
 });
 
 describe("nextKitchenTicketStatus", () => {

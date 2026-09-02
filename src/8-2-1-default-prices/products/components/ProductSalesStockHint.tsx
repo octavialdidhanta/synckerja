@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
-import { Info } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { INGREDIENT_RECIPES_PATH } from "@/8-2-3-ingredient/layout/IngredientHeaderAndTab";
 import { productSalesStockMode } from "@/stock-management/catalog-ledger/lib/productSalesStockMode";
+import { FieldInfoTip } from "../../components/FieldInfoTip";
 
 export type ProductSalesStockHintProps = {
   trackStock: boolean;
@@ -36,14 +36,14 @@ export function ProductSalesStockHint({
         );
 
   return (
-    <div className="space-y-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
-      <p className="flex gap-2">
-        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-        <span>{body}</span>
-      </p>
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span>{t("defaultPrices.product.stockMode", "Stock")}</span>
+        <FieldInfoTip text={body} />
+      </div>
       <Link
         to={INGREDIENT_RECIPES_PATH}
-        className="inline-flex font-medium text-primary underline-offset-2 hover:underline"
+        className="inline-flex text-xs font-medium text-primary underline-offset-2 hover:underline"
       >
         {t("defaultPrices.product.recipeLink", "Open ingredient recipes")}
       </Link>

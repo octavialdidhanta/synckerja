@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Info, Lock } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { FieldInfoTip } from "../../components/FieldInfoTip";
 import type { CogsRowDraft, VariantDraft } from "../types";
 import { ManageProductCogsDialog } from "./ManageProductCogsDialog";
 
@@ -13,6 +13,7 @@ export type ProductCogsSectionProps = {
   rows: CogsRowDraft[];
   onRowsChange: (rows: CogsRowDraft[]) => void;
   lockCogs: boolean;
+  hideHeading?: boolean;
 };
 
 export function ProductCogsSection({
@@ -23,6 +24,7 @@ export function ProductCogsSection({
   rows,
   onRowsChange,
   lockCogs,
+  hideHeading,
 }: ProductCogsSectionProps) {
   const { t } = useAppTranslation();
   const [open, setOpen] = useState(false);
@@ -31,9 +33,26 @@ export function ProductCogsSection({
 
   return (
     <section className="space-y-3">
-      <p className="border-b pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {t("defaultPrices.product.cogs.section", "Cost")}
-      </p>
+      {hideHeading ? null : (
+        <div className="flex items-center gap-1.5 border-b pb-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {t("defaultPrices.product.cogs.section", "Cost")}
+          </p>
+          <FieldInfoTip
+            text={
+              inventoryOn
+                ? t(
+                    "defaultPrices.product.cogs.immutable",
+                    "Avg cost can not be changed after saving the item, so please make sure that it is correct!",
+                  )
+                : t(
+                    "defaultPrices.product.cogs.locked",
+                    "This item can not be tracked because the inventory stock is not tracked.",
+                  )
+            }
+          />
+        </div>
+      )}
       {inventoryOn && tracking ? (
         <div className="flex items-center justify-between text-sm">
           <span className="truncate">{productName || "—"}</span>
@@ -58,25 +77,6 @@ export function ProductCogsSection({
           ? t("defaultPrices.product.cogs.manage", "Manage Cost of Goods Sold (COGS)")
           : t("defaultPrices.product.cogs.start", "Start Tracking Cost of Goods Sold (COGS)")}
       </Button>
-      <p className="flex gap-2 text-xs text-muted-foreground">
-        {inventoryOn ? (
-          <>
-            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-            {t(
-              "defaultPrices.product.cogs.immutable",
-              "Avg cost can not be changed after saving the item, so please make sure that it is correct!",
-            )}
-          </>
-        ) : (
-          <>
-            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-            {t(
-              "defaultPrices.product.cogs.locked",
-              "This item can not be tracked because the inventory stock is not tracked.",
-            )}
-          </>
-        )}
-      </p>
       <ManageProductCogsDialog
         open={open}
         onOpenChange={setOpen}

@@ -4,29 +4,33 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
 import { summarizeAssignedOutlets } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { AssignProductOutletDialog } from "./AssignProductOutletDialog";
+import { FieldInfoTip } from "../../components/FieldInfoTip";
 
 export type ProductOutletsSectionProps = {
   selectedIds: string[];
   onChange: (ids: string[]) => void;
+  embedded?: boolean;
 };
 
-export function ProductOutletsSection({ selectedIds, onChange }: ProductOutletsSectionProps) {
+export function ProductOutletsSection({ selectedIds, onChange, embedded }: ProductOutletsSectionProps) {
   const { t } = useAppTranslation();
   const { rows } = usePosOutlets();
   const [open, setOpen] = useState(false);
   const summary = summarizeAssignedOutlets(rows, selectedIds);
 
   return (
-    <section className="space-y-3 rounded-lg border p-4">
-      <h3 className="text-sm font-semibold">
-        {t("defaultPrices.product.outletsSection", "Assigned Outlets")}
-      </h3>
-      <p className="text-xs text-muted-foreground">
-        {t(
-          "defaultPrices.product.outletsHint",
-          "Select outlets that sell this product",
-        )}
-      </p>
+    <section className={embedded ? "space-y-2" : "space-y-3 rounded-lg border p-4"}>
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-sm font-medium">
+          {t("defaultPrices.product.outletsSection", "Assigned Outlets")}
+        </h3>
+        <FieldInfoTip
+          text={t(
+            "defaultPrices.product.outletsHint",
+            "Select outlets that sell this product",
+          )}
+        />
+      </div>
       <Button type="button" className="w-full" onClick={() => setOpen(true)}>
         {t("defaultPrices.product.assignOutlet", "Assign Outlet")}
       </Button>

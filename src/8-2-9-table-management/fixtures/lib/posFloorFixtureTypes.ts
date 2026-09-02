@@ -4,6 +4,7 @@ export type PosFloorFixtureType =
   | "cashier"
   | "stairs"
   | "door"
+  | "wall"
   | "kitchen"
   | "washbasin"
   | "kiosk"
@@ -13,6 +14,7 @@ export const POS_FLOOR_FIXTURE_TYPES: readonly PosFloorFixtureType[] = [
   "cashier",
   "stairs",
   "door",
+  "wall",
   "kitchen",
   "washbasin",
   "kiosk",
@@ -49,9 +51,12 @@ export const FIXTURE_DEFAULT_FOOTPRINT: Record<
   kiosk: { grid_w: 2, grid_h: 1 },
   /** Thin strip along an opening (rotate for vertical). */
   door: { grid_w: 2, grid_h: 1 },
-  /** Stair run — longer depth looks like steps. */
-  stairs: { grid_w: 2, grid_h: 3 },
+  /** Thin wall on a grid line; lengthen by dragging the ends. */
+  wall: { grid_w: 3, grid_h: 1 },
+  /** Single cell; rendered as a full box with three step lines. */
+  stairs: { grid_w: 1, grid_h: 1 },
   kitchen: { grid_w: 3, grid_h: 2 },
+  /** Single cell; drawn as a half-tile against one edge (rotate to pin). */
   washbasin: { grid_w: 1, grid_h: 1 },
   /** Free-form bay; length/width edited in dialog. */
   parking: { grid_w: 3, grid_h: 2 },
@@ -64,4 +69,21 @@ export const FIXTURE_SIZE_EDITABLE_ON_ADD: readonly PosFloorFixtureType[] = [
   "kitchen",
   "cashier",
   "kiosk",
+  "wall",
+] as const;
+
+/** Types drawn as a thin strip snapped to a grid line (door, wall). */
+export const EDGE_STRIP_FIXTURE_TYPES: readonly PosFloorFixtureType[] = [
+  "door",
+  "wall",
+] as const;
+
+/** Types that always occupy one cell; size fields are hidden in the dialog. */
+export const FIXED_CELL_FIXTURE_TYPES: readonly PosFloorFixtureType[] = [
+  "washbasin",
+] as const;
+
+/** Types whose length can be dragged from the ends on the map. */
+export const LENGTH_RESIZABLE_FIXTURE_TYPES: readonly PosFloorFixtureType[] = [
+  "wall",
 ] as const;

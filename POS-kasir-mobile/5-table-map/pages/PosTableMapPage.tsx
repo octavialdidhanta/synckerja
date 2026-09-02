@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useToast } from "@/shared/hooks/use-toast";
@@ -102,6 +112,7 @@ export default function PosTableMapPage() {
   const [billListOpen, setBillListOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cancelReasonOpen, setCancelReasonOpen] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<PosBillListRow | null>(null);
   const [refundBusyId, setRefundBusyId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -461,6 +472,35 @@ export default function PosTableMapPage() {
     setCancelReasonOpen(true);
   }, [sheetTarget?.session]);
 
+  const onClearTable = useCallback(() => {
+    if (!sheetTarget?.session) return;
+    setClearConfirmOpen(true);
+  }, [sheetTarget?.session]);
+
+  const confirmClearTable = useCallback(() => {
+    if (!sheetTarget?.session) return;
+    const sessionId = sheetTarget.session.id;
+    void (async () => {
+      setBusy(true);
+      try {
+        await sessionMutations.clearSeatedOpenSession.mutateAsync({ sessionId });
+        toast({ title: t(POS_TABLE_MAP_I18N.sheetClearSuccess, "Table cleared") });
+        setClearConfirmOpen(false);
+        setSheetOpen(false);
+        setSheetTarget(null);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast({
+          title: t(POS_TABLE_MAP_I18N.sheetClearError, "Failed to clear table"),
+          description: msg,
+          variant: "destructive",
+        });
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [sessionMutations.clearSeatedOpenSession, sheetTarget?.session, t, toast]);
+
   const confirmDeleteBill = useCallback(
     (reason: string) => {
       if (!sheetTarget?.session) return;
@@ -627,6 +667,7 @@ export default function PosTableMapPage() {
         onCreateOrder={onCreateOrder}
         onPrintBill={onPrintBill}
         onDeleteBill={onDeleteBill}
+        onClearTable={onClearTable}
         busy={busy}
       />
       <PosBillListDialog
@@ -661,6 +702,35 @@ export default function PosTableMapPage() {
         onConfirm={confirmCancelFromList}
         confirming={busy}
       />
+      <AlertDialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t(POS_TABLE_MAP_I18N.sheetClearTable, "Clear table")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                POS_TABLE_MAP_I18N.sheetConfirmClear,
+                "Clear this table? The dining session will close. Payment is not refunded.",
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>
+              {t(POS_TABLE_MAP_I18N.sheetClose, "Close")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault();
+                confirmClearTable();
+              }}
+            >
+              {t(POS_TABLE_MAP_I18N.sheetClearTable, "Clear table")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {pinDialog}
     </div>
   );

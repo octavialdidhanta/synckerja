@@ -26,7 +26,7 @@ Sidebar: POS group → **Table Management** (after Employees).
 - Grid canvas with drag-and-drop; **Save Changes** batch upsert/soft-delete for tables **and** floor fixtures.
 - Shapes: `circle`, `square` (pax locked 2), `rectangle` (length ≈ ceil(pax/2)), `one_sided` (length ≈ pax).
 - Data: `pos_tables` (FK group, grid_x/y/w/h, rotation).
-- Floor fixtures (cashier, stairs, door, kitchen, washbasin, kiosk, parking): `pos_floor_fixtures` — layout-only, no sessions/orders; package under `fixtures/`.
+- Floor fixtures (cashier, stairs, door, wall, kitchen, washbasin, kiosk, parking): `pos_floor_fixtures` — layout-only, no sessions/orders; package under `fixtures/`. Walls snap to grid lines (same thickness as doors) and can be lengthened by dragging the ends.
 - Toolbar **Add** → Table | Floor Item; fixtures render under tables; POS `/pos/table-map` shows them muted and non-clickable.
 - Runtime occupancy lives on **POS-kasir-mobile** (`pos_table_sessions`) for tables only.
 
@@ -53,7 +53,7 @@ Backoffice keys: `bo.table_management`, `.group`, `.map`, `.report` (Administrat
 
 - [ ] Nav POS → Table Management opens `/operations/table-management/group`
 - [ ] Create / edit / delete / duplicate table group for selected outlet
-- [ ] Table Map: add shapes / floor items, drag, edit, delete, Save; reload persists
+- Table Map: add shapes / floor items, drag, copy/paste (Ctrl+C / Ctrl+V), edit, delete, Save; reload persists
 - [ ] POS Table Map: fixtures visible muted; only tables open session sheet
 - [ ] Table Report: filter outlet/date/table; open transaction detail
 - [ ] POS: solo guest with pax=1 on 5-top; second bill can open on same table until capacity full

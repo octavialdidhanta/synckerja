@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { Info } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { FieldInfoTip } from "../../components/FieldInfoTip";
 import { useCatalogSalesTypes } from "../../sales-types/hooks/useCatalogSalesTypes";
 import { formatIdIntegerGrouping, stripToDigits } from "../../utils/formatIdUnitPrice";
 import type { VariantDraft } from "../types";
@@ -25,6 +25,7 @@ export type ProductPricingSectionProps = {
   onProductSalesTypeDisplays: (next: Record<string, string>) => void;
   variantSalesTypeDisplays: Record<string, Record<string, string>>;
   onVariantSalesTypeDisplays: (next: Record<string, Record<string, string>>) => void;
+  hideHeading?: boolean;
 };
 
 export function ProductPricingSection({
@@ -41,6 +42,7 @@ export function ProductPricingSection({
   onProductSalesTypeDisplays,
   variantSalesTypeDisplays,
   onVariantSalesTypeDisplays,
+  hideHeading,
 }: ProductPricingSectionProps) {
   const { t } = useAppTranslation();
   const { rows: salesTypes } = useCatalogSalesTypes();
@@ -76,9 +78,11 @@ export function ProductPricingSection({
 
   return (
     <section className="space-y-3">
-      <p className="border-b pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {t("defaultPrices.product.pricing.section", "Pricing")}
-      </p>
+      {hideHeading ? null : (
+        <p className="border-b pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {t("defaultPrices.product.pricing.section", "Pricing")}
+        </p>
+      )}
       <label className="flex cursor-pointer items-center gap-2 text-sm">
         <Checkbox
           checked={useSalesTypePrices}
@@ -91,7 +95,12 @@ export function ProductPricingSection({
         <div className="overflow-hidden rounded-md border">
           <div className="flex items-center gap-1 bg-muted/50 px-3 py-1.5 text-xs font-medium uppercase text-muted-foreground">
             {t("defaultPrices.product.sku", "SKU")}
-            <Info className="h-3.5 w-3.5 text-primary" />
+            <FieldInfoTip
+              text={t(
+                "defaultPrices.product.skuTooltip",
+                "Optional internal code for this item. Variants can have their own SKU.",
+              )}
+            />
           </div>
           <div className="p-3">
             <Input

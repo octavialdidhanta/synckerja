@@ -10,16 +10,18 @@ type Props = {
   phoneLocal: string;
   initialName: string;
   saving: boolean;
+  hideContinueWithoutName?: boolean;
   onSave: (name: string) => void;
-  onContinueWithoutName: () => void;
+  onContinueWithoutName?: () => void;
   onClose: () => void;
 };
 
-export function PosLoyaltySaveNameSheet({
+export function PosMemberSaveNameSheet({
   open,
   phoneLocal,
   initialName,
   saving,
+  hideContinueWithoutName,
   onSave,
   onContinueWithoutName,
   onClose,
@@ -82,15 +84,17 @@ export function PosLoyaltySaveNameSheet({
         <Button type="button" className="h-11 w-full" disabled={saving} onClick={submit}>
           {t(POS_LOYALTY_I18N.saveName, "Save name")}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11 w-full"
-          disabled={saving}
-          onClick={onContinueWithoutName}
-        >
-          {t(POS_LOYALTY_I18N.continueWithoutName, "Continue without a name")}
-        </Button>
+        {hideContinueWithoutName || !onContinueWithoutName ? null : (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full"
+            disabled={saving}
+            onClick={onContinueWithoutName}
+          >
+            {t(POS_LOYALTY_I18N.continueWithoutName, "Continue without a name")}
+          </Button>
+        )}
       </div>
     </div>
   );

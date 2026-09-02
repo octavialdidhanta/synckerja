@@ -15,7 +15,6 @@ import {
   TaskListDialogs,
 } from './TaskList/index';
 import { useTaskListBlockers } from '../hooks/useTaskListBlockers';
-import { useTaskListDepartments } from '../hooks/useTaskListDepartments';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useOkrCycles } from '@/shared/hooks/useOkrCycles';
 import { useIndividualObjectives } from '@/1-home/components/HomeOKRDashboard/modal/useIndividualObjectives';
@@ -28,6 +27,7 @@ import { hideScrollbarClassName } from '../lib/hideScrollbar';
 
 export const TaskList = () => {
   const { t } = useAppTranslation();
+  const { organizationId } = useCurrentOrg();
   const {
     tasks,
     effectiveFilteredTasks,
@@ -43,12 +43,17 @@ export const TaskList = () => {
     highlightedTask,
     highlightFromPendingApproval,
     requestDeadlineExtension,
+    departmentMap,
   } = useDailyTask();
   const { user } = useCurrentUser();
   const { toast } = useToast();
 
-  const { organizationId } = useCurrentOrg();
-  const { data: cycles = [] } = useOkrCycles(organizationId);
+  const hasLinkedObjectives = useMemo(
+    () => tasks.some((task) => Boolean(task.objective_id)),
+    [tasks],
+  );
+  const okrOrgId = hasLinkedObjectives ? organizationId : undefined;
+  const { data: cycles = [] } = useOkrCycles(okrOrgId);
   const activeCycleIds = useMemo(() => {
     const currentYear = new Date().getFullYear();
     return cycles
@@ -59,7 +64,11 @@ export const TaskList = () => {
       )
       .map((c: { id: string }) => c.id);
   }, [cycles]);
-  const { data: individualObjectives = [] } = useIndividualObjectives(organizationId, activeCycleIds);
+  const { data: individualObjectives = [] } = useIndividualObjectives(
+    okrOrgId,
+    activeCycleIds,
+    Boolean(okrOrgId),
+  );
   const objectiveIdToTitle = useMemo(() => {
     const map: Record<string, string> = {};
     individualObjectives.forEach((obj: { id: string; title: string }) => {
@@ -68,7 +77,6 @@ export const TaskList = () => {
     return map;
   }, [individualObjectives]);
 
-  const departmentMap = useTaskListDepartments(tasks);
   const {
     blockerCountByTask,
     blockerModalOpen,

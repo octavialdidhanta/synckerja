@@ -10,6 +10,8 @@ interface ImportMetaEnv {
   readonly VITE_GOOGLE_SSO_IOS_CLIENT_ID?: string;
   /** Public survey mini-app: exact hostname match → mount SurveyPublicApp (DNS points here). */
   readonly VITE_PUBLIC_SURVEY_HOSTNAME?: string;
+  /** Public Synckerja Order storefront: exact hostname match → mount OrderStoreApp. */
+  readonly VITE_PUBLIC_ORDER_HOSTNAME?: string;
   /** Full origin for preview links in omnichannel settings & Edge SURVEY_PUBLIC_ORIGIN should match. */
   readonly VITE_PUBLIC_SURVEY_ORIGIN?: string;
   /** Meta Facebook/Instagram Login app ID. */

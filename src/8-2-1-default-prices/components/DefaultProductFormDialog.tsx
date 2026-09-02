@@ -37,6 +37,11 @@ import { formatIdIntegerGrouping, parseGroupedIdInteger, stripToDigits } from ".
 import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
 import { activePosOutletIds } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { ProductOutletsSection } from "../product-outlets";
+import { FieldInfoTip } from "./FieldInfoTip";
+import { ProductFormGroup } from "./ProductFormGroup";
+import { ProductOrderPublishSection } from "@/synckerja-order/3-catalog/ProductOrderPublishSection";
+import { useProductOrderPublish } from "@/synckerja-order/5-backoffice-shell/hooks/useProductOrderPublish";
+import { canPublishToOrderOutlet } from "@/synckerja-order/shared/lib/orderCatalogPublish";
 import { ProductSalesStockHint, useProductIdsWithBaseRecipe } from "../products";
 import {
   effectivePosStatus,
@@ -116,9 +121,15 @@ export function DefaultProductFormDialog({
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [orderPublish, setOrderPublish] = useState(false);
 
   const sourceRow = editingRow ?? prefillRow ?? null;
   const isEdit = Boolean(editingRow);
+  const orderPublishQuery = useProductOrderPublish(editingRow?.id ?? null, selectedOutletId ?? null);
+  const canPublishOrder = canPublishToOrderOutlet({
+    selectedOutletId,
+    assignedOutletIds: outletIds,
+  });
   const outletLabel = selectedOutletName?.trim() || t("outlets.filter.label", "Outlet");
   const categoryOptions = useMemo(
     () =>
@@ -241,7 +252,13 @@ export function DefaultProductFormDialog({
     setFile(null);
     setPreviewUrl(null);
     setError("");
-  }, [open, sourceRow, selectedOutletId]);
+    if (!editingRow) setOrderPublish(false);
+  }, [open, sourceRow, selectedOutletId, editingRow]);
+
+  useEffect(() => {
+    if (!open || !editingRow) return;
+    if (orderPublishQuery.isFetched) setOrderPublish(orderPublishQuery.optedIn);
+  }, [open, editingRow, orderPublishQuery.isFetched, orderPublishQuery.optedIn]);
 
   useEffect(() => {
     if (!open || sourceRow) return;
@@ -437,6 +454,7 @@ export function DefaultProductFormDialog({
         use_default_price: !isEdit || useDefaultPrice,
         use_default_status: !isEdit || useDefaultStatus,
         outlet_overrides: sourceRow?.outlet_overrides,
+        order_publish: canPublishOrder && orderPublish,
       });
       onOpenChange(false);
     } catch (err) {
@@ -453,7 +471,7 @@ export function DefaultProductFormDialog({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="right"
-          className="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
+          className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           aria-describedby={undefined}
         >
           <SheetHeader className="shrink-0 border-b px-6 py-4 pr-12 text-left">
@@ -463,14 +481,23 @@ export function DefaultProductFormDialog({
                 : t("defaultPrices.product.addTitle", "Add product")}
             </SheetTitle>
           </SheetHeader>
-          <form onSubmit={(e) => void handleSubmit(e)} className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+          <form onSubmit={(e) => void handleSubmit(e)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-6 py-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <ProductFormGroup title={t("defaultPrices.product.group.details", "Product")}>
             <div>
               <Label htmlFor="product_name">{t("defaultPrices.product.name", "Name")} *</Label>
               <Input id="product_name" className="mt-1" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div>
-              <Label>{t("defaultPrices.product.photo", "Photo")} *</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>{t("defaultPrices.product.photo", "Photo")} *</Label>
+                <FieldInfoTip
+                  text={`${t("defaultPrices.product.photoDrop", "Drop a photo or click to choose")} ${t(
+                    "defaultPrices.product.photoHint",
+                    "Square photo works best in the catalog.",
+                  )}`}
+                />
+              </div>
               <input
                 ref={fileInputRef}
                 id="product_photo"
@@ -495,16 +522,12 @@ export function DefaultProductFormDialog({
                 ) : (
                   <span className="h-16 w-16 shrink-0 rounded bg-gray-200" />
                 )}
-                <span className="min-w-0">
-                  <span className="block text-sm text-gray-900">
-                    {t("defaultPrices.product.photoDrop", "Drop a photo or click to choose")}
-                  </span>
-                  <span className="block text-xs text-muted-foreground">
-                    {file?.name || t("defaultPrices.product.photoHint", "Square photo works best in the catalog.")}
-                  </span>
+                <span className="min-w-0 truncate text-sm text-gray-900">
+                  {file?.name || t("defaultPrices.product.photoDrop", "Drop a photo or click to choose")}
                 </span>
               </button>
             </div>
+            <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="product_unit">{t("defaultPrices.product.unit", "Unit")}</Label>
               <Select value={unitPreset} onValueChange={setUnitPreset}>
@@ -555,8 +578,17 @@ export function DefaultProductFormDialog({
                 </SelectContent>
               </Select>
             </div>
+            </div>
             <div>
-              <Label htmlFor="product_brand">{t("defaultPrices.product.brand", "Brand")}</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="product_brand">{t("defaultPrices.product.brand", "Brand")}</Label>
+                <FieldInfoTip
+                  text={t(
+                    "defaultPrices.product.brandHint",
+                    "Optional. Use for retail items sold under a manufacturer or supplier brand.",
+                  )}
+                />
+              </div>
               <Select value={brandId} onValueChange={setBrandId}>
                 <SelectTrigger id="product_brand" className="mt-1">
                   <SelectValue placeholder={t("defaultPrices.product.unbranded", "Unbranded")} />
@@ -572,21 +604,43 @@ export function DefaultProductFormDialog({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t(
-                  "defaultPrices.product.brandHint",
-                  "Optional. Use for retail items sold under a manufacturer or supplier brand.",
-                )}
-              </p>
             </div>
-            <ProductOutletsSection selectedIds={outletIds} onChange={setOutletIds} />
+            <div>
+              <Label htmlFor="product_description">{t("defaultPrices.form.description", "Description")}</Label>
+              <Textarea
+                id="product_description"
+                className="mt-1 resize-none"
+                rows={2}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+            </ProductFormGroup>
+            <ProductFormGroup title={t("defaultPrices.product.group.selling", "Selling")}>
+            <ProductOutletsSection embedded selectedIds={outletIds} onChange={setOutletIds} />
+            <ProductOrderPublishSection
+              embedded
+              checked={canPublishOrder && orderPublish}
+              disabled={!canPublishOrder}
+              outletName={selectedOutletName}
+              onCheckedChange={setOrderPublish}
+            />
             <div>
               <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="product_status">
-                  {isEdit
-                    ? t("defaultPrices.product.posStatusForOutlet", "POS status for {{outlet}}", { outlet: outletLabel })
-                    : t("defaultPrices.product.posStatus", "POS status")}
-                </Label>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <Label htmlFor="product_status">
+                    {isEdit
+                      ? t("defaultPrices.product.posStatusForOutlet", "POS status for {{outlet}}", { outlet: outletLabel })
+                      : t("defaultPrices.product.posStatus", "POS status")}
+                  </Label>
+                  {isEdit && !useDefaultStatus ? (
+                    <FieldInfoTip
+                      text={t("defaultPrices.product.outletStatusHint", "This status applies only to {{outlet}}.", {
+                        outlet: outletLabel,
+                      })}
+                    />
+                  ) : null}
+                </div>
                 {isEdit && !useDefaultStatus ? (
                   <Button
                     type="button"
@@ -620,15 +674,11 @@ export function DefaultProductFormDialog({
                   ))}
                 </SelectContent>
               </Select>
-              {isEdit && !useDefaultStatus ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("defaultPrices.product.outletStatusHint", "This status applies only to {{outlet}}.", {
-                    outlet: outletLabel,
-                  })}
-                </p>
-              ) : null}
             </div>
+            </ProductFormGroup>
+            <ProductFormGroup title={t("defaultPrices.product.pricing.section", "Pricing")}>
             <ProductPricingSection
+              hideHeading
               selectedOutletId={selectedOutletId ?? ""}
               useSalesTypePrices={useSalesTypePrices}
               onUseSalesTypePrices={setUseSalesTypePrices}
@@ -646,17 +696,23 @@ export function DefaultProductFormDialog({
               variantSalesTypeDisplays={variantSalesTypeDisplays}
               onVariantSalesTypeDisplays={setVariantSalesTypeDisplays}
             />
-            <div>
-              <Label htmlFor="product_description">{t("defaultPrices.form.description", "Description")}</Label>
-              <Textarea
-                id="product_description"
-                className="mt-1 resize-none"
-                rows={2}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
+            </ProductFormGroup>
+            <ProductFormGroup
+              title={t("defaultPrices.product.group.stock", "Stock")}
+              tip={
+                hasBaseRecipe
+                  ? t(
+                      "defaultPrices.product.inventory.recipeLocksTracking",
+                      "Living stock comes from the ingredient recipe. Do not track finished-goods item stock for this menu.",
+                    )
+                  : t(
+                      "defaultPrices.product.inventory.immutable",
+                      "Item stock can not be changed after saving the item, so please make sure that it is correct!",
+                    )
+              }
+            >
             <ProductInventorySection
+              hideHeading
               productName={name.trim()}
               unit={resolvedUnit}
               variants={variants}
@@ -673,6 +729,7 @@ export function DefaultProductFormDialog({
               hasBaseRecipe={hasBaseRecipe}
             />
             <ProductCogsSection
+              hideHeading
               productName={name.trim()}
               unit={resolvedUnit}
               variants={variants}
@@ -681,14 +738,20 @@ export function DefaultProductFormDialog({
               onRowsChange={setCogsRows}
               lockCogs={lockCogs}
             />
-            <section className="space-y-3">
-              <p className="border-b pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {t("defaultPrices.product.modifier.section", "Modifier")}
-              </p>
+            </ProductFormGroup>
+            <ProductFormGroup
+              title={t("defaultPrices.product.modifier.section", "Modifier")}
+              tip={
+                linkedModifiers.length === 0
+                  ? t(
+                      "defaultPrices.product.modifier.empty",
+                      "No modifiers assigned. Assign groups from the Modifiers library.",
+                    )
+                  : undefined
+              }
+            >
               {linkedModifiers.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {t("defaultPrices.product.modifier.empty", "No modifiers assigned. Assign groups from the Modifiers library.")}
-                </p>
+                <p className="text-sm text-muted-foreground">—</p>
               ) : (
                 <ul className="space-y-2">
                   {linkedModifiers.map((row) => (
@@ -699,7 +762,7 @@ export function DefaultProductFormDialog({
                   ))}
                 </ul>
               )}
-            </section>
+            </ProductFormGroup>
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
             </div>
             <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">

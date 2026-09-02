@@ -17,6 +17,7 @@ import {
   POS_FLOOR_FIXTURE_TYPES,
   type PosFloorFixtureType,
 } from "../lib/posFloorFixtureTypes";
+import { isFixedCellFixtureType } from "../lib/fixtureLayout";
 import {
   fixtureTypeFallback,
   fixtureTypeLabelKey,
@@ -41,6 +42,7 @@ type Props = {
 };
 
 function showSizeFields(mode: "add" | "edit", type: PosFloorFixtureType) {
+  if (isFixedCellFixtureType(type)) return false;
   if (mode === "edit") return true;
   return FIXTURE_SIZE_EDITABLE_ON_ADD.includes(type);
 }
@@ -98,11 +100,17 @@ export function AddFloorFixtureDialog({
       return;
     }
     const defaults = FIXTURE_DEFAULT_FOOTPRINT[fixtureType];
+    const size = isFixedCellFixtureType(fixtureType)
+      ? { grid_w: defaults.grid_w, grid_h: defaults.grid_h }
+      : {
+          grid_w: Math.max(1, Math.floor(gridW) || defaults.grid_w),
+          grid_h: Math.max(1, Math.floor(gridH) || defaults.grid_h),
+        };
     onSubmit({
       fixture_type: fixtureType,
       name: trimmed,
-      grid_w: Math.max(1, Math.floor(gridW) || defaults.grid_w),
-      grid_h: Math.max(1, Math.floor(gridH) || defaults.grid_h),
+      grid_w: size.grid_w,
+      grid_h: size.grid_h,
     });
   };
 
@@ -188,6 +196,14 @@ export function AddFloorFixtureDialog({
                   {t(
                     "tableManagement.fixture.parkingSizeHint",
                     "Adjust width and height to match the parking bay length.",
+                  )}
+                </p>
+              ) : null}
+              {fixtureType === "wall" ? (
+                <p className="col-span-2 text-xs text-muted-foreground">
+                  {t(
+                    "tableManagement.fixture.wallSizeHint",
+                    "Drag the ends on the map to lengthen the wall, or set width here.",
                   )}
                 </p>
               ) : null}

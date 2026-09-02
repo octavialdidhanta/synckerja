@@ -11,7 +11,6 @@ import { useVisualViewport } from '@/shared/hooks/useVisualViewport';
 import { useStatusBarStyle } from '@/shared/hooks/useStatusBarStyle';
 import { DailyTaskProvider } from '@/8-2-DailyTask/context/DailyTaskContext';
 import { ApplyPendingApprovalFocusFromState } from '@/8-2-DailyTask/components/ApplyPendingApprovalFocusFromState';
-import { MeetingNotesProvider } from '@/8-1-meeting-notes/context/MeetingNotesContext';
 import { DailyTaskLayout } from './section/DailyTaskLayout';
 import { DailyTaskSummaryView } from './section/DailyTaskSummaryView';
 import { JobDescPage } from '@/mobile/5-job-desc';
@@ -100,12 +99,10 @@ const DailyTaskPage = () => {
   return (
     <DesktopWarning>
       <SidebarProvider>
-        <MeetingNotesProvider>
-          <DailyTaskProvider>
-            <ApplyPendingApprovalFocusFromState />
-            <DailyTaskPageBody />
-          </DailyTaskProvider>
-        </MeetingNotesProvider>
+        <DailyTaskProvider>
+          <ApplyPendingApprovalFocusFromState />
+          <DailyTaskPageBody />
+        </DailyTaskProvider>
       </SidebarProvider>
     </DesktopWarning>
   );

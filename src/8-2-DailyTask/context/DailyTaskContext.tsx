@@ -12,6 +12,8 @@ import {
   useTaskFilterState,
   useTaskFilters,
   useTaskRealtime,
+  getPlanDateQueryBounds,
+  buildDailyTaskCacheKey,
   type TaskFilters,
 } from '@/shared/hooks/daily-task';
 import { logger } from '@/shared/lib/logger';
@@ -40,7 +42,7 @@ import {
 
 // Helper function to batch process large ID arrays (Supabase has limits on .in() queries)
 // Optimized batch size to balance between speed and stability
-const BATCH_SIZE = 10; // Balanced batch size - small enough to prevent 500 errors, large enough for speed
+const BATCH_SIZE = 50; // Fewer round-trips than 10; 50 UUIDs stays within PostgREST URL limits
 const MAX_RETRIES = 1; // Reduced retries for faster failure detection (was 2)
 const QUERY_TIMEOUT = 20000; // Increased to 20 seconds timeout per query to handle slow database queries
 
@@ -255,6 +257,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
   const [isLoading, setIsLoading] = useState(true);
   // Track recently updated tasks to skip real-time refresh (optimization for status updates)
   const recentlyUpdatedTasksRef = useRef<Set<string>>(new Set());
+  const hasLoadedOnceRef = useRef(false);
   // Track tasks that have been auto-fixed for has_reminder to avoid duplicate updates
   const autoFixedReminderRef = useRef<Set<string>>(new Set());
   
@@ -406,7 +409,9 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
       setIsLoading(false);
       return;
     }
-    setIsLoading(true);
+    if (!hasLoadedOnceRef.current) {
+      setIsLoading(true);
+    }
     try {
       const isDev = import.meta.env.DEV;
       if (isDev) {
@@ -435,12 +440,18 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
       }
 
       // Check cache first (60 seconds cache - INCREASED to save IO)
-      // Cache key includes user ID to ensure user-specific caching
-      const cacheKey = `tasks_${organizationId}_${user.id}`;
+      // Cache key includes user ID + plan month so this-month vs all-dates stay separate
+      const cacheKey = buildDailyTaskCacheKey(
+        organizationId,
+        user.id,
+        filters.planDateRange,
+        filters.customPlanMonth,
+      );
       if (!force) {
         const cached = getCached<any[]>(cacheKey, 60000); // 60s instead of 30s
         if (cached) {
           setTasks(cached);
+          hasLoadedOnceRef.current = true;
           setIsLoading(false);
           return;
         }
@@ -592,7 +603,9 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
           ? allAssignedTaskIds.slice(0, MAX_ASSIGNED_TASK_IDS)
           : null;
 
-      const dailyTasksQuery = supabase
+      const planBounds = getPlanDateQueryBounds(filters.planDateRange, filters.customPlanMonth);
+
+      let dailyTasksQuery = supabase
         .from('daily_tasks')
         .select(`
           id,
@@ -616,9 +629,16 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
 
-      const { data, error } = taskIdsToFetch
-        ? await dailyTasksQuery.in('id', taskIdsToFetch)
-        : await dailyTasksQuery.limit(1000);
+      if (taskIdsToFetch) {
+        dailyTasksQuery = dailyTasksQuery.in('id', taskIdsToFetch);
+      } else {
+        dailyTasksQuery = dailyTasksQuery.limit(1000);
+      }
+      if (planBounds) {
+        dailyTasksQuery = dailyTasksQuery.gte('plan_date', planBounds.start).lt('plan_date', planBounds.end);
+      }
+
+      const { data, error } = await dailyTasksQuery;
 
       if (error) {
         console.error('âŒ Error fetching tasks:', error);
@@ -640,6 +660,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
       if (!data || data.length === 0) {
         console.warn('âš ï¸ No tasks found for organization:', organizationId);
         setTasks([]);
+        hasLoadedOnceRef.current = true;
         setIsLoading(false);
         setCache(cacheKey, []);
         return;
@@ -1080,6 +1101,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
       // Reset lazy-loaded files cache so files are re-fetched when user expands tasks
       taskIdsWithFilesLoadedRef.current = new Set();
       setTasks(tasksWithProgress);
+      hasLoadedOnceRef.current = true;
       setIsLoading(false);
 
       // Cache the results
@@ -2820,7 +2842,12 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
           const result = await Promise.race([getUserPromise, getUserTimeout]);
           const user = (result as any)?.data?.user;
           if (user && !cancelled) {
-            const cacheKey = `tasks_${organizationId}_${user.id}`;
+            const cacheKey = buildDailyTaskCacheKey(
+              organizationId,
+              user.id,
+              filters.planDateRange,
+              filters.customPlanMonth,
+            );
             const cached = getCached<any[]>(cacheKey, 60000);
             if (cached !== undefined && cached !== null && !cancelled) {
               setTasks(cached);
@@ -2859,7 +2886,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId]);
+  }, [organizationId, filters.planDateRange, filters.customPlanMonth]);
 
   // Apply filters when recentStepFilters or recentStepUpdates change
   useEffect(() => {

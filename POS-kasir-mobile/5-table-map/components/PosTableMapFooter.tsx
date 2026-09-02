@@ -48,7 +48,7 @@ export function PosTableMapFooter({
       </button>
 
       {groups.length > 0 ? (
-        <div className="flex min-w-0 flex-1 overflow-x-auto">
+        <div className="scrollbar-hide flex min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {groups.map((g) => (
             <button
               key={g.id}

@@ -6,6 +6,7 @@ export type CustomerVisitCartModifier = {
   optionId: string;
   name: string;
   extraPrice: number;
+  quantity?: number;
 };
 
 export type CustomerVisitCartLineDiscount = {
@@ -63,6 +64,7 @@ export type CustomerVisitCartLine = {
   lineDiscount?: CustomerVisitCartLineDiscount | null;
   lineSalesTypeId?: string | null;
   lineSalesTypeLabel?: string | null;
+  kitchenNote?: string | null;
 };
 
 export type CustomerVisitCartTotals = {

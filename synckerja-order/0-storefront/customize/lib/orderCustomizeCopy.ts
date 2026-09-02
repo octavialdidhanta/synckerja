@@ -1,0 +1,18 @@
+export const ORDER_CUSTOMIZE_I18N = {
+  close: "synckerjaOrder.store.customize.close",
+  expandPhoto: "synckerjaOrder.store.customize.expandPhoto",
+  totalOrder: "synckerjaOrder.store.customize.totalOrder",
+  addOrders: "synckerjaOrder.store.customize.addOrders",
+  save: "synckerjaOrder.store.customize.save",
+  mustSelectMax: "synckerjaOrder.store.customize.mustSelectMax",
+  optionalMax: "synckerjaOrder.store.customize.optionalMax",
+  outOfStock: "synckerjaOrder.store.customize.outOfStock",
+  includedItems: "synckerjaOrder.store.customize.includedItems",
+  loadingOptions: "synckerjaOrder.store.customize.loadingOptions",
+  optionsError: "synckerjaOrder.store.customize.optionsError",
+  notes: "synckerjaOrder.store.customize.notes",
+  notesOptional: "synckerjaOrder.store.customize.notesOptional",
+  notesPlaceholder: "synckerjaOrder.store.customize.notesPlaceholder",
+  decreaseQty: "synckerjaOrder.store.decreaseQty",
+  increaseQty: "synckerjaOrder.store.increaseQty",
+} as const;

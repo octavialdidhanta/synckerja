@@ -75,7 +75,7 @@ export function PosSelectTableMap({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto bg-slate-100/80 p-3">
+    <div className="scrollbar-hide nested-scroll-touch-chain min-h-0 flex-1 overflow-auto bg-slate-100/80 p-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div
         className="relative mx-auto rounded-lg border border-slate-200 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[length:56px_56px] shadow-inner"
         style={{ width: widthPx, height: heightPx, minWidth: widthPx, minHeight: heightPx }}

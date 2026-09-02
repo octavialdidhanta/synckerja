@@ -1,6 +1,6 @@
-import { Info, Lock } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { FieldInfoTip } from "../../components/FieldInfoTip";
 import type { InventoryRowDraft, VariantDraft } from "../types";
 import { ManageProductInventoryDialog } from "./ManageProductInventoryDialog";
 import { useState } from "react";
@@ -16,6 +16,7 @@ export type ProductInventorySectionProps = {
   onRowsChange: (rows: InventoryRowDraft[]) => void;
   lockTracking: boolean;
   hasBaseRecipe?: boolean;
+  hideHeading?: boolean;
 };
 
 export function ProductInventorySection({
@@ -26,6 +27,7 @@ export function ProductInventorySection({
   onRowsChange,
   lockTracking,
   hasBaseRecipe = false,
+  hideHeading,
 }: ProductInventorySectionProps) {
   const { t } = useAppTranslation();
   const [open, setOpen] = useState(false);
@@ -36,9 +38,26 @@ export function ProductInventorySection({
 
   return (
     <section className="space-y-3">
-      <p className="border-b pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {t("defaultPrices.product.inventory.section", "Inventory")}
-      </p>
+      {hideHeading ? null : (
+        <div className="flex items-center gap-1.5 border-b pb-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {t("defaultPrices.product.inventory.section", "Inventory")}
+          </p>
+          <FieldInfoTip
+            text={
+              hasBaseRecipe
+                ? t(
+                    "defaultPrices.product.inventory.recipeLocksTracking",
+                    "Living stock comes from the ingredient recipe. Do not track finished-goods item stock for this menu.",
+                  )
+                : t(
+                    "defaultPrices.product.inventory.immutable",
+                    "Item stock can not be changed after saving the item, so please make sure that it is correct!",
+                  )
+            }
+          />
+        </div>
+      )}
       {tracking ? (
         <div className="flex items-center justify-between text-sm">
           <span className="truncate">{productName || "—"}</span>
@@ -67,24 +86,6 @@ export function ProductInventorySection({
           ? t("defaultPrices.product.inventory.manage", "Manage Item Inventory and Alerts")
           : t("defaultPrices.product.inventory.start", "Start Tracking Item Inventory and Alerts")}
       </Button>
-      <p className="flex gap-2 text-xs text-muted-foreground">
-        {hasBaseRecipe ? (
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-        ) : tracking ? (
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-        ) : (
-          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-        )}
-        {hasBaseRecipe
-          ? t(
-              "defaultPrices.product.inventory.recipeLocksTracking",
-              "Living stock comes from the ingredient recipe. Do not track finished-goods item stock for this menu.",
-            )
-          : t(
-              "defaultPrices.product.inventory.immutable",
-              "Item stock can not be changed after saving the item, so please make sure that it is correct!",
-            )}
-      </p>
       <ManageProductInventoryDialog
         open={open}
         onOpenChange={setOpen}

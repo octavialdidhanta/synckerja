@@ -12,6 +12,7 @@ export const POS_LOYALTY_I18N = {
   unnamedMember: "posCashier.loyaltyDialog.unnamedMember",
   registerNewMember: "posCashier.loyaltyDialog.registerNewMember",
   foundHint: "posCashier.loyaltyDialog.foundHint",
+  nameLockedHint: "posCashier.loyaltyDialog.nameLockedHint",
   tapToSetName: "posCashier.loyaltyDialog.tapToSetName",
   saveNameTitle: "posCashier.loyaltyDialog.saveNameTitle",
   saveNamePlaceholder: "posCashier.loyaltyDialog.saveNamePlaceholder",
