@@ -36,7 +36,8 @@ import { DepartmentCrudModal } from './DepartmentCrudModal';
 import { ExpenseTypeCrudModal } from './ExpenseTypeCrudModal';
 import { ExpenseCategoryCrudModal } from './ExpenseCategoryCrudModal';
 import { usePurchaseRequests, PurchaseRequest } from '@/9-request-form/hooks/usePurchaseRequests';
-import { ExpenseTableFooter } from './ExpenseTableFooter';
+import { ExpenseDashboardModuleShell } from '../layout/ExpenseDashboardModuleShell';
+import { ExpenseDashboardWorkspace } from '../layout/ExpenseDashboardWorkspace';
 import { filterExpensesBySearch, getExpenseWithdrawalLabel } from '@/shared/hooks/finance/expenseTableSearch';
 import { aggregateExpenseTotalsByKey, sortedBreakdownEntries } from '@/shared/hooks/finance/expenseBreakdownBars';
 import { supabase } from '@/shared/lib/supabaseClient';
@@ -53,7 +54,6 @@ import {
   withdrawalSourceFromFormFields,
 } from '@/shared/lib/finance/withdrawalSourceValue';
 import { useWithdrawalFromBalanceOptions } from '@/shared/hooks/finance/useWithdrawalFromBalanceOptions';
-import { ExpenseDashboardModuleShell } from '../layout/ExpenseDashboardModuleShell';
 
 async function handleViewInvoice(filePath: string | null | undefined) {
   const result = await openSupabaseFinanceReceiptOrInvoice(filePath, 3600);
@@ -151,10 +151,6 @@ function withdrawalJoinsFromPurchaseRequest(
           : undefined,
   };
 }
-
-/** Grid konten utama + spacer bawah sebagai saudara grid (Seamless Page Scroll — selaras IncomeTransaction / `/expenses/debt`). */
-const EXPENSE_DASHBOARD_MAIN_GRID =
-  'grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-1 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]';
 
 export function ExpenseDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -1092,8 +1088,10 @@ export function ExpenseDashboard() {
       onTabChange={handleTabChange}
       showContent={showContent}
     >
-      <div className={EXPENSE_DASHBOARD_MAIN_GRID}>
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+      <ExpenseDashboardWorkspace
+        count={tableFilteredExpenses.length}
+        toolbar={
+          <>
               {/* Quick View Total Current Balance - not affected by table filters; updates instantly when expense uses bank balance */}
               <div className="min-w-0 shrink-0">
                 <Card className="w-full min-w-0 border-0 bg-brand-blue text-white">
@@ -1377,9 +1375,9 @@ export function ExpenseDashboard() {
                 </div>
               </div>
 
-              {/* Tabel: viewport tinggi tetap (~10 baris) + scroll; kartu tidak memaksa min-h besar ke bawah halaman */}
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          </>
+        }
+      >
         {/* Table Header with Search and Filters */}
         <div className="flex-shrink-0 border-b border-border bg-muted/40 px-2 py-2 sm:px-3 min-w-0">
           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 min-w-0">
@@ -1813,17 +1811,7 @@ export function ExpenseDashboard() {
               </tbody>
             </table>
           </div>
-
-        {/* Footer */}
-        <ExpenseTableFooter 
-          totalExpenses={tableFilteredTotal}
-          totalCount={tableFilteredExpenses.length}
-          isLoading={expensesLoading || isLoadingPurchaseRequests}
-        />
-                </div>
-              </div>
-              </div>
-              </div>
+      </ExpenseDashboardWorkspace>
     </ExpenseDashboardModuleShell>
 
       {/* Add Expense Modal */}

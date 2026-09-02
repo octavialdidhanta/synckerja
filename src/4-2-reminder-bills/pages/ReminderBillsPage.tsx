@@ -5,7 +5,6 @@ import {
   ReminderBillsFilters,
   ReminderBillsMetricsCards,
   ReminderBillsTable,
-  ReminderBillsTableFooter,
   ReminderBillsOverview,
   ReminderBillsSidebarFooter,
   type ReminderBillsFiltersType
@@ -25,10 +24,7 @@ import { buildAllReminderBills } from '../utils/buildAllReminderBills';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { ReminderBillsModuleShell } from '../layout/ReminderBillsModuleShell';
-
-/** Selaras Seamless Page Scroll + `/expenses/payment-process`: header ikut scroll, `px-4` di luar scroll. */
-const REMINDER_BILLS_MAIN_GRID =
-  'grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px] xl:grid-rows-1 xl:items-stretch';
+import { ReminderBillsWorkspace } from '../layout/ReminderBillsWorkspace';
 
 export const ReminderBillsPage = () => {
   const { t } = useAppTranslation();
@@ -106,10 +102,6 @@ export const ReminderBillsPage = () => {
     () => buildAllReminderBills(expenses, purchaseRequests, expenseTypes, allExpenseCategories),
     [expenses, purchaseRequests, expenseTypes, allExpenseCategories],
   );
-
-  const recurringBills = useMemo(() => {
-    return allBills.filter(expense => expense.is_recurring);
-  }, [allBills]);
 
   const filteredBills = useMemo(() => {
     return filterReminderBills(allBills, filters);
@@ -197,9 +189,10 @@ export const ReminderBillsPage = () => {
         onTabChange={handleTabChange}
         showContent={showContent}
       >
-        <div className={REMINDER_BILLS_MAIN_GRID}>
-          <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-9">
-            <div className="flex h-full min-w-0 flex-1 flex-col gap-2">
+        <ReminderBillsWorkspace
+          count={filteredBills.length}
+          toolbar={
+            <>
               <div className="shrink-0 rounded-md border border-border bg-card p-2">
                 <ReminderBillsFilters
                   filters={filters}
@@ -211,29 +204,10 @@ export const ReminderBillsPage = () => {
               <div className="shrink-0 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <ReminderBillsMetricsCards expenses={expenses} />
               </div>
-
-              <div className="flex min-h-[560px] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]">
-                <ReminderBillsTable
-                  bills={filteredBills}
-                  onRefresh={handleRefresh}
-                  isLoading={expensesLoading || purchaseRequestsLoading}
-                  onViewDetails={handleViewBill}
-                  onEdit={handleEditBill}
-                  onDelete={handleDeleteBill}
-                  onPayNow={handlePayNow}
-                />
-                <ReminderBillsTableFooter
-                  totalBills={recurringBills.length}
-                  filteredBills={filteredBills.length}
-                  totalAmount={totalAmount}
-                  selectedStatus={filters.status}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-3">
-            <div className="flex h-full min-w-0 flex-1 flex-col rounded-lg border border-border bg-card shadow-sm">
+            </>
+          }
+          sidebar={
+            <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
               <div className="shrink-0 border-b border-border px-4 py-1.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -243,18 +217,27 @@ export const ReminderBillsPage = () => {
                 </div>
               </div>
 
-              <div className="min-h-0 min-w-0 flex-1 p-4">
+              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <ReminderBillsOverview bills={filteredBills} />
               </div>
 
               <ReminderBillsSidebarFooter
                 totalBills={filteredBills.length}
                 totalAmount={totalAmount}
-                selectedStatus={filters.status}
               />
             </div>
-          </div>
-        </div>
+          }
+        >
+          <ReminderBillsTable
+            bills={filteredBills}
+            onRefresh={handleRefresh}
+            isLoading={expensesLoading || purchaseRequestsLoading}
+            onViewDetails={handleViewBill}
+            onEdit={handleEditBill}
+            onDelete={handleDeleteBill}
+            onPayNow={handlePayNow}
+          />
+        </ReminderBillsWorkspace>
       </ReminderBillsModuleShell>
 
       <ReminderBillDetailDialog

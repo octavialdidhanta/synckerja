@@ -77,7 +77,7 @@ export function ItemSalesPage() {
   };
 
   return (
-    <ReportsSalesLayout showContent={showContent}>
+    <ReportsSalesLayout showContent={showContent} count={report.display.rows.length}>
       <div className="min-w-0">
         <ItemSalesToolbar
           outletId={filters.selectedOutletId}

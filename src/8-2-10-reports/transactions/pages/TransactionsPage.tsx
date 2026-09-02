@@ -1,6 +1,7 @@
+import { useRef } from "react";
 import { TransactionsPageSkeleton } from "./TransactionsPageSkeleton";
+import { TransactionsListPaneSkeleton } from "./TransactionsListPaneSkeleton";
 import { POS_OUTLET_FILTER_ALL } from "@/8-2-2-outlets/lib/assignedOutlets";
-import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import { ReportsSalesLayout } from "../../components/ReportsSalesLayout";
@@ -55,26 +56,21 @@ export function TransactionsPage() {
   const { t } = useAppTranslation();
   const filters = useTransactionsFilters();
 
+  // Prefetch all tabs with the same filters so switching Success/Cancelled/Void stays warm.
+  const listEnabled = !filters.isLoading;
   const listArgs = {
     outletId: filters.outletIdForQuery,
     fromIso: filters.timestamps.fromIso,
     toIso: filters.timestamps.toIso,
-    enabled: !filters.isLoading,
+    enabled: listEnabled,
   };
 
   const success = useSuccessOrdersList({
     ...listArgs,
     receiptQuery: filters.receiptQuery,
-    enabled: listArgs.enabled && filters.tab === "success",
   });
-  const cancelled = useCancelledOrdersList({
-    ...listArgs,
-    enabled: listArgs.enabled && filters.tab === "cancelled",
-  });
-  const voidItems = useVoidItemsList({
-    ...listArgs,
-    enabled: listArgs.enabled && filters.tab === "void",
-  });
+  const cancelled = useCancelledOrdersList(listArgs);
+  const voidItems = useVoidItemsList(listArgs);
 
   const activeLoading =
     filters.tab === "success"
@@ -83,7 +79,9 @@ export function TransactionsPage() {
         ? cancelled.isLoading
         : voidItems.isLoading;
 
-  const showContent = useDebouncedReady(!(activeLoading || filters.isLoading));
+  // Full-page gate only while outlets bootstrap. Skip useDebouncedReady — it flashes
+  // a full-route skeleton for ~200ms on every mount even when outlets are already cached.
+  const showContent = !filters.isLoading;
 
   const outletLabel =
     filters.selectedOutletId === POS_OUTLET_FILTER_ALL
@@ -116,11 +114,24 @@ export function TransactionsPage() {
         ? cancelled.error
         : voidItems.error;
 
+  const activeCount =
+    filters.tab === "success"
+      ? success.rows.length
+      : filters.tab === "cancelled"
+        ? cancelled.rows.length
+        : voidItems.rows.length;
+
+  const stableCountRef = useRef(0);
+  if (!activeLoading) {
+    stableCountRef.current = activeCount;
+  }
+
   return (
     <ReportsSalesLayout
       showContent={showContent}
       showSalesNav={false}
       loadingSkeleton={<TransactionsPageSkeleton />}
+      count={stableCountRef.current}
     >
       <div className="min-w-0">
         <TransactionsToolbar
@@ -135,7 +146,7 @@ export function TransactionsPage() {
           receiptQuery={filters.receiptQuery}
           onReceiptQueryChange={filters.setReceiptQuery}
           onExport={handleExport}
-          exportDisabled={!showContent || activeError}
+          exportDisabled={!showContent || activeLoading || activeError}
         />
         <TransactionsSubTabs tab={filters.tab} onTabChange={filters.setTab} />
         {activeError ? (
@@ -145,31 +156,45 @@ export function TransactionsPage() {
               : t("reports.transactions.loadError", "Failed to load transactions.")}
           </p>
         ) : null}
-        {filters.tab === "success" ? (
-          <SuccessOrdersList
-            groups={success.groups}
-            summary={success.summary}
-            hasMore={success.hasMore}
-            isLoadingMore={success.isLoadingMore}
-            onLoadMore={() => success.loadMore()}
-          />
-        ) : null}
-        {filters.tab === "cancelled" ? (
-          <CancelledOrdersList
-            groups={cancelled.groups}
-            hasMore={cancelled.hasMore}
-            isLoadingMore={cancelled.isLoadingMore}
-            onLoadMore={() => cancelled.loadMore()}
-          />
-        ) : null}
-        {filters.tab === "void" ? (
-          <VoidItemsList
-            groups={voidItems.groups}
-            hasMore={voidItems.hasMore}
-            isLoadingMore={voidItems.isLoadingMore}
-            onLoadMore={() => voidItems.loadMore()}
-          />
-        ) : null}
+
+        {/* Keep panes mounted so tab switches do not remount lists / flash empty states. */}
+        <div className={cn(filters.tab !== "success" && "hidden")} aria-hidden={filters.tab !== "success"}>
+          {success.isLoading ? (
+            <TransactionsListPaneSkeleton tab="success" />
+          ) : (
+            <SuccessOrdersList
+              groups={success.groups}
+              summary={success.summary}
+              hasMore={success.hasMore}
+              isLoadingMore={success.isLoadingMore}
+              onLoadMore={() => success.loadMore()}
+            />
+          )}
+        </div>
+        <div className={cn(filters.tab !== "cancelled" && "hidden")} aria-hidden={filters.tab !== "cancelled"}>
+          {cancelled.isLoading ? (
+            <TransactionsListPaneSkeleton tab="cancelled" />
+          ) : (
+            <CancelledOrdersList
+              groups={cancelled.groups}
+              hasMore={cancelled.hasMore}
+              isLoadingMore={cancelled.isLoadingMore}
+              onLoadMore={() => cancelled.loadMore()}
+            />
+          )}
+        </div>
+        <div className={cn(filters.tab !== "void" && "hidden")} aria-hidden={filters.tab !== "void"}>
+          {voidItems.isLoading ? (
+            <TransactionsListPaneSkeleton tab="void" />
+          ) : (
+            <VoidItemsList
+              groups={voidItems.groups}
+              hasMore={voidItems.hasMore}
+              isLoadingMore={voidItems.isLoadingMore}
+              onLoadMore={() => voidItems.loadMore()}
+            />
+          )}
+        </div>
       </div>
     </ReportsSalesLayout>
   );

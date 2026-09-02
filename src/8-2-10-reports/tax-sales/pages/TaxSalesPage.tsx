@@ -35,7 +35,7 @@ export function TaxSalesPage() {
   };
 
   return (
-    <ReportsSalesLayout showContent={showContent}>
+    <ReportsSalesLayout showContent={showContent} count={report.display.displayRows.length}>
       <div className="min-w-0">
         <TaxSalesToolbar
           outletId={filters.selectedOutletId}

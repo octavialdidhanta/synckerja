@@ -11,15 +11,53 @@ export type OrderStoreQuery = {
   categoryDetail?: string | null;
 };
 
-export function publicOrderHostname(): string {
+function envOrderOrigin(): string {
+  const raw =
+    typeof import.meta !== "undefined"
+      ? String(import.meta.env?.VITE_PUBLIC_ORDER_ORIGIN ?? "").trim()
+      : "";
+  return raw.replace(/\/$/, "");
+}
+
+function envOrderHostname(): string {
   const fromEnv =
     typeof import.meta !== "undefined"
       ? String(import.meta.env?.VITE_PUBLIC_ORDER_HOSTNAME ?? "").trim()
       : "";
-  return fromEnv || DEFAULT_ORDER_HOSTNAME;
+  if (fromEnv) return fromEnv;
+  const origin = envOrderOrigin();
+  if (!origin) return "";
+  try {
+    return new URL(origin).hostname;
+  } catch {
+    return "";
+  }
 }
 
+export function publicOrderHostname(): string {
+  return envOrderHostname() || DEFAULT_ORDER_HOSTNAME;
+}
+
+/**
+ * Public storefront origin used in QR / share links.
+ * - `VITE_PUBLIC_ORDER_ORIGIN` wins (e.g. `http://192.168.1.129:8080` for LAN QR tests)
+ * - In Vite DEV, reuse `window.location.origin` so links keep host+port of the running server
+ *   (order.synckerja.com on :443 is not your local Vite :8080)
+ * - Production default: `https://order.synckerja.com`
+ */
 export function publicOrderOrigin(): string {
+  const fromEnv = envOrderOrigin();
+  if (fromEnv) return fromEnv;
+
+  if (typeof import.meta !== "undefined" && import.meta.env?.DEV && typeof window !== "undefined") {
+    const { origin, hostname } = window.location;
+    if (origin && (isPrivateLanOrLoopbackHostname(hostname) || isOrderStoreHostname(hostname))) {
+      return origin.replace(/\/$/, "");
+    }
+    // Office opened on localhost — still prefer current origin so desktop preview works.
+    if (origin) return origin.replace(/\/$/, "");
+  }
+
   return `https://${publicOrderHostname()}`;
 }
 
@@ -81,7 +119,7 @@ export function shouldMountOrderStoreApp(input: {
   expectedHost?: string;
   allowLanStorefront?: boolean;
 }): boolean {
-  if (isOrderStoreHostname(input.hostname, input.expectedHost)) return true;
+  if (isOrderStoreHostname(input.hostname, input.expectedHost ?? publicOrderHostname())) return true;
   if (!input.allowLanStorefront) return false;
   if (!isPrivateLanOrLoopbackHostname(input.hostname)) return false;
   return pathnameLooksLikeOrderStore(input.pathname ?? "/");

@@ -8,26 +8,30 @@ type LeadMagnetPageShellProps = {
   children: ReactNode;
 };
 
+const MAIN_SCROLL =
+  'scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+
 /**
- * Fill-height shell: content area uses remaining viewport so list footer can stick to
- * the bottom of the table card (no clipping). AppShell may still scroll if needed.
+ * Header ikut scroll; kartu konten memakai ritme tinggi /employees.
  */
 export function LeadMagnetPageShell({ children }: LeadMagnetPageShellProps) {
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100">
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-2">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/40">
-          <div className="mb-1 flex-shrink-0">
-            <LeadMagnetHeaderAndTab />
-          </div>
-
-          <ModuleShellContentGate pagePath={LEAD_MAGNET_BASE_PATH}>
-            <LeadMagnetContentGate>
-              <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
-                {children}
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
+        <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
+          <div className={MAIN_SCROLL}>
+            <div className="flex min-h-full flex-col bg-muted/40">
+              <div className="mb-1 flex-shrink-0">
+                <LeadMagnetHeaderAndTab />
               </div>
-            </LeadMagnetContentGate>
-          </ModuleShellContentGate>
+
+              <ModuleShellContentGate pagePath={LEAD_MAGNET_BASE_PATH}>
+                <LeadMagnetContentGate>
+                  <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">{children}</div>
+                </LeadMagnetContentGate>
+              </ModuleShellContentGate>
+            </div>
+          </div>
         </div>
       </div>
     </div>

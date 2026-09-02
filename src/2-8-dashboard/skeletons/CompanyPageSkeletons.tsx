@@ -1,6 +1,7 @@
 import { CompanyModuleShell } from "@/2-8-dashboard/layout/CompanyModuleShell";
 import {
   COMPANY_CARD_FOOTER,
+  COMPANY_FULL_COLUMN,
   COMPANY_MAIN_COLUMN,
   COMPANY_MAIN_GRID,
   COMPANY_SIDEBAR_COLUMN,
@@ -13,36 +14,48 @@ import { cn } from "@/shared/lib/utils";
 
 type SkeletonProps = { className?: string };
 
-/** Single scroll column + card (dashboard / profile) — mirrors CompanyDashboardPage grid + card */
+/** Single scroll column + card (dashboard / profile) — mirrors CompanyDashboardPage workspace. */
 export function CompanyDashboardPageSkeleton({ className }: SkeletonProps) {
   const { t } = useAppTranslation();
   return (
-    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)} aria-busy aria-label={t("company.page.loadingAria", "Loading company")}>
+    <div
+      className={cn(COMPANY_MAIN_GRID, className)}
+      aria-busy
+      aria-label={t("company.page.loadingAria", "Loading company")}
+    >
       <span className="sr-only">{t("company.page.loadingAria", "Loading company")}</span>
-      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px]">
-        <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
-          <div className="space-y-3 rounded-lg border border-border bg-card p-4 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-              <Skeleton className="h-20 w-20 shrink-0 rounded-lg" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <Skeleton className="h-7 w-48" />
-                <Skeleton className="h-4 w-full max-w-md" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-9 w-24" />
-                  <Skeleton className="h-9 w-24" />
+      <div className={COMPANY_FULL_COLUMN}>
+        <div className={COMPANY_TABLE_SECTION}>
+          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+            <div className="min-h-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                <Skeleton className="h-20 w-20 shrink-0 rounded-lg" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-7 w-48" />
+                  <Skeleton className="h-4 w-full max-w-md" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-9 w-24" />
+                    <Skeleton className="h-9 w-24" />
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                <div className="space-y-2 xl:col-span-2">
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-5 w-28" />
+                  <Skeleton className="h-32 w-full" />
+                  <Skeleton className="h-28 w-full" />
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-              <div className="space-y-2 xl:col-span-2">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-24 w-full" />
-              </div>
-              <div className="space-y-2">
-                <Skeleton className="h-5 w-28" />
-                <Skeleton className="h-32 w-full" />
-                <Skeleton className="h-28 w-full" />
+            <div className={COMPANY_CARD_FOOTER}>
+              <div className="flex items-center justify-between gap-2">
+                <Skeleton className="h-3 w-44 max-w-[55%]" />
+                <Skeleton className="h-3 w-24 max-w-[40%]" />
               </div>
             </div>
           </div>

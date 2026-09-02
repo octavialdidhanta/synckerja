@@ -6,6 +6,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useSelectedPosOutlet } from "@/8-2-2-outlets/hooks/useSelectedPosOutlet";
 import { cn } from "@/shared/lib/utils";
 import { TableManagementModuleShell } from "../layout/TableManagementModuleShell";
+import { TableManagementWorkspace } from "../layout/TableManagementWorkspace";
 import { TableReportFilters } from "../components/report/TableReportFilters";
 import { TableReportSummary } from "../components/report/TableReportSummary";
 import { TableReportTransactionTable } from "../components/report/TableReportTransactionTable";
@@ -76,102 +77,106 @@ export default function TableReportPage() {
       showContent={showContent}
       loadingSkeleton={<TableReportSkeleton />}
     >
-      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2">
-        <div className={cn("col-span-12 flex min-h-0 flex-col gap-3", selected ? "xl:col-span-8" : "")}>
-          <div>
-            <h2 className="text-lg font-semibold">
-              {t("tableManagement.report.title", "Table Report")}
-            </h2>
-            <div className="mt-2">
-              <TableReportFilters
-                outletId={selectedOutletId || ""}
-                onOutletChange={(id) => {
-                  setSelectedOutletId(id);
-                  setSelected(null);
-                  setTableKey(null);
-                }}
-                dateFrom={dateFrom}
-                dateTo={dateTo}
-                onDateFromChange={setDateFrom}
-                onDateToChange={setDateTo}
-                tableKey={tableKey}
-                onTableKeyChange={(v) => {
-                  setTableKey(v);
-                  setSelected(null);
-                }}
-                tableOptions={tableOpts.data ?? []}
-              />
-            </div>
-          </div>
+      <TableManagementWorkspace count={tab === "transaction" ? report.rows.length : 0}>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="grid min-h-0 min-w-0 flex-1 grid-cols-12 gap-2 overflow-hidden p-4">
+            <div className={cn("col-span-12 flex min-h-0 flex-col gap-3 overflow-hidden", selected ? "xl:col-span-8" : "")}>
+              <div className="flex-shrink-0">
+                <h2 className="text-lg font-semibold">
+                  {t("tableManagement.report.title", "Table Report")}
+                </h2>
+                <div className="mt-2">
+                  <TableReportFilters
+                    outletId={selectedOutletId || ""}
+                    onOutletChange={(id) => {
+                      setSelectedOutletId(id);
+                      setSelected(null);
+                      setTableKey(null);
+                    }}
+                    dateFrom={dateFrom}
+                    dateTo={dateTo}
+                    onDateFromChange={setDateFrom}
+                    onDateToChange={setDateTo}
+                    tableKey={tableKey}
+                    onTableKeyChange={(v) => {
+                      setTableKey(v);
+                      setSelected(null);
+                    }}
+                    tableOptions={tableOpts.data ?? []}
+                  />
+                </div>
+              </div>
 
-          <div className="flex gap-4 border-b border-border text-sm">
-            <button
-              type="button"
-              className={cn(
-                "border-b-2 px-1 pb-2 font-medium transition-colors",
-                tab === "transaction"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-              onClick={() => setTab("transaction")}
-            >
-              {t("tableManagement.report.tabTransaction", "Transaction")}
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "border-b-2 px-1 pb-2 font-medium transition-colors",
-                tab === "void"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-              onClick={() => setTab("void")}
-            >
-              {t("tableManagement.report.tabVoid", "Void Items")}
-            </button>
-          </div>
-
-          {tab === "transaction" ? (
-            <>
-              <TableReportSummary
-                completed={report.summary.completed}
-                cancelled={report.summary.cancelled}
-              />
-              {perTableHint ? (
-                <p className="text-xs text-muted-foreground">
-                  {t(
-                    "tableManagement.report.perTableHint",
-                    "{{table}}: {{count}} orders · avg duration {{avg}}",
-                    {
-                      table: perTableHint.label,
-                      count: perTableHint.count,
-                      avg:
-                        perTableHint.avg != null ? `${perTableHint.avg} Min` : "—",
-                    },
+              <div className="flex flex-shrink-0 gap-4 border-b border-border text-sm">
+                <button
+                  type="button"
+                  className={cn(
+                    "border-b-2 px-1 pb-2 font-medium transition-colors",
+                    tab === "transaction"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
                   )}
-                </p>
-              ) : null}
-              <TableReportTransactionTable
-                rows={report.rows}
-                selectedId={selected?.id ?? null}
-                onSelect={setSelected}
-              />
-            </>
-          ) : (
-            <TableReportVoidPanel />
-          )}
-        </div>
+                  onClick={() => setTab("transaction")}
+                >
+                  {t("tableManagement.report.tabTransaction", "Transaction")}
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    "border-b-2 px-1 pb-2 font-medium transition-colors",
+                    tab === "void"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )}
+                  onClick={() => setTab("void")}
+                >
+                  {t("tableManagement.report.tabVoid", "Void Items")}
+                </button>
+              </div>
 
-        {selected && tab === "transaction" ? (
-          <div className="col-span-12 min-h-[320px] xl:col-span-4">
-            <TableReportOrderDetail row={selected} onClose={() => setSelected(null)} />
+              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {tab === "transaction" ? (
+                  <>
+                    <TableReportSummary
+                      completed={report.summary.completed}
+                      cancelled={report.summary.cancelled}
+                    />
+                    {perTableHint ? (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        {t(
+                          "tableManagement.report.perTableHint",
+                          "{{table}}: {{count}} orders · avg duration {{avg}}",
+                          {
+                            table: perTableHint.label,
+                            count: perTableHint.count,
+                            avg:
+                              perTableHint.avg != null ? `${perTableHint.avg} Min` : "—",
+                          },
+                        )}
+                      </p>
+                    ) : null}
+                    <div className="mt-3">
+                      <TableReportTransactionTable
+                        rows={report.rows}
+                        selectedId={selected?.id ?? null}
+                        onSelect={setSelected}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <TableReportVoidPanel />
+                )}
+              </div>
+            </div>
+
+            {selected && tab === "transaction" ? (
+              <div className="col-span-12 min-h-[320px] xl:col-span-4">
+                <TableReportOrderDetail row={selected} onClose={() => setSelected(null)} />
+              </div>
+            ) : null}
           </div>
-        ) : null}
-      </div>
-      <div
-        className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-        aria-hidden
-      />
+        </div>
+      </TableManagementWorkspace>
     </TableManagementModuleShell>
   );
 }

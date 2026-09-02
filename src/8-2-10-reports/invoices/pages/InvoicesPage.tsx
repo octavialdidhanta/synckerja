@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { POS_OUTLET_FILTER_ALL } from "@/8-2-2-outlets/lib/assignedOutlets";
-import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { cn } from "@/shared/lib/utils";
 import { ReportsSalesLayout } from "../../components/ReportsSalesLayout";
 import { useInvoicesList } from "../hooks/useInvoicesList";
 import { InvoiceDetailSheet } from "../shared/components/InvoiceDetailSheet";
@@ -15,6 +15,7 @@ import {
   type InvoiceItemExportRow,
 } from "../shared/lib/exportInvoicesXlsx";
 import type { InvoiceRow } from "../shared/lib/invoicesTypes";
+import { InvoicesListPaneSkeleton } from "./InvoicesListPaneSkeleton";
 import { InvoicesPageSkeleton } from "./InvoicesPageSkeleton";
 
 function InvoicesSummaryBar({
@@ -63,9 +64,17 @@ export function InvoicesPage() {
     enabled: !filters.isLoading,
   });
 
-  const showContent = useDebouncedReady(!(list.isLoading || filters.isLoading));
+  // Full-page gate only for outlet bootstrap. Skip useDebouncedReady — it starts false
+  // for ~200ms on every mount and flashes the full-route skeleton.
+  const showContent = !filters.isLoading;
+
   const [selectedRow, setSelectedRow] = useState<InvoiceRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+
+  const stableCountRef = useRef(0);
+  if (!list.isLoading) {
+    stableCountRef.current = list.rows.length;
+  }
 
   const outletLabel =
     filters.selectedOutletId === POS_OUTLET_FILTER_ALL
@@ -126,6 +135,7 @@ export function InvoicesPage() {
       showContent={showContent}
       showSalesNav={false}
       loadingSkeleton={<InvoicesPageSkeleton />}
+      count={stableCountRef.current}
     >
       <div className="min-w-0">
         <InvoicesToolbar
@@ -141,7 +151,7 @@ export function InvoicesPage() {
           searchQuery={filters.searchQuery}
           onSearchQueryChange={filters.setSearchQuery}
           onExport={handleExport}
-          exportDisabled={!showContent || list.isError}
+          exportDisabled={!showContent || list.isLoading || list.isError}
         />
         {list.isError ? (
           <p className="mb-3 text-sm text-destructive">
@@ -150,14 +160,24 @@ export function InvoicesPage() {
               : t("reports.invoices.loadError", "Failed to load invoices.")}
           </p>
         ) : null}
-        <InvoicesSummaryBar summary={list.summary} />
-        <InvoicesTable
-          rows={list.rows}
-          hasMore={Boolean(list.hasMore)}
-          isLoadingMore={list.isLoadingMore}
-          onLoadMore={() => list.loadMore()}
-          onRowClick={handleRowClick}
-        />
+        {list.isLoading ? (
+          <InvoicesListPaneSkeleton />
+        ) : (
+          <div
+            className={cn(
+              list.isFetching && !list.isLoadingMore && "opacity-70 transition-opacity",
+            )}
+          >
+            <InvoicesSummaryBar summary={list.summary} />
+            <InvoicesTable
+              rows={list.rows}
+              hasMore={Boolean(list.hasMore)}
+              isLoadingMore={list.isLoadingMore}
+              onLoadMore={() => list.loadMore()}
+              onRowClick={handleRowClick}
+            />
+          </div>
+        )}
       </div>
       <InvoiceDetailSheet
         row={selectedRow}

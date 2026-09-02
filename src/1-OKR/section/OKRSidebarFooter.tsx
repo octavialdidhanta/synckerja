@@ -14,7 +14,7 @@ export function OKRSidebarFooter({ totalCycles }: OKRSidebarFooterProps) {
   const dateStr = format(new Date(), "MMM d", { locale: loc });
 
   return (
-    <div className="flex-shrink-0 border-t border-border bg-muted/40 px-4 py-2">
+    <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <div className="flex items-center space-x-1">
           <Calendar className="h-3 w-3 shrink-0" aria-hidden />

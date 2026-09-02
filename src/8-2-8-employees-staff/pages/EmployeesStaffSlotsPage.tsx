@@ -8,6 +8,7 @@ import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useOptimizedSubscription } from "@/10-subscription/hooks/useOptimizedSubscription";
 import { EmployeesStaffModuleShell } from "../layout/EmployeesStaffModuleShell";
+import { EmployeesStaffWorkspace } from "../layout/EmployeesStaffWorkspace";
 import { usePosEmployeeStaff } from "../hooks/usePosEmployeeStaff";
 import { usePosStaffInvite } from "../hooks/usePosStaffInvite";
 import { usePosStaffVerification } from "../hooks/usePosStaffVerification";
@@ -100,8 +101,7 @@ export default function EmployeesStaffSlotsPage() {
 
   return (
     <EmployeesStaffModuleShell showContent={showContent}>
-      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-        <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <EmployeesStaffWorkspace count={filtered.length}>
           <div className="flex-shrink-0 space-y-3 border-b px-4 py-3">
             {!posAddonActive && (
               <Alert>
@@ -169,9 +169,7 @@ export default function EmployeesStaffSlotsPage() {
               }}
             />
           </div>
-        </div>
-      </div>
-      <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
+      </EmployeesStaffWorkspace>
 
       <InviteEmployeeDialog open={inviteOpen} onOpenChange={setInviteOpen} />
       <EmployeeStaffDetailSheet

@@ -11,7 +11,6 @@ import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPendi
 import { useObjectiveStats } from "@/1-home/components/HomeOKRDashboard/hooks/useObjectiveStats";
 import { useOkrCycles } from "@/shared/hooks/useOkrCycles";
 import { OKRSectionVisibilityProvider } from "@/1-home/components/HomeOKRDashboard/OKRSectionVisibilityContext";
-import { Card, CardContent } from "@/shared/components/ui/card";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 import { useCurrentEmployee } from "@/shared/hooks/useCurrentEmployee";
@@ -21,6 +20,7 @@ import { DepartmentObjectivePageSkeleton } from "./components/DepartmentObjectiv
 import { IndividualObjectivePageSkeleton } from "./components/IndividualObjectivePageSkeleton";
 import { useOkrHeaderTabChange } from "./hooks/useOkrHeaderTabChange";
 import { useOkrPageSkeletonGate } from "./hooks/useOkrPageSkeletonGate";
+import { OkrWorkspace } from "./layout/OkrWorkspace";
 import { getOkrActiveTabFromPath } from "./utils/okrPaths";
 import { OkrPageDetailLoadProvider, useOkrPageDetailTabs } from "./context/OkrPageDetailLoadContext";
 import { HeaderAndTab, OKRSidebarFooter } from "./section";
@@ -199,6 +199,12 @@ function OKRPageContent() {
         ? DepartmentObjectivePageSkeleton
         : IndividualObjectivePageSkeleton;
 
+  const objectiveCount = isCompanyTab
+    ? companyStats.data?.totalObjectives ?? 0
+    : isDepartmentTab
+      ? departmentStats.data?.totalObjectives ?? 0
+      : individualStats.data?.totalObjectives ?? 0;
+
   return (
     <div className="relative flex h-screen flex-col overflow-hidden bg-gray-100 font-sans dark:bg-muted/30">
       <div
@@ -210,16 +216,50 @@ function OKRPageContent() {
         <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex min-h-full flex-col">
+              <div className="flex min-h-full flex-col bg-muted/40">
                 <div className="mb-1 flex-shrink-0">
                   <HeaderAndTab onTabChange={handleTabChange} />
                 </div>
                 <ModuleShellContentGate pagePath={location.pathname}>
-                  <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                    <div className="col-span-9 flex h-full min-h-0 w-full min-w-0 flex-col self-stretch overflow-hidden">
-                      <Card className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col border border-border">
-                        <CardContent className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col p-0 sm:p-6">
-                          {isCompanyTab ? (
+                  <OkrWorkspace
+                    count={objectiveCount}
+                    sidebar={
+                      <div className="flex h-full min-h-0 w-full min-w-0 flex-col self-stretch rounded-lg border border-border bg-card shadow-sm">
+                        <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <h3 className="text-sm font-semibold text-foreground">
+                                {t("layout.okr.sidebar.title")}
+                              </h3>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {t("layout.okr.sidebar.subtitle")}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="min-h-0 flex-1">
+                          <div className="h-full min-h-0 p-4">
+                            <DeferredMount fallback={<OkrSidebarPlaceholder />} idleTimeoutMs={800} delayMs={120}>
+                              <Suspense fallback={<OkrSidebarPlaceholder />}>
+                                <OKRSidebar
+                                  activeTab={activeTab}
+                                  organizationId={organizationId ?? undefined}
+                                  companyStats={companyStats.data}
+                                  departmentStats={departmentStats.data}
+                                  individualStats={individualStats.data}
+                                  cycleIds={filteredCycleIds ?? []}
+                                />
+                              </Suspense>
+                            </DeferredMount>
+                          </div>
+                        </div>
+
+                        <OKRSidebarFooter totalCycles={cycles.length} activeCycleId={activeCycleId} />
+                      </div>
+                    }
+                  >
+                    {isCompanyTab ? (
                             <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-4 overflow-hidden pt-1">
                               <div className="shrink-0">
                                 <Suspense fallback={progressCardFallback}>
@@ -321,44 +361,7 @@ function OKRPageContent() {
                               </div>
                             </div>
                           )}
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    <div className="col-span-3 flex h-full min-h-0 w-full min-w-0 flex-col self-stretch rounded-lg border border-border bg-card shadow-sm">
-                      <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <h3 className="text-sm font-semibold text-foreground">
-                              {t("layout.okr.sidebar.title")}
-                            </h3>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {t("layout.okr.sidebar.subtitle")}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="min-h-0 flex-1">
-                        <div className="h-full min-h-0 p-4">
-                          <DeferredMount fallback={<OkrSidebarPlaceholder />} idleTimeoutMs={800} delayMs={120}>
-                            <Suspense fallback={<OkrSidebarPlaceholder />}>
-                              <OKRSidebar
-                                activeTab={activeTab}
-                                organizationId={organizationId ?? undefined}
-                                companyStats={companyStats.data}
-                                departmentStats={departmentStats.data}
-                                individualStats={individualStats.data}
-                                cycleIds={filteredCycleIds ?? []}
-                              />
-                            </Suspense>
-                          </DeferredMount>
-                        </div>
-                      </div>
-
-                      <OKRSidebarFooter totalCycles={cycles.length} activeCycleId={activeCycleId} />
-                    </div>
-                  </div>
+                  </OkrWorkspace>
                 </ModuleShellContentGate>
               </div>
             </div>

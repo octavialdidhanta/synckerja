@@ -41,18 +41,36 @@ export async function uploadCatalogBundlePhoto(args: {
 }
 
 export async function signCatalogProductPhotos(paths: string[]): Promise<Map<string, string>> {
-  const unique = [...new Set(paths.map((p) => p.trim()).filter(Boolean))];
+  const unique = [...new Set(paths.map((p) => p.trim().replace(/^\/+/, "")).filter(Boolean))];
   const map = new Map<string, string>();
   if (unique.length === 0) return map;
+
   const { data, error } = await supabase.storage
     .from(CATALOG_PRODUCT_PHOTOS_BUCKET)
     .createSignedUrls(unique, 60 * 60);
-  if (error) {
-    console.error('signCatalogProductPhotos', error);
-    return map;
+  if (!error) {
+    for (const row of data ?? []) {
+      if (row.path && row.signedUrl) map.set(row.path, row.signedUrl);
+    }
+  } else {
+    console.error("signCatalogProductPhotos batch", error);
   }
-  for (const row of data ?? []) {
-    if (row.path && row.signedUrl) map.set(row.path, row.signedUrl);
-  }
+
+  const missing = unique.filter((path) => !map.has(path));
+  if (missing.length === 0) return map;
+
+  await Promise.all(
+    missing.map(async (path) => {
+      const { data: single, error: singleError } = await supabase.storage
+        .from(CATALOG_PRODUCT_PHOTOS_BUCKET)
+        .createSignedUrl(path, 60 * 60);
+      if (singleError) {
+        console.warn("signCatalogProductPhotos single", path, singleError.message);
+        return;
+      }
+      if (single?.signedUrl) map.set(path, single.signedUrl);
+    }),
+  );
+
   return map;
 }

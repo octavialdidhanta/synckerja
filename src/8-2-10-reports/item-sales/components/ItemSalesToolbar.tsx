@@ -15,6 +15,7 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { ReportsSalesDateRangePicker } from "../../shared/components/ReportsSalesDateRangePicker";
+import { ReportsSalesToolbarShell } from "../../shared/components/ReportsSalesToolbarShell";
 import type {
   SalesSummaryDateRange,
   SalesSummaryTimeFilter,
@@ -47,49 +48,43 @@ export function ItemSalesToolbar({
   const { t } = useAppTranslation();
 
   return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0 space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("reports.tab.sales", "Sales")}
-          </h2>
-          <p className="mt-0.5 text-sm text-gray-500">
-            {t("reports.itemSales.title", "Item Sales")}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            <Link
-              to={LIBRARY_PRODUCTS_PATH}
-              className="font-medium text-primary hover:underline"
-            >
-              {t("reports.itemSales.linkProducts", "Item Library")}
-            </Link>
-            {" · "}
-            <Link
-              to={LIBRARY_BUNDLES_PATH}
-              className="font-medium text-primary hover:underline"
-            >
-              {t("reports.itemSales.linkBundles", "Bundles")}
-            </Link>
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Home className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <OutletFilterSelect
-              value={outletId || POS_OUTLET_FILTER_ALL}
-              onChange={onOutletChange}
-              includeAll
-              className="w-[200px] pl-8"
-            />
-          </div>
-          <ReportsSalesDateRangePicker
-            dateRange={dateRange}
-            onDateRangeChange={onDateRangeChange}
-            timeFilter={timeFilter}
-            onTimeFilterChange={onTimeFilterChange}
-            onApplyFilters={onApplyFilters}
+    <ReportsSalesToolbarShell
+      title={t("reports.itemSales.title", "Item Sales")}
+      description={
+        <p className="text-xs text-muted-foreground">
+          <Link
+            to={LIBRARY_PRODUCTS_PATH}
+            className="font-medium text-primary hover:underline"
+          >
+            {t("reports.itemSales.linkProducts", "Item Library")}
+          </Link>
+          {" · "}
+          <Link
+            to={LIBRARY_BUNDLES_PATH}
+            className="font-medium text-primary hover:underline"
+          >
+            {t("reports.itemSales.linkBundles", "Bundles")}
+          </Link>
+        </p>
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Home className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <OutletFilterSelect
+            value={outletId || POS_OUTLET_FILTER_ALL}
+            onChange={onOutletChange}
+            includeAll
+            className="w-[200px] pl-8"
           />
         </div>
+        <ReportsSalesDateRangePicker
+          dateRange={dateRange}
+          onDateRangeChange={onDateRangeChange}
+          timeFilter={timeFilter}
+          onTimeFilterChange={onTimeFilterChange}
+          onApplyFilters={onApplyFilters}
+        />
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -111,6 +106,6 @@ export function ItemSalesToolbar({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
+    </ReportsSalesToolbarShell>
   );
 }

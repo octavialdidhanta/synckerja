@@ -28,7 +28,7 @@ export const AccessPermissionsOverview = ({ configurations = [] }: AccessPermiss
   );
 
   return (
-    <div className="bg-card border-border flex h-full min-h-0 flex-1 flex-col rounded-lg border">
+    <div className="bg-card border-border flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border shadow-sm">
       {/* Header */}
       <div className="flex-shrink-0 border-b px-4 py-1.5">
         <h3 className="text-sm font-semibold text-foreground">Access Overview</h3>

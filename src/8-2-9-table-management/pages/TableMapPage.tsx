@@ -8,6 +8,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useSelectedPosOutlet } from "@/8-2-2-outlets/hooks/useSelectedPosOutlet";
 import { Link, useSearchParams } from "react-router-dom";
 import { TableManagementModuleShell } from "../layout/TableManagementModuleShell";
+import { TableManagementWorkspace } from "../layout/TableManagementWorkspace";
 import { TABLE_MANAGEMENT_GROUP_PATH } from "../layout/tableManagementTabs";
 import { TableMapToolbar } from "../components/map/TableMapToolbar";
 import {
@@ -860,8 +861,7 @@ export default function TableMapPage() {
 
   return (
     <TableManagementModuleShell showContent={showContent}>
-      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-        <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <TableManagementWorkspace count={draft.length}>
           <div className="flex-shrink-0 border-b px-4 py-3">
             <TableMapToolbar
               outletId={selectedOutletId}
@@ -949,12 +949,7 @@ export default function TableMapPage() {
               />
             )}
           </div>
-        </div>
-      </div>
-      <div
-        className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-        aria-hidden
-      />
+      </TableManagementWorkspace>
 
       <AddEditTableDialog
         open={dialogOpen}

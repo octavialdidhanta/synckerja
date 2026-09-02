@@ -1,22 +1,22 @@
-
-import { ApplicationsFilters } from './ApplicationsFilters';
-import { ApplicationsTable } from './ApplicationsTable';
+import { ApplicationsFilters } from "./ApplicationsFilters";
+import { ApplicationsTable } from "./ApplicationsTable";
+import { ApplicationsWorkspace } from "../layout/ApplicationsWorkspace";
+import { useJobApplications } from "../hooks/useJobApplications";
 
 export const ApplicationsPage = () => {
+  const { data: applications = [] } = useJobApplications();
+
   return (
-    <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">
-      {/* Page Content */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-        {/* Filters — match /recruitment/interviewees (IntervieweeTab) */}
-        <div className="rounded-md border bg-white p-2">
+    <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col">
+      <div className="mb-2 flex-shrink-0">
+        <div className="rounded-md border border-border bg-card p-2">
           <ApplicationsFilters />
         </div>
-
-        {/* Table — match interviewees table shell */}
-        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border bg-white">
-          <ApplicationsTable />
-        </div>
       </div>
+
+      <ApplicationsWorkspace count={applications.length}>
+        <ApplicationsTable />
+      </ApplicationsWorkspace>
     </div>
   );
 };

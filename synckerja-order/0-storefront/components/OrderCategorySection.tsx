@@ -54,7 +54,7 @@ export function OrderCategorySection({
     ((showSlider && resolved.slider !== "hidden") || (showGrid && items.length >= 4));
 
   return (
-    <section id={`order-cat-${category.id}`} className="scroll-mt-12 bg-white py-2.5">
+    <section id={`order-cat-${category.id}`} className="scroll-mt-14 bg-white py-2.5">
       {isPromoName(category.name) ? (
         <p className={`mb-1.5 ${ORDER_STOREFRONT_PX} pt-1 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-400`}>
           {t("synckerjaOrder.store.promo", "Promo")}

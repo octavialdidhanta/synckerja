@@ -3,6 +3,7 @@ import { OutletFilterSelect } from "@/8-2-2-outlets/components/OutletFilterSelec
 import { POS_OUTLET_FILTER_ALL } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { ReportsSalesToolbarShell } from "../../shared/components/ReportsSalesToolbarShell";
 import { SalesSummaryDateRangePicker } from "./SalesSummaryDateRangePicker";
 import type {
   SalesSummaryDateRange,
@@ -35,34 +36,39 @@ export function SalesSummaryToolbar({
   const { t } = useAppTranslation();
 
   return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0 space-y-3">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {t("reports.tab.sales", "Sales")}
-        </h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Home className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <OutletFilterSelect
-              value={outletId || POS_OUTLET_FILTER_ALL}
-              onChange={onOutletChange}
-              includeAll
-              className="w-[200px] pl-8"
-            />
-          </div>
-          <SalesSummaryDateRangePicker
-            dateRange={dateRange}
-            onDateRangeChange={onDateRangeChange}
-            timeFilter={timeFilter}
-            onTimeFilterChange={onTimeFilterChange}
-            onApplyFilters={onApplyFilters}
+    <ReportsSalesToolbarShell
+      title={t("reports.salesNav.summary", "Sales Summary")}
+      description={
+        <p className="text-sm text-gray-500">
+          {t(
+            "reports.salesSummary.subtitle",
+            "Overview of gross sales, discounts, refunds, and collections for the selected period.",
+          )}
+        </p>
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Home className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <OutletFilterSelect
+            value={outletId || POS_OUTLET_FILTER_ALL}
+            onChange={onOutletChange}
+            includeAll
+            className="w-[200px] pl-8"
           />
         </div>
+        <SalesSummaryDateRangePicker
+          dateRange={dateRange}
+          onDateRangeChange={onDateRangeChange}
+          timeFilter={timeFilter}
+          onTimeFilterChange={onTimeFilterChange}
+          onApplyFilters={onApplyFilters}
+        />
       </div>
       <Button type="button" size="sm" onClick={onExport} disabled={exportDisabled}>
         <Download className="mr-2 h-4 w-4" />
         {t("reports.actions.export", "Export")}
       </Button>
-    </div>
+    </ReportsSalesToolbarShell>
   );
 }

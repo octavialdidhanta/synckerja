@@ -5,6 +5,10 @@ export const INCOME_DASHBOARD_MAIN_GRID =
 export const INCOME_DASHBOARD_MAIN_COLUMN =
   'col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch xl:col-span-9';
 
+/** Kartu utama / sidebar — ritme tinggi /employees; footer menempel bawah kartu. */
+export const INCOME_DASHBOARD_TABLE_SECTION =
+  'flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]';
+
 /** Recent Income sidebar — fixed to grid row height (same as employees col-span-3). */
 export const INCOME_DASHBOARD_RECENT_COLUMN =
   'col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch xl:col-span-3';

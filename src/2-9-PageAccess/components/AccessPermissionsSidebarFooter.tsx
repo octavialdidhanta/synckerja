@@ -28,7 +28,7 @@ export const AccessPermissionsSidebarFooter = ({
   };
 
   return (
-    <div className="border-border bg-muted/40 mt-2 flex-shrink-0 rounded-md border px-4 py-2">
+    <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
       <div className="text-muted-foreground flex items-center justify-between text-xs">
         <span className="flex items-center gap-1 truncate">
           <Shield className={`h-3 w-3 flex-shrink-0 ${getRoleColor(userRole)}`} />

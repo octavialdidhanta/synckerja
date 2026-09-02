@@ -9,14 +9,17 @@ export function ShiftPageSkeleton() {
   return (
     <div className="min-w-0 space-y-4" aria-busy aria-label={aria}>
       <span className="sr-only">{aria}</span>
-      <div className="space-y-2">
-        <Skeleton className="h-6 w-20" />
-        <Skeleton className="h-3 w-80" />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Skeleton className="h-9 w-36" />
-        <Skeleton className="h-9 w-48" />
-        <Skeleton className="h-9 w-40" />
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-3 border-b border-border pb-3">
+        <div className="min-w-0 max-w-md shrink-0 space-y-2">
+          <Skeleton className="h-6 w-20" />
+          <Skeleton className="h-3 w-80" />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+          <Skeleton className="h-9 w-36" />
+          <Skeleton className="h-9 w-48" />
+          <Skeleton className="h-9 w-40" />
+          <Skeleton className="h-9 w-24" />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {Array.from({ length: 3 }).map((_, i) => (

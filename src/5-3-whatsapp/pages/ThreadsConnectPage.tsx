@@ -18,6 +18,8 @@ import { MetaScopeStatusCards } from '@/meta-platform/components/MetaScopeStatus
 import { cn } from '@/shared/lib/utils';
 import { CONNECT_INSTAGRAM_PATH, CONNECT_THREADS_PATH } from '../constants/omnichannelIntegrationPaths';
 import { ThreadsConnectPageSkeleton } from '../skeletons/ThreadsConnectPageSkeleton';
+import { IntegrationsWorkspace } from '../layout/IntegrationsWorkspace';
+import { INTEGRATIONS_COLUMNS_THREADS } from '../layout/integrationsLayout';
 import { useThreadsConnectPageSkeletonGate } from '../hooks/useThreadsConnectPageSkeletonGate';
 import { WebhookInfoDisplay } from '../components/connect/WebhookInfoDisplay';
 import { AtSign, CheckCircle2, Instagram, Loader2 } from 'lucide-react';
@@ -86,7 +88,7 @@ export function ThreadsConnectPage() {
         : null;
 
   return (
-    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted font-sans">
+    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <div
         className={cn(
           'flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3',
@@ -96,17 +98,18 @@ export function ThreadsConnectPage() {
       >
         <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex min-h-full min-w-0 flex-1 flex-col">
+            <div className="flex min-h-full min-w-0 flex-1 flex-col bg-muted/40">
               <div className="mb-1 min-w-0 shrink-0">
                 <HeaderAndTab />
               </div>
 
               <ModuleShellContentGate pagePath={CONNECT_THREADS_PATH}>
-                  <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                    <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
-                      <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                        <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.5fr)] lg:items-start">
-                          <Card className="flex min-h-0 min-w-0 flex-col lg:max-h-[calc(100vh-180px)]">
+              <IntegrationsWorkspace
+                count={connectedAccounts.length}
+                sectionLabel={t('threadsConnect.tabTitle', 'Connect Threads')}
+                columnsClassName={INTEGRATIONS_COLUMNS_THREADS}
+                left={
+                          <Card className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
                             <CardHeader className="shrink-0 space-y-1 pb-3">
                               <div className="flex items-center gap-3">
                                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-neutral-900/10">
@@ -222,8 +225,8 @@ export function ThreadsConnectPage() {
                               ) : null}
                             </CardContent>
                           </Card>
-
-                          <Card className="flex min-h-0 min-w-0 flex-col">
+                }
+              >
                             <CardHeader className="shrink-0 pb-3">
                               <CardTitle className="text-base">
                                 {t('threadsConnect.rightTitle', 'Akun Instagram')}
@@ -295,11 +298,7 @@ export function ThreadsConnectPage() {
                                 </div>
                               )}
                             </CardContent>
-                          </Card>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              </IntegrationsWorkspace>
               </ModuleShellContentGate>
             </div>
           </div>

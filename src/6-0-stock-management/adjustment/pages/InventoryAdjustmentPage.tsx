@@ -5,6 +5,7 @@ import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPendi
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { useSelectedPosOutlet } from "@/8-2-2-outlets/hooks/useSelectedPosOutlet";
 import { StockManagementModuleShell } from "@/6-0-stock-management/layout/StockManagementModuleShell";
+import { InventoryWorkspace } from "@/6-0-stock-management/layout/InventoryWorkspace";
 import { InventoryAdjustmentSkeleton } from "../skeletons/InventoryAdjustmentSkeleton";
 import { InventoryAdjustmentToolbar } from "../components/InventoryAdjustmentToolbar";
 import { InventoryAdjustmentStats } from "../components/InventoryAdjustmentStats";
@@ -49,8 +50,7 @@ export function InventoryAdjustmentPage() {
   return (
     <>
       <StockManagementModuleShell>
-        <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2">
-          <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
+        <InventoryWorkspace count={batches.length}>
             <div className="border-b px-4 py-3">
               <InventoryAdjustmentToolbar
                 outletId={selectedOutletId}
@@ -81,9 +81,7 @@ export function InventoryAdjustmentPage() {
                 </div>
               ) : null}
             </div>
-          </div>
-        </div>
-        <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
+        </InventoryWorkspace>
       </StockManagementModuleShell>
 
       {canManage ? (

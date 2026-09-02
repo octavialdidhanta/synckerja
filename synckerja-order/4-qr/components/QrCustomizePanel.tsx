@@ -132,7 +132,7 @@ export function QrCustomizePanel({ draft, brandImageUrl, onChange, disabled }: P
           <p className="text-xs text-amber-700">
             {t(
               "synckerjaOrder.qr.customize.logoMissing",
-              "Upload a hero image on the Profile tab, then Save and continue.",
+              "Upload an outlet logo in Receipt settings (Customization), then return here.",
             )}
           </p>
         ) : null}

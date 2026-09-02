@@ -5,22 +5,21 @@ import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPendi
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { CustomersModuleShell } from '../layout/CustomersModuleShell';
+import { CustomersWorkspace } from '../layout/CustomersWorkspace';
 import { CustomersToolbar } from '../components/CustomersToolbar';
 import { CustomersTable } from '../components/CustomersTable';
-import { CustomersTableFooter } from '../components/CustomersTableFooter';
 import { useCustomersList } from '../hooks/useCustomersList';
 
 export default function CustomersPage() {
   const { t } = useAppTranslation();
   const { orgBootstrapPending } = useOrgBootstrapPending();
   const [search, setSearch] = useState('');
-  const { rows, allRows, isLoading, isError, error, refetch } = useCustomersList(search);
+  const { rows, isLoading, isError, error, refetch } = useCustomersList(search);
   const showContent = useDebouncedReady(!(orgBootstrapPending || isLoading), 200);
 
   return (
     <CustomersModuleShell showContent={showContent}>
-      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-        <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <CustomersWorkspace count={rows.length}>
           <div className="flex-shrink-0 border-b px-4 py-3">
             <CustomersToolbar search={search} onSearchChange={setSearch} />
           </div>
@@ -41,10 +40,7 @@ export default function CustomersPage() {
             ) : null}
             <CustomersTable rows={rows} />
           </div>
-          <CustomersTableFooter totalCustomers={allRows.length} filteredCustomers={rows.length} />
-        </div>
-      </div>
-      <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
+      </CustomersWorkspace>
     </CustomersModuleShell>
   );
 }

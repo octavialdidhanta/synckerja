@@ -3,7 +3,6 @@ import {
   ApprovalFilters,
   ApprovalMetricsCards,
   ApprovalTable,
-  ApprovalTableFooter,
   ApprovalOverview,
   ApprovalSidebarFooter,
   type ApprovalFiltersType,
@@ -13,7 +12,7 @@ import { filterRequests } from '../utils/approvalUtils';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { ApprovalsModuleShell } from '../layout/ApprovalsModuleShell';
-import { APPROVALS_MAIN_GRID, APPROVALS_TABLE_CARD } from '../layout/approvalsLayout';
+import { ApprovalsWorkspace } from '../layout/ApprovalsWorkspace';
 
 export const ApprovalsPage = () => {
   const [activeTab, setActiveTab] = useState('approvals');
@@ -66,9 +65,10 @@ export const ApprovalsPage = () => {
       onTabChange={handleTabChange}
       showContent={showContent}
     >
-      <div className={APPROVALS_MAIN_GRID}>
-        <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-9">
-          <div className="flex h-full min-w-0 flex-1 flex-col gap-2">
+      <ApprovalsWorkspace
+        count={filteredRequests.length}
+        toolbar={
+          <>
             <div className="shrink-0 rounded-md border border-border bg-card p-2">
               <ApprovalFilters
                 filters={filters}
@@ -80,25 +80,10 @@ export const ApprovalsPage = () => {
             <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4">
               <ApprovalMetricsCards requests={requests} />
             </div>
-
-            <div className={APPROVALS_TABLE_CARD}>
-              <ApprovalTable
-                requests={filteredRequests}
-                onRefresh={handleRefresh}
-                isLoading={isLoading}
-              />
-              <ApprovalTableFooter
-                totalRequests={requests.length}
-                filteredRequests={filteredRequests.length}
-                totalAmount={totalAmount}
-                selectedStatus={filters.status}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-3">
-          <div className="flex h-full min-w-0 flex-1 flex-col rounded-lg border border-border bg-card shadow-sm">
+          </>
+        }
+        sidebar={
+          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
             <div className="shrink-0 border-b border-border px-4 py-1.5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -110,18 +95,23 @@ export const ApprovalsPage = () => {
               </div>
             </div>
 
-            <div className="min-h-0 min-w-0 flex-1 p-4">
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <ApprovalOverview requests={filteredRequests} />
             </div>
 
             <ApprovalSidebarFooter
               totalRequests={filteredRequests.length}
               totalAmount={totalAmount}
-              selectedStatus={filters.status}
             />
           </div>
-        </div>
-      </div>
+        }
+      >
+        <ApprovalTable
+          requests={filteredRequests}
+          onRefresh={handleRefresh}
+          isLoading={isLoading}
+        />
+      </ApprovalsWorkspace>
     </ApprovalsModuleShell>
   );
 };

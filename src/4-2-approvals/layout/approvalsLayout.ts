@@ -1,9 +1,15 @@
-/** Grid 9+3 — selaras `/expenses/reminder-bills`. */
+/** Grid 9+3 — ritme tinggi /employees; header modul ikut scroll. */
 export const APPROVALS_MAIN_GRID =
-  'grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px] xl:grid-rows-1 xl:items-stretch';
+  'grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch';
 
-/** Kartu tabel utama (filter/metrik di atas, scroll internal di tbody). */
-export const APPROVALS_TABLE_CARD =
-  'flex min-h-[560px] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]';
+export const APPROVALS_MAIN_COLUMN =
+  'col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden xl:col-span-9';
+
+export const APPROVALS_SIDEBAR_COLUMN =
+  'col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch xl:col-span-3';
+
+/** Kartu utama / sidebar — tinggi mengikuti parent; footer menempel bawah kartu seperti /employees. */
+export const APPROVALS_TABLE_SECTION =
+  'flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]';
 
 export const APPROVALS_TABLE_BODY_SCROLL = 'min-h-0 min-w-0 flex-1 overflow-x-auto';

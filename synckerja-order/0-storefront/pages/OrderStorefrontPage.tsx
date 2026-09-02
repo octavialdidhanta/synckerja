@@ -542,15 +542,10 @@ export function OrderStorefrontPage() {
           highlightId={highlightId}
           qtyByCatalogId={qtyByCatalogId}
           tableFull={orderLocked}
+          scrollRootRef={catalogScrollRef}
           onHighlight={(id) => {
             setHighlightId(id);
             if (category) setCategoryParam(null);
-            window.requestAnimationFrame(() => {
-              document.getElementById(`order-cat-${id}`)?.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-              });
-            });
           }}
           onViewAll={(id) => {
             setHighlightId(id);

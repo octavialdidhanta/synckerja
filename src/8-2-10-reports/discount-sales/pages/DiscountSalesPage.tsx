@@ -35,7 +35,7 @@ export function DiscountSalesPage() {
   };
 
   return (
-    <ReportsSalesLayout showContent={showContent}>
+    <ReportsSalesLayout showContent={showContent} count={report.display.displayRows.length}>
       <div className="min-w-0">
         <DiscountSalesToolbar
           outletId={filters.selectedOutletId}

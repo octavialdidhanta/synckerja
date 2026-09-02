@@ -41,7 +41,7 @@ export function CategorySalesPage() {
   };
 
   return (
-    <ReportsSalesLayout showContent={showContent}>
+    <ReportsSalesLayout showContent={showContent} count={report.display.rows.length}>
       <div className="min-w-0">
         <CategorySalesToolbar
           outletId={filters.selectedOutletId}

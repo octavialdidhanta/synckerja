@@ -27,6 +27,7 @@ import {
   ATTENDANCE_SETTINGS_MAIN_COLUMN,
   ATTENDANCE_SETTINGS_NAV_COLUMN,
   ATTENDANCE_SETTINGS_SCROLL_PANE,
+  ATTENDANCE_SETTINGS_TABLE_SECTION,
 } from "@/2-3-attendance/layout/attendanceSettingsLayout";
 
 interface SettingsSection {
@@ -213,7 +214,7 @@ export const AttendanceSettingsLayout = ({ children }: AttendanceSettingsLayoutP
     <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
       <div className={ATTENDANCE_SETTINGS_GRID}>
         <div className={ATTENDANCE_SETTINGS_NAV_COLUMN}>
-          <div className="flex h-full min-h-0 min-w-0 flex-col">
+          <div className={ATTENDANCE_SETTINGS_TABLE_SECTION}>
             <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:h-full">
               <div className={ATTENDANCE_SETTINGS_CARD_HEADER}>
                 <h3 className={SETTINGS_CARD_TITLE_CLASS}>
@@ -304,7 +305,7 @@ export const AttendanceSettingsLayout = ({ children }: AttendanceSettingsLayoutP
         </div>
 
         <div className={ATTENDANCE_SETTINGS_MAIN_COLUMN}>
-          <div className="flex h-full min-h-0 min-w-0 flex-col">
+          <div className={ATTENDANCE_SETTINGS_TABLE_SECTION}>
             <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:h-full">
               <div className={ATTENDANCE_SETTINGS_CARD_HEADER}>
                 <div className="min-w-0 flex-1">

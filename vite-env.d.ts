@@ -12,6 +12,11 @@ interface ImportMetaEnv {
   readonly VITE_PUBLIC_SURVEY_HOSTNAME?: string;
   /** Public Synckerja Order storefront: exact hostname match → mount OrderStoreApp. */
   readonly VITE_PUBLIC_ORDER_HOSTNAME?: string;
+  /**
+   * Full public origin for Order QR/share links (protocol + host + optional port).
+   * Local LAN example: `http://192.168.1.129:8080`. Overrides hostname-only HTTPS default.
+   */
+  readonly VITE_PUBLIC_ORDER_ORIGIN?: string;
   /** Full origin for preview links in omnichannel settings & Edge SURVEY_PUBLIC_ORIGIN should match. */
   readonly VITE_PUBLIC_SURVEY_ORIGIN?: string;
   /** Meta Facebook/Instagram Login app ID. */

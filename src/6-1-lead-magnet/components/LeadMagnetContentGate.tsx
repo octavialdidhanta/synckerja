@@ -27,7 +27,7 @@ export function LeadMagnetContentGate({ children, className }: LeadMagnetContent
   if (isPending) {
     return (
       <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)} aria-busy aria-label="Loading">
-        <LeadMagnetListPageSkeleton />
+        <LeadMagnetListPageSkeleton includeHeader={false} />
       </div>
     );
   }

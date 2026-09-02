@@ -45,6 +45,7 @@ import {
   variableMappingToJson,
 } from "@/5-3-whatsapp-template/utils/campaignTemplateContent";
 import { wibLocalStringToUtcIso } from "@/5-3-whatsapp-template/utils/wibLocalSchedule";
+import { CampaignWorkspace } from "@/5-3-whatsapp-template/layout/CampaignWorkspace";
 import type { MetaMessageTemplate, TemplateTableRow } from "@/5-3-whatsapp-template/types";
 
 function statusBadgeClass(status: string): string {
@@ -343,341 +344,172 @@ export function WhatsAppCampaignPage() {
   );
 
   return (
-    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted font-sans">
+    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3">
         <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex min-h-full min-w-0 flex-1 flex-col">
+            <div className="flex min-h-full min-w-0 flex-1 flex-col bg-muted/40">
               <div className="mb-1 min-w-0 shrink-0">
                 <HeaderAndTab />
               </div>
               <ModuleShellContentGate pagePath="/omnichannel/campaign/whatsapp">
-              <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 {viewMode === "list" ? (
-                  <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
-                    <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                      {detailCampaignId ? (
-                        <div ref={detailPanelRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
-                          <CampaignDetailPanel
-                            campaignId={detailCampaignId}
-                            onClose={() => setDetailCampaignId(null)}
-                            listNameById={listNameById}
-                            waAccounts={waAccounts}
-                            formatDt={formatDt}
-                            className="flex min-h-0 flex-1 max-h-[min(calc(100vh-180px),900px)]"
-                          />
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h1 className="text-lg font-semibold text-slate-900">{t("whatsappTemplates.campaign.pageTitle")}</h1>
-                            </div>
-                            {ownerOk && !ownerLoading ? (
-                              <Button
-                                type="button"
-                                className="shrink-0"
-                                onClick={() => {
-                                  resetCampaignForm();
-                                  setViewMode("create");
-                                }}
-                              >
-                                {t("whatsappTemplates.campaign.createCampaign")}
-                              </Button>
-                            ) : null}
+                  <CampaignWorkspace
+                    count={campaigns.length}
+                    sectionLabel={t("whatsappTemplates.campaignRoute.tabTitle", "WhatsApp Campaign")}
+                  >
+                    {detailCampaignId ? (
+                      <div ref={detailPanelRef} className="flex min-h-0 min-w-0 flex-1 flex-col p-4">
+                        <CampaignDetailPanel
+                          campaignId={detailCampaignId}
+                          onClose={() => setDetailCampaignId(null)}
+                          listNameById={listNameById}
+                          waAccounts={waAccounts}
+                          formatDt={formatDt}
+                          className="flex min-h-0 flex-1"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                        {ownerOk && !ownerLoading ? (
+                          <div className="flex shrink-0 justify-end px-4 pt-4">
+                            <Button
+                              type="button"
+                              className="shrink-0"
+                              onClick={() => {
+                                resetCampaignForm();
+                                setViewMode("create");
+                              }}
+                            >
+                              {t("whatsappTemplates.campaign.createCampaign")}
+                            </Button>
                           </div>
-
-                          {ownerLoading ? (
-                            <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                              <span>{t("whatsappTemplates.campaign.table.loading")}</span>
-                            </div>
-                          ) : ownerBlocked ? (
-                            <div className="mt-6">{ownerBanner}</div>
-                          ) : campaignsLoading ? (
-                            <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                              <span>{t("whatsappTemplates.campaign.table.loading")}</span>
-                            </div>
-                          ) : campaigns.length === 0 ? (
-                            <p className="mt-4 text-sm text-muted-foreground">{t("whatsappTemplates.campaign.table.empty")}</p>
-                          ) : (
-                            <div className="mt-3 min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto rounded-md border border-slate-200">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow className="hover:bg-transparent">
-                                    <TableHead className="whitespace-nowrap text-xs font-medium">
-                                      {t("whatsappTemplates.campaign.col.name")}
-                                    </TableHead>
-                                    <TableHead className="whitespace-nowrap text-xs font-medium">
-                                      {t("whatsappTemplates.campaign.col.template")}
-                                    </TableHead>
-                                    <TableHead className="whitespace-nowrap text-xs font-medium">
-                                      {t("whatsappTemplates.campaign.col.list")}
-                                    </TableHead>
-                                    <TableHead className="whitespace-nowrap text-xs font-medium">
-                                      {t("whatsappTemplates.campaign.col.status")}
-                                    </TableHead>
-                                    <TableHead className="whitespace-nowrap text-right text-xs font-medium">
-                                      {t("whatsappTemplates.campaign.col.sent")}
-                                    </TableHead>
-                                    <TableHead className="whitespace-nowrap text-right text-xs font-medium">
-                                      {t("whatsappTemplates.campaign.col.read")}
-                                    </TableHead>
-                                    <TableHead className="whitespace-nowrap text-right text-xs font-medium">
-                                      {t("whatsappTemplates.campaign.col.failed")}
-                                    </TableHead>
-                                    <TableHead className="whitespace-nowrap text-xs font-medium">
-                                      {t("whatsappTemplates.campaign.col.scheduled")}
-                                    </TableHead>
-                                    <TableHead className="whitespace-nowrap text-xs font-medium">
-                                      {t("whatsappTemplates.campaign.col.created")}
-                                    </TableHead>
-                                    <TableHead className="min-w-[14rem] text-xs font-medium">
-                                      {t("whatsappTemplates.campaign.col.error")}
-                                    </TableHead>
-                                    <TableHead className="whitespace-nowrap text-right text-xs font-medium">
-                                      {t("whatsappTemplates.campaign.col.action")}
-                                    </TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {campaigns.map((c) => (
-                                    <TableRow key={c.id}>
-                                      <TableCell className="max-w-[12rem] truncate font-medium text-slate-900" title={c.name}>
-                                        {c.name}
-                                      </TableCell>
-                                      <TableCell className="whitespace-nowrap text-sm text-slate-700">
-                                        {c.template_name}
-                                        <span className="text-muted-foreground"> · {c.template_language}</span>
-                                      </TableCell>
-                                      <TableCell
-                                        className="max-w-[10rem] truncate text-sm text-slate-700"
-                                        title={listNameById.get(c.recipient_list_id) ?? c.recipient_list_id}
-                                      >
-                                        {listNameById.get(c.recipient_list_id) ?? c.recipient_list_id.slice(0, 8) + "…"}
-                                      </TableCell>
-                                      <TableCell>
-                                        <span
-                                          className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium capitalize ${statusBadgeClass(c.status)}`}
-                                        >
-                                          {c.status}
-                                        </span>
-                                      </TableCell>
-                                      <TableCell className="text-right tabular-nums text-sm">{c.sent_count}</TableCell>
-                                      <TableCell className="text-right tabular-nums text-sm">{c.read_count ?? 0}</TableCell>
-                                      <TableCell className="text-right tabular-nums text-sm">{c.failed_count}</TableCell>
-                                      <TableCell className="whitespace-nowrap text-sm text-slate-600">
-                                        {formatDt(c.scheduled_at)}
-                                      </TableCell>
-                                      <TableCell className="whitespace-nowrap text-sm text-slate-600">
-                                        {formatDt(c.created_at)}
-                                      </TableCell>
-                                      <TableCell className="min-w-[14rem] max-w-[min(32rem,50vw)] align-top py-2">
-                                        {c.last_error ? (
-                                          <CampaignErrorMessage message={c.last_error} compact className="w-full" />
-                                        ) : (
-                                          <span className="text-xs text-muted-foreground">—</span>
-                                        )}
-                                      </TableCell>
-                                      <TableCell className="text-right">
-                                        <Button
-                                          type="button"
-                                          variant="link"
-                                          className="h-auto p-0 text-xs font-medium text-primary"
-                                          onClick={() => setDetailCampaignId(c.id)}
-                                        >
-                                          {t("whatsappTemplates.campaign.viewDetail")}
-                                        </Button>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="col-span-12 flex min-h-0 min-w-0 flex-col xl:col-span-7">
-                      <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="mb-3 -ml-2 w-fit gap-1 text-muted-foreground hover:text-slate-900"
-                          onClick={() => {
-                            resetCampaignForm();
-                            setViewMode("list");
-                          }}
-                        >
-                          <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
-                          {t("whatsappTemplates.campaign.backToList")}
-                        </Button>
-
-                        <h1 className="text-lg font-semibold text-slate-900">{t("whatsappTemplates.campaign.pageTitle")}</h1>
-                        <p className="mt-1 text-sm text-muted-foreground">{t("whatsappTemplates.campaign.pageIntro")}</p>
-                        <p className="mt-2 text-xs">
-                          <a
-                            className="font-medium text-primary underline"
-                            href="https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-message-templates"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {t("whatsappTemplates.campaign.metaLinkShort")}
-                          </a>
-                        </p>
-
+                        ) : null}
                         {ownerLoading ? (
-                          <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
+                          <div className="flex min-h-0 flex-1 items-center justify-center gap-2 px-4 py-6 text-sm text-muted-foreground">
                             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                            <span className="sr-only">Loading</span>
+                            <span>{t("whatsappTemplates.campaign.table.loading")}</span>
                           </div>
                         ) : ownerBlocked ? (
-                          <div className="mt-6">{ownerBanner}</div>
+                          <div className="flex min-h-0 flex-1 items-center justify-center p-4">{ownerBanner}</div>
+                        ) : campaignsLoading ? (
+                          <div className="flex min-h-0 flex-1 items-center justify-center gap-2 px-4 py-6 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                            <span>{t("whatsappTemplates.campaign.table.loading")}</span>
+                          </div>
+                        ) : campaigns.length === 0 ? (
+                          <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-6">
+                            <p className="text-sm text-muted-foreground">
+                              {t("whatsappTemplates.campaign.table.empty")}
+                            </p>
+                          </div>
                         ) : (
-                          <div className="mt-6 min-w-0 space-y-5 overflow-x-hidden">
-                            <div className="space-y-2">
-                              <Label htmlFor="camp-name">{t("whatsappTemplates.campaign.field.campaignName")}</Label>
-                              <Input
-                                id="camp-name"
-                                value={campaignName}
-                                onChange={(e) => setCampaignName(e.target.value)}
-                                maxLength={200}
-                                placeholder="Q2 Promo"
-                                autoComplete="off"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label>{t("whatsappTemplates.campaign.field.sender")}</Label>
-                              <Select
-                                value={waAccountId || undefined}
-                                onValueChange={setWaAccountId}
-                                disabled={waAccountsLoading || waAccounts.length === 0}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder={t("whatsappTemplates.campaign.noAccounts")} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {waAccounts.map((a) => (
-                                    <SelectItem key={a.id} value={a.id}>
-                                      {a.whatsapp_business_name?.trim() ||
-                                        a.display_phone_number?.trim() ||
-                                        a.phone_number_id.slice(0, 12)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label>{t("whatsappTemplates.campaign.field.recipientList")}</Label>
-                              <Select value={listId || undefined} onValueChange={setListId} disabled={listsLoading}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder={t("whatsappTemplates.campaign.listEmpty")} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {eligibleLists.map((r) => (
-                                    <SelectItem key={r.id} value={r.id}>
-                                      {r.name} ({r.contact_count})
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              {listId && !listDetailLoading ? (
-                                <p className="text-xs text-muted-foreground">
-                                  {t("whatsappTemplates.campaign.listContactCount", {
-                                    count: listDetail?.memberTotal ?? 0,
-                                  })}
-                                </p>
-                              ) : null}
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label>{t("whatsappTemplates.campaign.field.template")}</Label>
-                              <Select
-                                value={templateHsmId || undefined}
-                                onValueChange={setTemplateHsmId}
-                                disabled={!waAccountId || tplQuery.isLoading}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="—" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-72">
-                                  {approvedTemplates.map((row) => (
-                                    <SelectItem key={row.id} value={row.id}>
-                                      {row.templateName} · {row.languageLabel}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <CampaignContentSection
-                              previewRow={previewRow}
-                              componentsJson={componentsJson}
-                              listDetail={listDetail ?? undefined}
-                              listId={listId}
-                              templateHsmId={templateHsmId}
-                              variableMapping={variableMapping}
-                              onMappingChange={setVariableMapping}
-                              templateLoading={templateDetail.isFetching}
-                              listLoading={listDetailLoading}
-                            />
-
-                            <div className="space-y-3">
-                              <Label>{t("whatsappTemplates.campaign.sendMode")}</Label>
-                              <RadioGroup
-                                className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6"
-                                value={sendMode}
-                                onValueChange={(v) => setSendMode(v as "now" | "later")}
-                              >
-                                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                                  <RadioGroupItem value="now" id="sm-now" />
-                                  <span>{t("whatsappTemplates.campaign.sendNow")}</span>
-                                </label>
-                                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                                  <RadioGroupItem value="later" id="sm-later" />
-                                  <span>{t("whatsappTemplates.campaign.sendLater")}</span>
-                                </label>
-                              </RadioGroup>
-                              {sendMode === "later" ? (
-                                <div className="space-y-2">
-                                  <Label htmlFor="sched">{t("whatsappTemplates.campaign.scheduledAt")}</Label>
-                                  <Input
-                                    id="sched"
-                                    type="datetime-local"
-                                    step={60}
-                                    value={scheduledLocal}
-                                    onChange={(e) => setScheduledLocal(e.target.value)}
-                                  />
-                                  <p className="text-xs text-muted-foreground">{t("whatsappTemplates.campaign.scheduledHint")}</p>
-                                </div>
-                              ) : null}
-                            </div>
-
-                            <Button type="button" className="w-full sm:w-auto" disabled={!canSubmit} onClick={() => void onSubmit()}>
-                              {createCampaign.isPending ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                                  {t("whatsappTemplates.campaign.submitting")}
-                                </>
-                              ) : (
-                                t("whatsappTemplates.campaign.submit")
-                              )}
-                            </Button>
+                          <div className="scrollbar-hide nested-scroll-touch-chain seamless-scroll mt-3 min-h-0 min-w-0 flex-1 overflow-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="hover:bg-transparent">
+                                  <TableHead className="whitespace-nowrap text-xs font-medium">
+                                    {t("whatsappTemplates.campaign.col.name")}
+                                  </TableHead>
+                                  <TableHead className="whitespace-nowrap text-xs font-medium">
+                                    {t("whatsappTemplates.campaign.col.template")}
+                                  </TableHead>
+                                  <TableHead className="whitespace-nowrap text-xs font-medium">
+                                    {t("whatsappTemplates.campaign.col.list")}
+                                  </TableHead>
+                                  <TableHead className="whitespace-nowrap text-xs font-medium">
+                                    {t("whatsappTemplates.campaign.col.status")}
+                                  </TableHead>
+                                  <TableHead className="whitespace-nowrap text-right text-xs font-medium">
+                                    {t("whatsappTemplates.campaign.col.sent")}
+                                  </TableHead>
+                                  <TableHead className="whitespace-nowrap text-right text-xs font-medium">
+                                    {t("whatsappTemplates.campaign.col.read")}
+                                  </TableHead>
+                                  <TableHead className="whitespace-nowrap text-right text-xs font-medium">
+                                    {t("whatsappTemplates.campaign.col.failed")}
+                                  </TableHead>
+                                  <TableHead className="whitespace-nowrap text-xs font-medium">
+                                    {t("whatsappTemplates.campaign.col.scheduled")}
+                                  </TableHead>
+                                  <TableHead className="whitespace-nowrap text-xs font-medium">
+                                    {t("whatsappTemplates.campaign.col.created")}
+                                  </TableHead>
+                                  <TableHead className="min-w-[14rem] text-xs font-medium">
+                                    {t("whatsappTemplates.campaign.col.error")}
+                                  </TableHead>
+                                  <TableHead className="whitespace-nowrap text-right text-xs font-medium">
+                                    {t("whatsappTemplates.campaign.col.action")}
+                                  </TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {campaigns.map((c) => (
+                                  <TableRow key={c.id}>
+                                    <TableCell className="max-w-[12rem] truncate font-medium text-slate-900" title={c.name}>
+                                      {c.name}
+                                    </TableCell>
+                                    <TableCell className="whitespace-nowrap text-sm text-slate-700">
+                                      {c.template_name}
+                                      <span className="text-muted-foreground"> · {c.template_language}</span>
+                                    </TableCell>
+                                    <TableCell
+                                      className="max-w-[10rem] truncate text-sm text-slate-700"
+                                      title={listNameById.get(c.recipient_list_id) ?? c.recipient_list_id}
+                                    >
+                                      {listNameById.get(c.recipient_list_id) ?? c.recipient_list_id.slice(0, 8) + "…"}
+                                    </TableCell>
+                                    <TableCell>
+                                      <span
+                                        className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium capitalize ${statusBadgeClass(c.status)}`}
+                                      >
+                                        {c.status}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums text-sm">{c.sent_count}</TableCell>
+                                    <TableCell className="text-right tabular-nums text-sm">{c.read_count ?? 0}</TableCell>
+                                    <TableCell className="text-right tabular-nums text-sm">{c.failed_count}</TableCell>
+                                    <TableCell className="whitespace-nowrap text-sm text-slate-600">
+                                      {formatDt(c.scheduled_at)}
+                                    </TableCell>
+                                    <TableCell className="whitespace-nowrap text-sm text-slate-600">
+                                      {formatDt(c.created_at)}
+                                    </TableCell>
+                                    <TableCell className="min-w-[14rem] max-w-[min(32rem,50vw)] align-top py-2">
+                                      {c.last_error ? (
+                                        <CampaignErrorMessage message={c.last_error} compact className="w-full" />
+                                      ) : (
+                                        <span className="text-xs text-muted-foreground">—</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      <Button
+                                        type="button"
+                                        variant="link"
+                                        className="h-auto p-0 text-xs font-medium text-primary"
+                                        onClick={() => setDetailCampaignId(c.id)}
+                                      >
+                                        {t("whatsappTemplates.campaign.viewDetail")}
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
                           </div>
                         )}
                       </div>
-                    </div>
-
-                    <div className="col-span-12 flex min-h-0 min-w-0 flex-col xl:col-span-5">
-                      <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                        <p className="text-sm font-medium text-slate-800">{t("whatsappTemplates.campaign.previewTitle")}</p>
+                    )}
+                  </CampaignWorkspace>
+                ) : (
+                  <CampaignWorkspace
+                    count={campaigns.length}
+                    sectionLabel={t("whatsappTemplates.campaignRoute.tabTitle", "WhatsApp Campaign")}
+                    aside={
+                      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card p-4 shadow-sm">
+                        <p className="shrink-0 text-sm font-medium text-slate-800">
+                          {t("whatsappTemplates.campaign.previewTitle")}
+                        </p>
                         {previewRow ? (
                           <div className="mt-4 min-h-0 flex-1 overflow-auto">
                             <WhatsAppTemplatePhonePreview
@@ -706,10 +538,180 @@ export function WhatsAppCampaignPage() {
                           <p className="mt-4 text-sm text-muted-foreground">—</p>
                         )}
                       </div>
+                    }
+                  >
+                    <div className="scrollbar-hide nested-scroll-touch-chain seamless-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="mb-3 -ml-2 w-fit gap-1 text-muted-foreground hover:text-slate-900"
+                        onClick={() => {
+                          resetCampaignForm();
+                          setViewMode("list");
+                        }}
+                      >
+                        <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+                        {t("whatsappTemplates.campaign.backToList")}
+                      </Button>
+
+                      <h1 className="text-lg font-semibold text-slate-900">{t("whatsappTemplates.campaign.pageTitle")}</h1>
+                      <p className="mt-1 text-sm text-muted-foreground">{t("whatsappTemplates.campaign.pageIntro")}</p>
+                      <p className="mt-2 text-xs">
+                        <a
+                          className="font-medium text-primary underline"
+                          href="https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-message-templates"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {t("whatsappTemplates.campaign.metaLinkShort")}
+                        </a>
+                      </p>
+
+                      {ownerLoading ? (
+                        <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                          <span className="sr-only">Loading</span>
+                        </div>
+                      ) : ownerBlocked ? (
+                        <div className="mt-6">{ownerBanner}</div>
+                      ) : (
+                        <div className="mt-6 min-w-0 space-y-5 overflow-x-hidden">
+                          <div className="space-y-2">
+                            <Label htmlFor="camp-name">{t("whatsappTemplates.campaign.field.campaignName")}</Label>
+                            <Input
+                              id="camp-name"
+                              value={campaignName}
+                              onChange={(e) => setCampaignName(e.target.value)}
+                              maxLength={200}
+                              placeholder="Q2 Promo"
+                              autoComplete="off"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>{t("whatsappTemplates.campaign.field.sender")}</Label>
+                            <Select
+                              value={waAccountId || undefined}
+                              onValueChange={setWaAccountId}
+                              disabled={waAccountsLoading || waAccounts.length === 0}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={t("whatsappTemplates.campaign.noAccounts")} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {waAccounts.map((a) => (
+                                  <SelectItem key={a.id} value={a.id}>
+                                    {a.whatsapp_business_name?.trim() ||
+                                      a.display_phone_number?.trim() ||
+                                      a.phone_number_id.slice(0, 12)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>{t("whatsappTemplates.campaign.field.recipientList")}</Label>
+                            <Select value={listId || undefined} onValueChange={setListId} disabled={listsLoading}>
+                              <SelectTrigger>
+                                <SelectValue placeholder={t("whatsappTemplates.campaign.listEmpty")} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {eligibleLists.map((r) => (
+                                  <SelectItem key={r.id} value={r.id}>
+                                    {r.name} ({r.contact_count})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {listId && !listDetailLoading ? (
+                              <p className="text-xs text-muted-foreground">
+                                {t("whatsappTemplates.campaign.listContactCount", {
+                                  count: listDetail?.memberTotal ?? 0,
+                                })}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>{t("whatsappTemplates.campaign.field.template")}</Label>
+                            <Select
+                              value={templateHsmId || undefined}
+                              onValueChange={setTemplateHsmId}
+                              disabled={!waAccountId || tplQuery.isLoading}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="—" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-72">
+                                {approvedTemplates.map((row) => (
+                                  <SelectItem key={row.id} value={row.id}>
+                                    {row.templateName} · {row.languageLabel}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <CampaignContentSection
+                            previewRow={previewRow}
+                            componentsJson={componentsJson}
+                            listDetail={listDetail ?? undefined}
+                            listId={listId}
+                            templateHsmId={templateHsmId}
+                            variableMapping={variableMapping}
+                            onMappingChange={setVariableMapping}
+                            templateLoading={templateDetail.isFetching}
+                            listLoading={listDetailLoading}
+                          />
+
+                          <div className="space-y-3">
+                            <Label>{t("whatsappTemplates.campaign.sendMode")}</Label>
+                            <RadioGroup
+                              className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6"
+                              value={sendMode}
+                              onValueChange={(v) => setSendMode(v as "now" | "later")}
+                            >
+                              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                <RadioGroupItem value="now" id="sm-now" />
+                                <span>{t("whatsappTemplates.campaign.sendNow")}</span>
+                              </label>
+                              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                                <RadioGroupItem value="later" id="sm-later" />
+                                <span>{t("whatsappTemplates.campaign.sendLater")}</span>
+                              </label>
+                            </RadioGroup>
+                            {sendMode === "later" ? (
+                              <div className="space-y-2">
+                                <Label htmlFor="sched">{t("whatsappTemplates.campaign.scheduledAt")}</Label>
+                                <Input
+                                  id="sched"
+                                  type="datetime-local"
+                                  step={60}
+                                  value={scheduledLocal}
+                                  onChange={(e) => setScheduledLocal(e.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">{t("whatsappTemplates.campaign.scheduledHint")}</p>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <Button type="button" className="w-full sm:w-auto" disabled={!canSubmit} onClick={() => void onSubmit()}>
+                            {createCampaign.isPending ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                                {t("whatsappTemplates.campaign.submitting")}
+                              </>
+                            ) : (
+                              t("whatsappTemplates.campaign.submit")
+                            )}
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                  </>
+                  </CampaignWorkspace>
                 )}
-              </div>
               </ModuleShellContentGate>
             </div>
           </div>

@@ -6,11 +6,15 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useWhatsAppTemplateFollowups } from '../hooks/useWhatsAppTemplateFollowups';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { Button } from '@/shared/components/ui/button';
-import { Loader2 } from 'lucide-react';
 import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { cn } from '@/shared/lib/utils';
+import { TemplateFollowupsWorkspace } from '../layout/TemplateFollowupsWorkspace';
+import { WhatsAppTemplateFollowupsPageSkeleton } from '../skeletons/WhatsAppTemplateFollowupsPageSkeleton';
+
+const MAIN_SCROLL =
+  'scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
 export function WhatsAppTemplateFollowupsPage() {
   const { t, dateFnsLocale } = useAppTranslation();
@@ -32,46 +36,32 @@ export function WhatsAppTemplateFollowupsPage() {
   };
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted font-sans">
-      <div
-        className={cn(
-          'flex min-h-0 min-w-0 flex-1 flex-col',
-          !showContent && 'pointer-events-none invisible',
-        )}
-        aria-hidden={!showContent}
-      >
-        <div className="flex min-h-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3">
-          <div className="flex h-full min-h-0 min-w-0 flex-col">
-            <div className="shrink-0">
-              <HeaderAndTab />
-            </div>
+    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3">
+        <div className="flex h-full min-h-0 min-w-0 flex-col">
+          <div className={MAIN_SCROLL}>
+            <div className="relative flex min-h-full min-w-0 flex-1 flex-col bg-muted/40">
+              <div
+                className={cn(
+                  'flex min-h-full min-w-0 flex-1 flex-col',
+                  !showContent && 'pointer-events-none invisible',
+                )}
+                aria-hidden={!showContent}
+              >
+                <div className="mb-1 min-w-0 shrink-0">
+                  <HeaderAndTab />
+                </div>
 
-            <ModuleShellContentGate pagePath="/omnichannel/livechat/template-follow-ups">
-              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 max-h-[calc(100vh-120px)] overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="min-h-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                    <h1 className="text-lg font-semibold text-slate-900">
-                      {t('whatsappTemplateFollowups.pageTitle', 'Log follow-up template')}
-                    </h1>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {t(
-                        'whatsappTemplateFollowups.pageIntro',
-                        'Riwayat pengiriman template follow-up dari livechat.',
-                      )}
-                    </p>
-
-                    {orgBootstrapPending || isPending ? (
-                      <div className="mt-8 flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                        <span className="sr-only">Loading</span>
-                      </div>
-                    ) : error ? (
-                      <p className="mt-6 text-sm text-destructive">{String((error as Error).message)}</p>
+                <ModuleShellContentGate pagePath="/omnichannel/livechat/template-follow-ups">
+                  <TemplateFollowupsWorkspace count={rows.length}>
+                    {error ? (
+                      <p className="flex-1 px-4 py-6 text-sm text-destructive">{String((error as Error).message)}</p>
                     ) : rows.length === 0 ? (
-                      <p className="mt-6 text-sm text-muted-foreground">
+                      <p className="flex-1 px-4 py-6 text-sm text-muted-foreground">
                         {t('whatsappTemplateFollowups.empty', 'Belum ada follow-up template.')}
                       </p>
                     ) : (
-                      <div className="mt-4 overflow-x-auto">
+                      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -127,9 +117,16 @@ export function WhatsAppTemplateFollowupsPage() {
                         </Table>
                       </div>
                     )}
-                </div>
+                  </TemplateFollowupsWorkspace>
+                </ModuleShellContentGate>
               </div>
-            </ModuleShellContentGate>
+
+              {!showContent && (
+                <div className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-muted/40">
+                  <WhatsAppTemplateFollowupsPageSkeleton mode="overlay" />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

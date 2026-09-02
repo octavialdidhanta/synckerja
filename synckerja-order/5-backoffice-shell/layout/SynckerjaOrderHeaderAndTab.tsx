@@ -63,7 +63,6 @@ const tabs: Array<{
 
 type Props = {
   businessName?: string;
-  storeUrl?: string | null;
   onSave?: () => void;
   saveBusy?: boolean;
   onViewStore?: () => void;
@@ -71,7 +70,6 @@ type Props = {
 
 export function SynckerjaOrderHeaderAndTab({
   businessName,
-  storeUrl,
   onSave,
   saveBusy,
   onViewStore,
@@ -107,9 +105,6 @@ export function SynckerjaOrderHeaderAndTab({
         <div className="min-w-0">
           <h1 className="mb-0.5 text-xl font-bold text-foreground">{title}</h1>
           <p className="text-xs text-muted-foreground">{description}</p>
-          {storeUrl ? (
-            <p className="mt-1 truncate text-xs text-primary">{storeUrl}</p>
-          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <button

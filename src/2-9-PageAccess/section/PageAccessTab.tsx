@@ -16,6 +16,12 @@ import { EmployeeMultiSelect } from '@/2-9-PageAccess/components/employee-multi-
 import { AccessPermissionsOverview } from '@/2-9-PageAccess/components/AccessPermissionsOverview';
 import { AccessPermissionsTableFooter } from '@/2-9-PageAccess/components/AccessPermissionsTableFooter';
 import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
+import {
+  PAGE_ACCESS_MAIN_COLUMN,
+  PAGE_ACCESS_MAIN_GRID,
+  PAGE_ACCESS_SIDEBAR_COLUMN,
+  PAGE_ACCESS_TABLE_SECTION,
+} from '@/2-9-PageAccess/layout/pageAccessLayout';
 
 const ROLE_DESCRIPTIONS = {
   owner: {
@@ -271,7 +277,7 @@ export const PageAccessTab = () => {
         <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 min-w-0 flex-col">
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex min-h-full min-w-0 flex-col">
+              <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
                 <div className="mb-1 flex-shrink-0">
                   <HeaderAndTab
                     activeTab={activeTab}
@@ -280,8 +286,9 @@ export const PageAccessTab = () => {
                 </div>
 
                 <ModuleShellContentGate pagePath="/access-permissions/page-access">
-                <div className="grid h-[min(1400px,calc(100dvh-120px))] min-h-[600px] min-w-0 w-full flex-none grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:h-[min(1180px,calc(100dvh-115px))] [@media(max-height:760px)]:h-[min(1000px,calc(100dvh-110px))]">
-                  <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+                <div className={PAGE_ACCESS_MAIN_GRID}>
+                  <div className={PAGE_ACCESS_MAIN_COLUMN}>
+                    <div className={PAGE_ACCESS_TABLE_SECTION}>
                     <div className="bg-card border-border flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border shadow-sm">
                         {/* Card Header */}
                         <div className="border-border flex-shrink-0 border-b px-4 py-3">
@@ -560,32 +567,19 @@ export const PageAccessTab = () => {
                         </div>
 
                         {/* Table Footer */}
-                        <div className="border-border bg-muted/40 mt-2 flex-shrink-0 rounded-md border px-4 py-2">
-                          <AccessPermissionsTableFooter 
-                            totalConfigurations={
-                              pathSearchActive
-                                ? filteredConfigurations.length
-                                : configurations.length
-                            }
-                            totalLabel={
-                              pathSearchActive
-                                ? t('pageAccess.config.footerFiltered', 'Matching pages')
-                                : undefined
-                            }
-                            lastUpdated={
-                              configurations.length
-                                ? [...configurations].sort((a, b) =>
-                                    b.updated_at.localeCompare(a.updated_at),
-                                  )[0]?.updated_at
-                                : undefined
-                            }
-                          />
-                        </div>
+                        <AccessPermissionsTableFooter
+                          totalConfigurations={
+                            pathSearchActive
+                              ? filteredConfigurations.length
+                              : configurations.length
+                          }
+                        />
+                    </div>
                     </div>
                   </div>
 
-                  <div className="col-span-3 flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-                    <div className="flex h-full min-h-0 min-w-0 flex-col">
+                  <div className={PAGE_ACCESS_SIDEBAR_COLUMN}>
+                    <div className={PAGE_ACCESS_TABLE_SECTION}>
                       <AccessPermissionsOverview configurations={configurations} />
                     </div>
                   </div>

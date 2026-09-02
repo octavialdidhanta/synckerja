@@ -17,7 +17,6 @@ import { SynckerjaOrderOutletsPanel } from "@/synckerja-order/2-business/Syncker
 import { SynckerjaOrderHoursPanel } from "@/synckerja-order/2-hours/SynckerjaOrderHoursPanel";
 import { SynckerjaOrderCatalogPanel } from "@/synckerja-order/3-catalog/SynckerjaOrderCatalogPanel";
 import { SynckerjaOrderQrPanel } from "@/synckerja-order/4-qr/SynckerjaOrderQrPanel";
-import { resolveCatalogPhotoUrls } from "@/synckerja-order/shared/lib/orderStorePhoto";
 import { useSynckerjaOrderOrgSettings } from "../hooks/useSynckerjaOrderOrgSettings";
 import { useSynckerjaOrderOutlets } from "../hooks/useSynckerjaOrderOutlets";
 import { useSynckerjaOrderHours } from "../hooks/useSynckerjaOrderHours";
@@ -26,6 +25,12 @@ import { useSynckerjaOrderCategoryLayouts } from "../hooks/useSynckerjaOrderCate
 import { useSynckerjaOrderCrossSell } from "../hooks/useSynckerjaOrderCrossSell";
 import { useSynckerjaOrderTables } from "../hooks/useSynckerjaOrderTables";
 import { SynckerjaOrderModuleShell } from "../layout/SynckerjaOrderModuleShell";
+import {
+  SYNCKERJA_ORDER_MAIN_GRID,
+  SYNCKERJA_ORDER_PANEL_BODY,
+  SYNCKERJA_ORDER_TABLE_SECTION,
+} from "../layout/synckerjaOrderLayout";
+import { SynckerjaOrderPanelFooter } from "../layout/SynckerjaOrderPanelFooter";
 import {
   SYNCKERJA_ORDER_PROFILE_PATH,
   synckerjaOrderTabFromPathname,
@@ -57,7 +62,6 @@ export default function SynckerjaOrderPage() {
   const [hoursWeekly, setHoursWeekly] = useState<WeeklyHourRule[]>(defaultWeeklyHours());
   const [layoutDraft, setLayoutDraft] = useState<Record<string, CategoryLayout>>({});
   const [relatedDraft, setRelatedDraft] = useState<Record<string, string>>({});
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   const settings: SynckerjaOrderOrgSettings = useMemo(
     () => ({ ...org.settings, ...draft }),
@@ -90,19 +94,15 @@ export default function SynckerjaOrderPage() {
     setRelatedDraft(crossSell.pairings);
   }, [crossSell.pairings]);
 
-  useEffect(() => {
-    const path = settings.logo_path?.trim() || settings.cover_path?.trim();
-    if (!path) {
-      setLogoUrl(null);
-      return;
-    }
-    void resolveCatalogPhotoUrls([path]).then((map) => {
-      setLogoUrl(map.get(path) ?? null);
-    });
-  }, [settings.logo_path, settings.cover_path]);
   const storeUrl = selectedOutlet?.public_code
     ? buildOrderStoreUrl(selectedOutlet.public_code)
     : null;
+  const filledContactFields = [
+    settings.contact_phone,
+    settings.contact_email,
+    settings.contact_whatsapp,
+    settings.contact_instagram,
+  ].filter((value) => Boolean(value?.trim())).length;
 
   const showContent = useDebouncedReady(
     !(
@@ -184,7 +184,6 @@ export default function SynckerjaOrderPage() {
     <SynckerjaOrderModuleShell
       showContent={showContent}
       businessName={settings.business_name}
-      storeUrl={activated ? storeUrl : null}
       onSave={
         activated && tab !== "qr" && (tab !== "hours" || Boolean(hoursOutlet?.id))
           ? () => void onSave()
@@ -212,83 +211,85 @@ export default function SynckerjaOrderPage() {
           busy={org.save.isPending}
         />
       ) : (
-        <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-          <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-            {tab === "profile" ? (
-              <SynckerjaOrderProfilePanel settings={settings} onChange={patch} />
-            ) : null}
-            {tab === "contact" ? (
-              <SynckerjaOrderContactPanel settings={settings} onChange={patch} />
-            ) : null}
-            {tab === "terms" ? (
-              <SynckerjaOrderTermsPanel settings={settings} onChange={patch} />
-            ) : null}
-            {tab === "outlets" ? (
-              <SynckerjaOrderOutletsPanel
-                rows={outlets.rows}
-                busy={outlets.saveOutlet.isPending}
-                onToggle={(id, enabled) => void outlets.saveOutlet.mutateAsync({ outletId: id, enabled })}
-                onCodeChange={(id, code) => {
-                  if (code.length === 6) {
-                    void outlets.saveOutlet.mutateAsync({ outletId: id, publicCode: code });
-                  }
-                }}
-              />
-            ) : null}
-            {tab === "hours" ? (
-              <SynckerjaOrderHoursPanel
-                outlets={outlets.rows}
-                selectedOutletId={hoursOutlet?.id ?? null}
-                onSelectOutlet={setHoursOutletId}
-                forceClosed={hoursForceClosed}
-                weeklyHours={hoursWeekly}
-                onChange={(patch) => {
-                  if (patch.forceClosed !== undefined) setHoursForceClosed(patch.forceClosed);
-                  if (patch.weeklyHours) setHoursWeekly(patch.weeklyHours);
-                }}
-              />
-            ) : null}
-            {tab === "catalog" ? (
-              <SynckerjaOrderCatalogPanel
-                rows={catalog.rows}
-                layouts={layoutDraft}
-                relatedPairings={relatedDraft}
-                busy={catalog.toggle.isPending || categoryLayouts.save.isPending || crossSell.save.isPending}
-                onLayoutChange={(categoryId, layout) => {
-                  setLayoutDraft((prev) => ({ ...prev, [categoryId]: layout }));
-                }}
-                onRelatedChange={(fromCategoryId, toCategoryId) => {
-                  setRelatedDraft((prev) => {
-                    if (!toCategoryId) {
-                      const next = { ...prev };
-                      delete next[fromCategoryId];
-                      return next;
-                    }
-                    return { ...prev, [fromCategoryId]: toCategoryId };
-                  });
-                }}
-                onToggle={(id, optedIn, kind) =>
-                  void catalog.toggle.mutateAsync({ catalogItemId: id, optedIn, kind })
-                }
-              />
-            ) : null}
-            {tab === "qr" ? (
-              <SynckerjaOrderQrPanel
-                publicCode={selectedOutlet?.public_code ?? null}
-                outletId={selectedOutletId || null}
-                outletName={selectedOutlet?.name ?? ""}
-                tables={tables.data ?? []}
-                orgSettings={settings}
-                logoUrl={logoUrl}
-              />
-            ) : null}
+        <div className={SYNCKERJA_ORDER_MAIN_GRID}>
+          <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch">
+            <div className={SYNCKERJA_ORDER_TABLE_SECTION}>
+              <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+                <div className={tab === "qr" ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" : SYNCKERJA_ORDER_PANEL_BODY}>
+                  {tab === "profile" ? (
+                    <SynckerjaOrderProfilePanel settings={settings} onChange={patch} />
+                  ) : null}
+                  {tab === "contact" ? (
+                    <SynckerjaOrderContactPanel settings={settings} onChange={patch} />
+                  ) : null}
+                  {tab === "terms" ? (
+                    <SynckerjaOrderTermsPanel settings={settings} onChange={patch} />
+                  ) : null}
+                  {tab === "outlets" ? (
+                    <SynckerjaOrderOutletsPanel
+                      rows={outlets.rows}
+                      busy={outlets.saveOutlet.isPending}
+                      onToggle={(id, enabled) => void outlets.saveOutlet.mutateAsync({ outletId: id, enabled })}
+                      onCodeChange={(id, code) => {
+                        if (code.length === 6) {
+                          void outlets.saveOutlet.mutateAsync({ outletId: id, publicCode: code });
+                        }
+                      }}
+                    />
+                  ) : null}
+                  {tab === "hours" ? (
+                    <SynckerjaOrderHoursPanel
+                      outlets={outlets.rows}
+                      selectedOutletId={hoursOutlet?.id ?? null}
+                      onSelectOutlet={setHoursOutletId}
+                      forceClosed={hoursForceClosed}
+                      weeklyHours={hoursWeekly}
+                      onChange={(hourPatch) => {
+                        if (hourPatch.forceClosed !== undefined) setHoursForceClosed(hourPatch.forceClosed);
+                        if (hourPatch.weeklyHours) setHoursWeekly(hourPatch.weeklyHours);
+                      }}
+                    />
+                  ) : null}
+                  {tab === "catalog" ? (
+                    <SynckerjaOrderCatalogPanel
+                      rows={catalog.rows}
+                      layouts={layoutDraft}
+                      relatedPairings={relatedDraft}
+                      busy={catalog.toggle.isPending || categoryLayouts.save.isPending || crossSell.save.isPending}
+                      onLayoutChange={(categoryId, layout) => {
+                        setLayoutDraft((prev) => ({ ...prev, [categoryId]: layout }));
+                      }}
+                      onRelatedChange={(fromCategoryId, toCategoryId) => {
+                        setRelatedDraft((prev) => {
+                          if (!toCategoryId) {
+                            const next = { ...prev };
+                            delete next[fromCategoryId];
+                            return next;
+                          }
+                          return { ...prev, [fromCategoryId]: toCategoryId };
+                        });
+                      }}
+                      onToggle={(id, optedIn, kind) =>
+                        void catalog.toggle.mutateAsync({ catalogItemId: id, optedIn, kind })
+                      }
+                    />
+                  ) : null}
+                  {tab === "qr" ? (
+                    <SynckerjaOrderQrPanel
+                      publicCode={selectedOutlet?.public_code ?? null}
+                      outletId={selectedOutletId || null}
+                      outletName={selectedOutlet?.name ?? ""}
+                      tables={tables.data ?? []}
+                      orgSettings={settings}
+                    />
+                  ) : null}
+                </div>
+                <SynckerjaOrderPanelFooter tab={tab} filledContactFields={filledContactFields} />
+              </div>
+            </div>
           </div>
         </div>
       )}
-      <div
-        className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-        aria-hidden
-      />
     </SynckerjaOrderModuleShell>
   );
 }

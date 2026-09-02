@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
@@ -5,10 +6,20 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useSelectedPosOutlet } from "@/8-2-2-outlets/hooks/useSelectedPosOutlet";
 import { LibraryIngredientCategoriesManager, useCatalogIngredientCategories } from "../categories";
 import { IngredientModuleShell } from "../layout/IngredientModuleShell";
+import { IngredientWorkspace } from "../layout/IngredientWorkspace";
 import { ingredientTabFromPathname } from "../layout/IngredientHeaderAndTab";
 import { LibraryIngredientsManager, useCatalogIngredients } from "../library";
-import { ProductRecipesManager, useCatalogProductRecipes } from "../product-recipes";
+import {
+  ProductRecipesManager,
+  buildProductRecipeListRows,
+  useCatalogProductRecipes,
+} from "../product-recipes";
 import { useCatalogIngredientRecipes } from "../recipes";
+
+function countForOutlet(rows: Array<{ outlet_ids?: string[] | null }>, outletId: string) {
+  if (!outletId) return 0;
+  return rows.filter((row) => (row.outlet_ids ?? []).includes(outletId)).length;
+}
 
 export default function IngredientPage() {
   const { t } = useAppTranslation();
@@ -36,44 +47,66 @@ export default function IngredientPage() {
     (isRecipes && (productRecipes.isLoading || ingredients.isLoading));
   const showContent = useDebouncedReady(!hasPendingLoad, 200);
 
+  const panelCount = useMemo(() => {
+    if (isLibrary) return countForOutlet(ingredients.rows, selectedOutletId);
+    if (isCategories) return countForOutlet(categories.rows, selectedOutletId);
+    if (isRecipes) {
+      return buildProductRecipeListRows({
+        recipes: productRecipes.rows,
+        products: productRecipes.products,
+        modifierOptions: productRecipes.modifierOptions,
+        ingredients: ingredients.rows,
+        outletId: selectedOutletId,
+      }).length;
+    }
+    return 0;
+  }, [
+    isLibrary,
+    isCategories,
+    isRecipes,
+    ingredients.rows,
+    categories.rows,
+    productRecipes.rows,
+    productRecipes.products,
+    productRecipes.modifierOptions,
+    selectedOutletId,
+  ]);
+
   return (
     <IngredientModuleShell showContent={showContent}>
-      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-        <div className="col-span-12 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-          {isLibrary ? (
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 py-6">
-              <LibraryIngredientsManager
-                selectedOutletId={selectedOutletId}
-                onOutletChange={setSelectedOutletId}
-              />
-            </div>
-          ) : isCategories ? (
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 py-6">
-              <LibraryIngredientCategoriesManager
-                selectedOutletId={selectedOutletId}
-                onOutletChange={setSelectedOutletId}
-              />
-            </div>
-          ) : isRecipes ? (
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 py-6">
-              <ProductRecipesManager
-                selectedOutletId={selectedOutletId}
-                onOutletChange={setSelectedOutletId}
-              />
-            </div>
-          ) : (
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 py-6">
-              <h2 className="mb-1 text-lg font-semibold">
-                {t("ingredient.tab.recipes", "Recipes")}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {t("ingredient.empty.recipes", "No recipes yet.")}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
+      <IngredientWorkspace count={panelCount}>
+        {isLibrary ? (
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 py-6">
+            <LibraryIngredientsManager
+              selectedOutletId={selectedOutletId}
+              onOutletChange={setSelectedOutletId}
+            />
+          </div>
+        ) : isCategories ? (
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 py-6">
+            <LibraryIngredientCategoriesManager
+              selectedOutletId={selectedOutletId}
+              onOutletChange={setSelectedOutletId}
+            />
+          </div>
+        ) : isRecipes ? (
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 py-6">
+            <ProductRecipesManager
+              selectedOutletId={selectedOutletId}
+              onOutletChange={setSelectedOutletId}
+            />
+          </div>
+        ) : (
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 py-6">
+            <h2 className="mb-1 text-lg font-semibold">
+              {t("ingredient.tab.recipes", "Recipes")}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {t("ingredient.empty.recipes", "No recipes yet.")}
+            </p>
+          </div>
+        )}
+      </IngredientWorkspace>
     </IngredientModuleShell>
   );
 }

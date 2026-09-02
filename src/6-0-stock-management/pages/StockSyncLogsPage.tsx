@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { StockManagementModuleShell } from "@/6-0-stock-management/layout/StockManagementModuleShell";
+import { InventoryWorkspace } from "@/6-0-stock-management/layout/InventoryWorkspace";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import {
@@ -42,9 +43,8 @@ function StockSyncLogsContent() {
   }
 
   return (
-    <>
-            <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-              <div className="min-h-0 overflow-auto">
+    <InventoryWorkspace count={rows.length}>
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -105,9 +105,7 @@ function StockSyncLogsContent() {
                   )}
                 </TableBody>
               </Table>
-              </div>
-            </div>
-            <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
-    </>
+      </div>
+    </InventoryWorkspace>
   );
 }

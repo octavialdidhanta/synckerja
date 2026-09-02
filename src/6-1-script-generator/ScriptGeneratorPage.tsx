@@ -18,6 +18,7 @@ import { useProductKnowledgeHooks } from '@/6-1-product-knowledge/hooks/useProdu
 import { useKeywords } from '@/6-1-product-knowledge/hooks/useKeywords';
 import { ScriptGeneratorPageSkeleton } from './skeletons/ScriptGeneratorPageSkeleton';
 import { useScriptGeneratorPageSkeletonGate } from './hooks/useScriptGeneratorPageSkeletonGate';
+import { ScriptGeneratorWorkspace } from './layout/ScriptGeneratorWorkspace';
 import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { Button } from '@/shared/components/ui/button';
@@ -90,7 +91,7 @@ const ScriptGeneratorContent: React.FC = () => {
         <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 flex-col">
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="relative flex min-h-full flex-1 flex-col">
+              <div className="relative flex min-h-full flex-1 flex-col bg-muted/40">
                 <div
                   className={
                     showPageSkeleton
@@ -107,17 +108,12 @@ const ScriptGeneratorContent: React.FC = () => {
                 </div>
 
                 <ModuleShellContentGate pagePath="/digital-marketing/social-media/script-generator">
-                {/* Pola settings: jarak tab → section via mb-1; pita tinggi tetap di desktop; scroll halaman tetap hidup */}
-                <div
-                  className={`grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-1 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden lg:grid-rows-1 ${
-                    formPanelHidden
-                      ? 'lg:grid-cols-[minmax(0,3fr)_minmax(0,7fr)]'
-                      : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.33fr)]'
-                  }`}
-                >
-                  {!formPanelHidden && (
-                    <div className="flex min-h-0 min-w-0 flex-col overflow-hidden lg:h-full">
-                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:h-full">
+                <ScriptGeneratorWorkspace
+                  formHidden={formPanelHidden}
+                  count={aiGeneratedScript ? 1 : 0}
+                  formPanel={
+                    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                         <div className="flex flex-shrink-0 items-center border-b border-gray-200 bg-gray-50 px-3 py-2">
                           <button
                             type="button"
@@ -139,10 +135,10 @@ const ScriptGeneratorContent: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  )}
-
-                  <div className="flex min-h-0 min-w-0 flex-col overflow-hidden lg:h-full">
-                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:h-full">
+                  }
+                  promptPanel={
+                    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                       {formPanelHidden && (
                         <div className="flex flex-shrink-0 items-center border-b border-gray-200 bg-gray-50 px-3 py-2">
                           <button
@@ -246,33 +242,31 @@ const ScriptGeneratorContent: React.FC = () => {
                         )}
                       </div>
                     </div>
-                  </div>
-
-                  <div className="flex min-h-0 min-w-0 flex-col overflow-hidden lg:h-full">
-                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm lg:h-full">
-                      <div className={panelScrollClass}>
-                        <div className="w-full min-w-0 px-4 pb-4 pt-4">
-                          {aiGeneratedScript ? (
-                            <AIScriptResult
-                              script={aiGeneratedScript}
-                              formDataForPlan={lastFormDataForPlan}
-                              onScriptChange={setAiGeneratedScript}
-                            />
-                          ) : (
-                            <div className="flex min-h-[200px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 p-6 text-center">
-                              <p className="text-sm text-gray-500">
-                                {t(
-                                  'scriptGenerator.aiEmptyState',
-                                  'Hasil script dari AI akan muncul di sini setelah Anda QC prompt di panel tengah dan klik "Generate dengan AI"'
-                                )}
-                              </p>
-                            </div>
-                          )}
-                        </div>
+                    </div>
+                  }
+                  resultPanel={
+                    <div className={panelScrollClass}>
+                      <div className="w-full min-w-0 px-4 pb-4 pt-4">
+                        {aiGeneratedScript ? (
+                          <AIScriptResult
+                            script={aiGeneratedScript}
+                            formDataForPlan={lastFormDataForPlan}
+                            onScriptChange={setAiGeneratedScript}
+                          />
+                        ) : (
+                          <div className="flex min-h-[200px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 p-6 text-center">
+                            <p className="text-sm text-gray-500">
+                              {t(
+                                'scriptGenerator.aiEmptyState',
+                                'Hasil script dari AI akan muncul di sini setelah Anda QC prompt di panel tengah dan klik "Generate dengan AI"'
+                              )}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-                </div>
+                  }
+                />
                 </ModuleShellContentGate>
                 </div>
 
@@ -280,9 +274,9 @@ const ScriptGeneratorContent: React.FC = () => {
                   <div
                     className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-gray-100"
                     aria-busy
-                    aria-label="Memuat script generator"
+                    aria-label={t('scriptGenerator.loadingAria', 'Loading script generator')}
                   >
-                    <span className="sr-only">Memuat script generator</span>
+                    <span className="sr-only">{t('scriptGenerator.loadingAria', 'Loading script generator')}</span>
                     <ScriptGeneratorPageSkeleton mode="overlay" headerActiveTabId={activeMainTab} />
                   </div>
                 )}

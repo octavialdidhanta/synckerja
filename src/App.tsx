@@ -124,6 +124,9 @@ import {
   VisitSchedulingPageSkeleton,
   WhatsAppConnectPageSkeleton,
   WhatsAppTemplatePageSkeleton,
+  WhatsAppCampaignPageSkeleton,
+  OmnichannelContactPageSkeleton,
+  WhatsAppTemplateFollowupsPageSkeleton,
 } from "@/appRouteSkeletonLoaders";
 
 import { AutomationFlowEditorSkeleton } from "@/5-3-automation-flow/skeletons/AutomationFlowEditorSkeleton";
@@ -2139,8 +2142,8 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/integrations/whatsapp"
-                    loadingShell={PAGE_GUARD_LOADING_SHELL}
-                    loadingShellWrapperClassName="bg-surface-muted"
+                    loadingShell={<WhatsAppConnectPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
                   >
                     <WhatsAppConnectSuspense>
                       <WhatsAppConnectPage />
@@ -2153,17 +2156,8 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/integrations/instagram"
-                    loadingShellWrapperClassName="bg-surface-muted"
-                    loadingShell={
-                      <div
-                        className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden"
-                        aria-busy
-                        aria-label="Loading Connect Instagram"
-                      >
-                        <span className="sr-only">Loading Connect Instagram</span>
-                        <InstagramConnectPageSkeleton />
-                      </div>
-                    }
+                    loadingShell={<InstagramConnectPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
                   >
                     <InstagramConnectOperationsSuspense>
                       <InstagramConnectPage />
@@ -2176,17 +2170,8 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/integrations/facebook"
-                    loadingShellWrapperClassName="bg-surface-muted"
-                    loadingShell={
-                      <div
-                        className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden"
-                        aria-busy
-                        aria-label="Loading Connect Facebook Page"
-                      >
-                        <span className="sr-only">Loading Connect Facebook Page</span>
-                        <FacebookConnectPageSkeleton />
-                      </div>
-                    }
+                    loadingShell={<FacebookConnectPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
                   >
                     <FacebookConnectOperationsSuspense>
                       <FacebookConnectPage />
@@ -2199,17 +2184,8 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/integrations/threads"
-                    loadingShellWrapperClassName="bg-surface-muted"
-                    loadingShell={
-                      <div
-                        className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden"
-                        aria-busy
-                        aria-label="Loading Connect Threads"
-                      >
-                        <span className="sr-only">Loading Connect Threads</span>
-                        <ThreadsConnectPageSkeleton />
-                      </div>
-                    }
+                    loadingShell={<ThreadsConnectPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
                   >
                     <ThreadsConnectOperationsSuspense>
                       <ThreadsConnectPage />
@@ -2222,8 +2198,8 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/integrations/email"
-                    loadingShell={PAGE_GUARD_LOADING_SHELL}
-                    loadingShellWrapperClassName="bg-surface-muted"
+                    loadingShell={<EmailConnectPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
                   >
                     <EmailConnectOperationsSuspense>
                       <EmailConnectPage />
@@ -2248,10 +2224,10 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/contact"
-                    loadingShell={PAGE_GUARD_LOADING_SHELL}
-                    loadingShellWrapperClassName="bg-surface-muted"
+                    loadingShell={<OmnichannelContactPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
                   >
-                    <Suspense fallback={PAGE_GUARD_LOADING_SHELL}>
+                    <Suspense fallback={<OmnichannelContactPageSkeleton />}>
                       <OmnichannelContactPage />
                     </Suspense>
                   </PageAccessGuard>
@@ -2262,8 +2238,8 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/livechat"
-                    loadingShell={PAGE_GUARD_LOADING_SHELL}
-                    loadingShellWrapperClassName="bg-surface-muted"
+                    loadingShell={<WhatsAppTemplateFollowupsPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
                   >
                     <WhatsAppTemplateFollowupsPageSuspense />
                   </PageAccessGuard>
@@ -2306,12 +2282,12 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/campaign/whatsapp"
-                    loadingShell={PAGE_GUARD_LOADING_SHELL}
-                    loadingShellWrapperClassName="bg-surface-muted"
+                    loadingShell={<WhatsAppCampaignPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
                   >
-                    <WhatsAppTemplateSuspense>
+                    <WhatsAppCampaignSuspense>
                       <WhatsAppCampaignPage />
-                    </WhatsAppTemplateSuspense>
+                    </WhatsAppCampaignSuspense>
                   </PageAccessGuard>
                 }
               />
@@ -2324,8 +2300,8 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/campaign/templates"
-                    loadingShell={PAGE_GUARD_LOADING_SHELL}
-                    loadingShellWrapperClassName="bg-surface-muted"
+                    loadingShell={<WhatsAppTemplatePageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
                   >
                     <WhatsAppTemplateSuspense>
                       <WhatsAppTemplatePage />
@@ -2377,7 +2353,7 @@ const InstagramConnectOperationsSuspense = ({ children }: { children: ReactNode 
   <Suspense
     fallback={
       <div
-        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100"
         aria-busy
         aria-label="Loading Connect Instagram"
       >
@@ -2394,7 +2370,7 @@ const ThreadsConnectOperationsSuspense = ({ children }: { children: ReactNode })
   <Suspense
     fallback={
       <div
-        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100"
         aria-busy
         aria-label="Loading Connect Threads"
       >
@@ -2411,7 +2387,7 @@ const FacebookConnectOperationsSuspense = ({ children }: { children: ReactNode }
   <Suspense
     fallback={
       <div
-        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100"
         aria-busy
         aria-label="Loading Connect Facebook Page"
       >
@@ -2460,7 +2436,7 @@ const EmailConnectOperationsSuspense = ({ children }: { children: ReactNode }) =
   <Suspense
     fallback={
       <div
-        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100"
         aria-busy
         aria-label="Loading connect email"
       >
@@ -2476,7 +2452,7 @@ const WhatsAppConnectSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
       <div
-        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100"
         aria-busy
         aria-label="Loading"
       >
@@ -2492,11 +2468,27 @@ const WhatsAppTemplateSuspense = ({ children }: { children: ReactNode }) => (
   <Suspense
     fallback={
       <div
-        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100"
         aria-busy
         aria-label="Loading WhatsApp templates"
       >
         <WhatsAppTemplatePageSkeleton />
+      </div>
+    }
+  >
+    {children}
+  </Suspense>
+);
+
+const WhatsAppCampaignSuspense = ({ children }: { children: ReactNode }) => (
+  <Suspense
+    fallback={
+      <div
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100"
+        aria-busy
+        aria-label="Loading WhatsApp campaign"
+      >
+        <WhatsAppCampaignPageSkeleton />
       </div>
     }
   >
@@ -2509,11 +2501,11 @@ function WhatsAppTemplateFollowupsPageSuspense() {
     <Suspense
       fallback={
         <div
-          className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+          className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100"
           aria-busy
           aria-label="Loading template follow-ups"
         >
-          <ConsultantLivechatRouteLoadingShell />
+          <WhatsAppTemplateFollowupsPageSkeleton />
         </div>
       }
     >
@@ -5160,8 +5152,8 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/integrations/whatsapp"
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
-                              loadingShellWrapperClassName="bg-surface-muted"
+                              loadingShell={<WhatsAppConnectPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
                             >
                               <WhatsAppConnectSuspense>
                                 <WhatsAppConnectPage />
@@ -5174,17 +5166,8 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/integrations/instagram"
-                              loadingShellWrapperClassName="bg-surface-muted"
-                              loadingShell={
-                                <div
-                                  className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden"
-                                  aria-busy
-                                  aria-label="Loading Connect Instagram"
-                                >
-                                  <span className="sr-only">Loading Connect Instagram</span>
-                                  <InstagramConnectPageSkeleton />
-                                </div>
-                              }
+                              loadingShell={<InstagramConnectPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
                             >
                               <InstagramConnectOperationsSuspense>
                                 <InstagramConnectPage />
@@ -5197,17 +5180,8 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/integrations/facebook"
-                              loadingShellWrapperClassName="bg-surface-muted"
-                              loadingShell={
-                                <div
-                                  className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden"
-                                  aria-busy
-                                  aria-label="Loading Connect Facebook Page"
-                                >
-                                  <span className="sr-only">Loading Connect Facebook Page</span>
-                                  <FacebookConnectPageSkeleton />
-                                </div>
-                              }
+                              loadingShell={<FacebookConnectPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
                             >
                               <FacebookConnectOperationsSuspense>
                                 <FacebookConnectPage />
@@ -5220,17 +5194,8 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/integrations/threads"
-                              loadingShellWrapperClassName="bg-surface-muted"
-                              loadingShell={
-                                <div
-                                  className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden"
-                                  aria-busy
-                                  aria-label="Loading Connect Threads"
-                                >
-                                  <span className="sr-only">Loading Connect Threads</span>
-                                  <ThreadsConnectPageSkeleton />
-                                </div>
-                              }
+                              loadingShell={<ThreadsConnectPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
                             >
                               <ThreadsConnectOperationsSuspense>
                                 <ThreadsConnectPage />
@@ -5243,8 +5208,8 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/integrations/email"
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
-                              loadingShellWrapperClassName="bg-surface-muted"
+                              loadingShell={<EmailConnectPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
                             >
                               <EmailConnectOperationsSuspense>
                                 <EmailConnectPage />
@@ -5269,10 +5234,10 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/contact"
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
-                              loadingShellWrapperClassName="bg-surface-muted"
+                              loadingShell={<OmnichannelContactPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
                             >
-                              <Suspense fallback={PAGE_GUARD_LOADING_SHELL}>
+                              <Suspense fallback={<OmnichannelContactPageSkeleton />}>
                                 <OmnichannelContactPage />
                               </Suspense>
                             </PageAccessGuard>
@@ -5283,8 +5248,8 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/livechat"
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
-                              loadingShellWrapperClassName="bg-surface-muted"
+                              loadingShell={<WhatsAppTemplateFollowupsPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
                             >
                               <WhatsAppTemplateFollowupsPageSuspense />
                             </PageAccessGuard>
@@ -5327,12 +5292,12 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/campaign/whatsapp"
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
-                              loadingShellWrapperClassName="bg-surface-muted"
+                              loadingShell={<WhatsAppCampaignPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
                             >
-                              <WhatsAppTemplateSuspense>
+                              <WhatsAppCampaignSuspense>
                                 <WhatsAppCampaignPage />
-                              </WhatsAppTemplateSuspense>
+                              </WhatsAppCampaignSuspense>
                             </PageAccessGuard>
                           }
                         />
@@ -5345,8 +5310,8 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/campaign/templates"
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
-                              loadingShellWrapperClassName="bg-surface-muted"
+                              loadingShell={<WhatsAppTemplatePageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
                             >
                               <WhatsAppTemplateSuspense>
                                 <WhatsAppTemplatePage />

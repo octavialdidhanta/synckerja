@@ -9,7 +9,7 @@ import { CampaignMetricCell } from '../components/CampaignMetricCell';
 import { CampaignPostsPreview } from '../components/CampaignPostsPreview';
 import { LeadMagnetListMetricCards } from '../components/LeadMagnetListMetricCards';
 import { LeadMagnetPageShell } from '../components/LeadMagnetPageShell';
-import { LeadMagnetTableFooter } from '../components/LeadMagnetTableFooter';
+import { LeadMagnetWorkspace } from '../layout/LeadMagnetWorkspace';
 import {
   useDeleteLeadMagnetCampaign,
   useLeadMagnetCampaigns,
@@ -17,11 +17,11 @@ import {
 } from '../hooks/useLeadMagnetCampaigns';
 import { useLeadMagnetListDateRange } from '../hooks/useLeadMagnetListDateRange';
 import { LEAD_MAGNET_PATHS } from '../lib/leadMagnetPaths';
-import { LEAD_MAGNET_MAIN_GRID, LEAD_MAGNET_TABLE_SECTION } from '../lib/leadMagnetLayout';
 import { TikTokAdsDateRangePicker } from '@/6-0-tiktok-ads/components/TikTokAdsDateRangePicker';
 import { buildTikTokAdsCalendarYearPresetYears } from '@/tiktok-ads/lib/clampTikTokAdsDateRange';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
+import { Skeleton } from '@/shared/components/ui/skeleton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -78,11 +78,6 @@ export function LeadMagnetListPage() {
   const [pauseTarget, setPauseTarget] = useState<{ id: string; name: string } | null>(null);
   const [previewCampaign, setPreviewCampaign] = useState<LeadMagnetCampaign | null>(null);
 
-  const activeCampaigns = useMemo(
-    () => campaigns.filter((c) => c.status === 'active').length,
-    [campaigns],
-  );
-
   const metricCards = useMemo(
     () => [
       { key: 'new_leads' as const, label: t('leadMagnet.list.cardNewLeads') },
@@ -127,49 +122,59 @@ export function LeadMagnetListPage() {
 
   return (
     <LeadMagnetPageShell>
-      <div className={LEAD_MAGNET_MAIN_GRID}>
-        <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-          <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2">
-            <p className="text-xs text-muted-foreground">
-              Buat campaign dengan keyword di komentar IG/FB → auto DM follow gate → kirim link framework.
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <TikTokAdsDateRangePicker
-                value={selection}
-                onChange={setSelection}
-                calendarYearPresetYears={buildTikTokAdsCalendarYearPresetYears()}
-                calendarYearFilterHint={t('leadMagnet.list.dateFilterHint')}
-                className="h-8"
-              />
-              <Button size="sm" className="h-8 gap-1.5 px-3 text-xs" onClick={() => navigate(LEAD_MAGNET_PATHS.new)}>
-                <Plus className="h-3.5 w-3.5" />
-                Campaign baru
-              </Button>
+      <LeadMagnetWorkspace
+        count={campaigns.length}
+        toolbar={
+          <>
+            <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2">
+              <p className="text-xs text-muted-foreground">
+                Buat campaign dengan keyword di komentar IG/FB → auto DM follow gate → kirim link framework.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <TikTokAdsDateRangePicker
+                  value={selection}
+                  onChange={setSelection}
+                  calendarYearPresetYears={buildTikTokAdsCalendarYearPresetYears()}
+                  calendarYearFilterHint={t('leadMagnet.list.dateFilterHint')}
+                  className="h-8"
+                />
+                <Button size="sm" className="h-8 gap-1.5 px-3 text-xs" onClick={() => navigate(LEAD_MAGNET_PATHS.new)}>
+                  <Plus className="h-3.5 w-3.5" />
+                  Campaign baru
+                </Button>
+              </div>
             </div>
+
+            <LeadMagnetListMetricCards
+              totals={totals}
+              cards={metricCards}
+              commerceCards={commerceCards}
+              loading={isLoading}
+            />
+          </>
+        }
+      >
+        {isLoading ? (
+          <div
+            className="min-h-0 min-w-0 flex-1 space-y-2 p-3"
+            aria-busy
+            aria-label={t('leadMagnet.list.loadingAria', 'Loading lead magnet')}
+          >
+            <span className="sr-only">{t('leadMagnet.list.loadingAria', 'Loading lead magnet')}</span>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-11 w-full rounded-md" />
+            ))}
           </div>
-
-          <LeadMagnetListMetricCards
-            totals={totals}
-            cards={metricCards}
-            commerceCards={commerceCards}
-            loading={isLoading}
-          />
-
-          <div className={LEAD_MAGNET_TABLE_SECTION}>
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-              {isLoading ? (
-                <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Memuat…</div>
-              ) : campaigns.length === 0 ? (
-                <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center text-sm text-muted-foreground">
-                  <p>Belum ada campaign. Mulai dengan wizard setup keyword & pesan DM.</p>
-                  <Button variant="outline" size="sm" onClick={() => navigate(LEAD_MAGNET_PATHS.new)}>
-                    Buat campaign pertama
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <table className="w-full min-w-[1600px] caption-bottom text-sm">
+        ) : campaigns.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center text-sm text-muted-foreground">
+            <p>Belum ada campaign. Mulai dengan wizard setup keyword & pesan DM.</p>
+            <Button variant="outline" size="sm" onClick={() => navigate(LEAD_MAGNET_PATHS.new)}>
+              Buat campaign pertama
+            </Button>
+          </div>
+        ) : (
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <table className="w-full min-w-[1600px] caption-bottom text-sm">
                         <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
                           <TableRow className="hover:bg-transparent">
                             <TableHead className="min-w-[200px] bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 align-top">
@@ -327,18 +332,10 @@ export function LeadMagnetListPage() {
                             </TableRow>
                           ))}
                         </TableBody>
-                      </table>
-                  </div>
-                  <LeadMagnetTableFooter
-                    totalCampaigns={campaigns.length}
-                    activeCampaigns={activeCampaigns}
-                  />
-                </>
-              )}
-            </div>
+            </table>
           </div>
-        </div>
-      </div>
+        )}
+      </LeadMagnetWorkspace>
 
       <CampaignLeadMagnetSheet
         campaign={previewCampaign}

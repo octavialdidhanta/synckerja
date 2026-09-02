@@ -66,6 +66,9 @@ verify_jwt = false
 [functions.google-maps-key]
 verify_jwt = false
 
+[functions.sign-synckerja-order-photos]
+verify_jwt = false
+
 # Native Google Sign-In (public web/iOS client ids for Capacitor; no user JWT).
 [functions.google-sso-public-config]
 verify_jwt = false

@@ -72,6 +72,6 @@ export function useShiftStaffOptions() {
 
   return {
     options,
-    isLoading: orgLoading || query.isLoading,
+    isLoading: orgLoading || (query.isLoading && !query.data),
   };
 }

@@ -18,6 +18,7 @@ import {
 } from "@/shared/components/ui/select";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { ReportsSalesDateRangePicker } from "../../../shared/components/ReportsSalesDateRangePicker";
+import { ReportsSalesToolbarShell } from "../../../shared/components/ReportsSalesToolbarShell";
 import type {
   SalesSummaryDateRange,
   SalesSummaryTimeFilter,
@@ -63,67 +64,64 @@ export function InvoicesToolbar({
   const { t } = useAppTranslation();
 
   return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0 space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("reports.invoices.title", "Invoices")}
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            {t(
-              "reports.invoices.subtitle",
-              "Track invoice status and outstanding balances.",
-            )}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Home className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <OutletFilterSelect
-              value={outletId || POS_OUTLET_FILTER_ALL}
-              onChange={onOutletChange}
-              includeAll
-              className="w-[200px] pl-8"
-            />
-          </div>
-          <ReportsSalesDateRangePicker
-            dateRange={dateRange}
-            onDateRangeChange={onDateRangeChange}
-            timeFilter={timeFilter}
-            onTimeFilterChange={onTimeFilterChange}
-            onApplyFilters={onApplyFilters}
+    <ReportsSalesToolbarShell
+      title={t("reports.invoices.title", "Invoices")}
+      description={
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "reports.invoices.subtitle",
+            "Track invoice status and outstanding balances.",
+          )}
+        </p>
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Home className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <OutletFilterSelect
+            value={outletId || POS_OUTLET_FILTER_ALL}
+            onChange={onOutletChange}
+            includeAll
+            className="w-[200px] pl-8"
           />
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => onStatusFilterChange(v as InvoiceStatusFilter)}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder={t("reports.invoices.status.all", "All statuses")} />
-            </SelectTrigger>
-            <SelectContent>
-              {INVOICE_STATUS_FILTER_IDS.map((id) => (
-                <SelectItem key={id} value={id}>
-                  {t(
-                    invoiceStatusLabelKey(id),
-                    id === "all"
-                      ? "All statuses"
-                      : id === "partial"
-                        ? "Partially Paid"
-                        : id.charAt(0).toUpperCase() + id.slice(1),
-                  )}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => onSearchQueryChange(e.target.value)}
-              placeholder={t("reports.invoices.search", "Search invoice # or customer")}
-              className="w-[220px] pl-8"
-            />
-          </div>
+        </div>
+        <ReportsSalesDateRangePicker
+          dateRange={dateRange}
+          onDateRangeChange={onDateRangeChange}
+          timeFilter={timeFilter}
+          onTimeFilterChange={onTimeFilterChange}
+          onApplyFilters={onApplyFilters}
+        />
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => onStatusFilterChange(v as InvoiceStatusFilter)}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder={t("reports.invoices.status.all", "All statuses")} />
+          </SelectTrigger>
+          <SelectContent>
+            {INVOICE_STATUS_FILTER_IDS.map((id) => (
+              <SelectItem key={id} value={id}>
+                {t(
+                  invoiceStatusLabelKey(id),
+                  id === "all"
+                    ? "All statuses"
+                    : id === "partial"
+                      ? "Partially Paid"
+                      : id.charAt(0).toUpperCase() + id.slice(1),
+                )}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => onSearchQueryChange(e.target.value)}
+            placeholder={t("reports.invoices.search", "Search invoice # or customer")}
+            className="w-[220px] pl-8"
+          />
         </div>
       </div>
       <DropdownMenu>
@@ -142,6 +140,6 @@ export function InvoicesToolbar({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
+    </ReportsSalesToolbarShell>
   );
 }

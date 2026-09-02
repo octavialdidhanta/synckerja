@@ -45,10 +45,15 @@ export function useReportsSalesPeriodFilters() {
   const [searchParams, setSearchParams] = useSearchParams();
   const outlet = useSelectedPosOutlet(true, { allowAll: true });
 
+  const presetParam = searchParams.get("preset");
+  const fromParam = searchParams.get("from");
+  const toParam = searchParams.get("to");
+  const allDayParam = searchParams.get("allDay");
+  const startTimeParam = searchParams.get("startTime");
+  const endTimeParam = searchParams.get("endTime");
+
   const dateRange: SalesSummaryDateRange = useMemo(() => {
-    const preset = parsePreset(searchParams.get("preset"));
-    const fromParam = searchParams.get("from");
-    const toParam = searchParams.get("to");
+    const preset = parsePreset(presetParam);
     if (isYmd(fromParam) && isYmd(toParam)) {
       return { preset, from: fromParam, to: toParam };
     }
@@ -57,16 +62,16 @@ export function useReportsSalesPeriodFilters() {
       return { preset, ...computed };
     }
     return defaultSalesSummaryDateRange();
-  }, [searchParams]);
+  }, [presetParam, fromParam, toParam]);
 
   const timeFilter: SalesSummaryTimeFilter = useMemo(() => {
-    const allDay = searchParams.get("allDay") !== "0";
+    const allDay = allDayParam !== "0";
     return {
       allDay,
-      startTime: searchParams.get("startTime") || SALES_SUMMARY_DEFAULT_START_TIME,
-      endTime: searchParams.get("endTime") || SALES_SUMMARY_DEFAULT_END_TIME,
+      startTime: startTimeParam || SALES_SUMMARY_DEFAULT_START_TIME,
+      endTime: endTimeParam || SALES_SUMMARY_DEFAULT_END_TIME,
     };
-  }, [searchParams]);
+  }, [allDayParam, startTimeParam, endTimeParam]);
 
   const patchParams = useCallback(
     (patch: Record<string, string | null>) => {

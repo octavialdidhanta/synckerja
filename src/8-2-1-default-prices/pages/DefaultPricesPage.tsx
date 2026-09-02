@@ -33,6 +33,7 @@ import { LibrarySalesTypesManager, useCatalogSalesTypes } from "../sales-types";
 import { LibraryBrandsManager, useCatalogBrands } from "../brands";
 import { LibraryTaxesManager, useCatalogTaxes } from "../taxes";
 import { DefaultPricesModuleShell } from "../layout/DefaultPricesModuleShell";
+import { DefaultPricesWorkspace } from "../layout/DefaultPricesWorkspace";
 import { catalogTabFromPathname } from "../layout/DefaultPricesHeaderAndTab";
 import { CATALOG_POS_STATUSES } from "../lib/catalogKind";
 import type { DefaultPriceRow, DefaultPriceCreate, DefaultPriceUpdate } from "../types/defaultPrices";
@@ -168,6 +169,46 @@ export default function DefaultPricesPage() {
     selectedOutletId,
   ]);
 
+  const panelCount = useMemo(() => {
+    switch (catalogTab) {
+      case "taxes":
+        return taxes.rows.length;
+      case "sales-types":
+        return salesTypes.rows.length;
+      case "promos":
+        return promos.rows.length;
+      case "bundles":
+        return bundles.rows.length;
+      case "discounts":
+        return discounts.rows.length;
+      case "gratuity":
+        return gratuities.rows.length;
+      case "brands":
+        return brands.rows.length;
+      case "modifiers":
+        return modifiers.rows.length;
+      case "categories":
+        return categories.rows.length;
+      case "products":
+        return filteredProductRows.length;
+      default:
+        return serviceRows.length;
+    }
+  }, [
+    catalogTab,
+    taxes.rows.length,
+    salesTypes.rows.length,
+    promos.rows.length,
+    bundles.rows.length,
+    discounts.rows.length,
+    gratuities.rows.length,
+    brands.rows.length,
+    modifiers.rows.length,
+    categories.rows.length,
+    filteredProductRows.length,
+    serviceRows.length,
+  ]);
+
   const handleAdd = useCallback(() => {
     setEditingRow(null);
     setPrefillRow(null);
@@ -269,9 +310,8 @@ export default function DefaultPricesPage() {
 
   return (
     <DefaultPricesModuleShell showContent={showContent}>
-      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
-        <div className="col-span-12 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-          <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-row overflow-hidden">
+      <DefaultPricesWorkspace count={panelCount}>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
             <LibraryItemNav />
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-4 py-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {isLibraryConfigView ? null : (
@@ -402,9 +442,7 @@ export default function DefaultPricesPage() {
                 )}
             </div>
           </div>
-        </div>
-      </div>
-      <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
+      </DefaultPricesWorkspace>
 
       {isLibraryConfigView ? null : isProducts ? (
         <DefaultProductFormDialog

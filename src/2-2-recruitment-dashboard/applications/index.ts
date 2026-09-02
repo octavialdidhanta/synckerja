@@ -3,6 +3,7 @@ export { CandidatesTable } from './dashboard/CandidatesTable';
 export { CandidateQuickViewModal } from './dashboard/CandidateQuickViewModal';
 export { CandidateActionsDropdown } from './dashboard/CandidateActionsDropdown';
 export { ApplicationsPage } from './dashboard/ApplicationsPage';
+export { ApplicationsPageSkeleton } from './dashboard/ApplicationsPageSkeleton';
 export { ApplicationsFilters } from './dashboard/ApplicationsFilters';
 export { ApplicationsTable } from './dashboard/ApplicationsTable';
 export { ApplicationsMetricsCards } from './dashboard/ApplicationsMetricsCards';

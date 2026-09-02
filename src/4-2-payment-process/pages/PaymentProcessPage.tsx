@@ -3,27 +3,16 @@ import {
   PaymentFilters,
   PaymentMetricsCards,
   PaymentTable,
-  PaymentTableFooter,
   PaymentOverview,
   PaymentSidebarFooter,
-  type PaymentFiltersType
+  type PaymentFiltersType,
 } from '../section';
 import { usePurchaseRequests } from '@/9-request-form/hooks/usePurchaseRequests';
 import { filterPaymentRequests } from '../utils/paymentUtils';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
 import { PaymentProcessModuleShell } from '../layout/PaymentProcessModuleShell';
-
-/**
- * Seamless Page Scroll Layout (`.cursor/rules/Seamless Page Scroll Layout.mdc`):
- * AppShell sudah punya scroll — root `h-full min-h-0 flex-1 overflow-hidden` (bukan `h-screen`).
- * HeaderAndTab di dalam satu kolom scroll utama; wrapper tanpa `max-h-[calc(100vh-120px)]`.
- */
-const GRID_MAIN =
-  'grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px] xl:grid-rows-1 xl:items-stretch';
-
-const TABLE_SECTION =
-  'flex min-h-[560px] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]';
+import { PaymentProcessWorkspace } from '../layout/PaymentProcessWorkspace';
 
 export const PaymentProcessPage = () => {
   const [activeTab, setActiveTab] = useState('payment-process');
@@ -34,13 +23,12 @@ export const PaymentProcessPage = () => {
     department: 'all',
     period: 'all',
   });
-  
+
   const { data: requests = [], isLoading, isPending, refetch, isFetched } = usePurchaseRequests();
   const { organizationId, loading: orgLoading } = useCurrentOrg();
 
   /** Tanpa `isFetching`: refetch manual/invalidasi tidak membuka skeleton penuh. */
-  const dataPending =
-    Boolean(organizationId) && (!isFetched || isLoading || isPending);
+  const dataPending = Boolean(organizationId) && (!isFetched || isLoading || isPending);
   const rawPendingLoad = orgLoading || dataPending;
   const showContent = useDebouncedReady(!rawPendingLoad, 220);
 
@@ -51,11 +39,6 @@ export const PaymentProcessPage = () => {
   const handleRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
-
-  // Filter requests - only approved requests for payment processing
-  const approvedRequests = useMemo(() => {
-    return requests.filter(req => req.status === 'approved');
-  }, [requests]);
 
   const filteredRequests = useMemo(() => {
     return filterPaymentRequests(requests, filters);
@@ -68,7 +51,7 @@ export const PaymentProcessPage = () => {
   );
 
   const handleFilterChange = useCallback((key: keyof PaymentFiltersType, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   const handleClearFilters = useCallback(() => {
@@ -81,7 +64,6 @@ export const PaymentProcessPage = () => {
     });
   }, []);
 
-  // Calculate totals
   const totalAmount = useMemo(() => {
     return filteredRequests.reduce((sum, req) => sum + (req.amount_idr || 0), 0);
   }, [filteredRequests]);
@@ -92,9 +74,10 @@ export const PaymentProcessPage = () => {
       onTabChange={handleTabChange}
       showContent={showContent}
     >
-      <div className={GRID_MAIN}>
-        <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-9">
-          <div className="flex h-full min-w-0 flex-1 flex-col gap-2">
+      <PaymentProcessWorkspace
+        count={filteredRequests.length}
+        toolbar={
+          <>
             <div className="shrink-0">
               <div className="rounded-md border border-border bg-card p-2">
                 <PaymentFilters
@@ -110,25 +93,10 @@ export const PaymentProcessPage = () => {
                 <PaymentMetricsCards requests={requests} />
               </div>
             </div>
-
-            <div className={TABLE_SECTION}>
-              <PaymentTable
-                requests={filteredRequests}
-                onRefresh={handleRefresh}
-                isLoading={isLoading}
-              />
-              <PaymentTableFooter
-                totalRequests={approvedRequests.length}
-                filteredRequests={filteredRequests.length}
-                totalAmount={totalAmount}
-                selectedStatus={filters.status}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-3">
-          <div className="flex h-full min-w-0 flex-1 flex-col rounded-lg border border-border bg-card shadow-sm">
+          </>
+        }
+        sidebar={
+          <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
             <div className="shrink-0 border-b border-border px-4 py-1.5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -138,18 +106,23 @@ export const PaymentProcessPage = () => {
               </div>
             </div>
 
-            <div className="min-h-0 min-w-0 flex-1 p-4">
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <PaymentOverview requests={overviewRequests} />
             </div>
 
             <PaymentSidebarFooter
               totalRequests={filteredRequests.length}
               totalAmount={totalAmount}
-              selectedStatus={filters.status}
             />
           </div>
-        </div>
-      </div>
+        }
+      >
+        <PaymentTable
+          requests={filteredRequests}
+          onRefresh={handleRefresh}
+          isLoading={isLoading}
+        />
+      </PaymentProcessWorkspace>
     </PaymentProcessModuleShell>
   );
 };

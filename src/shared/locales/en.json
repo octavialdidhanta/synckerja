@@ -300,7 +300,11 @@
       "headerSubtitle": "Monitor attendance, insights, and settings",
       "tabDashboard": "Dashboard",
       "tabRecords": "Attendance",
-      "tabSettings": "Settings"
+      "tabSettings": "Settings",
+      "footer": {
+        "showing": "Showing {{count}} {{section}}",
+        "total": "Total: {{count}}"
+      }
     },
     "subnav": {
       "hrEmployees": "Employees",
@@ -342,6 +346,10 @@
         "company": "Company Objective",
         "department": "Department Objective",
         "individual": "Individual Objective"
+      },
+      "footer": {
+        "showing": "Showing {{count}} {{section}}",
+        "total": "Total: {{count}}"
       },
       "loadingObjectives": "Loading objectives…",
       "sidebar": {
@@ -944,6 +952,10 @@
       "tabApplicationsDescription": "Manage and review candidate applications",
       "tabInterviewees": "Interviewees",
       "tabIntervieweesDescription": "Manage candidate interviews and evaluations"
+    },
+    "footer": {
+      "showing": "Showing {{count}} {{section}}",
+      "total": "Total: {{count}}"
     },
     "accessDenied": {
       "title": "Access restricted",

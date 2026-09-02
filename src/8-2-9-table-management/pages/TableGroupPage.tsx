@@ -7,6 +7,7 @@ import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useSelectedPosOutlet } from "@/8-2-2-outlets/hooks/useSelectedPosOutlet";
 import { TableManagementModuleShell } from "../layout/TableManagementModuleShell";
+import { TableManagementWorkspace } from "../layout/TableManagementWorkspace";
 import { TableGroupToolbar } from "../components/group/TableGroupToolbar";
 import { TableGroupsTable } from "../components/group/TableGroupsTable";
 import { TableGroupFormSheet } from "../components/group/TableGroupFormSheet";
@@ -111,8 +112,7 @@ export default function TableGroupPage() {
 
   return (
     <TableManagementModuleShell showContent={showContent}>
-      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-        <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <TableManagementWorkspace count={filtered.length}>
           <div className="flex-shrink-0 space-y-3 border-b px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-semibold">
@@ -157,12 +157,7 @@ export default function TableGroupPage() {
               />
             )}
           </div>
-        </div>
-      </div>
-      <div
-        className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-        aria-hidden
-      />
+      </TableManagementWorkspace>
 
       <TableGroupFormSheet
         open={formOpen}

@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { I18nextProvider } from "react-i18next";
 import { initI18n } from "@/shared/i18n/index.ts";
 import { RouteSkeletonBootShell } from "@/shared/components/route-loading/createDeferredSkeleton";
-import { shouldMountOrderStoreApp } from "@/synckerja-order/shared/lib/orderUrls";
+import { shouldMountOrderStoreApp, publicOrderHostname } from "@/synckerja-order/shared/lib/orderUrls";
 import "./index.css";
 
 const ASSET_RELOAD_KEY = "sj-asset-reload";
@@ -90,7 +90,8 @@ setupAssetLoadRecovery();
 registerServiceWorker();
 
 const surveyHost = import.meta.env.VITE_PUBLIC_SURVEY_HOSTNAME?.trim();
-const orderHost = import.meta.env.VITE_PUBLIC_ORDER_HOSTNAME?.trim();
+const orderHost =
+  import.meta.env.VITE_PUBLIC_ORDER_HOSTNAME?.trim() || publicOrderHostname();
 const rootEl = document.getElementById("root")!;
 
 void (async () => {
@@ -106,7 +107,7 @@ void (async () => {
   const isOrderHost = shouldMountOrderStoreApp({
     hostname,
     pathname,
-    expectedHost: orderHost || undefined,
+    expectedHost: orderHost,
     allowLanStorefront: import.meta.env.DEV,
   });
 

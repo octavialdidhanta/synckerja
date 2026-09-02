@@ -9,6 +9,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useSelectedPosOutlet } from "@/8-2-2-outlets/hooks/useSelectedPosOutlet";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { StockManagementModuleShell } from "@/6-0-stock-management/layout/StockManagementModuleShell";
+import { InventoryWorkspace } from "@/6-0-stock-management/layout/InventoryWorkspace";
 import { migrateLegacySkuToCatalogStock } from "@/stock-management/catalog-ledger/migrateLegacySkuToCatalogStock";
 import { useOrphanInventorySkus } from "@/stock-management/hooks/useOrphanInventorySkus";
 import { STOCK_MANAGEMENT_MAPPING_PATH } from "@/stock-management/lib/inventoryPaths";
@@ -75,8 +76,7 @@ export function InventorySummaryPage() {
 
   return (
     <StockManagementModuleShell>
-      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2">
-        <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
+      <InventoryWorkspace count={lines.length}>
           <div className="border-b px-4 py-3">
             <InventorySummaryToolbar
               outletId={selectedOutletId}
@@ -123,9 +123,7 @@ export function InventorySummaryPage() {
               <InventorySummaryTable lines={lines} />
             )}
           </div>
-        </div>
-      </div>
-      <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
+      </InventoryWorkspace>
     </StockManagementModuleShell>
   );
 }

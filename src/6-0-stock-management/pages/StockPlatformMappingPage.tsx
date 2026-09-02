@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Plus, Trash2, Pencil, Search } from "lucide-react";
 import { toast } from "sonner";
 import { StockManagementModuleShell } from "@/6-0-stock-management/layout/StockManagementModuleShell";
+import { InventoryWorkspace } from "@/6-0-stock-management/layout/InventoryWorkspace";
 import { PlatformMappingDialog } from "@/6-0-stock-management/container/PlatformMappingDialog";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
@@ -249,8 +250,10 @@ function StockPlatformMappingContent() {
 
   return (
     <>
+      <InventoryWorkspace count={filteredMappings.length}>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {canManage && orphans.length > 0 ? (
-        <div className="col-span-12 space-y-3 rounded-lg border border-amber-200 bg-amber-50/40 p-4 shadow-sm">
+        <div className="space-y-3 border-b border-amber-200 bg-amber-50/40 p-4">
           <div>
             <h3 className="text-sm font-semibold text-gray-900">
               {t("operations.inventory.orphanSku.title", "SKUs not in Item Library")}
@@ -290,12 +293,12 @@ function StockPlatformMappingContent() {
           </div>
         </div>
       ) : orphanLoading && canManage ? (
-        <div className="col-span-12 rounded-lg border border-gray-200 bg-white p-4 text-sm text-muted-foreground shadow-sm">
+        <div className="border-b border-gray-200 bg-white p-4 text-sm text-muted-foreground">
           {t("operations.inventory.orphanSku.loading", "Checking legacy SKUs…")}
         </div>
       ) : null}
 
-      <div className="col-span-12 space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="min-h-0 min-w-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto p-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -397,11 +400,9 @@ function StockPlatformMappingContent() {
             </Table>
           </div>
         )}
-      </div>
-      <div
-        className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
-        aria-hidden
-      />
+        </div>
+        </div>
+      </InventoryWorkspace>
 
       {canManage ? (
         <PlatformMappingDialog

@@ -31,33 +31,51 @@ export function useSelectedPosOutlet(enabled = true, options: UseSelectedPosOutl
     if (urlMatchesOutlet) return;
     if (allowAll) {
       if (outletFromUrl === POS_OUTLET_FILTER_ALL) return;
-      const next = new URLSearchParams(searchParams);
-      next.set("outlet", POS_OUTLET_FILTER_ALL);
-      setSearchParams(next, { replace: true });
+      // Functional update — do not depend on full searchParams (avoids re-running on tab=… changes).
+      setSearchParams(
+        (prev) => {
+          if (prev.get("outlet") === POS_OUTLET_FILTER_ALL) return prev;
+          const next = new URLSearchParams(prev);
+          next.set("outlet", POS_OUTLET_FILTER_ALL);
+          return next;
+        },
+        { replace: true },
+      );
       return;
     }
     if (!defaultOutletId) return;
-    const next = new URLSearchParams(searchParams);
-    next.set("outlet", defaultOutletId);
-    setSearchParams(next, { replace: true });
+    setSearchParams(
+      (prev) => {
+        if (prev.get("outlet") === defaultOutletId) return prev;
+        const next = new URLSearchParams(prev);
+        next.set("outlet", defaultOutletId);
+        return next;
+      },
+      { replace: true },
+    );
   }, [
     allowAll,
     defaultOutletId,
     enabled,
     isLoading,
     outletFromUrl,
-    searchParams,
     setSearchParams,
     urlMatchesOutlet,
   ]);
 
   const setSelectedOutletId = useCallback(
     (id: string) => {
-      const next = new URLSearchParams(searchParams);
-      next.set("outlet", id);
-      setSearchParams(next, { replace: true });
+      setSearchParams(
+        (prev) => {
+          if (prev.get("outlet") === id) return prev;
+          const next = new URLSearchParams(prev);
+          next.set("outlet", id);
+          return next;
+        },
+        { replace: true },
+      );
     },
-    [searchParams, setSearchParams],
+    [setSearchParams],
   );
 
   return {

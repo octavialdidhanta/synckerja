@@ -347,9 +347,27 @@ export const WhatsAppConnectPageSkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const OmnichannelContactPageSkeleton = createDeferredSkeleton(() =>
+  import("@/5-3-whatsapp/skeletons/OmnichannelContactPageSkeleton").then((m) => ({
+    default: m.OmnichannelContactPageSkeleton,
+  })),
+);
+
+export const WhatsAppTemplateFollowupsPageSkeleton = createDeferredSkeleton(() =>
+  import("@/5-3-whatsapp/skeletons/WhatsAppTemplateFollowupsPageSkeleton").then((m) => ({
+    default: m.WhatsAppTemplateFollowupsPageSkeleton,
+  })),
+);
+
 export const WhatsAppTemplatePageSkeleton = createDeferredSkeleton(() =>
   import("@/5-3-whatsapp-template/skeletons/WhatsAppTemplatePageSkeleton").then((m) => ({
     default: m.WhatsAppTemplatePageSkeleton,
+  })),
+);
+
+export const WhatsAppCampaignPageSkeleton = createDeferredSkeleton(() =>
+  import("@/5-3-whatsapp-template/skeletons/WhatsAppCampaignPageSkeleton").then((m) => ({
+    default: m.WhatsAppCampaignPageSkeleton,
   })),
 );
 

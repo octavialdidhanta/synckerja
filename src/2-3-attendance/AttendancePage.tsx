@@ -10,6 +10,7 @@ import { useModulePageOverlaySkeleton } from "@/shared/auth/page-access/useModul
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { cn } from "@/shared/lib/utils";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { useAttendancePenalties } from "@/2-3-dashboard/hooks/useAttendancePenalties";
 import {
   AttendanceModuleSkeleton,
   getAttendanceSkeletonVariant,
@@ -18,6 +19,8 @@ import {
   AttendancePageLoadProvider,
   useAttendancePageLoad,
 } from "./context/AttendancePageLoadContext";
+import { AttendanceWorkspace } from "./layout/AttendanceWorkspace";
+import { ATTENDANCE_FULL_COLUMN, ATTENDANCE_MAIN_GRID } from "./layout/attendanceLayout";
 
 /** Must match routing + `HeaderAndTab.getActiveTab` — derived from URL so first paint never mounts the wrong tab. */
 function attendanceTabFromPathname(pathname: string): "dashboard" | "attendance" | "settings" {
@@ -31,6 +34,7 @@ function AttendancePageContent() {
   const { hasPendingLoad } = useAttendancePageLoad();
   const location = useLocation();
   const { orgBootstrapPending } = useOrgBootstrapPending();
+  const { penalties } = useAttendancePenalties();
 
   const activeTab = attendanceTabFromPathname(location.pathname);
   const [settingsSkeletonVisible, setSettingsSkeletonVisible] = useState(true);
@@ -88,28 +92,30 @@ function AttendancePageContent() {
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex min-h-full flex-col">
+              <div className="flex min-h-full flex-col bg-muted/40">
                 <div className="mb-1 flex-shrink-0">
                   <HeaderAndTab activeTab={activeTab} onTabChange={handleTabChange} />
                 </div>
                 <ModuleShellContentGate pagePath={location.pathname}>
-                <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                  <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
-                    {activeTab === "dashboard" && (
-                      <div className="border-border bg-card flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border p-4 shadow-sm">
-                        <DashboardOverview />
-                      </div>
-                    )}
+                  <div className={ATTENDANCE_MAIN_GRID}>
+                    <div className={ATTENDANCE_FULL_COLUMN}>
+                      {activeTab === "dashboard" && (
+                        <AttendanceWorkspace count={penalties.length}>
+                          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4">
+                            <DashboardOverview />
+                          </div>
+                        </AttendanceWorkspace>
+                      )}
 
-                    {activeTab === "attendance" && (
-                      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                        <EmployeeAttendanceTab />
-                      </div>
-                    )}
+                      {activeTab === "attendance" && (
+                        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                          <EmployeeAttendanceTab />
+                        </div>
+                      )}
 
-                    {activeTab === "settings" && <AttendanceSettings />}
+                      {activeTab === "settings" && <AttendanceSettings />}
+                    </div>
                   </div>
-                </div>
                 </ModuleShellContentGate>
               </div>
             </div>

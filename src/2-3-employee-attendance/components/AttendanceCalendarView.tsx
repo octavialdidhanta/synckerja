@@ -3,7 +3,6 @@ import { Button } from '@/shared/components/ui/button';
 import { cn } from '@/shared/lib/utils';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { formatToRupiah } from '@/shared/utils/formatCurrency';
 import { useEmployees } from '@/2-1-employees/hooks/useEmployees';
 import { getEmployeeStatus } from '@/2-1-employees/utils/employeeUtils';
 import { useAttendanceRecords } from '../hooks/useAttendanceRecords';
@@ -12,7 +11,6 @@ import {
   useOptimizedNationalHolidays,
   useOptimizedWorkSchedules,
 } from '@/2-1-employees/MyInfo/Attendance/hooks/useOptimizedAttendanceData';
-import { useAttendancePenaltyTotal } from '@/2-1-employees/MyInfo/Attendance/hooks/useAttendancePenaltyTotal';
 import { EmployeePenaltyCell } from './EmployeePenaltyCell';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLeaveRequests } from '@/2-1-employees/MyInfo/Attendance/hooks/useLeaveRequests';
@@ -150,8 +148,6 @@ const AttendanceCalendarView = ({
     leavePending;
   useReportAttendanceSection(attendanceLoadSectionIds.attendanceCalendar, calendarBootLoading);
   
-  // Get total penalty amount for all employees in current month
-  const { data: totalMonthlyPenalties = 0 } = useAttendancePenaltyTotal(undefined, currentMonth, currentYear);
   const daysInMonth = getDaysInMonth(currentMonth, currentYear);
   
   // Get default work schedule or first available schedule
@@ -344,19 +340,6 @@ const AttendanceCalendarView = ({
     }
     onEmployeeSelect({ id: employee.id, name: employee.name });
   };
-
-  // Calculate working days in current month
-  const calculateWorkingDays = () => {
-    let workingDaysCount = 0;
-    for (let date = 1; date <= daysInMonth; date++) {
-      if (!isNonWorkingDay(date, currentMonth, currentYear, workingDays, nationalHolidays)) {
-        workingDaysCount++;
-      }
-    }
-    return workingDaysCount;
-  };
-
-  const totalWorkingDays = calculateWorkingDays();
 
   // Calculate statistics
   const calculateStats = (attendanceData: any) => {
@@ -579,29 +562,6 @@ const AttendanceCalendarView = ({
             })}
           </tbody>
         </table>
-      </div>
-
-      {/* Summary Footer */}
-      <div className="mt-auto border-t border-gray-200 bg-slate-50 px-6 py-4">
-        <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-          <span>
-            Total Karyawan: <strong className="text-gray-800">{employees.length}</strong>
-          </span>
-          <span>
-            Hari Kerja: <strong className="text-gray-800">{totalWorkingDays}</strong>
-          </span>
-          <span>
-            Tingkat Kehadiran: <strong className="text-emerald-600">3.0%</strong>
-          </span>
-          <span>
-            Total Denda Bulan Ini: <strong className="text-red-600">{formatToRupiah(totalMonthlyPenalties)}</strong>
-          </span>
-          {defaultSchedule && (
-            <span>
-              Jadwal: <strong className="text-blue-600">{defaultSchedule.name}</strong>
-            </span>
-          )}
-        </div>
       </div>
     </div>
   );

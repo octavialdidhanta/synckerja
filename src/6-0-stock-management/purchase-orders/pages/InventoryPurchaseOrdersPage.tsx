@@ -7,6 +7,7 @@ import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/ho
 import { useSelectedPosOutlet } from "@/8-2-2-outlets/hooks/useSelectedPosOutlet";
 import { POS_OUTLET_FILTER_ALL } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { StockManagementModuleShell } from "@/6-0-stock-management/layout/StockManagementModuleShell";
+import { InventoryWorkspace } from "@/6-0-stock-management/layout/InventoryWorkspace";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { usePoWorkflowMode } from "@/6-0-stock-management/hooks/useCatalogInventoryWorkflowModes";
 import { useInventoryFeatureAccessCheck } from "@/8-2-5-inventory-settings/hooks/useInventoryFeatureAccess";
@@ -88,8 +89,7 @@ export function InventoryPurchaseOrdersPage() {
   return (
     <>
       <StockManagementModuleShell>
-        <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2">
-          <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
+        <InventoryWorkspace count={rows.length}>
             <div className="border-b px-4 py-3">
               <PurchaseOrdersToolbar
                 outletId={selectedOutletId}
@@ -136,8 +136,7 @@ export function InventoryPurchaseOrdersPage() {
                 </div>
               ) : null}
             </div>
-          </div>
-        </div>
+        </InventoryWorkspace>
       </StockManagementModuleShell>
 
       {orgId && canManage && createOutletId ? (

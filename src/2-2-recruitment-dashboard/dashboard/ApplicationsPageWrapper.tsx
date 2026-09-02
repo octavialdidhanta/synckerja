@@ -3,10 +3,14 @@ import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPendi
 import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
 import { cn } from '@/shared/lib/utils';
 import { useJobApplications } from '@/2-2-recruitment-dashboard/applications/hooks/useJobApplications';
-import { RecruitmentApplicationsSkeleton } from '@/2-2-recruitment-dashboard/components/RecruitmentSkeletons';
+import { ApplicationsPageSkeleton } from '@/2-2-recruitment-dashboard/applications/dashboard/ApplicationsPageSkeleton';
 import { HeaderAndTab } from './components';
 import { ModuleShellContentGate } from '@/shared/layouts/ModuleShellContentGate';
 import { ApplicationsPage } from '@/2-2-recruitment-dashboard/applications/dashboard/ApplicationsPage';
+import {
+  RECRUITMENT_FULL_COLUMN,
+  RECRUITMENT_MAIN_GRID,
+} from '@/2-2-recruitment-dashboard/layout/recruitmentIntervieweesLayout';
 
 export const ApplicationsPageWrapper = () => {
   const [activeTab, setActiveTab] = useState('applications');
@@ -33,16 +37,16 @@ export const ApplicationsPageWrapper = () => {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 flex-col">
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex min-h-full flex-col">
+              <div className="flex min-h-full flex-col bg-muted/40">
                 <div className="mb-1 flex-shrink-0">
                   <HeaderAndTab activeTab={activeTab} onTabChange={handleTabChange} />
                 </div>
                 <ModuleShellContentGate>
-                <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                  <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
-                    <ApplicationsPage />
+                  <div className={RECRUITMENT_MAIN_GRID}>
+                    <div className={RECRUITMENT_FULL_COLUMN}>
+                      <ApplicationsPage />
+                    </div>
                   </div>
-                </div>
                 </ModuleShellContentGate>
               </div>
             </div>
@@ -52,7 +56,7 @@ export const ApplicationsPageWrapper = () => {
 
       {showFullPageSkeleton ? (
         <div className="absolute inset-0 z-10 min-h-0 overflow-hidden">
-          <RecruitmentApplicationsSkeleton />
+          <ApplicationsPageSkeleton />
         </div>
       ) : null}
     </div>

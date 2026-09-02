@@ -42,7 +42,10 @@ export function PaymentMethodsPage() {
   };
 
   return (
-    <ReportsSalesLayout showContent={showContent}>
+    <ReportsSalesLayout
+      showContent={showContent}
+      count={report.display.categories.reduce((n, block) => n + block.channels.length, 0)}
+    >
       <div className="min-w-0">
         <PaymentMethodsToolbar
           outletId={filters.selectedOutletId}

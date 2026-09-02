@@ -35,7 +35,7 @@ export function ServedBySalesPage() {
   };
 
   return (
-    <ReportsSalesLayout showContent={showContent}>
+    <ReportsSalesLayout showContent={showContent} count={report.display.servers.length}>
       <div className="min-w-0">
         <ServedBySalesToolbar
           outletId={filters.selectedOutletId}

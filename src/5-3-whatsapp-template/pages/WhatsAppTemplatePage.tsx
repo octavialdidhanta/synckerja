@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { HeaderAndTab } from "@/5-3-dashboard/components/layout/HeaderAndTab";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
@@ -38,8 +39,7 @@ import {
   TemplateCatalogFilterChips,
   TemplateFormFlowsTable,
 } from "../components/TemplateFormFlowsTable";
-
-const MAX_ACTIVE_TEMPLATES = 6000;
+import { CampaignWorkspace } from "../layout/CampaignWorkspace";
 
 function dateCutoffMs(preset: Exclude<DateRangePreset, "all">): number {
   const days = preset === "7" ? 7 : preset === "30" ? 30 : preset === "60" ? 60 : 90;
@@ -113,6 +113,7 @@ function isNotConfiguredTemplatesError(err: unknown): boolean {
 }
 
 export function WhatsAppTemplatePage() {
+  const { t } = useTranslation();
   const { organizationId } = useCurrentOrg();
   const { accounts: whatsappAccounts, isLoading: whatsappAccountsLoading } = useWhatsAppAccounts();
   const [selectedWhatsappAccountId, setSelectedWhatsappAccountId] = useState<string | null>(null);
@@ -244,7 +245,7 @@ export function WhatsAppTemplatePage() {
     [rawRows, catalog.formFlows.length, catalog.flowTemplates.length],
   );
 
-  const activeApprovedCount = useMemo(() => rawRows.filter((r) => r.statusRaw === "APPROVED").length, [rawRows]);
+  const footerCount = catalogView === "form_flows" ? filteredFormFlows.length : filteredSorted.length;
 
   const onSort = useCallback((k: SortKey) => {
     setSortKey((prev) => {
@@ -323,96 +324,109 @@ export function WhatsAppTemplatePage() {
   const errorDetail = isError && error instanceof Error ? error.message : null;
 
   return (
-    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted font-sans">
+    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col pl-2 pr-4 pb-2 sm:pl-3">
         <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex min-h-full min-w-0 flex-1 flex-col">
+            <div className="flex min-h-full min-w-0 flex-1 flex-col bg-muted/40">
               <div className="mb-1 min-w-0 shrink-0">
                 <HeaderAndTab />
               </div>
               <ModuleShellContentGate pagePath="/omnichannel/campaign/templates">
-              <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
-                  <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            {!organizationId ? (
-                <div className="rounded-lg border border-dashed border-slate-200 px-4 py-12 text-center text-sm text-muted-foreground">
-                  Pilih organisasi aktif untuk memuat template WhatsApp.
-                </div>
-              ) : serverSaysNotConfigured ? (
-                <WhatsAppTemplateEmptyState reason="not_configured" />
-              ) : isError ? (
-                <WhatsAppTemplateEmptyState reason="error" detail={errorDetail} />
-              ) : detailRow && displayDetailRow ? (
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                  <TemplateDetailPanel
-                    row={displayDetailRow}
-                    onBack={() => setDetailRow(null)}
-                    onRequestDelete={() => handleRequestDelete(displayDetailRow)}
-                    deleteBlockReason={templateDeleteBlockReason(displayDetailRow.statusRaw)}
-                    isDeleting={deleteMutation.isPending && deleteTarget?.id === displayDetailRow.id}
-                    metaRefetching={detailMetaQuery.isFetching}
-                  />
-                </div>
-              ) : (
-                <TemplateManagerShell activeSubTab={subTab} onSubTabChange={setSubTab}>
-                      <TemplateListToolbar
-                        searchQuery={searchQuery}
-                        onSearchQueryChange={setSearchQuery}
-                        categoryFilters={categoryFilters}
-                        onCategoryFiltersChange={setCategoryFilters}
-                        languageOptions={languageOptions}
-                        languageFilters={languageFilters}
-                        onLanguageFiltersChange={setLanguageFilters}
-                        statusFilters={statusFilters}
-                        onStatusFiltersChange={setStatusFilters}
-                        qualityFilters={qualityFilters}
-                        onQualityFiltersChange={setQualityFilters}
-                        datePreset={datePreset}
-                        onDatePresetChange={setDatePreset}
-                        dateFilterDisabled={dateFilterDisabled}
-                        onResetFilters={resetFilters}
-                        onCreateClick={() => {
-                          setDetailRow(null);
-                          setWizardOpen(true);
-                        }}
-                        whatsappAccounts={whatsappAccounts}
-                        whatsappAccountsLoading={whatsappAccountsLoading}
-                        selectedWhatsappAccountId={selectedWhatsappAccountId}
-                        onSelectedWhatsappAccountIdChange={setSelectedWhatsappAccountId}
-                        catalogFilterSlot={
-                          <TemplateCatalogFilterChips
-                            value={catalogView}
-                            onChange={setCatalogView}
-                            counts={catalogCounts}
-                          />
-                        }
+                <CampaignWorkspace
+                  count={footerCount}
+                  sectionLabel={t("sidebar.operations.whatsappTemplates.title", "WhatsApp Template")}
+                >
+                  {!organizationId ? (
+                    <div className="flex flex-1 items-center justify-center px-4 py-12 text-center text-sm text-muted-foreground">
+                      Pilih organisasi aktif untuk memuat template WhatsApp.
+                    </div>
+                  ) : serverSaysNotConfigured ? (
+                    <div className="flex min-h-0 flex-1 flex-col p-4">
+                      <WhatsAppTemplateEmptyState reason="not_configured" />
+                    </div>
+                  ) : isError ? (
+                    <div className="flex min-h-0 flex-1 flex-col p-4">
+                      <WhatsAppTemplateEmptyState reason="error" detail={errorDetail} />
+                    </div>
+                  ) : detailRow && displayDetailRow ? (
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4">
+                      <TemplateDetailPanel
+                        row={displayDetailRow}
+                        onBack={() => setDetailRow(null)}
+                        onRequestDelete={() => handleRequestDelete(displayDetailRow)}
+                        deleteBlockReason={templateDeleteBlockReason(displayDetailRow.statusRaw)}
+                        isDeleting={deleteMutation.isPending && deleteTarget?.id === displayDetailRow.id}
+                        metaRefetching={detailMetaQuery.isFetching}
                       />
-
-                      {catalogView === "form_flows" ? (
-                        isLoading ? (
-                          <div className="mt-4 h-48 animate-pulse rounded-md bg-slate-100" aria-busy aria-label="Loading form flows" />
-                        ) : (
-                          <div className="mt-4">
-                            <TemplateFormFlowsTable
-                              rows={filteredFormFlows}
-                              onCreateTemplate={(flowId) => {
-                                setPrefillFlowId(flowId);
-                                setDetailRow(null);
-                                setWizardOpen(true);
-                              }}
+                    </div>
+                  ) : (
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4">
+                      <TemplateManagerShell activeSubTab={subTab} onSubTabChange={setSubTab}>
+                        <TemplateListToolbar
+                          searchQuery={searchQuery}
+                          onSearchQueryChange={setSearchQuery}
+                          categoryFilters={categoryFilters}
+                          onCategoryFiltersChange={setCategoryFilters}
+                          languageOptions={languageOptions}
+                          languageFilters={languageFilters}
+                          onLanguageFiltersChange={setLanguageFilters}
+                          statusFilters={statusFilters}
+                          onStatusFiltersChange={setStatusFilters}
+                          qualityFilters={qualityFilters}
+                          onQualityFiltersChange={setQualityFilters}
+                          datePreset={datePreset}
+                          onDatePresetChange={setDatePreset}
+                          dateFilterDisabled={dateFilterDisabled}
+                          onResetFilters={resetFilters}
+                          onCreateClick={() => {
+                            setDetailRow(null);
+                            setWizardOpen(true);
+                          }}
+                          whatsappAccounts={whatsappAccounts}
+                          whatsappAccountsLoading={whatsappAccountsLoading}
+                          selectedWhatsappAccountId={selectedWhatsappAccountId}
+                          onSelectedWhatsappAccountIdChange={setSelectedWhatsappAccountId}
+                          catalogFilterSlot={
+                            <TemplateCatalogFilterChips
+                              value={catalogView}
+                              onChange={setCatalogView}
+                              counts={catalogCounts}
                             />
-                          </div>
-                        )
-                      ) : isLoading ? (
-                        <div className="mt-4 h-48 animate-pulse rounded-md bg-slate-100" aria-busy aria-label="Loading templates" />
-                      ) : rawRows.length === 0 ? (
-                        <div className="mt-4">
-                          <WhatsAppTemplateEmptyState reason="none" />
-                        </div>
-                      ) : (
-                        <>
+                          }
+                        />
+
+                        {catalogView === "form_flows" ? (
+                          isLoading ? (
+                            <div
+                              className="mt-4 h-48 animate-pulse rounded-md bg-slate-100"
+                              aria-busy
+                              aria-label="Loading form flows"
+                            />
+                          ) : (
+                            <div className="mt-4 min-h-0 flex-1 overflow-auto">
+                              <TemplateFormFlowsTable
+                                rows={filteredFormFlows}
+                                onCreateTemplate={(flowId) => {
+                                  setPrefillFlowId(flowId);
+                                  setDetailRow(null);
+                                  setWizardOpen(true);
+                                }}
+                              />
+                            </div>
+                          )
+                        ) : isLoading ? (
+                          <div
+                            className="mt-4 h-48 animate-pulse rounded-md bg-slate-100"
+                            aria-busy
+                            aria-label="Loading templates"
+                          />
+                        ) : rawRows.length === 0 ? (
                           <div className="mt-4">
+                            <WhatsAppTemplateEmptyState reason="none" />
+                          </div>
+                        ) : (
+                          <div className="mt-4 min-h-0 flex-1 overflow-auto">
                             <TemplateListTable
                               rows={filteredSorted}
                               sortKey={sortKey}
@@ -426,20 +440,11 @@ export function WhatsAppTemplatePage() {
                               deletingTemplateId={deleteMutation.isPending && deleteTarget ? deleteTarget.id : null}
                             />
                           </div>
-                          <div className="mt-3 flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                            <p>
-                              {filteredSorted.length} message templates shown (total active templates: {activeApprovedCount} of{" "}
-                              {MAX_ACTIVE_TEMPLATES})
-                              {catalog.isFetchingTemplates ? " · syncing…" : ""}
-                            </p>
-                          </div>
-                        </>
-                      )}
-                </TemplateManagerShell>
-              )}
-                  </div>
-                </div>
-              </div>
+                        )}
+                      </TemplateManagerShell>
+                    </div>
+                  )}
+                </CampaignWorkspace>
               </ModuleShellContentGate>
             </div>
           </div>

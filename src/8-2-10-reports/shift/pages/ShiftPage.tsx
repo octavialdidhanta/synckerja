@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { POS_OUTLET_FILTER_ALL } from "@/8-2-2-outlets/lib/assignedOutlets";
-import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
 import { ReportsSalesLayout } from "../../components/ReportsSalesLayout";
 import { useShiftList } from "../hooks/useShiftList";
 import { ShiftDetailSheet } from "../shared/components/ShiftDetailSheet";
@@ -12,6 +12,7 @@ import { useShiftStaffOptions } from "../shared/hooks/useShiftStaffOptions";
 import { exportShiftXlsx } from "../shared/lib/exportShiftXlsx";
 import type { ShiftListSummary, ShiftRow } from "../shared/lib/shiftTypes";
 import { formatReportsMoney } from "../../shared/lib/formatReportsMoney";
+import { ShiftListPaneSkeleton } from "./ShiftListPaneSkeleton";
 import { ShiftPageSkeleton } from "./ShiftPageSkeleton";
 
 function ShiftSummaryBar({ summary }: { summary: ShiftListSummary }) {
@@ -46,14 +47,20 @@ export function ShiftPage() {
     fromIso: filters.timestamps.fromIso,
     toIso: filters.timestamps.toIso,
     openedBy: filters.openedByForQuery,
-    enabled: !filters.isLoading && !staffOptions.isLoading,
+    // Do not wait on staffOptions — toolbar can load staff async without blanking the page.
+    enabled: !filters.isLoading,
   });
 
-  const showContent = useDebouncedReady(
-    !(list.isLoading || filters.isLoading || staffOptions.isLoading),
-  );
+  // No useDebouncedReady: that hook always starts false for ~200ms and flashes full skeleton.
+  const showContent = !filters.isLoading;
+
   const [selectedRow, setSelectedRow] = useState<ShiftRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+
+  const stableCountRef = useRef(0);
+  if (!list.isLoading) {
+    stableCountRef.current = list.rows.length;
+  }
 
   const outletLabel =
     filters.selectedOutletId === POS_OUTLET_FILTER_ALL
@@ -81,6 +88,7 @@ export function ShiftPage() {
       showSalesNav={false}
       showContent={showContent}
       loadingSkeleton={<ShiftPageSkeleton />}
+      count={stableCountRef.current}
     >
       <ShiftToolbar
         outletId={filters.selectedOutletId}
@@ -96,11 +104,17 @@ export function ShiftPage() {
         staffOptions={staffOptions.options}
         staffOptionsLoading={staffOptions.isLoading}
         onExport={handleExport}
-        exportDisabled={list.rows.length === 0}
+        exportDisabled={list.isLoading || list.rows.length === 0}
       />
 
-      {showContent ? (
-        <>
+      {list.isLoading ? (
+        <ShiftListPaneSkeleton />
+      ) : (
+        <div
+          className={cn(
+            list.isFetching && !list.isLoadingMore && "opacity-70 transition-opacity",
+          )}
+        >
           <ShiftSummaryBar summary={list.summary} />
           <ShiftTable
             rows={list.rows}
@@ -112,8 +126,8 @@ export function ShiftPage() {
               setDetailOpen(true);
             }}
           />
-        </>
-      ) : null}
+        </div>
+      )}
 
       <ShiftDetailSheet
         row={selectedRow}

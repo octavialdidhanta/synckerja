@@ -5,6 +5,7 @@ import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { StockManagementModuleShell } from "@/6-0-stock-management/layout/StockManagementModuleShell";
+import { InventoryWorkspace } from "@/6-0-stock-management/layout/InventoryWorkspace";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { InventorySuppliersSkeleton } from "../skeletons/InventorySuppliersSkeleton";
 import { SuppliersToolbar, useSuppliersSearchState } from "../components/SuppliersToolbar";
@@ -37,8 +38,7 @@ export function InventorySuppliersPage() {
   return (
     <>
       <StockManagementModuleShell>
-        <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2">
-          <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
+        <InventoryWorkspace count={rows.length}>
             <div className="border-b px-4 py-3">
               <SuppliersToolbar
                 search={search}
@@ -67,8 +67,7 @@ export function InventorySuppliersPage() {
                 </div>
               ) : null}
             </div>
-          </div>
-        </div>
+        </InventoryWorkspace>
       </StockManagementModuleShell>
 
       {orgId ? (

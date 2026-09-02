@@ -10,21 +10,19 @@ type Props = {
   showContent: boolean;
   loadingSkeleton?: ReactNode;
   businessName?: string;
-  storeUrl?: string | null;
   onSave?: () => void;
   saveBusy?: boolean;
   onViewStore?: () => void;
 };
 
 const MAIN_SCROLL =
-  "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+  "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
 export function SynckerjaOrderModuleShell({
   children,
   showContent,
   loadingSkeleton,
   businessName,
-  storeUrl,
   onSave,
   saveBusy,
   onViewStore,
@@ -42,11 +40,10 @@ export function SynckerjaOrderModuleShell({
         <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
             <div className={cn(MAIN_SCROLL, "min-w-0")}>
-              <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
-                <div className="mb-1 min-w-0 shrink-0">
+              <div className="flex min-h-full flex-col bg-muted/40">
+                <div className="mb-1 flex-shrink-0">
                   <SynckerjaOrderHeaderAndTab
                     businessName={businessName}
-                    storeUrl={storeUrl}
                     onSave={onSave}
                     saveBusy={saveBusy}
                     onViewStore={onViewStore}

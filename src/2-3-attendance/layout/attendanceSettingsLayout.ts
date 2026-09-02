@@ -11,6 +11,10 @@ export const ATTENDANCE_SETTINGS_NAV_COLUMN =
 export const ATTENDANCE_SETTINGS_MAIN_COLUMN =
   'col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden md:col-span-9 lg:h-full';
 
+/** Ritme tinggi kartu — selaras /employees (560 / 620 / 680). */
+export const ATTENDANCE_SETTINGS_TABLE_SECTION =
+  'flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]';
+
 export const ATTENDANCE_SETTINGS_CARD_HEADER =
   'flex-shrink-0 border-b border-border px-4 py-1.5';
 

@@ -29,7 +29,7 @@ export function IncomesModuleShell({ children, showContent = true }: IncomesModu
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
             <div className={MAIN_SCROLL}>
-              <div className="flex min-h-full flex-col">
+              <div className="flex min-h-full flex-col bg-muted/40">
                 <div className="mb-1 flex-shrink-0">
                   <HeaderAndTab />
                 </div>

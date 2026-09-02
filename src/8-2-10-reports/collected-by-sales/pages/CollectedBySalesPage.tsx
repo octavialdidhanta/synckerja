@@ -35,7 +35,7 @@ export function CollectedBySalesPage() {
   };
 
   return (
-    <ReportsSalesLayout showContent={showContent}>
+    <ReportsSalesLayout showContent={showContent} count={report.display.staff.length}>
       <div className="min-w-0">
         <CollectedBySalesToolbar
           outletId={filters.selectedOutletId}

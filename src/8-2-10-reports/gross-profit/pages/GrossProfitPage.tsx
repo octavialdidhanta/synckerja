@@ -113,7 +113,7 @@ export function GrossProfitPage() {
   const error = summary.error ?? itemsQuery.error ?? dailyQuery.error;
 
   return (
-    <ReportsSalesLayout showContent={showContent}>
+    <ReportsSalesLayout showContent={showContent} count={itemsQuery.items.length}>
       <div className="min-w-0">
         <GrossProfitToolbar
           outletId={filters.selectedOutletId}

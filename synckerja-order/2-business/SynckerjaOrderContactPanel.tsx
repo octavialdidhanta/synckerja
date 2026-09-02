@@ -11,7 +11,7 @@ type Props = {
 export function SynckerjaOrderContactPanel({ settings, onChange }: Props) {
   const { t } = useAppTranslation();
   return (
-    <div className="grid gap-4 p-4 sm:grid-cols-2">
+    <div className="grid content-start gap-4 p-4 sm:grid-cols-2">
       <div className="space-y-1.5">
         <Label>{t("synckerjaOrder.contact.phone", "Phone")}</Label>
         <Input

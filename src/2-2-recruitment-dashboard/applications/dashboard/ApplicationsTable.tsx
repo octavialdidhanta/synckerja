@@ -224,7 +224,7 @@ export const ApplicationsTable = () => {
 
   if (error) {
     return (
-      <div className="p-8">
+      <div className="flex min-h-0 flex-1 items-center justify-center p-8">
         <div className="text-center">
           <p className="text-red-600">Error loading applications: {error.message}</p>
         </div>
@@ -234,7 +234,7 @@ export const ApplicationsTable = () => {
 
   if (applications.length === 0) {
     return (
-      <div className="p-8">
+      <div className="flex min-h-0 flex-1 items-center justify-center p-8">
         <div className="text-center">
           <p className="text-gray-500">No applications found.</p>
         </div>
@@ -243,8 +243,9 @@ export const ApplicationsTable = () => {
   }
 
   return (
+    <>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="overflow-x-auto">
+      <div className="min-h-0 flex-1 overflow-x-auto">
         <table className="w-full min-w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
@@ -384,8 +385,8 @@ export const ApplicationsTable = () => {
           </tbody>
         </table>
       </div>
+    </div>
 
-      {/* Quick View Modal */}
       <CandidateQuickViewModal
         application={selectedApplication}
         isOpen={isQuickViewOpen}
@@ -393,6 +394,6 @@ export const ApplicationsTable = () => {
         onStatusUpdate={handleStatusUpdate}
         onApplicationUpdate={handleApplicationUpdate}
       />
-    </div>
+    </>
   );
 };

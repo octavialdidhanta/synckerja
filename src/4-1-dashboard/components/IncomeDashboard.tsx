@@ -71,7 +71,9 @@ import {
   INCOME_DASHBOARD_RECENT_PANEL,
   INCOME_DASHBOARD_RECENT_PANEL_BODY,
   INCOME_DASHBOARD_RECENT_PANEL_SCROLL,
+  INCOME_DASHBOARD_TABLE_SECTION,
 } from '@/4-1-dashboard/layout/incomeDashboardLayout';
+import { IncomeDashboardPanelFooter } from '@/4-1-dashboard/layout/IncomeDashboardPanelFooter';
 
 // Helper function to calculate date range based on selected period
 const getDateRangeForPeriod = (period: string): { startDate: Date; endDate: Date } => {
@@ -381,8 +383,9 @@ export function IncomeDashboard({
     <>
       <div className={INCOME_DASHBOARD_MAIN_GRID} aria-hidden={!showContent}>
             <div className={INCOME_DASHBOARD_MAIN_COLUMN}>
-              <div className="flex min-w-0 flex-col">
-                  <div className="flex min-w-0 flex-col overflow-x-hidden rounded-lg border border-gray-200/50 bg-gradient-to-br from-gray-50 to-white p-2">
+              <div className={INCOME_DASHBOARD_TABLE_SECTION}>
+                  <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200/50 bg-gradient-to-br from-gray-50 to-white">
+                    <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-2">
               {/* Compact Header Controls */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
                 <h2 className="text-lg font-bold text-gray-800">Income Analytics</h2>
@@ -977,11 +980,13 @@ export function IncomeDashboard({
               </div>
 
                   </div>
+                    <IncomeDashboardPanelFooter count={filteredTransactions.length} />
+                  </div>
               </div>
             </div>
 
             <div className={INCOME_DASHBOARD_RECENT_COLUMN}>
-              <div className="flex h-full min-h-0 min-w-0 flex-col">
+              <div className={INCOME_DASHBOARD_TABLE_SECTION}>
                 <div className={INCOME_DASHBOARD_RECENT_PANEL}>
                   <div className="flex-shrink-0 border-b border-border px-4 py-1.5">
                     <h3 className="text-sm font-semibold text-foreground">Recent Income</h3>

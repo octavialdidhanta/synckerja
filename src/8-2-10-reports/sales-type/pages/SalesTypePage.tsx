@@ -35,7 +35,7 @@ export function SalesTypePage() {
   };
 
   return (
-    <ReportsSalesLayout showContent={showContent}>
+    <ReportsSalesLayout showContent={showContent} count={report.display.rows.length}>
       <div className="min-w-0">
         <SalesTypeToolbar
           outletId={filters.selectedOutletId}

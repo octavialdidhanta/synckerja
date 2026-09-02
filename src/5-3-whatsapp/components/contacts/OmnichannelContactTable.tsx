@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Loader2 } from 'lucide-react';
+import { Skeleton } from '@/shared/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -34,16 +34,22 @@ export function OmnichannelContactTable({ rows, isLoading }: Props) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden />
-        <span className="sr-only">{t('omnichannel.contact.loading')}</span>
+      <div
+        className="min-h-0 min-w-0 flex-1 space-y-2 p-3"
+        aria-busy
+        aria-label={t('omnichannel.contact.loadingAria', 'Loading contacts')}
+      >
+        <span className="sr-only">{t('omnichannel.contact.loadingAria', 'Loading contacts')}</span>
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-11 w-full rounded-md" />
+        ))}
       </div>
     );
   }
 
   if (rows.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center py-16 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center">
         <p className="text-sm font-medium text-foreground">{t('omnichannel.contact.emptyTitle')}</p>
         <p className="mt-1 max-w-md text-sm text-muted-foreground">{t('omnichannel.contact.emptyBody')}</p>
       </div>
@@ -51,7 +57,7 @@ export function OmnichannelContactTable({ rows, isLoading }: Props) {
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto">
+    <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <Table>
         <TableHeader>
           <TableRow>

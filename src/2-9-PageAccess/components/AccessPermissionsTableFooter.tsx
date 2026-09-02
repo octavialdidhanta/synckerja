@@ -1,33 +1,28 @@
-import { Calendar, Settings } from 'lucide-react';
-import { format } from 'date-fns';
+import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 interface AccessPermissionsTableFooterProps {
   totalConfigurations: number;
-  lastUpdated?: string;
-  /** Overrides default "Total Configurations" label (e.g. when path search is active). */
-  totalLabel?: string;
 }
 
-export const AccessPermissionsTableFooter = ({ 
-  totalConfigurations, 
-  lastUpdated,
-  totalLabel,
+export const AccessPermissionsTableFooter = ({
+  totalConfigurations,
 }: AccessPermissionsTableFooterProps) => {
-  const formattedDate = lastUpdated 
-    ? format(new Date(lastUpdated), 'MMM dd, yyyy HH:mm')
-    : format(new Date(), 'MMM dd, yyyy HH:mm');
+  const { t } = useAppTranslation();
+  const sectionLabel = t("pageAccess.tabs.pageAccess", "Page Access");
 
   return (
-    <div className="text-muted-foreground flex items-center justify-between text-xs">
-      <span className="flex items-center gap-1">
-        <Settings className="h-3 w-3" />
-        {totalLabel ?? 'Total Configurations'}: {totalConfigurations}
-      </span>
-      <span className="text-muted-foreground/80 flex items-center gap-1 text-xs">
-        <Calendar className="h-3 w-3" />
-        Last Updated: {formattedDate}
-      </span>
+    <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          {t("pageAccess.footer.showing", "Showing {{count}} {{section}}", {
+            count: totalConfigurations,
+            section: sectionLabel,
+          })}
+        </span>
+        <span className="text-xs text-muted-foreground/80">
+          {t("pageAccess.footer.total", "Total: {{count}}", { count: totalConfigurations })}
+        </span>
+      </div>
     </div>
   );
 };
-

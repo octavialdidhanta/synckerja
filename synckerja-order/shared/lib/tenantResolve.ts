@@ -1,5 +1,5 @@
 import { supabase } from "@/shared/lib/supabaseClient";
-import { resolveCatalogPhotoUrls } from "@/synckerja-order/shared/lib/orderStorePhoto";
+import { normalizeCatalogStoragePath, resolveCatalogPhotoUrls, resolvePublicOrderPhotoUrls } from "@/synckerja-order/shared/lib/orderStorePhoto";
 import { normalizePublicCode } from "./publicCode";
 import type { PublicOrderCatalog, PublicOrderItemOptions, PublicOrderStore } from "./orderTypes";
 
@@ -29,7 +29,7 @@ export async function fetchPublicOrderStore(args: {
   const photos = await resolveCatalogPhotoUrls([store.cover_path, store.logo_path]);
   return {
     ...store,
-    cover_url: store.cover_path ? photos.get(store.cover_path) ?? null : null,
+    cover_url: store.cover_path ? photos.get(normalizeCatalogStoragePath(store.cover_path)) ?? null : null,
   };
 }
 
@@ -41,12 +41,15 @@ export async function fetchPublicOrderCatalog(code: string): Promise<PublicOrder
     return { ...EMPTY_CATALOG, error: error.message };
   }
   const catalog = (data ?? EMPTY_CATALOG) as PublicOrderCatalog;
-  const photos = await resolveCatalogPhotoUrls(catalog.items.map((item) => item.photo_path));
+  const photos = await resolvePublicOrderPhotoUrls(
+    code,
+    catalog.items.map((item) => item.photo_path),
+  );
   return {
     ...catalog,
     items: catalog.items.map((item) => ({
       ...item,
-      photo_url: item.photo_path ? photos.get(item.photo_path) ?? null : null,
+      photo_url: item.photo_path ? photos.get(normalizeCatalogStoragePath(item.photo_path)) ?? null : null,
     })),
   };
 }
@@ -75,10 +78,10 @@ export async function fetchPublicOrderItemOptions(args: {
   if (error) return { ...empty, error: error.message };
   const payload = (data ?? empty) as PublicOrderItemOptions;
   if (!payload.ok) return payload;
-  const photos = await resolveCatalogPhotoUrls([payload.photo_path]);
+  const photos = await resolvePublicOrderPhotoUrls(args.code, [payload.photo_path]);
   return {
     ...payload,
-    photo_url: payload.photo_path ? photos.get(payload.photo_path) ?? null : null,
+    photo_url: payload.photo_path ? photos.get(normalizeCatalogStoragePath(payload.photo_path)) ?? null : null,
     variants: payload.variants ?? [],
     modifier_groups: payload.modifier_groups ?? [],
     included_items: payload.included_items ?? [],

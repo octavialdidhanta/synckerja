@@ -12,6 +12,7 @@ import {
   INCOME_DASHBOARD_RECENT_PANEL,
   INCOME_DASHBOARD_RECENT_PANEL_BODY,
   INCOME_DASHBOARD_RECENT_PANEL_SCROLL,
+  INCOME_DASHBOARD_TABLE_SECTION,
 } from "@/4-1-dashboard/layout/incomeDashboardLayout";
 
 const GRID_MAIN = INCOME_DASHBOARD_MAIN_GRID;
@@ -35,7 +36,7 @@ export function IncomeDashboardSkeleton() {
       <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
         <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
           <div className={MAIN_SCROLL}>
-            <div className="flex min-h-full flex-col">
+            <div className="flex min-h-full flex-col bg-muted/40">
               <div className="mb-1 flex-shrink-0 px-1 py-3">
                 <div className="mb-3 space-y-1.5">
                   <Skeleton className="h-7 w-56 max-w-[90vw]" />
@@ -49,8 +50,9 @@ export function IncomeDashboardSkeleton() {
 
               <div className={GRID_MAIN}>
                 <div className={INCOME_DASHBOARD_MAIN_COLUMN}>
-                  <div className="flex min-w-0 flex-col">
-                    <div className="flex min-w-0 flex-col rounded-lg border border-gray-200/50 bg-gradient-to-br from-gray-50 to-white p-2">
+                  <div className={INCOME_DASHBOARD_TABLE_SECTION}>
+                    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200/50 bg-gradient-to-br from-gray-50 to-white">
+                      <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-2">
                       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <Skeleton className="h-7 w-40" />
                         <div className="flex flex-wrap gap-2">
@@ -109,12 +111,19 @@ export function IncomeDashboardSkeleton() {
                           </div>
                         </div>
                       </div>
+                      </div>
+                      <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Skeleton className="h-3 w-52 max-w-[55%]" />
+                          <Skeleton className="h-3 w-24 max-w-[40%]" />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 <div className={INCOME_DASHBOARD_RECENT_COLUMN}>
-                  <div className="flex h-full min-h-0 min-w-0 flex-col">
+                  <div className={INCOME_DASHBOARD_TABLE_SECTION}>
                     <div className={INCOME_DASHBOARD_RECENT_PANEL}>
                       <div className="shrink-0 border-b border-border px-4 py-1.5">
                         <Skeleton className="mb-1 h-4 w-32" />

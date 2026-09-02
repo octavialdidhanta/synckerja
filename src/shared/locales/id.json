@@ -293,7 +293,11 @@
       "headerSubtitle": "Pantau kehadiran, wawasan, dan pengaturan",
       "tabDashboard": "Dasbor",
       "tabRecords": "Kehadiran",
-      "tabSettings": "Pengaturan"
+      "tabSettings": "Pengaturan",
+      "footer": {
+        "showing": "Menampilkan {{count}} {{section}}",
+        "total": "Total: {{count}}"
+      }
     },
     "placeholder": {
       "comingSoon": "Fitur ini akan segera hadir.",
@@ -342,6 +346,10 @@
         "company": "Tujuan Perusahaan",
         "department": "Tujuan Departemen",
         "individual": "Tujuan Individu"
+      },
+      "footer": {
+        "showing": "Menampilkan {{count}} {{section}}",
+        "total": "Total: {{count}}"
       },
       "loadingObjectives": "Memuat tujuan…",
       "sidebar": {
@@ -944,6 +952,10 @@
       "tabApplicationsDescription": "Tinjau lamaran kandidat",
       "tabInterviewees": "Kandidat wawancara",
       "tabIntervieweesDescription": "Kelola wawancara dan evaluasi kandidat"
+    },
+    "footer": {
+      "showing": "Menampilkan {{count}} {{section}}",
+      "total": "Total: {{count}}"
     },
     "accessDenied": {
       "title": "Akses dibatasi",

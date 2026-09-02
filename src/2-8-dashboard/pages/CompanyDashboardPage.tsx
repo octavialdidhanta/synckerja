@@ -1,7 +1,9 @@
 import { CompanyModuleShell } from "../layout/CompanyModuleShell";
+import { CompanyDashboardWorkspace } from "../layout/CompanyDashboardWorkspace";
 import { CompanyProfileDashboard } from "./CompanyProfileDashboard";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useCompanyProfile } from "../hooks/useCompanyProfile";
+import { useEmployees } from "@/2-1-employees/hooks/useEmployees";
 import { useDebouncedShowSkeleton } from "../hooks/useDebouncedShowSkeleton";
 import { CompanyDashboardPageSkeleton } from "../skeletons/CompanyPageSkeletons";
 import { cn } from "@/shared/lib/utils";
@@ -9,6 +11,7 @@ import { cn } from "@/shared/lib/utils";
 export const CompanyDashboardPage = () => {
   const { organizationId } = useCurrentOrg();
   const { isLoading: profileLoading } = useCompanyProfile();
+  const { data: employees = [] } = useEmployees();
   const pending = !organizationId || profileLoading;
   const showSkeleton = useDebouncedShowSkeleton(pending);
 
@@ -17,34 +20,23 @@ export const CompanyDashboardPage = () => {
       <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
         {showSkeleton && (
           <div
-            className="absolute inset-0 z-20 flex min-h-0 flex-col bg-background/95 backdrop-blur-[1px]"
+            className="absolute inset-0 z-20 flex min-h-0 flex-col bg-gray-100"
             aria-hidden
           >
-            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <CompanyDashboardPageSkeleton />
-            </div>
+            <CompanyDashboardPageSkeleton />
           </div>
         )}
         <div
           className={cn(
-            'flex min-h-0 min-w-0 flex-1 flex-col',
-            showSkeleton && 'pointer-events-none invisible'
+            "flex min-h-0 min-w-0 flex-1 flex-col",
+            showSkeleton && "pointer-events-none invisible",
           )}
         >
-          <div
-            className={cn(
-              'grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2',
-              '[grid-template-rows:minmax(0,1fr)] items-stretch',
-              '[@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none',
-              '[@media(max-height:760px)]:min-h-[700px]'
-            )}
-          >
-            <div className="col-span-12 flex min-h-0 min-w-0 flex-col">
-              <div className="min-h-full rounded-lg border border-border bg-card p-4 shadow-sm">
-                <CompanyProfileDashboard />
-              </div>
+          <CompanyDashboardWorkspace count={employees.length}>
+            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4">
+              <CompanyProfileDashboard />
             </div>
-          </div>
+          </CompanyDashboardWorkspace>
         </div>
       </div>
     </CompanyModuleShell>

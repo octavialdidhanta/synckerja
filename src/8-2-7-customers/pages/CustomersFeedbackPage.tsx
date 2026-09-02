@@ -11,6 +11,7 @@ import {
   type FeedbackDateRange,
 } from '../lib/feedbackDatePresets';
 import { CustomersModuleShell } from '../layout/CustomersModuleShell';
+import { CustomersWorkspace } from '../layout/CustomersWorkspace';
 import { CustomersFeedbackPageSkeleton } from '../skeletons/CustomersFeedbackPageSkeleton';
 import { FeedbackDetailDialog } from '../feedback/components/FeedbackDetailDialog';
 import { FeedbackSummaryCards } from '../feedback/components/FeedbackSummaryCards';
@@ -92,8 +93,7 @@ export default function CustomersFeedbackPage() {
       showContent={showContent}
       loadingSkeleton={<CustomersFeedbackPageSkeleton />}
     >
-      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-        <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <CustomersWorkspace count={feedbackQuery.data?.rows.length ?? 0}>
           <div className="flex-shrink-0 border-b px-4 py-3">
             <FeedbackToolbar
               outletId={filters.outletId}
@@ -143,16 +143,13 @@ export default function CustomersFeedbackPage() {
               }}
             />
           </div>
-        </div>
-      </div>
+      </CustomersWorkspace>
 
       <FeedbackDetailDialog
         row={selectedRow}
         open={detailOpen}
         onOpenChange={setDetailOpen}
       />
-
-      <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
     </CustomersModuleShell>
   );
 }

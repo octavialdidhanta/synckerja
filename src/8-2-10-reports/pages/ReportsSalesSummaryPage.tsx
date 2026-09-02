@@ -48,7 +48,7 @@ function SalesSummaryPanel() {
   };
 
   return (
-    <ReportsSalesLayout showContent={showContent}>
+    <ReportsSalesLayout showContent={showContent} count={8}>
       <div className="min-w-0">
         <SalesSummaryToolbar
           outletId={filters.selectedOutletId}

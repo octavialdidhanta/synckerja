@@ -5,6 +5,8 @@ import { XenditHeaderAndTab } from "@/4-1-transaction/xendit/components/XenditHe
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import {
   XenditBalanceTabSkeleton,
+} from "@/4-1-transaction/xendit/skeletons/XenditBalancePageSkeleton";
+import {
   XenditConnectTabSkeleton,
   XenditHistoryTabContentSkeleton,
 } from "@/4-1-transaction/xendit/skeletons/IncomeXenditPageSkeleton";
@@ -52,7 +54,7 @@ export function IncomeXenditModuleShell({
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
             <div className={cn(MAIN_SCROLL, "min-w-0")}>
-              <div className="flex min-h-full min-w-0 flex-col">
+              <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
                 <div className="mb-1 min-w-0 flex-shrink-0">
                   <XenditHeaderAndTab />
                 </div>
@@ -74,7 +76,7 @@ export function IncomeXenditModuleShell({
           <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
             <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
               <div className={cn(MAIN_SCROLL, "min-w-0")}>
-                <div className="flex min-h-full min-w-0 flex-col">
+                <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
                   <div className="mb-1 min-w-0 flex-shrink-0">
                     <XenditHeaderAndTab />
                   </div>

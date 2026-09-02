@@ -15,7 +15,15 @@ export function LeadMagnetFunnelPanel({ funnel, loading }: Props) {
   const maxBar = Math.max(...view.steps.map((s) => s.count), 1);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">{t('leadMagnet.analytics.loading')}</p>;
+    return (
+      <div
+        className="min-h-[12rem]"
+        aria-busy
+        aria-label={t('leadMagnet.analytics.loadingAria', 'Loading campaign analytics')}
+      >
+        <span className="sr-only">{t('leadMagnet.analytics.loadingAria', 'Loading campaign analytics')}</span>
+      </div>
+    );
   }
 
   if (view.topCount === 0) {

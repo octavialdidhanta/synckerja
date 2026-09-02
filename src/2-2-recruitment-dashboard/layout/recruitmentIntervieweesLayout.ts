@@ -8,6 +8,9 @@ export const RECRUITMENT_MAIN_COLUMN =
 export const RECRUITMENT_SIDEBAR_COLUMN =
   'col-span-3 flex h-full min-h-0 min-w-0 flex-col self-stretch';
 
+export const RECRUITMENT_FULL_COLUMN =
+  'col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch';
+
 export const RECRUITMENT_TABLE_SECTION =
   'flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]';
 

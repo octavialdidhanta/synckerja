@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import { cn } from '@/shared/lib/utils';
@@ -7,10 +8,23 @@ import {
   XENDIT_MAIN_INNER_SCROLL,
   XENDIT_TABLE_SECTION,
 } from '@/4-1-transaction/xendit/layout/xenditPageLayout';
+import {
+  XenditBalancePageSkeleton,
+  XenditBalanceTabSkeleton,
+} from '@/4-1-transaction/xendit/skeletons/XenditBalancePageSkeleton';
+import { XENDIT_BALANCE_PATH, XENDIT_HISTORY_PATH } from '@/xendit/lib/xenditPaths';
+
+export { XenditBalanceTabSkeleton };
 
 type IncomeXenditPageSkeletonProps = {
   variant?: 'connect' | 'balance' | 'history';
 };
+
+function resolveXenditSkeletonVariant(pathname: string): 'connect' | 'balance' | 'history' {
+  if (pathname.startsWith(XENDIT_HISTORY_PATH)) return 'history';
+  if (pathname.startsWith(XENDIT_BALANCE_PATH)) return 'balance';
+  return 'connect';
+}
 
 const MAIN_SCROLL =
   'scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
@@ -113,44 +127,6 @@ export function XenditConnectTabSkeleton() {
   );
 }
 
-/** Tab body only — mirrors `XenditBalancePage` saldo & penarikan layout. */
-export function XenditBalanceTabSkeleton() {
-  return (
-    <XenditTabCardShell
-      header={
-        <div className="flex items-center justify-between gap-3 p-4 [@media(max-height:900px)]:p-3">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="h-8 w-8 shrink-0 rounded-md" />
-        </div>
-      }
-      bodyClassName="p-4 [@media(max-height:900px)]:p-3"
-    >
-      <div className="mx-auto w-full max-w-2xl space-y-4">
-        <div className="rounded-xl border border-border bg-muted/30 px-5 py-4">
-          <Skeleton className="h-3 w-36" />
-          <Skeleton className="mt-2 h-9 w-44" />
-          <Skeleton className="mt-2 h-3 w-48" />
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Skeleton className="h-20 w-full rounded-lg" />
-          <Skeleton className="h-20 w-full rounded-lg" />
-        </div>
-        <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div className="min-w-0 space-y-1.5">
-              <Skeleton className="h-3 w-40" />
-              <Skeleton className="h-8 w-36" />
-            </div>
-            <Skeleton className="h-9 w-28 shrink-0 rounded-md" />
-          </div>
-          <Skeleton className="h-16 w-full rounded-lg" />
-          <Skeleton className="h-3 w-full max-w-xs" />
-        </div>
-      </div>
-    </XenditTabCardShell>
-  );
-}
-
 /** Tab content skeleton — mirrors `/xendit/history` card + table area. */
 export function XenditHistoryTabContentSkeleton() {
   return (
@@ -187,9 +163,15 @@ function XenditTabSkeleton({ variant }: { variant: 'connect' | 'balance' | 'hist
 }
 
 /** Full module shell — guard, Suspense, org bootstrap overlay. */
-export function IncomeXenditPageSkeleton({ variant = 'connect' }: IncomeXenditPageSkeletonProps) {
+export function IncomeXenditPageSkeleton({ variant }: IncomeXenditPageSkeletonProps) {
+  const { pathname } = useLocation();
+  const resolved = variant ?? resolveXenditSkeletonVariant(pathname);
   const { t } = useAppTranslation();
   const aria = t('xendit.loadingAria', 'Loading Xendit settings');
+
+  if (resolved === 'balance') {
+    return <XenditBalancePageSkeleton />;
+  }
 
   return (
     <div
@@ -201,11 +183,11 @@ export function IncomeXenditPageSkeleton({ variant = 'connect' }: IncomeXenditPa
       <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
         <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
           <div className={cn(MAIN_SCROLL, 'min-w-0')}>
-            <div className="flex min-h-full min-w-0 flex-col">
+            <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
               <div className="mb-1 min-w-0 flex-shrink-0">
                 <XenditHeaderSkeleton />
               </div>
-              <XenditTabSkeleton variant={variant} />
+              <XenditTabSkeleton variant={resolved} />
             </div>
           </div>
         </div>

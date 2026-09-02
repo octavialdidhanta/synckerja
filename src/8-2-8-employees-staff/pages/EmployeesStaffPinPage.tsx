@@ -6,6 +6,7 @@ import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPendi
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { EmployeesStaffModuleShell } from "../layout/EmployeesStaffModuleShell";
+import { EmployeesStaffWorkspace } from "../layout/EmployeesStaffWorkspace";
 import { usePosEmployeeStaff } from "../hooks/usePosEmployeeStaff";
 import { usePosPinAccessSettings } from "../hooks/usePosPinAccessSettings";
 import { EmployeeStaffDetailSheet } from "../components/detail/EmployeeStaffDetailSheet";
@@ -76,14 +77,14 @@ export default function EmployeesStaffPinPage() {
 
   return (
     <EmployeesStaffModuleShell showContent={showContent}>
-      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-        <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-          <div className="rounded-lg border border-border bg-card px-4 py-4 shadow-sm">
+      <EmployeesStaffWorkspace count={staff.length}>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex-shrink-0 border-b px-4 py-4">
             <PinAccessIntro />
           </div>
 
           {isError ? (
-            <Alert variant="destructive">
+            <Alert variant="destructive" className="mx-4 mt-3">
               <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
                 <span>
                   {error instanceof Error
@@ -97,7 +98,7 @@ export default function EmployeesStaffPinPage() {
             </Alert>
           ) : null}
 
-          <div className="grid min-h-[480px] min-w-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-hidden p-4 lg:grid-cols-2">
             <PinAdministratorList
               staff={staff}
               onSelectStaff={(next) => {
@@ -108,7 +109,7 @@ export default function EmployeesStaffPinPage() {
             <PinFeatureChecklist selected={draft} onToggle={handleToggle} />
           </div>
 
-          <div className="flex flex-shrink-0 justify-end border-t border-border/60 pt-2">
+          <div className="flex flex-shrink-0 justify-end px-4 pb-3">
             <Button
               type="button"
               disabled={save.isPending || !dirty}
@@ -118,8 +119,7 @@ export default function EmployeesStaffPinPage() {
             </Button>
           </div>
         </div>
-      </div>
-      <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
+      </EmployeesStaffWorkspace>
 
       <EmployeeStaffDetailSheet
         staff={selected}

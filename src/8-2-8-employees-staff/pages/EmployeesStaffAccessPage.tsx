@@ -5,6 +5,7 @@ import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPendi
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { EmployeesStaffModuleShell } from "../layout/EmployeesStaffModuleShell";
+import { EmployeesStaffWorkspace } from "../layout/EmployeesStaffWorkspace";
 import {
   useEnsurePosDefaultRoles,
   usePosEmployeeRoles,
@@ -25,8 +26,7 @@ export default function EmployeesStaffAccessPage() {
 
   return (
     <EmployeesStaffModuleShell showContent={showContent}>
-      <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-        <div className="col-span-12 flex min-h-[560px] min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <EmployeesStaffWorkspace count={roles.length}>
           <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
             <h2 className="text-base font-semibold">
               {t("employeesStaff.access.title", "Employee Access")}
@@ -65,9 +65,7 @@ export default function EmployeesStaffAccessPage() {
               }}
             />
           </div>
-        </div>
-      </div>
-      <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
+      </EmployeesStaffWorkspace>
 
       <CreateEmployeeRoleSheet
         open={sheetOpen}

@@ -8,6 +8,9 @@ export const COMPANY_MAIN_COLUMN =
 export const COMPANY_SIDEBAR_COLUMN =
   'col-span-3 flex h-full min-h-0 min-w-0 flex-col self-stretch';
 
+export const COMPANY_FULL_COLUMN =
+  'col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch';
+
 /** Kartu tabel utama — tinggi minimum + flex grow (selaras EmployeePage). */
 export const COMPANY_TABLE_SECTION =
   'flex min-h-[560px] min-w-0 flex-1 flex-col [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]';

@@ -5,6 +5,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { ReportsSalesDateRangePicker } from "../../../shared/components/ReportsSalesDateRangePicker";
+import { ReportsSalesToolbarShell } from "../../../shared/components/ReportsSalesToolbarShell";
 import type {
   SalesSummaryDateRange,
   SalesSummaryTimeFilter,
@@ -43,56 +44,53 @@ export function TransactionsToolbar({
   const { t } = useAppTranslation();
 
   return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0 space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("reports.transactions.title", "Transactions")}
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            {t(
-              "reports.transactions.subtitle",
-              "Browse and filter completed store transactions.",
-            )}
-          </p>
+    <ReportsSalesToolbarShell
+      title={t("reports.transactions.title", "Transactions")}
+      description={
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "reports.transactions.subtitle",
+            "Browse and filter completed store transactions.",
+          )}
+        </p>
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Home className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <OutletFilterSelect
+            value={outletId || POS_OUTLET_FILTER_ALL}
+            onChange={onOutletChange}
+            includeAll
+            className="w-[200px] pl-8"
+          />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <ReportsSalesDateRangePicker
+          dateRange={dateRange}
+          onDateRangeChange={onDateRangeChange}
+          timeFilter={timeFilter}
+          onTimeFilterChange={onTimeFilterChange}
+          onApplyFilters={onApplyFilters}
+        />
+        {tab === "success" ? (
           <div className="relative">
-            <Home className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <OutletFilterSelect
-              value={outletId || POS_OUTLET_FILTER_ALL}
-              onChange={onOutletChange}
-              includeAll
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={receiptQuery}
+              onChange={(e) => onReceiptQueryChange(e.target.value)}
+              placeholder={t(
+                "reports.transactions.searchReceipt",
+                "Search receipt (SC-…)",
+              )}
               className="w-[200px] pl-8"
             />
           </div>
-          <ReportsSalesDateRangePicker
-            dateRange={dateRange}
-            onDateRangeChange={onDateRangeChange}
-            timeFilter={timeFilter}
-            onTimeFilterChange={onTimeFilterChange}
-            onApplyFilters={onApplyFilters}
-          />
-          {tab === "success" ? (
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={receiptQuery}
-                onChange={(e) => onReceiptQueryChange(e.target.value)}
-                placeholder={t(
-                  "reports.transactions.searchReceipt",
-                  "Search receipt (SC-…)",
-                )}
-                className="w-[200px] pl-8"
-              />
-            </div>
-          ) : null}
-        </div>
+        ) : null}
       </div>
       <Button type="button" size="sm" onClick={onExport} disabled={exportDisabled}>
         <Download className="mr-2 h-4 w-4" />
         {t("reports.actions.export", "Export")}
       </Button>
-    </div>
+    </ReportsSalesToolbarShell>
   );
 }

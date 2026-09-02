@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useToast } from "@/shared/components/ui/use-toast";
+import { useResolvedPosReceipt } from "@/8-2-6-receipt";
 import type { SynckerjaOrderOrgSettings } from "@/synckerja-order/shared/lib/orderTypes";
 import type { SynckerjaOrderTableRow } from "@/synckerja-order/5-backoffice-shell/hooks/useSynckerjaOrderTables";
 import { SYNCKERJA_ORDER_OUTLETS_PATH } from "@/synckerja-order/5-backoffice-shell/lib/synckerjaOrderTabs";
@@ -24,7 +25,6 @@ type Props = {
   outletName: string;
   tables: SynckerjaOrderTableRow[];
   orgSettings: SynckerjaOrderOrgSettings;
-  logoUrl: string | null;
 };
 
 export function SynckerjaOrderQrPanel({
@@ -33,10 +33,11 @@ export function SynckerjaOrderQrPanel({
   outletName,
   tables,
   orgSettings,
-  logoUrl,
 }: Props) {
   const { t, language } = useAppTranslation();
   const { toast } = useToast();
+  const receipt = useResolvedPosReceipt(outletId);
+  const logoUrl = receipt.branding.logoUrl;
   const qrSettings = useSynckerjaOrderQrSettings(outletId);
   const [draft, setDraft] = useState<SynckerjaOrderQrSettingsDraft>(qrSettings.settings);
   const [printScope, setPrintScope] = useState<"selected" | "all">("selected");
