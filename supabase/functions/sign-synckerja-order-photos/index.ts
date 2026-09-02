@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
@@ -14,16 +15,17 @@ function normalizePath(raw: unknown): string {
   return String(raw ?? "").trim().replace(/^\/+/, "");
 }
 
+/** Public outlet codes are lowercase a-z0-9 (see publicCode.ts). */
 function normalizeCode(raw: unknown): string {
   return String(raw ?? "")
     .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "");
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: CORS });
+    return new Response(null, { status: 204, headers: CORS });
   }
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "method_not_allowed" }), {

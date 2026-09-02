@@ -57,7 +57,7 @@ export async function resolvePublicOrderPhotoUrls(
   paths: Array<string | null | undefined>,
 ): Promise<Map<string, string>> {
   const map = await resolveCatalogPhotoUrls(paths);
-  const code = publicCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const code = publicCode.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!code) return map;
 
   const missing = [...new Set(paths.map(normalizeCatalogStoragePath).filter(Boolean))].filter(
