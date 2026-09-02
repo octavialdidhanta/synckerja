@@ -1,0 +1,1 @@
+export { SynckerjaOrderQrPanel } from "./SynckerjaOrderQrPanel";

@@ -17,18 +17,21 @@ export function useSynckerjaOrderTables(outletId: string | null) {
       if (!organizationId || !outletId) return [];
       const { data, error } = await supabase
         .from("pos_tables")
-        .select("id, name, pax, group_id")
+        .select("id, name, pax, group_id, pos_table_groups(name)")
         .eq("organization_id", organizationId)
         .eq("outlet_id", outletId)
         .eq("is_deleted", false)
         .order("name", { ascending: true });
       if (error) throw error;
-      return (data ?? []).map((row) => ({
-        id: String(row.id),
-        name: String(row.name ?? ""),
-        pax: Number(row.pax ?? 1),
-        group_name: null,
-      }));
+      return (data ?? []).map((row) => {
+        const group = row.pos_table_groups as { name?: string } | null;
+        return {
+          id: String(row.id),
+          name: String(row.name ?? ""),
+          pax: Number(row.pax ?? 1),
+          group_name: group?.name ? String(group.name) : null,
+        };
+      });
     },
     enabled: Boolean(organizationId && outletId),
   });

@@ -17,6 +17,7 @@ import { SynckerjaOrderOutletsPanel } from "@/synckerja-order/2-business/Syncker
 import { SynckerjaOrderHoursPanel } from "@/synckerja-order/2-hours/SynckerjaOrderHoursPanel";
 import { SynckerjaOrderCatalogPanel } from "@/synckerja-order/3-catalog/SynckerjaOrderCatalogPanel";
 import { SynckerjaOrderQrPanel } from "@/synckerja-order/4-qr/SynckerjaOrderQrPanel";
+import { resolveCatalogPhotoUrls } from "@/synckerja-order/shared/lib/orderStorePhoto";
 import { useSynckerjaOrderOrgSettings } from "../hooks/useSynckerjaOrderOrgSettings";
 import { useSynckerjaOrderOutlets } from "../hooks/useSynckerjaOrderOutlets";
 import { useSynckerjaOrderHours } from "../hooks/useSynckerjaOrderHours";
@@ -56,6 +57,7 @@ export default function SynckerjaOrderPage() {
   const [hoursWeekly, setHoursWeekly] = useState<WeeklyHourRule[]>(defaultWeeklyHours());
   const [layoutDraft, setLayoutDraft] = useState<Record<string, CategoryLayout>>({});
   const [relatedDraft, setRelatedDraft] = useState<Record<string, string>>({});
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   const settings: SynckerjaOrderOrgSettings = useMemo(
     () => ({ ...org.settings, ...draft }),
@@ -87,6 +89,17 @@ export default function SynckerjaOrderPage() {
   useEffect(() => {
     setRelatedDraft(crossSell.pairings);
   }, [crossSell.pairings]);
+
+  useEffect(() => {
+    const path = settings.logo_path?.trim() || settings.cover_path?.trim();
+    if (!path) {
+      setLogoUrl(null);
+      return;
+    }
+    void resolveCatalogPhotoUrls([path]).then((map) => {
+      setLogoUrl(map.get(path) ?? null);
+    });
+  }, [settings.logo_path, settings.cover_path]);
   const storeUrl = selectedOutlet?.public_code
     ? buildOrderStoreUrl(selectedOutlet.public_code)
     : null;
@@ -173,7 +186,7 @@ export default function SynckerjaOrderPage() {
       businessName={settings.business_name}
       storeUrl={activated ? storeUrl : null}
       onSave={
-        activated && (tab !== "hours" || Boolean(hoursOutlet?.id))
+        activated && tab !== "qr" && (tab !== "hours" || Boolean(hoursOutlet?.id))
           ? () => void onSave()
           : undefined
       }
@@ -262,7 +275,11 @@ export default function SynckerjaOrderPage() {
             {tab === "qr" ? (
               <SynckerjaOrderQrPanel
                 publicCode={selectedOutlet?.public_code ?? null}
+                outletId={selectedOutletId || null}
+                outletName={selectedOutlet?.name ?? ""}
                 tables={tables.data ?? []}
+                orgSettings={settings}
+                logoUrl={logoUrl}
               />
             ) : null}
           </div>

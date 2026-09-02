@@ -82,21 +82,23 @@ export function SynckerjaOrderCatalogPanel({
   }, [rows, t]);
 
   return (
-    <div className="space-y-4 overflow-y-auto p-4">
-      <p className="text-sm text-muted-foreground">
-        {t(
-          "synckerjaOrder.catalog.hint",
-          "Publish products assigned to this outlet in Item Library. Guests only see items you turn on here.",
-        )}
-      </p>
-      <p className="text-xs text-muted-foreground">
-        {t(
-          "synckerjaOrder.catalog.layoutHint",
-          "List is a vertical menu. Slider shows photo cards that peek off the edge. Grid shows two photo cards per row with vertical scroll.",
-        )}
-      </p>
+    <div className="space-y-2 overflow-y-auto p-2 sm:p-3">
+      <div className="rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
+        <p>
+          {t(
+            "synckerjaOrder.catalog.hint",
+            "Publish products assigned to this outlet in Item Library. Guests only see items you turn on here.",
+          )}
+        </p>
+        <p className="mt-1">
+          {t(
+            "synckerjaOrder.catalog.layoutHint",
+            "List is a vertical menu. Slider shows photo cards that peek off the edge. Grid shows two photo cards per row with vertical scroll.",
+          )}
+        </p>
+      </div>
       {rows.length === 0 ? (
-        <p className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+        <p className="rounded-md border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
           {t(
             "synckerjaOrder.catalog.emptyOutlet",
             "No products are assigned to this outlet. Add them in Item Library, then publish them here.",
@@ -115,8 +117,13 @@ export function SynckerjaOrderCatalogPanel({
       ) : null}
       {groups.map((group) => (
         <section key={group.id ?? "uncategorized"} className="rounded-md border border-border">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
-            <p className="text-sm font-medium">{group.name}</p>
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b bg-muted/15 px-2.5 py-1.5">
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-sm font-medium">{group.name}</p>
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                {group.rows.length}
+              </span>
+            </div>
             {group.id && group.id !== "bundles" ? (
               <CategoryLayoutPicker
                 value={layouts[group.id] ?? "list"}
@@ -124,16 +131,16 @@ export function SynckerjaOrderCatalogPanel({
                 onChange={(layout) => onLayoutChange(group.id as string, layout)}
               />
             ) : (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-[11px] text-muted-foreground">
                 {t("synckerjaOrder.catalog.layoutListOnly", "List only")}
               </span>
             )}
           </div>
-          <div className="space-y-1 p-2">
+          <div className="grid grid-cols-1 gap-1 p-1.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {group.rows.map((row) => (
               <label
                 key={row.id}
-                className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/50"
+                className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-muted/50"
               >
                 <Checkbox
                   checked={row.opted_in}
@@ -141,13 +148,13 @@ export function SynckerjaOrderCatalogPanel({
                   onCheckedChange={(v) => onToggle(row.id, v === true, row.kind ?? "product")}
                 />
                 {row.photo_url ? (
-                  <img src={row.photo_url} alt="" className="h-10 w-10 rounded object-cover" />
+                  <img src={row.photo_url} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
                 ) : (
-                  <div className="h-10 w-10 rounded bg-muted" />
+                  <div className="h-8 w-8 shrink-0 rounded bg-muted" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{row.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
+                  <p className="truncate text-xs font-medium leading-tight">{row.name}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">
                     {formatStoreCheckoutRp(row.unit_price)}
                   </p>
                 </div>

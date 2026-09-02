@@ -45,10 +45,17 @@ export function SynckerjaOrderPageSkeleton() {
                       <Skeleton className="h-9 w-44" />
                     </div>
                   </div>
-                  <div className="flex min-h-0 flex-1 flex-col p-4">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <Skeleton key={i} className="mb-2 h-10 w-full" />
-                    ))}
+                  <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(280px,360px)_1fr]">
+                    <div className="space-y-3 border-b border-border p-4 lg:border-b-0 lg:border-r">
+                      <Skeleton className="h-9 w-full" />
+                      <Skeleton className="h-9 w-full" />
+                      <Skeleton className="h-9 w-full" />
+                      <Skeleton className="h-24 w-full" />
+                      <Skeleton className="h-32 w-full" />
+                    </div>
+                    <div className="flex min-h-[420px] items-center justify-center p-4">
+                      <Skeleton className="h-80 w-full max-w-sm rounded-xl" />
+                    </div>
                   </div>
                 </div>
               </div>
