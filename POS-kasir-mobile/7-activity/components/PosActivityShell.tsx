@@ -1,22 +1,48 @@
 import type { ReactNode } from "react";
 import { PosAppFooterBar } from "@/pos-mobile/shared/layout/PosAppFooterBar";
+import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
 
 type Props = {
   title: string;
   outletLabel: string;
   menuAriaLabel: string;
   onOpenMenu: () => void;
+  isPhoneLayout?: boolean;
   children: ReactNode;
 };
 
-/** Header + split body + footer for Activity. */
+/**
+ * Activity shell — tablet: title header + card; phone: safe-area + full-bleed body,
+ * module title in footer (Menu + title), no icon nav / no top title bar.
+ */
 export function PosActivityShell({
   title,
   outletLabel,
   menuAriaLabel,
   onOpenMenu,
+  isPhoneLayout,
   children,
 }: Props) {
+  const footer = (
+    <PosAppFooterBar
+      outletLabel={isPhoneLayout ? title : outletLabel}
+      onOpenMenu={onOpenMenu}
+      menuAriaLabel={menuAriaLabel}
+    />
+  );
+
+  if (isPhoneLayout) {
+    return (
+      <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-white">
+        <PosSafeAreaTopSpacer />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+          {children}
+        </div>
+        {footer}
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-slate-100">
       <div className="flex min-h-0 flex-1 flex-col p-4 pb-3">
@@ -27,11 +53,7 @@ export function PosActivityShell({
           {children}
         </div>
       </div>
-      <PosAppFooterBar
-        outletLabel={outletLabel}
-        onOpenMenu={onOpenMenu}
-        menuAriaLabel={menuAriaLabel}
-      />
+      {footer}
     </div>
   );
 }

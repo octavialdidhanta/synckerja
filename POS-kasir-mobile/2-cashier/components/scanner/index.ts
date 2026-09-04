@@ -1,0 +1,1 @@
+export { PosCameraBarcodeScanDialog } from "./PosCameraBarcodeScanDialog";

@@ -227,7 +227,29 @@ All colors MUST be HSL.
   }
   /** Hanya inset sistem dari plugin (`--safe-area-inset-top`); tanpa pengurangan manual. */
   .safe-area-top {
-    padding-top: var(--safe-area-inset-top, 0px) !important;
+    padding-top: max(
+      var(--safe-area-inset-top, 0px),
+      env(safe-area-inset-top, 0px)
+    ) !important;
+  }
+
+  /**
+   * POS phone sheets: fast close/snap, but NEVER interpolate during drag.
+   * `!important` overrides Vaul's 500ms close; `.pos-smooth-drawer-dragging`
+   * restores `transition: none` so swipe tracks the finger (no mid-screen stall).
+   */
+  [data-vaul-drawer].pos-smooth-drawer {
+    transition: transform 0.2s cubic-bezier(0.32, 0.72, 0, 1) !important;
+    will-change: transform;
+  }
+  [data-vaul-drawer].pos-smooth-drawer.pos-smooth-drawer-dragging {
+    transition: none !important;
+  }
+  [data-vaul-overlay].pos-smooth-drawer-overlay {
+    transition: opacity 0.2s cubic-bezier(0.32, 0.72, 0, 1) !important;
+  }
+  [data-vaul-overlay].pos-smooth-drawer-overlay.pos-smooth-drawer-dragging {
+    transition: none !important;
   }
 
   /**

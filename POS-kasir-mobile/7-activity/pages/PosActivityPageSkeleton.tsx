@@ -1,7 +1,40 @@
 import { PosAppFooterBar } from "@/pos-mobile/shared/layout/PosAppFooterBar";
+import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
+import { usePosCashierIsPhoneLayout } from "@/pos-mobile/2-cashier/hooks/usePosCashierIsPhoneLayout";
 
-/** Layout-matched skeleton for `/pos/activity` (split master–detail). */
+/** Layout-matched skeleton for `/pos/activity` (split tablet / phone swipe List|Detail). */
 export function PosActivityPageSkeleton() {
+  const isPhoneLayout = usePosCashierIsPhoneLayout();
+
+  if (isPhoneLayout) {
+    return (
+      <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-white">
+        <PosSafeAreaTopSpacer />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+          <div className="border-b border-slate-100 p-3">
+            <div className="h-10 w-full animate-pulse rounded-md bg-slate-100" />
+          </div>
+          <div className="space-y-2 p-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex gap-2">
+                <div className="h-9 w-9 animate-pulse rounded-md bg-slate-100" />
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <div className="h-4 w-24 animate-pulse rounded bg-slate-100" />
+                  <div className="h-3 w-full animate-pulse rounded bg-slate-50" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <PosAppFooterBar
+          outletLabel="…"
+          onOpenMenu={() => undefined}
+          menuAriaLabel="Menu"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-slate-100">
       <div className="flex min-h-0 flex-1 flex-col p-4 pb-3">
@@ -14,7 +47,7 @@ export function PosActivityPageSkeleton() {
               <div className="h-10 w-full animate-pulse rounded-md bg-slate-100" />
             </div>
             <div className="space-y-2 p-3">
-              {Array.from({ length: 8 }).map((_, i) => (
+              {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="flex gap-2">
                   <div className="h-9 w-9 animate-pulse rounded-md bg-slate-100" />
                   <div className="min-w-0 flex-1 space-y-1.5">
@@ -25,17 +58,8 @@ export function PosActivityPageSkeleton() {
               ))}
             </div>
           </div>
-          <div className="flex min-w-0 flex-1 flex-col p-4">
-            <div className="mb-4 flex gap-2">
-              <div className="h-11 min-w-0 flex-1 animate-pulse rounded-md bg-slate-100" />
-              <div className="h-11 min-w-0 flex-1 animate-pulse rounded-md bg-slate-100" />
-            </div>
-            <div className="mb-3 h-3 w-16 animate-pulse rounded bg-slate-100" />
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-12 w-full animate-pulse rounded bg-slate-50" />
-              ))}
-            </div>
+          <div className="min-w-0 flex-1 p-4">
+            <div className="mx-auto h-40 max-w-sm animate-pulse rounded-lg bg-slate-100" />
           </div>
         </div>
       </div>

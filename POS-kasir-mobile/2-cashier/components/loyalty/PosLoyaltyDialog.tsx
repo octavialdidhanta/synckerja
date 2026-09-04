@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Trophy } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -27,6 +27,8 @@ import {
 } from "../../hooks/usePosOutletRewards";
 import { loyaltyOpenStateFromCashier } from "../../lib/posLoyaltyIdentity";
 import type { PosCashierCustomer } from "../../lib/posCashierCustomer";
+import { usePosCashierIsPhoneLayout } from "../../hooks/usePosCashierIsPhoneLayout";
+import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
 import {
   PosMemberLookupPanel,
   PosMemberSaveNameSheet,
@@ -71,6 +73,7 @@ export function PosLoyaltyDialog({
   onBack,
 }: Props) {
   const { t } = useAppTranslation();
+  const isPhone = usePosCashierIsPhoneLayout();
   const { organizationId } = useCurrentOrg();
   const lookup = usePosCustomerPhoneLookup();
   const rewardsQuery = usePosOutletRewards(outletId);
@@ -166,97 +169,124 @@ export function PosLoyaltyDialog({
     onContinue({ customer: null, reward: selectedReward });
   };
 
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) onBack();
-        onOpenChange(next);
-      }}
-    >
-      <DialogContent
-        className="flex h-[min(90dvh,720px)] max-h-[min(90dvh,720px)] w-[min(92vw,560px)] max-w-none flex-col gap-0 overflow-hidden rounded-xl border-0 p-0 shadow-xl [&>button]:hidden"
-        aria-describedby={undefined}
+  const handleOpenChange = (next: boolean) => {
+    if (!next) onBack();
+    onOpenChange(next);
+  };
+
+  const titleText = t(POS_LOYALTY_I18N.title, "Loyalty Program");
+
+  const header = (titleNode: ReactNode) => (
+    <div className="relative flex shrink-0 items-center justify-center border-b border-slate-100 px-3 py-3">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="absolute left-3 top-1/2 -translate-y-1/2 border-primary text-primary"
+        onClick={onBack}
       >
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="relative flex shrink-0 items-center justify-center border-b border-slate-100 px-3 py-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="absolute left-3 top-1/2 -translate-y-1/2 border-primary text-primary"
-            onClick={onBack}
-          >
-            {t(POS_LOYALTY_I18N.cancel, "Cancel")}
-          </Button>
-          <DialogTitle className="text-base font-semibold">
-            {t(POS_LOYALTY_I18N.title, "Loyalty Program")}
-          </DialogTitle>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="absolute right-3 top-1/2 -translate-y-1/2 border-primary text-primary"
-            onClick={onSkip}
-          >
-            {t(POS_LOYALTY_I18N.skip, "Skip")}
-          </Button>
+        {t(POS_LOYALTY_I18N.cancel, "Cancel")}
+      </Button>
+      {titleNode}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="absolute right-3 top-1/2 -translate-y-1/2 border-primary text-primary"
+        onClick={onSkip}
+      >
+        {t(POS_LOYALTY_I18N.skip, "Skip")}
+      </Button>
+    </div>
+  );
+
+  const body = (
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
+        <div className="mb-4 flex flex-col items-center text-center">
+          <span className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 text-sky-600">
+            <Trophy className="h-7 w-7" aria-hidden />
+          </span>
+          <p className="text-sm text-slate-600">
+            {t(
+              POS_LOYALTY_I18N.pointsHint,
+              "Look up a member or skip to payment",
+            )}
+          </p>
         </div>
 
-        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
-          <div className="mb-4 flex flex-col items-center text-center">
-            <span className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 text-sky-600">
-              <Trophy className="h-7 w-7" aria-hidden />
-            </span>
-            <p className="text-sm text-slate-600">
-              {t(
-                POS_LOYALTY_I18N.pointsHint,
-                "Look up a member or skip to payment",
-              )}
-            </p>
-          </div>
+        <PosMemberLookupPanel
+          phoneLocal={phoneLocal}
+          onPhoneLocalChange={(value) => {
+            setPhoneLocal(value);
+            setChecked(false);
+            setCustomer(null);
+          }}
+          checking={lookup.isPending}
+          checked={checked}
+          customer={customer}
+          onCheck={() => void runCheck()}
+          onOpenSaveName={() => setSaveNameOpen(true)}
+        />
 
-          <PosMemberLookupPanel
-            phoneLocal={phoneLocal}
-            onPhoneLocalChange={(value) => {
-              setPhoneLocal(value);
-              setChecked(false);
-              setCustomer(null);
-            }}
-            checking={lookup.isPending}
-            checked={checked}
-            customer={customer}
-            onCheck={() => void runCheck()}
-            onOpenSaveName={() => setSaveNameOpen(true)}
-          />
+        <PosLoyaltyRewardsList
+          rewards={rewards}
+          selectedRewardId={selectedRewardId}
+          open={rewardsOpen}
+          onToggleOpen={() => setRewardsOpen((v) => !v)}
+          onSelect={setSelectedRewardId}
+        />
+      </div>
 
-          <PosLoyaltyRewardsList
-            rewards={rewards}
-            selectedRewardId={selectedRewardId}
-            open={rewardsOpen}
-            onToggleOpen={() => setRewardsOpen((v) => !v)}
-            onSelect={setSelectedRewardId}
-          />
-        </div>
-
-        <div className="shrink-0 border-t border-slate-100 p-3">
+      <div className="shrink-0 border-t border-slate-100 bg-white">
+        <div className="px-3 pt-3 pb-3">
           <Button type="button" className="h-11 w-full" onClick={handleContinue}>
             {t(POS_LOYALTY_I18N.continue, "Continue")}
           </Button>
         </div>
+        {isPhone ? (
+          <div
+            aria-hidden
+            className="h-[max(0.75rem,env(safe-area-inset-bottom,0px),var(--footer-bottom-inset,0px),3rem)]"
+          />
+        ) : null}
+      </div>
 
-        <PosMemberSaveNameSheet
-          open={saveNameOpen}
-          phoneLocal={phoneLocal}
-          initialName={
-            customer && !isGenericCustomerName(customer.name) ? customer.name : ""
-          }
-          saving={savingName}
-          onSave={(name) => void persistName(name)}
-          onContinueWithoutName={continueWithoutName}
-          onClose={() => setSaveNameOpen(false)}
-        />
-        </div>
+      <PosMemberSaveNameSheet
+        open={saveNameOpen}
+        phoneLocal={phoneLocal}
+        initialName={
+          customer && !isGenericCustomerName(customer.name) ? customer.name : ""
+        }
+        saving={savingName}
+        onSave={(name) => void persistName(name)}
+        onContinueWithoutName={continueWithoutName}
+        onClose={() => setSaveNameOpen(false)}
+      />
+    </div>
+  );
+
+  if (isPhone) {
+    if (!open) return null;
+    return (
+      <div className="fixed inset-0 z-[70] flex flex-col overflow-hidden bg-white">
+        <PosSafeAreaTopSpacer />
+        {header(<h1 className="text-base font-semibold text-slate-900">{titleText}</h1>)}
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="flex h-[min(90dvh,720px)] max-h-[min(90dvh,720px)] w-[min(92vw,560px)] max-w-none flex-col gap-0 overflow-hidden rounded-xl border-0 p-0 shadow-xl [&>button]:hidden"
+        aria-describedby={undefined}
+      >
+        {header(
+          <DialogTitle className="text-base font-semibold">{titleText}</DialogTitle>,
+        )}
+        {body}
       </DialogContent>
     </Dialog>
   );

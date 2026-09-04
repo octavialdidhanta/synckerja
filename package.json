@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "icons:build": "node scripts/generate-synckerja-icons.mjs",
+    "icons:build:pos": "node scripts/generate-synckerja-pos-icons.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:deno:ctwa": "deno test supabase/functions/_shared/ctwaReferral.test.ts supabase/functions/_shared/ctwaLeadSync.test.ts",

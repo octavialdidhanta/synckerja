@@ -1198,6 +1198,11 @@
     "switchOutlet": "Switch outlet",
     "logout": "Log out",
     "menu": "Menu",
+    "phone": {
+      "paneMenu": "Menu",
+      "paneBill": "Bill",
+      "paneSwitchAria": "Menu or bill"
+    },
     "brandTitle": "Synckerja POS",
     "missingOutlet": "Select an outlet first",
     "customerName": "Name",
@@ -1208,6 +1213,16 @@
     "payError": "Payment failed",
     "cashierQrClaimSuccess": "Guest order loaded",
     "cashierQrClaimError": "Could not load order",
+    "scan": {
+      "cameraTitle": "Scan barcode",
+      "cameraClose": "Close",
+      "cameraUnsupported": "Camera barcode is not supported on this device. Use a Bluetooth HID scanner instead.",
+      "cameraError": "Could not open camera",
+      "openCamera": "Scan",
+      "productAdded": "Product added",
+      "skuNotFound": "No product matches this SKU",
+      "featureDisabled": "This scan type is turned off in Settings"
+    },
     "payAmountDueInvalid": "Cannot open payment: bill amount is zero.",
     "recipeOutOfStock": "Out of stock",
     "allCategories": "All",
@@ -1415,6 +1430,24 @@
       "newBillConfirm": "Clear the current bill and start a new walk-in bill?",
       "needTableToSave": "Select a table before saving an open bill.",
       "synced": "Synced"
+    },
+    "refund": {
+      "confirmTitle": "Refund this sale?",
+      "confirmDescRestore": "Money and stock will be restored.",
+      "confirmDescWaste": "Money will be refunded. Stock will not be restored because the kitchen already started this order.",
+      "reasonLabel": "Reason",
+      "reasonLabelRestore": "Reason (optional)",
+      "reasonLabelWaste": "Reason (required)",
+      "reasonPlaceholder": "e.g. Guest left / wrong order",
+      "reasonRequired": "Reason must be at least 3 characters",
+      "policyLoading": "Checking kitchen tickets…",
+      "cancel": "Cancel",
+      "confirm": "Select refund",
+      "successRestore": "Sale refunded · stock restored",
+      "successWaste": "Sale refunded · stock not restored",
+      "kitchenVoidWarning": "Sale refunded, but kitchen tickets could not be voided.",
+      "wasteReasonRequired": "Enter a reason of at least 3 characters.",
+      "policyChangedNeedReason": "Kitchen started this order. Enter a reason and try again."
     }
   },
   "posTableMap": {
@@ -1492,6 +1525,7 @@
     "revertAction": "Revert",
     "recalledBadge": "Recalled",
     "revertedBadge": "Reverted",
+    "restoreWindowExpired": "This ticket can only be restored within 15 minutes of completion.",
     "emptyRecall": "No recently finished tickets to recall.",
     "emptyCompleted": "No completed tickets in history yet.",
     "settings": {
@@ -1519,6 +1553,7 @@
       "switchOutlet": "Switch outlet",
       "logout": "Log out",
       "backToPos": "Back to Point of Sale",
+      "navPos": "POS",
       "close": "Close",
       "fontsHeading": "Fonts",
       "fontDefault": "Default",
@@ -1617,10 +1652,26 @@
     "navBarcodeScanner": "Barcode Scanner",
     "navGobizEdc": "GoBiz PLUS EDC",
     "navCustomerDisplay": "Customer Display",
+    "navKitchenDisplay": "Kitchen Display",
     "printerTitle": "Printer",
     "barcodeScannerTitle": "Barcode Scanner",
+    "barcodeScanner": {
+      "hint": "Pair a Bluetooth scanner in system settings as a keyboard (HID). Camera scan is available on the cashier screen.",
+      "wedge": "Keyboard wedge (HID)",
+      "wedgeHint": "Accept scans from a Bluetooth / USB scanner that types like a keyboard.",
+      "camera": "Camera scan",
+      "cameraHint": "Show the camera scanner button on the cashier screen.",
+      "guestQr": "Guest order QR (SYNK)",
+      "product": "Product SKU",
+      "productHint": "Add a product to the bill when the scanned code matches the catalog SKU.",
+      "testTitle": "Test wedge",
+      "testStart": "Start test scan",
+      "testListening": "Listening… scan now",
+      "lastScan": "Last scan"
+    },
     "gobizEdcTitle": "GoBiz PLUS EDC",
     "customerDisplayTitle": "Customer Display",
+    "kitchenDisplayTitle": "Kitchen Display",
     "hardwareSoon": "Coming soon",
     "printer": {
       "available": "Available Printers",
@@ -1665,6 +1716,13 @@
       "ticketPrinted": "Order ticket printed",
       "billPrinted": "Bill printed",
       "noReceiptPrinter": "No printer assigned for Receipt/Bill",
+      "noReceiptPrinterHint": "Open Settings → Printer, tap Refresh, pick your Bluetooth printer, then Save with Receipt/Bill on.",
+      "openSettings": "Open Settings",
+      "assignedSaved": "Printer saved. Receipt/Bill is on — you can print bills now.",
+      "receiptBillOffWarn": "Receipt/Bill is off. Print Bill will fail until you turn it on for a printer.",
+      "testPrint": "Test Print",
+      "testPrintOk": "Test print sent — check the printer",
+      "testPrintFail": "Could not connect or print. Pair the printer in system Bluetooth, turn it on, then try again.",
       "noTicketPrinter": "No printer assigned for Order Tickets",
       "ticketSkippedOnPay": "Tickets will print after payment (setting enabled)"
     },
@@ -1787,7 +1845,13 @@
     "movementAdded": "Cash movement recorded.",
     "leaveNotOpener": "Only the cashier who opened this shift can end it before leaving.",
     "leaveEndFirst": "End the shift first to reconcile the cash drawer.",
-    "loading": "Loading shift…"
+    "back": "Back",
+    "loading": "Loading shift…",
+    "phone": {
+      "paneList": "List",
+      "paneDetail": "Detail",
+      "paneSwitchAria": "List or detail"
+    }
   },
   "posActivity": {
     "title": "Activity",
@@ -1834,7 +1898,11 @@
     "noLead": "This transaction has no customer lead for digital receipt.",
     "refundConfirmTitle": "Refund this sale?",
     "refundConfirmDesc": "Stock will be restored and the sales activity rolled back.",
+    "refundConfirmDescRestore": "Money and stock will be restored.",
+    "refundConfirmDescWaste": "Money will be refunded. Stock will not be restored because the kitchen already started this order.",
     "refundSuccess": "Checkout stock refunded",
+    "refundSuccessRestore": "Sale refunded · stock restored",
+    "refundSuccessWaste": "Sale refunded · stock not restored",
     "refundError": "Failed to refund checkout stock",
     "refundNoPermission": "You do not have permission to issue refunds.",
     "sendNoPermission": "You do not have permission to resend receipts.",
@@ -1845,6 +1913,11 @@
     "change": "Change",
     "paid": "Paid",
     "taxIncluded": "included",
-    "paymentReference": "Reference"
+    "paymentReference": "Reference",
+    "phone": {
+      "paneList": "List",
+      "paneDetail": "Detail",
+      "paneSwitchAria": "List or detail"
+    }
   }
 }

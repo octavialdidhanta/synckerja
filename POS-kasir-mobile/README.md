@@ -15,7 +15,7 @@ UI surface for **Synckerja POS** (tablet-first), separate from Synckerja Office 
 | `/pos/register` | Register (POS shell) | Public |
 | `/pos/forgot-password` | Forgot password (POS shell) | Public |
 | `/pos/select-outlet` | Choose outlet after login/2FA | Authenticated |
-| `/pos/cashier` | Cashier (grid + bill + bottom nav) | Authenticated |
+| `/pos/cashier` | Cashier — tablet: grid + bill side-by-side; phone (≤767px): Menu/Bill switcher + swipe | Authenticated |
 | `/pos/table-map` | Table Map (read-only floor plan) | Authenticated |
 | `/pos/settings` | Settings (master–detail) | Authenticated |
 | `/pos/shift` | Shift / cash drawer (master–detail) | Authenticated |
@@ -34,7 +34,12 @@ POS-kasir-mobile/
   1-outlet-select/
   2-cashier/
     components/
+      phone/            # Phone Menu|Bill switcher + slider (≤767px)
       sidebar/          # Brand-blue menu drawer
+    hooks/
+      usePosCashierPhoneLayout.ts
+    lib/
+      posCashierPhoneLayout.ts
   3-settings/           # Master–detail settings
     components/hardware/
       printer/          # Printer list, Bluetooth discover, edit roles, ticket prefs
@@ -72,6 +77,9 @@ Import alias: `@/pos-mobile/*` → this folder.
 1. `/pos` → login → (MFA) → org/plan gates → `/pos/select-outlet`
 2. **Lanjutkan** → `/pos/cashier` (never Office `/`)
 3. Cashier: add products → **Bayar** (walk-in cash checkout; requires open shift or auto-start)
+   - **Phone (≤767px):** single pane with **Menu | Bill** switcher (cold start = Menu); swipe between panes; bottom Favorit/Library/Custom returns to Menu. Status bar: white + dark icons via `usePosTabletShell`; dedicated `PosSafeAreaTopSpacer` band *above* the blue soft top bar (and menu drawer) — do not pad the blue bar itself with `safe-area-top`.
+   - **Other phone modules** (Activity, Inventory, Shift, Settings, Table Map): no title top bar; footer is **Menu + module title** only (navigate via sidebar Menu). Point of Sale keeps Favorit/Library/Custom tabs.
+   - **Tablet (≥768px):** catalog + bill side-by-side (unchanged).
 4. Menu → **Pengaturan** → `/pos/settings`
 5. Menu → **Shift** → `/pos/shift`
 6. Menu → **Denah Meja** → `/pos/table-map` (tap table → cashier; Save Bill marks Occupied + live duration)

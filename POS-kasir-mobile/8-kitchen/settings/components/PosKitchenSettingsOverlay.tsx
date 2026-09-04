@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/shared/hooks/use-toast";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
 import { useEnsureDefaultKitchenSalesTypes } from "../hooks/useEnsureDefaultKitchenSalesTypes";
 import { usePosKitchenOutletSettings } from "../hooks/usePosKitchenOutletSettings";
 import type {
@@ -57,6 +58,7 @@ function cloneColors(colors: KitchenThemeColors): KitchenThemeColors {
 
 /**
  * Full-bleed KDS settings overlay (not the POS blue menu drawer).
+ * Top/bottom safe-area bands keep tabs and Save clear of system chrome.
  */
 export function PosKitchenSettingsOverlay({
   outletId,
@@ -160,53 +162,58 @@ export function PosKitchenSettingsOverlay({
   };
 
   return (
-    <div className="absolute inset-0 z-40 flex flex-col bg-slate-100">
-      <PosKitchenSettingsTabs active={tab} onChange={setTab} onClose={onClose} />
+    <div className="absolute inset-0 z-40 flex flex-col bg-white">
+      <PosSafeAreaTopSpacer />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-100">
+        <PosKitchenSettingsTabs active={tab} onChange={setTab} onClose={onClose} />
 
-      <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {tab === "display_modes" ? (
-          <div className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-[1fr_280px]">
-            <PosKitchenDisplayModesPanel value={draftMode} onChange={setDraftMode} />
-            <PosKitchenOrderTypesPanel
-              value={draftVisibility}
-              onChange={setDraftVisibility}
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
+          {tab === "display_modes" ? (
+            <div className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-[1fr_280px]">
+              <PosKitchenDisplayModesPanel value={draftMode} onChange={setDraftMode} />
+              <PosKitchenOrderTypesPanel
+                value={draftVisibility}
+                onChange={setDraftVisibility}
+              />
+            </div>
+          ) : null}
+          {tab === "fonts_colors" ? (
+            <PosKitchenFontsColorsPanel
+              fontSize={draftFontSize}
+              colors={draftColors}
+              onFontSizeChange={setDraftFontSize}
+              onColorsChange={setDraftColors}
             />
-          </div>
-        ) : null}
-        {tab === "fonts_colors" ? (
-          <PosKitchenFontsColorsPanel
-            fontSize={draftFontSize}
-            colors={draftColors}
-            onFontSizeChange={setDraftFontSize}
-            onColorsChange={setDraftColors}
-          />
-        ) : null}
-        {tab === "transition_times" ? (
-          <PosKitchenTransitionTimesPanel
-            value={draftFirePolicy}
-            onChange={setDraftFirePolicy}
-          />
-        ) : null}
-        {tab === "assign_store" ? (
-          <PosKitchenAssignStorePanel
-            outletName={outletName}
-            onBeforeNavigateToPos={onClose}
-          />
+          ) : null}
+          {tab === "transition_times" ? (
+            <PosKitchenTransitionTimesPanel
+              value={draftFirePolicy}
+              onChange={setDraftFirePolicy}
+            />
+          ) : null}
+          {tab === "assign_store" ? (
+            <PosKitchenAssignStorePanel
+              outletName={outletName}
+              onBeforeNavigateToPos={onClose}
+            />
+          ) : null}
+        </div>
+
+        {showSave ? (
+          <footer className="flex flex-shrink-0 flex-col border-t border-slate-200 bg-white safe-area-bottom">
+            <div className="flex justify-end px-4 py-3">
+              <button
+                type="button"
+                disabled={!dirty || settingsQuery.save.isPending}
+                onClick={() => void onSave()}
+                className="min-h-11 rounded-lg bg-teal-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700 disabled:opacity-40"
+              >
+                {t(POS_KITCHEN_SETTINGS_I18N.saveChanges, "Save Changes")}
+              </button>
+            </div>
+          </footer>
         ) : null}
       </div>
-
-      {showSave ? (
-        <footer className="flex flex-shrink-0 justify-end border-t border-slate-200 bg-white px-4 py-3">
-          <button
-            type="button"
-            disabled={!dirty || settingsQuery.save.isPending}
-            onClick={() => void onSave()}
-            className="min-h-11 rounded-lg bg-teal-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700 disabled:opacity-40"
-          >
-            {t(POS_KITCHEN_SETTINGS_I18N.saveChanges, "Save Changes")}
-          </button>
-        </footer>
-      ) : null}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { SynckerjaBrandMark } from "@/shared/components/mobile/SynckerjaBrandMark";
+import { PosBrandMark } from "@/pos-mobile/shared/components/PosBrandMark";
 import { POS_AUTH_PATHS } from "../lib/posAuthPaths";
 import { stashPosLoginEmail } from "../lib/posLoginEmailStorage";
 
@@ -31,7 +31,7 @@ export function PosLoginIdentifierForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex w-full flex-col items-center gap-5">
-      <SynckerjaBrandMark size="md" />
+      <PosBrandMark />
       <p className="text-center text-sm text-muted-foreground">
         {t("posAuth.login.subtitle", "Sign in with email")}
       </p>

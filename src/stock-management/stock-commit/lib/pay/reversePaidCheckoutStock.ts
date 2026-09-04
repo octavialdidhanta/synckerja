@@ -16,6 +16,8 @@ export async function reversePaidCheckoutStock(args: {
   rollbackActivity?: boolean;
   sessionId?: string | null;
   outletId?: string | null;
+  /** Skip catalog + kitchen stock reverse (cooked F&B waste refund). */
+  skipStockReverse?: boolean;
 }): Promise<ReversePaidCheckoutResult> {
   const activityId = args.activityId?.trim();
   if (!activityId) {
@@ -23,6 +25,19 @@ export async function reversePaidCheckoutStock(args: {
   }
 
   const reverseId = args.reverseId ?? `refund-${activityId}`;
+
+  if (args.skipStockReverse) {
+    let activityRolledBack = false;
+    if (args.rollbackActivity !== false) {
+      await rollbackStoreCheckoutSalesActivity(activityId);
+      activityRolledBack = true;
+    }
+    return {
+      stockReversed: false,
+      kitchenReversed: false,
+      activityRolledBack,
+    };
+  }
 
   await reverseStoreCheckoutStock({
     organizationId: args.organizationId,

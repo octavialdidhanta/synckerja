@@ -95,7 +95,7 @@ export function OrderItemCustomizeOverlay({
     <div
       className={`absolute inset-0 z-40 flex flex-col bg-white ${orderDetailMotionClass(exiting)}`}
     >
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <OrderItemCustomizeHero
           photoUrl={photoUrl}
           name={item.name}

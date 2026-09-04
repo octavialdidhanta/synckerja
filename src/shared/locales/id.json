@@ -1198,6 +1198,11 @@
     "switchOutlet": "Ganti outlet",
     "logout": "Keluar",
     "menu": "Menu",
+    "phone": {
+      "paneMenu": "Menu",
+      "paneBill": "Bill",
+      "paneSwitchAria": "Menu atau bill"
+    },
     "brandTitle": "Synckerja POS",
     "missingOutlet": "Pilih outlet terlebih dahulu",
     "customerName": "Nama",
@@ -1208,6 +1213,16 @@
     "payError": "Pembayaran gagal",
     "cashierQrClaimSuccess": "Pesanan tamu dimuat",
     "cashierQrClaimError": "Gagal memuat pesanan",
+    "scan": {
+      "cameraTitle": "Scan barcode",
+      "cameraClose": "Tutup",
+      "cameraUnsupported": "Scan kamera tidak didukung di perangkat ini. Gunakan scanner Bluetooth HID.",
+      "cameraError": "Tidak bisa membuka kamera",
+      "openCamera": "Scan",
+      "productAdded": "Produk ditambahkan",
+      "skuNotFound": "Tidak ada produk dengan SKU ini",
+      "featureDisabled": "Jenis scan ini dimatikan di Pengaturan"
+    },
     "payAmountDueInvalid": "Tidak bisa membuka pembayaran: jumlah tagihan nol.",
     "recipeOutOfStock": "Stok habis",
     "allCategories": "Semua",
@@ -1415,6 +1430,24 @@
       "newBillConfirm": "Kosongkan bill saat ini dan mulai bill walk-in baru?",
       "needTableToSave": "Pilih meja dulu sebelum menyimpan open bill.",
       "synced": "Tersinkron"
+    },
+    "refund": {
+      "confirmTitle": "Refund penjualan ini?",
+      "confirmDescRestore": "Uang dan stok akan dikembalikan.",
+      "confirmDescWaste": "Uang dikembalikan. Stok tidak dikembalikan karena pesanan sudah dikerjakan dapur.",
+      "reasonLabel": "Alasan",
+      "reasonLabelRestore": "Alasan (opsional)",
+      "reasonLabelWaste": "Alasan (wajib)",
+      "reasonPlaceholder": "mis. Tamu pergi / pesanan salah",
+      "reasonRequired": "Alasan minimal 3 karakter",
+      "policyLoading": "Memeriksa tiket dapur…",
+      "cancel": "Batal",
+      "confirm": "Pilih refund",
+      "successRestore": "Penjualan di-refund · stok dikembalikan",
+      "successWaste": "Penjualan di-refund · stok tidak dikembalikan",
+      "kitchenVoidWarning": "Penjualan di-refund, tetapi tiket dapur gagal di-void.",
+      "wasteReasonRequired": "Isi alasan minimal 3 karakter.",
+      "policyChangedNeedReason": "Dapur sudah mulai pesanan ini. Isi alasan lalu coba lagi."
     }
   },
   "posTableMap": {
@@ -1492,6 +1525,7 @@
     "revertAction": "Revert",
     "recalledBadge": "Recalled",
     "revertedBadge": "Reverted",
+    "restoreWindowExpired": "Tiket ini hanya bisa dikembalikan dalam 15 menit setelah selesai.",
     "emptyRecall": "Tidak ada tiket baru selesai untuk di-recall.",
     "emptyCompleted": "Belum ada riwayat tiket selesai.",
     "settings": {
@@ -1519,6 +1553,7 @@
       "switchOutlet": "Ganti outlet",
       "logout": "Keluar",
       "backToPos": "Kembali ke Point of Sale",
+      "navPos": "POS",
       "close": "Tutup",
       "fontsHeading": "Font",
       "fontDefault": "Default",
@@ -1617,10 +1652,26 @@
     "navBarcodeScanner": "Barcode Scanner",
     "navGobizEdc": "GoBiz PLUS EDC",
     "navCustomerDisplay": "Customer Display",
+    "navKitchenDisplay": "Kitchen Display",
     "printerTitle": "Printer",
     "barcodeScannerTitle": "Barcode Scanner",
+    "barcodeScanner": {
+      "hint": "Pair scanner Bluetooth di pengaturan sistem sebagai keyboard (HID). Scan kamera tersedia di layar kasir.",
+      "wedge": "Keyboard wedge (HID)",
+      "wedgeHint": "Terima scan dari scanner Bluetooth / USB yang mengetik seperti keyboard.",
+      "camera": "Scan kamera",
+      "cameraHint": "Tampilkan tombol scan kamera di layar kasir.",
+      "guestQr": "QR pesanan tamu (SYNK)",
+      "product": "SKU produk",
+      "productHint": "Tambah produk ke bill jika kode yang discan cocok dengan SKU katalog.",
+      "testTitle": "Uji wedge",
+      "testStart": "Mulai uji scan",
+      "testListening": "Mendengarkan… scan sekarang",
+      "lastScan": "Scan terakhir"
+    },
     "gobizEdcTitle": "GoBiz PLUS EDC",
     "customerDisplayTitle": "Customer Display",
+    "kitchenDisplayTitle": "Kitchen Display",
     "hardwareSoon": "Segera hadir",
     "printer": {
       "available": "Printer yang Tersedia",
@@ -1665,6 +1716,13 @@
       "ticketPrinted": "Tiket pesanan dicetak",
       "billPrinted": "Bill dicetak",
       "noReceiptPrinter": "Belum ada printer untuk Struk/Bill",
+      "noReceiptPrinterHint": "Buka Pengaturan → Printer, ketuk Refresh, pilih printer Bluetooth, lalu Simpan dengan Struk/Bill aktif.",
+      "openSettings": "Buka Pengaturan",
+      "assignedSaved": "Printer tersimpan. Struk/Bill aktif — Anda bisa cetak bill sekarang.",
+      "receiptBillOffWarn": "Struk/Bill nonaktif. Cetak Bill akan gagal sampai Anda mengaktifkannya di salah satu printer.",
+      "testPrint": "Cetak Uji",
+      "testPrintOk": "Cetak uji terkirim — periksa printer",
+      "testPrintFail": "Gagal connect/cetak. Pair printer di Bluetooth sistem, nyalakan printer, lalu coba lagi.",
       "noTicketPrinter": "Belum ada printer untuk Tiket Pesanan",
       "ticketSkippedOnPay": "Tiket akan dicetak setelah pembayaran (pengaturan aktif)"
     },
@@ -1787,7 +1845,13 @@
     "movementAdded": "Kas masuk/keluar dicatat.",
     "leaveNotOpener": "Hanya kasir yang membuka shift yang dapat mengakhiri sebelum keluar.",
     "leaveEndFirst": "Akhiri shift terlebih dahulu untuk mempertanggungjawabkan kas.",
-    "loading": "Memuat shift…"
+    "back": "Kembali",
+    "loading": "Memuat shift…",
+    "phone": {
+      "paneList": "Daftar",
+      "paneDetail": "Detail",
+      "paneSwitchAria": "Daftar atau detail"
+    }
   },
   "posActivity": {
     "title": "Aktivitas",
@@ -1834,7 +1898,11 @@
     "noLead": "Transaksi ini tidak punya lead pelanggan untuk struk digital.",
     "refundConfirmTitle": "Refund penjualan ini?",
     "refundConfirmDesc": "Stok akan dikembalikan dan aktivitas penjualan digulirkan balik.",
+    "refundConfirmDescRestore": "Uang dan stok akan dikembalikan.",
+    "refundConfirmDescWaste": "Uang dikembalikan. Stok tidak dikembalikan karena pesanan sudah dikerjakan dapur.",
     "refundSuccess": "Stok checkout di-refund",
+    "refundSuccessRestore": "Penjualan di-refund · stok dikembalikan",
+    "refundSuccessWaste": "Penjualan di-refund · stok tidak dikembalikan",
     "refundError": "Gagal refund stok checkout",
     "refundNoPermission": "Anda tidak punya izin untuk melakukan refund.",
     "sendNoPermission": "Anda tidak punya izin untuk mengirim ulang struk.",
@@ -1845,6 +1913,11 @@
     "change": "Kembalian",
     "paid": "Dibayar",
     "taxIncluded": "termasuk",
-    "paymentReference": "Referensi"
+    "paymentReference": "Referensi",
+    "phone": {
+      "paneList": "Daftar",
+      "paneDetail": "Detail",
+      "paneSwitchAria": "Daftar atau detail"
+    }
   }
 }

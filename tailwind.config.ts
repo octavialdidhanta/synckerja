@@ -188,6 +188,14 @@ export default {
             transform: "translateY(8px) scale(0.98)",
           },
         },
+        "pos-scan-beam": {
+          "0%": { top: "0%", transform: "translateY(0)", opacity: "0" },
+          "10%": { opacity: "1" },
+          "50%": { top: "100%", transform: "translateY(-100%)", opacity: "1" },
+          "60%": { opacity: "1" },
+          "90%": { opacity: "1" },
+          "100%": { top: "0%", transform: "translateY(0)", opacity: "0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
@@ -199,6 +207,7 @@ export default {
         // Fullscreen Android modals: explicit ease-in-out for a smoother feel.
         "dialog-content-in-fs": "dialog-content-in-fs 0.42s ease-in-out",
         "dialog-content-out-fs": "dialog-content-out-fs 0.32s ease-in-out",
+        "pos-scan-beam": "pos-scan-beam 2.4s ease-in-out infinite",
       },
     },
   },

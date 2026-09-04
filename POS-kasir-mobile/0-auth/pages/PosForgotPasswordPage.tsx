@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { ForgotPasswordScreen } from "@/0-auth/screens/ForgotPasswordScreen";
-import { SynckerjaBrandMark } from "@/shared/components/mobile/SynckerjaBrandMark";
+import { PosBrandMark } from "@/pos-mobile/shared/components/PosBrandMark";
 import { PosAuthViewport } from "@/pos-mobile/shared/layout/PosAuthViewport";
 import { usePosTabletShell } from "@/pos-mobile/shared/hooks/usePosTabletShell";
 import { useMobileKeyboardViewport } from "@/shared/hooks/useMobileKeyboardViewport";
@@ -26,7 +26,7 @@ export default function PosForgotPasswordPage() {
         }
       >
         <ForgotPasswordScreen
-          brandMark={<SynckerjaBrandMark size="md" />}
+          brandMark={<PosBrandMark size="form" />}
           submitButtonRef={submitRef}
           onFieldFocus={kb.onInputFocus}
           onFieldBlur={kb.onInputBlur}

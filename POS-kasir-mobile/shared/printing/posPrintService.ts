@@ -14,6 +14,8 @@ import {
   type PosShiftReportPrintInput,
 } from "./escpos/buildShiftReportEscPos";
 import { buildQrisSlipEscPos } from "./escpos/buildQrisSlipEscPos";
+import { buildTestPrintEscPos } from "./escpos/buildTestPrintEscPos";
+import { posPrinterDisplayName } from "@/pos-mobile/3-settings/lib/printer/posPrinterRoleLabels";
 
 export type PosPrintCartLine = CustomerVisitCartLine & {
   productCategoryId?: string | null;
@@ -23,6 +25,12 @@ async function printToPrinter(printer: PosSavedPrinter, bytes: Uint8Array): Prom
   const bridge = resolvePosPrinterBridge();
   const available = await bridge.isAvailable();
   if (!available) throw new PosPrinterUnavailableError();
+  // Discovery holds the radio; cancel before RFCOMM connect.
+  try {
+    await bridge.stopDiscovery();
+  } catch {
+    /* ignore */
+  }
   await bridge.connect(printer.address);
   try {
     await bridge.printRaw(bytes);
@@ -33,6 +41,18 @@ async function printToPrinter(printer: PosSavedPrinter, bytes: Uint8Array): Prom
       /* ignore */
     }
   }
+}
+
+/** Connect + print a short test slip to the given saved printer (ignores roles). */
+export async function printPosTestPage(args: {
+  printer: PosSavedPrinter;
+  outletName?: string | null;
+}): Promise<void> {
+  const bytes = buildTestPrintEscPos({
+    printerName: posPrinterDisplayName(args.printer),
+    outletName: args.outletName,
+  });
+  await printToPrinter(args.printer, bytes);
 }
 
 function printersForRole(

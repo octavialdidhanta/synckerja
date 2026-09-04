@@ -47,6 +47,7 @@ import {
 import { hydratePosBillCustomer } from "../lib/hydratePosBillCustomer";
 import { loyaltySkipResult } from "../lib/posLoyaltyIdentity";
 import { PosBillListDialog, PosBillReasonDialog } from "../components/bill-list";
+import { PosCheckoutRefundDialog } from "../components/refund";
 import {
   PosSelectTableOverlay,
   type PosSelectTablePick,
@@ -90,6 +91,7 @@ import {
   type PosBillListRow,
 } from "../hooks/usePosBillListSessions";
 import { usePosCheckoutRefund } from "../hooks/usePosCheckoutRefund";
+import { usePosRefundStockPolicy } from "../hooks/usePosRefundStockPolicy";
 import { usePosLineVoids } from "../hooks/usePosLineVoids";
 import { POS_BILL_LIST_I18N, type PosBillListTab } from "../lib/posBillListCopy";
 import {
@@ -102,8 +104,16 @@ import type {
 } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
 import { PosCashierBottomNav, type PosCashierTab } from "../components/PosCashierBottomNav";
 import { PosCashierMenuDrawer } from "../components/PosCashierMenuDrawer";
+import {
+  PosCashierPhonePaneSlider,
+  PosCashierPhoneTopBar,
+} from "../components/phone";
+import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
 import { PosFavoritesGrid } from "../components/PosFavoritesGrid";
+import { qtyByCatalogIdFromCartLines } from "../lib/qtyByCatalogIdFromCartLines";
 import { PosFavoritesEditPanel } from "../components/PosFavoritesEditPanel";
+import { usePosCashierPhoneLayout } from "../hooks/usePosCashierPhoneLayout";
+import { cn } from "@/shared/lib/utils";
 import { PosAddFavoriteDialog } from "../components/PosAddFavoriteDialog";
 import {
   PosLibraryHome,
@@ -130,7 +140,14 @@ import {
   markSynckerjaCashierKitchenFired,
   resolveCashierQrClaimErrorMessage,
 } from "../lib/claimSynckerjaCashierCheckout";
-import { usePosCashierQrScan } from "../hooks/usePosCashierQrScan";
+import { usePosBarcodeWedgeScan } from "../hooks/usePosBarcodeWedgeScan";
+import {
+  parsePosScanPayload,
+  tryParseBareGuestClaimToken,
+} from "../lib/scanner/parsePosScanPayload";
+import { findCatalogItemByScanCode } from "../lib/scanner/findCatalogItemByScanCode";
+import { PosCameraBarcodeScanDialog } from "../components/scanner";
+import { usePosBarcodeScannerSettings } from "@/pos-mobile/3-settings/lib/scanner/usePosBarcodeScannerSettings";
 import { shouldAutoDoneKitchenOnPay } from "@/pos-mobile/8-kitchen/lib/shouldAutoDoneKitchenOnPay";
 import {
   applyKitchenAutoDoneOnPay,
@@ -139,8 +156,18 @@ import {
   toastKitchenFireResult,
   type KitchenPayCheckoutContext,
 } from "../lib/kitchenCheckoutContext";
+import {
+  createPosCheckoutPrintLock,
+  posCheckoutReceiptKey,
+  runPosCheckoutSideEffects,
+} from "../lib/checkout";
 import { cartLineFingerprint } from "../lib/cartLineFingerprint";
 import { POS_STOCK_COMMIT_I18N } from "../lib/posStockCommitCopy";
+import {
+  POS_REFUND_I18N,
+  POS_REFUND_WASTE_REASON_REQUIRED,
+  posRefundSuccessTitleKey,
+} from "../lib/refund";
 import { usePosOutletFavorites } from "../hooks/usePosOutletFavorites";
 import { usePosLibraryCategoryOrder } from "../hooks/usePosLibraryCategoryOrder";
 import { usePosOutletBundles } from "../hooks/usePosOutletBundles";
@@ -160,10 +187,8 @@ import { payPosCustomCashIns } from "../lib/payPosCustomCashIns";
 import { POS_CASHIER_I18N } from "../lib/posCashierCopy";
 import { recipeOutOfStockLabel } from "../lib/recipeOutOfStockLabel";
 import { POS_SETTINGS_I18N } from "@/pos-mobile/3-settings/lib/posSettingsCopy";
-import {
-  getPosTicketPrintPrefs,
-  printPosReceiptBill,
-} from "@/pos-mobile/shared/printing/posPrintService";
+import { showPosNoReceiptPrinterToast } from "@/pos-mobile/3-settings/lib/printer/showPosNoReceiptPrinterToast";
+import { printPosReceiptBill } from "@/pos-mobile/shared/printing/posPrintService";
 import { PosPrinterUnavailableError } from "@/pos-mobile/shared/printing/PosPrinterBridge";
 import { usePosPinGate } from "@/pos-mobile/shared/hooks/usePosPinGate";
 import { POS_PIN_FEATURES } from "@/pos-mobile/shared/lib/posPinFeatures";
@@ -173,7 +198,8 @@ import { POS_PIN_FEATURES } from "@/pos-mobile/shared/lib/posPinFeatures";
  * Authenticated route: `/pos/cashier` (outside AdaptiveAppLayout).
  */
 export default function PosCashierPage() {
-  usePosTabletShell();
+  const { isPhoneLayout, pane, setPane, showMenu, showBill } = usePosCashierPhoneLayout();
+  usePosTabletShell({ phoneOverlay: isPhoneLayout });
   useMarkPosAuthSurface();
   const { t } = useAppTranslation();
   const { toast } = useToast();
@@ -205,7 +231,16 @@ export default function PosCashierPage() {
   const { runWithPin, pinDialog } = usePosPinGate(outletId);
 
   const catalog = useCustomerVisitCatalog(outletId);
+  const { settings: scannerSettings } = usePosBarcodeScannerSettings(outletId);
   const cart = useCustomerVisitCart();
+  const billItemCount = useMemo(
+    () => cart.lines.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0),
+    [cart.lines],
+  );
+  const qtyByCatalogId = useMemo(
+    () => qtyByCatalogIdFromCartLines(cart.lines),
+    [cart.lines],
+  );
   const [salesTypeId, setSalesTypeId] = useState("");
   const pricing = useStoreCheckoutPricing(outletId, salesTypeId || null);
   const checkoutTotals = useMemo(() => {
@@ -263,6 +298,7 @@ export default function PosCashierPage() {
   } | null>(null);
   const [reasonBusy, setReasonBusy] = useState(false);
   const [refundBusyId, setRefundBusyId] = useState<string | null>(null);
+  const [refundTarget, setRefundTarget] = useState<PosBillListRow | null>(null);
   const [selectTableOpen, setSelectTableOpen] = useState(false);
   const [newBillPick, setNewBillPick] = useState<PosSelectTablePick | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
@@ -280,6 +316,7 @@ export default function PosCashierPage() {
   const [pickTableAfterPayOpen, setPickTableAfterPayOpen] = useState(false);
   const [assignTableBusy, setAssignTableBusy] = useState(false);
   const [qrisOpen, setQrisOpen] = useState(false);
+  const [cameraScanOpen, setCameraScanOpen] = useState(false);
   const [qrisFlow, setQrisFlow] = useState<{
     checkout: BuildPendingCheckoutPayloadArgs;
     leadId: string;
@@ -301,6 +338,14 @@ export default function PosCashierPage() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [sendingSms, setSendingSms] = useState(false);
   const [printingReceipt, setPrintingReceipt] = useState(false);
+  const printLockRef = useRef(createPosCheckoutPrintLock());
+  const [preloadedKitchen, setPreloadedKitchen] = useState<{
+    sessionId: string | null;
+    tableName: string;
+    salesTypeId: string | null;
+    customerName: string;
+    ctx: KitchenPayCheckoutContext;
+  } | null>(null);
   const [customizeItem, setCustomizeItem] = useState<CustomerVisitCatalogItem | null>(
     null,
   );
@@ -342,6 +387,10 @@ export default function PosCashierPage() {
     return row.session.waiter_id || row.session.opened_by || null;
   };
   const checkoutRefund = usePosCheckoutRefund();
+  const refundPolicyQuery = usePosRefundStockPolicy(
+    refundTarget?.session.id,
+    Boolean(refundTarget),
+  );
   const openShiftQuery = usePosOpenShift(outletId);
   const lineVoids = usePosLineVoids(outletId);
 
@@ -454,6 +503,61 @@ export default function PosCashierPage() {
     }, 800);
     return () => window.clearTimeout(timer);
   }, [cart.lines, openSessionId, sessionMutations.updateOpenCart]);
+
+  useEffect(() => printLockRef.current.subscribe(setPrintingReceipt), []);
+
+  const preloadSalesTypeLabel =
+    pricing.outletSalesTypes.find((row) => row.id === salesTypeId)?.name || "Dine in";
+  const preloadKitchenCustomerName =
+    loyaltyResult.customer?.name ||
+    customer?.name ||
+    (openSessionId
+      ? billListOpenSessions.rows.find((r) => r.session.id === openSessionId)?.session
+          .customer_name?.trim()
+      : null) ||
+    "Walk-in";
+
+  useEffect(() => {
+    if (!paymentOpen || !organizationId || !outletId) return;
+    const sessionId = selectedTable?.sessionId ?? activeOpenSessionId;
+    const tableName = selectedTable?.name ?? t(POS_SELECT_TABLE_I18N.walkInName, "Walk-in");
+    const salesTypeIdValue = salesTypeId || null;
+    let cancelled = false;
+    void buildKitchenPayCheckoutContext({
+      organizationId,
+      outletId,
+      outletName,
+      sessionId,
+      tableName,
+      salesTypeLabel: preloadSalesTypeLabel,
+      salesTypeId: salesTypeIdValue,
+      customerName: preloadKitchenCustomerName,
+    }).then((ctx) => {
+      if (cancelled) return;
+      setPreloadedKitchen({
+        sessionId,
+        tableName,
+        salesTypeId: salesTypeIdValue,
+        customerName: preloadKitchenCustomerName,
+        ctx,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    paymentOpen,
+    organizationId,
+    outletId,
+    outletName,
+    selectedTable?.sessionId,
+    selectedTable?.name,
+    activeOpenSessionId,
+    salesTypeId,
+    preloadSalesTypeLabel,
+    preloadKitchenCustomerName,
+    t,
+  ]);
 
   useEffect(() => {
     const options = pricing.outletSalesTypes;
@@ -640,6 +744,34 @@ export default function PosCashierPage() {
   const salesTypeLabel =
     pricing.outletSalesTypes.find((row) => row.id === salesTypeId)?.name || "Dine in";
 
+  const resolveKitchenCheckout = async (args: {
+    sessionId: string | null;
+    tableName: string;
+    customerName: string;
+  }): Promise<KitchenPayCheckoutContext | undefined> => {
+    if (!organizationId || !outletId) return undefined;
+    const salesTypeIdValue = salesTypeId || null;
+    if (
+      preloadedKitchen &&
+      preloadedKitchen.sessionId === args.sessionId &&
+      preloadedKitchen.tableName === args.tableName &&
+      preloadedKitchen.salesTypeId === salesTypeIdValue &&
+      preloadedKitchen.customerName === args.customerName
+    ) {
+      return preloadedKitchen.ctx;
+    }
+    return buildKitchenPayCheckoutContext({
+      organizationId,
+      outletId,
+      outletName,
+      sessionId: args.sessionId,
+      tableName: args.tableName,
+      salesTypeLabel,
+      salesTypeId: salesTypeIdValue,
+      customerName: args.customerName,
+    });
+  };
+
   const buildPortionFromSelection = (selection: Map<string, number>) =>
     splitCartLinesByQty(cart.lines, selection);
 
@@ -710,10 +842,7 @@ export default function PosCashierPage() {
       return;
     }
     if (msg === "no_receipt_printer") {
-      toast({
-        title: t(POS_SETTINGS_I18N.printerNoReceiptPrinter, "No printer assigned for Receipt/Bill"),
-        variant: "destructive",
-      });
+      showPosNoReceiptPrinterToast({ toast, t, navigate });
       return;
     }
     if (msg === "no_ticket_printer") {
@@ -727,6 +856,35 @@ export default function PosCashierPage() {
       title: t(POS_SETTINGS_I18N.printerPrintError, "Print failed"),
       description: msg,
       variant: "destructive",
+    });
+  };
+
+  const schedulePaidCheckoutSideEffects = (args: {
+    salesActivityId: string | null;
+    kitchenPrintLines?: CustomerVisitCartLine[] | null;
+    receipt: {
+      lines: CustomerVisitCartLine[];
+      checkoutTotals: CatalogCheckoutTotals;
+      customerName?: string | null;
+    };
+  }) => {
+    if (!organizationId || !outletId) return;
+    void runPosCheckoutSideEffects({
+      outletId,
+      outletName,
+      cartLines: args.receipt.lines,
+      kitchenPrintLines: args.kitchenPrintLines,
+      receipt: args.receipt,
+      printLock: printLockRef.current,
+      receiptKey: posCheckoutReceiptKey({
+        outletId,
+        activityId: args.salesActivityId,
+      }),
+      onKitchenPrinted: () => {
+        toast({ title: t(POS_SETTINGS_I18N.printerTicketPrinted, "Order ticket printed") });
+      },
+      onKitchenPrintError: printErrorToast,
+      onReceiptError: printErrorToast,
     });
   };
 
@@ -1141,6 +1299,7 @@ export default function PosCashierPage() {
           return;
         }
         onSelectOpenBill({ session, groupName: "", waiterName: "" });
+        if (isPhoneLayout) showBill();
         const salesTypes = pricing.outletSalesTypes;
         const matchById = claim.catalog_sales_type_id
           ? salesTypes.find((row) => row.id === claim.catalog_sales_type_id)
@@ -1181,10 +1340,64 @@ export default function PosCashierPage() {
     })();
   };
 
-  usePosCashierQrScan({
-    enabled: Boolean(outletId && organizationId),
-    onScan: onClaimCashierQr,
+  const onBarcodeScan = (raw: string) => {
+    const parsed = parsePosScanPayload(raw);
+    if (!parsed) return;
+
+    if (parsed.kind === "guest_qr") {
+      if (!scannerSettings.guestQrScanEnabled) {
+        toast({
+          title: t(POS_CASHIER_I18N.scanFeatureDisabled, "This scan type is turned off in Settings"),
+        });
+        return;
+      }
+      onClaimCashierQr(parsed.token);
+      return;
+    }
+
+    if (scannerSettings.productScanEnabled) {
+      const item = findCatalogItemByScanCode(catalog.data ?? [], parsed.code);
+      if (item) {
+        onAddCatalogItem(item);
+        if (isPhoneLayout) showBill();
+        toast({
+          title: t(POS_CASHIER_I18N.scanProductAdded, "Product added"),
+          description: catalogItemLabel(item),
+        });
+        return;
+      }
+    }
+
+    if (scannerSettings.guestQrScanEnabled) {
+      const bare = tryParseBareGuestClaimToken(parsed.code);
+      if (bare) {
+        onClaimCashierQr(bare);
+        return;
+      }
+    }
+
+    if (scannerSettings.productScanEnabled) {
+      toast({
+        title: t(POS_CASHIER_I18N.scanSkuNotFound, "No product matches this SKU"),
+        description: parsed.code,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: t(POS_CASHIER_I18N.scanFeatureDisabled, "This scan type is turned off in Settings"),
+    });
+  };
+
+  usePosBarcodeWedgeScan({
+    enabled: Boolean(outletId && organizationId && scannerSettings.wedgeEnabled),
+    onScan: onBarcodeScan,
   });
+
+  const openCameraScan = scannerSettings.cameraEnabled
+    ? () => setCameraScanOpen(true)
+    : undefined;
 
   const onFulfillOpenBill = (row: PosBillListRow) => {
     if (!outletId) return;
@@ -1269,31 +1482,62 @@ export default function PosCashierPage() {
       return;
     }
     runWithPin(POS_PIN_FEATURES.issueRefunds, () => {
-      void (async () => {
-        setRefundBusyId(row.session.id);
-        try {
-          await checkoutRefund.mutateAsync({
-            activityId,
-            sessionId: row.session.id,
-            outletId: row.session.outlet_id ?? outletId,
-            shiftId: openShiftQuery.data?.id ?? null,
-          });
+      setRefundTarget(row);
+    });
+  };
+
+  const confirmRefundPaidBill = (reason: string | null) => {
+    const row = refundTarget;
+    const activityId = row?.session.sales_activity_id;
+    if (!row || !activityId) return;
+    void (async () => {
+      setRefundBusyId(row.session.id);
+      try {
+        const result = await checkoutRefund.mutateAsync({
+          activityId,
+          sessionId: row.session.id,
+          outletId: row.session.outlet_id ?? outletId,
+          shiftId: openShiftQuery.data?.id ?? null,
+          reason,
+        });
+        const policy = result.effectiveStockPolicy;
+        toast({
+          title: t(
+            posRefundSuccessTitleKey(policy),
+            policy === "waste"
+              ? "Sale refunded · stock not restored"
+              : "Sale refunded · stock restored",
+          ),
+        });
+        if (result.kitchenVoidError) {
           toast({
-            title: t(POS_STOCK_COMMIT_I18N.refundSuccess, "Checkout stock refunded"),
-          });
-          void billListPaid.refetch();
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          toast({
-            title: t(POS_STOCK_COMMIT_I18N.refundError, "Failed to refund checkout stock"),
-            description: message,
+            title: t(
+              POS_REFUND_I18N.kitchenVoidWarning,
+              "Sale refunded, but kitchen tickets could not be voided.",
+            ),
+            description: result.kitchenVoidError,
             variant: "destructive",
           });
-        } finally {
-          setRefundBusyId(null);
         }
-      })();
-    });
+        setRefundTarget(null);
+        void billListPaid.refetch();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        toast({
+          title: t(POS_STOCK_COMMIT_I18N.refundError, "Failed to refund checkout stock"),
+          description:
+            message === POS_REFUND_WASTE_REASON_REQUIRED
+              ? t(
+                  POS_REFUND_I18N.policyChangedNeedReason,
+                  "Kitchen started this order. Enter a reason and try again.",
+                )
+              : message,
+          variant: "destructive",
+        });
+      } finally {
+        setRefundBusyId(null);
+      }
+    })();
   };
 
   const onNewBillFromList = () => {
@@ -1383,6 +1627,7 @@ export default function PosCashierPage() {
     }
 
     let paidSessionId: string | null = paySessionId;
+    let kitchenPrintLines: CustomerVisitCartLine[] = [];
     if (args.salesActivityId && catalogLines.length > 0) {
       try {
         const { sessionId: kdsSessionId, result } = await runKitchenFireOnPay({
@@ -1393,7 +1638,7 @@ export default function PosCashierPage() {
           cartLines: catalogLines,
           salesTypeId: salesTypeId || null,
           posTableId,
-          clientPhone: null,
+          clientPhone,
           servedByUserId,
           salesActivityId: args.salesActivityId,
           kitchenCheckout,
@@ -1401,23 +1646,32 @@ export default function PosCashierPage() {
             existingSessionId: paySessionId,
             salesTypeLabel: kitchenCheckout.salesTypeLabel,
           }),
+          printTickets: false,
         });
         paidSessionId = kdsSessionId;
+        kitchenPrintLines = result.pendingPrintLines;
         if (result.stockCommitted) {
           void invalidateCatalogStockCaches(queryClient, organizationId);
         }
         toastKitchenFireResult({ result, t, toast });
-        if (kdsSessionId && !keepOpen) {
-          await applyKitchenAutoDoneOnPay({
-            sessionId: kdsSessionId,
-            kitchenCheckout,
-          });
-        }
       } catch (kitchenErr) {
         const stockToast = resolveCheckoutStockToast(kitchenErr, t);
         if (stockToast) toast({ ...stockToast, variant: "destructive" });
-        else console.error("runKitchenFireOnPay qris failed", kitchenErr);
+        else {
+          toast({
+            title: t(POS_STOCK_COMMIT_I18N.kitchenCommitFailed, "Kitchen stock commit failed"),
+            description: kitchenErr instanceof Error ? kitchenErr.message : String(kitchenErr),
+            variant: "destructive",
+          });
+        }
       }
+    }
+
+    if (paidSessionId && !keepOpen) {
+      await applyKitchenAutoDoneOnPay({
+        sessionId: paidSessionId,
+        kitchenCheckout,
+      });
     }
 
     await markLeadConvertedIfNeeded({
@@ -1484,22 +1738,15 @@ export default function PosCashierPage() {
       checkoutChannel: paySuccessCheckoutChannel,
     });
     void markSynckerjaKitchenIfNeeded();
-
-    const prefs = getPosTicketPrintPrefs(outletId);
-    try {
-      if (prefs.hasReceiptPrinter && catalogLines.length > 0) {
-        await printPosReceiptBill({
-          outletId,
-          outletName,
-          lines: splitLines,
-          checkoutTotals: totalsSnapshot,
-          customerName: clientName,
-          isBillDraft: false,
-        });
-      }
-    } catch (printErr) {
-      printErrorToast(printErr);
-    }
+    schedulePaidCheckoutSideEffects({
+      salesActivityId: args.salesActivityId,
+      kitchenPrintLines,
+      receipt: {
+        lines: splitLines,
+        checkoutTotals: totalsSnapshot,
+        customerName: clientName,
+      },
+    });
   };
 
   const onConfirmPayment = async (payload: PosPaymentConfirmPayload) => {
@@ -1557,16 +1804,12 @@ export default function PosCashierPage() {
         const paySessionId = selectedTable?.sessionId ?? activeOpenSessionId;
         const kitchenTableName =
           selectedTable?.name ?? t(POS_SELECT_TABLE_I18N.walkInName, "Walk-in");
-        const kitchenCheckout = await buildKitchenPayCheckoutContext({
-          organizationId,
-          outletId,
-          outletName,
+        const kitchenCheckout = await resolveKitchenCheckout({
           sessionId: paySessionId,
           tableName: kitchenTableName,
-          salesTypeLabel,
-          salesTypeId: salesTypeId || null,
           customerName: clientName,
         });
+        if (!kitchenCheckout) throw new Error("Organization ID is required");
         const servedByUserId = resolveServedByUserId(paySessionId);
         const { checkout, leadId, boundByPhone } = await preparePosQrisCheckout({
           organizationId,
@@ -1646,22 +1889,17 @@ export default function PosCashierPage() {
       let leadId: string | null = null;
       const paySessionId = selectedTable?.sessionId ?? activeOpenSessionId;
       let paidSessionId: string | null = paySessionId;
+      let kitchenCheckout: KitchenPayCheckoutContext | undefined;
+      let kitchenPrintLines: CustomerVisitCartLine[] = [];
+      const kitchenTableName =
+        selectedTable?.name ?? t(POS_SELECT_TABLE_I18N.walkInName, "Walk-in");
 
       if (catalogLines.length > 0 && paidCatalogTotals.grandTotal > 0) {
-        const kitchenTableName =
-          selectedTable?.name ?? t(POS_SELECT_TABLE_I18N.walkInName, "Walk-in");
-        const kitchenCheckout = organizationId
-          ? await buildKitchenPayCheckoutContext({
-              organizationId,
-              outletId,
-              outletName,
-              sessionId: paySessionId,
-              tableName: kitchenTableName,
-              salesTypeLabel,
-              salesTypeId: salesTypeId || null,
-              customerName: clientName,
-            })
-          : undefined;
+        kitchenCheckout = await resolveKitchenCheckout({
+          sessionId: paySessionId,
+          tableName: kitchenTableName,
+          customerName: clientName,
+        });
 
         const result = await pay.mutateAsync({
           clientName,
@@ -1695,6 +1933,7 @@ export default function PosCashierPage() {
           }
           toastKitchenFireResult({ result: result.kitchenFireResult, t, toast });
         }
+        kitchenPrintLines = result.kitchenFireResult?.pendingPrintLines ?? [];
       } else if (customTotal <= 0) {
         return;
       } else {
@@ -1708,24 +1947,19 @@ export default function PosCashierPage() {
           } else {
             let autoDoneKitchen = true;
             if (organizationId) {
-              const kitchenTableName =
-                selectedTable?.name ?? t(POS_SELECT_TABLE_I18N.walkInName, "Walk-in");
-              const kitchenCheckout = await buildKitchenPayCheckoutContext({
-                organizationId,
-                outletId,
-                outletName,
+              const customKitchen = await resolveKitchenCheckout({
                 sessionId: sid,
                 tableName: kitchenTableName,
-                salesTypeLabel,
-                salesTypeId: salesTypeId || null,
                 customerName: clientName,
               });
-              autoDoneKitchen = shouldAutoDoneKitchenOnPay({
-                hadKitchenTicketsBeforePay: kitchenCheckout.hadKitchenTicketsBeforePay,
-                sessionWasOpenBeforePay: kitchenCheckout.sessionWasOpenBeforePay,
-                salesTypeLabel: kitchenCheckout.salesTypeLabel,
-                settings: kitchenCheckout.firePolicy,
-              });
+              if (customKitchen) {
+                autoDoneKitchen = shouldAutoDoneKitchenOnPay({
+                  hadKitchenTicketsBeforePay: customKitchen.hadKitchenTicketsBeforePay,
+                  sessionWasOpenBeforePay: customKitchen.sessionWasOpenBeforePay,
+                  salesTypeLabel: customKitchen.salesTypeLabel,
+                  settings: customKitchen.firePolicy,
+                });
+              }
             }
             await sessionMutations.closeOpenCustomOnly.mutateAsync({
               sessionId: sid,
@@ -1790,22 +2024,15 @@ export default function PosCashierPage() {
         checkoutChannel: paySuccessCheckoutChannel,
       });
       void markSynckerjaKitchenIfNeeded();
-
-      const prefs = getPosTicketPrintPrefs(outletId);
-      try {
-        if (prefs.hasReceiptPrinter && catalogLines.length > 0) {
-          await printPosReceiptBill({
-            outletId,
-            outletName,
-            lines: splitLines,
-            checkoutTotals: totalsSnapshot,
-            customerName: clientName,
-            isBillDraft: false,
-          });
-        }
-      } catch (printErr) {
-        printErrorToast(printErr);
-      }
+      schedulePaidCheckoutSideEffects({
+        salesActivityId: activityId,
+        kitchenPrintLines,
+        receipt: {
+          lines: splitLines,
+          checkoutTotals: totalsSnapshot,
+          customerName: clientName,
+        },
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (message.includes("pos_table_multiple_open_sessions")) {
@@ -1918,15 +2145,27 @@ export default function PosCashierPage() {
 
   const onPrintPaySuccessReceipt = async () => {
     if (!paySuccess || !outletId) return;
-    setPrintingReceipt(true);
+    const receiptKey = posCheckoutReceiptKey({
+      outletId,
+      activityId: paySuccess.activityId,
+    });
+    const lock = printLockRef.current;
+    if (lock.alreadyPrinted(receiptKey)) {
+      toast({ title: t(POS_SETTINGS_I18N.printerBillPrinted, "Bill printed") });
+      return;
+    }
     try {
-      await printPosReceiptBill({
-        outletId,
-        outletName,
-        lines: paySuccess.linesSnapshot,
-        checkoutTotals: paySuccess.totalsSnapshot,
-        customerName: paySuccess.customerName,
-        isBillDraft: false,
+      await lock.enqueue(async () => {
+        if (lock.alreadyPrinted(receiptKey)) return;
+        await printPosReceiptBill({
+          outletId,
+          outletName,
+          lines: paySuccess.linesSnapshot,
+          checkoutTotals: paySuccess.totalsSnapshot,
+          customerName: paySuccess.customerName,
+          isBillDraft: false,
+        });
+        lock.markReceipt(receiptKey, true);
       });
       toast({ title: t(POS_SETTINGS_I18N.printerBillPrinted, "Bill printed") });
     } catch (err) {
@@ -1935,145 +2174,354 @@ export default function PosCashierPage() {
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
-    } finally {
-      setPrintingReceipt(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-slate-100">
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <section className="flex min-h-0 min-w-0 flex-[2] flex-col">
-          {tab === "custom" ? (
-            <PosCustomKeypad
-              disabled={pay.isPending}
-              onAdd={(amount, description) => {
-                const line = createCustomCartLine({
-                  amount,
-                  label: description,
-                });
-                if (!line) {
-                  toast({
-                    title: t(
-                      POS_CASHIER_I18N.customDescriptionRequired,
-                      "Enter a reason for this cash receipt",
-                    ),
-                  });
-                  return;
-                }
-                cart.addCustomAmount(line);
-              }}
-            />
-          ) : catalog.isLoading ||
-            (tab === "favorit" && favorites.isLoading) ||
-            (tab === "library" &&
-              (libraryCategories.isLoading || outletBundles.isLoading)) ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
-              …
+    <div
+      className={cn(
+        "fixed inset-0 flex flex-col overflow-hidden",
+        isPhoneLayout ? "bg-white" : "bg-slate-100",
+      )}
+    >
+      {isPhoneLayout ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-100">
+          <PosSafeAreaTopSpacer />
+          {tab === "favorit" && favoritesEditing ? (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+                {catalog.isLoading || favorites.isLoading ? (
+                  <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+                    …
+                  </div>
+                ) : (
+                  <PosFavoritesGrid
+                    items={favoriteItems}
+                    pageIndex={pageIndex}
+                    onPageChange={setPageIndex}
+                    editing={favoritesEditing}
+                    onEnterEdit={() => setFavoritesEditing(true)}
+                    onAddItem={onAddCatalogItem}
+                    onRemoveFavorite={onRemoveFavorite}
+                    onReorder={onReorderFavorites}
+                    onOpenAddDialog={() => {
+                      if (favorites.maxReached) {
+                        toast({
+                          title: t(POS_CASHIER_I18N.favoritMaxReached, "Favorite limit reached (100)."),
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      setAddFavoriteOpen(true);
+                    }}
+                    disabled={pay.isPending}
+                    maxReached={favorites.maxReached}
+                    qtyByCatalogId={qtyByCatalogId}
+                    recipeOutOfStockIds={recipeOutOfStockIds}
+                    recipeOutOfStockReasons={recipeOutOfStockReasons}
+                  />
+                )}
+              </section>
+              <PosFavoritesEditPanel
+                fullWidth
+                compact
+                onDone={() => setFavoritesEditing(false)}
+              />
             </div>
-          ) : tab === "favorit" ? (
-            <PosFavoritesGrid
-              items={favoriteItems}
-              pageIndex={pageIndex}
-              onPageChange={setPageIndex}
-              editing={favoritesEditing}
-              onEnterEdit={() => setFavoritesEditing(true)}
-              onAddItem={onAddCatalogItem}
-              onRemoveFavorite={onRemoveFavorite}
-              onReorder={onReorderFavorites}
-              onOpenAddDialog={() => {
-                if (favorites.maxReached) {
-                  toast({
-                    title: t(POS_CASHIER_I18N.favoritMaxReached, "Favorite limit reached (100)."),
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                setAddFavoriteOpen(true);
-              }}
-              disabled={pay.isPending}
-              maxReached={favorites.maxReached}
-              recipeOutOfStockIds={recipeOutOfStockIds}
-              recipeOutOfStockReasons={recipeOutOfStockReasons}
-            />
-          ) : tab === "library" ? (
-            libraryView === "home" ? (
-              <PosLibraryHome
-                sections={librarySections}
-                query={libraryQuery}
-                onQueryChange={setLibraryQuery}
-                editing={libraryEditing}
-                onEditingChange={setLibraryEditing}
-                onOpenSection={onOpenLibrarySection}
-                onReorderCategories={onReorderLibraryCategories}
+          ) : (
+            <>
+              <PosCashierPhoneTopBar
+                pane={pane}
+                onPaneChange={setPane}
+                billItemCount={billItemCount}
+                customerLabel={posCashierCustomerBillLabel(customer)}
+                onOpenBillList={() => {
+                  setBillListTab("open");
+                  setBillListOpen(true);
+                }}
+                onAddCustomer={() => setCustomerOpen(true)}
+                onOpenCameraScan={openCameraScan}
               />
-            ) : libraryView.type === "soon" ? (
-              <PosLibrarySoonPane
-                title={libraryView.title}
-                onBack={() => setLibraryView("home")}
-              />
-            ) : (
-              <PosLibraryProductPane
-                title={libraryView.title}
-                items={libraryPaneItems}
-                emptyLabel={
-                  libraryView.type === "bundles"
-                    ? t(POS_CASHIER_I18N.libraryEmptyBundles, "No bundles found.")
-                    : undefined
+              <PosCashierPhonePaneSlider
+                pane={pane}
+                onPaneChange={setPane}
+                menu={
+                  <section className="flex h-full min-h-0 min-w-0 flex-col">
+                    {tab === "custom" ? (
+                      <PosCustomKeypad
+                        disabled={pay.isPending}
+                        onAdd={(amount, description) => {
+                          const line = createCustomCartLine({
+                            amount,
+                            label: description,
+                          });
+                          if (!line) {
+                            toast({
+                              title: t(
+                                POS_CASHIER_I18N.customDescriptionRequired,
+                                "Enter a reason for this cash receipt",
+                              ),
+                            });
+                            return;
+                          }
+                          cart.addCustomAmount(line);
+                        }}
+                      />
+                    ) : catalog.isLoading ||
+                      (tab === "favorit" && favorites.isLoading) ||
+                      (tab === "library" &&
+                        (libraryCategories.isLoading || outletBundles.isLoading)) ? (
+                      <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+                        …
+                      </div>
+                    ) : tab === "favorit" ? (
+                      <PosFavoritesGrid
+                        items={favoriteItems}
+                        pageIndex={pageIndex}
+                        onPageChange={setPageIndex}
+                        editing={favoritesEditing}
+                        onEnterEdit={() => setFavoritesEditing(true)}
+                        onAddItem={onAddCatalogItem}
+                        onRemoveFavorite={onRemoveFavorite}
+                        onReorder={onReorderFavorites}
+                        onOpenAddDialog={() => {
+                          if (favorites.maxReached) {
+                            toast({
+                              title: t(
+                                POS_CASHIER_I18N.favoritMaxReached,
+                                "Favorite limit reached (100).",
+                              ),
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          setAddFavoriteOpen(true);
+                        }}
+                        disabled={pay.isPending}
+                        maxReached={favorites.maxReached}
+                        qtyByCatalogId={qtyByCatalogId}
+                        recipeOutOfStockIds={recipeOutOfStockIds}
+                        recipeOutOfStockReasons={recipeOutOfStockReasons}
+                      />
+                    ) : tab === "library" ? (
+                      libraryView === "home" ? (
+                        <PosLibraryHome
+                          sections={librarySections}
+                          query={libraryQuery}
+                          onQueryChange={setLibraryQuery}
+                          editing={libraryEditing}
+                          onEditingChange={setLibraryEditing}
+                          onOpenSection={onOpenLibrarySection}
+                          onReorderCategories={onReorderLibraryCategories}
+                        />
+                      ) : libraryView.type === "soon" ? (
+                        <PosLibrarySoonPane
+                          title={libraryView.title}
+                          onBack={() => setLibraryView("home")}
+                        />
+                      ) : (
+                        <PosLibraryProductPane
+                          title={libraryView.title}
+                          items={libraryPaneItems}
+                          emptyLabel={
+                            libraryView.type === "bundles"
+                              ? t(POS_CASHIER_I18N.libraryEmptyBundles, "No bundles found.")
+                              : undefined
+                          }
+                          onBack={() => setLibraryView("home")}
+                          onAddItem={onAddCatalogItem}
+                          disabled={pay.isPending}
+                          qtyByCatalogId={qtyByCatalogId}
+                          recipeOutOfStockIds={recipeOutOfStockIds}
+                          recipeOutOfStockReasons={recipeOutOfStockReasons}
+                        />
+                      )
+                    ) : null}
+                  </section>
                 }
-                onBack={() => setLibraryView("home")}
-                onAddItem={onAddCatalogItem}
+                bill={
+                  <PosCashierBillPanel
+                    fullWidth
+                    hideTopActions
+                    lines={cart.lines}
+                    checkoutTotals={checkoutTotals}
+                    salesTypeId={salesTypeId}
+                    salesTypeOptions={pricing.outletSalesTypes}
+                    onSalesTypeChange={setSalesTypeId}
+                    customerLabel={posCashierCustomerBillLabel(customer)}
+                    onAddCustomer={() => setCustomerOpen(true)}
+                    tableLabel={selectedTable?.name ?? null}
+                    tableDuration={
+                      selectedTable?.seatedAt
+                        ? formatPosTableDuration(selectedTable.seatedAt, durationTick)
+                        : null
+                    }
+                    onClearTable={() => {
+                      clearPosSelectedTable();
+                      setSelectedTable(null);
+                      setActiveOpenSessionId(null);
+                    }}
+                    onUpdateQty={onUpdateQtyGuarded}
+                    onOpenBillList={() => {
+                      setBillListTab("open");
+                      setBillListOpen(true);
+                    }}
+                    onSaveBill={() => void onSaveBill()}
+                    saveBillDisabled={Boolean(selectedTable?.sessionId || activeOpenSessionId)}
+                    onPrintBill={() =>
+                      runWithPin(POS_PIN_FEATURES.printBill, () => {
+                        void onPrintBill();
+                      })
+                    }
+                    onSplitBill={() => {
+                      if (cart.lines.length === 0) return;
+                      setSplitBillOpen(true);
+                    }}
+                    onPay={startFullPayCheckout}
+                    paying={pay.isPending}
+                  />
+                }
+              />
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <section className="flex min-h-0 min-w-0 flex-[2] flex-col">
+            {tab === "custom" ? (
+              <PosCustomKeypad
                 disabled={pay.isPending}
+                onAdd={(amount, description) => {
+                  const line = createCustomCartLine({
+                    amount,
+                    label: description,
+                  });
+                  if (!line) {
+                    toast({
+                      title: t(
+                        POS_CASHIER_I18N.customDescriptionRequired,
+                        "Enter a reason for this cash receipt",
+                      ),
+                    });
+                    return;
+                  }
+                  cart.addCustomAmount(line);
+                }}
+              />
+            ) : catalog.isLoading ||
+              (tab === "favorit" && favorites.isLoading) ||
+              (tab === "library" &&
+                (libraryCategories.isLoading || outletBundles.isLoading)) ? (
+              <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+                …
+              </div>
+            ) : tab === "favorit" ? (
+              <PosFavoritesGrid
+                items={favoriteItems}
+                pageIndex={pageIndex}
+                onPageChange={setPageIndex}
+                editing={favoritesEditing}
+                onEnterEdit={() => setFavoritesEditing(true)}
+                onAddItem={onAddCatalogItem}
+                onRemoveFavorite={onRemoveFavorite}
+                onReorder={onReorderFavorites}
+                onOpenAddDialog={() => {
+                  if (favorites.maxReached) {
+                    toast({
+                      title: t(POS_CASHIER_I18N.favoritMaxReached, "Favorite limit reached (100)."),
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  setAddFavoriteOpen(true);
+                }}
+                disabled={pay.isPending}
+                maxReached={favorites.maxReached}
+                qtyByCatalogId={qtyByCatalogId}
                 recipeOutOfStockIds={recipeOutOfStockIds}
                 recipeOutOfStockReasons={recipeOutOfStockReasons}
               />
-            )
-          ) : null}
-        </section>
+            ) : tab === "library" ? (
+              libraryView === "home" ? (
+                <PosLibraryHome
+                  sections={librarySections}
+                  query={libraryQuery}
+                  onQueryChange={setLibraryQuery}
+                  editing={libraryEditing}
+                  onEditingChange={setLibraryEditing}
+                  onOpenSection={onOpenLibrarySection}
+                  onReorderCategories={onReorderLibraryCategories}
+                />
+              ) : libraryView.type === "soon" ? (
+                <PosLibrarySoonPane
+                  title={libraryView.title}
+                  onBack={() => setLibraryView("home")}
+                />
+              ) : (
+                <PosLibraryProductPane
+                  title={libraryView.title}
+                  items={libraryPaneItems}
+                  emptyLabel={
+                    libraryView.type === "bundles"
+                      ? t(POS_CASHIER_I18N.libraryEmptyBundles, "No bundles found.")
+                      : undefined
+                  }
+                  onBack={() => setLibraryView("home")}
+                  onAddItem={onAddCatalogItem}
+                  disabled={pay.isPending}
+                  qtyByCatalogId={qtyByCatalogId}
+                  recipeOutOfStockIds={recipeOutOfStockIds}
+                  recipeOutOfStockReasons={recipeOutOfStockReasons}
+                />
+              )
+            ) : null}
+          </section>
 
-        {tab === "favorit" && favoritesEditing ? (
-          <PosFavoritesEditPanel onDone={() => setFavoritesEditing(false)} />
-        ) : (
-          <PosCashierBillPanel
-            lines={cart.lines}
-            checkoutTotals={checkoutTotals}
-            salesTypeId={salesTypeId}
-            salesTypeOptions={pricing.outletSalesTypes}
-            onSalesTypeChange={setSalesTypeId}
-            customerLabel={posCashierCustomerBillLabel(customer)}
-            onAddCustomer={() => setCustomerOpen(true)}
-            tableLabel={selectedTable?.name ?? null}
-            tableDuration={
-              selectedTable?.seatedAt
-                ? formatPosTableDuration(selectedTable.seatedAt, durationTick)
-                : null
-            }
-            onClearTable={() => {
-              clearPosSelectedTable();
-              setSelectedTable(null);
-              setActiveOpenSessionId(null);
-            }}
-            onUpdateQty={onUpdateQtyGuarded}
-            onOpenBillList={() => {
-              setBillListTab("open");
-              setBillListOpen(true);
-            }}
-            onSaveBill={() => void onSaveBill()}
-            saveBillDisabled={Boolean(selectedTable?.sessionId || activeOpenSessionId)}
-            onPrintBill={() =>
-              runWithPin(POS_PIN_FEATURES.printBill, () => {
-                void onPrintBill();
-              })
-            }
-            onSplitBill={() => {
-              if (cart.lines.length === 0) return;
-              setSplitBillOpen(true);
-            }}
-            onPay={startFullPayCheckout}
-            paying={pay.isPending}
-          />
-        )}
-      </div>
+          {tab === "favorit" && favoritesEditing ? (
+            <PosFavoritesEditPanel onDone={() => setFavoritesEditing(false)} />
+          ) : (
+            <PosCashierBillPanel
+              lines={cart.lines}
+              checkoutTotals={checkoutTotals}
+              salesTypeId={salesTypeId}
+              salesTypeOptions={pricing.outletSalesTypes}
+              onSalesTypeChange={setSalesTypeId}
+              customerLabel={posCashierCustomerBillLabel(customer)}
+              onAddCustomer={() => setCustomerOpen(true)}
+              tableLabel={selectedTable?.name ?? null}
+              tableDuration={
+                selectedTable?.seatedAt
+                  ? formatPosTableDuration(selectedTable.seatedAt, durationTick)
+                  : null
+              }
+              onClearTable={() => {
+                clearPosSelectedTable();
+                setSelectedTable(null);
+                setActiveOpenSessionId(null);
+              }}
+              onUpdateQty={onUpdateQtyGuarded}
+              onOpenBillList={() => {
+                setBillListTab("open");
+                setBillListOpen(true);
+              }}
+              onSaveBill={() => void onSaveBill()}
+              saveBillDisabled={Boolean(selectedTable?.sessionId || activeOpenSessionId)}
+              onPrintBill={() =>
+                runWithPin(POS_PIN_FEATURES.printBill, () => {
+                  void onPrintBill();
+                })
+              }
+              onSplitBill={() => {
+                if (cart.lines.length === 0) return;
+                setSplitBillOpen(true);
+              }}
+              onPay={startFullPayCheckout}
+              paying={pay.isPending}
+              onOpenCameraScan={openCameraScan}
+            />
+          )}
+        </div>
+      )}
 
       <PosCashierBottomNav
         activeTab={tab}
@@ -2081,6 +2529,7 @@ export default function PosCashierPage() {
           setTab(next);
           setFavoritesEditing(false);
           setLibraryEditing(false);
+          if (isPhoneLayout) showMenu();
         }}
         onOpenMenu={() => setMenuOpen(true)}
       />
@@ -2247,6 +2696,11 @@ export default function PosCashierPage() {
         confirming={saveBusy}
         onConfirm={(args) => void onConfirmNewBill(args)}
       />
+      <PosCameraBarcodeScanDialog
+        open={cameraScanOpen}
+        onOpenChange={setCameraScanOpen}
+        onScan={onBarcodeScan}
+      />
       <PosBillListDialog
         open={billListOpen}
         onOpenChange={setBillListOpen}
@@ -2263,6 +2717,23 @@ export default function PosCashierPage() {
         onFulfillOpen={onFulfillOpenBill}
         onRefundPaid={onRefundPaidBill}
         showFulfillAction={stockCommitPoint === "fulfillment"}
+      />
+      <PosCheckoutRefundDialog
+        open={Boolean(refundTarget)}
+        onOpenChange={(open) => {
+          if (!open) setRefundTarget(null);
+        }}
+        busy={checkoutRefund.isPending}
+        policyLoading={Boolean(refundTarget) && refundPolicyQuery.isLoading}
+        policy={refundPolicyQuery.data ?? null}
+        policyError={
+          refundPolicyQuery.error instanceof Error
+            ? refundPolicyQuery.error.message
+            : refundPolicyQuery.isError
+              ? t(POS_STOCK_COMMIT_I18N.refundError, "Failed to refund checkout stock")
+              : null
+        }
+        onConfirm={confirmRefundPaidBill}
       />
       <PosBillReasonDialog
         open={Boolean(cancelTarget)}

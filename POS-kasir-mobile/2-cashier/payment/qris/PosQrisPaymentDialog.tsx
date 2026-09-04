@@ -10,9 +10,11 @@ import { formatStoreCheckoutRp } from "@/5-2-customer-visits/checkout/lib/catalo
 import { usePosQrisPayment, usePosQrisStatus } from "@/shared/pos-qris";
 import { mapPosQrisErrorKey } from "@/shared/pos-qris/lib/posQrisErrors";
 import type { BuildPendingCheckoutPayloadArgs } from "@/shared/pos-qris/lib/buildPendingCheckoutPayload";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/shared/hooks/use-toast";
 import { PosPrinterUnavailableError } from "@/pos-mobile/shared/printing/PosPrinterBridge";
 import { POS_SETTINGS_I18N } from "@/pos-mobile/3-settings/lib/posSettingsCopy";
+import { showPosNoReceiptPrinterToast } from "@/pos-mobile/3-settings/lib/printer/showPosNoReceiptPrinterToast";
 import { PosQrisQrImage } from "./lib/PosQrisQrImage";
 import { POS_QRIS_TTL_SECONDS } from "./lib/posQrisConstants";
 import { printPosQrisFromDialog } from "./lib/printPosQris";
@@ -56,6 +58,7 @@ export function PosQrisPaymentDialog({
 }: PosQrisPaymentDialogProps) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { createQrisPayment, cancelQrisPayment, simulateQrisPayment, isCreating, isCancelling, isSimulating } =
     usePosQrisPayment();
   const [paymentRequestId, setPaymentRequestId] = useState<string | null>(null);
@@ -230,10 +233,7 @@ export function PosQrisPaymentDialog({
           variant: "destructive",
         });
       } else if (err instanceof Error && err.message === "no_receipt_printer") {
-        toast({
-          title: t(POS_SETTINGS_I18N.printerNoReceiptPrinter, "No printer assigned for Receipt/Bill"),
-          variant: "destructive",
-        });
+        showPosNoReceiptPrinterToast({ toast, t, navigate });
       } else {
         toast({
           title: t(POS_SETTINGS_I18N.printerPrintError, "Print failed"),

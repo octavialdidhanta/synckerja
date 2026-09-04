@@ -15,6 +15,12 @@ import {
 import { PosCashierMenuDrawer } from "@/pos-mobile/2-cashier/components/PosCashierMenuDrawer";
 import { sendPosDigitalReceipt } from "@/pos-mobile/2-cashier/lib/sendPosDigitalReceipt";
 import { usePosCheckoutRefund } from "@/pos-mobile/2-cashier/hooks/usePosCheckoutRefund";
+import { usePosRefundStockPolicy } from "@/pos-mobile/2-cashier/hooks/usePosRefundStockPolicy";
+import {
+  POS_REFUND_I18N,
+  POS_REFUND_WASTE_REASON_REQUIRED,
+  posRefundSuccessTitleKey,
+} from "@/pos-mobile/2-cashier/lib/refund";
 import { usePosOpenShift } from "@/pos-mobile/4-shift/lib/usePosCashierShift";
 import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
 import { resolvePosPostOutletPath } from "@/pos-mobile/shared/access";
@@ -25,9 +31,13 @@ import { formatCatalogCheckoutLineLabel } from "@/8-2-1-default-prices/checkout/
 import { useStoreCheckoutPricing } from "@/5-2-customer-visits/checkout/hooks/useStoreCheckoutPricing";
 import { PosActivityDetailPane } from "../components/PosActivityDetailPane";
 import { PosActivityListPane } from "../components/PosActivityListPane";
+import {
+  PosActivityPhonePaneSlider,
+} from "../components/phone";
 import { PosActivityRefundDialog } from "../components/PosActivityRefundDialog";
 import { PosActivitySendReceiptDialog } from "../components/PosActivitySendReceiptDialog";
 import { PosActivityShell } from "../components/PosActivityShell";
+import { usePosActivityPhoneLayout } from "../hooks/usePosActivityPhoneLayout";
 import { filterPosActivityRows } from "../lib/filterPosActivityRows";
 import { groupPosActivitiesByDate } from "../lib/groupPosActivitiesByDate";
 import type { PosActivityApplicationMethod } from "../lib/computePosActivityDisplayTotals";
@@ -49,7 +59,9 @@ import { PosActivityPageSkeleton } from "./PosActivityPageSkeleton";
  * Authenticated route: `/pos/activity`.
  */
 export default function PosActivityPage() {
-  usePosTabletShell();
+  const { isPhoneLayout, pane, setPane, showDetail, showList } =
+    usePosActivityPhoneLayout();
+  usePosTabletShell({ phoneOverlay: isPhoneLayout });
   useMarkPosAuthSurface();
   const { t, language } = useAppTranslation();
   const { user } = useAuth();
@@ -67,10 +79,17 @@ export default function PosActivityPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
   const [refundOpen, setRefundOpen] = useState(false);
+  const [refundSessionId, setRefundSessionId] = useState<string | null | undefined>(
+    undefined,
+  );
   const [sending, setSending] = useState(false);
 
   const { runWithPin, pinDialog } = usePosPinGate(outletId);
   const checkoutRefund = usePosCheckoutRefund();
+  const refundPolicyQuery = usePosRefundStockPolicy(
+    refundSessionId,
+    refundOpen && refundSessionId !== undefined,
+  );
   const openShiftQuery = usePosOpenShift(outletId);
 
   const listQuery = usePosOutletActivities(outletId);
@@ -139,6 +158,29 @@ export default function PosActivityPage() {
     }
   }, [filteredRows, selectedId]);
 
+  useEffect(() => {
+    if (!refundOpen || !organizationId || !selectedId) return;
+    let cancelled = false;
+    setRefundSessionId(undefined);
+    void resolvePosActivitySessionId(organizationId, selectedId)
+      .then((sessionId) => {
+        if (!cancelled) setRefundSessionId(sessionId);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setRefundOpen(false);
+        const message = err instanceof Error ? err.message : String(err);
+        toast({
+          title: t(POS_ACTIVITY_I18N.refundError, "Failed to refund checkout stock"),
+          description: message,
+          variant: "destructive",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refundOpen, organizationId, selectedId, t, toast]);
+
   if (!outletId) {
     return <Navigate to={POS_AUTH_PATHS.selectOutlet} replace />;
   }
@@ -173,6 +215,7 @@ export default function PosActivityPage() {
 
   const onSelect = (row: PosActivityListRow) => {
     setSelectedId(row.id);
+    if (isPhoneLayout) showDetail();
   };
 
   const onSendReceipt = () => {
@@ -211,7 +254,10 @@ export default function PosActivityPage() {
       });
       return;
     }
-    runWithPin(POS_PIN_FEATURES.issueRefunds, () => setRefundOpen(true));
+    runWithPin(POS_PIN_FEATURES.issueRefunds, () => {
+      setRefundSessionId(undefined);
+      setRefundOpen(true);
+    });
   };
 
   const confirmSend = async (payload: {
@@ -262,26 +308,41 @@ export default function PosActivityPage() {
     }
   };
 
-  const confirmRefund = () => {
+  const confirmRefund = (reason: string | null) => {
     const detail = detailQuery.data;
     if (!organizationId || !outletId || !detail) return;
     void (async () => {
       try {
-        const sessionId = await resolvePosActivitySessionId(
-          organizationId,
-          detail.id,
-        );
-        await checkoutRefund.mutateAsync({
+        const result = await checkoutRefund.mutateAsync({
           activityId: detail.id,
-          sessionId,
+          sessionId: refundSessionId,
           outletId,
           shiftId: openShiftQuery.data?.id ?? null,
+          reason,
         });
+        const policy = result.effectiveStockPolicy;
         toast({
-          title: t(POS_ACTIVITY_I18N.refundSuccess, "Sale refunded"),
+          title: t(
+            posRefundSuccessTitleKey(policy),
+            policy === "waste"
+              ? "Sale refunded · stock not restored"
+              : "Sale refunded · stock restored",
+          ),
         });
+        if (result.kitchenVoidError) {
+          toast({
+            title: t(
+              POS_REFUND_I18N.kitchenVoidWarning,
+              "Sale refunded, but kitchen tickets could not be voided.",
+            ),
+            description: result.kitchenVoidError,
+            variant: "destructive",
+          });
+        }
         setRefundOpen(false);
+        setRefundSessionId(undefined);
         setSelectedId(null);
+        if (isPhoneLayout) showList();
         await queryClient.invalidateQueries({
           queryKey: [POS_ACTIVITY_QUERY_KEY],
         });
@@ -289,12 +350,50 @@ export default function PosActivityPage() {
         const message = err instanceof Error ? err.message : String(err);
         toast({
           title: t(POS_ACTIVITY_I18N.refundError, "Failed to refund checkout stock"),
-          description: message,
+          description:
+            message === POS_REFUND_WASTE_REASON_REQUIRED
+              ? t(
+                  POS_REFUND_I18N.policyChangedNeedReason,
+                  "Kitchen started this order. Enter a reason and try again.",
+                )
+              : message,
           variant: "destructive",
         });
       }
     })();
   };
+
+  const listPane = (
+    <PosActivityListPane
+      search={search}
+      onSearchChange={setSearch}
+      groups={groups}
+      selectedId={selectedId}
+      onSelect={onSelect}
+      hasNextPage={Boolean(listQuery.hasNextPage)}
+      isFetchingNextPage={listQuery.isFetchingNextPage}
+      onLoadMore={() => void listQuery.fetchNextPage()}
+      emptyLabel={emptyLabel}
+      fullWidth={isPhoneLayout}
+    />
+  );
+
+  const detailPane = (
+    <PosActivityDetailPane
+      detail={detailQuery.data ?? null}
+      loading={Boolean(selectedId) && detailQuery.isLoading}
+      canSend={canSend}
+      canRefund={canRefund}
+      refundBusy={checkoutRefund.isPending}
+      cartSnapshot={cartSnapshotQuery.data ?? null}
+      salesTypeNameById={salesTypeNameById}
+      applicationMethod={applicationMethod}
+      taxLabel={taxLabel}
+      gratuityLabel={gratuityLabel}
+      onSendReceipt={onSendReceipt}
+      onSelectRefund={onSelectRefund}
+    />
+  );
 
   return (
     <>
@@ -303,32 +402,21 @@ export default function PosActivityPage() {
         outletLabel={outletName}
         menuAriaLabel={t(POS_ACTIVITY_I18N.menu, "Menu")}
         onOpenMenu={() => setMenuOpen(true)}
+        isPhoneLayout={isPhoneLayout}
       >
-        <PosActivityListPane
-          search={search}
-          onSearchChange={setSearch}
-          groups={groups}
-          selectedId={selectedId}
-          onSelect={onSelect}
-          hasNextPage={Boolean(listQuery.hasNextPage)}
-          isFetchingNextPage={listQuery.isFetchingNextPage}
-          onLoadMore={() => void listQuery.fetchNextPage()}
-          emptyLabel={emptyLabel}
-        />
-        <PosActivityDetailPane
-          detail={detailQuery.data ?? null}
-          loading={Boolean(selectedId) && detailQuery.isLoading}
-          canSend={canSend}
-          canRefund={canRefund}
-          refundBusy={checkoutRefund.isPending}
-          cartSnapshot={cartSnapshotQuery.data ?? null}
-          salesTypeNameById={salesTypeNameById}
-          applicationMethod={applicationMethod}
-          taxLabel={taxLabel}
-          gratuityLabel={gratuityLabel}
-          onSendReceipt={onSendReceipt}
-          onSelectRefund={onSelectRefund}
-        />
+        {isPhoneLayout ? (
+          <PosActivityPhonePaneSlider
+            pane={pane}
+            onPaneChange={setPane}
+            list={listPane}
+            detail={detailPane}
+          />
+        ) : (
+          <>
+            {listPane}
+            {detailPane}
+          </>
+        )}
       </PosActivityShell>
 
       <PosCashierMenuDrawer
@@ -349,8 +437,23 @@ export default function PosActivityPage() {
 
       <PosActivityRefundDialog
         open={refundOpen}
-        onOpenChange={setRefundOpen}
+        onOpenChange={(open) => {
+          setRefundOpen(open);
+          if (!open) setRefundSessionId(undefined);
+        }}
         busy={checkoutRefund.isPending}
+        policyLoading={
+          refundOpen &&
+          (refundSessionId === undefined || refundPolicyQuery.isLoading)
+        }
+        policy={refundPolicyQuery.data ?? null}
+        policyError={
+          refundPolicyQuery.error instanceof Error
+            ? refundPolicyQuery.error.message
+            : refundPolicyQuery.isError
+              ? t(POS_ACTIVITY_I18N.refundError, "Failed to refund checkout stock")
+              : null
+        }
         onConfirm={confirmRefund}
       />
 

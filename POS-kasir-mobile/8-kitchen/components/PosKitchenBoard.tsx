@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useToast } from "@/shared/hooks/use-toast";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { POS_KITCHEN_I18N } from "../lib/posKitchenCopy";
+import { KITCHEN_RESTORE_WINDOW_EXPIRED } from "../lib/canRestoreKitchenTicket";
 import type { PosKitchenTicket } from "../lib/posKitchenTypes";
 import { usePosKitchenTicketMutations } from "../hooks/usePosKitchenTicketMutations";
 import { useKitchenWaitTicker } from "../hooks/useKitchenWaitTicker";
@@ -73,7 +74,13 @@ export function PosKitchenBoard({
     const message = err instanceof Error ? err.message : String(err);
     toast({
       title: t(POS_KITCHEN_I18N.advanceError, "Could not update ticket"),
-      description: message,
+      description:
+        message === KITCHEN_RESTORE_WINDOW_EXPIRED
+          ? t(
+              POS_KITCHEN_I18N.restoreWindowExpired,
+              "This ticket can only be restored within 15 minutes of completion.",
+            )
+          : message,
       variant: "destructive",
     });
   };
@@ -112,13 +119,13 @@ export function PosKitchenBoard({
       }
       onRecall={() =>
         recallTicket.mutate(
-          { ticketId: ticket.id, marker: "recalled" },
+          { ticketId: ticket.id, marker: "recalled", completedAt: ticket.completed_at },
           { onError },
         )
       }
       onRevert={() =>
         recallTicket.mutate(
-          { ticketId: ticket.id, marker: "reverted" },
+          { ticketId: ticket.id, marker: "reverted", completedAt: ticket.completed_at },
           { onError },
         )
       }

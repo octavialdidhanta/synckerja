@@ -1,0 +1,1 @@
+export { PosShiftPhonePaneSlider } from "./PosShiftPhonePaneSlider";

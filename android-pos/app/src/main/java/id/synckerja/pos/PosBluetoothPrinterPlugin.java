@@ -17,6 +17,7 @@ import android.os.Looper;
 import android.util.Base64;
 import android.util.Log;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -27,13 +28,24 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Classic Bluetooth SPP bridge for thermal POS printers (e.g. RPP02N).
+ *
+ * Connect strategy (common for cheap ESC/POS printers):
+ * 1) insecure RFCOMM SPP UUID
+ * 2) secure RFCOMM SPP UUID
+ * 3) reflection createRfcommSocket(1)
+ * with a hard timeout so connect() cannot hang forever.
  */
 @CapacitorPlugin(
     name = "PosBluetoothPrinter",
@@ -54,12 +66,14 @@ public class PosBluetoothPrinterPlugin extends Plugin {
 
     private static final String TAG = "PosBluetoothPrinter";
     private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+    private static final long CONNECT_TIMEOUT_MS = 12_000L;
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
-    private BluetoothSocket socket;
+    private final AtomicReference<BluetoothSocket> socketRef = new AtomicReference<>();
+    /** Socket currently in connect(); closed on timeout so RFCOMM does not hang forever. */
+    private final AtomicReference<BluetoothSocket> connectingRef = new AtomicReference<>();
     private BroadcastReceiver discoveryReceiver;
-    private boolean discovering = false;
 
     @PluginMethod
     public void isAvailable(PluginCall call) {
@@ -141,11 +155,13 @@ public class PosBluetoothPrinterPlugin extends Plugin {
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
                 if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-                    BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                    BluetoothDevice device = readBluetoothDeviceExtra(intent);
                     if (device == null) return;
-                    notifyListeners("deviceFound", deviceToJson(device, device.getBondState() == BluetoothDevice.BOND_BONDED));
+                    notifyListeners(
+                        "deviceFound",
+                        deviceToJson(device, device.getBondState() == BluetoothDevice.BOND_BONDED)
+                    );
                 } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
-                    discovering = false;
                     notifyListeners("discoveryFinished", new JSObject());
                 }
             }
@@ -153,8 +169,13 @@ public class PosBluetoothPrinterPlugin extends Plugin {
         IntentFilter filter = new IntentFilter();
         filter.addAction(BluetoothDevice.ACTION_FOUND);
         filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-        getContext().registerReceiver(discoveryReceiver, filter);
-        discovering = true;
+        // System Bluetooth broadcasts require an exported receiver on API 33+.
+        ContextCompat.registerReceiver(
+            getContext(),
+            discoveryReceiver,
+            filter,
+            ContextCompat.RECEIVER_EXPORTED
+        );
         // Emit bonded devices immediately so UI has something to pick
         Set<BluetoothDevice> bonded = adapter.getBondedDevices();
         if (bonded != null) {
@@ -181,13 +202,21 @@ public class PosBluetoothPrinterPlugin extends Plugin {
             call.reject("address required");
             return;
         }
+        // Discovery holds the radio; stop fully before RFCOMM.
+        stopDiscoveryInternal();
         io.execute(() -> {
             try {
-                connectInternal(address);
+                connectWithTimeout(address, CONNECT_TIMEOUT_MS);
                 main.post(call::resolve);
+            } catch (TimeoutException e) {
+                Log.e(TAG, "connect timeout", e);
+                closeSocket();
+                main.post(() -> call.reject("Connect timed out. Is the printer on and paired?"));
             } catch (Exception e) {
                 Log.e(TAG, "connect failed", e);
-                main.post(() -> call.reject(e.getMessage() != null ? e.getMessage() : "connect failed"));
+                closeSocket();
+                String msg = e.getMessage() != null ? e.getMessage() : "connect failed";
+                main.post(() -> call.reject(msg));
             }
         });
     }
@@ -211,7 +240,7 @@ public class PosBluetoothPrinterPlugin extends Plugin {
         io.execute(() -> {
             try {
                 byte[] data = Base64.decode(dataBase64, Base64.DEFAULT);
-                BluetoothSocket s = socket;
+                BluetoothSocket s = socketRef.get();
                 if (s == null || !s.isConnected()) {
                     throw new IOException("Not connected");
                 }
@@ -249,49 +278,135 @@ public class PosBluetoothPrinterPlugin extends Plugin {
                 requestPermissionForAlias("bluetooth", call, "bluetoothPermsCallback");
                 return false;
             }
+            return true;
+        }
+        // Pre-Android 12: discovery often needs location runtime permission.
+        if ("startDiscovery".equals(methodName)) {
+            if (ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionForAlias("bluetooth", call, "bluetoothPermsCallback");
+                return false;
+            }
         }
         return true;
     }
 
     private BluetoothAdapter getAdapter() {
         BluetoothManager mgr = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
-        if (mgr != null) return mgr.getAdapter();
-        return BluetoothAdapter.getDefaultAdapter();
+        return mgr != null ? mgr.getAdapter() : null;
+    }
+
+    private static BluetoothDevice readBluetoothDeviceExtra(Intent intent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice.class);
+        }
+        return readBluetoothDeviceExtraLegacy(intent);
+    }
+
+    @SuppressWarnings("deprecation")
+    private static BluetoothDevice readBluetoothDeviceExtraLegacy(Intent intent) {
+        return intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+    }
+
+    /**
+     * Run connect on a dedicated thread so we can close the socket after timeout
+     * (BluetoothSocket.connect blocks and does not honor Thread.interrupt reliably).
+     */
+    private void connectWithTimeout(String address, long timeoutMs) throws Exception {
+        ExecutorService connectExec = Executors.newSingleThreadExecutor();
+        Future<BluetoothSocket> future = connectExec.submit(() -> openSocket(address));
+        try {
+            BluetoothSocket opened = future.get(timeoutMs, TimeUnit.MILLISECONDS);
+            socketRef.set(opened);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            safeClose(connectingRef.getAndSet(null));
+            closeSocket();
+            throw e;
+        } catch (Exception e) {
+            safeClose(connectingRef.getAndSet(null));
+            closeSocket();
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            if (cause instanceof Exception) throw (Exception) cause;
+            throw new IOException(cause.getMessage() != null ? cause.getMessage() : "connect failed", cause);
+        } finally {
+            connectExec.shutdownNow();
+        }
     }
 
     @SuppressLint("MissingPermission")
-    private void connectInternal(String address) throws IOException {
+    private BluetoothSocket openSocket(String address) throws IOException {
         closeSocket();
         BluetoothAdapter adapter = getAdapter();
         if (adapter == null) throw new IOException("Bluetooth not supported");
+        if (!adapter.isEnabled()) throw new IOException("Bluetooth is off");
         if (adapter.isDiscovering()) adapter.cancelDiscovery();
-        BluetoothDevice device = adapter.getRemoteDevice(address);
-        BluetoothSocket s;
+
+        BluetoothDevice device;
         try {
-            s = device.createRfcommSocketToServiceRecord(SPP_UUID);
-            s.connect();
-        } catch (IOException first) {
-            try {
-                // Fallback reflection for some cheap printers
-                s = (BluetoothSocket) device.getClass()
-                    .getMethod("createRfcommSocket", int.class)
-                    .invoke(device, 1);
-                s.connect();
-            } catch (Exception second) {
-                throw first;
-            }
+            device = adapter.getRemoteDevice(address.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid printer address");
         }
-        socket = s;
+
+        IOException last = null;
+
+        // 1) Insecure SPP — works for most cheap ESC/POS printers
+        last = tryConnect(device.createInsecureRfcommSocketToServiceRecord(SPP_UUID), "insecure SPP");
+        if (last == null) return takeConnectingSocket();
+
+        // 2) Secure SPP
+        last = tryConnect(device.createRfcommSocketToServiceRecord(SPP_UUID), "secure SPP");
+        if (last == null) return takeConnectingSocket();
+
+        // 3) Reflection channel 1 (legacy printers)
+        try {
+            Method m = device.getClass().getMethod("createRfcommSocket", int.class);
+            BluetoothSocket s = (BluetoothSocket) m.invoke(device, 1);
+            if (s == null) throw new IOException("createRfcommSocket returned null");
+            last = tryConnect(s, "reflection RFCOMM");
+            if (last == null) return takeConnectingSocket();
+        } catch (Exception e) {
+            Log.w(TAG, "reflection RFCOMM failed", e);
+            if (e instanceof IOException) last = (IOException) e;
+            else last = new IOException(e.getMessage() != null ? e.getMessage() : "connect failed", e);
+        }
+
+        throw last != null ? last : new IOException("connect failed");
+    }
+
+    private IOException tryConnect(BluetoothSocket s, String label) {
+        connectingRef.set(s);
+        try {
+            s.connect();
+            return null;
+        } catch (IOException e) {
+            Log.w(TAG, label + " failed", e);
+            safeClose(connectingRef.getAndSet(null));
+            return e;
+        }
+    }
+
+    private BluetoothSocket takeConnectingSocket() throws IOException {
+        BluetoothSocket s = connectingRef.getAndSet(null);
+        if (s == null || !s.isConnected()) {
+            safeClose(s);
+            throw new IOException("connect failed");
+        }
+        return s;
     }
 
     private void closeSocket() {
+        BluetoothSocket s = socketRef.getAndSet(null);
+        safeClose(s);
+    }
+
+    private static void safeClose(BluetoothSocket s) {
+        if (s == null) return;
         try {
-            if (socket != null) {
-                socket.close();
-            }
+            s.close();
         } catch (IOException ignored) {
         }
-        socket = null;
     }
 
     @SuppressLint("MissingPermission")
@@ -307,7 +422,6 @@ public class PosBluetoothPrinterPlugin extends Plugin {
             }
             discoveryReceiver = null;
         }
-        discovering = false;
     }
 
     @SuppressLint("MissingPermission")

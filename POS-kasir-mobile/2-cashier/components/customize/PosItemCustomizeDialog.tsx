@@ -1,16 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+} from "@/shared/components/ui/drawer";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { formatStoreCheckoutRp } from "@/5-2-customer-visits/checkout/lib/catalogLabel";
 import type {
   CustomerVisitCartLine,
   CustomerVisitCatalogItem,
 } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
+import { usePosCashierIsPhoneLayout } from "../../hooks/usePosCashierIsPhoneLayout";
 import { usePosItemCustomizeOptions } from "../../hooks/usePosItemCustomizeOptions";
 import { buildCustomizeCartLine } from "../../lib/buildCustomizeCartLine";
 import { computeCustomizeLineTotal } from "../../lib/computeCustomizeUnitPrice";
@@ -40,6 +46,7 @@ export function PosItemCustomizeDialog({
   onSave,
 }: Props) {
   const { t } = useAppTranslation();
+  const isPhone = usePosCashierIsPhoneLayout();
   const optionsQuery = usePosItemCustomizeOptions({
     outletId,
     productId: item?.id ?? null,
@@ -221,127 +228,159 @@ export function PosItemCustomizeDialog({
     return Math.max(0, Math.min(...caps));
   })();
 
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) onCancel();
-      }}
+  const handleOpenChange = (next: boolean) => {
+    if (!next) onCancel();
+  };
+
+  const header = (titleNode: ReactNode) => (
+    <div className="relative flex flex-shrink-0 items-center gap-2 border-b border-slate-100 px-4 py-3">
+      <Button
+        type="button"
+        variant="outline"
+        className="border-primary text-primary"
+        onClick={onCancel}
+      >
+        {t(POS_ITEM_CUSTOMIZE_I18N.cancel, "Cancel")}
+      </Button>
+      <div className="min-w-0 flex-1 text-center">
+        {titleNode}
+        <p className="text-sm font-medium text-primary tabular-nums">
+          {formatStoreCheckoutRp(liveTotal)}
+        </p>
+      </div>
+      <Button
+        type="button"
+        disabled={!valid || optionsQuery.isLoading}
+        onClick={() => {
+          if (!valid) return;
+          const line = buildCustomizeCartLine({
+            item,
+            quantity,
+            variantId,
+            variantName: selectedVariant?.name ?? null,
+            baseUnitPrice,
+            modifiers: selectedModifiers,
+            lineDiscount,
+            lineSalesTypeId: selectedStp?.salesTypeId ?? null,
+            lineSalesTypeLabel: selectedStp?.name ?? null,
+          });
+          onSave(line);
+        }}
+      >
+        {t(POS_ITEM_CUSTOMIZE_I18N.save, "Save")}
+      </Button>
+    </div>
+  );
+
+  const body = (
+    <div
+      className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain bg-white [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
+      data-vaul-no-drag=""
     >
+      {optionsQuery.isLoading ? (
+        <p className="p-6 text-center text-sm text-slate-500">
+          {t(POS_ITEM_CUSTOMIZE_I18N.loading, "Loading…")}
+        </p>
+      ) : (
+        <>
+          {data && data.variants.length > 0 ? (
+            <PosVariantSection
+              title={t(POS_ITEM_CUSTOMIZE_I18N.variant, "Variant")}
+              hint={t(POS_ITEM_CUSTOMIZE_I18N.pickOne, "Pick one")}
+              selectedId={variantId}
+              onSelect={setVariantId}
+              options={data.variants.map((v) => ({
+                id: v.id,
+                label: v.name,
+                disabled:
+                  v.availableQty != null ? v.availableQty <= 0 : false,
+              }))}
+            />
+          ) : null}
+
+          {(data?.modifierGroups ?? []).map((g) => (
+            <PosModifierGroupSection
+              key={g.id}
+              group={g}
+              pickOneLabel={t(POS_ITEM_CUSTOMIZE_I18N.pickOne, "Pick one")}
+              pickManyLabel={t(POS_ITEM_CUSTOMIZE_I18N.pickMany, "Pick many")}
+              outOfStockLabel={t(
+                POS_ITEM_CUSTOMIZE_I18N.optionOutOfStock,
+                "Out of stock",
+              )}
+              selectedIds={modifierByGroup[g.id] ?? []}
+              onToggle={(optionId) => toggleModifier(g.id, optionId)}
+            />
+          ))}
+
+          <PosQtyStepper
+            title={t(POS_ITEM_CUSTOMIZE_I18N.qty, "Quantity")}
+            quantity={quantity}
+            max={maxQty}
+            onChange={setQuantity}
+          />
+
+          <PosLineDiscountSection
+            title={t(POS_ITEM_CUSTOMIZE_I18N.discount, "Discount")}
+            customAmountLabel={t(
+              POS_ITEM_CUSTOMIZE_I18N.customAmount,
+              "Custom amount",
+            )}
+            discounts={data?.discounts ?? []}
+            selectedId={discountId}
+            customAmount={customDiscountAmount}
+            onSelect={setDiscountId}
+            onCustomAmountChange={setCustomDiscountAmount}
+          />
+
+          {data?.useSalesTypePrices ? (
+            <PosLineSalesTypeSection
+              title={t(POS_ITEM_CUSTOMIZE_I18N.salesType, "Sales type")}
+              hint={t(POS_ITEM_CUSTOMIZE_I18N.pickOne, "Pick one")}
+              options={uniqueSalesTypes}
+              selectedId={salesTypeId}
+              onSelect={setSalesTypeId}
+            />
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+
+  const titleText = item.serviceName;
+
+  if (isPhone) {
+    return (
+      <Drawer open={open} onOpenChange={handleOpenChange} dismissible>
+        <DrawerContent
+          aboveAppNav={false}
+          smoothFast
+          className="z-[70] flex h-[min(92dvh,920px)] max-h-[min(92dvh,920px)] flex-col gap-0 overflow-hidden rounded-t-2xl border-0 p-0 pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] shadow-2xl"
+          overlayClassName="z-[70]"
+        >
+          {header(
+            <DrawerTitle className="truncate text-base font-semibold text-slate-900">
+              {titleText}
+            </DrawerTitle>,
+          )}
+          {body}
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className="flex h-[min(78dvh,720px)] w-[min(88vw,960px)] max-h-[min(78dvh,720px)] max-w-none flex-col gap-0 overflow-hidden rounded-2xl border-0 p-0 shadow-2xl [&>button]:hidden"
         aria-describedby={undefined}
       >
-        <DialogTitle className="sr-only">{item.serviceName}</DialogTitle>
-        <div className="relative flex items-center gap-2 border-b border-slate-100 px-4 py-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="border-primary text-primary"
-            onClick={onCancel}
-          >
-            {t(POS_ITEM_CUSTOMIZE_I18N.cancel, "Cancel")}
-          </Button>
-          <div className="min-w-0 flex-1 text-center">
-            <p className="truncate text-base font-semibold text-slate-900">
-              {item.serviceName}
-            </p>
-            <p className="text-sm font-medium text-primary tabular-nums">
-              {formatStoreCheckoutRp(liveTotal)}
-            </p>
-          </div>
-          <Button
-            type="button"
-            disabled={!valid || optionsQuery.isLoading}
-            onClick={() => {
-              if (!valid) return;
-              const line = buildCustomizeCartLine({
-                item,
-                quantity,
-                variantId,
-                variantName: selectedVariant?.name ?? null,
-                baseUnitPrice,
-                modifiers: selectedModifiers,
-                lineDiscount,
-                lineSalesTypeId: selectedStp?.salesTypeId ?? null,
-                lineSalesTypeLabel: selectedStp?.name ?? null,
-              });
-              onSave(line);
-            }}
-          >
-            {t(POS_ITEM_CUSTOMIZE_I18N.save, "Save")}
-          </Button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto bg-white">
-          {optionsQuery.isLoading ? (
-            <p className="p-6 text-center text-sm text-slate-500">
-              {t(POS_ITEM_CUSTOMIZE_I18N.loading, "Loading…")}
-            </p>
-          ) : (
-            <>
-              {data && data.variants.length > 0 ? (
-                <PosVariantSection
-                  title={t(POS_ITEM_CUSTOMIZE_I18N.variant, "Variant")}
-                  hint={t(POS_ITEM_CUSTOMIZE_I18N.pickOne, "Pick one")}
-                  selectedId={variantId}
-                  onSelect={setVariantId}
-                  options={data.variants.map((v) => ({
-                    id: v.id,
-                    label: v.name,
-                    disabled:
-                      v.availableQty != null ? v.availableQty <= 0 : false,
-                  }))}
-                />
-              ) : null}
-
-              {(data?.modifierGroups ?? []).map((g) => (
-                <PosModifierGroupSection
-                  key={g.id}
-                  group={g}
-                  pickOneLabel={t(POS_ITEM_CUSTOMIZE_I18N.pickOne, "Pick one")}
-                  pickManyLabel={t(POS_ITEM_CUSTOMIZE_I18N.pickMany, "Pick many")}
-                  outOfStockLabel={t(
-                    POS_ITEM_CUSTOMIZE_I18N.optionOutOfStock,
-                    "Out of stock",
-                  )}
-                  selectedIds={modifierByGroup[g.id] ?? []}
-                  onToggle={(optionId) => toggleModifier(g.id, optionId)}
-                />
-              ))}
-
-              <PosQtyStepper
-                title={t(POS_ITEM_CUSTOMIZE_I18N.qty, "Quantity")}
-                quantity={quantity}
-                max={maxQty}
-                onChange={setQuantity}
-              />
-
-              <PosLineDiscountSection
-                title={t(POS_ITEM_CUSTOMIZE_I18N.discount, "Discount")}
-                customAmountLabel={t(
-                  POS_ITEM_CUSTOMIZE_I18N.customAmount,
-                  "Custom amount",
-                )}
-                discounts={data?.discounts ?? []}
-                selectedId={discountId}
-                customAmount={customDiscountAmount}
-                onSelect={setDiscountId}
-                onCustomAmountChange={setCustomDiscountAmount}
-              />
-
-              {data?.useSalesTypePrices ? (
-                <PosLineSalesTypeSection
-                  title={t(POS_ITEM_CUSTOMIZE_I18N.salesType, "Sales type")}
-                  hint={t(POS_ITEM_CUSTOMIZE_I18N.pickOne, "Pick one")}
-                  options={uniqueSalesTypes}
-                  selectedId={salesTypeId}
-                  onSelect={setSalesTypeId}
-                />
-              ) : null}
-            </>
-          )}
-        </div>
+        {header(
+          <DialogTitle className="truncate text-base font-semibold text-slate-900">
+            {titleText}
+          </DialogTitle>,
+        )}
+        {body}
       </DialogContent>
     </Dialog>
   );

@@ -12,10 +12,12 @@ type Props = {
   countTone?: "green" | "slate";
   onClick: () => void;
   compact?: boolean;
+  /** Phone bottom bar — fixed width, tighter vertical rhythm. */
+  horizontal?: boolean;
 };
 
 /**
- * Compact KDS sidebar control — icon + short label + optional badge/count.
+ * Compact KDS sidebar / bottom-nav control — icon + short label + optional badge/count.
  */
 export function PosKitchenSidebarNavItem({
   icon: Icon,
@@ -26,6 +28,7 @@ export function PosKitchenSidebarNavItem({
   countTone = "green",
   onClick,
   compact,
+  horizontal,
 }: Props) {
   const showBadge = typeof badge === "number" && badge > 0;
   const showCount = typeof count === "number";
@@ -36,12 +39,17 @@ export function PosKitchenSidebarNavItem({
       onClick={onClick}
       aria-current={active ? "true" : undefined}
       className={cn(
-        "relative flex w-full flex-col items-center justify-center gap-0.5 px-1 py-2 text-center transition-colors",
+        "relative flex flex-col items-center justify-center gap-0.5 text-center transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400/60",
         active
           ? "bg-slate-700/80 text-white"
           : "text-slate-300 hover:bg-slate-800/80 hover:text-white",
-        compact ? "min-h-12" : "min-h-14",
+        horizontal
+          ? "min-h-14 min-w-[3.75rem] flex-shrink-0 px-1.5 py-1.5"
+          : cn(
+              "w-full px-1 py-2",
+              compact ? "min-h-12" : "min-h-14",
+            ),
       )}
     >
       <span className="relative inline-flex">
@@ -52,13 +60,19 @@ export function PosKitchenSidebarNavItem({
           </span>
         ) : null}
       </span>
-      <span className="max-w-full truncate text-[9px] font-semibold uppercase tracking-wide leading-tight">
+      <span
+        className={cn(
+          "max-w-full truncate font-semibold uppercase tracking-wide leading-tight",
+          horizontal ? "text-[8px]" : "text-[9px]",
+        )}
+      >
         {label}
       </span>
       {showCount ? (
         <span
           className={cn(
-            "text-lg font-bold tabular-nums leading-none",
+            "font-bold tabular-nums leading-none",
+            horizontal ? "text-xs" : "text-lg",
             countTone === "green" ? "text-emerald-400" : "text-slate-100",
           )}
         >

@@ -14,9 +14,13 @@ import {
 import { usePosMobileFloorFixtures } from "@/pos-mobile/5-table-map/hooks/usePosMobileFloorFixtures";
 import { usePosMobileTableGroups } from "@/pos-mobile/5-table-map/hooks/usePosMobileTableGroups";
 import { usePosMobileTables } from "@/pos-mobile/5-table-map/hooks/usePosMobileTables";
+import { PosTableMapFooter } from "@/pos-mobile/5-table-map/components/PosTableMapFooter";
+import { PosTableMapLegend } from "@/pos-mobile/5-table-map/components/PosTableMapLegend";
 import { usePosBillListOpenSessions } from "../../hooks/usePosBillListSessions";
+import { usePosCashierIsPhoneLayout } from "../../hooks/usePosCashierIsPhoneLayout";
 import { POS_SELECT_TABLE_I18N } from "../../lib/posSelectTableCopy";
 import { canPickTableForPayFirst } from "../../lib/pay-first-seating";
+import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
 import { PosSelectTableBillSheet } from "./PosSelectTableBillSheet";
 import { PosSelectTableGroupTabs } from "./PosSelectTableGroupTabs";
 import { PosSelectTableMap } from "./PosSelectTableMap";
@@ -61,6 +65,7 @@ export function PosSelectTableOverlay({
   pickOnly = false,
 }: Props) {
   const { t } = useAppTranslation();
+  const isPhone = usePosCashierIsPhoneLayout();
   const { organizationId } = useCurrentOrg();
   const groupsQuery = usePosMobileTableGroups(outletId);
   const activeGroups = groupsQuery.activeGroups;
@@ -205,17 +210,143 @@ export function PosSelectTableOverlay({
     });
   };
 
+  const onSelectGroup = (groupId: string) => {
+    setActiveGroupId(groupId);
+    setSelectedTableId(null);
+    setSelectedMaxPax(null);
+    setBillSheetTable(null);
+  };
+
+  const onContinueClick = () => {
+    if (!selectedTable) return;
+    const sessions = sessionsByTableId.get(selectedTable.id) ?? [];
+    const occ = computeTableOccupancy(sessions, selectedTable.pax);
+    continueWithTable(selectedTable, selectedMaxPax ?? occ.remainingPax);
+  };
+
   if (!open) return null;
+
+  const mapPane =
+    activeGroups.length === 0 ? (
+      <p className="px-6 py-16 text-center text-sm text-slate-500">
+        {t(
+          POS_SELECT_TABLE_I18N.needGroup,
+          "No active table group for this outlet.",
+        )}
+      </p>
+    ) : (
+      <PosSelectTableMap
+        tables={tables}
+        fixtures={fixtures}
+        sessionsByTableId={sessionsByTableId}
+        selectedTableId={selectedTableId}
+        loading={mapLoading}
+        onSelect={onTapTable}
+      />
+    );
+
+  const billSheet = (
+    <PosSelectTableBillSheet
+      open={!pickOnly && Boolean(billSheetTable)}
+      onOpenChange={(next) => {
+        if (!next) setBillSheetTable(null);
+      }}
+      table={billSheetTable}
+      groupName={activeGroupName}
+      occupancy={billSheetOccupancy}
+      nowMs={nowMs}
+      billRows={billListOpenSessions.rows}
+      onResume={(session) => {
+        setBillSheetTable(null);
+        onResumeSession?.(session);
+      }}
+      onNewBill={() => {
+        if (!billSheetTable || !billSheetOccupancy) return;
+        const table = billSheetTable;
+        const maxPax = billSheetOccupancy.remainingPax;
+        setBillSheetTable(null);
+        setSelectedTableId(table.id);
+        setSelectedMaxPax(maxPax);
+        continueWithTable(table, maxPax);
+      }}
+    />
+  );
+
+  /** Phone: same chrome as `/pos/table-map` (legend + Indoor/Outdoor footer). */
+  if (isPhone) {
+    return (
+      <div
+        className={
+          pickOnly
+            ? "fixed inset-0 z-[80] flex flex-col overflow-hidden bg-white"
+            : "fixed inset-0 z-[60] flex flex-col overflow-hidden bg-white"
+        }
+      >
+        <PosSafeAreaTopSpacer />
+        <header className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 shrink-0 border-primary px-2 text-xs text-primary"
+            onClick={onCancel}
+            disabled={busy}
+          >
+            {t(POS_SELECT_TABLE_I18N.cancel, "Cancel")}
+          </Button>
+          <PosTableMapLegend className="min-w-0 flex-1 justify-center px-0 py-0" />
+          <div className="flex shrink-0 items-center gap-1.5">
+            {!hasSelection && !pickOnly ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 border-primary px-2 text-xs text-primary"
+                onClick={onSaveAsBill}
+                disabled={busy}
+              >
+                {t(POS_SELECT_TABLE_I18N.saveAsBill, "Save as Bill")}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 px-2.5 text-xs"
+              disabled={!hasSelection || busy}
+              onClick={onContinueClick}
+            >
+              {t(POS_SELECT_TABLE_I18N.continue, "Continue")}
+            </Button>
+          </div>
+        </header>
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{mapPane}</div>
+
+        <PosTableMapFooter
+          groups={activeGroups}
+          activeGroupId={activeGroupId}
+          onSelectGroup={onSelectGroup}
+          outletLabel=""
+          hideMenu
+          occupiedByGroupId={openBillCountByGroupId}
+          tableCountByGroupId={tableCounts.data ?? new Map()}
+        />
+
+        {billSheet}
+      </div>
+    );
+  }
 
   return (
     <div
       className={
         pickOnly
-          ? "fixed inset-0 z-[80] flex flex-col bg-slate-100"
-          : "fixed inset-0 z-[60] flex flex-col bg-slate-100"
+          ? "fixed inset-0 z-[80] flex flex-col overflow-hidden bg-slate-100"
+          : "fixed inset-0 z-[60] flex flex-col overflow-hidden bg-slate-100"
       }
     >
-      <header className="relative flex items-center justify-center border-b border-slate-200 bg-white px-3 py-3">
+      <PosSafeAreaTopSpacer />
+      <header className="relative flex shrink-0 items-center justify-center border-b border-slate-200 bg-white px-3 py-3">
         <Button
           type="button"
           variant="outline"
@@ -226,10 +357,10 @@ export function PosSelectTableOverlay({
         >
           {t(POS_SELECT_TABLE_I18N.cancel, "Cancel")}
         </Button>
-        <h1 className="text-base font-semibold text-slate-900">
+        <h1 className="min-w-0 truncate px-20 text-center text-base font-semibold text-slate-900 sm:px-28">
           {t(POS_SELECT_TABLE_I18N.title, "Select Table")}
         </h1>
-        <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
+        <div className="absolute right-3 top-1/2 flex max-w-[48%] -translate-y-1/2 flex-wrap items-center justify-end gap-2">
           {!hasSelection && !pickOnly ? (
             <Button
               type="button"
@@ -246,78 +377,24 @@ export function PosSelectTableOverlay({
             type="button"
             size="sm"
             disabled={!hasSelection || busy}
-            onClick={() => {
-              if (!selectedTable) return;
-              const sessions = sessionsByTableId.get(selectedTable.id) ?? [];
-              const occ = computeTableOccupancy(sessions, selectedTable.pax);
-              continueWithTable(
-                selectedTable,
-                selectedMaxPax ?? occ.remainingPax,
-              );
-            }}
+            onClick={onContinueClick}
           >
             {t(POS_SELECT_TABLE_I18N.continue, "Continue")}
           </Button>
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {activeGroups.length === 0 ? (
-          <p className="px-6 py-16 text-center text-sm text-slate-500">
-            {t(
-              POS_SELECT_TABLE_I18N.needGroup,
-              "No active table group for this outlet.",
-            )}
-          </p>
-        ) : (
-          <PosSelectTableMap
-            tables={tables}
-            fixtures={fixtures}
-            sessionsByTableId={sessionsByTableId}
-            selectedTableId={selectedTableId}
-            loading={mapLoading}
-            onSelect={onTapTable}
-          />
-        )}
-      </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{mapPane}</div>
 
       <PosSelectTableGroupTabs
         groups={activeGroups}
         activeGroupId={activeGroupId}
         occupiedByGroupId={openBillCountByGroupId}
         tableCountByGroupId={tableCounts.data ?? new Map()}
-        onSelectGroup={(groupId) => {
-          setActiveGroupId(groupId);
-          setSelectedTableId(null);
-          setSelectedMaxPax(null);
-          setBillSheetTable(null);
-        }}
+        onSelectGroup={onSelectGroup}
       />
 
-      <PosSelectTableBillSheet
-        open={!pickOnly && Boolean(billSheetTable)}
-        onOpenChange={(next) => {
-          if (!next) setBillSheetTable(null);
-        }}
-        table={billSheetTable}
-        groupName={activeGroupName}
-        occupancy={billSheetOccupancy}
-        nowMs={nowMs}
-        billRows={billListOpenSessions.rows}
-        onResume={(session) => {
-          setBillSheetTable(null);
-          onResumeSession?.(session);
-        }}
-        onNewBill={() => {
-          if (!billSheetTable || !billSheetOccupancy) return;
-          const table = billSheetTable;
-          const maxPax = billSheetOccupancy.remainingPax;
-          setBillSheetTable(null);
-          setSelectedTableId(table.id);
-          setSelectedMaxPax(maxPax);
-          continueWithTable(table, maxPax);
-        }}
-      />
+      {billSheet}
     </div>
   );
 }

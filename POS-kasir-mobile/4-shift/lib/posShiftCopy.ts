@@ -69,6 +69,7 @@ export const POS_SHIFT_I18N = {
   historyOpening: "posShift.historyOpening",
   historyExpected: "posShift.historyExpected",
   menu: "posShift.menu",
+  back: "posShift.back",
   startedAt: "posShift.startedAt",
   saveFailed: "posShift.saveFailed",
   startFailed: "posShift.startFailed",
@@ -82,4 +83,7 @@ export const POS_SHIFT_I18N = {
   leaveNotOpener: "posShift.leaveNotOpener",
   leaveEndFirst: "posShift.leaveEndFirst",
   loading: "posShift.loading",
+  phonePaneList: "posShift.phone.paneList",
+  phonePaneDetail: "posShift.phone.paneDetail",
+  phonePaneSwitchAria: "posShift.phone.paneSwitchAria",
 } as const;

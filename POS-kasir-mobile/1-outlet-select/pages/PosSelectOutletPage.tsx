@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { SynckerjaBrandMark } from "@/shared/components/mobile/SynckerjaBrandMark";
+import { PosBrandMark } from "@/pos-mobile/shared/components/PosBrandMark";
 import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
 import { defaultPosOutletId } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -118,8 +118,8 @@ export default function PosSelectOutletPage() {
 
   return (
     <PosAuthViewport className="bg-white">
-      <div className="mb-8 flex justify-center">
-        <SynckerjaBrandMark size="md" />
+      <div className="mb-6 flex justify-center md:mb-8">
+        <PosBrandMark />
       </div>
 
       <div className="flex w-full flex-col gap-4">

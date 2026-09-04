@@ -93,7 +93,7 @@ export function PosLibraryHome({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {visible.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-slate-400">
             {t(POS_CASHIER_I18N.libraryEmptySections, "No matching sections.")}

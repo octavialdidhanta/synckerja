@@ -1,4 +1,4 @@
-import { ListOrdered, Receipt, SplitSquareVertical, UserPlus } from "lucide-react";
+import { ListOrdered, Receipt, ScanBarcode, SplitSquareVertical, UserPlus } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
   Select,
@@ -12,6 +12,7 @@ import type { CatalogCheckoutTotals } from "@/8-2-1-default-prices/checkout/lib/
 import { formatCatalogCheckoutLineLabel } from "@/8-2-1-default-prices/checkout/lib/formatCatalogCheckoutLineLabel";
 import { formatStoreCheckoutRp } from "@/5-2-customer-visits/checkout/lib/catalogLabel";
 import type { CustomerVisitCartLine } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
+import { cn } from "@/shared/lib/utils";
 import { PosBillLineRow } from "./PosBillLineRow";
 import { POS_CASHIER_I18N } from "../lib/posCashierCopy";
 
@@ -37,6 +38,12 @@ type Props = {
   onSplitBill: () => void;
   onPay: () => void;
   paying?: boolean;
+  /** Phone single-pane: full width, no right-rail cap. */
+  fullWidth?: boolean;
+  /** Phone: Bill List / Add Customer live in shared top bar — hide duplicate header. */
+  hideTopActions?: boolean;
+  /** Open camera barcode scanner (tablet bill chrome). */
+  onOpenCameraScan?: () => void;
 };
 
 export function PosCashierBillPanel({
@@ -58,6 +65,9 @@ export function PosCashierBillPanel({
   onSplitBill,
   onPay,
   paying,
+  fullWidth = false,
+  hideTopActions = false,
+  onOpenCameraScan,
 }: Props) {
   const { t, language } = useAppTranslation();
   const { subtotal, gratuityLines, taxLines, grandTotal, applicationMethod } = checkoutTotals;
@@ -68,7 +78,13 @@ export function PosCashierBillPanel({
     : (salesTypeOptions[0]?.id ?? "");
 
   return (
-    <aside className="flex h-full min-h-0 w-full max-w-md flex-col border-l border-slate-200 bg-white">
+    <aside
+      className={cn(
+        "flex h-full min-h-0 w-full flex-col bg-white",
+        fullWidth ? "max-w-none border-l-0" : "max-w-md border-l border-slate-200",
+      )}
+    >
+      {hideTopActions ? null : (
       <div className="flex items-center gap-2 bg-brand-blue-soft px-3 py-2">
         <button
           type="button"
@@ -80,6 +96,20 @@ export function PosCashierBillPanel({
             {t(POS_CASHIER_I18N.billList, "Bill List")}
           </span>
         </button>
+        {onOpenCameraScan ? (
+          <button
+            type="button"
+            className="flex flex-col items-center gap-0.5 rounded-md px-2 py-1 text-primary transition-colors hover:bg-primary/10"
+            onClick={onOpenCameraScan}
+            title={t(POS_CASHIER_I18N.scanOpenCamera, "Scan")}
+            aria-label={t(POS_CASHIER_I18N.scanOpenCamera, "Scan")}
+          >
+            <ScanBarcode className="h-5 w-5" />
+            <span className="text-[10px] font-medium">
+              {t(POS_CASHIER_I18N.scanOpenCamera, "Scan")}
+            </span>
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onAddCustomer}
@@ -89,6 +119,7 @@ export function PosCashierBillPanel({
           {customerLabel || t(POS_CASHIER_I18N.addCustomer, "+ Add Customer")}
         </button>
       </div>
+      )}
 
       {tableLabel ? (
         <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-emerald-50/80 px-3 py-1.5">

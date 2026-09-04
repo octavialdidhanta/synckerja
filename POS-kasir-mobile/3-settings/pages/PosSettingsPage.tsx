@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { useCatalogCheckoutSettings } from "@/8-2-1-default-prices/checkout/hooks/useCatalogCheckoutSettings";
 import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
@@ -19,6 +19,7 @@ import {
 } from "@/pos-mobile/1-outlet-select/lib/posSelectedOutletStorage";
 import { PosCashierMenuDrawer } from "@/pos-mobile/2-cashier/components/PosCashierMenuDrawer";
 import { PosAppFooterBar } from "@/pos-mobile/shared/layout/PosAppFooterBar";
+import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
 import { PosSessionLeaveProvider } from "@/pos-mobile/shared/PosSessionLeaveProvider";
 import { PosNotificationSoundSheet } from "../components/PosNotificationSoundSheet";
 import { PosOnlineOrderSettingsPanel } from "../components/PosOnlineOrderSettingsPanel";
@@ -28,6 +29,7 @@ import { PosTaxSettingsPanel } from "../components/tax/PosTaxSettingsPanel";
 import { PosSurchargeSettingsPanel } from "../components/surcharge/PosSurchargeSettingsPanel";
 import { PosHardwareSoonPanel } from "../components/hardware/PosHardwareSoonPanel";
 import { PosPrinterSettingsPanel } from "../components/hardware/printer";
+import { PosBarcodeScannerSettingsPanel } from "../components/hardware/scanner";
 import {
   PosLanguageSettingsPanel,
   PosProfileSettingsPanel,
@@ -37,6 +39,8 @@ import {
 import { PosSettingsNav } from "../components/PosSettingsNav";
 import { PosSettingsProfileCard } from "../components/PosSettingsProfileCard";
 import { PosSettingsShell } from "../components/PosSettingsShell";
+import { PosSettingsPhonePaneSlider } from "../components/phone";
+import { usePosSettingsPhoneLayout } from "../hooks/usePosSettingsPhoneLayout";
 import {
   POS_NOTIFICATION_SOUND_OPTIONS,
   POS_SETTINGS_I18N,
@@ -84,12 +88,12 @@ function PosSettingsRightPanel({
     );
   }
   if (section === "printer") return <PosPrinterSettingsPanel />;
+  if (section === "barcode-scanner") return <PosBarcodeScannerSettingsPanel />;
   if (section === "language") return <PosLanguageSettingsPanel />;
   if (section === "profile") {
     return <PosProfileSettingsPanel onOutletSaved={onOutletSaved} />;
   }
   if (
-    section === "barcode-scanner" ||
     section === "gobiz-edc" ||
     section === "customer-display" ||
     section === "kitchen-display" ||
@@ -108,11 +112,12 @@ function PosSettingsRightPanel({
 }
 
 /**
- * Synckerja POS settings — master–detail tablet screen.
+ * Synckerja POS settings — master–detail tablet / List|Detail phone.
  * Authenticated route: `/pos/settings` (outside AdaptiveAppLayout).
  */
 export default function PosSettingsPage() {
-  usePosTabletShell();
+  const { isPhoneLayout, pane, setPane, showDetail } = usePosSettingsPhoneLayout();
+  usePosTabletShell({ phoneOverlay: isPhoneLayout });
   useMarkPosAuthSurface();
   const { t, language } = useAppTranslation();
   const { user } = useAuth();
@@ -164,6 +169,14 @@ export default function PosSettingsPage() {
       setSearchParams(id === "online-orders" ? {} : { section: id }, { replace: true });
     },
     [setSearchParams],
+  );
+
+  const onNavSelect = useCallback(
+    (id: PosSettingsSectionId) => {
+      setSection(id);
+      if (isPhoneLayout) showDetail();
+    },
+    [isPhoneLayout, setSection, showDetail],
   );
 
   const persist = useCallback(
@@ -231,48 +244,111 @@ export default function PosSettingsPage() {
   }
 
   const displayOutletName = outletName || outletId || "";
+  const rightHeader = t(navItem.panelTitleKey, navItem.panelTitleFallback);
+
+  const leftScroll = (
+    <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <PosSettingsProfileCard
+        outletName={displayOutletName}
+        email={user?.email ?? null}
+        subtitle={organizationName || null}
+        address={outletAddress}
+        logoUrl={logoUrl}
+      />
+      <PosSettingsNav
+        activeId={section}
+        onSelect={onNavSelect}
+        statusOverrides={statusOverrides}
+      />
+    </div>
+  );
+
+  const leftFooter = (
+    <div className="flex-shrink-0 border-t border-slate-200 bg-white p-3">
+      <PosSettingsLogoutButton />
+    </div>
+  );
+
+  const rightContent: ReactNode = (
+    <PosSettingsRightPanel
+      section={section}
+      settings={settings}
+      soundLabel={soundLabel}
+      onSettingsChange={persist}
+      onOpenSoundPicker={() => setSoundOpen(true)}
+      onNavigateSection={onNavSelect}
+      onOutletSaved={onOutletSaved}
+    />
+  );
+
+  const footer = (
+    <PosAppFooterBar
+      outletLabel={
+        isPhoneLayout
+          ? t(POS_SETTINGS_I18N.title, "Settings")
+          : displayOutletName
+      }
+      onOpenMenu={() => setMenuOpen(true)}
+      menuAriaLabel={t(POS_SETTINGS_I18N.menu, "Menu")}
+    />
+  );
 
   return (
     <PosSessionLeaveProvider>
-      <PosSettingsShell
-        leftHeader={t(POS_SETTINGS_I18N.title, "Settings")}
-        rightHeader={t(navItem.panelTitleKey, navItem.panelTitleFallback)}
-        left={
-          <>
-            <PosSettingsProfileCard
-              outletName={displayOutletName}
-              email={user?.email ?? null}
-              subtitle={organizationName || null}
-              address={outletAddress}
-              logoUrl={logoUrl}
+      {isPhoneLayout ? (
+        <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-white">
+          <PosSafeAreaTopSpacer />
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+            <PosSettingsPhonePaneSlider
+              pane={pane}
+              onPaneChange={setPane}
+              list={
+                <div className="flex h-full min-h-0 flex-col overflow-hidden">
+                  {leftScroll}
+                  {leftFooter}
+                </div>
+              }
+              detail={
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <div className="flex h-12 flex-shrink-0 items-center border-b border-slate-200 bg-slate-50 px-4">
+                    <h2 className="truncate text-base font-semibold text-slate-900">
+                      {rightHeader}
+                    </h2>
+                  </div>
+                  <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {rightContent}
+                  </div>
+                </div>
+              }
             />
-            <PosSettingsNav
-              activeId={section}
-              onSelect={setSection}
-              statusOverrides={statusOverrides}
-            />
-          </>
-        }
-        leftFooter={<PosSettingsLogoutButton />}
-        right={
-          <PosSettingsRightPanel
-            section={section}
-            settings={settings}
-            soundLabel={soundLabel}
-            onSettingsChange={persist}
-            onOpenSoundPicker={() => setSoundOpen(true)}
-            onNavigateSection={setSection}
-            onOutletSaved={onOutletSaved}
-          />
-        }
-        footer={
-          <PosAppFooterBar
-            outletLabel={displayOutletName}
-            onOpenMenu={() => setMenuOpen(true)}
-            menuAriaLabel={t(POS_SETTINGS_I18N.menu, "Menu")}
-          />
-        }
-      />
+          </div>
+          {footer}
+        </div>
+      ) : (
+        <PosSettingsShell
+          leftHeader={t(POS_SETTINGS_I18N.title, "Settings")}
+          rightHeader={rightHeader}
+          left={
+            <>
+              <PosSettingsProfileCard
+                outletName={displayOutletName}
+                email={user?.email ?? null}
+                subtitle={organizationName || null}
+                address={outletAddress}
+                logoUrl={logoUrl}
+              />
+              <PosSettingsNav
+                activeId={section}
+                onSelect={setSection}
+                statusOverrides={statusOverrides}
+              />
+            </>
+          }
+          leftFooter={<PosSettingsLogoutButton />}
+          right={rightContent}
+          footer={footer}
+        />
+      )}
 
       <PosCashierMenuDrawer
         open={menuOpen}

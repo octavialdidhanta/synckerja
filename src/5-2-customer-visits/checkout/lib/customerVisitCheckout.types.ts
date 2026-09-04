@@ -27,6 +27,8 @@ export type CustomerVisitCatalogItem = {
   unit: string | null;
   trackStock: boolean;
   inventorySkuId: string | null;
+  /** Catalog product SKU (`default_prices.sku`) for barcode / wedge lookup. */
+  catalogSku?: string | null;
   availableQty: number | null;
   productCategoryId: string | null;
   productCategoryName: string | null;

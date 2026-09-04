@@ -27,6 +27,7 @@ import {
   kitchenSlaRingProgress,
 } from "../lib/kitchenTicketSla";
 import type { PosKitchenTicket } from "../lib/posKitchenTypes";
+import { isKitchenTicketInRecallWindow } from "../lib/canRestoreKitchenTicket";
 import type { KitchenThemeColors } from "../settings/lib/defaultKitchenTheme";
 import { PosKitchenProgressRing } from "./PosKitchenProgressRing";
 
@@ -130,7 +131,9 @@ export function PosKitchenTicketCard({
   const interactionsDisabled = Boolean(busy || readOnly);
   /** Recall/Revert only after at least one line is unchecked. */
   const hasUncheckedLine = ticket.lines.some((line) => !line.is_done);
-  const recallDisabled = Boolean(busy || !hasUncheckedLine);
+  const canRestore =
+    Boolean(showRecall) && isKitchenTicketInRecallWindow(ticket, nowMs);
+  const recallDisabled = Boolean(busy || !hasUncheckedLine || !canRestore);
   const checklistDisabled = Boolean(busy || (readOnly && !showRecall));
 
   return (
@@ -171,7 +174,7 @@ export function PosKitchenTicketCard({
           </span>
         </PosKitchenProgressRing>
 
-        {showRecall ? (
+        {canRestore ? (
           <button
             type="button"
             disabled={recallDisabled}
@@ -267,7 +270,7 @@ export function PosKitchenTicketCard({
           </span>
         </PosKitchenProgressRing>
 
-        {showRecall ? (
+        {canRestore ? (
           <button
             type="button"
             disabled={busy}
@@ -280,7 +283,7 @@ export function PosKitchenTicketCard({
             <RotateCcw className="h-4 w-4" aria-hidden />
             {t(POS_KITCHEN_I18N.revertAction, "Revert")}
           </button>
-        ) : (
+        ) : !readOnly ? (
           <button
             type="button"
             disabled={interactionsDisabled}
@@ -292,6 +295,8 @@ export function PosKitchenTicketCard({
           >
             {actionLabel(ticket.status, t)}
           </button>
+        ) : (
+          <div className="min-h-10 min-w-0 flex-1" aria-hidden />
         )}
       </footer>
     </article>

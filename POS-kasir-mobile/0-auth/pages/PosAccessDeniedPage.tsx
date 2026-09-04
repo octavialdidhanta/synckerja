@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { SynckerjaBrandMark } from "@/shared/components/mobile/SynckerjaBrandMark";
+import { PosBrandMark } from "@/pos-mobile/shared/components/PosBrandMark";
 import { Button } from "@/shared/components/ui/button";
 import { useAuth } from "@/shared/auth/contexts/AuthContext";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -46,8 +46,8 @@ export default function PosAccessDeniedPage({ reason = "not_staff" }: PosAccessD
 
   return (
     <PosAuthViewport className="bg-white">
-      <div className="mb-8 flex justify-center">
-        <SynckerjaBrandMark size="md" />
+      <div className="mb-6 flex justify-center md:mb-8">
+        <PosBrandMark />
       </div>
       <div className="flex w-full flex-col items-center gap-4 text-center">
         <h1 className="text-xl font-semibold text-slate-900">

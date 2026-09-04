@@ -197,6 +197,8 @@ export function PosTableMapTableNode({
   const state: TableOccupancyState =
     occupancyState ?? (occupied ? "full" : "empty");
   const isBusy = state === "partial" || state === "full";
+  /** Thin one-sided tables only fit the name; hide duration / pax. */
+  const nameOnly = isOneSided;
 
   const cellW = table.grid_w * TABLE_MAP_CELL_PX;
   const cellH = Math.max(table.grid_h * TABLE_MAP_CELL_PX, TABLE_MAP_CELL_PX);
@@ -321,20 +323,21 @@ export function PosTableMapTableNode({
           >
             {table.name}
           </span>
-          {durationLabel ? (
-            <span className="text-[10px] font-medium text-orange-800">{durationLabel}</span>
-          ) : (
-            <span
-              className={cn(
-                "text-[10px]",
-                state === "empty" && "text-emerald-700/80",
-                state === "partial" && "text-amber-800/90",
-                state === "full" && "text-orange-800/90",
-              )}
-            >
-              {occupancyLabel ?? `${table.pax} pax`}
-            </span>
-          )}
+          {!nameOnly &&
+            (durationLabel ? (
+              <span className="text-[10px] font-medium text-orange-800">{durationLabel}</span>
+            ) : (
+              <span
+                className={cn(
+                  "text-[10px]",
+                  state === "empty" && "text-emerald-700/80",
+                  state === "partial" && "text-amber-800/90",
+                  state === "full" && "text-orange-800/90",
+                )}
+              >
+                {occupancyLabel ?? `${table.pax} pax`}
+              </span>
+            ))}
         </span>
       </span>
 

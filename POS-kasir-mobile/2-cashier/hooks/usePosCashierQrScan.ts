@@ -1,3 +1,4 @@
+/** Keyboard-wedge barcode scan listener for SYNK:{token} payloads (legacy). */
 import { useEffect, useRef } from "react";
 import { parseCashierQrPayload } from "@/synckerja-order/0-storefront/cashier-ticket/lib/buildCashierQrPayload";
 
@@ -8,7 +9,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return target.isContentEditable;
 }
 
-/** Keyboard-wedge barcode scan listener for SYNK:{token} payloads. */
+/** @deprecated Use usePosBarcodeWedgeScan + parsePosScanPayload on PosCashierPage. */
 export function usePosCashierQrScan(args: {
   enabled: boolean;
   onScan: (claimToken: string) => void;

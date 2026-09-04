@@ -12,6 +12,8 @@ import type {
 import { personalCustomerName } from "@/pos-receipt-feedback/lib/isGenericCustomerName";
 import { isPaySuccessNewTransactionBlocked } from "../../lib/pay-first-seating";
 import { POS_PAY_SUCCESS_I18N } from "../../lib/posPaySuccessCopy";
+import { usePosCashierIsPhoneLayout } from "../../hooks/usePosCashierIsPhoneLayout";
+import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
 
 export type PosPaySuccessPayload = {
   amountDue: number;
@@ -77,6 +79,7 @@ export function PosPaySuccessScreen({
   onNewTransaction,
 }: Props) {
   const { t } = useAppTranslation();
+  const isPhone = usePosCashierIsPhoneLayout();
   const [customerName, setCustomerName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneLocal, setPhoneLocal] = useState("");
@@ -106,6 +109,7 @@ export function PosPaySuccessScreen({
 
   return (
     <div className="fixed inset-0 z-[70] flex flex-col overflow-hidden bg-slate-100">
+      {isPhone ? <PosSafeAreaTopSpacer className="bg-slate-100" /> : null}
       <div className="flex-shrink-0 px-4 pt-3 sm:pt-4">
         <p className="text-sm font-bold uppercase tracking-wide text-primary">
           {methodLabel(payload, t)}
@@ -216,8 +220,8 @@ export function PosPaySuccessScreen({
         </div>
       </div>
 
-      <div className="flex-shrink-0 border-t border-slate-200 bg-slate-100 px-6 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-        <div className="mx-auto w-full max-w-md space-y-2">
+      <div className="flex-shrink-0 border-t border-slate-200 bg-slate-100 px-6 pt-3">
+        <div className="mx-auto w-full max-w-md space-y-2 pb-3">
           {showPickTable ? (
             <Button
               type="button"
@@ -256,6 +260,12 @@ export function PosPaySuccessScreen({
             {t(POS_PAY_SUCCESS_I18N.newTransaction, "New Transaction")}
           </Button>
         </div>
+        {isPhone ? (
+          <div
+            aria-hidden
+            className="h-[max(0.75rem,env(safe-area-inset-bottom,0px),var(--footer-bottom-inset,0px),3rem)]"
+          />
+        ) : null}
       </div>
     </div>
   );

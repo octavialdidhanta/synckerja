@@ -37,6 +37,7 @@ export const POS_KITCHEN_I18N = {
   revertAction: "posKitchen.revertAction",
   recalledBadge: "posKitchen.recalledBadge",
   revertedBadge: "posKitchen.revertedBadge",
+  restoreWindowExpired: "posKitchen.restoreWindowExpired",
 } as const;
 
 /** Active board tabs only (done/void are off-board). */

@@ -15,6 +15,7 @@ Office native app remains in [`../android/`](../android/) (`id.synckerja.app`) a
 ## Scripts (repo root)
 
 ```bash
+npm run icons:build:pos       # launcher + splash (cold start) dari public/synckerjapos.png
 npm run android-pos:prepare   # vite build + cap sync → android-pos
 npm run android-pos:sync      # sync only (needs dist/)
 npm run android-pos:open      # Android Studio
@@ -54,6 +55,9 @@ Until `google-services.json` exists, the google-services Gradle plugin is skippe
 ## Verify
 
 1. `npm run android-pos:prepare`
-2. Open in Android Studio → Run on tablet/emulator
+2. Open in Android Studio → Run on tablet/device (Bluetooth needs a real device)
 3. App opens at `/pos` (welcome/login)
-4. Settings → Hardware → Printer → Refresh (Bluetooth scan on device)
+4. Pair the thermal printer in **system Bluetooth** settings (classic / SPP)
+5. Settings → Hardware → Printer → Refresh → select printer → Done (auto-saved with Receipt/Bill on)
+6. Tap **Test Print** — paper should print `TEST PRINT` / `OK - Bluetooth connected`
+7. Cashier → Print Bill should use the same printer

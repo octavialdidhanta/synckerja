@@ -40,21 +40,21 @@ export function PosShiftStartBlock({ defaultOpeningCash, busy, onStart }: Props)
   };
 
   return (
-    <div className="flex min-h-full flex-col px-4 py-6">
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-        <div className="flex items-center justify-between gap-3 px-4 py-4">
-          <span className="text-sm text-slate-900">
+    <div className="flex min-h-full min-w-0 flex-col overflow-x-hidden px-3 py-6 sm:px-4">
+      <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className="flex items-center justify-between gap-3 px-3 py-4 sm:px-4">
+          <span className="min-w-0 flex-shrink text-sm text-slate-900">
             {t(POS_SHIFT_I18N.openingCash, "Cash Balance")}
           </span>
-          <div className="flex items-center gap-1">
-            <span className="text-sm text-slate-500">Rp</span>
+          <div className="flex min-w-0 max-w-[55%] items-center gap-1">
+            <span className="flex-shrink-0 text-sm text-slate-500">Rp</span>
             <input
               type="text"
               inputMode="numeric"
               disabled={busy}
               value={formatIdrThousandsFromDigits(cashDigits)}
               onChange={(e) => setCashDigits(idrDigitsOnly(e.target.value) || "0")}
-              className="w-28 border-0 bg-transparent text-right text-sm font-medium text-slate-900 outline-none"
+              className="min-w-0 flex-1 border-0 bg-transparent text-right text-sm font-medium text-slate-900 outline-none"
             />
           </div>
         </div>

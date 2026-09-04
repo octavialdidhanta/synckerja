@@ -67,7 +67,7 @@ export function PosActivityDetailPane({
 
   if (!detail && !loading) {
     return (
-      <div className="flex min-w-0 flex-1 items-center justify-center px-6">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 items-center justify-center px-6">
         <p className="text-center text-sm text-slate-400">
           {t(POS_ACTIVITY_I18N.selectPrompt, "Select a transaction to view details.")}
         </p>
@@ -77,7 +77,7 @@ export function PosActivityDetailPane({
 
   if (!detail) {
     return (
-      <div className="flex min-w-0 flex-1 items-center justify-center px-6">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 items-center justify-center px-6">
         <p className="text-sm text-slate-400">
           {t(POS_ACTIVITY_I18N.loading, "Loading activity…")}
         </p>
@@ -92,7 +92,7 @@ export function PosActivityDetailPane({
   const receipt = formatPosActivityReceiptNumber(detail.id) || t(POS_ACTIVITY_I18N.dash, "—");
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <div className="flex flex-shrink-0 gap-2 border-b border-slate-100 p-4">
         <Button
           type="button"
@@ -120,7 +120,7 @@ export function PosActivityDetailPane({
         )}
       </div>
 
-      <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
         <PosActivityDetailMeta
           paymentMethod={mapPosActivityPaymentLabel(detail.payment_method, t)}
           receiptNumber={receipt}

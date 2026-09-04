@@ -6,6 +6,11 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+} from "@/shared/components/ui/drawer";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { formatStoreCheckoutRp } from "@/5-2-customer-visits/checkout/lib/catalogLabel";
 import type { CustomerVisitCheckoutPaymentMethod } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
@@ -14,6 +19,7 @@ import { usePosQrisEligibility } from "@/shared/pos-qris";
 import { cn } from "@/shared/lib/utils";
 import { POS_PAYMENT_DIALOG_I18N } from "../../lib/posPaymentDialogCopy";
 import { quickCashAmounts } from "../../lib/quickCashAmounts";
+import { usePosCashierIsPhoneLayout } from "../../hooks/usePosCashierIsPhoneLayout";
 
 export type PosPaymentConfirmPayload = {
   paymentMethod: CustomerVisitCheckoutPaymentMethod;
@@ -82,6 +88,7 @@ export function PosPaymentMethodDialog({
   onConfirm,
 }: Props) {
   const { t } = useAppTranslation();
+  const isPhone = usePosCashierIsPhoneLayout();
   const { channels, isLoading: channelsLoading } = usePaymentMethodChannels({
     outletId,
     enabled: open && Boolean(outletId),
@@ -165,194 +172,224 @@ export function PosPaymentMethodDialog({
     };
   };
 
+  const amountTitle = formatStoreCheckoutRp(amountDue);
+
+  const header = (titleNode: ReactNode) => (
+    <div className="relative flex shrink-0 items-center justify-center border-b border-slate-100 px-3 py-3">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="absolute left-3 top-1/2 -translate-y-1/2 border-primary text-primary"
+        onClick={() => onOpenChange(false)}
+        disabled={paying}
+      >
+        {t(POS_PAYMENT_DIALOG_I18N.cancel, "Cancel")}
+      </Button>
+      {titleNode}
+      <Button
+        type="button"
+        size="sm"
+        className="absolute right-3 top-1/2 -translate-y-1/2"
+        disabled={!canPay}
+        onClick={() => {
+          if (!canPay) return;
+          onConfirm(resolvePayload());
+        }}
+      >
+        {paying
+          ? t(POS_PAYMENT_DIALOG_I18N.paying, "Paying…")
+          : t(POS_PAYMENT_DIALOG_I18N.pay, "Pay")}
+      </Button>
+    </div>
+  );
+
+  const body = (
+    <div
+      className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain bg-slate-50/80 px-4 py-3 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
+      data-vaul-no-drag=""
+    >
+      <div className="mb-3 space-y-1">
+        <p className="text-xs text-slate-500">
+          {t(POS_PAYMENT_DIALOG_I18N.server, "Server")} | {serverName || "—"}
+        </p>
+        <p className="text-xs text-primary">
+          {t(POS_PAYMENT_DIALOG_I18N.splitPaySoon, "Split payment across methods — coming soon")}
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <PaymentMethodGroup
+          title={t(POS_PAYMENT_DIALOG_I18N.cash, "Cash")}
+          active={method === "cash"}
+        >
+          <div className="mb-2 grid grid-cols-3 gap-2">
+            {quick.map((amt) => (
+              <button
+                key={amt}
+                type="button"
+                onClick={() => {
+                  setMethod("cash");
+                  setSelectedChannelId(cashChannel?.id ?? null);
+                  setTendered(String(amt));
+                }}
+                className={cn(
+                  "rounded-md border px-2 py-2.5 text-sm font-medium tabular-nums",
+                  method === "cash" && tenderedNum === amt
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-primary/40 bg-white text-primary",
+                )}
+              >
+                {formatStoreCheckoutRp(amt)}
+              </button>
+            ))}
+          </div>
+          <Input
+            value={tendered}
+            onChange={(e) => {
+              setMethod("cash");
+              setSelectedChannelId(cashChannel?.id ?? null);
+              setTendered(e.target.value.replace(/\D/g, ""));
+            }}
+            className="h-11 border-slate-200 bg-white text-base font-semibold tabular-nums"
+            inputMode="numeric"
+          />
+        </PaymentMethodGroup>
+
+        {qrisEligible ? (
+          <PaymentMethodGroup
+            title={t("pos.payment.qris.title", "QRIS Payment")}
+            active={method === "qris"}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setMethod("qris");
+                setSelectedChannelId(qrisChannel?.id ?? null);
+              }}
+              className={cn(
+                "flex w-full flex-col items-center justify-center gap-1.5 rounded-lg border bg-white px-3 py-3.5",
+                method === "qris"
+                  ? "border-primary ring-2 ring-primary/30"
+                  : "border-slate-200",
+              )}
+            >
+              <img
+                src="/qris1.png"
+                alt="QRIS"
+                className="h-8 w-auto object-contain"
+              />
+              {isSandbox ? (
+                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                  {t("pos.payment.qris.sandboxBadge", "Sandbox")}
+                </span>
+              ) : null}
+            </button>
+          </PaymentMethodGroup>
+        ) : null}
+
+        {ewalletChannels.length > 0 ? (
+          <PaymentMethodGroup
+            title={t(POS_PAYMENT_DIALOG_I18N.ewallet, "E-Wallet")}
+            active={method === "e_wallet"}
+          >
+            <div className="grid grid-cols-3 gap-2">
+              {ewalletChannels.map((wallet) => {
+                const active = method === "e_wallet" && selectedChannelId === wallet.id;
+                return (
+                  <button
+                    key={wallet.id}
+                    type="button"
+                    onClick={() => {
+                      setMethod("e_wallet");
+                      setSelectedChannelId(wallet.id);
+                    }}
+                    className={cn(
+                      "rounded-md border px-2 py-3 text-sm font-semibold",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-slate-200 bg-white text-slate-800",
+                    )}
+                  >
+                    {wallet.name}
+                  </button>
+                );
+              })}
+            </div>
+          </PaymentMethodGroup>
+        ) : null}
+
+        {edcChannels.length > 0 ? (
+          <PaymentMethodGroup
+            title={t(POS_PAYMENT_DIALOG_I18N.bankTransfer, "Bank Transfer / EDC")}
+            active={method === "bank_transfer"}
+          >
+            <div className="grid grid-cols-3 gap-2">
+              {edcChannels.map((edc) => {
+                const active = method === "bank_transfer" && selectedChannelId === edc.id;
+                return (
+                  <button
+                    key={edc.id}
+                    type="button"
+                    onClick={() => {
+                      setMethod("bank_transfer");
+                      setSelectedChannelId(edc.id);
+                    }}
+                    className={cn(
+                      "rounded-md border px-2 py-3 text-sm font-semibold",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-slate-200 bg-white text-slate-800",
+                    )}
+                  >
+                    {edc.name}
+                  </button>
+                );
+              })}
+            </div>
+          </PaymentMethodGroup>
+        ) : null}
+
+        <PaymentMethodGroup title={t(POS_PAYMENT_DIALOG_I18N.notes, "Additional notes")}>
+          <Input
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder={t(POS_PAYMENT_DIALOG_I18N.notes, "Additional notes")}
+            className="h-10 border-slate-200 bg-white"
+          />
+        </PaymentMethodGroup>
+      </div>
+    </div>
+  );
+
+  if (isPhone) {
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange} dismissible={!paying}>
+        <DrawerContent
+          aboveAppNav={false}
+          smoothFast
+          className="z-[70] flex h-[min(88dvh,860px)] max-h-[min(88dvh,860px)] flex-col gap-0 overflow-hidden rounded-t-2xl border-0 p-0 pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] shadow-2xl"
+          overlayClassName="z-[70]"
+        >
+          {header(
+            <DrawerTitle className="text-lg font-bold tabular-nums">{amountTitle}</DrawerTitle>,
+          )}
+          {body}
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="flex max-h-[min(86dvh,720px)] w-[min(94vw,640px)] max-w-none flex-col gap-0 overflow-hidden rounded-xl border-0 p-0 shadow-xl [&>button]:hidden"
         aria-describedby={undefined}
       >
-        <div className="relative flex items-center justify-center border-b border-slate-100 px-3 py-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="absolute left-3 top-1/2 -translate-y-1/2 border-primary text-primary"
-            onClick={() => onOpenChange(false)}
-            disabled={paying}
-          >
-            {t(POS_PAYMENT_DIALOG_I18N.cancel, "Cancel")}
-          </Button>
-          <DialogTitle className="text-lg font-bold tabular-nums">
-            {formatStoreCheckoutRp(amountDue)}
-          </DialogTitle>
-          <Button
-            type="button"
-            size="sm"
-            className="absolute right-3 top-1/2 -translate-y-1/2"
-            disabled={!canPay}
-            onClick={() => {
-              if (!canPay) return;
-              onConfirm(resolvePayload());
-            }}
-          >
-            {paying
-              ? t(POS_PAYMENT_DIALOG_I18N.paying, "Paying…")
-              : t(POS_PAYMENT_DIALOG_I18N.pay, "Pay")}
-          </Button>
-        </div>
-
-        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/80 px-4 py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="mb-3 space-y-1">
-            <p className="text-xs text-slate-500">
-              {t(POS_PAYMENT_DIALOG_I18N.server, "Server")} | {serverName || "—"}
-            </p>
-            <p className="text-xs text-primary">
-              {t(POS_PAYMENT_DIALOG_I18N.splitPaySoon, "Split payment across methods — coming soon")}
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <PaymentMethodGroup
-              title={t(POS_PAYMENT_DIALOG_I18N.cash, "Cash")}
-              active={method === "cash"}
-            >
-              <div className="mb-2 grid grid-cols-3 gap-2">
-                {quick.map((amt) => (
-                  <button
-                    key={amt}
-                    type="button"
-                    onClick={() => {
-                      setMethod("cash");
-                      setSelectedChannelId(cashChannel?.id ?? null);
-                      setTendered(String(amt));
-                    }}
-                    className={cn(
-                      "rounded-md border px-2 py-2.5 text-sm font-medium tabular-nums",
-                      method === "cash" && tenderedNum === amt
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-primary/40 bg-white text-primary",
-                    )}
-                  >
-                    {formatStoreCheckoutRp(amt)}
-                  </button>
-                ))}
-              </div>
-              <Input
-                value={tendered}
-                onChange={(e) => {
-                  setMethod("cash");
-                  setSelectedChannelId(cashChannel?.id ?? null);
-                  setTendered(e.target.value.replace(/\D/g, ""));
-                }}
-                className="h-11 border-slate-200 bg-white text-base font-semibold tabular-nums"
-                inputMode="numeric"
-              />
-            </PaymentMethodGroup>
-
-            {qrisEligible ? (
-              <PaymentMethodGroup
-                title={t("pos.payment.qris.title", "QRIS Payment")}
-                active={method === "qris"}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMethod("qris");
-                    setSelectedChannelId(qrisChannel?.id ?? null);
-                  }}
-                  className={cn(
-                    "flex w-full flex-col items-center justify-center gap-1.5 rounded-lg border bg-white px-3 py-3.5",
-                    method === "qris"
-                      ? "border-primary ring-2 ring-primary/30"
-                      : "border-slate-200",
-                  )}
-                >
-                  <img
-                    src="/qris1.png"
-                    alt="QRIS"
-                    className="h-8 w-auto object-contain"
-                  />
-                  {isSandbox ? (
-                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
-                      {t("pos.payment.qris.sandboxBadge", "Sandbox")}
-                    </span>
-                  ) : null}
-                </button>
-              </PaymentMethodGroup>
-            ) : null}
-
-            {ewalletChannels.length > 0 ? (
-              <PaymentMethodGroup
-                title={t(POS_PAYMENT_DIALOG_I18N.ewallet, "E-Wallet")}
-                active={method === "e_wallet"}
-              >
-                <div className="grid grid-cols-3 gap-2">
-                  {ewalletChannels.map((wallet) => {
-                    const active = method === "e_wallet" && selectedChannelId === wallet.id;
-                    return (
-                      <button
-                        key={wallet.id}
-                        type="button"
-                        onClick={() => {
-                          setMethod("e_wallet");
-                          setSelectedChannelId(wallet.id);
-                        }}
-                        className={cn(
-                          "rounded-md border px-2 py-3 text-sm font-semibold",
-                          active
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-slate-200 bg-white text-slate-800",
-                        )}
-                      >
-                        {wallet.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </PaymentMethodGroup>
-            ) : null}
-
-            {edcChannels.length > 0 ? (
-              <PaymentMethodGroup
-                title={t(POS_PAYMENT_DIALOG_I18N.bankTransfer, "Bank Transfer / EDC")}
-                active={method === "bank_transfer"}
-              >
-                <div className="grid grid-cols-3 gap-2">
-                  {edcChannels.map((edc) => {
-                    const active = method === "bank_transfer" && selectedChannelId === edc.id;
-                    return (
-                      <button
-                        key={edc.id}
-                        type="button"
-                        onClick={() => {
-                          setMethod("bank_transfer");
-                          setSelectedChannelId(edc.id);
-                        }}
-                        className={cn(
-                          "rounded-md border px-2 py-3 text-sm font-semibold",
-                          active
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-slate-200 bg-white text-slate-800",
-                        )}
-                      >
-                        {edc.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </PaymentMethodGroup>
-            ) : null}
-
-            <PaymentMethodGroup title={t(POS_PAYMENT_DIALOG_I18N.notes, "Additional notes")}>
-              <Input
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder={t(POS_PAYMENT_DIALOG_I18N.notes, "Additional notes")}
-                className="h-10 border-slate-200 bg-white"
-              />
-            </PaymentMethodGroup>
-          </div>
-        </div>
+        {header(
+          <DialogTitle className="text-lg font-bold tabular-nums">{amountTitle}</DialogTitle>,
+        )}
+        {body}
       </DialogContent>
     </Dialog>
   );

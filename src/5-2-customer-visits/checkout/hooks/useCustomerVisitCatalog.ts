@@ -22,6 +22,7 @@ type DefaultPriceCatalogRow = {
   inventory_sku_id: string | null;
   product_category_id: string | null;
   pos_status: string | null;
+  sku: string | null;
 };
 
 type ProductOutletRow = {
@@ -43,7 +44,7 @@ export function useCustomerVisitCatalog(outletId: string | null) {
       const { data, error } = await supabase
         .from('default_prices')
         .select(
-          'id, kind, service_id, sub_service_id, unit_price, name, photo_path, unit, track_stock, inventory_sku_id, product_category_id, pos_status, use_sales_type_prices',
+          'id, kind, service_id, sub_service_id, unit_price, name, photo_path, unit, track_stock, inventory_sku_id, product_category_id, pos_status, use_sales_type_prices, sku',
         )
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
@@ -258,6 +259,7 @@ export function useCustomerVisitCatalog(outletId: string | null) {
           unit: row.unit ?? (isProduct ? 'pcs' : null),
           trackStock: Boolean(row.track_stock),
           inventorySkuId: skuId,
+          catalogSku: isProduct ? (row.sku?.trim() || null) : null,
           availableQty,
           productCategoryId: isProduct ? categoryId : null,
           productCategoryName: isProduct && categoryId ? (categoryMap.get(categoryId) ?? null) : null,

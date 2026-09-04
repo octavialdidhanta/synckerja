@@ -9,8 +9,15 @@ type Props = {
 };
 
 /**
+ * Phone overlay `bottom` so a full-bleed sheet sits flush above this bar
+ * (`min-h-14` row + `.safe-area-bottom`).
+ */
+export const POS_APP_FOOTER_OVERLAY_BOTTOM_CLASS =
+  "bottom-[calc(3.5rem+max(var(--safe-area-inset-bottom,0px),env(safe-area-inset-bottom,0px)))]";
+
+/**
  * Full-width brand footer: Menu (left) + outlet name (center).
- * Used on POS settings (not the cashier Favorit/Library/Custom nav).
+ * Content row is `min-h-14` like cashier; safe-area is extra below (not inside that height).
  */
 export function PosAppFooterBar({
   outletLabel,
@@ -21,19 +28,23 @@ export function PosAppFooterBar({
   return (
     <footer
       className={cn(
-        "relative flex h-14 flex-shrink-0 items-center bg-primary text-white safe-area-bottom",
+        "relative flex flex-shrink-0 flex-col bg-primary text-white safe-area-bottom",
         className,
       )}
     >
-      <button
-        type="button"
-        onClick={onOpenMenu}
-        className="absolute left-0 top-0 flex h-full w-14 items-center justify-center transition-colors hover:bg-brand-blue-deep/80 active:bg-brand-blue-deep"
-        aria-label={menuAriaLabel}
-      >
-        <Menu className="h-5 w-5" />
-      </button>
-      <p className="w-full truncate px-16 text-center text-sm font-semibold">{outletLabel}</p>
+      <div className="flex min-h-14 items-stretch">
+        <button
+          type="button"
+          onClick={onOpenMenu}
+          className="flex w-14 flex-shrink-0 flex-col items-center justify-center bg-brand-blue-deep text-white transition-colors hover:bg-brand-blue-deep/90 active:bg-brand-blue-deep"
+          aria-label={menuAriaLabel}
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <p className="flex min-w-0 flex-1 items-center justify-center truncate px-3 text-sm font-semibold">
+          {outletLabel}
+        </p>
+      </div>
     </footer>
   );
 }

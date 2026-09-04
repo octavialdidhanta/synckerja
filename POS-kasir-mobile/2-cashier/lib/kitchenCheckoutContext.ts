@@ -96,6 +96,8 @@ export type RunKitchenFireOnPayArgs = {
   closedBy?: string | null;
   keepPayFirstSessionOpen?: boolean;
   kitchenCheckout: KitchenPayCheckoutContext;
+  /** Skip Bluetooth; KDS tickets + recipe stock still run. */
+  printTickets?: boolean;
 };
 
 /** Fire KDS on pay; returns session id (may create pay-first walk-in session). */
@@ -137,6 +139,7 @@ export async function runKitchenFireOnPay(
     customerName: args.kitchenCheckout.customerName,
     hadKitchenTicketsBeforePay: args.kitchenCheckout.hadKitchenTicketsBeforePay,
     firePolicy: args.kitchenCheckout.firePolicy,
+    printTickets: args.printTickets,
   });
 
   return { sessionId, result };

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
+import { usePosCashierIsPhoneLayout } from "@/pos-mobile/2-cashier/hooks/usePosCashierIsPhoneLayout";
 import { formatPosCash } from "../lib/formatPosCash";
 import { formatPosShiftDateTime } from "../lib/formatPosShiftDateTime";
 import { POS_SHIFT_I18N } from "../lib/posShiftCopy";
@@ -58,15 +59,17 @@ function Row({
 }) {
   const content = (
     <>
-      <span className="min-w-0 flex-1 text-sm text-slate-800">{label}</span>
+      <span className="min-w-0 flex-1 pr-2 text-sm text-slate-800">{label}</span>
       <span
         className={cn(
-          "flex flex-shrink-0 items-center gap-1 text-sm font-medium text-slate-900",
+          "flex max-w-[58%] min-w-0 flex-shrink items-start justify-end gap-1 text-right text-sm font-medium text-slate-900",
           valueClassName,
         )}
       >
-        {value}
-        {onClick ? <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden /> : null}
+        <span className="min-w-0 break-words [overflow-wrap:anywhere]">{value}</span>
+        {onClick ? (
+          <ChevronRight className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" aria-hidden />
+        ) : null}
       </span>
     </>
   );
@@ -75,14 +78,14 @@ function Row({
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 text-left last:border-b-0 hover:bg-slate-50"
+        className="flex w-full min-w-0 items-start justify-between gap-2 border-b border-slate-100 px-3 py-3.5 text-left last:border-b-0 hover:bg-slate-50 sm:gap-3 sm:px-4"
       >
         {content}
       </button>
     );
   }
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 last:border-b-0">
+    <div className="flex w-full min-w-0 items-start justify-between gap-2 border-b border-slate-100 px-3 py-3.5 last:border-b-0 sm:gap-3 sm:px-4">
       {content}
     </div>
   );
@@ -111,6 +114,7 @@ export function PosShiftActiveSummary({
   refundedProductsQty = 0,
 }: Props) {
   const { t, language } = useAppTranslation();
+  const isPhone = usePosCashierIsPhoneLayout();
   const isHistory = variant === "history";
   const expectedDisplay =
     isHistory && shift.expected_cash != null
@@ -120,7 +124,7 @@ export function PosShiftActiveSummary({
   const countedShort = isHistory && countedDisplay < Math.round(expectedDisplay);
 
   return (
-    <div className="px-4 py-4 pb-10">
+    <div className="min-w-0 overflow-x-hidden px-3 py-4 pb-10 sm:px-4">
       {isHistory ? (
         <div className="mb-4">
           <Button
@@ -134,7 +138,12 @@ export function PosShiftActiveSummary({
           </Button>
         </div>
       ) : (
-        <div className="mb-4 grid grid-cols-2 gap-3">
+        <div
+          className={cn(
+            "mb-4 grid gap-3",
+            isPhone ? "grid-cols-1" : "grid-cols-2",
+          )}
+        >
           <Button
             type="button"
             variant="outline"
@@ -157,7 +166,7 @@ export function PosShiftActiveSummary({
       )}
 
       <SectionTitle>{t(POS_SHIFT_I18N.detailSection, "SHIFT DETAILS")}</SectionTitle>
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
         <Row label={t(POS_SHIFT_I18N.detailName, "Name")} value={displayName} />
         <Row label={t(POS_SHIFT_I18N.detailOutlet, "Outlet")} value={outletName} />
         <Row
@@ -178,7 +187,7 @@ export function PosShiftActiveSummary({
       </div>
 
       <SectionTitle>{t(POS_SHIFT_I18N.orderSection, "ORDER DETAILS")}</SectionTitle>
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
         <Row
           label={t(POS_SHIFT_I18N.productsSold, "Products Sold")}
           value={String(totals.productsSoldQty)}
@@ -191,7 +200,7 @@ export function PosShiftActiveSummary({
       </div>
 
       <SectionTitle>{t(POS_SHIFT_I18N.cashSection, "CASH")}</SectionTitle>
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
         <Row
           label={t(POS_SHIFT_I18N.cashBalance, "Cash Balance")}
           value={formatPosCash(totals.openingCash)}
@@ -227,7 +236,7 @@ export function PosShiftActiveSummary({
       </div>
 
       <SectionTitle>{t(POS_SHIFT_I18N.totalSection, "TOTAL:")}</SectionTitle>
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
         <Row
           label={t(POS_SHIFT_I18N.totalExpected, "Total expected")}
           value={formatPosCash(expectedDisplay)}
@@ -236,4 +245,3 @@ export function PosShiftActiveSummary({
     </div>
   );
 }
-

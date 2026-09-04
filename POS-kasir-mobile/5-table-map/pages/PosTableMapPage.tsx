@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,6 +15,7 @@ import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDa
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useToast } from "@/shared/hooks/use-toast";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { supabase } from "@/shared/lib/supabaseClient";
 import type { PosTable } from "@/8-2-9-table-management/lib/posTableTypes";
 import {
   usePosOpenTableSessions,
@@ -33,6 +35,7 @@ import {
   PosBillListDialog,
   PosBillReasonDialog,
 } from "@/pos-mobile/2-cashier/components/bill-list";
+import { PosCheckoutRefundDialog } from "@/pos-mobile/2-cashier/components/refund";
 import {
   usePosBillListCancelledSessions,
   usePosBillListOpenSessions,
@@ -40,10 +43,16 @@ import {
   type PosBillListRow,
 } from "@/pos-mobile/2-cashier/hooks/usePosBillListSessions";
 import { usePosCheckoutRefund } from "@/pos-mobile/2-cashier/hooks/usePosCheckoutRefund";
+import { usePosRefundStockPolicy } from "@/pos-mobile/2-cashier/hooks/usePosRefundStockPolicy";
 import { usePosFulfillmentStockCommit } from "@/pos-mobile/2-cashier/hooks/usePosFulfillmentStockCommit";
 import { usePosLineVoids } from "@/pos-mobile/2-cashier/hooks/usePosLineVoids";
 import { POS_BILL_LIST_I18N } from "@/pos-mobile/2-cashier/lib/posBillListCopy";
 import { POS_STOCK_COMMIT_I18N } from "@/pos-mobile/2-cashier/lib/posStockCommitCopy";
+import {
+  POS_REFUND_I18N,
+  POS_REFUND_WASTE_REASON_REQUIRED,
+  posRefundSuccessTitleKey,
+} from "@/pos-mobile/2-cashier/lib/refund";
 import { usePosOpenShift } from "@/pos-mobile/4-shift/lib/usePosCashierShift";
 import { usePosPinGate } from "@/pos-mobile/shared/hooks/usePosPinGate";
 import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
@@ -52,9 +61,12 @@ import { POS_PIN_FEATURES } from "@/pos-mobile/shared/lib/posPinFeatures";
 import { printPosReceiptBill } from "@/pos-mobile/shared/printing/posPrintService";
 import { PosPrinterUnavailableError } from "@/pos-mobile/shared/printing/PosPrinterBridge";
 import { POS_SETTINGS_I18N } from "@/pos-mobile/3-settings/lib/posSettingsCopy";
+import { showPosNoReceiptPrinterToast } from "@/pos-mobile/3-settings/lib/printer/showPosNoReceiptPrinterToast";
 import { usePosOutletStockSettings } from "@/stock-management/stock-commit/hooks/usePosOutletStockSettings";
 import { computeTableOccupancy } from "@/8-2-9-table-management/sessions";
 import { PosSelectTableBillSheet } from "@/pos-mobile/2-cashier/components/select-table/PosSelectTableBillSheet";
+import { usePosCashierIsPhoneLayout } from "@/pos-mobile/2-cashier/hooks/usePosCashierIsPhoneLayout";
+import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
 import { PosTableMapCanvas } from "../components/PosTableMapCanvas";
 import { PosTableMapFooter } from "../components/PosTableMapFooter";
 import { PosTableMapHeader } from "../components/PosTableMapHeader";
@@ -90,7 +102,8 @@ function draftTotalsFromCart(subtotal: number): CatalogCheckoutTotals {
  * Authenticated route: `/pos/table-map`.
  */
 export default function PosTableMapPage() {
-  usePosTabletShell();
+  const isPhoneLayout = usePosCashierIsPhoneLayout();
+  usePosTabletShell({ phoneOverlay: isPhoneLayout });
   useMarkPosAuthSurface();
   const { t } = useAppTranslation();
   const { toast } = useToast();
@@ -115,6 +128,7 @@ export default function PosTableMapPage() {
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<PosBillListRow | null>(null);
   const [refundBusyId, setRefundBusyId] = useState<string | null>(null);
+  const [refundTarget, setRefundTarget] = useState<PosBillListRow | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -132,6 +146,10 @@ export default function PosTableMapPage() {
   const fulfillStock = usePosFulfillmentStockCommit();
   const { stockCommitPoint } = usePosOutletStockSettings(outletId);
   const checkoutRefund = usePosCheckoutRefund();
+  const refundPolicyQuery = usePosRefundStockPolicy(
+    refundTarget?.session.id,
+    Boolean(refundTarget),
+  );
   const openShiftQuery = usePosOpenShift(outletId);
   const sessionMutations = usePosTableSessionMutations(outletId);
 
@@ -159,6 +177,36 @@ export default function PosTableMapPage() {
   const fixturesQuery = usePosMobileFloorFixtures(activeGroupId);
   const tables = tablesQuery.tables ?? [];
   const fixtures = fixturesQuery.fixtures ?? [];
+
+  const openBillCountByGroupId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of openSessions.sessions) {
+      if (!s.group_id || !s.pos_table_id) continue;
+      map.set(s.group_id, (map.get(s.group_id) ?? 0) + 1);
+    }
+    return map;
+  }, [openSessions.sessions]);
+
+  const tableCounts = useQuery({
+    queryKey: ["pos-tables", "group-counts", organizationId, outletId],
+    enabled: Boolean(organizationId && outletId),
+    queryFn: async (): Promise<Map<string, number>> => {
+      if (!organizationId || !outletId) return new Map();
+      const { data, error } = await supabase
+        .from("pos_tables")
+        .select("id, group_id")
+        .eq("organization_id", organizationId)
+        .eq("outlet_id", outletId)
+        .eq("is_deleted", false);
+      if (error) throw error;
+      const map = new Map<string, number>();
+      for (const row of data ?? []) {
+        const gid = String(row.group_id);
+        map.set(gid, (map.get(gid) ?? 0) + 1);
+      }
+      return map;
+    },
+  });
 
   const onSelectOpenBill = useCallback(
     (row: PosBillListRow) => {
@@ -289,42 +337,65 @@ export default function PosTableMapPage() {
         return;
       }
       runWithPin(POS_PIN_FEATURES.issueRefunds, () => {
-        void (async () => {
-          setRefundBusyId(row.session.id);
-          try {
-            await checkoutRefund.mutateAsync({
-              activityId,
-              sessionId: row.session.id,
-              outletId: row.session.outlet_id ?? outletId,
-              shiftId: openShiftQuery.data?.id ?? null,
-            });
-            toast({
-              title: t(POS_STOCK_COMMIT_I18N.refundSuccess, "Checkout stock refunded"),
-            });
-            void billListPaid.refetch();
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            toast({
-              title: t(POS_STOCK_COMMIT_I18N.refundError, "Failed to refund checkout stock"),
-              description: message,
-              variant: "destructive",
-            });
-          } finally {
-            setRefundBusyId(null);
-          }
-        })();
+        setRefundTarget(row);
       });
     },
-    [
-      billListPaid,
-      checkoutRefund,
-      openShiftQuery.data?.id,
-      outletId,
-      runWithPin,
-      t,
-      toast,
-    ],
+    [runWithPin, t, toast],
   );
+
+  const confirmRefundPaidBill = (reason: string | null) => {
+    const row = refundTarget;
+    const activityId = row?.session.sales_activity_id;
+    if (!row || !activityId) return;
+    void (async () => {
+      setRefundBusyId(row.session.id);
+      try {
+        const result = await checkoutRefund.mutateAsync({
+          activityId,
+          sessionId: row.session.id,
+          outletId: row.session.outlet_id ?? outletId,
+          shiftId: openShiftQuery.data?.id ?? null,
+          reason,
+        });
+        const policy = result.effectiveStockPolicy;
+        toast({
+          title: t(
+            posRefundSuccessTitleKey(policy),
+            policy === "waste"
+              ? "Sale refunded · stock not restored"
+              : "Sale refunded · stock restored",
+          ),
+        });
+        if (result.kitchenVoidError) {
+          toast({
+            title: t(
+              POS_REFUND_I18N.kitchenVoidWarning,
+              "Sale refunded, but kitchen tickets could not be voided.",
+            ),
+            description: result.kitchenVoidError,
+            variant: "destructive",
+          });
+        }
+        setRefundTarget(null);
+        void billListPaid.refetch();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        toast({
+          title: t(POS_STOCK_COMMIT_I18N.refundError, "Failed to refund checkout stock"),
+          description:
+            message === POS_REFUND_WASTE_REASON_REQUIRED
+              ? t(
+                  POS_REFUND_I18N.policyChangedNeedReason,
+                  "Kitchen started this order. Enter a reason and try again.",
+                )
+              : message,
+          variant: "destructive",
+        });
+      } finally {
+        setRefundBusyId(null);
+      }
+    })();
+  };
 
   useEffect(() => {
     setSheetTarget((prev) => {
@@ -453,6 +524,8 @@ export default function PosTableMapPage() {
               ),
               variant: "destructive",
             });
+          } else if (msg === "no_receipt_printer") {
+            showPosNoReceiptPrinterToast({ toast, t, navigate });
           } else {
             toast({
               title: t(POS_TABLE_MAP_I18N.sheetPrintError, "Print failed"),
@@ -465,7 +538,7 @@ export default function PosTableMapPage() {
         }
       })();
     });
-  }, [outletId, outletName, runWithPin, sheetTarget, t, toast]);
+  }, [outletId, outletName, navigate, runWithPin, sheetTarget, t, toast]);
 
   const onDeleteBill = useCallback(() => {
     if (!sheetTarget?.session) return;
@@ -568,7 +641,14 @@ export default function PosTableMapPage() {
   const emptyTables = !tablesLoading && !noGroups && tables.length === 0;
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-slate-100">
+    <div
+      className={
+        isPhoneLayout
+          ? "fixed inset-0 flex flex-col overflow-hidden bg-white"
+          : "fixed inset-0 flex flex-col overflow-hidden bg-slate-100"
+      }
+    >
+      {isPhoneLayout ? <PosSafeAreaTopSpacer /> : null}
       <PosTableMapHeader
         occupiedCount={
           billListOpenSessions.rows.length > 0
@@ -576,6 +656,7 @@ export default function PosTableMapPage() {
             : openSessions.sessions.length
         }
         onOpenBillList={() => setBillListOpen(true)}
+        phoneLayout={isPhoneLayout}
       />
 
       {noGroups ? (
@@ -607,9 +688,11 @@ export default function PosTableMapPage() {
         groups={activeGroups}
         activeGroupId={activeGroupId}
         onSelectGroup={onSelectGroup}
-        outletLabel={outletName}
+        outletLabel={isPhoneLayout ? "" : outletName}
         onOpenMenu={() => setMenuOpen(true)}
         menuAriaLabel={t(POS_TABLE_MAP_I18N.menu, "Menu")}
+        occupiedByGroupId={openBillCountByGroupId}
+        tableCountByGroupId={tableCounts.data ?? new Map()}
       />
 
       <PosCashierMenuDrawer
@@ -685,6 +768,23 @@ export default function PosTableMapPage() {
         onFulfillOpen={onFulfillOpenBill}
         onRefundPaid={onRefundPaidBill}
         showFulfillAction={stockCommitPoint === "fulfillment"}
+      />
+      <PosCheckoutRefundDialog
+        open={Boolean(refundTarget)}
+        onOpenChange={(open) => {
+          if (!open) setRefundTarget(null);
+        }}
+        busy={checkoutRefund.isPending}
+        policyLoading={Boolean(refundTarget) && refundPolicyQuery.isLoading}
+        policy={refundPolicyQuery.data ?? null}
+        policyError={
+          refundPolicyQuery.error instanceof Error
+            ? refundPolicyQuery.error.message
+            : refundPolicyQuery.isError
+              ? t(POS_STOCK_COMMIT_I18N.refundError, "Failed to refund checkout stock")
+              : null
+        }
+        onConfirm={confirmRefundPaidBill}
       />
       <PosBillReasonDialog
         open={cancelReasonOpen}

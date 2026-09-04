@@ -78,7 +78,7 @@ export async function markKitchenTicketsDoneForSession(
   if (error) throw error;
 }
 
-/** Void active tickets when a bill is cancelled. */
+/** Void active tickets when a bill is cancelled. Leaves `done` history intact. */
 export async function voidKitchenTicketsForSession(
   sessionId: string,
 ): Promise<void> {
@@ -88,6 +88,19 @@ export async function voidKitchenTicketsForSession(
     .update({ status: "void", completed_at: now })
     .eq("session_id", sessionId)
     .in("status", ["new", "in_progress", "ready"]);
+  if (error) throw error;
+}
+
+/** Void live + completed tickets after a paid refund so KDS does not keep cooking. */
+export async function voidKitchenTicketsForRefund(
+  sessionId: string,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("pos_kitchen_tickets")
+    .update({ status: "void", completed_at: now })
+    .eq("session_id", sessionId)
+    .in("status", ["new", "in_progress", "ready", "done"]);
   if (error) throw error;
 }
 

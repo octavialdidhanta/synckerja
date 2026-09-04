@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { supabase } from "@/shared/lib/supabaseClient";
+import { assertKitchenTicketInRecallWindow } from "../lib/canRestoreKitchenTicket";
 import { nextKitchenTicketStatus } from "../lib/kitchenTicketStatus";
 import type { PosKitchenTicketStatus } from "../lib/posKitchenTypes";
 import { invalidatePosKitchenBoardQueries } from "./usePosKitchenTickets";
@@ -110,7 +111,12 @@ export function usePosKitchenTicketMutations(outletId: string | null) {
     mutationFn: async (args: {
       ticketId: string;
       marker: "recalled" | "reverted";
+      completedAt?: string | null;
     }): Promise<void> => {
+      assertKitchenTicketInRecallWindow({
+        status: "done",
+        completed_at: args.completedAt ?? null,
+      });
       const { error } = await supabase
         .from("pos_kitchen_tickets")
         .update({

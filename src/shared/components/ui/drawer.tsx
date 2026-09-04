@@ -5,14 +5,23 @@ import { cn } from "@/shared/lib/utils";
 import { useMobileChromeReflowOnForeground } from "@/shared/mobile/useMobileChromeReflowOnForeground";
 import { useRegisterMobileAppNavSuppression } from "@/shared/mobile/MobileAppNavSuppressionContext";
 
-/** Vaul close animation; keep nav suppression until this elapses so `bottom` does not jump mid-slide. */
+/** Vaul default close (~500ms); keep nav suppression until slide finishes. */
 const DRAWER_CLOSE_ANIMATION_MS = 500;
+/** Match `pos-smooth-drawer` CSS (200ms). */
+const DRAWER_FAST_CLOSE_ANIMATION_MS = 220;
 
 const Drawer = ({
   shouldScaleBackground = false,
+  closeThreshold = 0.12,
+  scrollLockTimeout = 50,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
-  <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
+  <DrawerPrimitive.Root
+    shouldScaleBackground={shouldScaleBackground}
+    closeThreshold={closeThreshold}
+    scrollLockTimeout={scrollLockTimeout}
+    {...props}
+  />
 );
 Drawer.displayName = "Drawer";
 
@@ -32,22 +41,43 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
 interface DrawerContentProps extends React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> {
   overlayClassName?: string;
+  /**
+   * When true (default), pin above app tab bar via `modal-above-safe-area` + nav suppression.
+   * Set false for POS / standalone sheets that should stay `bottom-0` (no close jump).
+   */
+  aboveAppNav?: boolean;
+  /** Faster 200ms close; swipe tracks the finger (no CSS lag). Default on when aboveAppNav is false (POS). */
+  smoothFast?: boolean;
 }
 
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
   DrawerContentProps
->(({ className, overlayClassName, children, ...props }, ref) => {
+>(({ className, overlayClassName, children, aboveAppNav = true, smoothFast, onPointerDown, ...props }, ref) => {
+  const useFastClose = smoothFast ?? !aboveAppNav;
   const mergedClassName = cn(
-    /* modal-above-safe-area: bottom edge di atas gesture / tombol nav sistem (sama seperti dialog fullscreen) */
-    "fixed inset-x-0 z-20 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background modal-above-safe-area",
+    "fixed inset-x-0 z-20 flex flex-col rounded-t-[10px] border bg-background",
+    aboveAppNav
+      ? "mt-24 h-auto modal-above-safe-area"
+      : "bottom-0 mt-0 h-auto",
+    useFastClose && "pos-smooth-drawer",
     className,
   );
   useMobileChromeReflowOnForeground();
-  const shell = mergedClassName.includes("modal-above-safe-area");
+  const shell = aboveAppNav;
+  const closeMs = useFastClose ? DRAWER_FAST_CLOSE_ANIMATION_MS : DRAWER_CLOSE_ANIMATION_MS;
   const [drawerSurfaceOpen, setDrawerSurfaceOpen] = React.useState(false);
   const moRef = React.useRef<MutationObserver | null>(null);
   const closeDelayRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contentElRef = React.useRef<HTMLDivElement | null>(null);
+  const overlayElRef = React.useRef<HTMLDivElement | null>(null);
+  const draggingRef = React.useRef(false);
+
+  const setDragging = React.useCallback((next: boolean) => {
+    draggingRef.current = next;
+    contentElRef.current?.classList.toggle("pos-smooth-drawer-dragging", next);
+    overlayElRef.current?.classList.toggle("pos-smooth-drawer-dragging", next);
+  }, []);
 
   React.useEffect(() => {
     return () => {
@@ -57,6 +87,17 @@ const DrawerContent = React.forwardRef<
       }
     };
   }, []);
+
+  React.useEffect(() => {
+    if (!useFastClose) return;
+    const endDrag = () => setDragging(false);
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
+    return () => {
+      window.removeEventListener("pointerup", endDrag);
+      window.removeEventListener("pointercancel", endDrag);
+    };
+  }, [useFastClose, setDragging]);
 
   const setContentNode = React.useCallback(
     (node: HTMLDivElement | null) => {
@@ -71,6 +112,7 @@ const DrawerContent = React.forwardRef<
       } else if (ref) {
         (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
       }
+      contentElRef.current = node;
       if (!node || !shell) {
         setDrawerSurfaceOpen(false);
         return;
@@ -91,23 +133,37 @@ const DrawerContent = React.forwardRef<
           if (node.getAttribute("data-state") !== "open") {
             setDrawerSurfaceOpen(false);
           }
-        }, DRAWER_CLOSE_ANIMATION_MS);
+        }, closeMs);
       };
       sync();
       const mo = new MutationObserver(sync);
       mo.observe(node, { attributes: true, attributeFilter: ["data-state"] });
       moRef.current = mo;
     },
-    [ref, shell],
+    [ref, shell, closeMs],
   );
 
   useRegisterMobileAppNavSuppression(shell && drawerSurfaceOpen);
 
   return (
     <DrawerPortal>
-      <DrawerOverlay className={overlayClassName} />
-      <DrawerPrimitive.Content ref={setContentNode} className={mergedClassName} {...props}>
-        <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+      <DrawerOverlay
+        ref={overlayElRef}
+        className={cn(
+          useFastClose && "pos-smooth-drawer-overlay",
+          overlayClassName,
+        )}
+      />
+      <DrawerPrimitive.Content
+        ref={setContentNode}
+        className={mergedClassName}
+        {...props}
+        onPointerDown={(event) => {
+          if (useFastClose) setDragging(true);
+          onPointerDown?.(event);
+        }}
+      >
+        <div className="mx-auto mt-3 h-1.5 w-10 flex-shrink-0 rounded-full bg-muted" />
         {children}
       </DrawerPrimitive.Content>
     </DrawerPortal>

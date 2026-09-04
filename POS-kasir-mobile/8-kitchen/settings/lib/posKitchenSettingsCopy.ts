@@ -23,6 +23,7 @@ export const POS_KITCHEN_SETTINGS_I18N = {
   switchOutlet: "posKitchen.settings.switchOutlet",
   logout: "posKitchen.settings.logout",
   backToPos: "posKitchen.settings.backToPos",
+  navPos: "posKitchen.settings.navPos",
   close: "posKitchen.settings.close",
   fontsHeading: "posKitchen.settings.fontsHeading",
   fontDefault: "posKitchen.settings.fontDefault",

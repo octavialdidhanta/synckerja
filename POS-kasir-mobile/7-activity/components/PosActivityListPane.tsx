@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
 import { POS_ACTIVITY_I18N } from "../lib/posActivityCopy";
 import type { PosActivityDateGroup, PosActivityListRow } from "../lib/posActivityTypes";
 import { PosActivityDateGroupHeader } from "./PosActivityDateGroupHeader";
@@ -17,6 +18,8 @@ type Props = {
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
   emptyLabel: string;
+  /** Phone single-pane: full width, no right border. */
+  fullWidth?: boolean;
 };
 
 export function PosActivityListPane({
@@ -29,12 +32,20 @@ export function PosActivityListPane({
   isFetchingNextPage,
   onLoadMore,
   emptyLabel,
+  fullWidth,
 }: Props) {
   const { t } = useAppTranslation();
   const flatCount = groups.reduce((n, g) => n + g.rows.length, 0);
 
   return (
-    <aside className="flex w-[34%] min-w-[240px] max-w-md flex-col border-r border-slate-200">
+    <aside
+      className={cn(
+        "flex min-h-0 flex-col overflow-hidden",
+        fullWidth
+          ? "h-full w-full min-w-0"
+          : "w-[34%] min-w-[240px] max-w-md border-r border-slate-200",
+      )}
+    >
       <div className="flex-shrink-0 border-b border-slate-100 p-3">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -50,7 +61,10 @@ export function PosActivityListPane({
         </div>
       </div>
 
-      <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div
+        className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
+        data-vaul-no-drag=""
+      >
         {flatCount === 0 ? (
           <p className="px-4 py-12 text-center text-sm text-slate-400">{emptyLabel}</p>
         ) : (

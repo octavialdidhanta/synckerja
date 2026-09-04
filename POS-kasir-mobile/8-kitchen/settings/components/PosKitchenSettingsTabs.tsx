@@ -48,7 +48,10 @@ export function PosKitchenSettingsTabs({ active, onChange, onClose }: Props) {
   return (
     <div className="flex flex-shrink-0 items-stretch border-b border-slate-200 bg-white">
       <nav
-        className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-4 pt-2"
+        className={cn(
+          "scrollbar-hide flex min-w-0 flex-1 gap-1 overflow-x-auto overflow-y-hidden px-4 pt-2",
+          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        )}
         aria-label={t(POS_KITCHEN_SETTINGS_I18N.title, "Kitchen Display Settings")}
       >
         {TABS.map((tab) => {

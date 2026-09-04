@@ -5,7 +5,7 @@ import type { AuthError } from "@supabase/supabase-js";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { SynckerjaBrandMark } from "@/shared/components/mobile/SynckerjaBrandMark";
+import { PosBrandMark } from "@/pos-mobile/shared/components/PosBrandMark";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "@/shared/hooks/use-toast";
 import { resolvePostAuthRouting } from "@/shared/auth/mfa/resolvePostAuthRouting";
@@ -199,7 +199,7 @@ export function PosLoginPasswordForm() {
   if (!sessionChecked) {
     return (
       <div className="flex w-full flex-col items-center gap-5" aria-busy>
-        <SynckerjaBrandMark size="md" />
+        <PosBrandMark />
         <p className="text-sm text-muted-foreground">
           {t("posAuth.login.checkingSession", "Checking signed-in session…")}
         </p>
@@ -211,7 +211,7 @@ export function PosLoginPasswordForm() {
     const busy = loading || switchingAccount;
     return (
       <div className="flex w-full flex-col items-center gap-5">
-        <SynckerjaBrandMark size="md" />
+        <PosBrandMark />
         <div className="w-full space-y-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-center">
           <p className="text-sm font-medium text-foreground">
             {t("posAuth.session.mismatchTitle", "Already signed in")}
@@ -254,7 +254,7 @@ export function PosLoginPasswordForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex w-full flex-col items-center gap-5">
-      <SynckerjaBrandMark size="md" />
+      <PosBrandMark />
       <p className="max-w-full truncate text-center text-sm text-muted-foreground" title={email}>
         {email}
       </p>

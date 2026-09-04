@@ -4,6 +4,7 @@ export {
   createPosKitchenTickets,
   markKitchenTicketsDoneForSession,
   voidKitchenTicketsForSession,
+  voidKitchenTicketsForRefund,
   applyKitchenTicketLineVoid,
 } from "./lib/createPosKitchenTickets";
 export { fireKitchenForCheckout, linkPayFirstSessionActivity } from "./lib/fireKitchenForCheckout";

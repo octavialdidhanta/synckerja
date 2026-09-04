@@ -20,6 +20,8 @@ type Props = {
   printer: PosSavedPrinter | null;
   onSave: (printer: PosSavedPrinter) => void;
   onOpenCategories: () => void;
+  onTestPrint?: (printer: PosSavedPrinter) => void | Promise<void>;
+  testPrinting?: boolean;
 };
 
 export function PosPrinterEditSheet({
@@ -28,6 +30,8 @@ export function PosPrinterEditSheet({
   printer,
   onSave,
   onOpenCategories,
+  onTestPrint,
+  testPrinting,
 }: Props) {
   const { t } = useAppTranslation();
   const [draft, setDraft] = useState<PosSavedPrinter | null>(null);
@@ -170,6 +174,18 @@ export function PosPrinterEditSheet({
             >
               {t(POS_SETTINGS_I18N.printerTicketCategories, "Categories on Order Ticket")}
             </button>
+          ) : null}
+
+          {onTestPrint ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4 h-11 w-full border-primary text-primary"
+              disabled={testPrinting}
+              onClick={() => void onTestPrint(draft)}
+            >
+              {t(POS_SETTINGS_I18N.printerTestPrint, "Test Print")}
+            </Button>
           ) : null}
         </div>
       </SheetContent>

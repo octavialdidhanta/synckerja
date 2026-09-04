@@ -8,11 +8,13 @@
         <item name="android:windowLightNavigationBar">false</item>
     </style>
 
-    <!-- Android 12+: sistem hanya menampilkan windowSplashScreenBackground + windowSplashScreenAnimatedIcon. -->
+    <!-- Android 12+: logo pusat = public/synckerjapos.png → app_brand_logo via splash_brand_icon. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@color/splash_screen_background</item>
         <item name="android:windowSplashScreenBackground">@color/splash_screen_background</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_blank</item>
+        <!-- Samakan dengan background agar lingkaran mask tidak terlihat sebagai wrapper. -->
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/splash_screen_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_brand_icon</item>
         <item name="android:windowSplashScreenAnimationDuration">0</item>
         <item name="android:statusBarColor">@android:color/white</item>
         <item name="android:windowLightStatusBar">true</item>

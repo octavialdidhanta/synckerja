@@ -8,13 +8,14 @@ import {
 import type { CustomerVisitCatalogItem } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
+import { usePosCashierIsPhoneLayout } from "../hooks/usePosCashierIsPhoneLayout";
 import { catalogItemInitials } from "../lib/catalogItemInitials";
 import { POS_CASHIER_I18N } from "../lib/posCashierCopy";
 import { recipeOutOfStockLabel } from "../lib/recipeOutOfStockLabel";
 import {
   pageCount,
   paginateItems,
-  POS_CASHIER_PAGE_SIZE,
+  posCashierPageSize,
 } from "../lib/posCashierPagination";
 
 const LONG_PRESS_MS = 500;
@@ -31,6 +32,8 @@ type Props = {
   onOpenAddDialog: () => void;
   disabled?: boolean;
   maxReached?: boolean;
+  /** Catalog product id → total qty already on the bill. */
+  qtyByCatalogId?: Map<string, number>;
   /** Catalog product IDs with base recipe that cannot serve 1 unit. */
   recipeOutOfStockIds?: Set<string>;
   recipeOutOfStockReasons?: Map<string, import("@/stock-management/recipe-availability").RecipeStockBlocker[]>;
@@ -51,15 +54,18 @@ export function PosFavoritesGrid({
   onOpenAddDialog,
   disabled,
   maxReached,
+  qtyByCatalogId,
   recipeOutOfStockIds,
   recipeOutOfStockReasons,
 }: Props) {
   const { t } = useAppTranslation();
-  const pages = pageCount(Math.max(items.length, editing ? 1 : 0));
+  const isPhoneLayout = usePosCashierIsPhoneLayout();
+  const pageSize = posCashierPageSize(isPhoneLayout);
+  const pages = pageCount(Math.max(items.length, editing ? 1 : 0), pageSize);
   const safePage = Math.min(pageIndex, pages - 1);
-  const pageItems = paginateItems(items, safePage, POS_CASHIER_PAGE_SIZE);
+  const pageItems = paginateItems(items, safePage, pageSize);
   const emptySlots = editing
-    ? Math.max(0, POS_CASHIER_PAGE_SIZE - pageItems.length)
+    ? Math.max(0, pageSize - pageItems.length)
     : 0;
 
   const longPressTimer = useRef<number | null>(null);
@@ -120,7 +126,12 @@ export function PosFavoritesGrid({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="grid flex-1 auto-rows-max grid-cols-4 content-start gap-2 overflow-y-auto p-3 sm:gap-3">
+      <div
+        className={cn(
+          "scrollbar-hide seamless-scroll nested-scroll-touch-chain grid flex-1 auto-rows-max content-start gap-2 overflow-y-auto overflow-x-hidden p-3 sm:gap-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          isPhoneLayout ? "grid-cols-3" : "grid-cols-4",
+        )}
+      >
         {pageItems.map((item) => {
           const fgOut = isCatalogItemOutOfStock(item);
           const recipeOut = Boolean(recipeOutOfStockIds?.has(item.id));
@@ -134,6 +145,7 @@ export function PosFavoritesGrid({
             ? t(POS_CASHIER_I18N.recipeOutOfStock, "Out of stock")
             : recipeLabel?.text ?? t(POS_CASHIER_I18N.recipeOutOfStock, "Out of stock");
           const bannerTitle = fgOut ? bannerText : recipeLabel?.title ?? bannerText;
+          const billQty = qtyByCatalogId?.get(item.id) ?? 0;
           return (
             <div
               key={item.id}
@@ -224,9 +236,19 @@ export function PosFavoritesGrid({
                       {bannerText}
                     </span>
                   ) : null}
+                  {!editing && billQty > 0 ? (
+                    <div
+                      aria-label={`${billQty} on bill`}
+                      className="absolute inset-0 z-[1] flex items-center justify-center bg-slate-950/45"
+                    >
+                      <span className="text-[1.75rem] font-bold leading-none tabular-nums tracking-tight text-white drop-shadow-sm sm:text-[2rem]">
+                        ×{billQty > 99 ? "99+" : billQty}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="px-1.5 py-1.5">
-                  <p className="truncate text-xs font-medium text-slate-900">{label}</p>
+                  <p className="line-clamp-2 text-xs font-medium leading-tight text-slate-900">{label}</p>
                   {!editing ? (
                     <p className="truncate text-[10px] text-slate-500">
                       {formatStoreCheckoutRp(item.unitPrice)}

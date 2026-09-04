@@ -15,6 +15,8 @@ type Props = {
   onAddItem: (item: CustomerVisitCatalogItem) => void;
   disabled?: boolean;
   emptyLabel?: string;
+  /** Catalog product id → total qty already on the bill. */
+  qtyByCatalogId?: Map<string, number>;
   /** Catalog product IDs with base recipe that cannot serve 1 unit. */
   recipeOutOfStockIds?: Set<string>;
   recipeOutOfStockReasons?: Map<
@@ -30,6 +32,7 @@ export function PosLibraryProductPane({
   onAddItem,
   disabled,
   emptyLabel,
+  qtyByCatalogId,
   recipeOutOfStockIds,
   recipeOutOfStockReasons,
 }: Props) {
@@ -84,6 +87,7 @@ export function PosLibraryProductPane({
           onPageChange={setPageIndex}
           onAddItem={onAddItem}
           disabled={disabled}
+          qtyByCatalogId={qtyByCatalogId}
           recipeOutOfStockIds={recipeOutOfStockIds}
           recipeOutOfStockReasons={recipeOutOfStockReasons}
         />

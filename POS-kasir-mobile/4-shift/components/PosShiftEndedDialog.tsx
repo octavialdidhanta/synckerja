@@ -4,7 +4,13 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+} from "@/shared/components/ui/drawer";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { usePosCashierIsPhoneLayout } from "@/pos-mobile/2-cashier/hooks/usePosCashierIsPhoneLayout";
 import { formatPosShiftDateTime } from "../lib/formatPosShiftDateTime";
 import { POS_SHIFT_I18N } from "../lib/posShiftCopy";
 import type { PosCashierShift } from "../lib/posShiftTypes";
@@ -28,7 +34,7 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Success modal after shift is closed — print recap or dismiss. */
+/** Success after shift closed — drawer on phone, dialog on tablet. */
 export function PosShiftEndedDialog({
   open,
   onOpenChange,
@@ -39,57 +45,84 @@ export function PosShiftEndedDialog({
   onPrint,
 }: Props) {
   const { t, language } = useAppTranslation();
+  const isPhone = usePosCashierIsPhoneLayout();
   const lang = String(language ?? "id");
+  const titleText = t(POS_SHIFT_I18N.endedTitle, "Shift Ended");
+
+  const form = (
+    <>
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <Row label={t(POS_SHIFT_I18N.detailName, "Name")} value={displayName} />
+        <Row label={t(POS_SHIFT_I18N.detailOutlet, "Outlet")} value={outletName} />
+        <Row
+          label={t(POS_SHIFT_I18N.detailStarted, "Shift Started")}
+          value={formatPosShiftDateTime(shift.opened_at, lang, {
+            includeWeekday: false,
+          })}
+        />
+        <Row
+          label={t(POS_SHIFT_I18N.endedClosedAt, "Shift Ended")}
+          value={
+            shift.closed_at
+              ? formatPosShiftDateTime(shift.closed_at, lang, {
+                  includeWeekday: false,
+                })
+              : "—"
+          }
+        />
+      </div>
+
+      <Button
+        type="button"
+        disabled={printing}
+        onClick={onPrint}
+        className="mt-5 h-12 w-full text-sm font-semibold"
+      >
+        {t(POS_SHIFT_I18N.printRecap, "Print Shift Report Summary")}
+      </Button>
+      <Button
+        type="button"
+        variant="destructive"
+        disabled={printing}
+        onClick={() => onOpenChange(false)}
+        className="mt-3 h-12 w-full text-sm font-semibold"
+      >
+        {t(POS_SHIFT_I18N.noThanks, "No, Thank You")}
+      </Button>
+    </>
+  );
+
+  if (isPhone) {
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange} dismissible={!printing}>
+        <DrawerContent
+          aboveAppNav={false}
+          smoothFast
+          className="z-[70] flex max-h-[min(88dvh,860px)] flex-col gap-0 overflow-hidden rounded-t-2xl border-0 p-0 pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] shadow-2xl"
+          overlayClassName="z-[70]"
+        >
+          <div className="shrink-0 border-b border-slate-200 px-4 py-3">
+            <DrawerTitle className="text-center text-base font-semibold text-primary">
+              {titleText}
+            </DrawerTitle>
+          </div>
+          <div className="px-4 py-3" data-vaul-no-drag="">
+            {form}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-0 p-0 sm:max-w-md [&>button]:hidden">
         <div className="border-b border-slate-200 px-4 py-3">
           <DialogTitle className="text-center text-base font-semibold text-primary">
-            {t(POS_SHIFT_I18N.endedTitle, "Shift Ended")}
+            {titleText}
           </DialogTitle>
         </div>
-
-        <div className="px-4 py-3">
-          <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-            <Row label={t(POS_SHIFT_I18N.detailName, "Name")} value={displayName} />
-            <Row label={t(POS_SHIFT_I18N.detailOutlet, "Outlet")} value={outletName} />
-            <Row
-              label={t(POS_SHIFT_I18N.detailStarted, "Shift Started")}
-              value={formatPosShiftDateTime(shift.opened_at, lang, {
-                includeWeekday: false,
-              })}
-            />
-            <Row
-              label={t(POS_SHIFT_I18N.endedClosedAt, "Shift Ended")}
-              value={
-                shift.closed_at
-                  ? formatPosShiftDateTime(shift.closed_at, lang, {
-                      includeWeekday: false,
-                    })
-                  : "—"
-              }
-            />
-          </div>
-
-          <Button
-            type="button"
-            disabled={printing}
-            onClick={onPrint}
-            className="mt-5 h-12 w-full text-sm font-semibold"
-          >
-            {t(POS_SHIFT_I18N.printRecap, "Print Shift Report Summary")}
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={printing}
-            onClick={() => onOpenChange(false)}
-            className="mt-3 h-12 w-full text-sm font-semibold"
-          >
-            {t(POS_SHIFT_I18N.noThanks, "No, Thank You")}
-          </Button>
-        </div>
+        <div className="px-4 py-3">{form}</div>
       </DialogContent>
     </Dialog>
   );

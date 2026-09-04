@@ -39,12 +39,20 @@ export function PosAvailablePrintersBlock({
 
       <div className="rounded-md border border-slate-200 bg-white px-3">
         {printers.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-400">
-            {t(
-              POS_SETTINGS_I18N.printerEmpty,
-              "No printers yet. Tap Refresh to scan for Bluetooth devices.",
-            )}
-          </p>
+          <div className="space-y-1 py-6 text-center">
+            <p className="text-sm text-slate-500">
+              {t(
+                POS_SETTINGS_I18N.printerEmpty,
+                "No printers yet. Tap Refresh to scan for Bluetooth devices.",
+              )}
+            </p>
+            <p className="text-xs text-slate-400">
+              {t(
+                POS_SETTINGS_I18N.printerNoReceiptPrinterHint,
+                "Open Settings → Printer, tap Refresh, pick your Bluetooth printer, then Save with Receipt/Bill on.",
+              )}
+            </p>
+          </div>
         ) : (
           printers.map((p) => (
             <PosPrinterListRow key={p.id} printer={p} onClick={() => onSelect(p)} />

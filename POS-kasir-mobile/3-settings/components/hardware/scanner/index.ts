@@ -1,0 +1,1 @@
+export { PosBarcodeScannerSettingsPanel } from "./PosBarcodeScannerSettingsPanel";

@@ -37,6 +37,11 @@ export type FireKitchenForCheckoutArgs = {
   firePolicy?: KitchenFireBySalesType;
   /** For on_pay: whether KDS already had tickets before this pay. */
   hadKitchenTicketsBeforePay?: boolean;
+  /**
+   * When false, insert KDS tickets + recipe stock but skip Bluetooth.
+   * Caller may print `pendingPrintLines` after the success screen.
+   */
+  printTickets?: boolean;
 };
 
 export type FireKitchenForCheckoutResult = {
@@ -44,6 +49,8 @@ export type FireKitchenForCheckoutResult = {
   ticketId: string | null;
   stockCommitted: boolean;
   printed: boolean;
+  /** Set when print was skipped so the checkout side-effect runner can print later. */
+  pendingPrintLines: CustomerVisitCartLine[];
 };
 
 function shouldFireForEvent(args: FireKitchenForCheckoutArgs): boolean {
@@ -74,14 +81,26 @@ export async function fireKitchenForCheckout(
 
   const argsWithPolicy = { ...args, firePolicy: policy };
   if (!shouldFireForEvent(argsWithPolicy)) {
-    return { fired: false, ticketId: null, stockCommitted: false, printed: false };
+    return {
+      fired: false,
+      ticketId: null,
+      stockCommitted: false,
+      printed: false,
+      pendingPrintLines: [],
+    };
   }
 
   const firedMap = await fetchKitchenFiredQtyByFingerprint(args.sessionId);
   const deltas = computeKitchenFireDelta(args.cartLines, firedMap);
   const deltaLines = kitchenFireDeltaToCartLines(deltas);
   if (deltaLines.length === 0) {
-    return { fired: false, ticketId: null, stockCommitted: false, printed: false };
+    return {
+      fired: false,
+      ticketId: null,
+      stockCommitted: false,
+      printed: false,
+      pendingPrintLines: [],
+    };
   }
 
   const ticketId = await createPosKitchenTickets({
@@ -99,6 +118,7 @@ export async function fireKitchenForCheckout(
 
   const prefs = getPosTicketPrintPrefs(args.outletId);
   const shouldPrint = shouldPrintKitchenTicketOnFire(args.event, prefs.printTicketOnPay);
+  const skipBluetooth = args.printTickets === false;
 
   // Always commit recipe stock when a KDS ticket is created (Dapur mode).
   // Print remains optional so KDS-only outlets still deduct Pustaka.
@@ -109,11 +129,17 @@ export async function fireKitchenForCheckout(
     sessionId: args.sessionId,
     cartLines: deltaLines,
     customerName: args.customerName,
-    printTickets: shouldPrint,
+    printTickets: skipBluetooth ? false : shouldPrint,
   });
   let stockCommitted = result.committed;
   let printed = result.printed;
-  if (shouldPrint && !printed && !result.printError && (args.event !== "on_pay" || prefs.hasTicketPrinter)) {
+  if (
+    !skipBluetooth &&
+    shouldPrint &&
+    !printed &&
+    !result.printError &&
+    (args.event !== "on_pay" || prefs.hasTicketPrinter)
+  ) {
     try {
       await printPosOrderTickets({
         outletId: args.outletId,
@@ -132,6 +158,10 @@ export async function fireKitchenForCheckout(
     ticketId,
     stockCommitted,
     printed,
+    pendingPrintLines:
+      skipBluetooth && shouldPrint
+        ? deltaLines.filter((line) => !line.isCustomAmount)
+        : [],
   };
 }
 

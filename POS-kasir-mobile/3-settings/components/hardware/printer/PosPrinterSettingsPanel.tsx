@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { useToast } from "@/shared/hooks/use-toast";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { readPosSelectedOutletId } from "@/pos-mobile/1-outlet-select/lib/posSelectedOutletStorage";
+import {
+  readPosSelectedOutlet,
+  readPosSelectedOutletId,
+} from "@/pos-mobile/1-outlet-select/lib/posSelectedOutletStorage";
+import { PosPrinterUnavailableError } from "@/pos-mobile/shared/printing/PosPrinterBridge";
+import { printPosTestPage } from "@/pos-mobile/shared/printing/posPrintService";
 import { POS_SETTINGS_I18N } from "../../../lib/posSettingsCopy";
 import { createPosSavedPrinter } from "../../../lib/printer/posPrinterStorage";
 import { usePosBluetoothScan } from "../../../lib/printer/usePosBluetoothScan";
@@ -30,6 +35,7 @@ export function PosPrinterSettingsPanel() {
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [editing, setEditing] = useState<PosSavedPrinter | null>(null);
   const [pendingDevice, setPendingDevice] = useState<PosBluetoothDevice | null>(null);
+  const [testPrinting, setTestPrinting] = useState(false);
 
   const openEdit = (printer: PosSavedPrinter) => {
     setEditing(printer);
@@ -49,15 +55,68 @@ export function PosPrinterSettingsPanel() {
       return;
     }
     const existing = settings.printers.find((p) => p.address === pendingDevice.address);
+    const isNew = !existing;
     const printer =
       existing ??
       createPosSavedPrinter({
         address: pendingDevice.address,
         systemName: pendingDevice.name,
       });
+    // Persist immediately so Cancel on the edit sheet does not drop the assignment.
+    // Default roles include receipt_bill + order_ticket (Print Bill ready).
+    if (isNew) {
+      upsertPrinter(printer);
+      toast({
+        title: t(
+          POS_SETTINGS_I18N.printerAssignedSaved,
+          "Printer saved. Receipt/Bill is on — you can print bills now.",
+        ),
+      });
+    }
     void scan.stopScan();
     setDiscoverOpen(false);
     openEdit(printer);
+  };
+
+  const onTestPrint = async (printer: PosSavedPrinter) => {
+    if (testPrinting) return;
+    setTestPrinting(true);
+    // Persist draft address/roles before testing so Print Bill uses the same target.
+    upsertPrinter(printer);
+    setEditing(printer);
+    try {
+      await scan.stopScan();
+      const outlet = readPosSelectedOutlet();
+      await printPosTestPage({
+        printer,
+        outletName: outlet?.name ?? "Synckerja POS",
+      });
+      toast({
+        title: t(POS_SETTINGS_I18N.printerTestPrintOk, "Test print sent — check the printer"),
+      });
+    } catch (err) {
+      if (err instanceof PosPrinterUnavailableError) {
+        toast({
+          title: t(
+            POS_SETTINGS_I18N.printerBluetoothUnavailable,
+            "Bluetooth printers are only available in the Synckerja Android app.",
+          ),
+          variant: "destructive",
+        });
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast({
+          title: t(
+            POS_SETTINGS_I18N.printerTestPrintFail,
+            "Could not connect or print. Pair the printer in system Bluetooth, turn it on, then try again.",
+          ),
+          description: msg,
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setTestPrinting(false);
+    }
   };
 
   const onlyBluetooth = settings.printers.every((p) => p.transport === "bluetooth");
@@ -123,9 +182,24 @@ export function PosPrinterSettingsPanel() {
         open={editOpen}
         onOpenChange={setEditOpen}
         printer={editing}
+        testPrinting={testPrinting}
+        onTestPrint={(p) => void onTestPrint(p)}
         onSave={(printer) => {
           upsertPrinter(printer);
           setEditing(printer);
+          const othersHaveReceipt = settings.printers.some(
+            (p) =>
+              (p.id !== printer.id && p.address !== printer.address) &&
+              p.roles.receipt_bill,
+          );
+          if (!printer.roles.receipt_bill && !othersHaveReceipt) {
+            toast({
+              title: t(
+                POS_SETTINGS_I18N.printerReceiptBillOffWarn,
+                "Receipt/Bill is off. Print Bill will fail until you turn it on for a printer.",
+              ),
+            });
+          }
         }}
         onOpenCategories={() => setCategoriesOpen(true)}
       />

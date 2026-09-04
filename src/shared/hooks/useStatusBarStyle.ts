@@ -8,7 +8,7 @@ const ANDROID_LIGHT_STATUS_BG = "#FFFFFFFF";
 /** Header gelap: latar status bar gelap + Style.Dark (ikon terang). */
 const ANDROID_DARK_STATUS_BG = "#0f172a";
 
-export type StatusBarHeaderTheme = "light" | "dark" | "livechat";
+export type StatusBarHeaderTheme = "light" | "dark" | "livechat" | "light-overlay";
 
 /**
  * Android: `setOverlaysWebView` + latar + `setStyle`.
@@ -17,8 +17,11 @@ export type StatusBarHeaderTheme = "light" | "dark" | "livechat";
  */
 async function applyNativeStatusBarChrome(headerTheme: StatusBarHeaderTheme): Promise<void> {
   if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
-    /** Hanya `dark` edge-to-edge. `light` + `livechat` = non-overlay (sama pola inset: `--safe-area-inset-top` = 0, tanpa double padding). */
-    const overlay = headerTheme === "dark";
+    /**
+     * `dark` + `light-overlay` = edge-to-edge (inset atas aktif).
+     * `light` + `livechat` = non-overlay (`--safe-area-inset-top` = 0, tanpa double padding).
+     */
+    const overlay = headerTheme === "dark" || headerTheme === "light-overlay";
     document.documentElement.setAttribute(
       "data-synckerja-status-bar-overlay",
       overlay ? "true" : "false",
@@ -30,12 +33,12 @@ async function applyNativeStatusBarChrome(headerTheme: StatusBarHeaderTheme): Pr
     }
     refreshNativeSafeAreaChromeInsets();
   }
-  /** Live chat: status bar putih (selaras header/edge) → ikon sistem gelap (`Style.Light`). */
+  /** Live chat / light-overlay: status bar terang → ikon sistem gelap (`Style.Light`). */
   const style = headerTheme === "dark" ? Style.Dark : Style.Light;
   await StatusBar.setStyle({ style });
 
   if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
-    if (headerTheme === "light" || headerTheme === "livechat") {
+    if (headerTheme === "light" || headerTheme === "livechat" || headerTheme === "light-overlay") {
       await StatusBar.setBackgroundColor({ color: ANDROID_LIGHT_STATUS_BG });
     } else {
       await StatusBar.setBackgroundColor({ color: ANDROID_DARK_STATUS_BG });
@@ -44,8 +47,9 @@ async function applyNativeStatusBarChrome(headerTheme: StatusBarHeaderTheme): Pr
 }
 
 /**
- * Status bar native: `light` & `livechat` = latar putih + ikon/teks status bar gelap (`Style.Light` per Capacitor 8);
- * `dark` = latar gelap + ikon terang (`Style.Dark`). Live Chat memakai pola inset yang sama seperti `light`.
+ * Status bar native: `light` & `livechat` = latar putih + ikon gelap, WebView di bawah status bar;
+ * `light-overlay` = ikon gelap + edge-to-edge (butuh `safe-area-top` di chrome);
+ * `dark` = latar gelap + ikon terang (`Style.Dark`).
  * Segarkan lagi saat resume. No-op on web.
  */
 export function useStatusBarStyle(headerTheme: StatusBarHeaderTheme) {

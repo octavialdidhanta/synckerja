@@ -14,4 +14,10 @@ export const POS_INVENTORY_I18N = {
   filterRaw: "posInventory.filterRaw",
   filterSemi: "posInventory.filterSemi",
   filterAllInventory: "posInventory.filterAllInventory",
+  phoneFilterAllKinds: "posInventory.phone.filterAllKinds",
+  phoneFilterRaw: "posInventory.phone.filterRaw",
+  phoneFilterSemi: "posInventory.phone.filterSemi",
+  phoneFilterAllInventory: "posInventory.phone.filterAllInventory",
+  phoneFilterLow: "posInventory.phone.filterLow",
+  phoneFilterOut: "posInventory.phone.filterOut",
 } as const;

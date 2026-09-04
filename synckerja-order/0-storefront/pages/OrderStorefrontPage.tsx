@@ -498,10 +498,10 @@ export function OrderStorefrontPage() {
     <PhoneShell>
       <div
         ref={catalogScrollRef}
-        className={`scrollbar-hide flex min-h-0 flex-1 flex-col ${
+        className={`scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
           overlayOpen || sheetOpen || checkoutOpen || profileOverlayOpen
             ? "overflow-hidden"
-            : "overflow-y-auto"
+            : "overflow-y-auto overflow-x-hidden"
         }`}
         onScroll={(e) => {
           setShowScrollTop(e.currentTarget.scrollTop > 240);
@@ -597,7 +597,9 @@ export function OrderStorefrontPage() {
               <X className="h-5 w-5" />
             </button>
           </div>
-          <div className={`flex-1 overflow-y-auto ${ORDER_STOREFRONT_PX}`}>
+          <div
+            className={`scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${ORDER_STOREFRONT_PX}`}
+          >
             {searchHits.map((item) => (
               <OrderListRow
                 key={item.id}

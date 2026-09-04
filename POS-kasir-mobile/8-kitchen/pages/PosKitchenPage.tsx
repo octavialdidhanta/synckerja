@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
 import { usePosTabletShell } from "@/pos-mobile/shared/hooks/usePosTabletShell";
 import { useMarkPosAuthSurface } from "@/pos-mobile/0-auth/lib/useMarkPosAuthSurface";
 import { POS_AUTH_PATHS } from "@/pos-mobile/0-auth/lib/posAuthPaths";
@@ -8,6 +9,8 @@ import {
   readPosSelectedOutlet,
   readPosSelectedOutletId,
 } from "@/pos-mobile/1-outlet-select/lib/posSelectedOutletStorage";
+import { usePosCashierIsPhoneLayout } from "@/pos-mobile/2-cashier/hooks/usePosCashierIsPhoneLayout";
+import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
 import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
 import { resolvePosPostOutletPath } from "@/pos-mobile/shared/access";
 import { PosKitchenBoard } from "../components/PosKitchenBoard";
@@ -38,9 +41,11 @@ import { PosKitchenPageSkeleton } from "./PosKitchenPageSkeleton";
 /**
  * Kitchen Display board for staff with `app.kitchen_display`.
  * Authenticated route: `/pos/kitchen`.
+ * Phone: bottom horizontal nav + top safe-area; tablet: left rail.
  */
 export default function PosKitchenPage() {
-  usePosTabletShell();
+  const isPhoneLayout = usePosCashierIsPhoneLayout();
+  usePosTabletShell({ phoneOverlay: isPhoneLayout });
   useMarkPosAuthSurface();
   const { t } = useAppTranslation();
   const navigate = useNavigate();
@@ -141,49 +146,73 @@ export default function PosKitchenPage() {
     return <PosKitchenPageSkeleton />;
   }
 
+  const navProps = {
+    mode,
+    openCount: activeTickets.length,
+    completedCount: completedTickets.length,
+    bucketCounts,
+    recallCount: recallTickets.length,
+    heldCount,
+    orderTypeVisibility,
+    showBackToPos: permissions.canCharge(),
+    onSelectOpen: () => setMode({ kind: "active", salesType: "all" as const }),
+    onSelectBucket,
+    onSelectRecall: () => setMode({ kind: "recall" }),
+    onSelectHeld: () => setMode({ kind: "held" }),
+    onSelectCompleted: () => setMode({ kind: "completed_today" }),
+    onOpenSettings: () => setSettingsOpen(true),
+    onBackToPos: () => navigate(POS_AUTH_PATHS.cashier),
+  };
+
+  const board = (
+    <PosKitchenBoard
+      outletId={outletId}
+      tickets={boardTickets}
+      displayMode={displayMode}
+      themeColors={themeColors}
+      fontScale={fontScale}
+      readOnly={mode.kind === "completed_today" || mode.kind === "recall"}
+      showRecall={mode.kind === "recall" || mode.kind === "completed_today"}
+      emptyMessage={
+        mode.kind === "recall"
+          ? t(
+              POS_KITCHEN_I18N.emptyRecall,
+              "No recently finished tickets to recall.",
+            )
+          : mode.kind === "completed_today"
+            ? t(
+                POS_KITCHEN_I18N.emptyCompleted,
+                "No completed tickets in history yet.",
+              )
+            : undefined
+      }
+    />
+  );
+
   return (
-    <div className="relative flex h-[100dvh] flex-row overflow-hidden bg-slate-100">
-      <PosKitchenSidebar
-        mode={mode}
-        openCount={activeTickets.length}
-        completedCount={completedTickets.length}
-        bucketCounts={bucketCounts}
-        recallCount={recallTickets.length}
-        heldCount={heldCount}
-        orderTypeVisibility={orderTypeVisibility}
-        showBackToPos={permissions.canCharge()}
-        onSelectOpen={() => setMode({ kind: "active", salesType: "all" })}
-        onSelectBucket={onSelectBucket}
-        onSelectRecall={() => setMode({ kind: "recall" })}
-        onSelectHeld={() => setMode({ kind: "held" })}
-        onSelectCompleted={() => setMode({ kind: "completed_today" })}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onBackToPos={() => navigate(POS_AUTH_PATHS.cashier)}
-      />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <PosKitchenBoard
-          outletId={outletId}
-          tickets={boardTickets}
-          displayMode={displayMode}
-          themeColors={themeColors}
-          fontScale={fontScale}
-          readOnly={mode.kind === "completed_today" || mode.kind === "recall"}
-          showRecall={mode.kind === "recall" || mode.kind === "completed_today"}
-          emptyMessage={
-            mode.kind === "recall"
-              ? t(
-                  POS_KITCHEN_I18N.emptyRecall,
-                  "No recently finished tickets to recall.",
-                )
-              : mode.kind === "completed_today"
-                ? t(
-                    POS_KITCHEN_I18N.emptyCompleted,
-                    "No completed tickets in history yet.",
-                  )
-                : undefined
-          }
-        />
+    <div
+      className={cn(
+        "relative flex h-[100dvh] overflow-hidden bg-slate-100",
+        isPhoneLayout ? "flex-col bg-white" : "flex-row",
+      )}
+    >
+      {isPhoneLayout ? <PosSafeAreaTopSpacer /> : null}
+
+      {isPhoneLayout ? null : <PosKitchenSidebar {...navProps} layout="rail" />}
+
+      <div
+        className={cn(
+          "flex min-h-0 min-w-0 flex-1 flex-col",
+          isPhoneLayout && "bg-slate-100",
+        )}
+      >
+        {board}
       </div>
+
+      {isPhoneLayout ? (
+        <PosKitchenSidebar {...navProps} layout="bottom" />
+      ) : null}
+
       {settingsOpen ? (
         <PosKitchenSettingsOverlay
           outletId={outletId}

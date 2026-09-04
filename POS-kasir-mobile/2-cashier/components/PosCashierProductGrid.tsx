@@ -8,7 +8,8 @@ import type { CustomerVisitCatalogItem } from "@/5-2-customer-visits/checkout/li
 import type { RecipeStockBlocker } from "@/stock-management/recipe-availability";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
-import { pageCount, paginateItems, POS_CASHIER_PAGE_SIZE } from "../lib/posCashierPagination";
+import { usePosCashierIsPhoneLayout } from "../hooks/usePosCashierIsPhoneLayout";
+import { pageCount, paginateItems, posCashierPageSize } from "../lib/posCashierPagination";
 import { POS_CASHIER_I18N } from "../lib/posCashierCopy";
 import { recipeOutOfStockLabel } from "../lib/recipeOutOfStockLabel";
 
@@ -18,6 +19,8 @@ type Props = {
   onPageChange: (page: number) => void;
   onAddItem: (item: CustomerVisitCatalogItem) => void;
   disabled?: boolean;
+  /** Catalog product id → total qty already on the bill. */
+  qtyByCatalogId?: Map<string, number>;
   /** Catalog product IDs with base recipe that cannot serve 1 unit. */
   recipeOutOfStockIds?: Set<string>;
   recipeOutOfStockReasons?: Map<string, RecipeStockBlocker[]>;
@@ -29,20 +32,28 @@ export function PosCashierProductGrid({
   onPageChange,
   onAddItem,
   disabled,
+  qtyByCatalogId,
   recipeOutOfStockIds,
   recipeOutOfStockReasons,
 }: Props) {
   const { t } = useAppTranslation();
+  const isPhoneLayout = usePosCashierIsPhoneLayout();
+  const pageSize = posCashierPageSize(isPhoneLayout);
   const visible = items.filter(
     (item) => item.kind !== "product" || !isCatalogProductHidden(item.posStatus),
   );
-  const pages = pageCount(visible.length);
+  const pages = pageCount(visible.length, pageSize);
   const safePage = Math.min(pageIndex, pages - 1);
-  const pageItems = paginateItems(visible, safePage, POS_CASHIER_PAGE_SIZE);
+  const pageItems = paginateItems(visible, safePage, pageSize);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="grid flex-1 auto-rows-max grid-cols-4 content-start gap-2 overflow-y-auto p-3 sm:gap-3">
+      <div
+        className={cn(
+          "scrollbar-hide seamless-scroll nested-scroll-touch-chain grid flex-1 auto-rows-max content-start gap-2 overflow-y-auto overflow-x-hidden p-3 sm:gap-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          isPhoneLayout ? "grid-cols-3" : "grid-cols-4",
+        )}
+      >
         {pageItems.map((item) => {
           const fgOut = isCatalogItemOutOfStock(item);
           const recipeOut = Boolean(recipeOutOfStockIds?.has(item.id));
@@ -57,6 +68,7 @@ export function PosCashierProductGrid({
           const bannerTitle = fgOut
             ? bannerText
             : recipeLabel?.title ?? bannerText;
+          const billQty = qtyByCatalogId?.get(item.id) ?? 0;
           return (
             <button
               key={item.id}
@@ -89,9 +101,19 @@ export function PosCashierProductGrid({
                     {bannerText}
                   </span>
                 ) : null}
+                {billQty > 0 ? (
+                  <div
+                    aria-label={`${billQty} on bill`}
+                    className="absolute inset-0 z-[1] flex items-center justify-center bg-slate-950/45"
+                  >
+                    <span className="text-[1.75rem] font-bold leading-none tabular-nums tracking-tight text-white drop-shadow-sm sm:text-[2rem]">
+                      ×{billQty > 99 ? "99+" : billQty}
+                    </span>
+                  </div>
+                ) : null}
               </div>
               <div className="px-1.5 py-1.5">
-                <p className="truncate text-xs font-medium text-slate-900">
+                <p className="line-clamp-2 text-xs font-medium leading-tight text-slate-900">
                   {catalogItemLabel(item)}
                 </p>
                 <p className="truncate text-[10px] text-slate-500">

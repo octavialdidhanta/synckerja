@@ -108,14 +108,14 @@ export function usePosCashierPay() {
         throw new Error("store_checkout_omnichannel_bank_missing");
       }
 
-      const posShiftId = await resolvePosShiftForPay({
-        organizationId,
-        outletId: input.outletId,
-      });
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const [posShiftId, auth] = await Promise.all([
+        resolvePosShiftForPay({
+          organizationId,
+          outletId: input.outletId,
+        }),
+        supabase.auth.getUser(),
+      ]);
+      const user = auth.data.user;
 
       let seatedAt = input.seatedAt ?? null;
       let sessionId = input.sessionId ?? null;
@@ -138,17 +138,18 @@ export function usePosCashierPay() {
         }
       }
 
-      const servedByUserId = await resolveServedByUserId({
-        sessionId,
-        servedByUserId: input.servedByUserId,
-      });
-
-      const payStockLines = await resolvePayStockScopedLines({
-        lines: input.lines,
-        organizationId,
-        outletId: input.outletId,
-        sessionId,
-      });
+      const [servedByUserId, payStockLines] = await Promise.all([
+        resolveServedByUserId({
+          sessionId,
+          servedByUserId: input.servedByUserId,
+        }),
+        resolvePayStockScopedLines({
+          lines: input.lines,
+          organizationId,
+          outletId: input.outletId,
+          sessionId,
+        }),
+      ]);
 
       await assertStockForPayLines({
         lines: payStockLines,
@@ -223,7 +224,7 @@ export function usePosCashierPay() {
         });
 
         if (input.kitchenCheckout) {
-          let kdsSessionId = originalSessionId;
+          let kdsSessionId = originalSessionId ?? resolvedSessionId;
           if (!kdsSessionId) {
             kdsSessionId = await ensurePayFirstKitchenSession({
               organizationId,
@@ -257,6 +258,7 @@ export function usePosCashierPay() {
             hadKitchenTicketsBeforePay: input.kitchenCheckout.hadKitchenTicketsBeforePay,
             firePolicy: input.kitchenCheckout.firePolicy,
             createdBy: user?.id ?? null,
+            printTickets: false,
           });
           resolvedSessionId = kdsSessionId;
         }

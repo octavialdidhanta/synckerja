@@ -64,4 +64,21 @@ describe("reversePaidCheckoutStock", () => {
     expect(reverseCatalogKitchenCommit).not.toHaveBeenCalled();
     expect(result.kitchenReversed).toBe(false);
   });
+
+  it("skipStockReverse does not call reverse RPCs", async () => {
+    const result = await reversePaidCheckoutStock({
+      organizationId: "org-1",
+      activityId: "act-3",
+      sessionId: "sess-1",
+      outletId: "out-1",
+      skipStockReverse: true,
+      rollbackActivity: false,
+    });
+    expect(reverseStoreCheckoutStock).not.toHaveBeenCalled();
+    expect(reverseCatalogKitchenCommit).not.toHaveBeenCalled();
+    expect(rollbackStoreCheckoutSalesActivity).not.toHaveBeenCalled();
+    expect(result.stockReversed).toBe(false);
+    expect(result.kitchenReversed).toBe(false);
+    expect(result.activityRolledBack).toBe(false);
+  });
 });
