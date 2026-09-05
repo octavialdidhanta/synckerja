@@ -143,11 +143,11 @@ export function PosActivitySendReceiptDialog({
 
   if (isPhone) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange} dismissible={!busy}>
+      <Drawer open={open} onOpenChange={onOpenChange} dismissible={!busy} repositionInputs={false}>
         <DrawerContent
           aboveAppNav={false}
           smoothFast
-          className="z-[70] flex max-h-[min(88dvh,860px)] flex-col gap-0 overflow-hidden rounded-t-2xl border-0 p-0 pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] shadow-2xl"
+          className="z-[70] flex max-h-[min(88dvh,860px)] flex-col gap-0 overflow-hidden rounded-t-2xl border-0 p-0 shadow-2xl"
           overlayClassName="z-[70]"
         >
           <div className="shrink-0 px-4 pb-2 pt-1">

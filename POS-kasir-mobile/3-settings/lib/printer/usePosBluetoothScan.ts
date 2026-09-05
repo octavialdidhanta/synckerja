@@ -55,6 +55,7 @@ export function usePosBluetoothScan() {
       setAvailable(ok);
       if (!ok) throw new PosPrinterUnavailableError();
 
+      // Safe on Android 12+: native getAdapterState no longer throws without CONNECT.
       let enabled = await bridge.getAdapterEnabled();
       if (!enabled) {
         enabled = await bridge.requestEnable();
@@ -78,11 +79,15 @@ export function usePosBluetoothScan() {
       };
 
       // Also merge bonded list in case discovery is slow
-      const bonded = await bridge.listBondedDevices();
-      for (const d of bonded) {
-        if (seen.has(d.address)) continue;
-        seen.add(d.address);
-        setDevices((prev) => [...prev, d]);
+      try {
+        const bonded = await bridge.listBondedDevices();
+        for (const d of bonded) {
+          if (seen.has(d.address)) continue;
+          seen.add(d.address);
+          setDevices((prev) => [...prev, d]);
+        }
+      } catch {
+        /* discovery listener may still populate devices */
       }
     } catch (err) {
       setScanning(false);

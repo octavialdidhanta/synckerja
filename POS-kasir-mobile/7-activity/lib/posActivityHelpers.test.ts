@@ -24,6 +24,8 @@ function row(
     checkout_gratuity_amount: null,
     cash_tendered: null,
     payment_reference: null,
+    refund_status: "none",
+    refund_amount: 0,
     itemSummary: "",
     ...partial,
   };
@@ -68,6 +70,35 @@ describe("groupPosActivitiesByDate", () => {
     );
     expect(groups.map((g) => g.labelKind)).toEqual(["today", "yesterday", "date"]);
     expect(groups[0].rows).toHaveLength(1);
+  });
+
+  it("sums list amounts per day", () => {
+    const now = new Date("2024-04-10T15:00:00");
+    const groups = groupPosActivitiesByDate(
+      [
+        row({
+          id: "1",
+          created_at: "2024-04-10T10:00:00",
+          date: "2024-04-10",
+          total_paid_amount: 36_630,
+        }),
+        row({
+          id: "2",
+          created_at: "2024-04-10T11:00:00",
+          date: "2024-04-10",
+          total_paid_amount: 18_315,
+        }),
+        row({
+          id: "3",
+          created_at: "2024-04-09T10:00:00",
+          date: "2024-04-09",
+          total_paid_amount: 10_000,
+        }),
+      ],
+      now,
+    );
+    expect(groups[0].totalAmount).toBe(54_945);
+    expect(groups[1].totalAmount).toBe(10_000);
   });
 });
 

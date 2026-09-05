@@ -89,8 +89,21 @@ export function PosTaxGratuityMethodSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-md">
-        <SheetHeader className="border-b px-4 py-4 text-left">
+      <SheetContent
+        side="right"
+        className={cn(
+          "flex w-full flex-col gap-0 p-0 sm:max-w-md",
+          // Keep the built-in X clear of the status bar (edge-to-edge Android).
+          "[&>button]:top-[max(1rem,calc(env(safe-area-inset-top,0px)+0.75rem),calc(var(--safe-area-inset-top,0px)+0.75rem))]",
+        )}
+      >
+        <SheetHeader
+          className="shrink-0 border-b px-4 pb-4 pr-12 text-left"
+          style={{
+            paddingTop:
+              "max(1rem, calc(env(safe-area-inset-top, 0px) + 0.75rem), calc(var(--safe-area-inset-top, 0px) + 0.75rem))",
+          }}
+        >
           <SheetTitle>
             {t(
               POS_SETTINGS_I18N.paymentSettingsMethodSheetTitle,
@@ -99,7 +112,7 @@ export function PosTaxGratuityMethodSheet({
           </SheetTitle>
         </SheetHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
           <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
             {options.map((opt) => {
               const selected = method === opt.value;
@@ -138,28 +151,34 @@ export function PosTaxGratuityMethodSheet({
                   "Excluded mode: tax and additional fees are added on top of the menu total and charged to the customer.",
                 )}
           </p>
+        </div>
 
-          <div className="mt-auto flex flex-col gap-2 pb-4">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 w-full border-primary text-primary"
-              onClick={() => go("tax")}
-            >
-              {t(POS_SETTINGS_I18N.paymentSettingsManageTax, "Manage Tax")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 w-full border-primary text-primary"
-              onClick={() => go("surcharge")}
-            >
-              {t(
-                POS_SETTINGS_I18N.paymentSettingsManageSurcharge,
-                "Manage Additional Fees",
-              )}
-            </Button>
-          </div>
+        <div
+          className="flex shrink-0 flex-col gap-2 border-t border-slate-200 bg-background px-4 pt-3"
+          style={{
+            paddingBottom:
+              "max(1rem, env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px), var(--footer-bottom-inset, 0px))",
+          }}
+        >
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full border-primary text-primary"
+            onClick={() => go("tax")}
+          >
+            {t(POS_SETTINGS_I18N.paymentSettingsManageTax, "Manage Tax")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full border-primary text-primary"
+            onClick={() => go("surcharge")}
+          >
+            {t(
+              POS_SETTINGS_I18N.paymentSettingsManageSurcharge,
+              "Manage Additional Fees",
+            )}
+          </Button>
         </div>
       </SheetContent>
     </Sheet>

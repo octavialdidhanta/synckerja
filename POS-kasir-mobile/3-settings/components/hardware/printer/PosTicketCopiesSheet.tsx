@@ -51,13 +51,20 @@ export function PosTicketCopiesSheet({ open, onOpenChange, value, onSave }: Prop
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="rounded-t-xl p-0 sm:max-w-lg">
+      <SheetContent
+        side="bottom"
+        className="rounded-t-xl p-0 sm:max-w-lg"
+        style={{
+          paddingBottom:
+            "max(1rem, env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px), var(--footer-bottom-inset, 0px))",
+        }}
+      >
         <SheetHeader className="border-b px-4 py-3 text-left">
           <SheetTitle className="text-base">
             {t(POS_SETTINGS_I18N.printerTicketCopies, "Number of Order Tickets Printed")}
           </SheetTitle>
         </SheetHeader>
-        <div className="px-4 py-4">
+        <div className="px-4 pt-4 pb-2">
           <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-center text-2xl font-semibold tabular-nums text-slate-900">
             {draft || "0"}
           </div>

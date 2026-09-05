@@ -66,6 +66,8 @@ export type PosActivityDateGroup = {
   /** ISO date yyyy-mm-dd for dateKind === date */
   dateIso: string;
   rows: PosActivityListRow[];
+  /** Sum of list amounts for the day (same basis as each row). */
+  totalAmount: number;
 };
 
 export const POS_ACTIVITY_PAGE_SIZE = 40;

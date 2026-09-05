@@ -27,13 +27,28 @@ export function createCapacitorBluetoothPrinterBridge(): PosPrinterBridge {
     },
 
     async getAdapterEnabled() {
-      const { enabled } = await PosBluetoothPrinter.getAdapterState();
-      return Boolean(enabled);
+      try {
+        if (typeof PosBluetoothPrinter.requestPermissions === "function") {
+          await PosBluetoothPrinter.requestPermissions();
+        }
+      } catch {
+        /* fall through — isEnabledSafe returns false without CONNECT */
+      }
+      try {
+        const { enabled } = await PosBluetoothPrinter.getAdapterState();
+        return Boolean(enabled);
+      } catch {
+        return false;
+      }
     },
 
     async requestEnable() {
-      const { enabled } = await PosBluetoothPrinter.requestEnable();
-      return Boolean(enabled);
+      try {
+        const { enabled } = await PosBluetoothPrinter.requestEnable();
+        return Boolean(enabled);
+      } catch {
+        return false;
+      }
     },
 
     async listBondedDevices() {
@@ -48,6 +63,14 @@ export function createCapacitorBluetoothPrinterBridge(): PosPrinterBridge {
     },
 
     async startDiscovery(onDevice) {
+      // Ask for Nearby Devices / location before any adapter reads that need CONNECT.
+      try {
+        if (typeof PosBluetoothPrinter.requestPermissions === "function") {
+          await PosBluetoothPrinter.requestPermissions();
+        }
+      } catch {
+        /* native startDiscovery will re-request / reject cleanly */
+      }
       const handleFound = await PosBluetoothPrinter.addListener("deviceFound", (device) => {
         onDevice({
           address: device.address,
@@ -55,7 +78,12 @@ export function createCapacitorBluetoothPrinterBridge(): PosPrinterBridge {
           bonded: device.bonded,
         });
       });
-      await PosBluetoothPrinter.startDiscovery();
+      try {
+        await PosBluetoothPrinter.startDiscovery();
+      } catch (err) {
+        await handleFound.remove();
+        throw err;
+      }
       return () => {
         void handleFound.remove();
         void PosBluetoothPrinter.stopDiscovery();
@@ -63,7 +91,11 @@ export function createCapacitorBluetoothPrinterBridge(): PosPrinterBridge {
     },
 
     async stopDiscovery() {
-      await PosBluetoothPrinter.stopDiscovery();
+      try {
+        await PosBluetoothPrinter.stopDiscovery();
+      } catch {
+        /* ignore */
+      }
     },
 
     async connect(address) {

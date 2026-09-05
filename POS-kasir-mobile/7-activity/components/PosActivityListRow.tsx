@@ -2,6 +2,7 @@ import { Wallet } from "lucide-react";
 import { formatStoreCheckoutRp } from "@/5-2-customer-visits/checkout/lib/catalogLabel";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
+import { posActivityListRowAmount } from "../lib/groupPosActivitiesByDate";
 import { POS_ACTIVITY_I18N } from "../lib/posActivityCopy";
 import type { PosActivityListRow as PosActivityListRowType } from "../lib/posActivityTypes";
 
@@ -19,7 +20,7 @@ function formatTime(iso: string): string {
 
 export function PosActivityListRow({ row, selected, onSelect }: Props) {
   const { t } = useAppTranslation();
-  const amount = Math.round(row.total_paid_amount || row.total_amount || 0);
+  const amount = posActivityListRowAmount(row);
   const isRefunded = row.refund_status === "full";
 
   return (

@@ -46,6 +46,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * 2) secure RFCOMM SPP UUID
  * 3) reflection createRfcommSocket(1)
  * with a hard timeout so connect() cannot hang forever.
+ *
+ * Android 12+ (API 31): BLUETOOTH_CONNECT / BLUETOOTH_SCAN are runtime permissions.
+ * Calling {@link BluetoothAdapter#isEnabled()} or {@link BluetoothAdapter#getBondedDevices()}
+ * without CONNECT throws SecurityException and can kill the WebView — guard every entry.
  */
 @CapacitorPlugin(
     name = "PosBluetoothPrinter",
@@ -53,12 +57,13 @@ import java.util.concurrent.atomic.AtomicReference;
         @Permission(
             alias = "bluetooth",
             strings = {
-                Manifest.permission.BLUETOOTH,
-                Manifest.permission.BLUETOOTH_ADMIN,
                 Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.BLUETOOTH_SCAN,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                Manifest.permission.BLUETOOTH_SCAN
             }
+        ),
+        @Permission(
+            alias = "bluetoothLegacy",
+            strings = { Manifest.permission.ACCESS_FINE_LOCATION }
         )
     }
 )
@@ -84,9 +89,8 @@ public class PosBluetoothPrinterPlugin extends Plugin {
 
     @PluginMethod
     public void getAdapterState(PluginCall call) {
-        BluetoothAdapter adapter = getAdapter();
         JSObject ret = new JSObject();
-        ret.put("enabled", adapter != null && adapter.isEnabled());
+        ret.put("enabled", isAdapterEnabledSafe());
         call.resolve(ret);
     }
 
@@ -97,7 +101,7 @@ public class PosBluetoothPrinterPlugin extends Plugin {
             call.reject("Bluetooth not supported");
             return;
         }
-        if (adapter.isEnabled()) {
+        if (isAdapterEnabledSafe()) {
             JSObject ret = new JSObject();
             ret.put("enabled", true);
             call.resolve(ret);
@@ -105,13 +109,17 @@ public class PosBluetoothPrinterPlugin extends Plugin {
         }
         try {
             Intent intent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(intent);
+            // Prefer activity context — NEW_TASK from Application can crash on some OEMs.
+            Context ctx = getActivity() != null ? getActivity() : getContext();
+            if (getActivity() == null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            }
+            ctx.startActivity(intent);
         } catch (Exception e) {
             Log.w(TAG, "requestEnable startActivity", e);
         }
         JSObject ret = new JSObject();
-        ret.put("enabled", adapter.isEnabled());
+        ret.put("enabled", isAdapterEnabledSafe());
         call.resolve(ret);
     }
 
@@ -119,79 +127,116 @@ public class PosBluetoothPrinterPlugin extends Plugin {
     @PluginMethod
     public void listBondedDevices(PluginCall call) {
         if (!ensureBluetoothPermission(call, "listBondedDevices")) return;
-        BluetoothAdapter adapter = getAdapter();
-        if (adapter == null) {
-            call.reject("Bluetooth not supported");
-            return;
-        }
-        JSArray arr = new JSArray();
-        Set<BluetoothDevice> bonded = adapter.getBondedDevices();
-        if (bonded != null) {
-            for (BluetoothDevice device : bonded) {
-                arr.put(deviceToJson(device, true));
+        try {
+            BluetoothAdapter adapter = getAdapter();
+            if (adapter == null) {
+                call.reject("Bluetooth not supported");
+                return;
             }
+            JSArray arr = new JSArray();
+            Set<BluetoothDevice> bonded = adapter.getBondedDevices();
+            if (bonded != null) {
+                for (BluetoothDevice device : bonded) {
+                    arr.put(deviceToJson(device, true));
+                }
+            }
+            JSObject ret = new JSObject();
+            ret.put("devices", arr);
+            call.resolve(ret);
+        } catch (SecurityException e) {
+            Log.e(TAG, "listBondedDevices permission", e);
+            call.reject("Bluetooth permission denied");
+        } catch (Exception e) {
+            Log.e(TAG, "listBondedDevices failed", e);
+            call.reject(e.getMessage() != null ? e.getMessage() : "listBondedDevices failed");
         }
-        JSObject ret = new JSObject();
-        ret.put("devices", arr);
-        call.resolve(ret);
     }
 
     @SuppressLint("MissingPermission")
     @PluginMethod
     public void startDiscovery(PluginCall call) {
         if (!ensureBluetoothPermission(call, "startDiscovery")) return;
-        BluetoothAdapter adapter = getAdapter();
-        if (adapter == null) {
-            call.reject("Bluetooth not supported");
-            return;
-        }
-        if (!adapter.isEnabled()) {
-            call.reject("Bluetooth is off");
-            return;
-        }
-        stopDiscoveryInternal();
-        discoveryReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
-                if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-                    BluetoothDevice device = readBluetoothDeviceExtra(intent);
-                    if (device == null) return;
-                    notifyListeners(
-                        "deviceFound",
-                        deviceToJson(device, device.getBondState() == BluetoothDevice.BOND_BONDED)
-                    );
-                } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
-                    notifyListeners("discoveryFinished", new JSObject());
+        try {
+            BluetoothAdapter adapter = getAdapter();
+            if (adapter == null) {
+                call.reject("Bluetooth not supported");
+                return;
+            }
+            if (!isAdapterEnabledSafe()) {
+                call.reject("Bluetooth is off");
+                return;
+            }
+            stopDiscoveryInternal();
+            discoveryReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    try {
+                        String action = intent != null ? intent.getAction() : null;
+                        if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+                            BluetoothDevice device = readBluetoothDeviceExtra(intent);
+                            if (device == null) return;
+                            boolean bonded = false;
+                            try {
+                                bonded = device.getBondState() == BluetoothDevice.BOND_BONDED;
+                            } catch (SecurityException ignored) {
+                            }
+                            notifyListeners("deviceFound", deviceToJson(device, bonded));
+                        } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
+                            notifyListeners("discoveryFinished", new JSObject());
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "discovery onReceive", e);
+                    }
                 }
+            };
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(BluetoothDevice.ACTION_FOUND);
+            filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+            Context ctx = getActivity() != null ? getActivity() : getContext();
+            // System Bluetooth broadcasts require an exported receiver on API 33+.
+            ContextCompat.registerReceiver(
+                ctx,
+                discoveryReceiver,
+                filter,
+                ContextCompat.RECEIVER_EXPORTED
+            );
+            // Emit bonded devices immediately so UI has something to pick
+            try {
+                Set<BluetoothDevice> bonded = adapter.getBondedDevices();
+                if (bonded != null) {
+                    for (BluetoothDevice device : bonded) {
+                        notifyListeners("deviceFound", deviceToJson(device, true));
+                    }
+                }
+            } catch (SecurityException e) {
+                Log.w(TAG, "bonded emit during discovery", e);
             }
-        };
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(BluetoothDevice.ACTION_FOUND);
-        filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-        // System Bluetooth broadcasts require an exported receiver on API 33+.
-        ContextCompat.registerReceiver(
-            getContext(),
-            discoveryReceiver,
-            filter,
-            ContextCompat.RECEIVER_EXPORTED
-        );
-        // Emit bonded devices immediately so UI has something to pick
-        Set<BluetoothDevice> bonded = adapter.getBondedDevices();
-        if (bonded != null) {
-            for (BluetoothDevice device : bonded) {
-                notifyListeners("deviceFound", deviceToJson(device, true));
+            boolean started = adapter.startDiscovery();
+            if (!started) {
+                Log.w(TAG, "startDiscovery returned false");
             }
+            call.resolve();
+        } catch (SecurityException e) {
+            Log.e(TAG, "startDiscovery permission", e);
+            stopDiscoveryInternal();
+            call.reject("Bluetooth permission denied");
+        } catch (Exception e) {
+            Log.e(TAG, "startDiscovery failed", e);
+            stopDiscoveryInternal();
+            call.reject(e.getMessage() != null ? e.getMessage() : "startDiscovery failed");
         }
-        adapter.startDiscovery();
-        call.resolve();
     }
 
     @SuppressLint("MissingPermission")
     @PluginMethod
     public void stopDiscovery(PluginCall call) {
-        stopDiscoveryInternal();
-        call.resolve();
+        try {
+            stopDiscoveryInternal();
+            call.resolve();
+        } catch (Exception e) {
+            Log.w(TAG, "stopDiscovery", e);
+            call.resolve();
+        }
     }
 
     @PluginMethod
@@ -212,6 +257,10 @@ public class PosBluetoothPrinterPlugin extends Plugin {
                 Log.e(TAG, "connect timeout", e);
                 closeSocket();
                 main.post(() -> call.reject("Connect timed out. Is the printer on and paired?"));
+            } catch (SecurityException e) {
+                Log.e(TAG, "connect permission", e);
+                closeSocket();
+                main.post(() -> call.reject("Bluetooth permission denied"));
             } catch (Exception e) {
                 Log.e(TAG, "connect failed", e);
                 closeSocket();
@@ -257,7 +306,7 @@ public class PosBluetoothPrinterPlugin extends Plugin {
 
     @PermissionCallback
     private void bluetoothPermsCallback(PluginCall call) {
-        if (getPermissionState("bluetooth") == com.getcapacitor.PermissionState.GRANTED) {
+        if (hasRequiredBluetoothPermission(call.getMethodName())) {
             String method = call.getMethodName();
             if ("listBondedDevices".equals(method)) listBondedDevices(call);
             else if ("startDiscovery".equals(method)) startDiscovery(call);
@@ -270,30 +319,61 @@ public class PosBluetoothPrinterPlugin extends Plugin {
     }
 
     private boolean ensureBluetoothPermission(PluginCall call, String methodName) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_CONNECT)
-                    != PackageManager.PERMISSION_GRANTED
-                || ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_SCAN)
-                    != PackageManager.PERMISSION_GRANTED) {
-                requestPermissionForAlias("bluetooth", call, "bluetoothPermsCallback");
-                return false;
-            }
+        if (hasRequiredBluetoothPermission(methodName)) {
             return true;
         }
-        // Pre-Android 12: discovery often needs location runtime permission.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            requestPermissionForAlias("bluetooth", call, "bluetoothPermsCallback");
+        } else if ("startDiscovery".equals(methodName)) {
+            requestPermissionForAlias("bluetoothLegacy", call, "bluetoothPermsCallback");
+        } else {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean hasRequiredBluetoothPermission(String methodName) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            return ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_CONNECT)
+                    == PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_SCAN)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
         if ("startDiscovery".equals(methodName)) {
-            if (ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-                    != PackageManager.PERMISSION_GRANTED) {
-                requestPermissionForAlias("bluetooth", call, "bluetoothPermsCallback");
-                return false;
-            }
+            return ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
         }
         return true;
     }
 
+    /** Never throw — Android 12+ requires CONNECT for isEnabled(). */
+    @SuppressLint("MissingPermission")
+    private boolean isAdapterEnabledSafe() {
+        BluetoothAdapter adapter = getAdapter();
+        if (adapter == null) return false;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_CONNECT)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    // Without CONNECT we cannot read state; assume off so UI asks for permission next.
+                    return false;
+                }
+            }
+            return adapter.isEnabled();
+        } catch (SecurityException e) {
+            Log.w(TAG, "isEnabled SecurityException", e);
+            return false;
+        }
+    }
+
     private BluetoothAdapter getAdapter() {
-        BluetoothManager mgr = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
-        return mgr != null ? mgr.getAdapter() : null;
+        try {
+            BluetoothManager mgr = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
+            return mgr != null ? mgr.getAdapter() : null;
+        } catch (Exception e) {
+            Log.w(TAG, "getAdapter", e);
+            return null;
+        }
     }
 
     private static BluetoothDevice readBluetoothDeviceExtra(Intent intent) {
@@ -339,8 +419,12 @@ public class PosBluetoothPrinterPlugin extends Plugin {
         closeSocket();
         BluetoothAdapter adapter = getAdapter();
         if (adapter == null) throw new IOException("Bluetooth not supported");
-        if (!adapter.isEnabled()) throw new IOException("Bluetooth is off");
-        if (adapter.isDiscovering()) adapter.cancelDiscovery();
+        try {
+            if (!adapter.isEnabled()) throw new IOException("Bluetooth is off");
+            if (adapter.isDiscovering()) adapter.cancelDiscovery();
+        } catch (SecurityException e) {
+            throw new IOException("Bluetooth permission denied", e);
+        }
 
         BluetoothDevice device;
         try {
@@ -411,13 +495,24 @@ public class PosBluetoothPrinterPlugin extends Plugin {
 
     @SuppressLint("MissingPermission")
     private void stopDiscoveryInternal() {
-        BluetoothAdapter adapter = getAdapter();
-        if (adapter != null && adapter.isDiscovering()) {
-            adapter.cancelDiscovery();
+        try {
+            BluetoothAdapter adapter = getAdapter();
+            if (adapter != null) {
+                try {
+                    if (adapter.isDiscovering()) {
+                        adapter.cancelDiscovery();
+                    }
+                } catch (SecurityException e) {
+                    Log.w(TAG, "cancelDiscovery", e);
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "stopDiscoveryInternal adapter", e);
         }
         if (discoveryReceiver != null) {
             try {
-                getContext().unregisterReceiver(discoveryReceiver);
+                Context ctx = getActivity() != null ? getActivity() : getContext();
+                ctx.unregisterReceiver(discoveryReceiver);
             } catch (Exception ignored) {
             }
             discoveryReceiver = null;
@@ -427,13 +522,18 @@ public class PosBluetoothPrinterPlugin extends Plugin {
     @SuppressLint("MissingPermission")
     private JSObject deviceToJson(BluetoothDevice device, boolean bonded) {
         JSObject o = new JSObject();
-        o.put("address", device.getAddress());
+        String address = "";
+        try {
+            address = device.getAddress();
+        } catch (SecurityException ignored) {
+        }
+        o.put("address", address);
         String name = null;
         try {
             name = device.getName();
         } catch (SecurityException ignored) {
         }
-        o.put("name", name != null && !name.isEmpty() ? name : device.getAddress());
+        o.put("name", name != null && !name.isEmpty() ? name : address);
         o.put("bonded", bonded);
         return o;
     }

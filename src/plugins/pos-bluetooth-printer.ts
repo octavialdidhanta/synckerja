@@ -17,6 +17,9 @@ export type PosBluetoothPrinterPlugin = {
   disconnect(): Promise<void>;
   /** Base64-encoded ESC/POS bytes */
   printRaw(options: { dataBase64: string }): Promise<void>;
+  /** Capacitor permission helpers (Android 12+ nearby devices). */
+  checkPermissions?(): Promise<Record<string, string>>;
+  requestPermissions?(): Promise<Record<string, string>>;
   addListener(
     eventName: "deviceFound",
     listenerFunc: (device: PosBluetoothPrinterDevice) => void,

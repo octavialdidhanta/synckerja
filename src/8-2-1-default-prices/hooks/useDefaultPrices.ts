@@ -521,7 +521,13 @@ export function useDefaultPrices() {
       const masterStatus = normalizeCatalogPosStatus(existing?.pos_status ?? payload.pos_status);
       const masterPrice = Number(existing?.unit_price ?? payload.unit_price) || 0;
       const fields: Record<string, unknown> = {
-        ...pickMasterFields({ ...existing, ...payload, catalog_sku: payload.catalog_sku ?? existing?.catalog_sku }),
+        // Prefer payload when present (including null = clear SKU). `??` would keep the old SKU.
+        ...pickMasterFields({
+          ...existing,
+          ...payload,
+          catalog_sku:
+            payload.catalog_sku !== undefined ? payload.catalog_sku : existing?.catalog_sku,
+        }),
         unit_price: payload.unit_price ?? masterPrice,
         updated_at: new Date().toISOString(),
       };

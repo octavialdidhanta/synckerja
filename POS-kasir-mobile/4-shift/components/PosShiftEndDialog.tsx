@@ -116,6 +116,19 @@ export function PosShiftEndDialog({
     onConfirm(counted);
   };
 
+  const varianceConfirmDescription =
+    variance < 0
+      ? t(
+          POS_SHIFT_I18N.varianceConfirmShortage,
+          "Cash is short by {{amount}}. The cashier is responsible for covering the shortage. Continue ending the shift?",
+          { amount: formatPosShiftVariance(variance) },
+        )
+      : t(
+          POS_SHIFT_I18N.varianceConfirmOverage,
+          "Cash is over by {{amount}}. This overage will be recorded on the shift. Continue ending the shift?",
+          { amount: formatPosShiftVariance(variance) },
+        );
+
   const titleText = t(POS_SHIFT_I18N.endDialogTitle, "End Shift");
 
   const header = (titleNode: ReactNode) => (
@@ -125,7 +138,11 @@ export function PosShiftEndDialog({
         variant="outline"
         size="sm"
         disabled={busy}
-        onClick={() => onOpenChange(false)}
+        onClick={() => {
+          if (busy) return;
+          setConfirmVarianceOpen(false);
+          onOpenChange(false);
+        }}
         className="absolute left-3 top-1/2 -translate-y-1/2 border-primary text-primary"
       >
         {t(POS_SHIFT_I18N.cancel, "Cancel")}
@@ -235,7 +252,9 @@ export function PosShiftEndDialog({
           onClick={submit}
           className="h-12 w-full text-base font-semibold"
         >
-          {t(POS_SHIFT_I18N.endShift, "End Shift")}
+          {busy
+            ? t(POS_SHIFT_I18N.endingShift, "Ending shift…")
+            : t(POS_SHIFT_I18N.endShift, "End Shift")}
         </Button>
       </div>
     </div>
@@ -243,18 +262,16 @@ export function PosShiftEndDialog({
 
   const varianceAlert = (
     <AlertDialog open={confirmVarianceOpen} onOpenChange={setConfirmVarianceOpen}>
-      <AlertDialogContent>
+      <AlertDialogContent
+        // Phone End Shift overlay uses z-[60]; confirm must sit above it or focus trap locks the UI.
+        className="z-[70]"
+        overlayClassName="z-[70]"
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>
             {t(POS_SHIFT_I18N.varianceConfirmTitle, "Cash difference")}
           </AlertDialogTitle>
-          <AlertDialogDescription>
-            {t(
-              POS_SHIFT_I18N.varianceConfirmDesc,
-              "There is a difference of {{amount}}. The cashier is responsible for covering any shortage. Continue ending the shift?",
-              { amount: formatPosShiftVariance(variance) },
-            )}
-          </AlertDialogDescription>
+          <AlertDialogDescription>{varianceConfirmDescription}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy}>

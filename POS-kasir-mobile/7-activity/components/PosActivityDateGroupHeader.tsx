@@ -1,3 +1,4 @@
+import { formatStoreCheckoutRp } from "@/5-2-customer-visits/checkout/lib/catalogLabel";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import {
   formatPosActivityDateHeader,
@@ -23,8 +24,11 @@ export function PosActivityDateGroupHeader({ group }: Props) {
   }
 
   return (
-    <div className="sticky top-0 z-[1] bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-600">
-      {label}
+    <div className="sticky top-0 z-[1] flex items-center justify-between gap-3 bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-600">
+      <span className="min-w-0 truncate">{label}</span>
+      <span className="shrink-0 tabular-nums text-slate-700">
+        {formatStoreCheckoutRp(group.totalAmount)}
+      </span>
     </div>
   );
 }

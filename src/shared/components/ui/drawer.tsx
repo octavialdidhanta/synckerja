@@ -2,6 +2,7 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/shared/lib/utils";
+import { useDrawerVisualViewportPin } from "@/shared/hooks/useDrawerVisualViewportPin";
 import { useMobileChromeReflowOnForeground } from "@/shared/mobile/useMobileChromeReflowOnForeground";
 import { useRegisterMobileAppNavSuppression } from "@/shared/mobile/MobileAppNavSuppressionContext";
 
@@ -51,13 +52,30 @@ interface DrawerContentProps extends React.ComponentPropsWithoutRef<typeof Drawe
   aboveAppNav?: boolean;
   /** Faster 200ms close; swipe tracks the finger (no CSS lag). Default on when aboveAppNav is false (POS). */
   smoothFast?: boolean;
+  /**
+   * Follow IME via visualViewport (Android phone). Default on for POS sheets (`aboveAppNav={false}`).
+   * Keeps the sheet glued to the keyboard during its animation — no early jump / dark gap.
+   */
+  followKeyboard?: boolean;
 }
 
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
   DrawerContentProps
->(({ className, overlayClassName, children, aboveAppNav = true, smoothFast, onPointerDown, ...props }, ref) => {
+>(({
+  className,
+  overlayClassName,
+  children,
+  aboveAppNav = true,
+  smoothFast,
+  followKeyboard,
+  style,
+  onPointerDown,
+  ...props
+}, ref) => {
   const useFastClose = smoothFast ?? !aboveAppNav;
+  const pinKeyboard = followKeyboard ?? !aboveAppNav;
+  const keyboardPinStyle = useDrawerVisualViewportPin(pinKeyboard);
   const mergedClassName = cn(
     "fixed inset-x-0 z-20 flex flex-col rounded-t-[10px] border bg-background",
     aboveAppNav
@@ -74,10 +92,8 @@ const DrawerContent = React.forwardRef<
   const closeDelayRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentElRef = React.useRef<HTMLDivElement | null>(null);
   const overlayElRef = React.useRef<HTMLDivElement | null>(null);
-  const draggingRef = React.useRef(false);
 
   const setDragging = React.useCallback((next: boolean) => {
-    draggingRef.current = next;
     contentElRef.current?.classList.toggle("pos-smooth-drawer-dragging", next);
     overlayElRef.current?.classList.toggle("pos-smooth-drawer-dragging", next);
   }, []);
@@ -160,6 +176,7 @@ const DrawerContent = React.forwardRef<
       <DrawerPrimitive.Content
         ref={setContentNode}
         className={mergedClassName}
+        style={{ ...style, ...keyboardPinStyle }}
         {...props}
         onPointerDown={(event) => {
           if (useFastClose) setDragging(true);

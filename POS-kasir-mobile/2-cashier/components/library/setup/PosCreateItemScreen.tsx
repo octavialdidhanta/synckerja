@@ -230,7 +230,7 @@ export function PosCreateItemScreen({ open, outletId, onClose, onSaved }: Props)
             value={form.name}
             onChange={(e) => patch({ name: e.target.value })}
             placeholder={t(POS_CASHIER_I18N.setupItemName, "Item Name")}
-            className="h-11 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+            className="h-11 border-0 bg-transparent px-3 shadow-none focus-visible:ring-0"
             disabled={saving}
           />
         </div>
@@ -243,7 +243,7 @@ export function PosCreateItemScreen({ open, outletId, onClose, onSaved }: Props)
             }
             disabled={saving}
           >
-            <SelectTrigger className="h-11 border-0 bg-transparent px-0 shadow-none focus:ring-0">
+            <SelectTrigger className="h-11 border-0 bg-transparent px-3 shadow-none focus:ring-0">
               <SelectValue placeholder={t(POS_CASHIER_I18N.setupCategory, "Category")} />
             </SelectTrigger>
             <SelectContent>
@@ -272,7 +272,7 @@ export function PosCreateItemScreen({ open, outletId, onClose, onSaved }: Props)
                   });
                 }}
                 placeholder={t(POS_CASHIER_I18N.setupPrice, "Price")}
-                className="h-11 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                className="h-11 border-0 bg-transparent px-3 shadow-none focus-visible:ring-0"
                 disabled={saving}
               />
             </div>

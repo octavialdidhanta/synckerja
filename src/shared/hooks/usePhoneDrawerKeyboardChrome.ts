@@ -29,6 +29,9 @@ function isTextField(el: Element | null): boolean {
  *
  * Detection: Capacitor keyboard plugin OR (focused text field + innerHeight drop vs baseline).
  * visualViewport compression alone is unreliable under adjustResize (vv and inner shrink together).
+ *
+ * Bottom pinning / IME tracking lives in {@link useDrawerVisualViewportPin} (DrawerContent).
+ * Do not also apply Capacitor `keyboardWillShow` height here — that jumps the sheet early.
  */
 export function usePhoneDrawerKeyboardChrome() {
   const { keyboardOpenNative } = useCapacitorKeyboardInset();

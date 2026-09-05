@@ -20,7 +20,7 @@ export function PosCreateItemSkuField({ value, onChange, onOpenScan, disabled }:
         onChange={(e) => onChange(e.target.value)}
         placeholder={t(POS_CASHIER_I18N.setupSku, "SKU")}
         disabled={disabled}
-        className="h-11 flex-1 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+        className="h-11 flex-1 border-0 bg-transparent px-3 shadow-none focus-visible:ring-0"
       />
       <Button
         type="button"

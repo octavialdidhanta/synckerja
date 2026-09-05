@@ -16,6 +16,15 @@ function rowDateIso(row: PosActivityListRow): string {
   return toLocalDateIso(d);
 }
 
+/** Same amount basis as the Activity list row UI. */
+export function posActivityListRowAmount(row: PosActivityListRow): number {
+  return Math.round(row.total_paid_amount || row.total_amount || 0);
+}
+
+export function sumPosActivityListAmounts(rows: PosActivityListRow[]): number {
+  return rows.reduce((sum, row) => sum + posActivityListRowAmount(row), 0);
+}
+
 /**
  * Group activity rows by local calendar day (newest first).
  * Labels: today / yesterday / other date.
@@ -42,11 +51,13 @@ export function groupPosActivitiesByDate(
     let labelKind: PosActivityDateGroup["labelKind"] = "date";
     if (dateIso === todayIso) labelKind = "today";
     else if (dateIso === yesterdayIso) labelKind = "yesterday";
+    const dayRows = map.get(dateIso) ?? [];
     return {
       key: dateIso,
       labelKind,
       dateIso,
-      rows: map.get(dateIso) ?? [],
+      rows: dayRows,
+      totalAmount: sumPosActivityListAmounts(dayRows),
     };
   });
 }
