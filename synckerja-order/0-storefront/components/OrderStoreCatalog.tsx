@@ -6,6 +6,8 @@ import {
   orderCategorySectionId,
   useOrderCategoryScrollSpy,
 } from "../lib/useOrderCategoryScrollSpy";
+import type { OrderProductRatingSummary } from "../ratings";
+import { ratingSummaryFor } from "../ratings";
 import { OrderCategorySection } from "./OrderCategorySection";
 import { OrderListRow } from "./OrderProductTiles";
 
@@ -15,6 +17,7 @@ type Props = {
   filterCategoryId: string;
   highlightId: string;
   qtyByCatalogId: Map<string, number>;
+  ratingByCatalogId?: Map<string, OrderProductRatingSummary>;
   tableFull: boolean;
   bottomPad?: boolean;
   /** Catalog page scroll container (hero + tabs + sections). */
@@ -33,6 +36,7 @@ export function OrderStoreCatalog({
   filterCategoryId,
   highlightId,
   qtyByCatalogId,
+  ratingByCatalogId,
   tableFull,
   bottomPad,
   scrollRootRef,
@@ -128,6 +132,7 @@ export function OrderStoreCatalog({
               category={listCategory}
               items={byCategory(listCategory.id)}
               qtyByCatalogId={qtyByCatalogId}
+              ratingByCatalogId={ratingByCatalogId}
               disabled={tableFull}
               forceList
               onAdd={onAdd}
@@ -142,6 +147,7 @@ export function OrderStoreCatalog({
                 category={cat}
                 items={byCategory(cat.id)}
                 qtyByCatalogId={qtyByCatalogId}
+                ratingByCatalogId={ratingByCatalogId}
                 disabled={tableFull}
                 onViewAll={onViewAll}
                 onAdd={onAdd}
@@ -163,6 +169,7 @@ export function OrderStoreCatalog({
                     key={item.id}
                     item={item}
                     qty={qtyByCatalogId.get(item.id) ?? 0}
+                    ratingSummary={ratingSummaryFor(ratingByCatalogId, item.id)}
                     disabled={tableFull}
                     onAdd={() => onAdd(item)}
                     onRemove={() => onRemove(item)}

@@ -80,7 +80,7 @@ import {
   paySuccessTablePickState,
   shouldKeepPayFirstSessionOpen,
 } from "../lib/pay-first-seating";
-import { POS_KITCHEN_TICKETS_QUERY_KEY } from "@/pos-mobile/8-kitchen/lib/posKitchenTypes";
+import { invalidatePosKitchenBoardQueries } from "@/pos-mobile/8-kitchen/hooks/usePosKitchenTickets";
 import { usePosShiftWaiterCandidate } from "../hooks/usePosShiftWaiterCandidate";
 import { POS_SELECT_TABLE_I18N } from "../lib/posSelectTableCopy";
 import { POS_NEW_BILL_I18N } from "../lib/posNewBillCopy";
@@ -119,9 +119,12 @@ import {
   PosLibraryHome,
   PosLibraryProductPane,
   PosLibrarySoonPane,
+  PosLibrarySetupHost,
+  type PosLibrarySetupAction,
 } from "../components/library";
 import { PosCustomKeypad } from "../components/custom";
 import { PosItemCustomizeDialog } from "../components/customize";
+import { PosBillLineNotesSheet } from "../components/customize/PosBillLineNotesSheet";
 import { needsItemCustomize } from "../lib/needsItemCustomize";
 import { usePosCashierPay } from "../hooks/usePosCashierPay";
 import { usePosFulfillmentStockCommit } from "../hooks/usePosFulfillmentStockCommit";
@@ -132,6 +135,7 @@ import { reverseKitchenStockForVoid } from "@/stock-management/stock-commit/lib/
 import {
   applyKitchenTicketLineVoid,
 } from "@/pos-mobile/8-kitchen/lib/createPosKitchenTickets";
+import { syncKitchenTicketLineNote } from "@/pos-mobile/8-kitchen/lib/syncKitchenTicketLineNote";
 import { fireKitchenForCheckout } from "@/pos-mobile/8-kitchen/lib/fireKitchenForCheckout";
 import {
   claimSynckerjaCashierCheckout,
@@ -162,6 +166,8 @@ import {
   runPosCheckoutSideEffects,
 } from "../lib/checkout";
 import { cartLineFingerprint } from "../lib/cartLineFingerprint";
+import { replaceCartLine } from "@/synckerja-order/0-storefront/lib/orderCartLines";
+import { sanitizeKitchenNote } from "@/synckerja-order/0-storefront/customize/lib/orderLineKitchenNote";
 import { POS_STOCK_COMMIT_I18N } from "../lib/posStockCommitCopy";
 import {
   POS_REFUND_I18N,
@@ -265,6 +271,9 @@ export default function PosCashierPage() {
   const [favoritesEditing, setFavoritesEditing] = useState(false);
   const [addFavoriteOpen, setAddFavoriteOpen] = useState(false);
   const [libraryEditing, setLibraryEditing] = useState(false);
+  const [librarySetupMenuOpen, setLibrarySetupMenuOpen] = useState(false);
+  const [librarySetupAction, setLibrarySetupAction] =
+    useState<PosLibrarySetupAction | null>(null);
   const [libraryQuery, setLibraryQuery] = useState("");
   const [libraryView, setLibraryView] = useState<
     | "home"
@@ -349,6 +358,7 @@ export default function PosCashierPage() {
   const [customizeItem, setCustomizeItem] = useState<CustomerVisitCatalogItem | null>(
     null,
   );
+  const [notesLine, setNotesLine] = useState<CustomerVisitCartLine | null>(null);
   const [activeOpenSessionId, setActiveOpenSessionId] = useState<string | null>(() => {
     const stored = readPosSelectedTable();
     return stored?.sessionId ?? null;
@@ -581,6 +591,7 @@ export default function PosCashierPage() {
     }
     if (tab !== "library") {
       setLibraryEditing(false);
+      setLibrarySetupMenuOpen(false);
       setLibraryQuery("");
       setLibraryView("home");
     }
@@ -912,6 +923,7 @@ export default function PosCashierPage() {
         void invalidateCatalogStockCaches(queryClient, organizationId);
       }
       toastKitchenFireResult({ result, t, toast });
+      invalidatePosKitchenBoardQueries(queryClient, organizationId, outletId);
       if (synckerjaCashierCheckout && !synckerjaCashierCheckout.kitchenFired) {
         await markSynckerjaCashierKitchenFired({
           pendingCheckoutId: synckerjaCashierCheckout.pendingCheckoutId,
@@ -1033,7 +1045,7 @@ export default function PosCashierPage() {
       );
       setPickTableAfterPayOpen(false);
       void queryClient.invalidateQueries({ queryKey: [POS_TABLE_SESSIONS_QUERY_KEY] });
-      void queryClient.invalidateQueries({ queryKey: [POS_KITCHEN_TICKETS_QUERY_KEY] });
+      invalidatePosKitchenBoardQueries(queryClient, organizationId, outletId);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       toast({
@@ -1113,6 +1125,49 @@ export default function PosCashierPage() {
       return;
     }
     cart.addItem(item);
+  };
+
+  const onUpdateKitchenNote = (lineKey: string, rawNote: string | null) => {
+    const line = cart.lines.find((l) => l.lineKey === lineKey);
+    if (!line || line.isCustomAmount) return;
+    const kitchenNote = sanitizeKitchenNote(rawNote);
+    const previousFingerprint = cartLineFingerprint(line);
+    const next: CustomerVisitCartLine = {
+      ...line,
+      kitchenNote,
+    };
+    next.lineKey = cartLineFingerprint(next);
+
+    const sessionId = selectedTable?.sessionId ?? activeOpenSessionId ?? null;
+    // Draft (no session): cart only — notes ride the next Save Bill / Pay fire.
+    if (!sessionId) {
+      cart.replaceLines(replaceCartLine(cart.lines, lineKey, next));
+      return;
+    }
+
+    // Saved bill: migrate KDS fingerprint + modifiers_text before cart changes,
+    // so Pay delta does not treat the line as unfired and duplicate tickets.
+    void (async () => {
+      try {
+        await syncKitchenTicketLineNote({
+          sessionId,
+          previousFingerprint,
+          nextLine: next,
+        });
+        if (organizationId && outletId) {
+          invalidatePosKitchenBoardQueries(queryClient, organizationId, outletId);
+        }
+        cart.replaceLines(replaceCartLine(cart.lines, lineKey, next));
+      } catch (err) {
+        console.error("syncKitchenTicketLineNote failed", err);
+        const message = err instanceof Error ? err.message : String(err);
+        toast({
+          title: "Gagal memperbarui catatan dapur",
+          description: message,
+          variant: "destructive",
+        });
+      }
+    })();
   };
 
   const onUpdateQtyGuarded = (lineKey: string, quantity: number) => {
@@ -1701,6 +1756,7 @@ export default function PosCashierPage() {
     void invalidateCatalogStockCaches(queryClient, organizationId);
     void queryClient.invalidateQueries({ queryKey: [POS_CASHIER_SHIFTS_QUERY_KEY] });
     void queryClient.invalidateQueries({ queryKey: [POS_TABLE_SESSIONS_QUERY_KEY] });
+    invalidatePosKitchenBoardQueries(queryClient, organizationId, outletId);
 
     const totalsSnapshot = mergePosCheckoutTotalsWithCustom(paidCatalogTotals, customTotal);
     const displayAmountDue =
@@ -2311,6 +2367,10 @@ export default function PosCashierPage() {
                           onQueryChange={setLibraryQuery}
                           editing={libraryEditing}
                           onEditingChange={setLibraryEditing}
+                          setupMenuOpen={librarySetupMenuOpen}
+                          onSetupMenuOpenChange={setLibrarySetupMenuOpen}
+                          canSetup={permissions.canCharge()}
+                          onSetupAction={setLibrarySetupAction}
                           onOpenSection={onOpenLibrarySection}
                           onReorderCategories={onReorderLibraryCategories}
                         />
@@ -2362,6 +2422,7 @@ export default function PosCashierPage() {
                       setActiveOpenSessionId(null);
                     }}
                     onUpdateQty={onUpdateQtyGuarded}
+                    onEditLineNotes={(line) => setNotesLine(line)}
                     onOpenBillList={() => {
                       setBillListTab("open");
                       setBillListOpen(true);
@@ -2449,6 +2510,10 @@ export default function PosCashierPage() {
                   onQueryChange={setLibraryQuery}
                   editing={libraryEditing}
                   onEditingChange={setLibraryEditing}
+                  setupMenuOpen={librarySetupMenuOpen}
+                  onSetupMenuOpenChange={setLibrarySetupMenuOpen}
+                  canSetup={permissions.canCharge()}
+                  onSetupAction={setLibrarySetupAction}
                   onOpenSection={onOpenLibrarySection}
                   onReorderCategories={onReorderLibraryCategories}
                 />
@@ -2500,6 +2565,7 @@ export default function PosCashierPage() {
                 setActiveOpenSessionId(null);
               }}
               onUpdateQty={onUpdateQtyGuarded}
+              onEditLineNotes={(line) => setNotesLine(line)}
               onOpenBillList={() => {
                 setBillListTab("open");
                 setBillListOpen(true);
@@ -2529,9 +2595,31 @@ export default function PosCashierPage() {
           setTab(next);
           setFavoritesEditing(false);
           setLibraryEditing(false);
+          setLibrarySetupMenuOpen(false);
           if (isPhoneLayout) showMenu();
         }}
         onOpenMenu={() => setMenuOpen(true)}
+      />
+
+      <PosLibrarySetupHost
+        action={librarySetupAction}
+        onActionHandled={() => setLibrarySetupAction(null)}
+        outletId={outletId ?? ""}
+        canSetup={permissions.canCharge()}
+        onCatalogChanged={() => {
+          void queryClient.invalidateQueries({
+            queryKey: ["customer-visit-catalog", organizationId],
+          });
+          void queryClient.invalidateQueries({
+            queryKey: ["default-prices", organizationId],
+          });
+          void queryClient.invalidateQueries({
+            queryKey: ["pos-library-outlet-categories", organizationId],
+          });
+          void queryClient.invalidateQueries({
+            queryKey: ["catalog-product-categories", organizationId],
+          });
+        }}
       />
 
       <PosCashierMenuDrawer
@@ -2648,6 +2736,17 @@ export default function PosCashierPage() {
         onSave={(line) => {
           cart.addCustomizedLine(line);
           setCustomizeItem(null);
+        }}
+      />
+      <PosBillLineNotesSheet
+        open={Boolean(notesLine)}
+        line={notesLine}
+        onOpenChange={(next) => {
+          if (!next) setNotesLine(null);
+        }}
+        onSave={(lineKey, kitchenNote) => {
+          onUpdateKitchenNote(lineKey, kitchenNote);
+          setNotesLine(null);
         }}
       />
       <PosSelectTableOverlay

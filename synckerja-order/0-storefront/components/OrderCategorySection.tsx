@@ -7,6 +7,7 @@ import {
   ORDER_STOREFRONT_SCROLL_PAD,
   ORDER_STOREFRONT_SPACER,
 } from "../lib/orderStorefrontGutter";
+import { ratingSummaryFor, type OrderProductRatingSummary } from "../ratings";
 import { OrderFeaturedCard, OrderListRow } from "./OrderProductTiles";
 
 function isPromoName(name: string): boolean {
@@ -17,6 +18,7 @@ type Props = {
   category: PublicOrderCategory;
   items: PublicOrderCatalogItem[];
   qtyByCatalogId: Map<string, number>;
+  ratingByCatalogId?: Map<string, OrderProductRatingSummary>;
   disabled: boolean;
   forceList?: boolean;
   onViewAll?: (id: string) => void;
@@ -30,6 +32,7 @@ export function OrderCategorySection({
   category,
   items,
   qtyByCatalogId,
+  ratingByCatalogId,
   disabled,
   forceList,
   onViewAll,
@@ -83,6 +86,7 @@ export function OrderCategorySection({
               key={item.id}
               item={item}
               qty={qtyByCatalogId.get(item.id) ?? 0}
+              ratingSummary={ratingSummaryFor(ratingByCatalogId, item.id)}
               disabled={disabled}
               bleed={resolved.slider === "bleed"}
               className={index > 0 ? "ml-2" : undefined}
@@ -101,6 +105,7 @@ export function OrderCategorySection({
               key={item.id}
               item={item}
               qty={qtyByCatalogId.get(item.id) ?? 0}
+              ratingSummary={ratingSummaryFor(ratingByCatalogId, item.id)}
               disabled={disabled}
               presentation="grid"
               onAdd={() => onAdd(item)}
@@ -117,6 +122,7 @@ export function OrderCategorySection({
               key={item.id}
               item={item}
               qty={qtyByCatalogId.get(item.id) ?? 0}
+              ratingSummary={ratingSummaryFor(ratingByCatalogId, item.id)}
               disabled={disabled}
               onAdd={() => onAdd(item)}
               onRemove={() => onRemove(item)}

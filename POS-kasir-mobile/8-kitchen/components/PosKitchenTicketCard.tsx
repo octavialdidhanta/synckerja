@@ -19,6 +19,7 @@ import {
   formatKitchenTicketCode,
   kitchenTicketElapsedMs,
   kitchenTicketReadiness,
+  isKitchenChecklistLocked,
 } from "../lib/kitchenTicketMeta";
 import {
   formatKitchenWaitDuration,
@@ -28,8 +29,41 @@ import {
 } from "../lib/kitchenTicketSla";
 import type { PosKitchenTicket } from "../lib/posKitchenTypes";
 import { isKitchenTicketInRecallWindow } from "../lib/canRestoreKitchenTicket";
+import { canClickKitchenAdvance } from "../lib/kitchenTicketStatus";
+import { splitKitchenModifiersAndNote } from "../lib/splitKitchenModifiersAndNote";
 import type { KitchenThemeColors } from "../settings/lib/defaultKitchenTheme";
 import { PosKitchenProgressRing } from "./PosKitchenProgressRing";
+
+function KitchenLineDetailText({
+  text,
+  done,
+}: {
+  text: string;
+  done: boolean;
+}) {
+  const { modifiers, note } = splitKitchenModifiersAndNote(text);
+  const muted = done ? "line-through opacity-70" : "";
+
+  return (
+    <span className="mt-0.5 block space-y-1">
+      {modifiers ? (
+        <span className={["block text-xs text-slate-500", muted].join(" ")}>
+          {modifiers}
+        </span>
+      ) : null}
+      {note ? (
+        <span
+          className={[
+            "block border-l-2 border-amber-400/80 pl-2 text-xs leading-snug text-slate-600",
+            muted,
+          ].join(" ")}
+        >
+          <span className="font-medium text-slate-500">Catatan:</span> {note}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 type Props = {
   ticket: PosKitchenTicket;
@@ -134,7 +168,13 @@ export function PosKitchenTicketCard({
   const canRestore =
     Boolean(showRecall) && isKitchenTicketInRecallWindow(ticket, nowMs);
   const recallDisabled = Boolean(busy || !hasUncheckedLine || !canRestore);
-  const checklistDisabled = Boolean(busy || (readOnly && !showRecall));
+  const checklistDisabled = Boolean(
+    busy ||
+      isKitchenChecklistLocked(ticket.status, { readOnly, showRecall }),
+  );
+  const advanceDisabled = Boolean(
+    interactionsDisabled || !canClickKitchenAdvance(ticket.status, ticket.lines),
+  );
 
   return (
     <article
@@ -242,14 +282,10 @@ export function PosKitchenTicketCard({
                     {label}
                   </span>
                   {line.modifiers_text ? (
-                    <span
-                      className={[
-                        "mt-0.5 block text-xs text-slate-500",
-                        line.is_done ? "line-through opacity-70" : "",
-                      ].join(" ")}
-                    >
-                      {line.modifiers_text}
-                    </span>
+                    <KitchenLineDetailText
+                      text={line.modifiers_text}
+                      done={line.is_done}
+                    />
                   ) : null}
                 </span>
               </button>
@@ -286,7 +322,7 @@ export function PosKitchenTicketCard({
         ) : !readOnly ? (
           <button
             type="button"
-            disabled={interactionsDisabled}
+            disabled={advanceDisabled}
             onClick={(e) => {
               e.stopPropagation();
               onAdvance();

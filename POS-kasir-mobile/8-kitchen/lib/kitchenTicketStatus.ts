@@ -55,3 +55,18 @@ export function nextKitchenTicketStatus(
   if (status === "ready") return "done";
   return null;
 }
+
+/**
+ * Start and Done are clickable; In-Progress is a status label until all lines are checked
+ * (which auto-promotes to ready). Tickets with zero lines may still advance in_progress → ready.
+ */
+export function canClickKitchenAdvance(
+  status: PosKitchenTicketStatus,
+  lines: readonly { is_done: boolean }[],
+): boolean {
+  if (status === "new") return true;
+  if (status === "in_progress") return lines.length === 0;
+  if (status === "ready") return lines.length === 0 || lines.every((l) => l.is_done);
+  return false;
+}
+

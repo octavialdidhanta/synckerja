@@ -2,8 +2,10 @@ import { Button } from "@/shared/components/ui/button";
 import { formatStoreCheckoutRp } from "@/5-2-customer-visits/checkout/lib/catalogLabel";
 import { lineTotal } from "@/5-2-customer-visits/checkout/lib/sumCustomerVisitCart";
 import type { CustomerVisitCartLine } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
+import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { posBillLineTitle } from "../lib/posBillLineTitle";
 import { posBillLineBaseUnitPrice } from "../lib/posBillLineAmounts";
+import { POS_ITEM_CUSTOMIZE_I18N } from "../lib/posItemCustomizeCopy";
 import { cn } from "@/shared/lib/utils";
 
 type AmountKind = "base" | "extra" | "discount";
@@ -40,15 +42,19 @@ function DetailAmountRow({
 type Props = {
   line: CustomerVisitCartLine;
   onUpdateQty: (lineKey: string, quantity: number) => void;
+  onEditNotes?: (line: CustomerVisitCartLine) => void;
 };
 
-export function PosBillLineRow({ line, onUpdateQty }: Props) {
+export function PosBillLineRow({ line, onUpdateQty, onEditNotes }: Props) {
+  const { t } = useAppTranslation();
   const modifiers = line.modifiers ?? [];
+  const note = line.kitchenNote?.trim() ?? "";
   const hasDetails =
     Boolean(line.variantName?.trim()) ||
     modifiers.length > 0 ||
     Boolean(line.lineSalesTypeLabel?.trim()) ||
-    Boolean(line.lineDiscount);
+    Boolean(line.lineDiscount) ||
+    Boolean(note);
 
   return (
     <li className="rounded-md bg-slate-50 px-2.5 py-2">
@@ -83,6 +89,11 @@ export function PosBillLineRow({ line, onUpdateQty }: Props) {
               kind="discount"
             />
           ) : null}
+          {note ? (
+            <p className="text-xs italic leading-snug text-slate-600">
+              {t(POS_ITEM_CUSTOMIZE_I18N.notes, "Notes")}: {note}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -108,9 +119,24 @@ export function PosBillLineRow({ line, onUpdateQty }: Props) {
             +
           </Button>
         </div>
-        <span className="text-sm font-semibold tabular-nums text-slate-900">
-          {formatStoreCheckoutRp(lineTotal(line))}
-        </span>
+        <div className="flex items-center gap-2">
+          {!line.isCustomAmount && onEditNotes ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs text-primary"
+              onClick={() => onEditNotes(line)}
+            >
+              {note
+                ? t(POS_ITEM_CUSTOMIZE_I18N.notesEdit, "Edit notes")
+                : t(POS_ITEM_CUSTOMIZE_I18N.notesAdd, "Add notes")}
+            </Button>
+          ) : null}
+          <span className="text-sm font-semibold tabular-nums text-slate-900">
+            {formatStoreCheckoutRp(lineTotal(line))}
+          </span>
+        </div>
       </div>
     </li>
   );

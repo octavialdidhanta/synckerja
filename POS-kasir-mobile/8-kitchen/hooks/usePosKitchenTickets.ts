@@ -43,6 +43,9 @@ export function usePosKitchenTickets(outletId: string | null) {
   const query = useQuery({
     queryKey: [POS_KITCHEN_TICKETS_QUERY_KEY, organizationId, outletId],
     enabled: Boolean(organizationId && outletId),
+    // Live KDS: override app-wide refetchOnMount:false so Save Bill / Pay show up after navigate.
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async (): Promise<PosKitchenTicket[]> => {
       if (!organizationId || !outletId) return [];
 

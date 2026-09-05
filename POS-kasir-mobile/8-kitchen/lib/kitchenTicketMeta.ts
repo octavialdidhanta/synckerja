@@ -33,3 +33,24 @@ export function kitchenTicketReadiness(lines: { is_done: boolean }[]): {
   const percent = total === 0 ? 0 : Math.round((done / total) * 100);
   return { done, total, percent };
 }
+
+/** Predict whether every line is done after toggling one line. Empty list → false (no checklist). */
+export function kitchenLinesAllDoneAfterToggle(
+  lines: readonly { id: string; is_done: boolean }[],
+  lineId: string,
+  nextDone: boolean,
+): boolean {
+  if (lines.length === 0) return false;
+  return lines.every((line) => (line.id === lineId ? nextDone : line.is_done));
+}
+
+/** Active-board checklist is locked until Start (`new` → `in_progress`). */
+export function isKitchenChecklistLocked(
+  status: PosKitchenTicket["status"],
+  opts?: { readOnly?: boolean; showRecall?: boolean },
+): boolean {
+  if (opts?.showRecall) return false;
+  if (opts?.readOnly) return true;
+  return status === "new";
+}
+

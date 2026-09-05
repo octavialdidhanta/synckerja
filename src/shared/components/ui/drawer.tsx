@@ -14,12 +14,15 @@ const Drawer = ({
   shouldScaleBackground = false,
   closeThreshold = 0.12,
   scrollLockTimeout = 50,
+  /** Android adjustResize already shrinks the WebView; Vaul's default shift double-lifts the sheet. */
+  repositionInputs = false,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
   <DrawerPrimitive.Root
     shouldScaleBackground={shouldScaleBackground}
     closeThreshold={closeThreshold}
     scrollLockTimeout={scrollLockTimeout}
+    repositionInputs={repositionInputs}
     {...props}
   />
 );

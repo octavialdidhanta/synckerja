@@ -24,6 +24,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { usePhoneDrawerKeyboardChrome } from "@/shared/hooks/usePhoneDrawerKeyboardChrome";
 import { formatIdIntegerGrouping, parseGroupedIdInteger, stripToDigits } from "../../utils/formatIdUnitPrice";
 import { useCatalogModifierGroups } from "../hooks/useCatalogModifierGroups";
 import {
@@ -62,6 +63,8 @@ export type ModifierGroupFormSheetProps = {
   selectedOutletId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called with saved group id after successful create/update. */
+  onSaved?: (groupId: string) => void;
 };
 
 function InfoTip({ text }: { text: string }) {
@@ -84,8 +87,10 @@ export function ModifierGroupFormSheet({
   selectedOutletId,
   open,
   onOpenChange,
+  onSaved,
 }: ModifierGroupFormSheetProps) {
   const { t } = useAppTranslation();
+  const drawerChrome = usePhoneDrawerKeyboardChrome();
   const { toast } = useToast();
   const { save, isSaving } = useCatalogModifierGroups();
 
@@ -244,7 +249,7 @@ export function ModifierGroupFormSheet({
     }
     setSaving(true);
     try {
-      await save({
+      const groupId = await save({
         id: group?.id,
         name: trimmed,
         limit_enabled: limitEnabled,
@@ -256,6 +261,7 @@ export function ModifierGroupFormSheet({
         outlet_ids: outletIds,
       });
       toast({ title: t("defaultPrices.modifiers.saved", "Modifier saved.") });
+      onSaved?.(groupId);
       onOpenChange(false);
     } catch {
       toast({
@@ -274,10 +280,16 @@ export function ModifierGroupFormSheet({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="right"
-          className="flex w-full flex-col gap-0 p-0 sm:max-w-md"
+          className="flex w-full flex-col gap-0 p-0 sm:max-w-md [&>button]:top-[calc(var(--safe-area-inset-top,0px)+1rem)]"
           aria-describedby={undefined}
         >
-          <SheetHeader className="shrink-0 border-b px-6 py-4 pr-12 text-left">
+          <SheetHeader
+            className="shrink-0 border-b px-6 pb-4 pr-12 text-left"
+            style={{
+              paddingTop:
+                "max(1rem, calc(var(--safe-area-inset-top, 0px) + 0.75rem), calc(env(safe-area-inset-top, 0px) + 0.75rem))",
+            }}
+          >
             <SheetTitle>{title}</SheetTitle>
           </SheetHeader>
           <TooltipProvider delayDuration={200}>
@@ -475,7 +487,10 @@ export function ModifierGroupFormSheet({
               />
             </div>
           </TooltipProvider>
-          <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">
+          <div
+            className="flex shrink-0 justify-end gap-2 border-t px-6 pt-4"
+            style={drawerChrome.footerStyle}
+          >
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
               {t("common.cancel", "Cancel")}
             </Button>

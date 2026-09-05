@@ -9,6 +9,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { usePhoneDrawerKeyboardChrome } from "@/shared/hooks/usePhoneDrawerKeyboardChrome";
 import { useCatalogProductCategories } from "../hooks/useCatalogProductCategories";
 import type { CatalogProductCategory } from "../types";
 import { CategoryOutletsSection } from "./CategoryOutletsSection";
@@ -29,6 +30,7 @@ export function CategoryFormSheet({
   onCreated,
 }: CategoryFormSheetProps) {
   const { t } = useAppTranslation();
+  const drawerChrome = usePhoneDrawerKeyboardChrome();
   const { toast } = useToast();
   const { save, isSaving } = useCatalogProductCategories();
   const [name, setName] = useState("");
@@ -92,10 +94,16 @@ export function CategoryFormSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-full flex-col gap-0 p-0 sm:max-w-md"
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-md [&>button]:top-[calc(var(--safe-area-inset-top,0px)+1rem)]"
         aria-describedby={undefined}
       >
-        <SheetHeader className="shrink-0 border-b px-6 py-4 pr-12 text-left">
+        <SheetHeader
+          className="shrink-0 border-b px-6 pb-4 pr-12 text-left"
+          style={{
+            paddingTop:
+              "max(1rem, calc(var(--safe-area-inset-top, 0px) + 0.75rem), calc(env(safe-area-inset-top, 0px) + 0.75rem))",
+          }}
+        >
           <SheetTitle>{title}</SheetTitle>
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-4">
@@ -114,7 +122,10 @@ export function CategoryFormSheet({
           </section>
           <CategoryOutletsSection selectedIds={outletIds} onChange={setOutletIds} />
         </div>
-        <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">
+        <div
+          className="flex shrink-0 justify-end gap-2 border-t px-6 pt-4"
+          style={drawerChrome.footerStyle}
+        >
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             {t("common.cancel", "Cancel")}
           </Button>

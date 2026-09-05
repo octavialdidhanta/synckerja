@@ -15,6 +15,7 @@ import { OrderFulfillmentPicker } from "./OrderFulfillmentPicker";
 import { OrderPaymentDetailsCard } from "./OrderPaymentDetailsCard";
 import { OrderRelatedMenuRow } from "./OrderRelatedMenuRow";
 import { OrderReviewLineBlock } from "./OrderReviewLineBlock";
+import type { OrderProductRatingSummary } from "../../ratings";
 
 const ACCENT = "#E91E8C";
 
@@ -23,6 +24,7 @@ export function OrderReviewScreen({
   lines,
   relatedItems,
   qtyByCatalogId,
+  ratingByCatalogId,
   billNote,
   preview,
   fulfillment,
@@ -44,6 +46,7 @@ export function OrderReviewScreen({
   lines: CustomerVisitCartLine[];
   relatedItems: PublicOrderCatalogItem[];
   qtyByCatalogId: Map<string, number>;
+  ratingByCatalogId?: Map<string, OrderProductRatingSummary>;
   billNote: string;
   preview: OrderCheckoutPreview;
   fulfillment: OrderFulfillment;
@@ -90,6 +93,7 @@ export function OrderReviewScreen({
         <OrderRelatedMenuRow
           items={relatedItems}
           qtyByCatalogId={qtyByCatalogId}
+          ratingByCatalogId={ratingByCatalogId}
           disabled={disabled}
           onAdd={onAddRelated}
           onRemove={onRemoveRelated}

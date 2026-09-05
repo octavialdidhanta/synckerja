@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { CustomerVisitCartLine, CustomerVisitCatalogItem } from '../lib/customerVisitCheckout.types';
 import { isCatalogItemOutOfStock } from '../lib/catalogLabel';
 import { sumCustomerVisitCart } from '../lib/sumCustomerVisitCart';
+import { kitchenNoteFingerprint } from '@/synckerja-order/0-storefront/customize/lib/orderLineKitchenNote';
 
 function isPlainLine(line: CustomerVisitCartLine): boolean {
   return (
@@ -9,7 +10,8 @@ function isPlainLine(line: CustomerVisitCartLine): boolean {
     !line.variantId &&
     !(line.modifiers && line.modifiers.length > 0) &&
     !line.lineDiscount &&
-    !line.lineSalesTypeId
+    !line.lineSalesTypeId &&
+    !kitchenNoteFingerprint(line.kitchenNote)
   );
 }
 

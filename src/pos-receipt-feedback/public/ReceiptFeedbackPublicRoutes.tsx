@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { Loader2, Star } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/shared/components/ui/button';
 import { Textarea } from '@/shared/components/ui/textarea';
@@ -12,9 +12,21 @@ import { isGenericCustomerName } from '../lib/isGenericCustomerName';
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** Document scroll for /r/* — app shell defaults body/#root to overflow-hidden. */
 export function ReceiptFeedbackPublicShell({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    document.body.classList.add('allow-page-scroll');
+    document.getElementById('root')?.classList.add('allow-page-scroll');
+    return () => {
+      document.body.classList.remove('allow-page-scroll');
+      document.getElementById('root')?.classList.remove('allow-page-scroll');
+    };
+  }, []);
+
   return (
-    <div className="min-h-screen bg-background font-sans text-foreground antialiased">{children}</div>
+    <div className="min-h-[100dvh] bg-background font-sans text-foreground antialiased">
+      {children}
+    </div>
   );
 }
 
@@ -116,7 +128,7 @@ export function ReceiptFeedbackPublicFormPage() {
   const readOnly = d.alreadySubmitted;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-4 py-8">
+    <div className="mx-auto flex min-h-[100dvh] max-w-2xl flex-col gap-6 p-4 py-8 pb-[max(2rem,env(safe-area-inset-bottom))]">
       <PosPublicReceiptBreakdown
         businessName={d.businessName}
         outletName={d.outletName}

@@ -4,6 +4,7 @@ import type {
   CustomerVisitCartModifier,
   CustomerVisitCatalogItem,
 } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
+import { sanitizeKitchenNote } from "@/synckerja-order/0-storefront/customize/lib/orderLineKitchenNote";
 import { cartLineFingerprint } from "./cartLineFingerprint";
 import {
   buildCustomizeSubServiceName,
@@ -21,6 +22,8 @@ export type CustomizeSelection = {
   lineDiscount: CustomerVisitCartLineDiscount | null;
   lineSalesTypeId: string | null;
   lineSalesTypeLabel: string | null;
+  /** Optional kitchen / prep note (shown on KDS). */
+  kitchenNote?: string | null;
 };
 
 export function buildCustomizeCartLine(selection: CustomizeSelection): CustomerVisitCartLine {
@@ -60,6 +63,7 @@ export function buildCustomizeCartLine(selection: CustomizeSelection): CustomerV
     lineDiscount: selection.lineDiscount,
     lineSalesTypeId: selection.lineSalesTypeId,
     lineSalesTypeLabel: selection.lineSalesTypeLabel,
+    kitchenNote: sanitizeKitchenNote(selection.kitchenNote),
   };
   draft.lineKey = cartLineFingerprint(draft);
   return draft;

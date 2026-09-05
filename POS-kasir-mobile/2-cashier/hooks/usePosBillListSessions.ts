@@ -84,6 +84,8 @@ export function usePosBillListOpenSessions(outletId: string | null | undefined) 
       open.sessions.map((s) => `${s.id}:${s.waiter_id ?? ""}`).join(","),
     ],
     enabled: Boolean(organizationId && outletId),
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async (): Promise<PosBillListRow[]> => {
       if (!organizationId) return [];
       const sessions = open.sessions;
@@ -115,6 +117,8 @@ export function usePosBillListCancelledSessions(outletId: string | null | undefi
   return useQuery({
     queryKey: [POS_TABLE_SESSIONS_QUERY_KEY, "cancelled", organizationId, outletId],
     enabled,
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async (): Promise<PosBillListRow[]> => {
       if (!organizationId || !outletId) return [];
       const { data, error } = await supabase
@@ -160,6 +164,8 @@ export function usePosBillListPaidSessions(outletId: string | null | undefined) 
   return useQuery({
     queryKey: [POS_TABLE_SESSIONS_QUERY_KEY, "paid", organizationId, outletId],
     enabled,
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async (): Promise<PosBillListRow[]> => {
       if (!organizationId || !outletId) return [];
       const { data, error } = await supabase

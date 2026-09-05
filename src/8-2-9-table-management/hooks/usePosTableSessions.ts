@@ -70,6 +70,8 @@ export function usePosOpenTableSessions(outletId: string | null | undefined) {
   const query = useQuery({
     queryKey: [POS_TABLE_SESSIONS_QUERY_KEY, "open", organizationId, outletId],
     enabled,
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async (): Promise<PosTableSession[]> => {
       if (!organizationId || !outletId) return [];
       const { data, error } = await supabase
@@ -99,8 +101,9 @@ export function usePosOpenTableSessions(outletId: string | null | undefined) {
           filter: `outlet_id=eq.${outletId}`,
         },
         () => {
+          // Refresh open occupancy + paid/cancelled/enriched bill lists on all POS devices.
           void queryClient.invalidateQueries({
-            queryKey: [POS_TABLE_SESSIONS_QUERY_KEY, "open", organizationId, outletId],
+            queryKey: [POS_TABLE_SESSIONS_QUERY_KEY],
           });
         },
       )

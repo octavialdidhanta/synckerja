@@ -113,7 +113,13 @@ export function PosKitchenBoard({
       }
       onToggleLine={(lineId, nextDone) =>
         toggleLineDone.mutate(
-          { ticketId: ticket.id, lineId, isDone: nextDone },
+          {
+            ticketId: ticket.id,
+            lineId,
+            isDone: nextDone,
+            currentStatus: ticket.status,
+            lines: ticket.lines.map((line) => ({ id: line.id, is_done: line.is_done })),
+          },
           { onError },
         )
       }

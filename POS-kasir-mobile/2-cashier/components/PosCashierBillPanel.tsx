@@ -30,6 +30,7 @@ type Props = {
   tableDuration?: string | null;
   onClearTable?: () => void;
   onUpdateQty: (lineKey: string, quantity: number) => void;
+  onEditLineNotes?: (line: CustomerVisitCartLine) => void;
   onOpenBillList: () => void;
   onSaveBill: () => void;
   /** True when bill already has an open session (resumed from Bill List). */
@@ -58,6 +59,7 @@ export function PosCashierBillPanel({
   tableDuration,
   onClearTable,
   onUpdateQty,
+  onEditLineNotes,
   onOpenBillList,
   onSaveBill,
   saveBillDisabled,
@@ -172,6 +174,7 @@ export function PosCashierBillPanel({
                 key={line.lineKey}
                 line={line}
                 onUpdateQty={onUpdateQty}
+                onEditNotes={onEditLineNotes}
               />
             ))}
           </ul>

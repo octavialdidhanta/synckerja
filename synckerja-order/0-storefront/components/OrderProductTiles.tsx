@@ -3,6 +3,10 @@ import type { ReactNode } from "react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { PublicOrderCatalogItem } from "@/synckerja-order/shared/lib/orderTypes";
 import { formatOrderRp } from "../lib/formatOrderRp";
+import {
+  OrderProductRatingBadge,
+  type OrderProductRatingSummary,
+} from "../ratings";
 
 const ACCENT = "#E91E8C";
 
@@ -41,7 +45,7 @@ function QtyCircleButton({
         e.stopPropagation();
         onClick();
       }}
-      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-300 bg-white text-neutral-800 disabled:opacity-40"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-neutral-300 bg-white text-neutral-800 disabled:opacity-40"
       aria-label={label}
     >
       {children}
@@ -65,7 +69,7 @@ function OrderQtyStepper({
   const { t } = useAppTranslation();
   return (
     <div
-      className="flex h-7 w-full items-center justify-between"
+      className="flex h-6 w-full items-center justify-between gap-0.5"
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
@@ -74,15 +78,17 @@ function OrderQtyStepper({
         onClick={onRemove}
         label={t("synckerjaOrder.store.decreaseQty", "Decrease {{name}}", { name })}
       >
-        <Minus className="h-3.5 w-3.5" strokeWidth={2.25} />
+        <Minus className="h-3 w-3" strokeWidth={2.5} />
       </QtyCircleButton>
-      <span className="min-w-[1.25rem] text-center text-[13px] font-semibold text-neutral-900">{qty}</span>
+      <span className="min-w-[0.875rem] text-center text-[12px] font-semibold tabular-nums text-neutral-900">
+        {qty}
+      </span>
       <QtyCircleButton
         disabled={disabled}
         onClick={onAdd}
         label={t("synckerjaOrder.store.increaseQty", "Increase {{name}}", { name })}
       >
-        <Plus className="h-3.5 w-3.5" strokeWidth={2.25} />
+        <Plus className="h-3 w-3" strokeWidth={2.5} />
       </QtyCircleButton>
     </div>
   );
@@ -130,6 +136,7 @@ export function OrderFeaturedCard({
   bleed,
   presentation = "slider",
   className,
+  ratingSummary,
 }: {
   item: PublicOrderCatalogItem;
   qty: number;
@@ -141,6 +148,7 @@ export function OrderFeaturedCard({
   bleed?: boolean;
   presentation?: "slider" | "grid";
   className?: string;
+  ratingSummary?: OrderProductRatingSummary | null;
 }) {
   const { t } = useAppTranslation();
   const inCart = qty > 0;
@@ -162,35 +170,38 @@ export function OrderFeaturedCard({
       {...cardBodyOpenProps(body.canOpen, body.onOpen)}
     >
       <OrderProductPhoto url={item.photo_url} alt={item.name} className="aspect-square w-full" />
-      <div className="flex flex-1 flex-col px-2.5 pb-3 pt-2">
-        <p className="line-clamp-2 min-h-[32px] text-[11px] font-bold uppercase leading-tight text-neutral-900">
+      <div className="flex flex-col gap-0.5 px-2 pb-2 pt-1.5">
+        <p className="line-clamp-2 text-[11px] font-bold uppercase leading-snug text-neutral-900">
           {item.name}
         </p>
-        <p className="mt-1 text-[13px] font-medium text-neutral-800">{formatOrderRp(item.unit_price)}</p>
-        <div className="mt-2 h-7">
+        <OrderProductRatingBadge summary={ratingSummary} className="mt-0" />
+        <div className="mt-0.5 flex items-center justify-between gap-2.5">
+          <p className="min-w-0 flex-1 truncate text-[13px] font-medium leading-none text-neutral-800">
+            {formatOrderRp(item.unit_price)}
+          </p>
           {inCart ? (
-            <OrderQtyStepper
-              qty={qty}
-              disabled={disabled}
-              name={item.name}
-              onAdd={onAdd}
-              onRemove={onRemove}
-            />
-          ) : (
-            <div className="flex h-7 items-center justify-end">
-              <QtyCircleButton
+            <div className="w-[72px] shrink-0" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+              <OrderQtyStepper
+                qty={qty}
                 disabled={disabled}
-                onClick={onAdd}
-                label={t("synckerjaOrder.store.addItem", "Add {{name}}", { name: item.name })}
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </QtyCircleButton>
+                name={item.name}
+                onAdd={onAdd}
+                onRemove={onRemove}
+              />
             </div>
+          ) : (
+            <QtyCircleButton
+              disabled={disabled}
+              onClick={onAdd}
+              label={t("synckerjaOrder.store.addItem", "Add {{name}}", { name: item.name })}
+            >
+              <Plus className="h-3 w-3" strokeWidth={2.5} />
+            </QtyCircleButton>
           )}
         </div>
       </div>
       <div
-        className="h-[3px] w-full"
+        className="h-[2px] w-full"
         style={{ backgroundColor: inCart ? ACCENT : "transparent" }}
         aria-hidden
       />
@@ -206,6 +217,7 @@ export function OrderListRow({
   onRemove,
   onOpenSheet,
   onOpenDetail,
+  ratingSummary,
 }: {
   item: PublicOrderCatalogItem;
   qty: number;
@@ -214,6 +226,7 @@ export function OrderListRow({
   onRemove: () => void;
   onOpenSheet?: () => void;
   onOpenDetail?: () => void;
+  ratingSummary?: OrderProductRatingSummary | null;
 }) {
   const { t } = useAppTranslation();
   const inCart = qty > 0;
@@ -231,11 +244,12 @@ export function OrderListRow({
       />
       <div className="min-w-0 flex-1">
         <p className="text-[13px] font-semibold uppercase leading-snug text-neutral-900">{item.name}</p>
+        <OrderProductRatingBadge summary={ratingSummary} />
         <p className="mt-1 text-[13px] font-medium text-neutral-800">{formatOrderRp(item.unit_price)}</p>
       </div>
       {inCart ? (
         <div
-          className="flex w-[92px] shrink-0 items-center justify-between"
+          className="flex w-[76px] shrink-0 items-center justify-between gap-0.5"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
         >
@@ -244,15 +258,15 @@ export function OrderListRow({
             onClick={onRemove}
             label={t("synckerjaOrder.store.decreaseQty", "Decrease {{name}}", { name: item.name })}
           >
-            <Minus className="h-3.5 w-3.5" strokeWidth={2.25} />
+            <Minus className="h-3 w-3" strokeWidth={2.5} />
           </QtyCircleButton>
-          <span className="min-w-[1rem] text-center text-[13px] font-semibold">{qty}</span>
+          <span className="min-w-[0.875rem] text-center text-[12px] font-semibold tabular-nums">{qty}</span>
           <QtyCircleButton
             disabled={disabled}
             onClick={onAdd}
             label={t("synckerjaOrder.store.increaseQty", "Increase {{name}}", { name: item.name })}
           >
-            <Plus className="h-3.5 w-3.5" strokeWidth={2.25} />
+            <Plus className="h-3 w-3" strokeWidth={2.5} />
           </QtyCircleButton>
         </div>
       ) : (
@@ -261,7 +275,7 @@ export function OrderListRow({
           onClick={onAdd}
           label={t("synckerjaOrder.store.addItem", "Add {{name}}", { name: item.name })}
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3 w-3" strokeWidth={2.5} />
         </QtyCircleButton>
       )}
     </div>

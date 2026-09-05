@@ -7,10 +7,12 @@ import {
 } from "../../lib/orderStorefrontGutter";
 import { OrderFeaturedCard } from "../../components/OrderProductTiles";
 import { ORDER_CHECKOUT_I18N } from "../lib/orderCheckoutCopy";
+import { ratingSummaryFor, type OrderProductRatingSummary } from "../../ratings";
 
 export function OrderRelatedMenuRow({
   items,
   qtyByCatalogId,
+  ratingByCatalogId,
   disabled,
   onAdd,
   onRemove,
@@ -19,6 +21,7 @@ export function OrderRelatedMenuRow({
 }: {
   items: PublicOrderCatalogItem[];
   qtyByCatalogId: Map<string, number>;
+  ratingByCatalogId?: Map<string, OrderProductRatingSummary>;
   disabled?: boolean;
   onAdd: (item: PublicOrderCatalogItem) => void;
   onRemove: (item: PublicOrderCatalogItem) => void;
@@ -42,6 +45,7 @@ export function OrderRelatedMenuRow({
             <OrderFeaturedCard
               item={item}
               qty={qtyByCatalogId.get(item.id) ?? 0}
+              ratingSummary={ratingSummaryFor(ratingByCatalogId, item.id)}
               disabled={disabled}
               onAdd={() => onAdd(item)}
               onRemove={() => onRemove(item)}

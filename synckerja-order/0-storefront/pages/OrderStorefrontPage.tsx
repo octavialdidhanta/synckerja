@@ -30,6 +30,10 @@ import {
 import { OrderItemCustomizeOverlay, needsOrderItemCustomize } from "../customize";
 import { OrderCartLineSheet, cartLinesForCatalog } from "../cart-sheet";
 import {
+  ratingSummaryFor,
+  usePublicOrderProductRatingMap,
+} from "../ratings";
+import {
   OrderPaymentScreen,
   OrderReviewScreen,
   emptyOrderCheckoutPreview,
@@ -104,6 +108,17 @@ export function OrderStorefrontPage() {
     queryFn: () => fetchPublicOrderCatalog(code),
     enabled: isValidPublicCode(code) && mode === "dinein",
   });
+
+  const catalogItemIds = useMemo(
+    () => (catalogQuery.data?.items ?? []).map((item) => item.id),
+    [catalogQuery.data?.items],
+  );
+  const ratingsQuery = usePublicOrderProductRatingMap({
+    code,
+    catalogItemIds,
+    enabled: isValidPublicCode(code) && mode === "dinein" && catalogItemIds.length > 0,
+  });
+  const ratingByCatalogId = ratingsQuery.data;
 
   const store = storeQuery.data;
   const catalog = catalogQuery.data;
@@ -541,6 +556,7 @@ export function OrderStorefrontPage() {
           filterCategoryId={category}
           highlightId={highlightId}
           qtyByCatalogId={qtyByCatalogId}
+          ratingByCatalogId={ratingByCatalogId}
           tableFull={orderLocked}
           scrollRootRef={catalogScrollRef}
           onHighlight={(id) => {
@@ -605,6 +621,7 @@ export function OrderStorefrontPage() {
                 key={item.id}
                 item={item}
                 qty={qtyByCatalogId.get(item.id) ?? 0}
+                ratingSummary={ratingSummaryFor(ratingByCatalogId, item.id)}
                 disabled={orderLocked}
                 onAdd={() => onAdd(item)}
                 onRemove={() => onRemove(item)}
@@ -687,6 +704,7 @@ export function OrderStorefrontPage() {
           lines={cart.lines}
           relatedItems={relatedItems}
           qtyByCatalogId={qtyByCatalogId}
+          ratingByCatalogId={ratingByCatalogId}
           billNote={billNote}
           preview={checkoutPreview}
           fulfillment={effectiveFulfillment}

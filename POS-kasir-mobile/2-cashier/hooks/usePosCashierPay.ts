@@ -39,6 +39,11 @@ import {
 } from "@/pos-mobile/8-kitchen/lib/fireKitchenForCheckout";
 import { shouldAutoDoneKitchenOnPay } from "@/pos-mobile/8-kitchen/lib/shouldAutoDoneKitchenOnPay";
 import type { KitchenFireBySalesType } from "@/pos-mobile/8-kitchen/lib/kitchenFirePolicy";
+import {
+  POS_KITCHEN_COMPLETED_TODAY_QUERY_KEY,
+  POS_KITCHEN_RECALL_QUERY_KEY,
+  POS_KITCHEN_TICKETS_QUERY_KEY,
+} from "@/pos-mobile/8-kitchen/lib/posKitchenTypes";
 import { ensurePayFirstKitchenSession } from "@/pos-mobile/2-cashier/lib/ensurePayFirstKitchenSession";
 import { shouldKeepPayFirstSessionOpen } from "@/pos-mobile/2-cashier/lib/pay-first-seating";
 import {
@@ -336,6 +341,10 @@ export function usePosCashierPay() {
       queryClient.invalidateQueries({ queryKey: [POS_CASHIER_SHIFTS_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: [POS_TABLE_SESSIONS_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: [POS_SESSION_STOCK_COMMITS_QUERY_KEY] });
+      // KDS board (other devices + same device without relying only on realtime race).
+      void queryClient.invalidateQueries({ queryKey: [POS_KITCHEN_TICKETS_QUERY_KEY] });
+      void queryClient.invalidateQueries({ queryKey: [POS_KITCHEN_RECALL_QUERY_KEY] });
+      void queryClient.invalidateQueries({ queryKey: [POS_KITCHEN_COMPLETED_TODAY_QUERY_KEY] });
     },
   });
 }

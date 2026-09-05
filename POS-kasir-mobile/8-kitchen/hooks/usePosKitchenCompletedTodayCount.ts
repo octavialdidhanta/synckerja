@@ -24,6 +24,8 @@ export function usePosKitchenCompletedTodayTickets(outletId: string | null) {
   return useQuery({
     queryKey: [POS_KITCHEN_COMPLETED_TODAY_QUERY_KEY, organizationId, outletId],
     enabled: Boolean(organizationId && outletId),
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async (): Promise<PosKitchenTicket[]> => {
       if (!organizationId || !outletId) return [];
 

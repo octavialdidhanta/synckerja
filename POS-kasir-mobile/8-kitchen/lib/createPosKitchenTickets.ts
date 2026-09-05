@@ -62,6 +62,14 @@ export async function createPosKitchenTickets(
   );
 
   if (linesError) throw linesError;
+
+  // Lines table is not in supabase_realtime; bump parent so KDS refetch includes lines.
+  const { error: bumpError } = await supabase
+    .from("pos_kitchen_tickets")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", ticket.id);
+  if (bumpError) throw bumpError;
+
   return String(ticket.id);
 }
 

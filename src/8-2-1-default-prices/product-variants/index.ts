@@ -23,3 +23,5 @@ export {
 export { ProductPricingSection } from "./components/ProductPricingSection";
 export { ProductInventorySection } from "./components/ProductInventorySection";
 export { ProductCogsSection } from "./components/ProductCogsSection";
+export { AddProductVariantDialog } from "./components/AddProductVariantDialog";
+export type { AddProductVariantDialogProps } from "./components/AddProductVariantDialog";

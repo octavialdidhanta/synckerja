@@ -11,6 +11,7 @@ import { Label } from "@/shared/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { usePhoneDrawerKeyboardChrome } from "@/shared/hooks/usePhoneDrawerKeyboardChrome";
 import { cn } from "@/shared/lib/utils";
 import { useCatalogDiscounts } from "../hooks/useCatalogDiscounts";
 import type {
@@ -53,6 +54,7 @@ function parseRpInput(raw: string): { display: string; value: number | null } {
 
 export function DiscountFormSheet({ discount, open, onOpenChange }: DiscountFormSheetProps) {
   const { t } = useAppTranslation();
+  const drawerChrome = usePhoneDrawerKeyboardChrome();
   const { toast } = useToast();
   const { save, isSaving } = useCatalogDiscounts();
   const [name, setName] = useState("");
@@ -165,10 +167,16 @@ export function DiscountFormSheet({ discount, open, onOpenChange }: DiscountForm
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-full flex-col gap-0 p-0 sm:max-w-md"
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-md [&>button]:top-[calc(var(--safe-area-inset-top,0px)+1rem)]"
         aria-describedby={undefined}
       >
-        <SheetHeader className="shrink-0 border-b px-6 py-4 pr-12 text-left">
+        <SheetHeader
+          className="shrink-0 border-b px-6 pb-4 pr-12 text-left"
+          style={{
+            paddingTop:
+              "max(1rem, calc(var(--safe-area-inset-top, 0px) + 0.75rem), calc(env(safe-area-inset-top, 0px) + 0.75rem))",
+          }}
+        >
           <SheetTitle>{title}</SheetTitle>
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-4">
@@ -274,7 +282,10 @@ export function DiscountFormSheet({ discount, open, onOpenChange }: DiscountForm
           </section>
           <DiscountOutletsSection selectedIds={outletIds} onChange={setOutletIds} />
         </div>
-        <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">
+        <div
+          className="flex shrink-0 justify-end gap-2 border-t px-6 pt-4"
+          style={drawerChrome.footerStyle}
+        >
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             {t("common.cancel", "Cancel")}
           </Button>

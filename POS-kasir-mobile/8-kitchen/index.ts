@@ -7,6 +7,10 @@ export {
   voidKitchenTicketsForRefund,
   applyKitchenTicketLineVoid,
 } from "./lib/createPosKitchenTickets";
+export {
+  planKitchenTicketLineNoteSync,
+  syncKitchenTicketLineNote,
+} from "./lib/syncKitchenTicketLineNote";
 export { fireKitchenForCheckout, linkPayFirstSessionActivity } from "./lib/fireKitchenForCheckout";
 export type { FireKitchenForCheckoutArgs, FireKitchenForCheckoutResult } from "./lib/fireKitchenForCheckout";
 export {

@@ -26,6 +26,7 @@ import { PosModifierGroupSection } from "./PosModifierGroupSection";
 import { PosQtyStepper } from "./PosQtyStepper";
 import { PosLineDiscountSection } from "./PosLineDiscountSection";
 import { PosLineSalesTypeSection } from "./PosLineSalesTypeSection";
+import { PosLineKitchenNotesSection } from "./PosLineKitchenNotesSection";
 
 type Props = {
   open: boolean;
@@ -61,6 +62,7 @@ export function PosItemCustomizeDialog({
   const [discountId, setDiscountId] = useState<string | null>(null);
   const [customDiscountAmount, setCustomDiscountAmount] = useState("");
   const [salesTypeId, setSalesTypeId] = useState<string | null>(null);
+  const [kitchenNote, setKitchenNote] = useState("");
 
   const data = optionsQuery.data;
 
@@ -71,6 +73,7 @@ export function PosItemCustomizeDialog({
     setQuantity(1);
     setDiscountId(null);
     setCustomDiscountAmount("");
+    setKitchenNote("");
 
     const nextMods: Record<string, string[]> = {};
     for (const g of data.modifierGroups) {
@@ -263,6 +266,7 @@ export function PosItemCustomizeDialog({
             lineDiscount,
             lineSalesTypeId: selectedStp?.salesTypeId ?? null,
             lineSalesTypeLabel: selectedStp?.name ?? null,
+            kitchenNote,
           });
           onSave(line);
         }}
@@ -319,6 +323,8 @@ export function PosItemCustomizeDialog({
             max={maxQty}
             onChange={setQuantity}
           />
+
+          <PosLineKitchenNotesSection value={kitchenNote} onChange={setKitchenNote} />
 
           <PosLineDiscountSection
             title={t(POS_ITEM_CUSTOMIZE_I18N.discount, "Discount")}

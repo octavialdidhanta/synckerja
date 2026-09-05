@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { assertKitchenTicketInRecallWindow } from "../lib/canRestoreKitchenTicket";
+import { kitchenLinesAllDoneAfterToggle } from "../lib/kitchenTicketMeta";
 import { nextKitchenTicketStatus } from "../lib/kitchenTicketStatus";
 import type { PosKitchenTicketStatus } from "../lib/posKitchenTypes";
 import { invalidatePosKitchenBoardQueries } from "./usePosKitchenTickets";
@@ -90,12 +91,45 @@ export function usePosKitchenTicketMutations(outletId: string | null) {
       ticketId: string;
       lineId: string;
       isDone: boolean;
+      currentStatus: PosKitchenTicketStatus;
+      lines: readonly { id: string; is_done: boolean }[];
     }): Promise<void> => {
       const { error } = await supabase
         .from("pos_kitchen_ticket_lines")
         .update({ is_done: args.isDone })
         .eq("id", args.lineId);
       if (error) throw error;
+
+      const allDone = kitchenLinesAllDoneAfterToggle(args.lines, args.lineId, args.isDone);
+
+      // Last checkbox → Ready (Done button). Uncheck while Ready → back to In-Progress.
+      if (args.isDone && allDone && args.currentStatus === "in_progress") {
+        const { error: statusError } = await supabase
+          .from("pos_kitchen_tickets")
+          .update({
+            status: "ready" satisfies PosKitchenTicketStatus,
+            is_held: false,
+            held_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", args.ticketId)
+          .eq("status", "in_progress");
+        if (statusError) throw statusError;
+        return;
+      }
+
+      if (!args.isDone && args.currentStatus === "ready") {
+        const { error: statusError } = await supabase
+          .from("pos_kitchen_tickets")
+          .update({
+            status: "in_progress" satisfies PosKitchenTicketStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", args.ticketId)
+          .eq("status", "ready");
+        if (statusError) throw statusError;
+        return;
+      }
 
       // Bump parent ticket so realtime refreshes board (lines not in publication).
       await supabase

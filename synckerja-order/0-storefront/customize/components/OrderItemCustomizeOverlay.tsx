@@ -19,6 +19,11 @@ import { OrderItemCustomizeGroup } from "./OrderItemCustomizeGroup";
 import { OrderItemCustomizeOptionRow } from "./OrderItemCustomizeOptionRow";
 import { OrderItemCustomizeFooter } from "./OrderItemCustomizeFooter";
 import { OrderItemCustomizeNotes } from "./OrderItemCustomizeNotes";
+import {
+  OrderProductReviewsBlock,
+  ratingSummaryFor,
+  usePublicOrderProductRatingMap,
+} from "../../ratings";
 
 type Props = {
   code: string;
@@ -45,6 +50,11 @@ export function OrderItemCustomizeOverlay({
   const optionsQuery = usePublicOrderItemOptions({ code, itemId: item.id });
   const options = optionsQuery.data;
   const state = useOrderItemCustomizeState(options?.ok ? options : undefined, initialLine);
+  const ratingMapQuery = usePublicOrderProductRatingMap({
+    code,
+    catalogItemIds: [item.id],
+  });
+  const ratingSummary = ratingSummaryFor(ratingMapQuery.data, item.id);
 
   const description = useMemo(() => {
     if (options?.ok && options.included_items.length > 0) {
@@ -118,6 +128,7 @@ export function OrderItemCustomizeOverlay({
               name={options.name || item.name}
               price={state.unitPrice}
               description={description}
+              ratingSummary={ratingSummary}
             />
             {options.variants.length > 1 ? (
               <section className={`border-b border-neutral-200 ${ORDER_STOREFRONT_PX} py-3`}>
@@ -170,6 +181,7 @@ export function OrderItemCustomizeOverlay({
               />
             ))}
             <OrderItemCustomizeNotes value={state.kitchenNote} onChange={state.setKitchenNote} />
+            <OrderProductReviewsBlock code={code} catalogItemId={item.id} />
           </>
         ) : null}
       </div>

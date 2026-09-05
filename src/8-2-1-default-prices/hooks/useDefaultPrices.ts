@@ -58,14 +58,15 @@ function mapOutletStock(link: NonNullable<DefaultPriceQueryRow["catalog_product_
   };
 }
 
-function stockInsertFields(stock?: ProductOutletStock | null) {
-  const row = stock ?? emptyOutletStock();
+function stockInsertFields(stock?: Partial<ProductOutletStock> | null) {
+  // Partial spreads (e.g. `{ in_stock: 0 }` on create) must not drop NOT NULL columns.
+  const row = { ...emptyOutletStock(), ...(stock ?? {}) };
   return {
-    in_stock: row.in_stock,
-    alert_enabled: row.alert_enabled,
-    alert_at: row.alert_at,
-    track_cogs: row.track_cogs,
-    avg_cost: row.avg_cost,
+    in_stock: Number.isFinite(row.in_stock) && row.in_stock >= 0 ? row.in_stock : 0,
+    alert_enabled: Boolean(row.alert_enabled),
+    alert_at: row.alert_at ?? null,
+    track_cogs: Boolean(row.track_cogs),
+    avg_cost: Number.isFinite(row.avg_cost) && row.avg_cost >= 0 ? row.avg_cost : 0,
   };
 }
 
@@ -136,8 +137,13 @@ async function replaceProductOutlets(args: {
         ...stockInsertFields(
           outlet_id === args.selectedOutletId
             ? {
-                ...(args.selectedStock ?? args.previousStocks[outlet_id]),
-                in_stock: args.previousStocks[outlet_id]?.in_stock ?? 0,
+                ...(args.selectedStock ??
+                  args.previousStocks[outlet_id] ??
+                  emptyOutletStock()),
+                in_stock:
+                  args.previousStocks[outlet_id]?.in_stock ??
+                  args.selectedStock?.in_stock ??
+                  0,
               }
             : args.previousStocks[outlet_id],
         ),

@@ -41,6 +41,7 @@ export function PosLibrarySectionRow({
       : section.name;
   const isCategory = section.kind === "category";
   const canDrag = Boolean(editing && isCategory);
+  const bindPointers = Boolean(onPointerDown || onPointerMove || onPointerUp || onPointerCancel);
 
   return (
     <button
@@ -50,10 +51,10 @@ export function PosLibrarySectionRow({
         if (editing && isCategory) return;
         onOpen();
       }}
-      onPointerDown={canDrag ? onPointerDown : undefined}
-      onPointerMove={canDrag ? onPointerMove : undefined}
-      onPointerUp={canDrag ? onPointerUp : undefined}
-      onPointerCancel={canDrag ? onPointerCancel : undefined}
+      onPointerDown={bindPointers ? onPointerDown : undefined}
+      onPointerMove={bindPointers ? onPointerMove : undefined}
+      onPointerUp={bindPointers ? onPointerUp : undefined}
+      onPointerCancel={bindPointers ? onPointerCancel : undefined}
       className={cn(
         "flex w-full items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 text-left transition-colors",
         !editing && "hover:bg-slate-50 active:bg-slate-100",

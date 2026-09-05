@@ -10,4 +10,9 @@ export const POS_ITEM_CUSTOMIZE_I18N = {
   loading: "posCashier.itemCustomize.loading",
   customAmount: "posCashier.itemCustomize.customAmount",
   optionOutOfStock: "posCashier.itemCustomize.optionOutOfStock",
+  notes: "posCashier.itemCustomize.notes",
+  notesOptional: "posCashier.itemCustomize.notesOptional",
+  notesPlaceholder: "posCashier.itemCustomize.notesPlaceholder",
+  notesAdd: "posCashier.itemCustomize.notesAdd",
+  notesEdit: "posCashier.itemCustomize.notesEdit",
 } as const;

@@ -11,7 +11,10 @@ function modifierLabel(name: string | undefined, quantity: number | undefined): 
   return qty > 1 ? `${label} ×${qty}` : label;
 }
 
-function modifiersText(line: CustomerVisitCartLine): string | null {
+/** KDS `modifiers_text` for a cart line (variant · mods · sales · Catatan). */
+export function kitchenModifiersTextFromCartLine(
+  line: CustomerVisitCartLine,
+): string | null {
   const parts: string[] = [];
   const variant = line.variantName?.trim();
   if (variant) parts.push(variant);
@@ -41,7 +44,7 @@ export function buildKitchenTicketLinesFromCart(
     out.push({
       line_fingerprint: cartLineFingerprint(line),
       display_name: catalogItemLabel(line),
-      modifiers_text: modifiersText(line),
+      modifiers_text: kitchenModifiersTextFromCartLine(line),
       quantity: qty,
       sort_index: sort++,
     });
