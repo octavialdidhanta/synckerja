@@ -38,6 +38,8 @@ type Props = {
   onTimeFilterChange: (value: SalesSummaryTimeFilter) => void;
   /** Prefer this for Apply so date + time write URL params atomically. */
   onApplyFilters?: (range: SalesSummaryDateRange, time: SalesSummaryTimeFilter) => void;
+  /** Hide Starts/Ends controls (dashboard v1 is all-day only). */
+  hideTimeFilter?: boolean;
   className?: string;
 };
 
@@ -78,6 +80,7 @@ export function SalesSummaryDateRangePicker({
   timeFilter,
   onTimeFilterChange,
   onApplyFilters,
+  hideTimeFilter = false,
   className,
 }: Props) {
   const { t } = useAppTranslation();
@@ -110,11 +113,14 @@ export function SalesSummaryDateRangePicker({
   };
 
   const apply = () => {
+    const nextTime = hideTimeFilter
+      ? { allDay: true, startTime: "00:00", endTime: "23:59" }
+      : draftTime;
     if (onApplyFilters) {
-      onApplyFilters(draftRange, draftTime);
+      onApplyFilters(draftRange, nextTime);
     } else {
       onDateRangeChange(draftRange);
-      onTimeFilterChange(draftTime);
+      onTimeFilterChange(nextTime);
     }
     setOpen(false);
   };
@@ -171,48 +177,52 @@ export function SalesSummaryDateRangePicker({
             </div>
 
             <div className="flex w-full flex-col gap-3 border-t border-border p-3 sm:w-44 sm:border-l sm:border-t-0">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="sales-summary-all-day" className="text-sm">
-                  {t("reports.salesSummary.allDay", "All day")}
-                </Label>
-                <Switch
-                  id="sales-summary-all-day"
-                  checked={draftTime.allDay}
-                  onCheckedChange={(checked) =>
-                    setDraftTime((prev) => ({ ...prev, allDay: checked }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <div>
-                  <Label className="text-xs text-muted-foreground">
-                    {t("reports.salesSummary.starts", "Starts")}
-                  </Label>
-                  <Input
-                    type="time"
-                    className="mt-1 h-9"
-                    value={draftTime.startTime}
-                    disabled={draftTime.allDay}
-                    onChange={(e) =>
-                      setDraftTime((prev) => ({ ...prev, startTime: e.target.value || "00:00" }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">
-                    {t("reports.salesSummary.ends", "Ends")}
-                  </Label>
-                  <Input
-                    type="time"
-                    className="mt-1 h-9"
-                    value={draftTime.endTime}
-                    disabled={draftTime.allDay}
-                    onChange={(e) =>
-                      setDraftTime((prev) => ({ ...prev, endTime: e.target.value || "23:59" }))
-                    }
-                  />
-                </div>
-              </div>
+              {!hideTimeFilter ? (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="sales-summary-all-day" className="text-sm">
+                      {t("reports.salesSummary.allDay", "All day")}
+                    </Label>
+                    <Switch
+                      id="sales-summary-all-day"
+                      checked={draftTime.allDay}
+                      onCheckedChange={(checked) =>
+                        setDraftTime((prev) => ({ ...prev, allDay: checked }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        {t("reports.salesSummary.starts", "Starts")}
+                      </Label>
+                      <Input
+                        type="time"
+                        className="mt-1 h-9"
+                        value={draftTime.startTime}
+                        disabled={draftTime.allDay}
+                        onChange={(e) =>
+                          setDraftTime((prev) => ({ ...prev, startTime: e.target.value || "00:00" }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        {t("reports.salesSummary.ends", "Ends")}
+                      </Label>
+                      <Input
+                        type="time"
+                        className="mt-1 h-9"
+                        value={draftTime.endTime}
+                        disabled={draftTime.allDay}
+                        onChange={(e) =>
+                          setDraftTime((prev) => ({ ...prev, endTime: e.target.value || "23:59" }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : null}
               <Button type="button" className="mt-auto w-full" onClick={apply}>
                 {t("reports.salesSummary.apply", "Apply")}
               </Button>

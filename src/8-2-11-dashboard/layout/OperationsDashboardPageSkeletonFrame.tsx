@@ -1,10 +1,5 @@
 import type { ReactNode } from "react";
-import { Skeleton } from "@/shared/components/ui/skeleton";
 import { OperationsDashboardHeaderAndTab } from "./OperationsDashboardHeaderAndTab";
-import {
-  OPERATIONS_DASHBOARD_MAIN_GRID,
-  OPERATIONS_DASHBOARD_TABLE_SECTION,
-} from "./operationsDashboardLayout";
 
 type Props = {
   children: ReactNode;
@@ -26,21 +21,8 @@ export function OperationsDashboardPageSkeletonFrame({ children, ariaLabel }: Pr
               <div className="mb-1 flex-shrink-0">
                 <OperationsDashboardHeaderAndTab />
               </div>
-              <div className={OPERATIONS_DASHBOARD_MAIN_GRID}>
-                <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch">
-                  <div className={OPERATIONS_DASHBOARD_TABLE_SECTION}>
-                    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-                      {children}
-                      <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <Skeleton className="h-3 w-40 max-w-[55%]" />
-                          <Skeleton className="h-3 w-24 max-w-[40%]" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {children}
+              <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
             </div>
           </div>
         </div>

@@ -1,55 +1,55 @@
+import { useCallback, useState } from "react";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
-import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { useSalesSummaryReport } from "@/8-2-10-reports/sales-summary/hooks/useSalesSummaryReport";
-import {
-  defaultSalesSummaryDateRange,
-  salesSummaryRangeToTimestamps,
-} from "@/8-2-10-reports/sales-summary/lib/salesSummaryDatePresets";
-import { DashboardDailyCollectedChart } from "../components/DashboardDailyCollectedChart";
-import { DashboardSummaryCards } from "../components/DashboardSummaryCards";
-import { useSalesSummaryDaily } from "../hooks/useSalesSummaryDaily";
+import { DashboardComparisonPanel } from "../comparison/components/DashboardComparisonPanel";
 import { OperationsDashboardShell } from "../layout/OperationsDashboardShell";
-import { OperationsDashboardWorkspace } from "../layout/OperationsDashboardWorkspace";
+import { useDashboardFilters } from "../shared/hooks/useDashboardFilters";
+import type { DashboardTab } from "../shared/lib/dashboardUrlState";
+import { DashboardSummaryPanel } from "../summary/components/DashboardSummaryPanel";
 
 export default function OperationsDashboardPage() {
-  const { t } = useAppTranslation();
-  const range = defaultSalesSummaryDateRange();
-  const timestamps = salesSummaryRangeToTimestamps({
-    fromYmd: range.from,
-    toYmd: range.to,
-    allDay: true,
-    startTime: "00:00",
-    endTime: "23:59",
-  });
-  const summary = useSalesSummaryReport({
-    outletId: null,
-    fromIso: timestamps.fromIso,
-    toIso: timestamps.toIso,
-  });
-  const daily = useSalesSummaryDaily({
-    outletId: null,
-    fromIso: timestamps.fromIso,
-    toIso: timestamps.toIso,
-  });
-  const showContent = useDebouncedReady(!summary.isLoading && !daily.isLoading);
+  const filters = useDashboardFilters();
+  const [panelLoading, setPanelLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<DashboardTab>(filters.tab);
+
+  // Adjust loading during render when tab changes (before child effects),
+  // so a parent useEffect cannot overwrite the panel's "ready" report.
+  if (filters.tab !== activeTab) {
+    setActiveTab(filters.tab);
+    setPanelLoading(true);
+  }
+
+  const handleLoadingChange = useCallback((loading: boolean) => {
+    setPanelLoading(loading);
+  }, []);
+
+  const showContent = useDebouncedReady(!panelLoading);
 
   return (
     <OperationsDashboardShell showContent={showContent}>
-      <OperationsDashboardWorkspace count={daily.points.length}>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden p-4">
-          {summary.isError || daily.isError ? (
-            <p className="text-sm text-destructive">
-              {(summary.error ?? daily.error) instanceof Error
-                ? (summary.error ?? daily.error)?.message
-                : t("operationsDashboard.loadError", "Failed to load dashboard metrics.")}
-            </p>
-          ) : null}
-
-          <DashboardSummaryCards metrics={summary.metrics} />
-
-          <DashboardDailyCollectedChart points={daily.points} />
-        </div>
-      </OperationsDashboardWorkspace>
+      {filters.tab === "summary" ? (
+        <DashboardSummaryPanel
+          key="summary"
+          outletId={filters.outletId}
+          dateRange={filters.dateRange}
+          fromIso={filters.fromIso}
+          toIso={filters.toIso}
+          onOutletIdChange={filters.setOutletId}
+          onDateRangeChange={filters.setDateRange}
+          onLoadingChange={handleLoadingChange}
+        />
+      ) : (
+        <DashboardComparisonPanel
+          key="comparison"
+          compareOutletIds={filters.compareOutletIds}
+          dateRange={filters.dateRange}
+          fromIso={filters.fromIso}
+          toIso={filters.toIso}
+          onCompareOutletIdsChange={filters.setCompareOutletIds}
+          onDateRangeChange={filters.setDateRange}
+          onLoadingChange={handleLoadingChange}
+        />
+      )}
+      <div className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4" aria-hidden />
     </OperationsDashboardShell>
   );
 }

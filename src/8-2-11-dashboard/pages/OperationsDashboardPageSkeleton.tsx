@@ -8,13 +8,27 @@ export function OperationsDashboardPageSkeleton() {
 
   return (
     <OperationsDashboardPageSkeletonFrame ariaLabel={aria}>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-        <div className="grid gap-2 sm:grid-cols-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <Skeleton className="h-20 w-full rounded-lg" />
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <Skeleton className="h-28 w-full rounded-lg" />
+          <Skeleton className="h-28 w-full rounded-lg" />
+          <Skeleton className="h-28 w-full rounded-lg" />
           <Skeleton className="h-28 w-full rounded-lg" />
           <Skeleton className="h-28 w-full rounded-lg" />
           <Skeleton className="h-28 w-full rounded-lg" />
         </div>
-        <Skeleton className="h-72 w-full flex-1 rounded-lg" />
+        <Skeleton className="h-72 w-full rounded-lg" />
+        <div className="grid gap-2 xl:grid-cols-2">
+          <Skeleton className="h-72 w-full rounded-lg" />
+          <Skeleton className="h-72 w-full rounded-lg" />
+        </div>
+        <Skeleton className="h-80 w-full rounded-lg" />
+        <div className="grid gap-2 xl:grid-cols-2">
+          <Skeleton className="h-80 w-full rounded-lg" />
+          <Skeleton className="h-80 w-full rounded-lg" />
+        </div>
+        <Skeleton className="h-72 w-full rounded-lg" />
       </div>
     </OperationsDashboardPageSkeletonFrame>
   );

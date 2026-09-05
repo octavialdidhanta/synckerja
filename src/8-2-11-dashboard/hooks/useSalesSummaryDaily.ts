@@ -1,9 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { supabase } from "@/shared/lib/supabaseClient";
 
 export type SalesSummaryDailyPoint = {
   day: string;
+  grossSales: number;
   netSales: number;
   totalCollected: number;
   refunds: number;
@@ -14,6 +15,7 @@ export type UseSalesSummaryDailyArgs = {
   fromIso: string;
   toIso: string;
   enabled?: boolean;
+  refetchInterval?: number | false;
 };
 
 function mapDailyRow(row: Record<string, unknown>): SalesSummaryDailyPoint {
@@ -30,6 +32,7 @@ function mapDailyRow(row: Record<string, unknown>): SalesSummaryDailyPoint {
   };
   return {
     day,
+    grossSales: row.gross_sales == null ? num("net_sales") : num("gross_sales"),
     netSales: num("net_sales"),
     totalCollected: num("total_collected"),
     refunds: num("refunds"),
@@ -49,6 +52,8 @@ export function useSalesSummaryDaily(args: UseSalesSummaryDailyArgs) {
       args.toIso,
     ],
     enabled: enabled && !orgLoading,
+    placeholderData: keepPreviousData,
+    refetchInterval: args.refetchInterval,
     queryFn: async (): Promise<SalesSummaryDailyPoint[]> => {
       const { data, error } = await supabase.rpc("pos_sales_summary_daily", {
         p_organization_id: organizationId!,

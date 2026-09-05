@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { normalizeSalesSummaryMetrics } from "../lib/computeSalesSummaryDisplay";
@@ -24,6 +24,7 @@ export function useSalesSummaryReport(args: UseSalesSummaryReportArgs) {
       args.toIso,
     ],
     enabled: enabled && !orgLoading,
+    placeholderData: keepPreviousData,
     queryFn: async (): Promise<SalesSummaryMetrics> => {
       const { data, error } = await supabase.rpc("pos_sales_summary_report", {
         p_organization_id: organizationId!,
