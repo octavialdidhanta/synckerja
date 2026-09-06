@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCapacitorKeyboardInset } from "@/shared/native/useCapacitorKeyboardInset";
 
 const DEFAULT_HOLD_MS = 240;
 
@@ -28,6 +29,7 @@ export function usePosFrozenBackgroundShell(
   options?: { holdMs?: number },
 ): CSSProperties | undefined {
   const holdMs = options?.holdMs ?? DEFAULT_HOLD_MS;
+  const { keyboardOpenNative } = useCapacitorKeyboardInset();
   const heightRef = useRef<number | null>(null);
   const insetRef = useRef("0px");
   const wasLockedRef = useRef(false);
@@ -49,10 +51,11 @@ export function usePosFrozenBackgroundShell(
     return () => window.clearTimeout(timer);
   }, [locked, holdMs]);
 
-  const active = locked || held;
+  const active = locked || held || keyboardOpenNative;
 
   useLayoutEffect(() => {
     if (!active || typeof window === "undefined") {
+      console.warn(`pos-kb freeze_off inner=${typeof window === "undefined" ? 0 : window.innerHeight}`);
       setStyle(undefined);
       return;
     }
@@ -64,6 +67,9 @@ export function usePosFrozenBackgroundShell(
       insetRef.current = inset || "0px";
     }
     setStyle(freezeStyle(heightRef.current, insetRef.current));
+    console.warn(
+      `pos-kb freeze_on inner=${window.innerHeight} frozenH=${heightRef.current} inset=${insetRef.current}`,
+    );
   }, [active]);
 
   return style;

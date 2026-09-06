@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -7,16 +8,14 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerTitle,
-} from "@/shared/components/ui/drawer";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { usePhoneDrawerKeyboardChrome } from "@/shared/hooks/usePhoneDrawerKeyboardChrome";
 import { cn } from "@/shared/lib/utils";
 import { ORDER_KITCHEN_NOTE_MAX } from "@/synckerja-order/0-storefront/customize/lib/orderLineKitchenNote";
 import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
+import { usePosKeyboardShellStyle } from "@/pos-mobile/shared/hooks/usePosKeyboardShellStyle";
+import { PosSafeAreaBottomSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaBottomSpacer";
+import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
+import { useCapacitorKeyboardInset } from "@/shared/native/useCapacitorKeyboardInset";
 import { usePosCashierIsPhoneLayout } from "../../hooks/usePosCashierIsPhoneLayout";
 import { POS_ITEM_CUSTOMIZE_I18N } from "../../lib/posItemCustomizeCopy";
 import { posBillLineTitle } from "../../lib/posBillLineTitle";
@@ -29,21 +28,41 @@ type Props = {
   onSave: (lineKey: string, kitchenNote: string | null) => void;
 };
 
-/** Edit kitchen notes for an existing bill line (phone drawer / tablet dialog). */
+function logNotesFlicker(event: string, extra?: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+  const vv = window.visualViewport;
+  console.warn(
+    `pos-kb notes_${event} ${JSON.stringify({
+      inner: window.innerHeight,
+      vvH: vv ? Math.round(vv.height) : null,
+      vvTop: vv ? Math.round(vv.offsetTop) : null,
+      ...extra,
+    })}`,
+  );
+}
+
+/** Edit kitchen notes for an existing bill line (phone full page / tablet dialog). */
 export function PosBillLineNotesSheet({ open, line, onOpenChange, onSave }: Props) {
   const { t } = useAppTranslation();
   const isPhone = usePosCashierIsPhoneLayout();
-  const drawerChrome = usePhoneDrawerKeyboardChrome();
+  const keyboardShellStyle = usePosKeyboardShellStyle({ enabled: isPhone && open });
+  const { keyboardOpenNative } = useCapacitorKeyboardInset();
   const [draft, setDraft] = useState("");
   const [heldLine, setHeldLine] = useState(line);
+  const [pendingClose, setPendingClose] = useState(false);
+  const pendingCloseRef = useRef(false);
 
   useEffect(() => {
     if (line) setHeldLine(line);
   }, [line]);
 
   useEffect(() => {
-    if (open) return;
-    const timer = window.setTimeout(() => setHeldLine(null), 240);
+    if (open) {
+      pendingCloseRef.current = false;
+      setPendingClose(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setHeldLine(null), 280);
     return () => window.clearTimeout(timer);
   }, [open]);
 
@@ -52,28 +71,60 @@ export function PosBillLineNotesSheet({ open, line, onOpenChange, onSave }: Prop
     setDraft(line.kitchenNote?.trim() ?? "");
   }, [open, line]);
 
+  useEffect(() => {
+    if (!pendingClose) return;
+    if (keyboardOpenNative) return;
+    logNotesFlicker("close_after_ime", { native: false });
+    pendingCloseRef.current = false;
+    setPendingClose(false);
+    onOpenChange(false);
+  }, [pendingClose, keyboardOpenNative, onOpenChange]);
+
+  useEffect(() => {
+    if (!pendingClose) return;
+    const timer = window.setTimeout(() => {
+      if (!pendingCloseRef.current) return;
+      logNotesFlicker("close_timeout", { native: keyboardOpenNative });
+      pendingCloseRef.current = false;
+      setPendingClose(false);
+      onOpenChange(false);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [pendingClose, keyboardOpenNative, onOpenChange]);
+
+  const requestClose = () => {
+    if (pendingCloseRef.current) return;
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement) focused.blur();
+    logNotesFlicker("close_request", { native: keyboardOpenNative });
+    if (!isPhone || !keyboardOpenNative) {
+      onOpenChange(false);
+      return;
+    }
+    pendingCloseRef.current = true;
+    setPendingClose(true);
+  };
+
   const displayLine = line ?? heldLine;
   if (!displayLine) return null;
 
   const titleText = t(POS_ITEM_CUSTOMIZE_I18N.notes, "Notes");
   const handleSave = () => {
     onSave(displayLine.lineKey, draft);
-    onOpenChange(false);
+    requestClose();
   };
 
   const header = (titleNode: ReactNode) => (
     <div className="flex-shrink-0 border-b border-slate-200 bg-white">
       <div className={cn(POS_PANEL.header, "border-b-0")}>
-        {isPhone ? (
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className={POS_PANEL.headerBack}
-            aria-label={t(POS_ITEM_CUSTOMIZE_I18N.cancel, "Cancel")}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={requestClose}
+          className={POS_PANEL.headerBack}
+          aria-label={t(POS_ITEM_CUSTOMIZE_I18N.cancel, "Cancel")}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
         <div className="min-w-0 flex-1">{titleNode}</div>
       </div>
     </div>
@@ -86,7 +137,6 @@ export function PosBillLineNotesSheet({ open, line, onOpenChange, onSave }: Prop
         "scrollbar-hide seamless-scroll nested-scroll-touch-chain",
         "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
       )}
-      data-vaul-no-drag=""
     >
       <div className={POS_PANEL.body}>
         <p className={POS_PANEL.sectionTitle}>{posBillLineTitle(displayLine)}</p>
@@ -119,7 +169,7 @@ export function PosBillLineNotesSheet({ open, line, onOpenChange, onSave }: Prop
         type="button"
         variant="outline"
         className="h-11 flex-1 border-slate-200 bg-white text-slate-800"
-        onClick={() => onOpenChange(false)}
+        onClick={requestClose}
       >
         {t(POS_ITEM_CUSTOMIZE_I18N.cancel, "Cancel")}
       </Button>
@@ -130,38 +180,34 @@ export function PosBillLineNotesSheet({ open, line, onOpenChange, onSave }: Prop
   );
 
   if (isPhone) {
-    return (
-      <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
-        <DrawerContent
-          aboveAppNav={false}
-          smoothFast
-          followKeyboard={false}
-          className={cn(
-            drawerChrome.drawerClassName,
-            "z-[70] rounded-t-2xl border-0 bg-slate-100 shadow-2xl",
-          )}
-          overlayClassName="z-[70]"
-          style={drawerChrome.drawerMaxHeightStyle}
-        >
-          {header(
-            <DrawerTitle className={cn(POS_PANEL.headerTitle, "leading-none")}>
-              {titleText}
-            </DrawerTitle>,
-          )}
-          {body}
-          <div
-            className="flex-shrink-0 border-t border-slate-200 bg-white px-2 pt-3 sm:px-2.5"
-            style={drawerChrome.footerStyle}
-          >
-            {footerButtons}
-          </div>
-        </DrawerContent>
-      </Drawer>
+    if (!open) return null;
+    return createPortal(
+      <div
+        className="fixed inset-0 z-[70] flex flex-col overflow-hidden bg-slate-100"
+        style={keyboardShellStyle}
+      >
+        <PosSafeAreaTopSpacer />
+        {header(
+          <h1 className={cn(POS_PANEL.headerTitle, "leading-none")}>{titleText}</h1>,
+        )}
+        {body}
+        <div className="shrink-0 border-t border-slate-200 bg-white px-2 py-3 sm:px-2.5">
+          {footerButtons}
+        </div>
+        <PosSafeAreaBottomSpacer className="bg-white" />
+      </div>,
+      document.body,
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next) onOpenChange(true);
+        else requestClose();
+      }}
+    >
       <DialogContent
         hideCloseButton
         className="flex max-h-[min(72dvh,560px)] w-full max-w-lg flex-col gap-0 overflow-hidden rounded-lg border border-slate-200/80 bg-slate-100 p-0 shadow-sm sm:max-w-lg"
