@@ -5,6 +5,7 @@ import { useAuth } from "@/shared/auth/contexts/AuthContext";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { usePosTabletShell } from "@/pos-mobile/shared/hooks/usePosTabletShell";
+import { usePosKeyboardShellStyle } from "@/pos-mobile/shared/hooks/usePosKeyboardShellStyle";
 import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
 import { resolvePosPostOutletPath } from "@/pos-mobile/shared/access";
 import { useMarkPosAuthSurface } from "@/pos-mobile/0-auth/lib/useMarkPosAuthSurface";
@@ -28,6 +29,7 @@ import { PosShiftPhonePaneSlider } from "../components/phone";
 import { PosShiftProductsSoldPanel } from "../components/PosShiftProductsSoldPanel";
 import { usePosShiftPhoneLayout } from "../hooks/usePosShiftPhoneLayout";
 import { POS_SHIFT_I18N } from "../lib/posShiftCopy";
+import { POS_SHIFT_PANEL } from "../lib/posShiftPanelChrome";
 import {
   getPosShiftNavItem,
   isPosShiftHistoryNested,
@@ -53,6 +55,7 @@ export default function PosShiftPage() {
     usePosShiftPhoneLayout();
   usePosTabletShell({ phoneOverlay: isPhoneLayout });
   useMarkPosAuthSurface();
+  const keyboardShellStyle = usePosKeyboardShellStyle();
   const { t } = useAppTranslation();
   const { user } = useAuth();
   const { loading: orgLoading } = useCentralizedUserData();
@@ -68,6 +71,7 @@ export default function PosShiftPage() {
   const navItem = getPosShiftNavItem(section);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [footerCenter, setFooterCenter] = useState<ReactNode>(null);
   const { settings } = usePosOutletShiftSettings(outletId);
   const openShift = usePosOpenShift(outletId);
   const historyQuery = usePosShiftHistory(outletId);
@@ -96,12 +100,20 @@ export default function PosShiftPage() {
         : null;
   const movements = usePosCashMovements(cashIoShiftId);
 
+  useEffect(() => {
+    if (section === "current" || section === "history-detail") return;
+    setFooterCenter(null);
+  }, [section]);
+
   const setSection = useCallback(
     (id: PosShiftSectionId, shiftId?: string | null) => {
-      const next: Record<string, string> = {};
-      if (id !== "options") next.section = id;
-      if (shiftId) next.shiftId = shiftId;
-      setSearchParams(next, { replace: true });
+      setSearchParams(() => {
+          const next = new URLSearchParams();
+          if (id !== "options") next.set("section", id);
+          // Only keep/set shiftId when explicitly provided (nested history routes).
+          if (shiftId) next.set("shiftId", shiftId);
+          return next;
+        }, { replace: true });
     },
     [setSearchParams],
   );
@@ -241,7 +253,13 @@ export default function PosShiftPage() {
         onOpenProductsSold={() =>
           setSection("history-products-sold", historyShift.id)
         }
+        onFooterCenterChange={setFooterCenter}
       />
+    ) : section === "history-detail" ? (
+      <div className="space-y-3 px-2 py-3 sm:px-2.5" aria-busy>
+        <div className="h-12 animate-pulse rounded-lg bg-white shadow-sm" />
+        <div className="h-40 animate-pulse rounded-lg bg-white shadow-sm" />
+      </div>
     ) : section === "history-cash-io" && historyShiftId ? (
       <PosShiftCashMovementPanel
         shiftId={historyShiftId}
@@ -274,6 +292,7 @@ export default function PosShiftPage() {
         displayName={displayName}
         onOpenCashIo={() => setSection("cash-io")}
         onOpenProductsSold={() => setSection("products-sold")}
+        onFooterCenterChange={setFooterCenter}
       />
     );
 
@@ -281,6 +300,11 @@ export default function PosShiftPage() {
     <PosAppFooterBar
       outletLabel={
         isPhoneLayout ? t(POS_SHIFT_I18N.title, "Shift") : outletName
+      }
+      center={
+        section === "current" || section === "history-detail"
+          ? footerCenter
+          : undefined
       }
       onOpenMenu={() => setMenuOpen(true)}
       menuAriaLabel={t(POS_SHIFT_I18N.menu, "Menu")}
@@ -290,7 +314,10 @@ export default function PosShiftPage() {
   return (
     <>
       {isPhoneLayout ? (
-        <div className="relative flex h-[100dvh] w-full max-w-[100dvw] min-w-0 flex-col overflow-x-hidden overflow-y-hidden bg-white">
+        <div
+          className="relative flex h-[100dvh] w-full max-w-[100dvw] min-w-0 flex-col overflow-x-hidden overflow-y-hidden bg-white"
+          style={keyboardShellStyle}
+        >
           <PosSafeAreaTopSpacer />
           <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden bg-white">
             <PosShiftPhonePaneSlider
@@ -304,21 +331,21 @@ export default function PosShiftPage() {
               detail={
                 <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
                   {isNestedDetail ? null : (
-                    <div className="flex h-12 min-w-0 flex-shrink-0 items-center gap-1 border-b border-slate-200 bg-slate-50 px-2">
+                    <div className={POS_SHIFT_PANEL.header}>
                       <button
                         type="button"
                         onClick={showList}
-                        className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md text-slate-600 transition hover:bg-slate-200/80"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        className={POS_SHIFT_PANEL.headerBack}
                         aria-label={t(POS_SHIFT_I18N.back, "Back")}
+                        data-no-pane-swipe
                       >
                         <ArrowLeft className="h-5 w-5" />
                       </button>
-                      <h2 className="min-w-0 flex-1 truncate pr-2 text-base font-semibold text-slate-900">
-                        {rightHeader}
-                      </h2>
+                      <h2 className={POS_SHIFT_PANEL.headerTitle}>{rightHeader}</h2>
                     </div>
                   )}
-                  <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
+                  <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-slate-100 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
                     {rightContent}
                   </div>
                 </div>
@@ -332,6 +359,7 @@ export default function PosShiftPage() {
           leftHeader={t(POS_SHIFT_I18N.title, "Shift")}
           rightHeader={rightHeader}
           hideRightHeader={isNestedDetail}
+          rightPaneClassName="bg-slate-100"
           left={leftPane}
           right={rightContent}
           footer={footer}

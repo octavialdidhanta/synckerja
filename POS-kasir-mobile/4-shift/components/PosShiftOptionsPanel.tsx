@@ -7,8 +7,10 @@ import {
   idrDigitsOnly,
   parseIdrInputToNumber,
 } from "@/shared/lib/idrInputFormat";
+import { cn } from "@/shared/lib/utils";
 import { formatPosCash } from "../lib/formatPosCash";
 import { POS_SHIFT_I18N } from "../lib/posShiftCopy";
+import { POS_SHIFT_PANEL } from "../lib/posShiftPanelChrome";
 import { usePosOutletShiftSettings } from "../lib/usePosOutletShiftSettings";
 
 type Props = {
@@ -49,65 +51,78 @@ export function PosShiftOptionsPanel({ outletId }: Props) {
 
   if (isLoading && !settings) {
     return (
-      <div className="space-y-3 p-4" aria-busy>
-        <div className="h-14 animate-pulse rounded-md bg-slate-100" />
-        <div className="h-14 animate-pulse rounded-md bg-slate-100" />
+      <div className={POS_SHIFT_PANEL.body} aria-busy>
+        <div className={POS_SHIFT_PANEL.card}>
+          <div className={POS_SHIFT_PANEL.row}>
+            <div className="h-4 min-w-0 flex-1 animate-pulse rounded bg-slate-100" />
+            <div className="h-6 w-10 animate-pulse rounded-full bg-slate-100" />
+          </div>
+          <div className={POS_SHIFT_PANEL.row}>
+            <div className="h-4 min-w-0 flex-1 animate-pulse rounded bg-slate-100" />
+            <div className="h-4 w-24 animate-pulse rounded bg-slate-100" />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-full flex-col px-4 py-4 pb-8">
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-4">
-          <span className="text-sm text-slate-900">
-            {t(POS_SHIFT_I18N.autoStart, "Start Shift Automatically")}
-          </span>
-          <Switch
-            checked={autoStart}
-            disabled={isSaving}
-            onCheckedChange={(checked) => {
-              setAutoStart(checked);
-              const amount = parseIdrInputToNumber(cashDigits);
-              void persist({
-                auto_start_enabled: checked,
-                default_opening_cash: Number.isFinite(amount) ? amount : 0,
-              });
-            }}
-          />
-        </div>
-        <div className="flex items-center justify-between gap-3 px-4 py-4">
-          <span className="min-w-0 flex-1 text-sm text-slate-900">
-            {t(POS_SHIFT_I18N.defaultOpeningCash, "Starting Cash Balance in Cash Drawer")}
-          </span>
-          <div className="flex items-center gap-1">
-            <span className="text-sm text-slate-500">Rp</span>
-            <input
-              type="text"
-              inputMode="numeric"
+    <div className={cn(POS_SHIFT_PANEL.page, "bg-transparent")}>
+      <div className={POS_SHIFT_PANEL.body}>
+        <div className={POS_SHIFT_PANEL.card}>
+          <div className={POS_SHIFT_PANEL.row}>
+            <span className={POS_SHIFT_PANEL.rowLabel}>
+              {t(POS_SHIFT_I18N.autoStart, "Start Shift Automatically")}
+            </span>
+            <Switch
+              checked={autoStart}
               disabled={isSaving}
-              value={formatIdrThousandsFromDigits(cashDigits)}
-              onChange={(e) => setCashDigits(idrDigitsOnly(e.target.value) || "0")}
-              onBlur={() => {
+              onCheckedChange={(checked) => {
+                setAutoStart(checked);
                 const amount = parseIdrInputToNumber(cashDigits);
                 void persist({
-                  auto_start_enabled: autoStart,
+                  auto_start_enabled: checked,
                   default_opening_cash: Number.isFinite(amount) ? amount : 0,
                 });
               }}
-              className="w-28 border-0 bg-transparent text-right text-sm font-medium text-slate-900 outline-none"
-              aria-label={formatPosCash(parseIdrInputToNumber(cashDigits) || 0)}
             />
           </div>
+          <div className={POS_SHIFT_PANEL.row}>
+            <span className={POS_SHIFT_PANEL.rowLabel}>
+              {t(
+                POS_SHIFT_I18N.defaultOpeningCash,
+                "Starting Cash Balance in Cash Drawer",
+              )}
+            </span>
+            <div className="flex flex-shrink-0 items-center gap-1">
+              <span className="text-sm text-slate-500">Rp</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                disabled={isSaving}
+                value={formatIdrThousandsFromDigits(cashDigits)}
+                onChange={(e) => setCashDigits(idrDigitsOnly(e.target.value) || "0")}
+                onBlur={() => {
+                  const amount = parseIdrInputToNumber(cashDigits);
+                  void persist({
+                    auto_start_enabled: autoStart,
+                    default_opening_cash: Number.isFinite(amount) ? amount : 0,
+                  });
+                }}
+                className="w-28 border-0 bg-transparent text-right text-sm font-semibold tabular-nums text-slate-900 outline-none"
+                aria-label={formatPosCash(parseIdrInputToNumber(cashDigits) || 0)}
+              />
+            </div>
+          </div>
         </div>
-      </div>
 
-      <p className="mx-auto mt-10 max-w-md text-center text-sm leading-relaxed text-slate-400">
-        {t(
-          POS_SHIFT_I18N.optionsHint,
-          "Shifts let you track cash, card, and other payments in and out of the cash drawer.",
-        )}
-      </p>
+        <p className="mx-auto mt-8 max-w-md px-1 text-center text-sm leading-relaxed text-slate-400">
+          {t(
+            POS_SHIFT_I18N.optionsHint,
+            "Shifts let you track cash, card, and other payments in and out of the cash drawer.",
+          )}
+        </p>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useCatalogModifierGroups } from "@/8-2-1-default-prices/modifiers";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { POS_CASHIER_I18N } from "../../../../lib/posCashierCopy";
 
 type Props = {
@@ -24,27 +25,29 @@ export function PosCreateItemModifiersBlock({
   });
 
   return (
-    <div className="space-y-2">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+    <div>
+      <p className={POS_PANEL.sectionTitle}>
         {t(POS_CASHIER_I18N.setupModifier, "Modifier")}
       </p>
-      {names.length > 0 ? (
-        <ul className="space-y-1 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-          {names.map((row) => (
-            <li key={row.id} className="truncate text-sm font-medium text-slate-800">
-              {row.name}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <Button
-        type="button"
-        className="h-11 w-full"
-        disabled={disabled}
-        onClick={onOpenPicker}
-      >
-        {t(POS_CASHIER_I18N.setupAddModifierSet, "Add Modifier Set")}
-      </Button>
+      <div className={POS_PANEL.card}>
+        {names.length > 0
+          ? names.map((row) => (
+              <div key={row.id} className={POS_PANEL.row}>
+                <span className={POS_PANEL.rowLabel}>{row.name}</span>
+              </div>
+            ))
+          : null}
+        <div className="px-3 py-3">
+          <Button
+            type="button"
+            className="h-11 w-full text-sm font-semibold"
+            disabled={disabled}
+            onClick={onOpenPicker}
+          >
+            {t(POS_CASHIER_I18N.setupAddModifierSet, "Add Modifier Set")}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

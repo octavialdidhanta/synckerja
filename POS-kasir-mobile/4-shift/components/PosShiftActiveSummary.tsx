@@ -1,11 +1,9 @@
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
-import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
-import { usePosCashierIsPhoneLayout } from "@/pos-mobile/2-cashier/hooks/usePosCashierIsPhoneLayout";
 import { formatPosCash } from "../lib/formatPosCash";
-import { formatPosShiftDateTime } from "../lib/formatPosShiftDateTime";
+import { formatPosShiftDateParts } from "../lib/formatPosShiftDateTime";
 import { POS_SHIFT_I18N } from "../lib/posShiftCopy";
 import type { PosCashierShift, PosShiftTotals } from "../lib/posShiftTypes";
 
@@ -15,36 +13,11 @@ type Props = {
   outletName: string;
   displayName: string;
   refundedProductsQty?: number;
-  busy?: boolean;
-  /** Active = End+Print; history = Print only + closed/counted rows. */
+  /** Active = open shift; history = closed shift from History. */
   variant?: "active" | "history";
-  onEnd: () => void;
-  onPrint: () => void;
   onOpenCashIo: () => void;
   onOpenProductsSold: () => void;
 };
-
-function formatStartedAt(
-  iso: string,
-  t: (key: string, fallback: string, vars?: Record<string, string>) => string,
-  language: string,
-): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const locale = language.startsWith("en") ? "en-US" : "id-ID";
-  const weekday = d.toLocaleDateString(locale, { weekday: "long" });
-  const date = d.toLocaleDateString(locale, {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
-  return t(POS_SHIFT_I18N.startedAt, "{{weekday}}, {{date}} at {{time}}", {
-    weekday,
-    date,
-    time,
-  });
-}
 
 function Row({
   label,
@@ -78,14 +51,14 @@ function Row({
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full min-w-0 items-start justify-between gap-2 border-b border-slate-100 px-3 py-3.5 text-left last:border-b-0 hover:bg-slate-50 sm:gap-3 sm:px-4"
+        className="flex w-full min-w-0 items-start justify-between gap-2 border-b border-slate-200 px-3 py-3 text-left last:border-b-0 hover:bg-slate-50"
       >
         {content}
       </button>
     );
   }
   return (
-    <div className="flex w-full min-w-0 items-start justify-between gap-2 border-b border-slate-100 px-3 py-3.5 last:border-b-0 sm:gap-3 sm:px-4">
+    <div className="flex w-full min-w-0 items-start justify-between gap-2 border-b border-slate-200 px-3 py-3 last:border-b-0">
       {content}
     </div>
   );
@@ -93,7 +66,7 @@ function Row({
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-wide text-slate-500 first:pt-0">
+    <p className="px-0.5 pb-1.5 pt-3 text-[11px] font-bold uppercase tracking-wide text-slate-600 first:pt-0">
       {children}
     </p>
   );
@@ -105,16 +78,12 @@ export function PosShiftActiveSummary({
   totals,
   outletName,
   displayName,
-  busy,
   variant = "active",
-  onEnd,
-  onPrint,
   onOpenCashIo,
   onOpenProductsSold,
   refundedProductsQty = 0,
 }: Props) {
   const { t, language } = useAppTranslation();
-  const isPhone = usePosCashierIsPhoneLayout();
   const isHistory = variant === "history";
   const expectedDisplay =
     isHistory && shift.expected_cash != null
@@ -122,62 +91,38 @@ export function PosShiftActiveSummary({
       : totals.expectedCash;
   const countedDisplay = Math.round(shift.closing_cash ?? expectedDisplay);
   const countedShort = isHistory && countedDisplay < Math.round(expectedDisplay);
+  const lang = String(language ?? "id");
+  const startedParts = formatPosShiftDateParts(shift.opened_at, lang);
+  const endedParts =
+    isHistory && shift.closed_at
+      ? formatPosShiftDateParts(shift.closed_at, lang)
+      : null;
 
   return (
-    <div className="min-w-0 overflow-x-hidden px-3 py-4 pb-10 sm:px-4">
-      {isHistory ? (
-        <div className="mb-4">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={onPrint}
-            className="h-12 w-full text-sm font-semibold"
-          >
-            {t(POS_SHIFT_I18N.printReport, "Print Shift Report")}
-          </Button>
-        </div>
-      ) : (
-        <div
-          className={cn(
-            "mb-4 grid gap-3",
-            isPhone ? "grid-cols-1" : "grid-cols-2",
-          )}
-        >
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={onEnd}
-            className="h-12 text-sm font-semibold"
-          >
-            {t(POS_SHIFT_I18N.endShift, "End Shift")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={onPrint}
-            className="h-12 text-sm font-semibold"
-          >
-            {t(POS_SHIFT_I18N.printReport, "Print Shift Report")}
-          </Button>
-        </div>
-      )}
-
+    <div className="min-h-full min-w-0 overflow-x-hidden bg-slate-100 px-2 py-3 pb-8 sm:px-2.5">
       <SectionTitle>{t(POS_SHIFT_I18N.detailSection, "SHIFT DETAILS")}</SectionTitle>
-      <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-sm">
         <Row label={t(POS_SHIFT_I18N.detailName, "Name")} value={displayName} />
         <Row label={t(POS_SHIFT_I18N.detailOutlet, "Outlet")} value={outletName} />
         <Row
           label={t(POS_SHIFT_I18N.detailStarted, "Shift Started")}
-          value={formatStartedAt(shift.opened_at, t, String(language ?? "id"))}
+          value={startedParts.dateLine}
         />
-        {isHistory && shift.closed_at ? (
-          <Row
-            label={t(POS_SHIFT_I18N.endedClosedAt, "Shift Ended")}
-            value={formatPosShiftDateTime(shift.closed_at, String(language ?? "id"))}
-          />
+        <Row
+          label={t(POS_SHIFT_I18N.detailStartedTime, "Time")}
+          value={startedParts.timeLine}
+        />
+        {endedParts ? (
+          <>
+            <Row
+              label={t(POS_SHIFT_I18N.endedClosedAt, "Shift Ended")}
+              value={endedParts.dateLine}
+            />
+            <Row
+              label={t(POS_SHIFT_I18N.detailStartedTime, "Time")}
+              value={endedParts.timeLine}
+            />
+          </>
         ) : null}
         <Row
           label={t(POS_SHIFT_I18N.cashInOut, "Cash Out / Cash In")}
@@ -187,7 +132,7 @@ export function PosShiftActiveSummary({
       </div>
 
       <SectionTitle>{t(POS_SHIFT_I18N.orderSection, "ORDER DETAILS")}</SectionTitle>
-      <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-sm">
         <Row
           label={t(POS_SHIFT_I18N.productsSold, "Products Sold")}
           value={String(totals.productsSoldQty)}
@@ -200,7 +145,7 @@ export function PosShiftActiveSummary({
       </div>
 
       <SectionTitle>{t(POS_SHIFT_I18N.cashSection, "CASH")}</SectionTitle>
-      <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-sm">
         <Row
           label={t(POS_SHIFT_I18N.cashBalance, "Cash Balance")}
           value={formatPosCash(totals.openingCash)}
@@ -236,7 +181,7 @@ export function PosShiftActiveSummary({
       </div>
 
       <SectionTitle>{t(POS_SHIFT_I18N.totalSection, "TOTAL:")}</SectionTitle>
-      <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="min-w-0 overflow-hidden rounded-lg border border-slate-300/70 bg-white shadow-sm ring-1 ring-slate-900/[0.03]">
         <Row
           label={t(POS_SHIFT_I18N.totalExpected, "Total expected")}
           value={formatPosCash(expectedDisplay)}

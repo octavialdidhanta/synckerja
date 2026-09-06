@@ -71,16 +71,32 @@ function setupAssetLoadRecovery() {
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
 
-  void import("virtual:pwa-register")
-    .then(({ registerSW }) => {
-      registerSW({
-        immediate: true,
-        onRegisteredSW(_swUrl, registration) {
-          if (!registration) return;
-          window.setInterval(() => {
-            void registration.update();
-          }, 60 * 60 * 1000);
-        },
+  // Capacitor Android/iOS already ships hashed assets in the APK. A PWA SW
+  // CacheFirst layer keeps stale index/chunk hashes across installs → missing
+  // assets + “reload without new code” (no pos-kb logs, old keyboard bugs).
+  void import("@capacitor/core")
+    .then(({ Capacitor }) => {
+      if (Capacitor.isNativePlatform()) {
+        void navigator.serviceWorker.getRegistrations().then((regs) => {
+          regs.forEach((r) => void r.unregister());
+        });
+        if ("caches" in window) {
+          void caches.keys().then((keys) => {
+            keys.forEach((k) => void caches.delete(k));
+          });
+        }
+        return;
+      }
+      return import("virtual:pwa-register").then(({ registerSW }) => {
+        registerSW({
+          immediate: true,
+          onRegisteredSW(_swUrl, registration) {
+            if (!registration) return;
+            window.setInterval(() => {
+              void registration.update();
+            }, 60 * 60 * 1000);
+          },
+        });
       });
     })
     .catch(() => undefined);

@@ -1,9 +1,9 @@
 /** Shared login / register form typography, spacing, and control sizes. */
 
-export const authFormRootClass = "flex w-full flex-col gap-3 sm:gap-5";
+export const authFormRootClass = "flex w-full flex-col gap-2 sm:gap-3";
 
 export const authFormHeaderLogoWrapper =
-  "mb-1 flex w-full justify-center [&_img]:max-h-10 sm:[&_img]:max-h-12";
+  "mb-0 flex w-full justify-center [&_img]:max-h-10 sm:[&_img]:max-h-12";
 
 export const authFormTitleClass = "text-lg font-bold tracking-tight text-slate-900 sm:text-2xl";
 

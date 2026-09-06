@@ -11,6 +11,7 @@ import { DeferredAppToasters } from "@/shared/components/DeferredAppToasters";
 import { DeferredNativeAppServices } from "@/shared/components/DeferredNativeAppServices";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { RequireAuth } from "@/shared/components/RequireAuth";
+import { NativeNotificationTapBridge } from "@/shared/native/NativeNotificationTapBridge";
 import {
   MOBILE_INCOMES_BANK_ACCOUNT_PATH,
   MOBILE_INCOMES_DASHBOARD_PATH,
@@ -19,6 +20,8 @@ import { MobileAppNavSuppressionProvider } from "@/shared/mobile/MobileAppNavSup
 import { CapacitorKeyboardInsetProvider } from "@/shared/native/useCapacitorKeyboardInset";
 import { NativeAppDisplayInit } from "@/shared/components/mobile/NativeAppDisplayInit";
 import { NativeSafeAreaCssVarsInit } from "@/shared/hooks/useNativeSafeAreaCssVars";
+import { PosKeyboardOpenDocumentAttrSync } from "@/pos-mobile/shared/hooks/usePosKeyboardShellStyle";
+import { PosKeyboardFocusScrollLock } from "@/pos-mobile/shared/hooks/PosKeyboardFocusScrollLock";
 import { LegacyDefaultPricesRedirect } from "@/8-2-1-default-prices/layout/DefaultPricesHeaderAndTab";
 import {
   STOCK_MANAGEMENT_BASE_PATH,
@@ -41,6 +44,9 @@ import { HomePageSkeleton } from "@/1-home/skeletons/HomePageSkeleton";
 import ShareToPublishWizardPageSkeleton from "@/mobile/2-share/share-to-publish/pages/ShareToPublishWizardPageSkeleton";
 import { HomePageRouteLoadingShell } from "@/shared/components/mobile/HomePageRouteLoadingShell";
 import { AppRoutesSuspenseFallback } from "@/shared/components/AppRoutesSuspenseFallback";
+import { PosAuthFunnelSuspenseFallback } from "@/pos-mobile/0-auth/layout/PosAuthFunnelSuspenseFallback";
+import { PosAuthFunnelChrome } from "@/pos-mobile/0-auth/layout/PosAuthFunnelChrome";
+import { isPosAuthFunnelPath } from "@/pos-mobile/0-auth/lib/isPosAuthFunnelPath";
 import { StandardRouteLoadingShell } from "@/shared/components/StandardRouteLoadingShell";
 import {
   AccessPermissionsPageSkeleton,
@@ -539,13 +545,8 @@ const CompanyOrganizationPage = lazy(() => import("@/2-8-organization/pages/Comp
 const LoginRouteElement = lazy(() =>
   import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({ default: m.LoginRouteElement })),
 );
-const PosWelcomePage = lazy(() => import("@/pos-mobile/0-welcome/pages/PosWelcomePage"));
-const PosLoginPage = lazy(() => import("@/pos-mobile/0-auth/pages/PosLoginPage"));
-const PosLoginPasswordPage = lazy(() => import("@/pos-mobile/0-auth/pages/PosLoginPasswordPage"));
-const PosRegisterPage = lazy(() => import("@/pos-mobile/0-auth/pages/PosRegisterPage"));
-const PosForgotPasswordPage = lazy(() => import("@/pos-mobile/0-auth/pages/PosForgotPasswordPage"));
-const PosMfaVerifyPage = lazy(() => import("@/pos-mobile/0-auth/pages/PosMfaVerifyPage"));
-const PosSelectOutletPage = lazy(() => import("@/pos-mobile/1-outlet-select/pages/PosSelectOutletPage"));
+/** Single Suspense boundary for POS auth — child steps are eager inside the chunk. */
+const PosAuthFunnelApp = lazy(() => import("@/pos-mobile/0-auth/PosAuthFunnelApp"));
 const PosCashierPage = lazy(() => import("@/pos-mobile/2-cashier/pages/PosCashierPage"));
 const PosSettingsPage = lazy(() => import("@/pos-mobile/3-settings/pages/PosSettingsPage"));
 const PosShiftPage = lazy(() => import("@/pos-mobile/4-shift/pages/PosShiftPage"));
@@ -771,8 +772,11 @@ function AppRoutes() {
   const location = useLocation();
   const pathname = location.pathname || "/";
   const isHome = pathname === "/";
+  const isPosAuthFunnel = isPosAuthFunnelPath(pathname);
 
-  const fallback = isHome ? (
+  const fallback = isPosAuthFunnel ? (
+    <PosAuthFunnelSuspenseFallback />
+  ) : isHome ? (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
       <HomePageRouteLoadingShell />
       <span className="sr-only">Loading</span>
@@ -787,12 +791,7 @@ function AppRoutes() {
     <Suspense fallback={fallback}>
       <Routes>
         <Route path="/login" element={<LoginRouteElement />} />
-        <Route path="/pos" element={<PosWelcomePage />} />
-        <Route path="/pos/login" element={<PosLoginPage />} />
-        <Route path="/pos/login/password" element={<PosLoginPasswordPage />} />
-        <Route path="/pos/login/mfa" element={<PosMfaVerifyPage />} />
-        <Route path="/pos/register" element={<PosRegisterPage />} />
-        <Route path="/pos/forgot-password" element={<PosForgotPasswordPage />} />
+        <Route path="/pos/*" element={<PosAuthFunnelApp />} />
         <Route path="/login/mfa" element={<MfaVerifyRouteElement />} />
         <Route path="/first-login" element={<FirstLoginRouteElement />} />
         <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
@@ -938,14 +937,6 @@ function AppRoutes() {
           <Route element={<OrganizationAccessGuard />}>
           <Route element={<SubscriptionExpiryGuard />}>
             <Route element={<RequirePosTabletAccess />}>
-            <Route
-              path="/pos/select-outlet"
-              element={
-                <Suspense fallback={null}>
-                  <PosSelectOutletPage />
-                </Suspense>
-              }
-            />
             <Route
               path="/pos/cashier"
               element={
@@ -2212,10 +2203,21 @@ function AppRoutes() {
                 element={
                   <PageAccessGuard
                     pagePath="/omnichannel/livechat"
-                    loadingShell={PAGE_GUARD_LOADING_SHELL}
+                    loadingShell={<ConsultantLivechatRouteLoadingShell />}
                     loadingShellWrapperClassName="bg-surface-muted"
                   >
-                    <ConsultantLivechatRouteElement />
+                    <Suspense
+                      fallback={
+                        <div
+                          className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+                          aria-busy
+                        >
+                          <ConsultantLivechatRouteLoadingShell />
+                        </div>
+                      }
+                    >
+                      <ConsultantLivechatRouteElement />
+                    </Suspense>
                   </PageAccessGuard>
                 }
               />
@@ -3667,6 +3669,8 @@ const App = () => (
       <MobileAppNavSuppressionProvider>
       <NativeAppDisplayInit />
       <NativeSafeAreaCssVarsInit />
+      <PosKeyboardOpenDocumentAttrSync />
+      <PosKeyboardFocusScrollLock />
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
         <DeferredAppToasters />
         <AuthProvider>
@@ -3685,17 +3689,15 @@ const App = () => (
               <LanguageProvider>
                 <ShareIntentRouteSync />
                 <CentralizedUserDataPathSync />
+                {/* Eager: cold-start shade taps must not wait for idle/lazy NativeAppServices. */}
+                <NativeNotificationTapBridge />
                 <DeferredNativeAppServices />
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <PosAuthFunnelChrome>
                   <Suspense fallback={<AppRoutesSuspenseFallback />}>
                     <Routes>
                   <Route path="/login" element={<LoginRouteElement />} />
-                  <Route path="/pos" element={<PosWelcomePage />} />
-                  <Route path="/pos/login" element={<PosLoginPage />} />
-                  <Route path="/pos/login/password" element={<PosLoginPasswordPage />} />
-                  <Route path="/pos/login/mfa" element={<PosMfaVerifyPage />} />
-                  <Route path="/pos/register" element={<PosRegisterPage />} />
-                  <Route path="/pos/forgot-password" element={<PosForgotPasswordPage />} />
+                  <Route path="/pos/*" element={<PosAuthFunnelApp />} />
                   <Route path="/login/mfa" element={<MfaVerifyRouteElement />} />
                   <Route path="/first-login" element={<FirstLoginRouteElement />} />
                   <Route path="/auth/google/callback" element={<GoogleOAuthCallbackRouteElement />} />
@@ -3879,14 +3881,6 @@ const App = () => (
                     <Route element={<OrganizationAccessGuard />}>
                     <Route element={<SubscriptionExpiryGuard />}>
                       <Route element={<RequirePosTabletAccess />}>
-                      <Route
-                        path="/pos/select-outlet"
-                        element={
-                          <Suspense fallback={null}>
-                            <PosSelectOutletPage />
-                          </Suspense>
-                        }
-                      />
                       <Route
                         path="/pos/cashier"
                         element={
@@ -5222,10 +5216,21 @@ const App = () => (
                           element={
                             <PageAccessGuard
                               pagePath="/omnichannel/livechat"
-                              loadingShell={PAGE_GUARD_LOADING_SHELL}
+                              loadingShell={<ConsultantLivechatRouteLoadingShell />}
                               loadingShellWrapperClassName="bg-surface-muted"
                             >
-                              <ConsultantLivechatRouteElement />
+                              <Suspense
+                                fallback={
+                                  <div
+                                    className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted"
+                                    aria-busy
+                                  >
+                                    <ConsultantLivechatRouteLoadingShell />
+                                  </div>
+                                }
+                              >
+                                <ConsultantLivechatRouteElement />
+                              </Suspense>
                             </PageAccessGuard>
                           }
                         />
@@ -6270,6 +6275,7 @@ const App = () => (
                   <Route path="*" element={<NotFound />} />
                     </Routes>
                   </Suspense>
+                  </PosAuthFunnelChrome>
                 </div>
               </LanguageProvider>
               </BrowserRouter>

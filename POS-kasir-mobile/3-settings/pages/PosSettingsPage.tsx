@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { useCatalogCheckoutSettings } from "@/8-2-1-default-prices/checkout/hooks/useCatalogCheckoutSettings";
 import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
 import { signOutletReceiptLogo } from "@/8-2-6-receipt/lib/receiptLogoStorage";
@@ -8,6 +9,7 @@ import { useAuth } from "@/shared/auth/contexts/AuthContext";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { usePosTabletShell } from "@/pos-mobile/shared/hooks/usePosTabletShell";
+import { usePosKeyboardShellStyle } from "@/pos-mobile/shared/hooks/usePosKeyboardShellStyle";
 import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
 import { resolvePosPostOutletPath } from "@/pos-mobile/shared/access";
 import { useMarkPosAuthSurface } from "@/pos-mobile/0-auth/lib/useMarkPosAuthSurface";
@@ -20,6 +22,7 @@ import {
 import { PosCashierMenuDrawer } from "@/pos-mobile/2-cashier/components/PosCashierMenuDrawer";
 import { PosAppFooterBar } from "@/pos-mobile/shared/layout/PosAppFooterBar";
 import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { PosSessionLeaveProvider } from "@/pos-mobile/shared/PosSessionLeaveProvider";
 import { PosNotificationSoundSheet } from "../components/PosNotificationSoundSheet";
 import { PosOnlineOrderSettingsPanel } from "../components/PosOnlineOrderSettingsPanel";
@@ -33,7 +36,7 @@ import { PosBarcodeScannerSettingsPanel } from "../components/hardware/scanner";
 import {
   PosLanguageSettingsPanel,
   PosProfileSettingsPanel,
-  PosSettingsLogoutButton,
+  PosSupportSettingsPanel,
   type PosOutletProfileSaved,
 } from "../components/account";
 import { PosSettingsNav } from "../components/PosSettingsNav";
@@ -93,12 +96,8 @@ function PosSettingsRightPanel({
   if (section === "profile") {
     return <PosProfileSettingsPanel onOutletSaved={onOutletSaved} />;
   }
-  if (
-    section === "gobiz-edc" ||
-    section === "customer-display" ||
-    section === "kitchen-display" ||
-    section === "support"
-  ) {
+  if (section === "support") return <PosSupportSettingsPanel />;
+  if (section === "customer-display") {
     return <PosHardwareSoonPanel />;
   }
   return (
@@ -116,9 +115,11 @@ function PosSettingsRightPanel({
  * Authenticated route: `/pos/settings` (outside AdaptiveAppLayout).
  */
 export default function PosSettingsPage() {
-  const { isPhoneLayout, pane, setPane, showDetail } = usePosSettingsPhoneLayout();
+  const { isPhoneLayout, pane, setPane, showDetail, showList } =
+    usePosSettingsPhoneLayout();
   usePosTabletShell({ phoneOverlay: isPhoneLayout });
   useMarkPosAuthSurface();
+  const keyboardShellStyle = usePosKeyboardShellStyle();
   const { t, language } = useAppTranslation();
   const { user } = useAuth();
   const { organizationName, loading: orgLoading } = useCentralizedUserData();
@@ -247,7 +248,7 @@ export default function PosSettingsPage() {
   const rightHeader = t(navItem.panelTitleKey, navItem.panelTitleFallback);
 
   const leftScroll = (
-    <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-slate-100 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <PosSettingsProfileCard
         outletName={displayOutletName}
         email={user?.email ?? null}
@@ -260,12 +261,6 @@ export default function PosSettingsPage() {
         onSelect={onNavSelect}
         statusOverrides={statusOverrides}
       />
-    </div>
-  );
-
-  const leftFooter = (
-    <div className="flex-shrink-0 border-t border-slate-200 bg-white p-3">
-      <PosSettingsLogoutButton />
     </div>
   );
 
@@ -296,26 +291,36 @@ export default function PosSettingsPage() {
   return (
     <PosSessionLeaveProvider>
       {isPhoneLayout ? (
-        <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-white">
+        <div
+          className="relative flex h-[100dvh] flex-col overflow-hidden bg-slate-100"
+          style={keyboardShellStyle}
+        >
           <PosSafeAreaTopSpacer />
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-100">
             <PosSettingsPhonePaneSlider
               pane={pane}
               onPaneChange={setPane}
               list={
-                <div className="flex h-full min-h-0 flex-col overflow-hidden">
+                <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-100">
                   {leftScroll}
-                  {leftFooter}
                 </div>
               }
               detail={
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  <div className="flex h-12 flex-shrink-0 items-center border-b border-slate-200 bg-slate-50 px-4">
-                    <h2 className="truncate text-base font-semibold text-slate-900">
-                      {rightHeader}
-                    </h2>
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-100">
+                  <div className={POS_PANEL.header}>
+                    <button
+                      type="button"
+                      onClick={showList}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className={POS_PANEL.headerBack}
+                      aria-label={t(POS_SETTINGS_I18N.back, "Back")}
+                      data-no-pane-swipe
+                    >
+                      <ArrowLeft className="h-5 w-5" />
+                    </button>
+                    <h2 className={POS_PANEL.headerTitle}>{rightHeader}</h2>
                   </div>
-                  <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-slate-100 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {rightContent}
                   </div>
                 </div>
@@ -344,7 +349,6 @@ export default function PosSettingsPage() {
               />
             </>
           }
-          leftFooter={<PosSettingsLogoutButton />}
           right={rightContent}
           footer={footer}
         />

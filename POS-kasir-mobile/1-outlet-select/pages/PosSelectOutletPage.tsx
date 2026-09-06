@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PosBrandMark } from "@/pos-mobile/shared/components/PosBrandMark";
 import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
 import { defaultPosOutletId } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useToast } from "@/shared/hooks/use-toast";
-import { PosAuthViewport } from "@/pos-mobile/shared/layout/PosAuthViewport";
-import { usePosTabletShell } from "@/pos-mobile/shared/hooks/usePosTabletShell";
-import { useMarkPosAuthSurface } from "@/pos-mobile/0-auth/lib/useMarkPosAuthSurface";
 import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
 import { resolvePosPostOutletPath, usePosTabletAccess } from "@/pos-mobile/shared/access";
 import { POS_TABLET_ACCESS_I18N } from "@/pos-mobile/0-auth/lib/posTabletAccessCopy";
@@ -22,12 +18,10 @@ import {
 
 /**
  * Post-auth outlet gate for Synckerja POS (after login / 2FA).
- * Authenticated route: `/pos/select-outlet`.
+ * Authenticated route: `/pos/select-outlet` (shell from {@link PosAuthFunnelLayout}).
  * Outlets filtered by staff assignment (Owner/Admin: all active).
  */
 export default function PosSelectOutletPage() {
-  usePosTabletShell();
-  useMarkPosAuthSurface();
   const { t } = useAppTranslation();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -117,12 +111,7 @@ export default function PosSelectOutletPage() {
     permissions.isLoading;
 
   return (
-    <PosAuthViewport className="bg-white">
-      <div className="mb-6 flex justify-center md:mb-8">
-        <PosBrandMark />
-      </div>
-
-      <div className="flex w-full flex-col gap-4">
+    <div className="flex w-full flex-col gap-4">
         <PosOutletSelectField
           value={outletId}
           onChange={setOutletId}
@@ -146,7 +135,6 @@ export default function PosSelectOutletPage() {
           disabled={continueDisabled}
           onContinue={onContinue}
         />
-      </div>
-    </PosAuthViewport>
+    </div>
   );
 }

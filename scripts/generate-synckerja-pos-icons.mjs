@@ -2,7 +2,7 @@
  * Generate Synckerja POS Android launcher + brand drawables from
  * `public/synckerjapos.png` → `android-pos/`.
  *
- * Usage: node scripts/generate-synckerja-pos-icons.mjs
+ * Sizing matches Office (`scripts/generate-synckerja-icons.mjs`): home screen + smaller splash.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -61,6 +61,7 @@ async function main() {
   console.log(`Source: ${srcLogo}`);
 
   // Brand drawable (notifications, adaptive inset) — putih agar kontras di UI sistem.
+  // Tanpa trim: ukuran home screen tetap normal (trim membuat logo terlalu besar).
   const brand512 = await fitOnCanvas(raw, 512, {
     padRatio: 0.08,
     bg: { r: 255, g: 255, b: 255, alpha: 1 },
@@ -69,9 +70,9 @@ async function main() {
   fs.writeFileSync(brandPath, brand512);
   console.log(`Wrote ${path.relative(root, brandPath)}`);
 
-  // Splash logo: transparan, hampir penuh canvas (tanpa kotak/wrapper putih).
+  // Splash logo: transparan; padding lebih longgar agar tampak lebih kecil di layar.
   const splashLogo512 = await fitOnCanvas(raw, 512, {
-    padRatio: 0.02,
+    padRatio: 0.14,
     bg: { r: 0, g: 0, b: 0, alpha: 0 },
   });
   const splashLogoPath = path.join(resRoot, "drawable", "splash_logo.png");
@@ -107,30 +108,28 @@ async function main() {
   }
 
   // Capacitor SplashScreen plugin drawables (after system cold-start theme).
+  // Logo size = 220dp (same as drawable/splash.xml) so auth PosBrandMark matches splash.
   // Background #f5f5f5 matches `splash_screen_background` / capacitor.config.pos.ts.
   const splashBg = { r: 245, g: 245, b: 245, alpha: 1 };
   const CAPACITOR_SPLASH = {
-    "drawable-port-mdpi": [320, 480],
-    "drawable-port-hdpi": [480, 800],
-    "drawable-port-xhdpi": [720, 1280],
-    "drawable-port-xxhdpi": [960, 1600],
-    "drawable-port-xxxhdpi": [1280, 1920],
-    "drawable-land-mdpi": [480, 320],
-    "drawable-land-hdpi": [800, 480],
-    "drawable-land-xhdpi": [1280, 720],
-    "drawable-land-xxhdpi": [1600, 960],
-    "drawable-land-xxxhdpi": [1920, 1280],
+    "drawable-port-mdpi": [320, 480, 1],
+    "drawable-port-hdpi": [480, 800, 1.5],
+    "drawable-port-xhdpi": [720, 1280, 2],
+    "drawable-port-xxhdpi": [960, 1600, 3],
+    "drawable-port-xxxhdpi": [1280, 1920, 4],
+    "drawable-land-mdpi": [480, 320, 1],
+    "drawable-land-hdpi": [800, 480, 1.5],
+    "drawable-land-xhdpi": [1280, 720, 2],
+    "drawable-land-xxhdpi": [1600, 960, 3],
+    "drawable-land-xxxhdpi": [1920, 1280, 4],
   };
 
-  for (const [dirName, [w, h]] of Object.entries(CAPACITOR_SPLASH)) {
-    const logoSize = Math.round(Math.min(w, h) * 0.72);
-    const logo = await sharp(raw)
-      .resize(logoSize, logoSize, {
-        fit: "contain",
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      })
-      .png()
-      .toBuffer();
+  for (const [dirName, [w, h, density]] of Object.entries(CAPACITOR_SPLASH)) {
+    const logoSize = Math.round(220 * density);
+    const logo = await fitOnCanvas(raw, logoSize, {
+      padRatio: 0.14,
+      bg: { r: 0, g: 0, b: 0, alpha: 0 },
+    });
     const buf = await sharp({
       create: { width: w, height: h, channels: 4, background: splashBg },
     })

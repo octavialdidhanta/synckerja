@@ -58,7 +58,7 @@ export function PosKitchenTransitionTimesPanel({ value, onChange }: Props) {
                       onClick={() => setBucket(bucket, trigger)}
                       className={`min-h-9 rounded-lg px-3 text-xs font-semibold transition ${
                         active
-                          ? "bg-teal-600 text-white shadow-sm"
+                          ? "bg-slate-900 text-white shadow-sm"
                           : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                       }`}
                     >

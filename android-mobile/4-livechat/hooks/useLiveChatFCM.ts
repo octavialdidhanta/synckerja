@@ -1,17 +1,16 @@
-/**
- * Live Chat foreground notification presentation.
- * Registrasi FCM + simpan token: `useNativeFcmRegistration` di `NativeFcmRegistration` (App shell).
- */
 import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import type { PluginListenerHandle } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { showLocalNotification } from "@/mobile-app/utils/showLocalNotification";
+import { isPosNativeApp } from "@/shared/native/appSurface";
 
 export function useLiveChatFCM() {
   const handlesRef = useRef<PluginListenerHandle[]>([]);
 
   useEffect(() => {
+    // Omnichannel livechat banners are Office-only (POS must not present them).
+    if (isPosNativeApp()) return;
     if (!Capacitor.isNativePlatform()) return;
     if (!Capacitor.isPluginAvailable("PushNotifications")) return;
 

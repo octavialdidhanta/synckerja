@@ -40,9 +40,9 @@ export function PosShiftStartBlock({ defaultOpeningCash, busy, onStart }: Props)
   };
 
   return (
-    <div className="flex min-h-full min-w-0 flex-col overflow-x-hidden px-3 py-6 sm:px-4">
-      <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
-        <div className="flex items-center justify-between gap-3 px-3 py-4 sm:px-4">
+    <div className="flex min-h-full min-w-0 flex-col overflow-x-hidden bg-slate-100 px-2 py-4 sm:px-2.5">
+      <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-sm">
+        <div className="flex items-center justify-between gap-3 px-3 py-3.5">
           <span className="min-w-0 flex-shrink text-sm text-slate-900">
             {t(POS_SHIFT_I18N.openingCash, "Cash Balance")}
           </span>
@@ -64,7 +64,7 @@ export function PosShiftStartBlock({ defaultOpeningCash, busy, onStart }: Props)
         type="button"
         disabled={busy}
         onClick={() => void handleStart()}
-        className="mt-6 h-12 w-full text-base font-bold uppercase tracking-wide"
+        className="mt-6 h-12 w-full text-base font-bold uppercase tracking-wide shadow-sm"
       >
         {t(POS_SHIFT_I18N.startShift, "Start Shift")}
       </Button>

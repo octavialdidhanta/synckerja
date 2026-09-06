@@ -81,7 +81,7 @@ export function MobileManageCommentsAccountButton({
         open={open}
         onOpenChange={handleOpenChange}
       >
-        <DrawerContent className="max-h-[85vh] px-0 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
+        <DrawerContent className="max-h-[85vh] px-0 pb-4">
           <DrawerHeader className="px-4 pb-2 text-left">
             <DrawerTitle className="text-base">
               {t("digitalMarketing.socialMediaInsightReport.colAccount", "Account")}

@@ -35,7 +35,8 @@ async function applyInsetsToDocument(): Promise<void> {
   const bottomInsetPx = clamp(bottom, 0, MAX_FOOTER_BOTTOM_INSET_PX);
   document.documentElement.style.setProperty(CONTENT_SCROLL_EXTRA_BOTTOM_VAR, `${bottomInsetPx}px`);
   document.documentElement.style.setProperty("--footer-bottom-inset", `${bottomInsetPx}px`);
-  document.documentElement.style.removeProperty("--safe-area-inset-bottom");
+  // Alias for legacy utilities (`.safe-area-bottom`, sheets) — same clamped plugin bottom.
+  document.documentElement.style.setProperty("--safe-area-inset-bottom", `${bottomInsetPx}px`);
 }
 
 export function refreshNativeSafeAreaChromeInsets(): void {

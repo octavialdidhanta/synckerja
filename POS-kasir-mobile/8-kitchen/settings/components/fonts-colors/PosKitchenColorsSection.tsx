@@ -66,7 +66,7 @@ export function PosKitchenColorsSection({ value, onChange }: Props) {
         {t(POS_KITCHEN_SETTINGS_I18N.colorsHeading, "Colors")}
       </h3>
 
-      <h4 className="mb-1 text-sm font-bold text-teal-700">
+      <h4 className="mb-1 text-sm font-bold text-slate-900">
         {t(POS_KITCHEN_SETTINGS_I18N.colorsOrderTypes, "Order Types")}
       </h4>
       <div className="mb-4">
@@ -88,7 +88,7 @@ export function PosKitchenColorsSection({ value, onChange }: Props) {
         })}
       </div>
 
-      <h4 className="mb-1 text-sm font-bold text-teal-700">
+      <h4 className="mb-1 text-sm font-bold text-slate-900">
         {t(POS_KITCHEN_SETTINGS_I18N.colorsStatus, "Status")}
       </h4>
       <div>

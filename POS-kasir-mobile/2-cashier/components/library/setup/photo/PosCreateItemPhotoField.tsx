@@ -117,9 +117,9 @@ export function PosCreateItemPhotoField({ file, disabled, onChange }: Props) {
 
   return (
     <>
-      <div className="flex flex-col items-center gap-3 border-b border-slate-100 bg-slate-50 px-4 py-5">
+      <div className="flex flex-col items-center gap-3 px-3 py-4">
         <div className="relative">
-          <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-xl bg-slate-200 text-slate-500 shadow-sm ring-1 ring-slate-200/80">
+          <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-lg bg-slate-100 text-slate-500 ring-1 ring-slate-200/80">
             {previewUrl ? (
               <img src={previewUrl} alt="" className="h-full w-full object-cover" />
             ) : (
@@ -130,7 +130,7 @@ export function PosCreateItemPhotoField({ file, disabled, onChange }: Props) {
             <button
               type="button"
               onClick={() => onChange(null)}
-              className="absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-white text-slate-600 shadow ring-1 ring-slate-200"
+              className="absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-white text-slate-600 shadow-sm ring-1 ring-slate-200"
               aria-label={t(POS_CASHIER_I18N.setupPhotoRemove, "Remove photo")}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -143,7 +143,7 @@ export function PosCreateItemPhotoField({ file, disabled, onChange }: Props) {
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 flex-1 gap-1.5 rounded-full border-slate-200 bg-white text-slate-700 shadow-sm"
+            className="h-9 flex-1 gap-1.5 border-slate-200 bg-white text-slate-700"
             disabled={disabled || picking}
             onClick={() => void pickCamera()}
           >
@@ -154,7 +154,7 @@ export function PosCreateItemPhotoField({ file, disabled, onChange }: Props) {
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 flex-1 gap-1.5 rounded-full border-slate-200 bg-white text-slate-700 shadow-sm"
+            className="h-9 flex-1 gap-1.5 border-slate-200 bg-white text-slate-700"
             disabled={disabled || picking}
             onClick={() => void pickGallery()}
           >

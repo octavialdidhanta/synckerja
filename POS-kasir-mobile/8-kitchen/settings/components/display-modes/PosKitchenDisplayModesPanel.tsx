@@ -48,20 +48,20 @@ export function PosKitchenDisplayModesPanel({ value, onChange }: Props) {
             className={cn(
               "flex flex-col items-start gap-3 rounded-xl border-2 bg-white p-4 text-left transition",
               selected
-                ? "border-teal-600 shadow-sm"
+                ? "border-slate-900 shadow-sm"
                 : "border-slate-200 hover:border-slate-300",
             )}
           >
             <div
               className={cn(
                 "flex h-20 w-full items-center justify-center rounded-lg",
-                selected ? "bg-teal-50" : "bg-slate-50",
+                selected ? "bg-slate-100" : "bg-slate-50",
               )}
             >
               <Monitor
                 className={cn(
                   "h-10 w-10",
-                  selected ? "text-teal-700" : "text-slate-400",
+                  selected ? "text-slate-900" : "text-slate-400",
                 )}
                 aria-hidden
               />

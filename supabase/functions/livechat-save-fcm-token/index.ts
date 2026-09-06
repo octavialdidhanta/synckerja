@@ -9,6 +9,15 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Max-Age": "86400",
 };
 
+const APP_ID_OFFICE = "id.synckerja.app";
+const APP_ID_POS = "id.synckerja.pos";
+
+function normalizeAppId(raw: unknown): string {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  if (v === APP_ID_POS) return APP_ID_POS;
+  return APP_ID_OFFICE;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
@@ -53,58 +62,69 @@ Deno.serve(async (req: Request) => {
     const platform = typeof body.platform === "string" ? body.platform.toLowerCase() : "";
     const rawContext = typeof body.context === "string" ? body.context.trim().toLowerCase() : "livechat";
     const context = rawContext === "general" ? "general" : "livechat";
+    const appId = normalizeAppId(body.app_id);
     if (!fcmToken || !platform) {
       return new Response(
         JSON.stringify({ error: "Missing token or platform" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
     if (platform !== "android" && platform !== "ios") {
       return new Response(
         JSON.stringify({ error: "platform must be android or ios" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // Satu perangkat (satu FCM token) hanya boleh terdaftar untuk satu user.
-    // Hapus token ini dari SEMUA user dulu, lalu daftarkan untuk user saat ini.
-    // Jadi saat Octa login di HP yang dulu dipakai Milda, token langsung hanya punya Octa.
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+
+    // POS must never own livechat tokens (Omnichannel is Office-only).
+    if (appId === APP_ID_POS) {
+      await supabaseAdmin.from("fcm_tokens").delete().eq("token", fcmToken).eq("context", "livechat");
+      if (context === "livechat") {
+        return new Response(
+          JSON.stringify({ ok: true, skipped: "pos_no_livechat" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
+    // Satu perangkat (satu FCM token) hanya boleh terdaftar untuk satu user per context+app.
     await supabaseAdmin
       .from("fcm_tokens")
       .delete()
       .eq("token", fcmToken)
-      .eq("context", context);
+      .eq("context", context)
+      .eq("app_id", appId);
 
-    // Pakai service role: upsert dengan JWT user sering kena RLS / constraint mismatch → 400.
-    // User sudah diverifikasi lewat getUser(token) di atas.
     const { error: upsertError } = await supabaseAdmin.from("fcm_tokens").upsert(
       {
         user_id: user.id,
         token: fcmToken,
         platform,
         context,
+        app_id: appId,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "user_id,token,context" },
+      { onConflict: "user_id,token,context,app_id" },
     );
 
     if (upsertError) {
       console.error("livechat-save-fcm-token: upsert failed", upsertError.message, upsertError);
       return new Response(
         JSON.stringify({ error: upsertError.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     return new Response(
       JSON.stringify({ ok: true }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
     return new Response(
       JSON.stringify({ error: String(e) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

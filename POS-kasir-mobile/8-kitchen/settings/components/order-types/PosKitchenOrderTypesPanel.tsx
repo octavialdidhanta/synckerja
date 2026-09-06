@@ -37,7 +37,7 @@ export function PosKitchenOrderTypesPanel({ value, onChange }: Props) {
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <h3 className="mb-3 text-sm font-bold text-teal-700">
+      <h3 className="mb-3 text-sm font-bold text-slate-900">
         {t(POS_KITCHEN_SETTINGS_I18N.orderTypes, "Order Types")}
       </h3>
       <ul className="divide-y divide-slate-100">

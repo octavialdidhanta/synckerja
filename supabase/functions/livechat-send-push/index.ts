@@ -39,14 +39,6 @@ function previewText(body: string | null | undefined, maxLen: number, maskEmails
   return s.slice(0, maxLen) + "…";
 }
 
-function channelLabelFromTable(table: string): string {
-  if (table === "whatsapp_messages") return "WhatsApp";
-  if (table === "instagram_messages") return "Instagram";
-  if (table === "facebook_messages") return "Messenger";
-  if (table === "email_messages") return "Email";
-  return "Live Chat";
-}
-
 async function getFcmAccessToken(serviceAccountJson: string): Promise<string> {
   const sa = JSON.parse(serviceAccountJson) as {
     client_email: string;
@@ -113,21 +105,20 @@ async function sendFcmMessage(
   title: string,
   body: string,
   data: Record<string, string>,
-  imageUrl?: string
 ): Promise<{ ok: boolean; status?: number; errorBody?: string }> {
   const url = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
-  const notification: { title: string; body: string; image?: string } = { title, body };
-  if (imageUrl) notification.image = imageUrl;
+  // Data-only on Android so SynckerjaFirebaseMessagingService always posts with
+  // ic_notification_large (pwa-512). Top-level notification would use the tiny launcher avatar in background.
+  const dataWithAlert = Object.fromEntries(
+    Object.entries({ ...data, title, body, channel_id: "livechat" }).map(([k, v]) => [k, String(v)]),
+  );
   const bodyPayload = {
     message: {
       token: fcmToken,
-      notification,
-      data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
-      android: {
-        notification: { channel_id: "livechat", sound: "default", icon: "app_brand_logo" },
-      },
+      data: dataWithAlert,
+      android: { priority: "high" },
       apns: {
-        payload: { aps: { sound: "default" } },
+        payload: { aps: { alert: { title, body }, sound: "default" } },
       },
     },
   };
@@ -261,8 +252,7 @@ Deno.serve(async (req: Request) => {
 
     const bodyText = (record.body as string) ?? (record.caption as string) ?? "";
     const bodyPreview = previewText(bodyText, 72, table !== "email_messages");
-    const channelLabel = channelLabelFromTable(table);
-    const title = `[${channelLabel}] ${senderName}`;
+    const title = senderName;
 
     const { data: profiles } = await supabase
       .from("profiles")
@@ -352,7 +342,8 @@ Deno.serve(async (req: Request) => {
       .from("fcm_tokens")
       .select("id, token")
       .in("user_id", userIds)
-      .eq("context", "livechat");
+      .eq("context", "livechat")
+      .eq("app_id", "id.synckerja.app");
     const fcmTokensList = (fcmRows ?? []) as { id: string; token: string }[];
     console.log("livechat-send-push: targets", {
       organizationId,
@@ -369,6 +360,7 @@ Deno.serve(async (req: Request) => {
           const accessToken = await getFcmAccessToken(fcmServiceAccountJson);
           const fcmToDelete: string[] = [];
           const dataPayload = {
+            notificationType: "livechat_inbound",
             url,
             ticket_id: ticketId,
             channel: table === "whatsapp_messages"
@@ -380,8 +372,7 @@ Deno.serve(async (req: Request) => {
               : "email",
           };
           for (const row of fcmTokensList) {
-            const notificationImageUrl = (APP_ORIGIN || "https://app.profitloop.id") + "/splash-logo.png";
-            const result = await sendFcmMessage(accessToken, projectId, row.token, title, bodyPreview, dataPayload, notificationImageUrl);
+            const result = await sendFcmMessage(accessToken, projectId, row.token, title, bodyPreview, dataPayload);
             if (result.ok) {
               fcmSent++;
             } else {

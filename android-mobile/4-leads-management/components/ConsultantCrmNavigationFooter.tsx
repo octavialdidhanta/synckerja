@@ -15,9 +15,18 @@ import { LEADS_REPORT_IDLE_TAB_ID, LEADS_REPORT_TAB_PARAM, LEADS_REPORT_VIEW_PAR
 
 type ConsultantCrmNavigationFooterProps = {
   className?: string;
+  /**
+   * `true` (default): `fixed` to viewport bottom (same as other Office mobile tab bars).
+   * Scroll content clears it via `content-padding-above-nav-*` (+ `--footer-bottom-inset` on Android).
+   * `false`: in-flow `shrink-0` only if a rare layout cannot use content padding.
+   */
+  docked?: boolean;
 };
 
-export function ConsultantCrmNavigationFooter({ className }: ConsultantCrmNavigationFooterProps) {
+export function ConsultantCrmNavigationFooter({
+  className,
+  docked = true,
+}: ConsultantCrmNavigationFooterProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useAppTranslation();
@@ -42,8 +51,9 @@ export function ConsultantCrmNavigationFooter({ className }: ConsultantCrmNaviga
   return (
     <nav
       className={cn(
-        "mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card",
-        className ?? "safe-area-padding-bottom-capped",
+        "mobile-app-bottom-nav z-30 border-t border-border bg-card",
+        docked ? "fixed bottom-0 left-0 right-0" : "relative shrink-0",
+        className ?? "safe-area-bottom-lower",
       )}
     >
       <div

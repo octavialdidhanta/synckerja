@@ -23,6 +23,7 @@ export function AssignDiscountOutletDialog({
       confirmLabel={t("defaultPrices.discounts.assignDiscount", "Assign Discount")}
       selectedIds={selectedIds}
       onConfirm={onConfirm}
+      chrome="pos"
     />
   );
 }

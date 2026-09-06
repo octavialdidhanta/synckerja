@@ -1,5 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import {
   formatPosPrinterRoleStatus,
   posPrinterDisplayName,
@@ -19,7 +21,7 @@ export function PosPrinterListRow({ printer, onClick }: Props) {
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 border-b border-slate-100 px-1 py-3.5 text-left transition-colors hover:bg-slate-50 last:border-b-0"
+      className={cn(POS_PANEL.row, "text-left transition-colors hover:bg-slate-50")}
     >
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-slate-900">

@@ -1,14 +1,14 @@
 package id.synckerja.app;
 
+import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.drawable.Drawable;
 import android.Manifest;
 import android.os.Build;
+import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
@@ -18,8 +18,8 @@ import android.util.Log;
 import java.util.Map;
 
 /**
- * Custom FCM service: large icon = ic_notification_large (heads-up, shade).
- * Ensures notification channel exists (including before MainActivity runs) so posts are not dropped.
+ * Heads-up + shade: template standar sistem, satu ikon saja.
+ * PendingIntent memakai requestCode unik agar extras FCM (url/ticket_id) tidak tertimpa.
  */
 public class SynckerjaFirebaseMessagingService extends FirebaseMessagingService {
 
@@ -45,9 +45,13 @@ public class SynckerjaFirebaseMessagingService extends FirebaseMessagingService 
         String channelId = getChannelId(remoteMessage);
         String title = getTitle(remoteMessage);
         String body = getBody(remoteMessage);
+        if (title == null) title = getString(R.string.app_name);
+        if (body == null) body = "";
+
+        int notificationId = (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
 
         Intent intent = new Intent(this, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         if (remoteMessage.getData() != null) {
             for (Map.Entry<String, String> e : remoteMessage.getData().entrySet()) {
                 intent.putExtra(e.getKey(), e.getValue());
@@ -58,26 +62,22 @@ public class SynckerjaFirebaseMessagingService extends FirebaseMessagingService 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             flags |= PendingIntent.FLAG_IMMUTABLE;
         }
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, flags);
+        // requestCode = notificationId agar tiap tap membawa extras yang benar (bukan PendingIntent lama).
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, notificationId, intent, flags);
 
         NotificationCompat.Builder builder =
-            new NotificationCompat.Builder(this, channelId).setSmallIcon(R.drawable.app_brand_logo);
-
-        Bitmap largeIconBitmap = drawableToBitmap(R.drawable.ic_notification_large);
-        if (largeIconBitmap != null) {
-            builder.setLargeIcon(largeIconBitmap);
-        }
-
-        builder.setContentTitle(title != null ? title : getString(R.string.app_name))
-            .setContentText(body != null ? body : "")
-            .setStyle(new NotificationCompat.BigTextStyle().bigText(body != null ? body : ""))
-            .setColor(ContextCompat.getColor(this, R.color.notification_icon_tint))
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setDefaults(NotificationCompat.DEFAULT_SOUND | NotificationCompat.DEFAULT_VIBRATE)
-            .setContentIntent(pendingIntent);
+            new NotificationCompat.Builder(this, channelId)
+                .setSmallIcon(R.drawable.ic_notification_small)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setLargeIcon((Bitmap) null)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setColor(ContextCompat.getColor(this, R.color.notification_icon_tint))
+                .setAutoCancel(true)
+                .setDefaults(NotificationCompat.DEFAULT_ALL)
+                .setContentIntent(pendingIntent);
 
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (nm == null) {
@@ -89,10 +89,29 @@ public class SynckerjaFirebaseMessagingService extends FirebaseMessagingService 
         }
 
         try {
-            int id = (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
-            nm.notify(id, builder.build());
+            Notification notification = builder.build();
+            hideSystemRightIcon(notification);
+            nm.notify(notificationId, notification);
         } catch (SecurityException e) {
             Log.e(TAG, "nm.notify failed (permission?)", e);
+        }
+    }
+
+    private void hideSystemRightIcon(Notification notification) {
+        int rightIconId = getResources().getIdentifier("right_icon", "id", "android");
+        if (rightIconId == 0) return;
+        try {
+            if (notification.contentView != null) {
+                notification.contentView.setViewVisibility(rightIconId, View.INVISIBLE);
+            }
+            if (notification.bigContentView != null) {
+                notification.bigContentView.setViewVisibility(rightIconId, View.INVISIBLE);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && notification.headsUpContentView != null) {
+                notification.headsUpContentView.setViewVisibility(rightIconId, View.INVISIBLE);
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "hideSystemRightIcon failed", t);
         }
     }
 
@@ -124,16 +143,5 @@ public class SynckerjaFirebaseMessagingService extends FirebaseMessagingService 
             return remoteMessage.getData().get("body");
         }
         return null;
-    }
-
-    private Bitmap drawableToBitmap(int drawableResId) {
-        Drawable drawable = ContextCompat.getDrawable(this, drawableResId);
-        if (drawable == null) return null;
-        int size = (int) (256 * getResources().getDisplayMetrics().density);
-        Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        drawable.setBounds(0, 0, size, size);
-        drawable.draw(canvas);
-        return bitmap;
     }
 }

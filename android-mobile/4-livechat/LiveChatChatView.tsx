@@ -113,6 +113,13 @@ export function LiveChatChatView({
   return (
     <SidebarProvider>
       <div className="fixed inset-x-0 z-0 flex flex-col bg-background" style={mainFixedStyle}>
+        <div
+          className="shrink-0 bg-white"
+          style={{
+            height: 'max(var(--safe-area-inset-top, 0px), env(safe-area-inset-top, 0px))',
+          }}
+          aria-hidden
+        />
         <header className="sticky top-0 z-20 flex min-h-[56px] flex-shrink-0 items-center gap-1 border-b border-primary/20 bg-primary py-2 pr-3 pl-0">
         <Button type="button" variant="ghost" size="icon" className="-ml-1 -mr-1 h-9 w-9 shrink-0 text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground" onClick={onBack} aria-label={t('common.back', 'Back')}>
           <ArrowLeft className="h-5 w-5" />

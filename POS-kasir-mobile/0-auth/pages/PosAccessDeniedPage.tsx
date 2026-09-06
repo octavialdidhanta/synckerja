@@ -12,6 +12,7 @@ import { POS_AUTH_PATHS } from "../lib/posAuthPaths";
 import { POS_TABLET_ACCESS_I18N } from "../lib/posTabletAccessCopy";
 import { useMarkPosAuthSurface } from "../lib/useMarkPosAuthSurface";
 import { clearPosAuthSurface } from "../lib/posAuthSurface";
+import { usePosAuthFunnelShell } from "../lib/PosAuthFunnelShellContext";
 
 type PosAccessDeniedPageProps = {
   reason?: PosTabletAccessReason;
@@ -23,6 +24,7 @@ type PosAccessDeniedPageProps = {
 export default function PosAccessDeniedPage({ reason = "not_staff" }: PosAccessDeniedPageProps) {
   usePosTabletShell();
   useMarkPosAuthSurface();
+  const inFunnelShell = usePosAuthFunnelShell();
   const { t } = useAppTranslation();
   const { signOut } = useAuth();
   const navigate = useNavigate();
@@ -44,41 +46,44 @@ export default function PosAccessDeniedPage({ reason = "not_staff" }: PosAccessD
     })();
   };
 
+  const body = (
+    <div className="flex w-full flex-col items-center gap-4 text-center">
+      <h1 className="text-xl font-semibold text-slate-900">
+        {isAddon
+          ? t(POS_TABLET_ACCESS_I18N.denyAddonTitle, "POS add-on inactive")
+          : t(POS_TABLET_ACCESS_I18N.denyStaffTitle, "POS access denied")}
+      </h1>
+      <p className="max-w-xs text-sm text-slate-600">
+        {isAddon
+          ? t(POS_TABLET_ACCESS_I18N.denyAddonBody, "Activate the POS add-on in the back office.")
+          : t(POS_TABLET_ACCESS_I18N.denyStaffBody, "Ask an admin to add you to Employee Slots.")}
+      </p>
+      <Button type="button" className="mt-2 w-full max-w-xs" disabled={busy} onClick={onLogout}>
+        {t(POS_TABLET_ACCESS_I18N.denyLogout, "Log out")}
+      </Button>
+      <Link
+        to={POS_AUTH_PATHS.login}
+        className="text-sm font-medium text-primary hover:underline"
+        onClick={() => {
+          clearPosSelectedOutlet();
+          clearPosAuthSurface();
+        }}
+      >
+        {t(POS_TABLET_ACCESS_I18N.denyBackToLogin, "Back to POS login")}
+      </Link>
+    </div>
+  );
+
+  if (inFunnelShell) {
+    return body;
+  }
+
   return (
     <PosAuthViewport className="bg-white">
-      <div className="mb-6 flex justify-center md:mb-8">
+      <div className="mb-2 flex justify-center">
         <PosBrandMark />
       </div>
-      <div className="flex w-full flex-col items-center gap-4 text-center">
-        <h1 className="text-xl font-semibold text-slate-900">
-          {isAddon
-            ? t(POS_TABLET_ACCESS_I18N.denyAddonTitle, "POS add-on inactive")
-            : t(POS_TABLET_ACCESS_I18N.denyStaffTitle, "POS access denied")}
-        </h1>
-        <p className="max-w-xs text-sm text-slate-600">
-          {isAddon
-            ? t(POS_TABLET_ACCESS_I18N.denyAddonBody, "Activate the POS add-on in the back office.")
-            : t(POS_TABLET_ACCESS_I18N.denyStaffBody, "Ask an admin to add you to Employee Slots.")}
-        </p>
-        <Button
-          type="button"
-          className="mt-2 w-full max-w-xs"
-          disabled={busy}
-          onClick={onLogout}
-        >
-          {t(POS_TABLET_ACCESS_I18N.denyLogout, "Log out")}
-        </Button>
-        <Link
-          to={POS_AUTH_PATHS.login}
-          className="text-sm font-medium text-primary hover:underline"
-          onClick={() => {
-            clearPosSelectedOutlet();
-            clearPosAuthSurface();
-          }}
-        >
-          {t(POS_TABLET_ACCESS_I18N.denyBackToLogin, "Back to POS login")}
-        </Link>
-      </div>
+      {body}
     </PosAuthViewport>
   );
 }

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Launcher only: logo lebih kecil di home screen (inset 16dp). Heads-up pakai ic_notification_large. -->
+<!-- Launcher: inset sama dengan Synckerja POS (8dp). -->
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:insetLeft="8dp"
     android:insetTop="8dp"

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/shared/auth/contexts/AuthContext";
@@ -26,10 +26,12 @@ import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermiss
 import { resolvePosPostOutletPath } from "@/pos-mobile/shared/access";
 import { usePosPinGate } from "@/pos-mobile/shared/hooks/usePosPinGate";
 import { POS_PIN_FEATURES } from "@/pos-mobile/shared/lib/posPinFeatures";
+import { usePosReceiptSentStatus } from "@/pos-mobile/shared/hooks/usePosReceiptSentStatus";
 import { useCatalogSalesTypes } from "@/8-2-1-default-prices/sales-types/hooks/useCatalogSalesTypes";
 import { formatCatalogCheckoutLineLabel } from "@/8-2-1-default-prices/checkout/lib/formatCatalogCheckoutLineLabel";
 import { useStoreCheckoutPricing } from "@/5-2-customer-visits/checkout/hooks/useStoreCheckoutPricing";
 import { PosActivityDetailPane } from "../components/PosActivityDetailPane";
+import { PosActivityFooterActions } from "../components/PosActivityFooterActions";
 import { PosActivityListPane } from "../components/PosActivityListPane";
 import {
   PosActivityPhonePaneSlider,
@@ -83,6 +85,7 @@ export default function PosActivityPage() {
     undefined,
   );
   const [sending, setSending] = useState(false);
+  const [footerCenter, setFooterCenter] = useState<ReactNode>(null);
 
   const { runWithPin, pinDialog } = usePosPinGate(outletId);
   const checkoutRefund = usePosCheckoutRefund();
@@ -95,6 +98,7 @@ export default function PosActivityPage() {
   const listQuery = usePosOutletActivities(outletId);
   const detailQuery = usePosActivityDetail(selectedId);
   const cartSnapshotQuery = usePosActivityCartSnapshot(selectedId);
+  const receiptSent = usePosReceiptSentStatus(selectedId);
   const salesTypesQuery = useCatalogSalesTypes();
   const pricing = useStoreCheckoutPricing(
     outletId,
@@ -181,6 +185,45 @@ export default function PosActivityPage() {
     };
   }, [refundOpen, organizationId, selectedId, t, toast]);
 
+  const canSend =
+    permissions.unrestricted || permissions.canResendReceipt();
+  const canRefund = permissions.unrestricted || permissions.canRefund();
+  const detailReady = Boolean(detailQuery.data);
+  const isRefunded = detailQuery.data?.refund_status === "full";
+  const showFooterActions =
+    detailReady && (!isPhoneLayout || pane === "detail");
+
+  const footerActionsRef = useRef({
+    onSendReceipt: () => undefined as void,
+    onSelectRefund: () => undefined as void,
+  });
+
+  useEffect(() => {
+    if (!showFooterActions) {
+      setFooterCenter(null);
+      return () => setFooterCenter(null);
+    }
+    setFooterCenter(
+      <PosActivityFooterActions
+        canSend={canSend}
+        receiptAlreadySent={receiptSent.anySent}
+        canRefund={canRefund}
+        isRefunded={isRefunded}
+        refundBusy={checkoutRefund.isPending}
+        onSendReceipt={() => footerActionsRef.current.onSendReceipt()}
+        onSelectRefund={() => footerActionsRef.current.onSelectRefund()}
+      />,
+    );
+    return () => setFooterCenter(null);
+  }, [
+    showFooterActions,
+    canSend,
+    canRefund,
+    isRefunded,
+    receiptSent.anySent,
+    checkoutRefund.isPending,
+  ]);
+
   if (!outletId) {
     return <Navigate to={POS_AUTH_PATHS.selectOutlet} replace />;
   }
@@ -209,10 +252,6 @@ export default function PosActivityPage() {
     ? t(POS_ACTIVITY_I18N.emptySearch, "No matching transactions.")
     : t(POS_ACTIVITY_I18N.empty, "No sales yet for this outlet.");
 
-  const canSend =
-    permissions.unrestricted || permissions.canResendReceipt();
-  const canRefund = permissions.unrestricted || permissions.canRefund();
-
   const onSelect = (row: PosActivityListRow) => {
     setSelectedId(row.id);
     if (isPhoneLayout) showDetail();
@@ -240,6 +279,8 @@ export default function PosActivityPage() {
       });
       return;
     }
+    // Activity = resend receipts: keep dialog available even after a prior send
+    // (green check is an indicator only; PIN still gates the action).
     runWithPin(POS_PIN_FEATURES.resendReceipts, () => setSendOpen(true));
   };
 
@@ -260,6 +301,11 @@ export default function PosActivityPage() {
     });
   };
 
+  footerActionsRef.current = {
+    onSendReceipt,
+    onSelectRefund,
+  };
+
   const confirmSend = async (payload: {
     channel: "email" | "sms";
     email: string;
@@ -267,7 +313,13 @@ export default function PosActivityPage() {
     customerName: string;
   }) => {
     const detail = detailQuery.data;
-    if (!organizationId || !outletId || !detail?.lead_id) return;
+    if (!organizationId || !outletId || !detail?.lead_id) {
+      toast({
+        title: t(POS_ACTIVITY_I18N.sendError, "Failed to send receipt"),
+        variant: "destructive",
+      });
+      return;
+    }
     setSending(true);
     try {
       const result = await sendPosDigitalReceipt({
@@ -301,8 +353,21 @@ export default function PosActivityPage() {
         toast({ title, variant: "destructive" });
         return;
       }
-      toast({ title: t(POS_ACTIVITY_I18N.sendSuccess, "Receipt sent") });
+      toast({
+        title: t(POS_ACTIVITY_I18N.sendSuccess, "Receipt sent"),
+        description:
+          payload.channel === "email" && payload.email.trim()
+            ? payload.email.trim().toLowerCase()
+            : undefined,
+      });
+      receiptSent.markSent(payload.channel);
       setSendOpen(false);
+    } catch (err) {
+      toast({
+        title: t(POS_ACTIVITY_I18N.sendError, "Failed to send receipt"),
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
     } finally {
       setSending(false);
     }
@@ -382,16 +447,12 @@ export default function PosActivityPage() {
     <PosActivityDetailPane
       detail={detailQuery.data ?? null}
       loading={Boolean(selectedId) && detailQuery.isLoading}
-      canSend={canSend}
-      canRefund={canRefund}
-      refundBusy={checkoutRefund.isPending}
       cartSnapshot={cartSnapshotQuery.data ?? null}
       salesTypeNameById={salesTypeNameById}
       applicationMethod={applicationMethod}
       taxLabel={taxLabel}
       gratuityLabel={gratuityLabel}
-      onSendReceipt={onSendReceipt}
-      onSelectRefund={onSelectRefund}
+      onBack={isPhoneLayout ? showList : undefined}
     />
   );
 
@@ -403,6 +464,7 @@ export default function PosActivityPage() {
         menuAriaLabel={t(POS_ACTIVITY_I18N.menu, "Menu")}
         onOpenMenu={() => setMenuOpen(true)}
         isPhoneLayout={isPhoneLayout}
+        footerCenter={showFooterActions ? footerCenter : undefined}
       >
         {isPhoneLayout ? (
           <PosActivityPhonePaneSlider

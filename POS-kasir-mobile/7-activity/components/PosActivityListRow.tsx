@@ -28,10 +28,10 @@ export function PosActivityListRow({ row, selected, onSelect }: Props) {
       type="button"
       onClick={onSelect}
       className={cn(
-        "flex w-full items-start gap-2.5 border-b border-slate-100 px-3 py-3 text-left transition",
+        "flex w-full items-start gap-2.5 border-b border-slate-200 px-3 py-3 text-left transition",
         selected
           ? "bg-primary text-white"
-          : "bg-white text-slate-900 hover:bg-slate-50",
+          : "bg-white text-slate-900 hover:bg-slate-50/80",
       )}
     >
       <span

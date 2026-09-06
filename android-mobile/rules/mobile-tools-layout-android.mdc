@@ -36,7 +36,7 @@ Tujuan: konsistensi header, nav footer, safe area (status bar + pita hitam devic
    - Tambahkan key terjemahan untuk judul/subtitle halaman (i18n) agar bisa ganti bahasa dari Settings.
 
 5. **Halaman baru yang belum ada di tabel padding bawah**
-   - Pakai **`content-padding-above-nav-default`** (formula di `src/index.css`: `0.75rem + 3.25rem + env` bawah; Android native tanpa inset ganda) agar section terakhir **tidak menempel** ke nav footer, atau buat class baru dan **update daftar + tabel** di rule ini.
+   - Pakai **`content-padding-above-nav-default`** (formula di `src/index.css`: `0.75rem + 3.25rem` + **max(`env(safe-area-inset-bottom)`, `--footer-bottom-inset`)**; di Android native override memakai **`--footer-bottom-inset`** karena nav footer juga mem-padding inset yang sama) agar section terakhir **tidak tertutup** nav + bilah sistem.
 
 **Skeleton / loading state:** Gunakan container yang sama seperti halaman live (`max-w-md px-2` + class padding yang identik, termasuk Home tanpa `pt-2` terpisah jika sudah memakai `.content-padding-above-nav-home`) agar tidak ada container ganda atau lebar beda.
 
@@ -169,17 +169,18 @@ Halaman **React tidak mengatur** warna tombol sistem ini; konsistensi 100% dari 
   - **Disarankan untuk halaman dengan banyak kartu/section:** **4rem** (64px) + suku yang sama agar section terakhir (mis. Visit Analysis, Blockers, daftar) punya napas dan tidak terasa menempel.
   - **Daftar per halaman** — semua class di `src/index.css`:
   - **Home (/):** lihat **§5.1** — class **`content-padding-above-nav-home`** (bukan pola 3rem + `--content-scroll-extra-bottom` pada scroll).
-  - **Default halaman biasa:** **`0.75rem + 3.25rem + env`** (Android native: tanpa `--content-scroll-extra-bottom` di scroll) — `content-padding-above-nav-default`.
-  - **Daily task** (termasuk tab **Initiative** `?view=initiative` dalam shell yang sama): **4rem** — `content-padding-above-nav-daily-task` (Android native: **`4rem` saja** di `src/index.css`, tanpa `--content-scroll-extra-bottom`)
-  - **Daily task report:** **4rem** — `content-padding-above-nav-daily-task-report` (Android native: **`4rem` saja** di `src/index.css`, tanpa `--content-scroll-extra-bottom`)
+  - **Default halaman biasa:** **`0.75rem + 3.25rem` + inset bawah** — `content-padding-above-nav-default` (Android: `+ var(--footer-bottom-inset)`)
+  - **Daily task** (termasuk tab **Initiative** `?view=initiative` dalam shell yang sama): **4rem** — `content-padding-above-nav-daily-task` (Android native: **`4rem + --footer-bottom-inset`**)
+  - **Daily task report:** **4rem** — `content-padding-above-nav-daily-task-report` (Android native: **`4rem + --footer-bottom-inset`**)
   - **Job Desc:** **4rem** — `content-padding-above-nav-job-desc`
-  - **Meeting notes:** **4rem** — `content-padding-above-nav-meeting-notes` (Android native: **`4rem` saja** di `src/index.css`, tanpa `--content-scroll-extra-bottom` — selaras §5 inset ganda)
+  - **Meeting notes:** **4rem** — `content-padding-above-nav-meeting-notes` (Android native: **`4rem + --footer-bottom-inset`**)
   - **Schedule:** **`content-padding-above-nav-default`** (sama seperti Reports).
   - **Client Visit:** **`content-padding-above-nav-client-visit`** (formula sama dengan default; class terpisah untuk kebutuhan khusus).
   - **Leads Management (mobile):** **4rem** — `content-padding-above-nav-leads-management`
   - **Habits (mobile):** **4rem** — `content-padding-above-nav-habits`
-  - **Expenses (mobile — dashboard, debt, approvals, payment, bills):** **`content-padding-above-nav-default`** via `MobileExpensesShell`; section anak **tanpa** `px-2`/`px-3` tambahan (satu wrapper `max-w-md px-2 pt-2 space-y-1`). Di dalam area scroll, bungkus pull-to-refresh + konten dengan kolom **`flex min-h-full min-w-0 flex-1 flex-col`**, lalu wrapper yang memakai `content-padding-above-nav-default` beri **`flex flex-1 min-h-0 flex-col`** — supaya tidak ada **celah putih tambahan** antara kartu terakhir dan tab `ExpenseBottomTabs` (**`fixed`**); jarak ke nav tetap hanya formula class (§5, `0.75rem + 3.25rem` + env di non-native).
+  - **Expenses (mobile — dashboard, debt, approvals, payment, bills):** **`content-padding-above-nav-default`** via `MobileExpensesShell`; section anak **tanpa** `px-2`/`px-3` tambahan (satu wrapper `max-w-md px-2 pt-2 space-y-1`). Di dalam area scroll, bungkus pull-to-refresh + konten dengan kolom **`flex min-h-full min-w-0 flex-1 flex-col`**, lalu wrapper yang memakai `content-padding-above-nav-default` beri **`flex flex-1 min-h-0 flex-col`** — supaya tidak ada **celah putih tambahan** antara kartu terakhir dan tab `ExpenseBottomTabs` (**`fixed`**); jarak ke nav = formula class (§5, termasuk `--footer-bottom-inset` di Android).
   - **Subscription overview / plans / management:** **`content-padding-above-nav-default`**
+  - **Livechat (consultant):** **`content-padding-above-nav-livechat`** (sama ritme default; footer CRM **`fixed`** seperti halaman lain)
 - **Tujuan (halaman standar):** Kartu terakhir **tidak tertutup** nav footer; jarak atas konten ke header = **`pt-2`** (8px / 0.5rem) kecuali Home (§5.1).
 
 ### 5.1 Home (`/`) — jarak kartu pertama ↔ header dan kartu terakhir ↔ nav (acuan `src/index.css`)
@@ -189,8 +190,8 @@ Implementasi aktual **Absensi / Home** memakai **satu** class **`.content-paddin
 | Sisi | Nilai | Keterangan |
 |------|--------|------------|
 | **Atas** (garis bawah header → tepi atas kartu/section pertama) | **`padding-top: 0.5rem`** (8px) | Setara **`pt-2`**, cukup rapat ke header. |
-| **Bawah** (tepi bawah kartu terakhir → tepi atas strip nav putih) | **`0.75rem` + `3.25rem` + `env(safe-area-inset-bottom, 0px)`** | **`0.75rem`** = napas di atas nav; **`3.25rem`** = tinggi baris tab nav (setara `min-h-[52px]` grid footer); **`env`** untuk home indicator **iOS / PWA** (bukan Android native di bawah). |
-| **Android native** (`html[data-synckerja-android-native]`) | **Bawah:** `calc(0.75rem + 3.25rem)` saja | Tanpa `--content-scroll-extra-bottom` pada area scroll Home: di native, `.mobile-app-bottom-nav` sudah **`padding-bottom: 0`** — menambahkan inset plugin lagi di scroll membuat **gap abu besar** antara konten dan tab. |
+| **Bawah** (tepi bawah kartu terakhir → tepi atas strip nav putih) | **`0.75rem` + `3.25rem` + max(`env(safe-area-inset-bottom)`, `--footer-bottom-inset`)** | **`0.75rem`** = napas di atas nav; **`3.25rem`** = tinggi baris tab nav (setara `min-h-[52px]` grid footer); inset bawah untuk home indicator / system nav. |
+| **Android native** (`html[data-synckerja-android-native]`) | **Bawah:** `calc(0.75rem + 3.25rem + var(--footer-bottom-inset, 0px))` | Nav `.mobile-app-bottom-nav` **juga** memakai `--footer-bottom-inset` (edge-to-edge). Scroll content **wajib** menambah inset yang sama — kalau hanya `0.75rem + 3.25rem`, section terakhir tertutup footer yang lebih tinggi. |
 
 **Menerapkan pola yang sama di halaman lain (konsistensi):**
 
@@ -266,13 +267,14 @@ Panggil hook di **setiap** halaman full-screen native yang perlu konsistensi; ja
 | **Padding bawah (kartu terakhir → nav footer)** | | |
 | Suku tambahan bawah scroll | Di **Capacitor Android**, mirror inset plugin dengan `--footer-bottom-inset` saat cold; `0px` pasca-resume; browser/PWA non-native: fallback `env` di CSS. | `--content-scroll-extra-bottom` — `useNativeSafeAreaCssVars` (kecuali Home — lihat baris Home) |
 | Home (/) — atas header | 0.5rem | bagian dari `content-padding-above-nav-home` |
-| Home (/) — bawah (non-native) | `0.75rem + 3.25rem + env(safe-area-inset-bottom, 0px)` | `content-padding-above-nav-home` |
-| Home (/) — bawah (Android native) | `0.75rem + 3.25rem` | override `html[data-synckerja-android-native]` di `src/index.css` |
-| Default (halaman biasa) | `0.75rem + 3.25rem + env(safe-area-inset-bottom)`; Android native: `+` tanpa `--content-scroll-extra-bottom` | `content-padding-above-nav-default` |
-| Daily task + Initiative (`?view=initiative`) | 4rem + scroll-extra | `content-padding-above-nav-daily-task` (Android native: **`4rem` saja**) |
-| Daily task report | 4rem + scroll-extra | `content-padding-above-nav-daily-task-report` |
-| Job Desc | 4rem + scroll-extra | `content-padding-above-nav-job-desc` |
-| Meeting notes | 4rem + scroll-extra | `content-padding-above-nav-meeting-notes` |
+| Home (/) — bawah (non-native) | `0.75rem + 3.25rem + max(env, --footer-bottom-inset)` | `content-padding-above-nav-home` |
+| Home (/) — bawah (Android native) | `0.75rem + 3.25rem + --footer-bottom-inset` | override `html[data-synckerja-android-native]` di `src/index.css` |
+| Default (halaman biasa) | sama Home bawah (+ `pt-2` di JSX) | `content-padding-above-nav-default` |
+| Livechat | sama default | `content-padding-above-nav-livechat` |
+| Daily task + Initiative (`?view=initiative`) | `4rem` + inset (Android: `--footer-bottom-inset`) | `content-padding-above-nav-daily-task` |
+| Daily task report | `4rem` + inset | `content-padding-above-nav-daily-task-report` |
+| Job Desc | `4rem` + inset | `content-padding-above-nav-job-desc` |
+| Meeting notes | `4rem` + inset | `content-padding-above-nav-meeting-notes` |
 | Schedule | sama default | `content-padding-above-nav-default` |
 | Client Visit | sama default (class khusus) | `content-padding-above-nav-client-visit` |
 | Leads Management (mobile) | 4rem + scroll-extra | `content-padding-above-nav-leads-management` |

@@ -1,14 +1,21 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 
 const NativeAppServices = lazy(() =>
   import("@/shared/components/NativeAppServices").then((m) => ({ default: m.NativeAppServices })),
 );
 
-/** Capacitor / FCM / OAuth bridges — not needed for first paint on web Lighthouse. */
+/**
+ * Capacitor / FCM / OAuth bridges.
+ * Native: mount immediately (notification tap deep-link must not wait on idle).
+ * Web: defer until idle for Lighthouse first paint.
+ */
 export function DeferredNativeAppServices() {
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(() => Capacitor.isNativePlatform());
 
   useEffect(() => {
+    if (ready) return;
+
     let cancelled = false;
     const mount = () => {
       if (!cancelled) setReady(true);
@@ -27,7 +34,7 @@ export function DeferredNativeAppServices() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [ready]);
 
   if (!ready) return null;
 

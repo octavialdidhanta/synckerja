@@ -239,6 +239,7 @@ All colors MUST be HSL.
    * restores `transition: none` so swipe tracks the finger (no mid-screen stall).
    */
   [data-vaul-drawer].pos-smooth-drawer {
+    /* Open/close only — do not transition height with IME (fights adjustResize → jump). */
     transition: transform 0.2s cubic-bezier(0.32, 0.72, 0, 1) !important;
     will-change: transform;
   }
@@ -253,23 +254,23 @@ All colors MUST be HSL.
   }
 
   /**
-   * Android native + tab `NavigationFooter`: sama seperti Home — jangan tambahkan
-   * `--content-scroll-extra-bottom` di area scroll (nav `.mobile-app-bottom-nav` sudah padding 0;
-   * inset plugin + 4rem membuat gap abu besar). Pakai clearance bar tab + napas saja.
+   * Android native + fixed tab footer: clearance = tinggi bar tab (~3.25–4rem) + napas
+   * + `--footer-bottom-inset` (nav sekarang punya padding safe-area; tanpa ini section terakhir terpotong).
    */
   html[data-synckerja-android-native] .content-padding-above-nav-default,
-  html[data-synckerja-android-native] .content-padding-above-nav-client-visit {
-    padding-bottom: calc(0.75rem + 3.25rem);
+  html[data-synckerja-android-native] .content-padding-above-nav-client-visit,
+  html[data-synckerja-android-native] .content-padding-above-nav-home,
+  html[data-synckerja-android-native] .content-padding-above-nav-livechat {
+    padding-bottom: calc(0.75rem + 3.25rem + var(--footer-bottom-inset, 0px));
   }
 
-  /**
-   * Daily task list, Initiative (`?view=initiative`), meeting notes, daily task report (Tools footer):
-   * di native jangan tambah `--content-scroll-extra-bottom` pada area scroll (nav inner sudah 0; 4rem + inset = gap abu besar).
-   */
   html[data-synckerja-android-native] .content-padding-above-nav-daily-task,
   html[data-synckerja-android-native] .content-padding-above-nav-meeting-notes,
-  html[data-synckerja-android-native] .content-padding-above-nav-daily-task-report {
-    padding-bottom: 4rem;
+  html[data-synckerja-android-native] .content-padding-above-nav-daily-task-report,
+  html[data-synckerja-android-native] .content-padding-above-nav-leads-management,
+  html[data-synckerja-android-native] .content-padding-above-nav-job-desc,
+  html[data-synckerja-android-native] .content-padding-above-nav-habits {
+    padding-bottom: calc(4rem + var(--footer-bottom-inset, 0px));
   }
 
   /**
@@ -279,7 +280,7 @@ All colors MUST be HSL.
    */
   .modal-above-safe-area {
     /* Fallback 3rem: Android WebView sering lapor inset bawah = 0 sementara tombol nav sistem ~48dp masih menimpa konten. */
-    bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px), 3rem);
+    bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px), var(--footer-bottom-inset, 0px), 3rem);
   }
 
   /**
@@ -292,27 +293,111 @@ All colors MUST be HSL.
 
   /**
    * Saat tab bar aplikasi disembunyikan (`MobileAppNavSuppressionProvider`), modal fullscreen
-   * cukup menjaga safe area sistem — tanpa fallback 3rem (menghindari celah putih di atas nav/keyboard).
+   * menjaga safe area sistem (+ `--footer-bottom-inset`). Di Android native: floor 3rem jika
+   * plugin belum siap (tinggi tipikal system nav 3-button).
    */
   html[data-mobile-shell-nav-suppressed="true"] .modal-above-safe-area {
-    bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
+    bottom: max(
+      var(--safe-area-inset-bottom, 0px),
+      env(safe-area-inset-bottom, 0px),
+      var(--footer-bottom-inset, 0px)
+    );
+  }
+
+  html[data-synckerja-android-native][data-mobile-shell-nav-suppressed="true"] .modal-above-safe-area {
+    bottom: max(
+      3rem,
+      var(--safe-area-inset-bottom, 0px),
+      env(safe-area-inset-bottom, 0px),
+      var(--footer-bottom-inset, 0px)
+    );
   }
 
   html[data-mobile-shell-nav-suppressed="true"] .modal-overlay-above-safe-area {
-    bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px)) !important;
+    bottom: max(
+      var(--safe-area-inset-bottom, 0px),
+      env(safe-area-inset-bottom, 0px),
+      var(--footer-bottom-inset, 0px)
+    ) !important;
+  }
+
+  html[data-synckerja-android-native][data-mobile-shell-nav-suppressed="true"] .modal-overlay-above-safe-area {
+    bottom: max(
+      3rem,
+      var(--safe-area-inset-bottom, 0px),
+      env(safe-area-inset-bottom, 0px),
+      var(--footer-bottom-inset, 0px)
+    ) !important;
+  }
+
+  /**
+   * Spacer di dalam Vaul `DrawerContent` — mendorong field/dropdown terakhir di atas
+   * system nav / home indicator tanpa mengubah `bottom` Vaul (aman untuk keyboard pin POS).
+   */
+  .drawer-safe-area-spacer {
+    width: 100%;
+    flex-shrink: 0;
+    pointer-events: none;
+    height: max(
+      0.75rem,
+      var(--footer-bottom-inset, 0px),
+      var(--safe-area-inset-bottom, 0px),
+      env(safe-area-inset-bottom, 0px)
+    );
+  }
+
+  html[data-synckerja-android-native] .drawer-safe-area-spacer {
+    /* ~48dp system nav when plugin returns 0 briefly */
+    height: max(
+      3rem,
+      var(--footer-bottom-inset, 0px),
+      var(--safe-area-inset-bottom, 0px),
+      env(safe-area-inset-bottom, 0px)
+    );
   }
 
   /** Padding bawah untuk konten yang full-tinggi (bukan offset `bottom`); gunakan jika perlu teks di atas area nav */
   .safe-area-bottom {
-    padding-bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(
+      var(--footer-bottom-inset, 0px),
+      var(--safe-area-inset-bottom, 0px),
+      env(safe-area-inset-bottom, 0px)
+    );
   }
 
   /**
-   * Footer tab: hanya `--footer-bottom-inset` (dikendalikan JS; cold = plugin, setelah resume dari
-   * background = 0). Tanpa env di sini agar tidak strip abu ganda pasca-resume.
+   * Footer tab: hanya `--footer-bottom-inset` (plugin SafeAreaInsets).
+   * Tanpa env di sini agar tidak strip abu ganda pasca-resume.
    */
   .safe-area-bottom-lower {
     padding-bottom: var(--footer-bottom-inset, 0px);
+  }
+
+  /**
+   * IME open (set by PosKeyboardOpenDocumentAttrSync / Capacitor keyboard):
+   * drop nav safe-area under footers so Favorit/Library/Custom (and POS shells)
+   * sit flush on the keyboard — avoid black gap from leftover inset / nav scrim pad.
+   */
+  html[data-keyboard-open] {
+    --footer-bottom-inset: 0px;
+    --safe-area-inset-bottom: 0px;
+  }
+
+  html[data-keyboard-open] .safe-area-bottom,
+  html[data-keyboard-open] .safe-area-bottom-lower {
+    padding-bottom: 0 !important;
+  }
+
+  /**
+   * Drawer/IME on top: keep the frozen POS shell's tab bar inset so product
+   * grids do not expand over Favorit/Library/Custom when the keyboard closes.
+   */
+  html[data-keyboard-open] [data-pos-freeze-keyboard-chrome] .safe-area-bottom,
+  html[data-keyboard-open] [data-pos-freeze-keyboard-chrome] .safe-area-bottom-lower {
+    padding-bottom: max(
+      var(--pos-frozen-footer-inset, 0px),
+      env(safe-area-inset-bottom, 0px)
+    ) !important;
   }
 
   .safe-area-padding-bottom {
@@ -325,47 +410,47 @@ All colors MUST be HSL.
   }
 
   /**
-   * Android Capacitor + edge-to-edge: `env(safe-area-inset-bottom)` / var inset sering **tidak selaras**
-   * dengan bilah sistem yang sudah opaque — strip di atas nav setelah resume.
-   * `data-synckerja-android-native` di-set dari `useNativeViewportNoPinchZoom`.
-   * Padding bisa di `<nav>` (NavigationFooter) atau di anak `<div>` (ExpenseTabs, Tools).
+   * Android Capacitor + edge-to-edge (MainActivity `setDecorFitsSystemWindows(false)` + nav scrim):
+   * - Nav footer WAJIB memakai `--footer-bottom-inset` agar tab tidak mentok/overlap bilah sistem.
+   * - Anak grid tidak menambah inset kedua (hindari strip abu ganda).
+   * - Kelas env-based (capped / padding-bottom) dinonaktifkan di native — ganti dengan inset plugin.
    */
-  html[data-synckerja-android-native] .mobile-app-bottom-nav,
+  html[data-synckerja-android-native] .mobile-app-bottom-nav {
+    padding-bottom: var(--footer-bottom-inset, 0px) !important;
+  }
   html[data-synckerja-android-native] .mobile-app-bottom-nav > div {
     padding-bottom: 0 !important;
   }
-
-  /**
-   * Expense mobile — hindari **ganda** inset bawah:
-   * - Area scroll: cukup ruang untuk **tinggi bar tab** (rem). Jangan tambah `env` di sini — inset sistem
-   *   sudah diterapkan sekali di `.expense-mobile-tabbar-inner` (di atas bilah navigasi sistem).
-   * - Tanpa env di scroll: setelah resume, WebView tidak menumpuk `env` + padding scroll + padding tab.
-   */
-  .expense-mobile-scroll-padding {
-    padding-bottom: 3.5rem;
+  html[data-synckerja-android-native] .mobile-app-bottom-nav.safe-area-padding-bottom,
+  html[data-synckerja-android-native] .mobile-app-bottom-nav.safe-area-padding-bottom-capped,
+  html[data-synckerja-android-native] .mobile-app-bottom-nav .safe-area-padding-bottom,
+  html[data-synckerja-android-native] .mobile-app-bottom-nav .safe-area-padding-bottom-capped,
+  html[data-synckerja-android-native] .mobile-app-bottom-nav .safe-area-bottom-lower {
+    padding-bottom: 0 !important;
   }
 
   /*
-   * Home (/): atas lebih rapat (pt-2); bawah tetap literal — jangan ubah calc bawah kecuali sengaja
-   * menyesuaikan tinggi nav. Android native: tanpa inset plugin di scroll.
-   * iOS/PWA: `env(safe-area-inset-bottom)` pada padding bawah saja.
+   * Home (/): atas lebih rapat (pt-2); bawah: tab + napas (+ env di non-native).
+   * Android native: override di blok `html[data-synckerja-android-native]` di atas (+ footer-bottom-inset).
    */
   .content-padding-above-nav-home {
     padding-top: 0.5rem;
-    padding-bottom: calc(0.75rem + 3.25rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(
+      0.75rem + 3.25rem + max(env(safe-area-inset-bottom, 0px), var(--footer-bottom-inset, 0px))
+    );
   }
 
-  html[data-synckerja-android-native] .content-padding-above-nav-home {
-    padding-bottom: calc(0.75rem + 3.25rem);
-  }
-
-  /* Schedule, Reports, Profile, Subscription, Expenses shell, dll.: selaraskan dengan Home — tanpa var inset ganda. */
+  /* Schedule, Reports, Profile, Subscription, Expenses shell, dll. */
   .content-padding-above-nav-default {
-    padding-bottom: calc(0.75rem + 3.25rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(
+      0.75rem + 3.25rem + max(env(safe-area-inset-bottom, 0px), var(--footer-bottom-inset, 0px))
+    );
   }
 
   .content-padding-above-nav-client-visit {
-    padding-bottom: calc(0.75rem + 3.25rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(
+      0.75rem + 3.25rem + max(env(safe-area-inset-bottom, 0px), var(--footer-bottom-inset, 0px))
+    );
   }
 
   .content-padding-above-nav-daily-task {
@@ -390,6 +475,17 @@ All colors MUST be HSL.
 
   .content-padding-above-nav-habits {
     padding-bottom: calc(4rem + var(--content-scroll-extra-bottom, env(safe-area-inset-bottom, 0px)));
+  }
+
+  /** Consultant livechat — sama ritme default (footer CRM fixed). */
+  .content-padding-above-nav-livechat {
+    padding-bottom: calc(
+      0.75rem + 3.25rem + max(env(safe-area-inset-bottom, 0px), var(--footer-bottom-inset, 0px))
+    );
+  }
+
+  .expense-mobile-scroll-padding {
+    padding-bottom: calc(3.5rem + var(--footer-bottom-inset, 0px));
   }
 
   .auth-input-scroll-margin {

@@ -5,22 +5,13 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { isPaidSalesActivity } from '@/shared/lib/sales/isPaidSalesActivity';
 import {
   aggregateCustomerSpend,
-  resolveCustomerSince,
   type CustomerSpendActivity,
 } from '../lib/aggregateCustomerSpend';
+import { groupCustomerClv, type CustomerClvLeadInput } from '../lib/groupCustomerClv';
 import { filterCustomers } from '../lib/filterCustomers';
 import type { CustomerListRow } from '../types';
 
 export const OPERATIONS_CUSTOMERS_LIST_QUERY_KEY = 'operations-customers-list';
-
-type LeadRow = {
-  id: string;
-  client: string;
-  email: string | null;
-  phone_number: string | null;
-  converted_at: string | null;
-  created_at: string;
-};
 
 type SalesActivityRow = {
   lead_id: string | null;
@@ -31,35 +22,13 @@ type SalesActivityRow = {
   is_paid: boolean | null;
 };
 
-function buildCustomerRows(leads: LeadRow[], paidActivities: CustomerSpendActivity[]): CustomerListRow[] {
+function buildCustomerRows(
+  leads: CustomerClvLeadInput[],
+  paidActivities: CustomerSpendActivity[],
+): CustomerListRow[] {
   const leadIdsWithPaid = new Set(paidActivities.map((row) => row.lead_id));
   const spendByLead = aggregateCustomerSpend(paidActivities);
-
-  return leads
-    .filter((lead) => Boolean(lead.converted_at) || leadIdsWithPaid.has(lead.id))
-    .map((lead) => {
-      const spend = spendByLead.get(lead.id) ?? {
-        thisMonth: 0,
-        thisYear: 0,
-        lifetime: 0,
-        firstPurchaseDate: null,
-      };
-      return {
-        id: lead.id,
-        name: lead.client?.trim() || '—',
-        email: lead.email?.trim() || null,
-        phone: lead.phone_number?.trim() || null,
-        customerSince: resolveCustomerSince({
-          convertedAt: lead.converted_at,
-          createdAt: lead.created_at,
-          firstPurchaseDate: spend.firstPurchaseDate,
-        }),
-        thisMonth: spend.thisMonth,
-        thisYear: spend.thisYear,
-        lifetime: spend.lifetime,
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  return groupCustomerClv(leads, spendByLead, leadIdsWithPaid);
 }
 
 export function useCustomersList(search: string) {
@@ -76,8 +45,9 @@ export function useCustomersList(search: string) {
       const [leadsRes, salesRes] = await Promise.all([
         supabase
           .from('leads')
-          .select('id, client, email, phone_number, converted_at, created_at')
-          .eq('organization_id', organizationId),
+          .select('id, client, email, phone_number, converted_at, created_at, updated_at')
+          .eq('organization_id', organizationId)
+          .is('merged_into_lead_id', null),
         supabase
           .from('sales_activities')
           .select('lead_id, date, total_amount, total_paid_amount, payment_status, is_paid')
@@ -96,7 +66,20 @@ export function useCustomersList(search: string) {
           total_amount: Number((row as SalesActivityRow).total_amount),
         }));
 
-      return buildCustomerRows((leadsRes.data ?? []) as LeadRow[], paidActivities);
+      const leads: CustomerClvLeadInput[] = (leadsRes.data ?? []).map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          id: String(r.id),
+          client: String(r.client ?? ''),
+          email: r.email == null ? null : String(r.email),
+          phone_number: r.phone_number == null ? null : String(r.phone_number),
+          converted_at: r.converted_at == null ? null : String(r.converted_at),
+          created_at: String(r.created_at ?? ''),
+          updated_at: r.updated_at == null ? null : String(r.updated_at),
+        };
+      });
+
+      return buildCustomerRows(leads, paidActivities);
     },
   });
 

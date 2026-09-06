@@ -21,7 +21,7 @@ const navItems = [
 ];
 
 interface NavigationFooterProps {
-  /** Optional class; default `safe-area-padding-bottom-capped`. Legacy: `safe-area-bottom-lower`, `safe-area-padding-bottom`. */
+  /** Optional class; default `safe-area-bottom-lower` (plugin inset). Legacy env classes still accepted. */
   className?: string;
   /** When true, render only the footer bar (no nav icons). Use e.g. on livechat to reserve space for custom nav. */
   hideItems?: boolean;
@@ -47,7 +47,7 @@ export const NavigationFooter = ({ className, hideItems }: NavigationFooterProps
 
   return (
     <nav
-      className={`mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card ${className ?? "safe-area-padding-bottom-capped"}`.trim()}
+      className={`mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card ${className ?? "safe-area-bottom-lower"}`.trim()}
     >
       <div
         className={`mx-auto grid max-w-md ${showThreeItemBar ? "min-h-[52px] grid-cols-3" : hideItems ? "min-h-[52px] grid-cols-1 place-items-center" : ""}`.trim()}

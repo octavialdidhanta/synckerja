@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 12+ cold start: logo pusat lewat windowSplashScreenAnimatedIcon (mask lingkaran sistem). -->
+<!-- Android 12+ cold start: logo sedikit lebih kecil di dalam mask lingkaran sistem. -->
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
-    android:drawable="@drawable/app_brand_logo"
-    android:insetLeft="18%"
-    android:insetTop="18%"
-    android:insetRight="18%"
-    android:insetBottom="18%" />
+    android:drawable="@drawable/splash_logo"
+    android:insetLeft="12%"
+    android:insetTop="12%"
+    android:insetRight="12%"
+    android:insetBottom="12%" />

@@ -128,8 +128,10 @@ export function PosFavoritesGrid({
     <div className="flex h-full min-h-0 flex-col">
       <div
         className={cn(
-          "scrollbar-hide seamless-scroll nested-scroll-touch-chain grid flex-1 auto-rows-max content-start gap-2 overflow-y-auto overflow-x-hidden p-3 sm:gap-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-          isPhoneLayout ? "grid-cols-3" : "grid-cols-4",
+          "scrollbar-hide seamless-scroll nested-scroll-touch-chain grid flex-1 auto-rows-max content-start overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          isPhoneLayout
+            ? "grid-cols-3 gap-1.5 p-2"
+            : "grid-cols-4 gap-2 p-3 sm:gap-3",
         )}
       >
         {pageItems.map((item) => {
@@ -150,7 +152,7 @@ export function PosFavoritesGrid({
             <div
               key={item.id}
               className={cn(
-                "relative",
+                "relative h-full min-h-0",
                 draggingId === item.id && "opacity-60",
                 dragOverId === item.id && editing && "ring-2 ring-primary/50 rounded-lg",
               )}
@@ -203,13 +205,13 @@ export function PosFavoritesGrid({
                 type="button"
                 disabled={editing ? false : disabled || out || !(item.unitPrice > 0)}
                 className={cn(
-                  "flex w-full flex-col overflow-hidden rounded-lg bg-white text-left shadow-sm ring-1 ring-black/5",
+                  "flex h-full w-full min-h-0 flex-col overflow-hidden rounded-lg bg-white text-left shadow-sm ring-1 ring-black/5",
                   "transition hover:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50",
                   editing && "pointer-events-none",
                 )}
                 tabIndex={editing ? -1 : 0}
               >
-                <div className="relative aspect-square w-full bg-slate-100">
+                <div className="relative aspect-square w-full shrink-0 bg-slate-100">
                   {item.photoUrl ? (
                     <img
                       src={item.photoUrl}
@@ -247,13 +249,17 @@ export function PosFavoritesGrid({
                     </div>
                   ) : null}
                 </div>
-                <div className="px-1.5 py-1.5">
-                  <p className="line-clamp-2 text-xs font-medium leading-tight text-slate-900">{label}</p>
+                <div className="flex flex-1 flex-col justify-start px-1.5 py-1.5">
+                  <p className="line-clamp-2 h-[2.25rem] text-xs font-medium leading-[1.125rem] text-slate-900">
+                    {label}
+                  </p>
                   {!editing ? (
-                    <p className="truncate text-[10px] text-slate-500">
+                    <p className="mt-0.5 truncate text-[10px] leading-4 text-slate-500">
                       {formatStoreCheckoutRp(item.unitPrice)}
                     </p>
-                  ) : null}
+                  ) : (
+                    <p className="mt-0.5 h-4" aria-hidden />
+                  )}
                 </div>
               </button>
               {editing ? (

@@ -29,13 +29,22 @@ function TotalsRow({
   return (
     <div
       className={cn(
-        "flex justify-between gap-3 py-2.5",
-        emphasis ? "font-semibold text-slate-900" : "text-slate-600",
+        "flex justify-between gap-3 border-b border-slate-200 px-3 py-3 last:border-b-0",
+        emphasis
+          ? "border-slate-700/40 bg-slate-800 font-semibold text-white"
+          : "text-slate-700",
         className,
       )}
     >
       <span className="min-w-0">{label}</span>
-      <span className="flex-shrink-0 tabular-nums">{value}</span>
+      <span
+        className={cn(
+          "flex-shrink-0 tabular-nums",
+          emphasis ? "text-white" : "text-slate-900",
+        )}
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -73,43 +82,36 @@ export function PosActivityTotalsBlock({
     );
 
   return (
-    <div className="mt-3 border-t border-slate-200 text-sm">
-      {/* Charges: subtotal / tax / gratuity */}
-      <div className="divide-y divide-slate-100 border-b border-slate-200">
-        {totals.subtotal != null ? (
-          <TotalsRow
-            label={t(POS_ACTIVITY_I18N.subtotal, "Subtotal")}
-            value={formatStoreCheckoutRp(totals.subtotal)}
-          />
-        ) : null}
-
-        {totals.showTax ? (
-          <TotalsRow
-            label={`${taxLabel}${includedSuffix}`}
-            value={formatStoreCheckoutRp(totals.taxAmount)}
-          />
-        ) : null}
-
-        {totals.showGratuity ? (
-          <TotalsRow
-            label={`${gratuityLabel}${includedSuffix}`}
-            value={formatStoreCheckoutRp(totals.gratuityAmount)}
-          />
-        ) : null}
-      </div>
-
-      {/* Grand total */}
-      <div className="border-b border-slate-200">
+    <div className="bg-slate-50/80 text-sm">
+      {totals.subtotal != null ? (
         <TotalsRow
-          label={t(POS_ACTIVITY_I18N.total, "Total")}
-          value={formatStoreCheckoutRp(totals.displayTotal)}
-          emphasis
+          label={t(POS_ACTIVITY_I18N.subtotal, "Subtotal")}
+          value={formatStoreCheckoutRp(totals.subtotal)}
         />
-      </div>
+      ) : null}
 
-      {/* Payment / change / paid */}
+      {totals.showTax ? (
+        <TotalsRow
+          label={`${taxLabel}${includedSuffix}`}
+          value={formatStoreCheckoutRp(totals.taxAmount)}
+        />
+      ) : null}
+
+      {totals.showGratuity ? (
+        <TotalsRow
+          label={`${gratuityLabel}${includedSuffix}`}
+          value={formatStoreCheckoutRp(totals.gratuityAmount)}
+        />
+      ) : null}
+
+      <TotalsRow
+        label={t(POS_ACTIVITY_I18N.total, "Total")}
+        value={formatStoreCheckoutRp(totals.displayTotal)}
+        emphasis
+      />
+
       {showPaymentBlock ? (
-        <div className="divide-y divide-slate-100">
+        <>
           {totals.showTendered && totals.tendered != null ? (
             <TotalsRow
               label={t(POS_ACTIVITY_I18N.payment, "Payment")}
@@ -134,12 +136,12 @@ export function PosActivityTotalsBlock({
           {detail.payment_reference &&
           detail.payment_method &&
           detail.payment_method !== "cash" ? (
-            <div className="flex justify-between gap-3 py-2.5 text-xs text-slate-500">
+            <div className="flex justify-between gap-3 border-b border-slate-200 px-3 py-3 text-xs text-slate-500 last:border-b-0">
               <span>{t(POS_ACTIVITY_I18N.paymentReference, "Reference")}</span>
               <span className="truncate text-right">{detail.payment_reference}</span>
             </div>
           ) : null}
-        </div>
+        </>
       ) : null}
     </div>
   );

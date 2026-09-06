@@ -1,7 +1,9 @@
-import { Button } from "@/shared/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
 import { personalCustomerName } from "@/pos-receipt-feedback/lib/isGenericCustomerName";
 import type { CustomerVisitCartLine } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { formatPosActivityReceiptNumber } from "../lib/formatPosActivityReceiptNumber";
 import { mapPosActivityPaymentLabel } from "../lib/mapPosActivityPaymentLabel";
 import type { PosActivityApplicationMethod } from "../lib/computePosActivityDisplayTotals";
@@ -13,16 +15,13 @@ import { PosActivityProductSection } from "./PosActivityProductSection";
 type Props = {
   detail: PosActivityDetail | null;
   loading?: boolean;
-  canSend: boolean;
-  canRefund: boolean;
-  refundBusy?: boolean;
   cartSnapshot?: CustomerVisitCartLine[] | null;
   salesTypeNameById: Map<string, string>;
   applicationMethod: PosActivityApplicationMethod;
   taxLabel: string;
   gratuityLabel: string;
-  onSendReceipt: () => void;
-  onSelectRefund: () => void;
+  /** Phone detail: show back to list. */
+  onBack?: () => void;
 };
 
 function formatPurchaseTime(
@@ -51,23 +50,19 @@ function formatPurchaseTime(
 export function PosActivityDetailPane({
   detail,
   loading,
-  canSend,
-  canRefund,
-  refundBusy,
   cartSnapshot,
   salesTypeNameById,
   applicationMethod,
   taxLabel,
   gratuityLabel,
-  onSendReceipt,
-  onSelectRefund,
+  onBack,
 }: Props) {
   const { t, language } = useAppTranslation();
   const locale = typeof language === "string" ? language : "id";
 
   if (!detail && !loading) {
     return (
-      <div className="flex h-full min-h-0 min-w-0 flex-1 items-center justify-center px-6">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 items-center justify-center bg-slate-100 px-6">
         <p className="text-center text-sm text-slate-400">
           {t(POS_ACTIVITY_I18N.selectPrompt, "Select a transaction to view details.")}
         </p>
@@ -77,50 +72,64 @@ export function PosActivityDetailPane({
 
   if (!detail) {
     return (
-      <div className="flex h-full min-h-0 min-w-0 flex-1 items-center justify-center px-6">
-        <p className="text-sm text-slate-400">
-          {t(POS_ACTIVITY_I18N.loading, "Loading activity…")}
-        </p>
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-100">
+        {onBack ? (
+          <div className={POS_PANEL.header}>
+            <button
+              type="button"
+              onClick={onBack}
+              onPointerDown={(e) => e.stopPropagation()}
+              className={POS_PANEL.headerBack}
+              aria-label={t(POS_ACTIVITY_I18N.phonePaneList, "Back")}
+              data-no-pane-swipe
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <h2 className={POS_PANEL.headerTitle}>
+              {t(POS_ACTIVITY_I18N.title, "Activity")}
+            </h2>
+          </div>
+        ) : null}
+        <div className="flex flex-1 items-center justify-center px-6">
+          <p className="text-sm text-slate-400">
+            {t(POS_ACTIVITY_I18N.loading, "Loading activity…")}
+          </p>
+        </div>
       </div>
     );
   }
 
-  const isRefunded = detail.refund_status === "full";
   const customer =
     personalCustomerName(detail.client_name) ||
     t(POS_ACTIVITY_I18N.walkIn, "Walk-in");
   const receipt = formatPosActivityReceiptNumber(detail.id) || t(POS_ACTIVITY_I18N.dash, "—");
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="flex flex-shrink-0 gap-2 border-b border-slate-100 p-4">
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11 min-w-0 flex-1 border-primary text-primary hover:bg-primary/5"
-          disabled={!canSend}
-          onClick={onSendReceipt}
-        >
-          {t(POS_ACTIVITY_I18N.sendReceipt, "Send receipt")}
-        </Button>
-        {isRefunded ? (
-          <div className="flex h-11 min-w-0 flex-1 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-sm font-medium text-amber-800">
-            {t(POS_ACTIVITY_I18N.refundedBadge, "Refunded")}
-          </div>
-        ) : (
-          <Button
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-100">
+      {onBack ? (
+        <div className={cn(POS_PANEL.header, "sticky top-0 z-20")}>
+          <button
             type="button"
-            variant="outline"
-            className="h-11 min-w-0 flex-1"
-            disabled={!canRefund || refundBusy}
-            onClick={onSelectRefund}
+            onClick={onBack}
+            onPointerDown={(e) => e.stopPropagation()}
+            className={POS_PANEL.headerBack}
+            aria-label={t(POS_ACTIVITY_I18N.phonePaneList, "Back")}
+            data-no-pane-swipe
           >
-            {t(POS_ACTIVITY_I18N.selectRefund, "Select refund")}
-          </Button>
-        )}
-      </div>
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <h2 className={POS_PANEL.headerTitle}>
+            {t(POS_ACTIVITY_I18N.title, "Activity")}
+          </h2>
+        </div>
+      ) : null}
 
-      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
+      <div
+        className={cn(
+          "scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden",
+          POS_PANEL.body,
+        )}
+      >
         <PosActivityDetailMeta
           paymentMethod={mapPosActivityPaymentLabel(detail.payment_method, t)}
           receiptNumber={receipt}

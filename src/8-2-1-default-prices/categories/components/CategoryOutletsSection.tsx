@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { usePosOutlets } from "@/8-2-2-outlets/hooks/usePosOutlets";
 import { summarizeAssignedOutlets } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { AssignCategoryOutletDialog } from "./AssignCategoryOutletDialog";
@@ -17,26 +19,35 @@ export function CategoryOutletsSection({ selectedIds, onChange }: CategoryOutlet
   const summary = summarizeAssignedOutlets(rows, selectedIds);
 
   return (
-    <section className="space-y-3 rounded-lg border p-4">
-      <h3 className="text-sm font-semibold">
+    <section>
+      <p className={POS_PANEL.sectionTitle}>
         {t("defaultPrices.category.outletsSection", "Assigned Outlets")}
-      </h3>
-      <p className="text-xs text-muted-foreground">
-        {t("defaultPrices.category.outletsHint", "Select outlets that use this category")}
       </p>
-      <Button type="button" className="w-full" onClick={() => setOpen(true)}>
-        {t("defaultPrices.category.assignOutlet", "Assign Outlet")}
-      </Button>
-      {summary.names.length > 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {summary.names.join(", ")}
-          {summary.extra > 0 ? ` +${summary.extra}` : ""}
-        </p>
-      ) : (
-        <p className="text-sm text-destructive">
-          {t("outlets.assign.minOne", "Please select minimum one outlet")}
-        </p>
-      )}
+      <div className={cn(POS_PANEL.card, "mb-1")}>
+        <div className={cn(POS_PANEL.row, "flex-col items-stretch gap-2")}>
+          <p className="text-xs leading-relaxed text-slate-500">
+            {t("defaultPrices.category.outletsHint", "Select outlets that use this category")}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full border-slate-200 bg-white text-sm font-semibold text-slate-800"
+            onClick={() => setOpen(true)}
+          >
+            {t("defaultPrices.category.assignOutlet", "Assign Outlet")}
+          </Button>
+          {summary.names.length > 0 ? (
+            <p className="text-sm text-slate-700">
+              {summary.names.join(", ")}
+              {summary.extra > 0 ? ` +${summary.extra}` : ""}
+            </p>
+          ) : (
+            <p className="text-sm text-destructive">
+              {t("outlets.assign.minOne", "Please select minimum one outlet")}
+            </p>
+          )}
+        </div>
+      </div>
       <AssignCategoryOutletDialog
         open={open}
         onOpenChange={setOpen}

@@ -25,7 +25,7 @@ function AssignStoreInner({ outletName, onBeforeNavigateToPos }: Props) {
   return (
     <div className="mx-auto max-w-md space-y-4 rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
           <Store className="h-5 w-5" aria-hidden />
         </div>
         <div className="min-w-0">
@@ -56,9 +56,9 @@ function AssignStoreInner({ outletName, onBeforeNavigateToPos }: Props) {
             type="button"
             onClick={() => {
               onBeforeNavigateToPos?.();
-              navigate(POS_AUTH_PATHS.cashier);
+              navigate(POS_AUTH_PATHS.cashier, { replace: true });
             }}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 text-sm font-bold text-white transition hover:bg-teal-700"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-bold text-white transition hover:bg-slate-800"
           >
             <LayoutGrid className="h-4 w-4" aria-hidden />
             {t(POS_KITCHEN_SETTINGS_I18N.backToPos, "Back to Point of Sale")}

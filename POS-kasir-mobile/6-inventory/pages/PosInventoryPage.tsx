@@ -4,6 +4,7 @@ import { useCatalogIngredients } from "@/8-2-3-ingredient/library/hooks/useCatal
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import { usePosTabletShell } from "@/pos-mobile/shared/hooks/usePosTabletShell";
+import { usePosKeyboardShellStyle } from "@/pos-mobile/shared/hooks/usePosKeyboardShellStyle";
 import { useMarkPosAuthSurface } from "@/pos-mobile/0-auth/lib/useMarkPosAuthSurface";
 import { POS_AUTH_PATHS } from "@/pos-mobile/0-auth/lib/posAuthPaths";
 import {
@@ -14,6 +15,7 @@ import { PosCashierMenuDrawer } from "@/pos-mobile/2-cashier/components/PosCashi
 import { usePosCashierIsPhoneLayout } from "@/pos-mobile/2-cashier/hooks/usePosCashierIsPhoneLayout";
 import { PosAppFooterBar } from "@/pos-mobile/shared/layout/PosAppFooterBar";
 import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
 import { resolvePosPostOutletPath } from "@/pos-mobile/shared/access";
 import { PosInventoryPhoneList } from "../components/PosInventoryPhoneList";
@@ -37,6 +39,7 @@ export default function PosInventoryPage() {
   const isPhoneLayout = usePosCashierIsPhoneLayout();
   usePosTabletShell({ phoneOverlay: isPhoneLayout });
   useMarkPosAuthSurface();
+  const keyboardShellStyle = usePosKeyboardShellStyle();
   const { t } = useAppTranslation();
   const permissions = usePosAppPermissions();
 
@@ -101,33 +104,37 @@ export default function PosInventoryPage() {
   return (
     <>
       <div
-        className={cn(
-          "relative flex h-[100dvh] flex-col overflow-hidden",
-          isPhoneLayout ? "bg-white" : "bg-slate-100",
-        )}
+        className="relative flex h-[100dvh] flex-col overflow-hidden bg-slate-100"
+        style={keyboardShellStyle}
       >
         {isPhoneLayout ? (
           <>
             <PosSafeAreaTopSpacer />
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-100">
               {toolbar}
-              <PosInventoryPhoneList
-                outletId={outletId}
-                rows={filteredRows}
-                isLoading={isLoading}
-              />
+              <div className={cn(POS_PANEL.body, "flex min-h-0 flex-col pt-2")}>
+                <div className={cn(POS_PANEL.card, "flex min-h-0 flex-1 flex-col")}>
+                  <PosInventoryPhoneList
+                    outletId={outletId}
+                    rows={filteredRows}
+                    isLoading={isLoading}
+                  />
+                </div>
+              </div>
             </div>
           </>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 pb-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-2 px-2 py-3 pb-3 sm:px-2.5">
             {toolbar}
-            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-              <div className="flex-shrink-0 border-b border-slate-100 px-4 py-3">
-                <h1 className="text-lg font-semibold text-slate-900">
+            <section
+              className={cn(POS_PANEL.card, "flex min-h-0 flex-1 flex-col")}
+            >
+              <div className="flex-shrink-0 border-b border-slate-200 px-3 py-3">
+                <h1 className="text-base font-semibold text-slate-900">
                   {t(POS_INVENTORY_I18N.title, "Inventory")}
                 </h1>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col px-2 sm:px-4">
+              <div className="flex min-h-0 flex-1 flex-col px-1 sm:px-2">
                 <PosInventoryTable
                   outletId={outletId}
                   rows={filteredRows}

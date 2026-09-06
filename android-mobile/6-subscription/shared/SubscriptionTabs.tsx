@@ -45,11 +45,11 @@ const SubscriptionBottomTabsComponent: React.FC<SubscriptionBottomTabsProps> = (
     );
 
     return (
-      <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card">
+      <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card safe-area-bottom-lower">
         <div
           className={cn(
             "mx-auto grid w-full max-w-md grid-cols-3",
-            className ?? "safe-area-padding-bottom",
+            className,
           )}
         >
           {tabItems.map(({ key, icon: Icon }) => {

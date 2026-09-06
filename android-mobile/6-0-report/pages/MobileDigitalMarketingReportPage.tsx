@@ -296,7 +296,7 @@ function MobileDigitalMarketingReportPageBody({
                   )}
                   aria-hidden={showTableSkeletonOverlay}
                 >
-                  <div className="mx-auto min-w-0 w-full max-w-md space-y-2 px-2 pt-2 pb-[calc(0.5rem+3.25rem+env(safe-area-inset-bottom,0px))] [[data-synckerja-android-native]_&]:pb-[calc(0.5rem+3.25rem)]">
+                  <div className="content-padding-above-nav-default mx-auto min-w-0 w-full max-w-md space-y-2 px-2 pt-2">
                     <MobileReportSummaryBar
                       bootstrapLoading={showTableSkeletonOverlay}
                       googleServiceRows={googleServiceRows}

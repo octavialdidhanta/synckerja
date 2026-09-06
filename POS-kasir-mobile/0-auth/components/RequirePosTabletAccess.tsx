@@ -6,6 +6,7 @@ import {
   readPosSelectedOutletId,
 } from "@/pos-mobile/1-outlet-select/lib/posSelectedOutletStorage";
 import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
+import { usePosNativeHardwareBack } from "@/pos-mobile/shared/hooks/usePosNativeHardwareBack";
 import { POS_AUTH_PATHS } from "../lib/posAuthPaths";
 import { PosTabletAccessSkeleton } from "./PosTabletAccessSkeleton";
 import PosAccessDeniedPage from "../pages/PosAccessDeniedPage";
@@ -16,6 +17,7 @@ import PosAccessDeniedPage from "../pages/PosAccessDeniedPage";
  * Also enforces App Permission for `/pos/kitchen` (`app.kitchen_display`).
  */
 export function RequirePosTabletAccess() {
+  usePosNativeHardwareBack();
   const access = usePosTabletAccess();
   const permissions = usePosAppPermissions();
   const location = useLocation();

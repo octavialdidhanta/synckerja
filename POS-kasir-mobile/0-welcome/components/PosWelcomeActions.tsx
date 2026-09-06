@@ -13,14 +13,18 @@ export function PosWelcomeActions() {
         asChild
         className="h-12 w-full rounded-lg bg-primary text-base font-medium text-primary-foreground hover:bg-primary/90"
       >
-        <Link to={POS_AUTH_PATHS.register}>
+        <Link to={POS_AUTH_PATHS.register} replace>
           {t(POS_WELCOME_I18N.titleCta, "Start Selling with Synckerja POS")}
         </Link>
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">
         {t(POS_WELCOME_I18N.alreadyHaveAccount, "Already have a Synckerja POS account?")}{" "}
-        <Link to={POS_AUTH_PATHS.login} className="font-medium text-primary hover:underline">
+        <Link
+          to={POS_AUTH_PATHS.login}
+          replace
+          className="font-medium text-primary hover:underline"
+        >
           {t(POS_WELCOME_I18N.signIn, "Sign in")}
         </Link>
       </p>

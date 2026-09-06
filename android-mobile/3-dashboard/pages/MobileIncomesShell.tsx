@@ -180,7 +180,7 @@ export function MobileIncomesShell({
 
                 <IncomeDashboardRefreshContext.Provider value={{ refetchRef, isRefreshing }}>
                   {/*
-                    `content-padding-above-nav-default`: clearance tab `fixed` + napas — `index.css`; Android native tanpa inset ganda. Jangan tambah px-2 di child section.
+                    `content-padding-above-nav-default`: clearance tab `fixed` + napas + `--footer-bottom-inset` (Android) — `index.css`. Jangan tambah px-2 di child section.
                   */}
                   <div
                     className={cn(

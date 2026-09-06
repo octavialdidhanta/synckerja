@@ -24,7 +24,8 @@ import {
 const defaultBrandMark = <SynckerjaBrandLogo className="h-10 w-auto sm:h-12" width={48} height={48} />;
 
 export type ForgotPasswordScreenProps = {
-  brandMark?: ReactNode;
+  /** Pass `null` to hide logo (POS funnel keeps brand in the parent layout). */
+  brandMark?: ReactNode | null;
   submitButtonRef?: RefObject<HTMLButtonElement | null>;
   onFieldFocus?: () => void;
   onFieldBlur?: () => void;
@@ -67,8 +68,8 @@ export function ForgotPasswordScreen({
 
   return (
     <div className={authFormRootClass}>
-      <header className="flex flex-col items-center text-center">
-        <div className={authFormHeaderLogoWrapper}>{brandMark}</div>
+      <header className="flex flex-col items-center gap-2 text-center">
+        {brandMark != null ? <div className={authFormHeaderLogoWrapper}>{brandMark}</div> : null}
         <h1 className={authFormTitleClass}>{t("auth.forgotPassword.title")}</h1>
         {!hideSubtitle && (
           <p className={authFormSubtitleClass}>{t("auth.forgotPassword.subtitle")}</p>

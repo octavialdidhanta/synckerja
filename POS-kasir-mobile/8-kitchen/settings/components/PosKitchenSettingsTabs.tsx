@@ -65,7 +65,7 @@ export function PosKitchenSettingsTabs({ active, onChange, onClose }: Props) {
               className={cn(
                 "inline-flex flex-shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-semibold transition",
                 isActive
-                  ? "border-teal-600 text-teal-700"
+                  ? "border-slate-900 text-slate-900"
                   : "border-transparent text-slate-500 hover:text-slate-800",
               )}
             >

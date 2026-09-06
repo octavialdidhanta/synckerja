@@ -1,7 +1,11 @@
 import { supabase } from "@/shared/lib/supabaseClient";
 import { personalCustomerName } from "@/pos-receipt-feedback/lib/isGenericCustomerName";
 import { normalizeCustomerVisitPhone } from "@/5-2-customer-visits/lib/normalizeCustomerVisitPhone";
-import { rematchPosReceiptLead } from "@/5-2-customer-visits/checkout/pos-bind";
+import {
+  rematchPosReceiptLead,
+  rematchPosReceiptLeadByEmail,
+} from "@/5-2-customer-visits/checkout/pos-bind";
+import { isValidPosReceiptEmail } from "./isPosCustomerEmail";
 
 export type PosDigitalReceiptChannel = "email" | "sms";
 
@@ -31,9 +35,7 @@ export type SendPosDigitalReceiptResult =
       message: string;
     };
 
-function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
+export { isValidPosReceiptEmail };
 
 async function resolveServedByEmployeeId(
   organizationId: string,
@@ -74,20 +76,30 @@ export async function sendPosDigitalReceipt(
   const personalName = personalCustomerName(args.clientName);
   let email: string | null = null;
   let phone: string | null = null;
+  /** Lead after rematch (may differ from args.leadId when rebound). */
+  let resolvedLeadId = args.leadId;
 
   if (args.channel === "email") {
     email = (args.email ?? "").trim().toLowerCase();
-    if (!isValidEmail(email)) {
+    if (!isValidPosReceiptEmail(email)) {
       return { ok: false, code: "invalid_email", message: "invalid_email" };
     }
-    const leadPatch: Record<string, string> = { email };
-    if (personalName) leadPatch.client = personalName;
-    const { error: leadErr } = await supabase
-      .from("leads")
-      .update(leadPatch)
-      .eq("id", args.leadId);
-    if (leadErr) {
-      return { ok: false, code: "enqueue_failed", message: leadErr.message };
+    try {
+      const rematch = await rematchPosReceiptLeadByEmail({
+        organizationId: args.organizationId,
+        salesActivityId: args.salesActivityId,
+        currentLeadId: args.leadId,
+        email,
+        clientName: args.clientName ?? null,
+        createdBy: args.createdByUserId ?? null,
+      });
+      resolvedLeadId = rematch.leadId;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === "invalid_email") {
+        return { ok: false, code: "invalid_email", message: "invalid_email" };
+      }
+      return { ok: false, code: "enqueue_failed", message };
     }
   } else {
     const key = normalizeCustomerVisitPhone(args.phoneLocal ?? "");
@@ -100,7 +112,7 @@ export async function sendPosDigitalReceipt(
     }
     phone = key;
     try {
-      await rematchPosReceiptLead({
+      const rematch = await rematchPosReceiptLead({
         organizationId: args.organizationId,
         salesActivityId: args.salesActivityId,
         currentLeadId: args.leadId,
@@ -108,6 +120,7 @@ export async function sendPosDigitalReceipt(
         clientName: args.clientName ?? null,
         createdBy: args.createdByUserId ?? null,
       });
+      resolvedLeadId = rematch.leadId;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, code: "enqueue_failed", message };
@@ -121,6 +134,14 @@ export async function sendPosDigitalReceipt(
       .eq("id", args.salesActivityId);
     if (saErr) {
       return { ok: false, code: "enqueue_failed", message: saErr.message };
+    }
+    // Keep lead display name aligned after rematch (winner or current).
+    const { error: leadNameErr } = await supabase
+      .from("leads")
+      .update({ client: personalName })
+      .eq("id", resolvedLeadId);
+    if (leadNameErr) {
+      return { ok: false, code: "enqueue_failed", message: leadNameErr.message };
     }
   }
 
@@ -155,9 +176,9 @@ export async function sendPosDigitalReceipt(
     };
   }
 
-  const { error: dispatchErr } = await supabase.functions.invoke(
+  const { data: dispatchData, error: dispatchErr } = await supabase.functions.invoke(
     "dispatch-pos-receipt-feedback",
-    { body: { invitationId } },
+    { body: { invitationId: String(invitationId) } },
   );
   if (dispatchErr) {
     return {
@@ -165,6 +186,18 @@ export async function sendPosDigitalReceipt(
       code: "dispatch_failed",
       message: dispatchErr.message,
     };
+  }
+  if (
+    dispatchData &&
+    typeof dispatchData === "object" &&
+    "success" in dispatchData &&
+    (dispatchData as { success?: unknown }).success === false
+  ) {
+    const errors = (dispatchData as { errors?: unknown }).errors;
+    const message = Array.isArray(errors)
+      ? errors.map(String).join("; ")
+      : "dispatch_failed";
+    return { ok: false, code: "dispatch_failed", message };
   }
 
   return { ok: true };

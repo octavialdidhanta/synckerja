@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/shared/lib/utils";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 
 type Props = {
   title: string;
@@ -17,7 +18,7 @@ export function PosPaymentMethodStatusRow({
   trailingExtra,
 }: Props) {
   return (
-    <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5 last:border-b-0">
+    <div className={POS_PANEL.row}>
       {leading ? (
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden">
           {leading}

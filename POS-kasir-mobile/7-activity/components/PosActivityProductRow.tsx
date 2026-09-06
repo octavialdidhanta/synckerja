@@ -9,7 +9,7 @@ type Props = {
 
 export function PosActivityProductRow({ line, badge }: Props) {
   return (
-    <li className="py-3">
+    <li className="px-3 py-3">
       <div className="flex items-start gap-2.5">
         <span
           className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-slate-400 text-xs font-bold uppercase text-white"

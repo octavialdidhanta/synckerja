@@ -19,9 +19,5 @@ interface MobileConversationListProps {
 
 export function MobileConversationList(props: MobileConversationListProps) {
   const { onSwipeLockChange, ...rest } = props;
-  return (
-    <div className="min-h-0">
-      <ConversationList {...rest} onSwipeLockChange={onSwipeLockChange} />
-    </div>
-  );
+  return <ConversationList {...rest} onSwipeLockChange={onSwipeLockChange} />;
 }

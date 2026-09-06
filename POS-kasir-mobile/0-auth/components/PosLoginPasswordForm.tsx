@@ -5,7 +5,6 @@ import type { AuthError } from "@supabase/supabase-js";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { PosBrandMark } from "@/pos-mobile/shared/components/PosBrandMark";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "@/shared/hooks/use-toast";
 import { resolvePostAuthRouting } from "@/shared/auth/mfa/resolvePostAuthRouting";
@@ -33,6 +32,7 @@ function messageForAuthError(error: AuthError, t: (key: string, fallback?: strin
   return error.message;
 }
 
+/** Password step — brand comes from {@link PosAuthFunnelLayout}. */
 export function PosLoginPasswordForm() {
   const { t } = useAppTranslation();
   const navigate = useNavigate();
@@ -136,6 +136,7 @@ export function PosLoginPasswordForm() {
     e.preventDefault();
     if (!email.trim() || !password || existingSessionEmail) return;
     setLoading(true);
+    let navigatedAway = false;
     try {
       const trimmedEmail = email.trim();
       const { error } = await supabase.auth.signInWithPassword({
@@ -152,6 +153,7 @@ export function PosLoginPasswordForm() {
           msg.includes("not confirmed")
         ) {
           toast({ title: messageForAuthError(error, t), variant: "destructive" });
+          navigatedAway = true;
           navigate(
             `${POS_AUTH_PATHS.register}?email=${encodeURIComponent(trimmedEmail)}`,
             { replace: true },
@@ -173,6 +175,7 @@ export function PosLoginPasswordForm() {
                 "This email is not registered yet. You are being taken to sign up.",
               ),
             });
+            navigatedAway = true;
             navigate(
               `${POS_AUTH_PATHS.register}?email=${encodeURIComponent(trimmedEmail)}`,
               { replace: true },
@@ -186,32 +189,22 @@ export function PosLoginPasswordForm() {
       }
 
       clearPosLoginEmail();
+      navigatedAway = true;
       await resolvePostAuthRouting(navigate, POS_POST_LOGIN_REDIRECT, {
         mfaChallengeBasePath: POS_AUTH_PATHS.loginMfa,
       });
     } finally {
-      setLoading(false);
+      // Keep "Signing in…" until the next route paints — avoids a password-form flash.
+      if (!navigatedAway) setLoading(false);
     }
   };
 
   if (!email) return null;
 
-  if (!sessionChecked) {
-    return (
-      <div className="flex w-full flex-col items-center gap-5" aria-busy>
-        <PosBrandMark />
-        <p className="text-sm text-muted-foreground">
-          {t("posAuth.login.checkingSession", "Checking signed-in session…")}
-        </p>
-      </div>
-    );
-  }
-
-  if (existingSessionEmail) {
+  if (sessionChecked && existingSessionEmail) {
     const busy = loading || switchingAccount;
     return (
-      <div className="flex w-full flex-col items-center gap-5">
-        <PosBrandMark />
+      <div className="flex w-full flex-col items-center gap-3">
         <div className="w-full space-y-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-center">
           <p className="text-sm font-medium text-foreground">
             {t("posAuth.session.mismatchTitle", "Already signed in")}
@@ -245,7 +238,11 @@ export function PosLoginPasswordForm() {
             ? t("posAuth.session.switching", "Switching…")
             : t("posAuth.session.useDifferentAccount", "Use a different account")}
         </Button>
-        <Link to={POS_AUTH_PATHS.login} className="text-sm text-muted-foreground hover:underline">
+        <Link
+          to={POS_AUTH_PATHS.login}
+          replace
+          className="text-sm text-muted-foreground hover:underline"
+        >
           {t("posAuth.login.backToEmail", "Use a different email")}
         </Link>
       </div>
@@ -253,8 +250,7 @@ export function PosLoginPasswordForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex w-full flex-col items-center gap-5">
-      <PosBrandMark />
+    <form onSubmit={onSubmit} className="flex w-full flex-col items-center gap-3">
       <p className="max-w-full truncate text-center text-sm text-muted-foreground" title={email}>
         {email}
       </p>
@@ -302,7 +298,11 @@ export function PosLoginPasswordForm() {
         {t("posAuth.login.forgotPassword", "Forgot password?")}
       </Link>
 
-      <Link to={POS_AUTH_PATHS.login} className="text-sm text-muted-foreground hover:underline">
+      <Link
+        to={POS_AUTH_PATHS.login}
+        replace
+        className="text-sm text-muted-foreground hover:underline"
+      >
         {t("posAuth.login.backToEmail", "Use a different email")}
       </Link>
     </form>

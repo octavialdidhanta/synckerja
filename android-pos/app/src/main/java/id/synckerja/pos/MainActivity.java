@@ -153,7 +153,14 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
             );
             decorGroup.addView(navigationBarScrim, lp);
             ViewCompat.setOnApplyWindowInsetsListener(navigationBarScrim, (v, insets) -> {
-                layoutNavigationBarScrim(insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom);
+                int imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+                // Hide black nav scrim while IME is visible — otherwise it sits as a
+                // gap between the WebView footer and the keyboard.
+                int navBottom =
+                    imeBottom > 0
+                        ? 0
+                        : insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+                layoutNavigationBarScrim(navBottom);
                 return insets;
             });
         } else if (navigationBarScrim.getParent() == null) {

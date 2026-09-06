@@ -11,10 +11,10 @@
         android:enableOnBackInvokedCallback="true"
         android:theme="@style/AppTheme.NoActionBar">
 
-        <!-- Ikon kecil (status bar): `app_brand_logo` = `public/pwa-512.png` (hi-res, diskalakan sistem). -->
+        <!-- Ikon kecil status bar: `ic_notification_small` = `public/pwa-512.png` (latar transparan). -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@drawable/app_brand_logo" />
+            android:resource="@drawable/ic_notification_small" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_icon_tint" />
@@ -23,7 +23,7 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="notifications" />
 
-        <!-- Use our FCM service so we can set large icon (ic_notification_large) for heads-up/shade. -->
+        <!-- Custom FCM service posts standard notifications (single small icon, no generated large icon). -->
         <service
             android:name="com.google.firebase.messaging.FirebaseMessagingService"
             tools:node="remove" />

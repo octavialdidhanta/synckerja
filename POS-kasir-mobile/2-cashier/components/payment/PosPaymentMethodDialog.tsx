@@ -12,6 +12,7 @@ import {
   DrawerTitle,
 } from "@/shared/components/ui/drawer";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { usePhoneDrawerKeyboardChrome } from "@/shared/hooks/usePhoneDrawerKeyboardChrome";
 import { formatStoreCheckoutRp } from "@/5-2-customer-visits/checkout/lib/catalogLabel";
 import type { CustomerVisitCheckoutPaymentMethod } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
 import { usePaymentMethodChannels } from "@/8-2-10-reports/payment-methods/hooks/usePaymentMethodChannels";
@@ -89,6 +90,7 @@ export function PosPaymentMethodDialog({
 }: Props) {
   const { t } = useAppTranslation();
   const isPhone = usePosCashierIsPhoneLayout();
+  const drawerChrome = usePhoneDrawerKeyboardChrome();
   const { channels, isLoading: channelsLoading } = usePaymentMethodChannels({
     outletId,
     enabled: open && Boolean(outletId),
@@ -368,13 +370,19 @@ export function PosPaymentMethodDialog({
         <DrawerContent
           aboveAppNav={false}
           smoothFast
-          className="z-[70] flex h-[min(88dvh,860px)] max-h-[min(88dvh,860px)] flex-col gap-0 overflow-hidden rounded-t-2xl border-0 p-0 pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] shadow-2xl"
+          className={cn(
+            drawerChrome.drawerClassName,
+            /* No dvh — dynamic viewport height jumps when the IME opens. */
+            "z-[70] rounded-t-2xl border-0 shadow-2xl",
+          )}
+          style={drawerChrome.drawerMaxHeightStyle}
           overlayClassName="z-[70]"
         >
           {header(
             <DrawerTitle className="text-lg font-bold tabular-nums">{amountTitle}</DrawerTitle>,
           )}
           {body}
+          <div className="shrink-0" style={drawerChrome.footerStyle} aria-hidden />
         </DrawerContent>
       </Drawer>
     );

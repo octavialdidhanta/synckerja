@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { PosBrandMark } from "@/pos-mobile/shared/components/PosBrandMark";
 import { POS_AUTH_PATHS } from "../lib/posAuthPaths";
 import { stashPosLoginEmail } from "../lib/posLoginEmailStorage";
 
@@ -11,6 +10,7 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+/** Email step — brand comes from {@link PosAuthFunnelLayout}. */
 export function PosLoginIdentifierForm() {
   const { t } = useAppTranslation();
   const navigate = useNavigate();
@@ -26,12 +26,11 @@ export function PosLoginIdentifierForm() {
     }
     setError(null);
     stashPosLoginEmail(trimmed);
-    navigate(POS_AUTH_PATHS.loginPassword, { state: { email: trimmed } });
+    navigate(POS_AUTH_PATHS.loginPassword, { replace: true, state: { email: trimmed } });
   };
 
   return (
-    <form onSubmit={onSubmit} className="flex w-full flex-col items-center gap-5">
-      <PosBrandMark />
+    <form onSubmit={onSubmit} className="flex w-full flex-col items-center gap-3">
       <p className="text-center text-sm text-muted-foreground">
         {t("posAuth.login.subtitle", "Sign in with email")}
       </p>
@@ -59,7 +58,11 @@ export function PosLoginIdentifierForm() {
         {t("posAuth.login.next", "Next")}
       </Button>
 
-      <Link to={POS_AUTH_PATHS.welcome} className="text-sm font-medium text-primary hover:underline">
+      <Link
+        to={POS_AUTH_PATHS.welcome}
+        replace
+        className="text-sm font-medium text-primary hover:underline"
+      >
         {t("posAuth.login.backToWelcome", "Back")}
       </Link>
     </form>

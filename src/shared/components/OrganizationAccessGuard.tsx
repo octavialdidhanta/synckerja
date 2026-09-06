@@ -2,8 +2,13 @@ import type { ReactNode } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
+import { shouldUsePosLoginRedirect } from "@/pos-mobile/0-auth/lib/posAuthSurface";
+import { PosAuthSurfaceLoading } from "@/pos-mobile/0-auth/layout/PosAuthSurfaceLoading";
 
-function OrganizationAccessLoadingShell() {
+function OrganizationAccessLoadingShell({ posSurface }: { posSurface: boolean }) {
+  if (posSurface) {
+    return <PosAuthSurfaceLoading label="Loading organization" />;
+  }
   return (
     <div
       className="flex min-h-[12rem] flex-1 flex-col gap-3 p-4"
@@ -24,6 +29,7 @@ function OrganizationAccessLoadingShell() {
 export function OrganizationAccessGuard({ children }: { children?: ReactNode }) {
   const { organizationAccessState, centralProfileHydrated, loading } = useCentralizedUserData();
   const location = useLocation();
+  const posSurface = shouldUsePosLoginRedirect(location.pathname);
 
   if (location.pathname === "/organization-unavailable") {
     return children ? <>{children}</> : <Outlet />;
@@ -35,7 +41,7 @@ export function OrganizationAccessGuard({ children }: { children?: ReactNode }) 
     organizationAccessState === "loading" ||
     organizationAccessState === "orphan_recovering"
   ) {
-    return <OrganizationAccessLoadingShell />;
+    return <OrganizationAccessLoadingShell posSurface={posSurface} />;
   }
 
   if (organizationAccessState === "no_membership") {

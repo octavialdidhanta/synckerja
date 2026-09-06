@@ -206,7 +206,7 @@ export function PosKitchenSettingsOverlay({
                 type="button"
                 disabled={!dirty || settingsQuery.save.isPending}
                 onClick={() => void onSave()}
-                className="min-h-11 rounded-lg bg-teal-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700 disabled:opacity-40"
+                className="min-h-11 rounded-lg bg-slate-900 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-40"
               >
                 {t(POS_KITCHEN_SETTINGS_I18N.saveChanges, "Save Changes")}
               </button>

@@ -10,9 +10,6 @@ import java.util.Set;
  * Holds FCM notification tap payload forwarded from {@link MainActivity} intent extras.
  * Custom {@link SynckerjaFirebaseMessagingService} shows local notifications with a direct
  * activity PendingIntent, so Capacitor's {@code pushNotificationActionPerformed} never runs.
- *
- * <p>-Xlint:deprecation (compileSdk 35): generic {@link Bundle} key iteration / {@code get(String)}
- * is still the practical way to mirror arbitrary FCM data keys into JS.
  */
 @SuppressWarnings("deprecation")
 public final class NotificationLaunchStore {
@@ -24,7 +21,7 @@ public final class NotificationLaunchStore {
     private NotificationLaunchStore() {}
 
     /**
-     * If this intent looks like an app-notification tap (same keys as FCM data payload), store for JS.
+     * Capture tap extras when payload looks like an app push (deep link keys or notificationType).
      */
     public static void captureFromIntent(Intent intent) {
         if (intent == null) return;
@@ -33,15 +30,23 @@ public final class NotificationLaunchStore {
 
         String openNotifications = getStringExtra(extras, "openNotifications");
         String notificationType = getStringExtra(extras, "notificationType");
+        String url = getStringExtra(extras, "url");
+        String ticketId = getStringExtra(extras, "ticket_id");
+        String conversationId = getStringExtra(extras, "conversation_id");
+
         boolean looksLikeAppNotification =
             "true".equals(openNotifications)
-                || (notificationType != null && !notificationType.isEmpty());
+                || (notificationType != null && !notificationType.isEmpty())
+                || (url != null && !url.isEmpty())
+                || (ticketId != null && !ticketId.isEmpty())
+                || (conversationId != null && !conversationId.isEmpty());
         if (!looksLikeAppNotification) {
             return;
         }
 
         Set<String> keys = extras.keySet();
-        Log.i(TAG, "[NOTIF_DEBUG][native] capture app-notification tap extras keys=" + keys.size());
+        Log.i(TAG, "[NOTIF_DEBUG][native] capture push tap extras keys=" + keys.size()
+            + " type=" + notificationType + " hasUrl=" + (url != null && !url.isEmpty()));
 
         JSObject o = new JSObject();
         for (String key : keys) {

@@ -14,26 +14,21 @@ export type StatusBarHeaderTheme = "light" | "dark" | "livechat" | "light-overla
  * Android: `setOverlaysWebView` + latar + `setStyle`.
  * Capacitor 8: `Style.Light` = ikon/teks gelap untuk latar terang; `Style.Dark` = ikon/teks terang untuk latar gelap.
  * Inset atas dari plugin (`--safe-area-inset-top`).
+ *
+ * MainActivity Office selalu edge-to-edge (`setDecorFitsSystemWindows(false)`), jadi overlay
+ * selalu ON agar `--safe-area-inset-top` terisi dan header `safe-area-top` tidak mentok status bar.
  */
 async function applyNativeStatusBarChrome(headerTheme: StatusBarHeaderTheme): Promise<void> {
   if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
-    /**
-     * `dark` + `light-overlay` = edge-to-edge (inset atas aktif).
-     * `light` + `livechat` = non-overlay (`--safe-area-inset-top` = 0, tanpa double padding).
-     */
-    const overlay = headerTheme === "dark" || headerTheme === "light-overlay";
-    document.documentElement.setAttribute(
-      "data-synckerja-status-bar-overlay",
-      overlay ? "true" : "false",
-    );
+    document.documentElement.setAttribute("data-synckerja-status-bar-overlay", "true");
     try {
-      await StatusBar.setOverlaysWebView({ overlay });
+      await StatusBar.setOverlaysWebView({ overlay: true });
     } catch {
-      document.documentElement.setAttribute("data-synckerja-status-bar-overlay", "true");
+      // Keep overlay flag so inset CSS still applies even if the plugin call fails.
     }
     refreshNativeSafeAreaChromeInsets();
   }
-  /** Live chat / light-overlay: status bar terang → ikon sistem gelap (`Style.Light`). */
+  /** Live chat / light / light-overlay: status bar terang → ikon sistem gelap (`Style.Light`). */
   const style = headerTheme === "dark" ? Style.Dark : Style.Light;
   await StatusBar.setStyle({ style });
 
@@ -47,9 +42,10 @@ async function applyNativeStatusBarChrome(headerTheme: StatusBarHeaderTheme): Pr
 }
 
 /**
- * Status bar native: `light` & `livechat` = latar putih + ikon gelap, WebView di bawah status bar;
- * `light-overlay` = ikon gelap + edge-to-edge (butuh `safe-area-top` di chrome);
- * `dark` = latar gelap + ikon terang (`Style.Dark`).
+ * Status bar native:
+ * - `light` / `livechat` / `light-overlay` = ikon gelap + latar putih (livechat: spacer putih di atas header biru)
+ * - `dark` = ikon terang + latar gelap
+ * Android: selalu edge-to-edge overlay + `--safe-area-inset-top` untuk header/sidebar.
  * Segarkan lagi saat resume. No-op on web.
  */
 export function useStatusBarStyle(headerTheme: StatusBarHeaderTheme) {

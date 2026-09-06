@@ -30,18 +30,37 @@ export function CapacitorKeyboardInsetProvider({ children }: { children: ReactNo
       return;
     }
 
+    // warn: Capacitor Console bridges this reliably; info was easy to miss after HMR.
+    console.warn(
+      `pos-kb provider_mount platform=${Capacitor.getPlatform()} inner=${window.innerHeight}`,
+    );
+
+    const onWillShow = (info: { keyboardHeight?: number }) => {
+      // Height only — do NOT set open yet. Flipping open on willShow makes
+      // drawers/footers resize before the IME is visible (jump then keyboard).
+      const h = info.keyboardHeight ?? 0;
+      setHeight(h);
+      // Single-arg log: Capacitor/Console drops all but the last console.* argument.
+      console.warn(`pos-kb willShow height=${h} inner=${window.innerHeight}`);
+    };
+
+    const onDidShow = (info: { keyboardHeight?: number }) => {
+      const h = info.keyboardHeight ?? 0;
+      setHeight(h);
+      setOpen(true);
+      document.documentElement.setAttribute("data-keyboard-open", "");
+      console.warn(`pos-kb didShow height=${h} inner=${window.innerHeight}`);
+    };
+
     const reset = () => {
       setOpen(false);
       setHeight(0);
+      document.documentElement.removeAttribute("data-keyboard-open");
+      console.warn(`pos-kb hide inner=${window.innerHeight}`);
     };
 
-    const onShow = (info: { keyboardHeight?: number }) => {
-      setHeight(info.keyboardHeight ?? 0);
-      setOpen(true);
-    };
-
-    const showWillPromise = Keyboard.addListener("keyboardWillShow", onShow);
-    const showDidPromise = Keyboard.addListener("keyboardDidShow", onShow);
+    const showWillPromise = Keyboard.addListener("keyboardWillShow", onWillShow);
+    const showDidPromise = Keyboard.addListener("keyboardDidShow", onDidShow);
     const hideWillPromise = Keyboard.addListener("keyboardWillHide", reset);
     const hideDidPromise = Keyboard.addListener("keyboardDidHide", reset);
 

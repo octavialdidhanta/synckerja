@@ -23,6 +23,7 @@ export function AssignCategoryOutletDialog({
       confirmLabel={t("defaultPrices.category.assignCategory", "Assign Category")}
       selectedIds={selectedIds}
       onConfirm={onConfirm}
+      chrome="pos"
     />
   );
 }

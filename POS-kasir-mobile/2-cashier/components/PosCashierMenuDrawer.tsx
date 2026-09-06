@@ -58,7 +58,7 @@ function PosCashierMenuDrawerInner({
       toast({ title: t(POS_CASHIER_I18N.soon, "Coming soon") });
       return;
     }
-    navigate(item.path);
+    navigate(item.path, { replace: true });
   };
 
   return (

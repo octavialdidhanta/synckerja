@@ -18,6 +18,7 @@ export type PreparePosQrisCheckoutInput = {
   outletId: string;
   clientName: string;
   clientPhone: string | null;
+  clientEmail?: string | null;
   catalogLines: CustomerVisitCartLine[];
   paidCatalogTotals: CatalogCheckoutTotals;
   salesTypeId?: string | null;
@@ -83,6 +84,7 @@ export async function preparePosQrisCheckout(
   const ensured = await ensurePosCheckoutLead({
     organizationId: input.organizationId,
     phone: input.clientPhone,
+    email: input.clientEmail?.trim() || null,
     clientName: input.clientName,
     userId: user?.id ?? null,
   });

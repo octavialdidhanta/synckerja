@@ -31,7 +31,7 @@ const PULL_RESISTANCE = 0.55;
 /** Snap transition (same as TaskCard / ConversationList) for pull indicator snap-back. */
 const SNAP_TRANSITION = '0.25s cubic-bezier(0.33, 1, 0.68, 1)';
 
-type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `email:${string}`;
+type AccountFilterValue = '' | `wa:${string}` | `ig:${string}` | `fb:${string}` | `email:${string}`;
 
 interface LiveChatListViewProps {
   conversations: LiveChatConversation[];
@@ -172,6 +172,15 @@ export function LiveChatListView({
 
           {/* Same structure as LiveChatChatView: fixed viewport container, header first (sticky + safe-area-top), then scrollable content */}
           <main className="fixed inset-x-0 z-0 flex flex-col bg-background" style={mainFixedStyle}>
+            {/* White status-bar chrome (edge-to-edge Android) — icons stay dark via useStatusBarStyle('livechat'). */}
+            <div
+              className="shrink-0 bg-white"
+              style={{
+                height:
+                  "max(var(--safe-area-inset-top, 0px), env(safe-area-inset-top, 0px))",
+              }}
+              aria-hidden
+            />
             <header className="sticky top-0 z-30 flex flex-shrink-0 flex-col gap-2 border-b border-primary/20 bg-primary p-2">
               <div className="flex items-center gap-2">
                 <SidebarTrigger className="text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground md:hidden" />
@@ -350,16 +359,16 @@ export function LiveChatListView({
 
             <SubscriptionExpiryBannerSlot />
 
-            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               {invalidTicketId && (
-                <div className="flex-shrink-0 px-3 py-2 mx-3 mt-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800" role="alert">
+                <div className="mx-3 mt-2 flex-shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800" role="alert">
                   {t('whatsappInbox.conversationNotFound', 'Obrolan tidak ditemukan.')}
                 </div>
               )}
 
               <div
                 ref={listScrollRef}
-                className="flex-1 overflow-y-auto overflow-x-hidden seamless-scroll min-h-0 flex flex-col"
+                className="scrollbar-hide nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 onTouchStart={onTouchStart}
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}
@@ -391,11 +400,10 @@ export function LiveChatListView({
                     )}
                   </div>
                 )}
-                <div className="content-padding-above-nav-livechat flex flex-col min-h-0">
+                <div className="content-padding-above-nav-livechat mx-auto w-full max-w-md">
                   <MobileConversationList
                     conversations={conversations}
                     isLoading={isLoading}
-                    isRefreshing={isRefreshing}
                     error={error}
                     selectedId={null}
                     onSelect={onSelectConversation}
@@ -410,7 +418,6 @@ export function LiveChatListView({
               </div>
             </div>
 
-            {/* Footer bar without nav icons; space for custom livechat navigation */}
             <ConsultantCrmNavigationFooter className="safe-area-bottom-lower" />
           </main>
         </div>

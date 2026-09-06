@@ -1,5 +1,7 @@
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { POS_SETTINGS_I18N } from "../../../lib/posSettingsCopy";
 import type { PosSavedPrinter } from "../../../lib/printer/posPrinterTypes";
 import { PosPrinterListRow } from "./PosPrinterListRow";
@@ -20,9 +22,9 @@ export function PosAvailablePrintersBlock({
   const { t } = useAppTranslation();
 
   return (
-    <section className="mb-6">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-900">
+    <section className="mb-4">
+      <div className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
+        <h3 className={cn(POS_PANEL.sectionTitle, "pb-0 pt-0 first:pt-0")}>
           {t(POS_SETTINGS_I18N.printerAvailable, "Available Printers")}
         </h3>
         <Button
@@ -37,9 +39,9 @@ export function PosAvailablePrintersBlock({
         </Button>
       </div>
 
-      <div className="rounded-md border border-slate-200 bg-white px-3">
+      <div className={POS_PANEL.card}>
         {printers.length === 0 ? (
-          <div className="space-y-1 py-6 text-center">
+          <div className="space-y-1 px-3 py-6 text-center">
             <p className="text-sm text-slate-500">
               {t(
                 POS_SETTINGS_I18N.printerEmpty,

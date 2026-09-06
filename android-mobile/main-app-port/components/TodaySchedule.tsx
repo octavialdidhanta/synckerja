@@ -1,4 +1,4 @@
-import { Clock, Users, MapPin } from "lucide-react";
+import { Clock, Users } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 interface TodayScheduleProps {
@@ -73,6 +73,7 @@ export const TodaySchedule = ({ schedule }: TodayScheduleProps) => {
   };
 
   const timeStatus = getTimeStatus();
+  const locationText = (schedule.location || "").trim();
 
   return (
     <div className="bg-card rounded-lg border border-border p-4">
@@ -91,15 +92,7 @@ export const TodaySchedule = ({ schedule }: TodayScheduleProps) => {
               : `${schedule.startTime} - ${schedule.endTime}`}
           </span>
         </div>
-        
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">{t("mobileHome.location", "Lokasi")}</span>
-          <div className="flex items-center gap-1 text-right">
-            <MapPin className="h-3 w-3 text-muted-foreground" />
-            <span className="text-sm font-medium text-foreground text-right">{schedule.location}</span>
-          </div>
-        </div>
-        
+
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">{t("mobileHome.department", "Departemen")}</span>
           <div className="flex items-center gap-1">
@@ -108,18 +101,25 @@ export const TodaySchedule = ({ schedule }: TodayScheduleProps) => {
           </div>
         </div>
 
+        {locationText ? (
+          <div className="min-w-0 space-y-1">
+            <span className="text-sm text-muted-foreground">{t("mobileHome.location", "Lokasi")}</span>
+            <p className="text-xs text-muted-foreground" title={locationText}>
+              {locationText}
+            </p>
+          </div>
+        ) : null}
+
         {schedule.notes && (
           <div className="pt-2 border-t border-border">
-            <p className="text-xs text-muted-foreground">
-              {schedule.notes === "Hari kerja sesuai jadwal"
-                ? t("mobileHome.workingDayPerSchedule", "Hari kerja sesuai jadwal")
-                : schedule.notes === "Hari ini libur"
-                  ? t("mobileHome.todayOff", "Hari ini libur")
-                  : schedule.notes === "Jadwal kerja default"
-                    ? t("mobileHome.defaultSchedule", "Jadwal kerja default")
-                    : schedule.notes.startsWith("Hari libur: ") && schedule.holidayName
-                      ? t("mobileHome.holidayToday", "Hari libur: {{name}}", { name: schedule.holidayName })
-                      : schedule.notes}
+            <p className="text-xs text-muted-foreground" title={schedule.notes}>
+              {schedule.notes === "Hari ini libur"
+                ? t("mobileHome.todayOff", "Hari ini libur")
+                : schedule.notes === "Jadwal kerja default"
+                  ? t("mobileHome.defaultSchedule", "Jadwal kerja default")
+                  : schedule.notes.startsWith("Hari libur: ") && schedule.holidayName
+                    ? t("mobileHome.holidayToday", "Hari libur: {{name}}", { name: schedule.holidayName })
+                    : schedule.notes}
             </p>
           </div>
         )}

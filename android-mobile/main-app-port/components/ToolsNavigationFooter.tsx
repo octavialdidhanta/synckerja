@@ -53,7 +53,7 @@ const navItems = [
 ] as const;
 
 interface ToolsNavigationFooterProps {
-  /** Optional class to e.g. use safe-area-bottom-lower for consistency with other mobile pages */
+  /** Optional class on the inner grid (e.g. layout tweaks). Safe-area bottom is on the `<nav>`. */
   className?: string;
 }
 
@@ -65,9 +65,9 @@ export const ToolsNavigationFooter = ({ className }: ToolsNavigationFooterProps)
   const visibleNavItems = filterNavItems(navItems.map((item) => ({ ...item, path: item.path })));
 
   return (
-    <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card">
+    <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card safe-area-bottom-lower">
       <div
-        className={`mx-auto grid max-w-md ${className ? className : "safe-area-padding-bottom-capped"}`.trim()}
+        className={`mx-auto grid max-w-md ${className ?? ""}`.trim()}
         style={{
           gridTemplateColumns: `repeat(${Math.max(visibleNavItems.length, 1)}, minmax(0, 1fr))`,
         }}

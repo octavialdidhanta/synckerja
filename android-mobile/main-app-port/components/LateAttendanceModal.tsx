@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/shared/components/ui/dialog";
 import { Button } from "@/mobile-app/components/ui/button";
 import { Textarea } from "@/mobile-app/components/ui/textarea";
 import { AlertTriangle } from "lucide-react";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
+import { useCapacitorKeyboardInset } from "@/shared/native/useCapacitorKeyboardInset";
 import { cn } from "@/shared/lib/utils";
 
 interface LateAttendanceModalProps {
@@ -12,6 +14,21 @@ interface LateAttendanceModalProps {
   onSubmit: (reason: string) => void;
   lateMinutes: number;
   scheduledTime: string;
+}
+
+/** Absolute drop in `window.innerHeight` that signals adjustResize keyboard. */
+const HEIGHT_DROP_PX = 120;
+const HEIGHT_DROP_RATIO = 0.15;
+
+function isTextField(el: Element | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  if (el instanceof HTMLInputElement) {
+    const type = (el.type || "text").toLowerCase();
+    return !["button", "checkbox", "radio", "submit", "reset", "file", "hidden", "range", "color"].includes(
+      type,
+    );
+  }
+  return el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || el.isContentEditable;
 }
 
 export const LateAttendanceModal = ({
@@ -24,6 +41,68 @@ export const LateAttendanceModal = ({
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isMobile = useIsMobile();
+  const { keyboardOpenNative } = useCapacitorKeyboardInset();
+
+  const [viewportH, setViewportH] = useState(() =>
+    typeof window === "undefined" ? 0 : window.innerHeight,
+  );
+  const [textFieldFocused, setTextFieldFocused] = useState(false);
+  const baselineRef = useRef(typeof window === "undefined" ? 0 : window.innerHeight);
+
+  /**
+   * Android `adjustResize`: WebView sudah mengecil di atas keyboard.
+   * `visualViewport` sering ikut mengecil bersama `innerHeight`, jadi tidak bisa diandalkan.
+   * Deteksi: plugin Capacitor ATAU (focus di textarea + drop tinggi vs baseline).
+   * Saat keyboard open: buang `modal-above-safe-area` (floor 3rem) agar footer nempel ke tepi bawah WebView = atas keyboard.
+   */
+  useEffect(() => {
+    if (!isOpen || !isMobile || typeof window === "undefined") return;
+
+    const syncHeight = () => {
+      const h = window.innerHeight;
+      setViewportH(h);
+      if (!isTextField(document.activeElement)) {
+        baselineRef.current = h;
+      }
+    };
+
+    const syncFocus = () => {
+      requestAnimationFrame(() => {
+        const focused = isTextField(document.activeElement);
+        setTextFieldFocused(focused);
+        if (!focused) {
+          baselineRef.current = window.innerHeight;
+          setViewportH(window.innerHeight);
+        }
+      });
+    };
+
+    syncHeight();
+    syncFocus();
+    window.addEventListener("resize", syncHeight);
+    window.visualViewport?.addEventListener("resize", syncHeight);
+    document.addEventListener("focusin", syncFocus);
+    document.addEventListener("focusout", syncFocus);
+    return () => {
+      window.removeEventListener("resize", syncHeight);
+      window.visualViewport?.removeEventListener("resize", syncHeight);
+      document.removeEventListener("focusin", syncFocus);
+      document.removeEventListener("focusout", syncFocus);
+    };
+  }, [isOpen, isMobile]);
+
+  const baseline = baselineRef.current || viewportH;
+  const heightDrop = Math.max(0, baseline - viewportH);
+  const heightCompressed =
+    textFieldFocused &&
+    baseline > 0 &&
+    (heightDrop >= HEIGHT_DROP_PX || heightDrop / baseline >= HEIGHT_DROP_RATIO);
+
+  const keyboardDocked =
+    isMobile &&
+    Capacitor.isNativePlatform() &&
+    Capacitor.getPlatform() === "android" &&
+    (keyboardOpenNative || heightCompressed);
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
@@ -50,15 +129,31 @@ export const LateAttendanceModal = ({
         className={cn(
           "w-full max-w-none m-0 rounded-none translate-x-0 translate-y-0 flex flex-col p-0 gap-0 border-none bg-background shadow-xl focus:outline-none overflow-hidden",
           isMobile
-            ? "fixed left-0 right-0 top-0 translate-x-0 translate-y-0 w-full max-w-none max-h-none rounded-none modal-above-safe-area flex flex-col p-0 gap-0 overflow-hidden"
-            : "sm:max-w-sm sm:rounded-lg sm:translate-x-[-50%] sm:translate-y-[-50%] sm:left-[50%] sm:top-[50%] sm:max-h-[90vh] sm:p-6"
+            ? cn(
+                "fixed left-0 right-0 top-0 translate-x-0 translate-y-0 w-full max-w-none max-h-none min-h-0 rounded-none flex flex-col p-0 gap-0 overflow-hidden",
+                keyboardDocked ? "bottom-0" : "modal-above-safe-area",
+              )
+            : "sm:max-w-sm sm:rounded-lg sm:translate-x-[-50%] sm:translate-y-[-50%] sm:left-[50%] sm:top-[50%] sm:max-h-[90vh] sm:p-6",
         )}
+        style={
+          keyboardDocked
+            ? {
+                top: 0,
+                bottom: 0,
+                height: "auto",
+                maxHeight: "none",
+              }
+            : undefined
+        }
+        overlayClassName={
+          isMobile && !keyboardDocked ? "modal-overlay-above-safe-area" : undefined
+        }
         fullscreenAnimation={isMobile}
       >
         <DialogHeader
           className={cn(
             "flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 text-left",
-            isMobile ? "safe-area-top px-4 pt-4 pb-3" : "sm:px-0 sm:pt-0 sm:pb-0 sm:border-0 sm:bg-transparent"
+            isMobile ? "safe-area-top px-4 pt-4 pb-3" : "sm:px-0 sm:pt-0 sm:pb-0 sm:border-0 sm:bg-transparent",
           )}
         >
           <div className={cn(isMobile ? "flex flex-col gap-2" : "text-center space-y-3")}>
@@ -78,7 +173,7 @@ export const LateAttendanceModal = ({
         <div
           className={cn(
             "space-y-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll",
-            isMobile ? "px-4 pt-4 pb-4" : "pt-2"
+            isMobile ? "px-4 pt-4 pb-4" : "pt-2",
           )}
         >
           <div className="space-y-2">
@@ -97,7 +192,7 @@ export const LateAttendanceModal = ({
           </div>
         </div>
 
-        <div className="px-4 pt-3 pb-3 flex-shrink-0 border-t bg-muted/30">
+        <div className="flex-shrink-0 border-t bg-background px-4 pt-3 pb-3">
           <div className="flex items-center justify-end gap-2">
             <Button
               type="button"

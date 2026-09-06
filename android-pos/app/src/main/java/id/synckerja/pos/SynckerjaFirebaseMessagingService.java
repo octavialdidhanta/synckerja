@@ -35,6 +35,12 @@ public class SynckerjaFirebaseMessagingService extends FirebaseMessagingService 
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         AppNotificationChannels.ensureAppNotificationsChannel(this);
 
+        // Omnichannel / livechat pushes belong to Synckerja Office only.
+        if (isOmnichannelLivechatPush(remoteMessage)) {
+            Log.i(TAG, "Ignoring omnichannel livechat push on POS");
+            return;
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -94,6 +100,39 @@ public class SynckerjaFirebaseMessagingService extends FirebaseMessagingService 
         } catch (SecurityException e) {
             Log.e(TAG, "nm.notify failed (permission?)", e);
         }
+    }
+
+    /** True for Omnichannel inbound / assignment pushes (Office-only product surface). */
+    private static boolean isOmnichannelLivechatPush(RemoteMessage remoteMessage) {
+        Map<String, String> data = remoteMessage.getData();
+        if (data != null && !data.isEmpty()) {
+            String url = data.get("url");
+            if (url != null && url.contains("/omnichannel/livechat")) return true;
+            String channel = data.get("channel");
+            if (channel != null) {
+                String c = channel.trim().toLowerCase();
+                if (c.equals("wa") || c.equals("ig") || c.equals("fb") || c.equals("email")) return true;
+            }
+            String notificationType = data.get("notificationType");
+            if (notificationType != null && notificationType.toLowerCase().contains("livechat")) return true;
+            String channelId = data.get("channel_id");
+            if (channelId != null && channelId.trim().equalsIgnoreCase("livechat")) return true;
+        }
+        if (remoteMessage.getNotification() != null) {
+            String ch = remoteMessage.getNotification().getChannelId();
+            if (ch != null && ch.trim().equalsIgnoreCase("livechat")) return true;
+            String title = remoteMessage.getNotification().getTitle();
+            if (title != null) {
+                String t = title.trim();
+                if (t.startsWith("[WhatsApp]")
+                    || t.startsWith("[Instagram]")
+                    || t.startsWith("[Facebook]")
+                    || t.startsWith("[Email]")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private String getChannelId(RemoteMessage remoteMessage) {

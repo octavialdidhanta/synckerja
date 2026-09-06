@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight } from "lucide-react";
 import type { CatalogCheckoutApplicationMethod } from "@/8-2-1-default-prices/checkout/types";
 import { useCatalogCheckoutSettings } from "@/8-2-1-default-prices/checkout/hooks/useCatalogCheckoutSettings";
-import { Button } from "@/shared/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -12,6 +11,7 @@ import {
 import { useToast } from "@/shared/hooks/use-toast";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { POS_SETTINGS_I18N } from "../../lib/posSettingsCopy";
 
 type Props = {
@@ -92,93 +92,116 @@ export function PosTaxGratuityMethodSheet({
       <SheetContent
         side="right"
         className={cn(
-          "flex w-full flex-col gap-0 p-0 sm:max-w-md",
-          // Keep the built-in X clear of the status bar (edge-to-edge Android).
-          "[&>button]:top-[max(1rem,calc(env(safe-area-inset-top,0px)+0.75rem),calc(var(--safe-area-inset-top,0px)+0.75rem))]",
+          "flex w-full flex-col gap-0 border-l border-slate-200 bg-slate-100 p-0 sm:max-w-md",
+          "[&>button]:hidden",
         )}
       >
-        <SheetHeader
-          className="shrink-0 border-b px-4 pb-4 pr-12 text-left"
+        <div
+          className="flex-shrink-0 border-b border-slate-200 bg-white"
           style={{
             paddingTop:
-              "max(1rem, calc(env(safe-area-inset-top, 0px) + 0.75rem), calc(var(--safe-area-inset-top, 0px) + 0.75rem))",
+              "max(0px, env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px))",
           }}
         >
-          <SheetTitle>
-            {t(
-              POS_SETTINGS_I18N.paymentSettingsMethodSheetTitle,
-              "Tax and Additional Fee Settings",
-            )}
-          </SheetTitle>
-        </SheetHeader>
-
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
-          <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-            {options.map((opt) => {
-              const selected = method === opt.value;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void onMethodChange(opt.value)}
-                  className={cn(
-                    "flex w-full items-start gap-3 border-b border-slate-100 px-3 py-3.5 text-left last:border-b-0",
-                    "hover:bg-slate-50 disabled:opacity-60",
-                  )}
-                >
-                  <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center">
-                    {selected ? (
-                      <Check className="h-5 w-5 text-primary" aria-hidden />
-                    ) : null}
-                  </span>
-                  <span className="min-w-0 flex-1 text-sm text-slate-900">
-                    {t(opt.labelKey, opt.fallback)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <p className="text-xs leading-relaxed text-slate-400">
-            {method === "include"
-              ? t(
-                  POS_SETTINGS_I18N.paymentSettingsMethodHintInclude,
-                  "Included mode: customer pays the menu total only. Tax and fees still appear on the receipt as a breakdown.",
-                )
-              : t(
-                  POS_SETTINGS_I18N.paymentSettingsMethodHintAdd,
-                  "Excluded mode: tax and additional fees are added on top of the menu total and charged to the customer.",
-                )}
-          </p>
+          <SheetHeader
+            className={cn(POS_PANEL.header, "flex-row space-y-0 border-b-0 text-left")}
+          >
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className={POS_PANEL.headerBack}
+              aria-label={t(POS_SETTINGS_I18N.back, "Back")}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <SheetTitle className={cn(POS_PANEL.headerTitle, "leading-none")}>
+              {t(
+                POS_SETTINGS_I18N.paymentSettingsMethodSheetTitle,
+                "Tax and Additional Fee Settings",
+              )}
+            </SheetTitle>
+          </SheetHeader>
         </div>
 
-        <div
-          className="flex shrink-0 flex-col gap-2 border-t border-slate-200 bg-background px-4 pt-3"
-          style={{
-            paddingBottom:
-              "max(1rem, env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px), var(--footer-bottom-inset, 0px))",
-          }}
-        >
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 w-full border-primary text-primary"
-            onClick={() => go("tax")}
-          >
-            {t(POS_SETTINGS_I18N.paymentSettingsManageTax, "Manage Tax")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 w-full border-primary text-primary"
-            onClick={() => go("surcharge")}
-          >
-            {t(
-              POS_SETTINGS_I18N.paymentSettingsManageSurcharge,
-              "Manage Additional Fees",
-            )}
-          </Button>
+        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className={POS_PANEL.body}>
+            <div className={POS_PANEL.card}>
+              {options.map((opt) => {
+                const selected = method === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void onMethodChange(opt.value)}
+                    className={cn(
+                      POS_PANEL.row,
+                      "items-start text-left transition-colors hover:bg-slate-50 disabled:opacity-60",
+                    )}
+                  >
+                    <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                      {selected ? (
+                        <Check className="h-5 w-5 text-primary" aria-hidden />
+                      ) : null}
+                    </span>
+                    <span className={cn(POS_PANEL.rowLabel, "leading-snug")}>
+                      {t(opt.labelKey, opt.fallback)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mt-3 px-0.5 text-xs leading-relaxed text-slate-500">
+              {method === "include"
+                ? t(
+                    POS_SETTINGS_I18N.paymentSettingsMethodHintInclude,
+                    "Tax and fees already in the menu price.",
+                  )
+                : t(
+                    POS_SETTINGS_I18N.paymentSettingsMethodHintAdd,
+                    "Tax and fees added on top of the menu price.",
+                  )}
+            </p>
+
+            <div className={cn(POS_PANEL.card, "mt-3")}>
+              <button
+                type="button"
+                onClick={() => go("tax")}
+                className={cn(
+                  POS_PANEL.row,
+                  "text-left transition-colors hover:bg-slate-50",
+                )}
+              >
+                <span className={POS_PANEL.rowLabel}>
+                  {t(POS_SETTINGS_I18N.paymentSettingsManageTax, "Manage Tax")}
+                </span>
+                <ChevronRight
+                  className="h-5 w-5 flex-shrink-0 text-slate-400"
+                  aria-hidden
+                />
+              </button>
+              <button
+                type="button"
+                onClick={() => go("surcharge")}
+                className={cn(
+                  POS_PANEL.row,
+                  "text-left transition-colors hover:bg-slate-50",
+                )}
+              >
+                <span className={POS_PANEL.rowLabel}>
+                  {t(
+                    POS_SETTINGS_I18N.paymentSettingsManageSurcharge,
+                    "Manage Additional Fees",
+                  )}
+                </span>
+                <ChevronRight
+                  className="h-5 w-5 flex-shrink-0 text-slate-400"
+                  aria-hidden
+                />
+              </button>
+            </div>
+          </div>
         </div>
       </SheetContent>
     </Sheet>

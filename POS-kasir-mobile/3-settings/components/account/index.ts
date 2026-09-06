@@ -4,4 +4,4 @@ export {
   PosProfileSettingsPanel,
   type PosOutletProfileSaved,
 } from "./PosProfileSettingsPanel";
-export { PosSettingsLogoutButton } from "./PosSettingsLogoutButton";
+export { PosSupportSettingsPanel } from "./PosSupportSettingsPanel";

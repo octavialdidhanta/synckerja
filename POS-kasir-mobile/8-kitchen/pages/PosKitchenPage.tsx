@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import { usePosTabletShell } from "@/pos-mobile/shared/hooks/usePosTabletShell";
+import { usePosKeyboardShellStyle } from "@/pos-mobile/shared/hooks/usePosKeyboardShellStyle";
 import { useMarkPosAuthSurface } from "@/pos-mobile/0-auth/lib/useMarkPosAuthSurface";
 import { POS_AUTH_PATHS } from "@/pos-mobile/0-auth/lib/posAuthPaths";
 import {
@@ -47,6 +48,7 @@ export default function PosKitchenPage() {
   const isPhoneLayout = usePosCashierIsPhoneLayout();
   usePosTabletShell({ phoneOverlay: isPhoneLayout });
   useMarkPosAuthSurface();
+  const keyboardShellStyle = usePosKeyboardShellStyle();
   const { t } = useAppTranslation();
   const navigate = useNavigate();
   const permissions = usePosAppPermissions();
@@ -161,7 +163,7 @@ export default function PosKitchenPage() {
     onSelectHeld: () => setMode({ kind: "held" }),
     onSelectCompleted: () => setMode({ kind: "completed_today" }),
     onOpenSettings: () => setSettingsOpen(true),
-    onBackToPos: () => navigate(POS_AUTH_PATHS.cashier),
+    onBackToPos: () => navigate(POS_AUTH_PATHS.cashier, { replace: true }),
   };
 
   const board = (
@@ -195,6 +197,7 @@ export default function PosKitchenPage() {
         "relative flex h-[100dvh] overflow-hidden bg-slate-100",
         isPhoneLayout ? "flex-col bg-white" : "flex-row",
       )}
+      style={keyboardShellStyle}
     >
       {isPhoneLayout ? <PosSafeAreaTopSpacer /> : null}
 

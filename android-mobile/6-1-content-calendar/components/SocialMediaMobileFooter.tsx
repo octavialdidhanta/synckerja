@@ -56,10 +56,10 @@ export function SocialMediaMobileFooter({ className }: SocialMediaMobileFooterPr
   const activeTab = isContentCalendar ? parseContentCalendarTab(location.search) : "calendar";
 
   return (
-    <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card">
+    <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card safe-area-bottom-lower">
       <div
         className={`mx-auto grid max-w-md min-h-[52px] grid-cols-4 place-items-center ${
-          className ?? "safe-area-padding-bottom-capped"
+          className ?? ""
         }`.trim()}
       >
         {FOOTER_TABS.map(({ tab, icon, labelKey, fallback }) => {

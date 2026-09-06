@@ -142,6 +142,9 @@ export const useAttendanceData = () => {
       const offices = (officesRaw as unknown as OfficeRow[] | null) ?? null;
 
       const officeName = offices?.length ? offices[0].name : "Kantor Pusat";
+      const officeAddress = offices?.length
+        ? (offices[0].address || "").trim()
+        : "";
       if (offices && offices.length > 0) {
         const office = offices[0];
         setOfficeLocation({
@@ -247,14 +250,14 @@ export const useAttendanceData = () => {
         setTodaySchedule({
           startTime: workScheduleData.start_time?.substring(0, 5) || "08:00",
           endTime: workScheduleData.end_time?.substring(0, 5) || "17:00",
-          location: officeName,
+          location: officeAddress || officeName,
           department: employee?.departments?.name || "IT Department",
           notes: isHoliday
             ? matchHoliday?.name
               ? `Hari libur: ${matchHoliday.name}`
               : "Hari ini libur"
             : isWorkingDay
-              ? "Hari kerja sesuai jadwal"
+              ? undefined
               : "Hari ini libur",
           isWorkingDay,
           isHoliday,
@@ -268,9 +271,9 @@ export const useAttendanceData = () => {
         setTodaySchedule({
           startTime: "08:00",
           endTime: "17:00", 
-          location: officeName,
+          location: officeAddress || officeName,
           department: employee?.departments?.name || "IT Department",
-          notes: "Jadwal kerja default",
+          notes: undefined,
           isWorkingDay: true,
           isHoliday: false,
           holidayName: null,

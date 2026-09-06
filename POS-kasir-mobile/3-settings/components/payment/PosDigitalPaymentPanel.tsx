@@ -2,7 +2,9 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { usePosQrisEligibility } from "@/shared/pos-qris/hooks/usePosQrisEligibility";
 import { usePaymentMethodChannels } from "@/8-2-10-reports/payment-methods/hooks/usePaymentMethodChannels";
 import { PAYMENT_METHOD_CATEGORY_I18N } from "@/8-2-10-reports/payment-methods/lib/paymentMethodCategoryLabels";
+import { cn } from "@/shared/lib/utils";
 import { readPosSelectedOutletId } from "@/pos-mobile/1-outlet-select/lib/posSelectedOutletStorage";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import {
   POS_PAYMENT_TERMS_HREF,
   POS_SETTINGS_I18N,
@@ -33,8 +35,8 @@ export function PosDigitalPaymentPanel() {
     !isLoading && !eligibility.isEligible && cashierMethods.length === 0;
 
   return (
-    <div className="space-y-4 px-4 py-4 pb-8">
-      <div className="rounded-md bg-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-600">
+    <div className={POS_PANEL.body}>
+      <div className={cn(POS_PANEL.card, "bg-slate-50 px-3 py-3 text-sm leading-relaxed text-slate-600")}>
         {t(POS_SETTINGS_I18N.paymentTermsBefore, "We have updated the")}{" "}
         <a
           href={POS_PAYMENT_TERMS_HREF}
@@ -48,16 +50,13 @@ export function PosDigitalPaymentPanel() {
       </div>
 
       {isLoading || showQris ? (
-        <div>
-          <div className="mb-1 flex items-center gap-3 pt-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              {t(POS_SETTINGS_I18N.paymentDigitalSection, "Digital (Xendit)")}
-            </p>
-            <div className="h-px flex-1 bg-slate-200" />
-          </div>
-          <div className="rounded-md border border-slate-100 bg-white">
+        <div className="mt-3">
+          <p className={POS_PANEL.sectionTitle}>
+            {t(POS_SETTINGS_I18N.paymentDigitalSection, "Digital (Xendit)")}
+          </p>
+          <div className={POS_PANEL.card}>
             {isLoading ? (
-              <div className="flex items-center gap-3 px-4 py-3.5" aria-hidden>
+              <div className={cn(POS_PANEL.row, "gap-3")} aria-hidden>
                 <div className="h-9 w-9 animate-pulse rounded bg-slate-100" />
                 <div className="h-4 flex-1 animate-pulse rounded bg-slate-100" />
                 <div className="h-4 w-16 animate-pulse rounded bg-slate-100" />
@@ -90,39 +89,33 @@ export function PosDigitalPaymentPanel() {
         </div>
       ) : null}
 
-      <div>
-        <div className="mb-1 flex items-center gap-3 pt-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-            {t(POS_SETTINGS_I18N.paymentActiveMethods, "At cashier (this outlet)")}
-          </p>
-          <div className="h-px flex-1 bg-slate-200" />
-        </div>
-        <p className="mb-2 text-xs leading-relaxed text-slate-500">
+      <div className="mt-3">
+        <p className={POS_PANEL.sectionTitle}>
+          {t(POS_SETTINGS_I18N.paymentActiveMethods, "At cashier (this outlet)")}
+        </p>
+        <p className="mb-2 px-0.5 text-xs leading-relaxed text-slate-500">
           {t(
             POS_SETTINGS_I18N.paymentActiveMethodsHint,
-            "Payment methods enabled for this outlet in back office. Manage them there — not from POS.",
+            "Managed in back office, not from POS.",
           )}
         </p>
-        <div className="rounded-md border border-slate-100 bg-white">
+        <div className={POS_PANEL.card}>
           {isLoading ? (
             <>
-              <div
-                className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5"
-                aria-hidden
-              >
+              <div className={cn(POS_PANEL.row, "gap-3")} aria-hidden>
                 <div className="h-4 flex-1 animate-pulse rounded bg-slate-100" />
                 <div className="h-4 w-14 animate-pulse rounded bg-slate-100" />
               </div>
-              <div className="flex items-center gap-3 px-4 py-3.5" aria-hidden>
+              <div className={cn(POS_PANEL.row, "gap-3")} aria-hidden>
                 <div className="h-4 flex-1 animate-pulse rounded bg-slate-100" />
                 <div className="h-4 w-14 animate-pulse rounded bg-slate-100" />
               </div>
             </>
           ) : cashierMethods.length === 0 ? (
-            <p className="px-4 py-3.5 text-sm text-slate-500">
+            <p className="px-3 py-3.5 text-sm text-slate-500">
               {t(
                 POS_SETTINGS_I18N.paymentActiveMethodsEmpty,
-                "No other payment methods enabled for this outlet in back office.",
+                "None enabled in back office.",
               )}
             </p>
           ) : (
@@ -143,10 +136,10 @@ export function PosDigitalPaymentPanel() {
       </div>
 
       {showEmpty ? (
-        <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-center text-sm text-slate-600">
+        <p className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-sm text-slate-600">
           {t(
             POS_SETTINGS_I18N.paymentEmptyState,
-            "No payment methods are enabled yet. Configure them in back office.",
+            "None yet — set up in back office.",
           )}
         </p>
       ) : null}

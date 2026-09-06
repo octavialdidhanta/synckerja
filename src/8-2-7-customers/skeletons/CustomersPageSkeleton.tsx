@@ -15,8 +15,25 @@ export function CustomersPageSkeleton() {
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col p-4">
+        <div className="mb-2 flex gap-2 border-b border-slate-100 pb-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-4 w-36" />
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="ml-auto h-4 w-20" />
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-20" />
+        </div>
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="mb-2 h-10 w-full" />
+          <div key={i} className="mb-2 flex items-center gap-2">
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-28" />
+            <Skeleton className="h-9 w-36" />
+            <Skeleton className="h-9 w-28" />
+            <Skeleton className="ml-auto h-9 w-20" />
+            <Skeleton className="h-9 w-20" />
+            <Skeleton className="h-9 w-20" />
+          </div>
         ))}
       </div>
     </CustomersPageSkeletonFrame>

@@ -1,4 +1,5 @@
 export type CustomerListRow = {
+  /** Stable identity key: `phone:…` or `email:…` (not a lead UUID). */
   id: string;
   name: string;
   email: string | null;

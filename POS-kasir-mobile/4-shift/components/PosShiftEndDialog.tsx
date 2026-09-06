@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -24,16 +25,22 @@ import {
 } from "@/shared/lib/idrInputFormat";
 import { cn } from "@/shared/lib/utils";
 import { usePosCashierIsPhoneLayout } from "@/pos-mobile/2-cashier/hooks/usePosCashierIsPhoneLayout";
+import { usePosKeyboardShellStyle } from "@/pos-mobile/shared/hooks/usePosKeyboardShellStyle";
 import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
-import { POS_APP_FOOTER_OVERLAY_BOTTOM_CLASS } from "@/pos-mobile/shared/layout/PosAppFooterBar";
 import { formatPosCash, formatPosCashOut } from "../lib/formatPosCash";
-import { formatPosShiftDateTime } from "../lib/formatPosShiftDateTime";
+import { formatPosShiftDateParts } from "../lib/formatPosShiftDateTime";
 import { POS_SHIFT_I18N } from "../lib/posShiftCopy";
+import { POS_SHIFT_PANEL } from "../lib/posShiftPanelChrome";
 import type { PosCashierShift, PosShiftTotals } from "../lib/posShiftTypes";
 import {
   computePosShiftCashVariance,
   formatPosShiftVariance,
 } from "../lib/posShiftVariance";
+
+export type PosShiftEndSubmitState = {
+  canSubmit: boolean;
+  submit: () => void;
+};
 
 type Props = {
   open: boolean;
@@ -44,6 +51,12 @@ type Props = {
   totals: PosShiftTotals;
   busy?: boolean;
   onConfirm: (countedCash: number) => void;
+  /**
+   * Hide in-dialog End Shift CTA; drive confirm from the blue footer instead.
+   * Reports canSubmit/submit via onExternalSubmitStateChange while open.
+   */
+  confirmViaFooter?: boolean;
+  onExternalSubmitStateChange?: (state: PosShiftEndSubmitState | null) => void;
 };
 
 function Row({
@@ -58,12 +71,18 @@ function Row({
   return (
     <div
       className={cn(
-        "flex min-w-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0",
+        POS_SHIFT_PANEL.row,
+        "items-start",
         emphasize && "font-semibold",
       )}
     >
-      <span className="min-w-0 flex-1 pr-2 text-sm text-slate-800">{label}</span>
-      <span className="max-w-[58%] min-w-0 shrink text-right text-sm tabular-nums text-slate-900 [overflow-wrap:anywhere]">
+      <span className={cn(POS_SHIFT_PANEL.rowLabel, "pr-2")}>{label}</span>
+      <span
+        className={cn(
+          "max-w-[58%] min-w-0 shrink text-right text-sm tabular-nums text-slate-900 [overflow-wrap:anywhere]",
+          emphasize ? "font-semibold" : "font-medium",
+        )}
+      >
         {value}
       </span>
     </div>
@@ -72,6 +91,7 @@ function Row({
 
 /**
  * End Shift reconciliation — full screen on phone, dialog on tablet.
+ * With `confirmViaFooter`, primary confirm lives on the app footer End Shift tab.
  */
 export function PosShiftEndDialog({
   open,
@@ -82,11 +102,31 @@ export function PosShiftEndDialog({
   totals,
   busy,
   onConfirm,
+  confirmViaFooter = false,
+  onExternalSubmitStateChange,
 }: Props) {
   const { t, language } = useAppTranslation();
   const isPhone = usePosCashierIsPhoneLayout();
+  const keyboardShellStyle = usePosKeyboardShellStyle();
   const [digits, setDigits] = useState("");
   const [confirmVarianceOpen, setConfirmVarianceOpen] = useState(false);
+
+  /**
+   * Pin to the visible viewport (same as the shift shell) so the overlay does not
+   * stay glued to the layout bottom behind the IME while the blue footer moves up.
+   * Height stops at the `min-h-14` footer row so End Shift stays tappable.
+   */
+  const overlayPinStyle = useMemo((): CSSProperties | undefined => {
+    if (!keyboardShellStyle) return undefined;
+    const height = keyboardShellStyle.height;
+    if (typeof height !== "number") return keyboardShellStyle;
+    const aboveFooter = Math.max(0, height - 56);
+    return {
+      ...keyboardShellStyle,
+      height: aboveFooter,
+      maxHeight: aboveFooter,
+    };
+  }, [keyboardShellStyle]);
 
   useEffect(() => {
     if (!open) {
@@ -107,6 +147,11 @@ export function PosShiftEndDialog({
       ? formatPosCashOut(-totals.cashInOutNet)
       : formatPosCash(totals.cashInOutNet);
 
+  const startedParts = formatPosShiftDateParts(
+    shift.opened_at,
+    String(language ?? "id"),
+  );
+
   const submit = () => {
     if (!hasInput || busy) return;
     if (variance !== 0) {
@@ -115,6 +160,22 @@ export function PosShiftEndDialog({
     }
     onConfirm(counted);
   };
+
+  const submitRef = useRef(submit);
+  submitRef.current = submit;
+
+  useEffect(() => {
+    if (!confirmViaFooter || !onExternalSubmitStateChange) return;
+    if (!open) {
+      onExternalSubmitStateChange(null);
+      return () => onExternalSubmitStateChange(null);
+    }
+    onExternalSubmitStateChange({
+      canSubmit: hasInput && !busy,
+      submit: () => submitRef.current(),
+    });
+    return () => onExternalSubmitStateChange(null);
+  }, [confirmViaFooter, onExternalSubmitStateChange, open, hasInput, busy]);
 
   const varianceConfirmDescription =
     variance < 0
@@ -131,34 +192,89 @@ export function PosShiftEndDialog({
 
   const titleText = t(POS_SHIFT_I18N.endDialogTitle, "End Shift");
 
-  const header = (titleNode: ReactNode) => (
-    <div className="relative flex shrink-0 items-center justify-center border-b border-slate-200 px-3 py-2.5">
-      <Button
+  const close = () => {
+    if (busy) return;
+    setConfirmVarianceOpen(false);
+    onOpenChange(false);
+  };
+
+  const headerBar = (
+    <div className={POS_SHIFT_PANEL.header}>
+      <button
         type="button"
-        variant="outline"
-        size="sm"
         disabled={busy}
-        onClick={() => {
-          if (busy) return;
-          setConfirmVarianceOpen(false);
-          onOpenChange(false);
-        }}
-        className="absolute left-3 top-1/2 -translate-y-1/2 border-primary text-primary"
+        onClick={close}
+        className={POS_SHIFT_PANEL.headerBack}
+        aria-label={t(POS_SHIFT_I18N.back, "Back")}
       >
-        {t(POS_SHIFT_I18N.cancel, "Cancel")}
-      </Button>
-      {titleNode}
+        <ArrowLeft className="h-5 w-5" />
+      </button>
+      {isPhone ? (
+        <h1 className={POS_SHIFT_PANEL.headerTitle}>{titleText}</h1>
+      ) : (
+        <DialogTitle className={POS_SHIFT_PANEL.headerTitle}>{titleText}</DialogTitle>
+      )}
+    </div>
+  );
+
+  const countedCashCard = (
+    <div
+      className={cn(
+        POS_SHIFT_PANEL.card,
+        "border-2 border-primary/40 shadow-sm",
+      )}
+    >
+      <div className="flex min-w-0 flex-col gap-2 px-3 py-3">
+        <span className="min-w-0 text-sm font-semibold text-slate-900">
+          {t(POS_SHIFT_I18N.countedCash, "Amount of cash received")}
+        </span>
+        <div className="flex min-w-0 w-full items-center justify-end gap-1">
+          <span className="shrink-0 text-sm text-slate-500">Rp</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            disabled={busy}
+            value={formatIdrThousandsFromDigits(digits)}
+            onChange={(e) => setDigits(idrDigitsOnly(e.target.value))}
+            placeholder={t(
+              POS_SHIFT_I18N.countedCashPlaceholder,
+              "Amount of cash received",
+            )}
+            className="min-w-0 w-full border-0 bg-transparent text-right text-sm font-semibold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400"
+          />
+        </div>
+      </div>
+      {hasInput ? (
+        <div className={cn(POS_SHIFT_PANEL.row, "border-b-0 border-t border-slate-200")}>
+          <span className={cn(POS_SHIFT_PANEL.rowLabel, "pr-2")}>
+            {t(POS_SHIFT_I18N.variance, "Difference")}
+          </span>
+          <span className="max-w-[58%] min-w-0 shrink text-right text-sm font-medium tabular-nums text-slate-900 [overflow-wrap:anywhere]">
+            {formatPosShiftVariance(variance)}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 
   const body = (
-    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-100">
+      <div
+        className={cn(
+          "scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden",
+          POS_SHIFT_PANEL.body,
+          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        )}
+      >
+        <div className={POS_SHIFT_PANEL.card}>
           <Row label={t(POS_SHIFT_I18N.detailOutlet, "Outlet")} value={outletName} />
           <Row
             label={t(POS_SHIFT_I18N.detailStarted, "Shift Started")}
-            value={formatPosShiftDateTime(shift.opened_at, String(language ?? "id"))}
+            value={startedParts.dateLine}
+          />
+          <Row
+            label={t(POS_SHIFT_I18N.detailStartedTime, "Time")}
+            value={startedParts.timeLine}
           />
           <Row
             label={t(POS_SHIFT_I18N.cashInOut, "Cash Out / Cash In")}
@@ -170,10 +286,10 @@ export function PosShiftEndDialog({
           />
         </div>
 
-        <p className="px-1 pb-2 pt-5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+        <p className={POS_SHIFT_PANEL.sectionTitle}>
           {t(POS_SHIFT_I18N.cashSection, "CASH")}
         </p>
-        <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className={POS_SHIFT_PANEL.card}>
           <Row
             label={t(POS_SHIFT_I18N.cashBalance, "Cash Balance")}
             value={formatPosCash(totals.openingCash)}
@@ -205,66 +321,43 @@ export function PosShiftEndDialog({
           />
         </div>
 
-        <div className="mt-4 min-w-0 overflow-hidden rounded-md border-2 border-primary/40 bg-white">
-          <div className="flex min-w-0 flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <span className="min-w-0 text-sm font-semibold text-slate-900">
-              {t(POS_SHIFT_I18N.countedCash, "Amount of cash received")}
-            </span>
-            <div className="flex min-w-0 w-full items-center justify-end gap-1 sm:w-auto sm:max-w-[12rem] sm:flex-1">
-              <span className="shrink-0 text-sm text-slate-500">Rp</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                disabled={busy}
-                value={formatIdrThousandsFromDigits(digits)}
-                onChange={(e) => setDigits(idrDigitsOnly(e.target.value))}
-                placeholder={t(
-                  POS_SHIFT_I18N.countedCashPlaceholder,
-                  "Amount of cash received",
-                )}
-                className="min-w-0 w-full border-0 bg-transparent text-right text-sm font-semibold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400"
-              />
-            </div>
-          </div>
-          {hasInput ? (
-            <div className="flex min-w-0 items-start justify-between gap-3 border-t border-slate-100 px-4 py-3">
-              <span className="min-w-0 flex-1 pr-2 text-sm text-slate-800">
-                {t(POS_SHIFT_I18N.variance, "Difference")}
-              </span>
-              <span className="max-w-[58%] min-w-0 shrink text-right text-sm font-medium tabular-nums text-slate-900 [overflow-wrap:anywhere]">
-                {formatPosShiftVariance(variance)}
-              </span>
-            </div>
-          ) : null}
-        </div>
+        {/* Tablet / non-docked: keep amount in scroll flow */}
+        {!isPhone ? <div className="mt-3">{countedCashCard}</div> : null}
       </div>
 
-      <div
-        className={cn(
-          "shrink-0 border-t border-slate-100 p-3",
-          /* Phone overlay already stops above the app footer (which owns safe-area). */
-          !isPhone && "pb-[max(0.75rem,env(safe-area-inset-bottom))]",
-        )}
-      >
-        <Button
-          type="button"
-          disabled={!hasInput || busy}
-          onClick={submit}
-          className="h-12 w-full text-base font-semibold"
+      {/* Phone: dock amount above app footer; height tracks adjustResize (no bottom flip). */}
+      {isPhone ? (
+        <div className="shrink-0 border-t border-slate-200/80 bg-slate-100 px-2 pb-2 pt-2 sm:px-2.5">
+          {countedCashCard}
+        </div>
+      ) : null}
+
+      {confirmViaFooter ? null : (
+        <div
+          className={cn(
+            "shrink-0 border-t border-slate-200 bg-white p-3",
+            !isPhone && "pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+          )}
         >
-          {busy
-            ? t(POS_SHIFT_I18N.endingShift, "Ending shift…")
-            : t(POS_SHIFT_I18N.endShift, "End Shift")}
-        </Button>
-      </div>
+          <Button
+            type="button"
+            disabled={!hasInput || busy}
+            onClick={submit}
+            className="h-11 w-full text-sm font-semibold"
+          >
+            {busy
+              ? t(POS_SHIFT_I18N.endingShift, "Ending shift…")
+              : t(POS_SHIFT_I18N.endShift, "End Shift")}
+          </Button>
+        </div>
+      )}
     </div>
   );
 
   const varianceAlert = (
     <AlertDialog open={confirmVarianceOpen} onOpenChange={setConfirmVarianceOpen}>
       <AlertDialogContent
-        // Phone End Shift overlay uses z-[60]; confirm must sit above it or focus trap locks the UI.
-        className="z-[70]"
+        className="z-[70] rounded-2xl sm:rounded-2xl"
         overlayClassName="z-[70]"
       >
         <AlertDialogHeader>
@@ -295,25 +388,19 @@ export function PosShiftEndDialog({
     if (!open) {
       return varianceAlert;
     }
-    /**
-     * Portal to `document.body`: the shift phone slider uses `transform` /
-     * `will-change-transform`, which would otherwise trap `position:fixed`
-     * inside the pane (double status-bar spacer + gap above the footer).
-     */
     return createPortal(
       <>
         <div
           className={cn(
-            "fixed inset-x-0 top-0 z-[60] flex w-full max-w-[100dvw] flex-col overflow-x-hidden overflow-y-hidden bg-white",
-            POS_APP_FOOTER_OVERLAY_BOTTOM_CLASS,
+            "fixed inset-x-0 top-0 z-[60] flex w-full max-w-[100dvw] flex-col overflow-x-hidden overflow-y-hidden overscroll-none bg-slate-100",
+            /* Flush with the blue footer; collapse inset with `data-keyboard-open` so no hole. */
+            !overlayPinStyle &&
+              "bottom-[calc(3.5rem+max(var(--footer-bottom-inset,0px),var(--safe-area-inset-bottom,0px),env(safe-area-inset-bottom,0px)))] [html[data-keyboard-open]_&]:bottom-14",
           )}
+          style={overlayPinStyle}
         >
-          <PosSafeAreaTopSpacer />
-          {header(
-            <h1 className="min-w-0 truncate px-16 text-center text-base font-semibold text-slate-900">
-              {titleText}
-            </h1>,
-          )}
+          <PosSafeAreaTopSpacer className="bg-white" />
+          {headerBar}
           {body}
         </div>
         {varianceAlert}
@@ -326,11 +413,7 @@ export function PosShiftEndDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg [&>button]:hidden">
-          {header(
-            <DialogTitle className="text-base font-semibold text-slate-900">
-              {titleText}
-            </DialogTitle>,
-          )}
+          {headerBar}
           {body}
         </DialogContent>
       </Dialog>

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 12+ cold start: logo saja (tanpa inset tebal); lingkaran sistem disamarkan via iconBackground. -->
+<!-- Android 12+ cold start: logo sedikit lebih kecil di dalam mask lingkaran sistem. -->
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/splash_logo"
-    android:insetLeft="2%"
-    android:insetTop="2%"
-    android:insetRight="2%"
-    android:insetBottom="2%" />
+    android:insetLeft="12%"
+    android:insetTop="12%"
+    android:insetRight="12%"
+    android:insetBottom="12%" />

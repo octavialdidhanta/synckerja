@@ -11,6 +11,8 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { invalidateCatalogStockCaches } from "@/8-2-3-ingredient/library/hooks/invalidateCatalogStockCaches";
 import { usePosTabletShell } from "@/pos-mobile/shared/hooks/usePosTabletShell";
+import { usePosKeyboardShellStyle } from "@/pos-mobile/shared/hooks/usePosKeyboardShellStyle";
+import { usePosFrozenBackgroundShell } from "@/pos-mobile/shared/hooks/usePosFrozenBackgroundShell";
 import { useMarkPosAuthSurface } from "@/pos-mobile/0-auth/lib/useMarkPosAuthSurface";
 import { POS_AUTH_PATHS } from "@/pos-mobile/0-auth/lib/posAuthPaths";
 import { usePosAppPermissions } from "@/pos-mobile/shared/hooks/usePosAppPermissions";
@@ -27,6 +29,11 @@ import {
   stashPosSelectedTable,
   type PosSelectedTable,
 } from "@/pos-mobile/5-table-map/lib/posSelectedTableStorage";
+import {
+  clearPosCashierDraft,
+  readPosCashierDraft,
+  stashPosCashierDraft,
+} from "@/pos-mobile/2-cashier/lib/posCashierDraftStorage";
 import { formatPosTableDuration } from "@/pos-mobile/5-table-map/lib/formatPosTableDuration";
 import { usePosTableSessionMutations, POS_TABLE_SESSIONS_QUERY_KEY } from "@/8-2-9-table-management/hooks/usePosTableSessions";
 import {
@@ -74,6 +81,8 @@ import {
 import { buildFullCartSelection, splitCartLinesByQty } from "../lib/splitCartLines";
 import { applyPosRewardToTotal } from "../hooks/usePosOutletRewards";
 import { sendPosDigitalReceipt } from "../lib/sendPosDigitalReceipt";
+import { markPosReceiptSentLocal } from "@/pos-mobile/shared/lib/posReceiptSentStorage";
+import { POS_RECEIPT_SENT_QUERY_KEY } from "@/pos-mobile/shared/hooks/usePosReceiptSentStatus";
 import { POS_PAY_SUCCESS_I18N } from "../lib/posPaySuccessCopy";
 import {
   assignPayFirstTable,
@@ -207,6 +216,12 @@ export default function PosCashierPage() {
   const { isPhoneLayout, pane, setPane, showMenu, showBill } = usePosCashierPhoneLayout();
   usePosTabletShell({ phoneOverlay: isPhoneLayout });
   useMarkPosAuthSurface();
+  const [notesLine, setNotesLine] = useState<CustomerVisitCartLine | null>(null);
+  const notesOpen = Boolean(notesLine);
+  const frozenBackgroundStyle = usePosFrozenBackgroundShell(notesOpen);
+  const keyboardShellStyle = usePosKeyboardShellStyle({
+    enabled: !notesOpen && !frozenBackgroundStyle,
+  });
   const { t } = useAppTranslation();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -331,6 +346,7 @@ export default function PosCashierPage() {
     leadId: string;
     boundByPhone: boolean;
     clientPhone: string | null;
+    clientEmail: string | null;
     amountDue: number;
     splitLines: CustomerVisitCartLine[];
     paidCatalogTotals: CatalogCheckoutTotals;
@@ -358,7 +374,6 @@ export default function PosCashierPage() {
   const [customizeItem, setCustomizeItem] = useState<CustomerVisitCatalogItem | null>(
     null,
   );
-  const [notesLine, setNotesLine] = useState<CustomerVisitCartLine | null>(null);
   const [activeOpenSessionId, setActiveOpenSessionId] = useState<string | null>(() => {
     const stored = readPosSelectedTable();
     return stored?.sessionId ?? null;
@@ -413,14 +428,39 @@ export default function PosCashierPage() {
   useEffect(() => {
     if (cartRestored) return;
     const snap = selectedTable?.cartSnapshot;
-    if (!snap || snap.length === 0) {
+    if (snap && snap.length > 0) {
+      cart.replaceLines(snap);
       setCartRestored(true);
+      stashPosSelectedTable({ ...selectedTable!, cartSnapshot: null });
+      clearPosCashierDraft(outletId);
       return;
     }
-    cart.replaceLines(snap);
+    const draft = readPosCashierDraft(outletId);
+    if (draft?.lines?.length) {
+      cart.replaceLines(draft.lines);
+      if (draft.salesTypeId) setSalesTypeId(draft.salesTypeId);
+      if (draft.activeOpenSessionId) setActiveOpenSessionId(draft.activeOpenSessionId);
+      if (draft.customer) setCustomer(draft.customer);
+      clearPosCashierDraft(outletId);
+    }
     setCartRestored(true);
-    stashPosSelectedTable({ ...selectedTable!, cartSnapshot: null });
-  }, [cart, cartRestored, selectedTable]);
+  }, [cart, cartRestored, selectedTable, outletId]);
+
+  /** Keep draft warm so leaving for Start Shift (or any route) does not drop open bill lines. */
+  useEffect(() => {
+    if (!cartRestored || !outletId) return;
+    if (cart.lines.length === 0) {
+      clearPosCashierDraft(outletId);
+      return;
+    }
+    stashPosCashierDraft({
+      outletId,
+      lines: cart.lines,
+      salesTypeId,
+      activeOpenSessionId,
+      customer,
+    });
+  }, [cartRestored, outletId, cart.lines, salesTypeId, activeOpenSessionId, customer]);
 
   // Walk-in resume from table-map bill list: keep session + cart, clear fake table badge.
   useEffect(() => {
@@ -957,6 +997,21 @@ export default function PosCashierPage() {
     setCustomer(null);
   };
 
+  const goStartShiftForRequired = () => {
+    if (outletId && cart.lines.length > 0) {
+      stashPosCashierDraft({
+        outletId,
+        lines: cart.lines,
+        salesTypeId,
+        activeOpenSessionId,
+        customer,
+      });
+    }
+    setSelectTableOpen(false);
+    setNewBillPick(null);
+    navigate(`${POS_AUTH_PATHS.shift}?section=current`, { replace: true });
+  };
+
   const ensureShiftForSave = (): boolean => {
     if (shiftWaiter.shiftOpen && shiftWaiter.waiter?.userId) return true;
     toast({
@@ -966,9 +1021,7 @@ export default function PosCashierPage() {
       ),
       variant: "destructive",
     });
-    setSelectTableOpen(false);
-    setNewBillPick(null);
-    navigate(`${POS_AUTH_PATHS.shift}?section=current`, { replace: true });
+    goStartShiftForRequired();
     return false;
   };
 
@@ -1655,6 +1708,7 @@ export default function PosCashierPage() {
       leadId,
       boundByPhone,
       clientPhone,
+      clientEmail,
       kitchenCheckout,
       paySessionId,
       posTableId,
@@ -1784,6 +1838,8 @@ export default function PosCashierPage() {
       paymentMethod: "qris",
       walletLabel: "QRIS",
       customerName: clientName,
+      customerEmail: clientEmail,
+      customerPhone: clientPhone,
       activityId: args.salesActivityId,
       leadId,
       linesSnapshot: splitLines,
@@ -1834,6 +1890,10 @@ export default function PosCashierPage() {
       customer?.phone ||
       liveOpenSession?.customer_phone?.trim() ||
       null;
+    const clientEmail =
+      loyaltyResult.customer?.email?.trim() ||
+      customer?.email?.trim() ||
+      null;
 
     if (payload.paymentMethod === "qris") {
       if (catalogLines.length === 0 || paidCatalogTotals.grandTotal <= 0) {
@@ -1872,6 +1932,7 @@ export default function PosCashierPage() {
           outletId,
           clientName,
           clientPhone,
+          clientEmail,
           catalogLines,
           paidCatalogTotals,
           salesTypeId: salesTypeId || null,
@@ -1890,6 +1951,7 @@ export default function PosCashierPage() {
           leadId,
           boundByPhone,
           clientPhone,
+          clientEmail,
           amountDue:
             paidCatalogTotals.grandTotal + Math.max(0, Math.round(customTotal)),
           splitLines,
@@ -1913,7 +1975,7 @@ export default function PosCashierPage() {
             title: t(POS_SHIFT_I18N.shiftRequired, "Start a shift before taking payments."),
             variant: "destructive",
           });
-          navigate(`${POS_AUTH_PATHS.shift}?section=current`, { replace: true });
+          goStartShiftForRequired();
           return;
         }
         const payToast = resolvePosPayFailureToast(err, t);
@@ -1960,6 +2022,7 @@ export default function PosCashierPage() {
         const result = await pay.mutateAsync({
           clientName,
           clientPhone,
+          clientEmail,
           paymentMethod: payload.paymentMethod,
           paymentChannelId: payload.paymentChannelId,
           paymentReference: payload.paymentReference,
@@ -2070,6 +2133,8 @@ export default function PosCashierPage() {
         paymentMethod: payload.paymentMethod,
         walletLabel: payload.walletLabel,
         customerName: clientName,
+        customerEmail: clientEmail,
+        customerPhone: clientPhone,
         activityId,
         leadId,
         linesSnapshot: splitLines,
@@ -2106,7 +2171,7 @@ export default function PosCashierPage() {
           title: t(POS_SHIFT_I18N.shiftRequired, "Start a shift before taking payments."),
           variant: "destructive",
         });
-        navigate(`${POS_AUTH_PATHS.shift}?section=current`, { replace: true });
+        goStartShiftForRequired();
         return;
       }
       const payFailureToast = resolvePosPayFailureToast(err, t, {
@@ -2163,6 +2228,11 @@ export default function PosCashierPage() {
         return;
       }
       toast({ title: t(POS_PAY_SUCCESS_I18N.sendSuccess, "Receipt sent") });
+      const next = markPosReceiptSentLocal(paySuccess.activityId, "email");
+      queryClient.setQueryData(
+        [POS_RECEIPT_SENT_QUERY_KEY, paySuccess.activityId],
+        next,
+      );
     } finally {
       setSendingEmail(false);
     }
@@ -2194,6 +2264,11 @@ export default function PosCashierPage() {
         return;
       }
       toast({ title: t(POS_PAY_SUCCESS_I18N.sendSuccess, "Receipt sent") });
+      const next = markPosReceiptSentLocal(paySuccess.activityId, "sms");
+      queryClient.setQueryData(
+        [POS_RECEIPT_SENT_QUERY_KEY, paySuccess.activityId],
+        next,
+      );
     } finally {
       setSendingSms(false);
     }
@@ -2239,6 +2314,8 @@ export default function PosCashierPage() {
         "fixed inset-0 flex flex-col overflow-hidden",
         isPhoneLayout ? "bg-white" : "bg-slate-100",
       )}
+      data-pos-freeze-keyboard-chrome={frozenBackgroundStyle ? "" : undefined}
+      style={frozenBackgroundStyle ?? keyboardShellStyle}
     >
       {isPhoneLayout ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-100">
@@ -2712,6 +2789,7 @@ export default function PosCashierPage() {
       <PosPaySuccessScreen
         open={Boolean(paySuccess)}
         payload={paySuccess}
+        outletId={outletId}
         digitalEnabled={Boolean(paySuccess?.activityId && paySuccess?.leadId)}
         sendingEmail={sendingEmail}
         sendingSms={sendingSms}

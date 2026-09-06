@@ -35,7 +35,7 @@ export function PosKitchenColorRow({ label, value, onChange }: Props) {
               setDraft(value);
             }
           }}
-          className="w-[7.5rem] rounded-md border border-slate-200 bg-white px-2 py-1.5 font-mono text-xs text-slate-800 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+          className="w-[7.5rem] rounded-md border border-slate-200 bg-white px-2 py-1.5 font-mono text-xs text-slate-800 outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
           aria-label={label}
         />
         <label className="relative h-8 w-8 flex-shrink-0 cursor-pointer overflow-hidden rounded-md border border-slate-200 shadow-sm">

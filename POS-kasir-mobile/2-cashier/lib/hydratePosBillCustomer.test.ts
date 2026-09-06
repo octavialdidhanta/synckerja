@@ -13,6 +13,7 @@ describe("hydratePosBillCustomer", () => {
       leadId: null,
       name: "Linda",
       phone: "",
+      email: "",
       boundByPhone: false,
     });
   });
@@ -26,12 +27,14 @@ describe("hydratePosBillCustomer", () => {
           id: "lead-octa",
           client: "Octa Vialdi",
           phone_number: "6281281714855",
+          email: "octa@mail.com",
         },
       }),
     ).toEqual({
       leadId: "lead-octa",
       name: "Octa Vialdi",
       phone: "6281281714855",
+      email: "octa@mail.com",
       boundByPhone: true,
     });
   });
@@ -47,6 +50,7 @@ describe("hydratePosBillCustomer", () => {
       leadId: null,
       name: "Linda",
       phone: "081200000000",
+      email: "",
       boundByPhone: false,
     });
   });

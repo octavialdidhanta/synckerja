@@ -42,6 +42,7 @@ export const POS_SHIFT_I18N = {
   detailName: "posShift.detailName",
   detailOutlet: "posShift.detailOutlet",
   detailStarted: "posShift.detailStarted",
+  detailStartedTime: "posShift.detailStartedTime",
   cashInOut: "posShift.cashInOut",
   orderSection: "posShift.orderSection",
   productsSold: "posShift.productsSold",

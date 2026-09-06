@@ -28,7 +28,8 @@ import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
 type Mode = "totp" | "recovery";
 
 export type MfaVerifyScreenProps = {
-  brandMark?: ReactNode;
+  /** Pass `null` to hide logo (e.g. POS funnel keeps brand in the parent layout). */
+  brandMark?: ReactNode | null;
   onFieldFocus?: () => void;
   onFieldBlur?: () => void;
   submitButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -142,9 +143,9 @@ export function MfaVerifyScreen({
 
   return (
     <div className={authFormRootClass}>
-      <header className="flex flex-col items-center text-center">
-        <div className={authFormHeaderLogoWrapper}>{brandMark}</div>
-        <div className="mb-2 flex items-center gap-2">
+      <header className="flex flex-col items-center gap-2 text-center">
+        {brandMark != null ? <div className={authFormHeaderLogoWrapper}>{brandMark}</div> : null}
+        <div className="flex items-center gap-2">
           <Shield className="h-6 w-6 text-primary" />
           <h1 className={authFormTitleClass}>{t("settings.security.twoFactor.loginTitle")}</h1>
         </div>
@@ -152,7 +153,7 @@ export function MfaVerifyScreen({
       </header>
 
       {mode === "totp" ? (
-        <div className="mt-6 space-y-4">
+        <div className="mt-3 space-y-4">
           {error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
@@ -186,7 +187,7 @@ export function MfaVerifyScreen({
           </Button>
         </div>
       ) : (
-        <form onSubmit={(e) => void handleRecovery(e)} className="mt-6 space-y-4">
+        <form onSubmit={(e) => void handleRecovery(e)} className="mt-3 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="recovery-code">{t("settings.security.twoFactor.recoveryLabel")}</Label>
             <Input

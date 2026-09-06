@@ -28,14 +28,14 @@ export function ModifierStockOptionRow({
   const { t } = useAppTranslation();
 
   return (
-    <div className="grid grid-cols-[minmax(4.5rem,0.9fr)_minmax(7rem,1.4fr)_4.5rem_4.5rem] items-center gap-2 border-b py-2 last:border-b-0">
-      <span className="truncate text-sm text-muted-foreground" title={optionName}>
+    <div className="grid grid-cols-[minmax(4.5rem,0.9fr)_minmax(7rem,1.4fr)_4.5rem_4.5rem] items-center gap-2 border-b border-slate-200 py-2.5 last:border-b-0">
+      <span className="truncate text-sm text-slate-500" title={optionName}>
         {optionName || "—"}
       </span>
       <div className="min-w-0">
         {ingredientId && ingredientName ? (
-          <div className="flex min-w-0 items-center gap-1.5 rounded-md border bg-background px-2 py-1.5">
-            <span className="min-w-0 flex-1 truncate text-sm" title={ingredientName}>
+          <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2">
+            <span className="min-w-0 flex-1 truncate text-sm text-slate-800" title={ingredientName}>
               {ingredientName}
             </span>
             <ModifierStockClearButton
@@ -47,7 +47,7 @@ export function ModifierStockOptionRow({
           <Button
             type="button"
             variant="outline"
-            className="h-9 w-full justify-start px-2 text-sm font-normal text-muted-foreground"
+            className="h-9 w-full justify-start border-slate-200 bg-white px-2 text-sm font-normal text-slate-500"
             onClick={onChooseIngredient}
           >
             {t("defaultPrices.modifiers.stockChooseIngredient", "Choose Ingredient")}
@@ -59,10 +59,10 @@ export function ModifierStockOptionRow({
         value={quantityDisplay}
         onChange={(e) => onQuantityChange(e.target.value.replace(/[^\d.,]/g, ""))}
         placeholder={t("defaultPrices.modifiers.stockQtyPlaceholder", "Qty")}
-        className="h-9"
+        className="h-10 border-slate-200 bg-white px-2.5 shadow-none"
         disabled={!ingredientId}
       />
-      <span className="truncate text-xs text-muted-foreground" title={unitCode ?? undefined}>
+      <span className="truncate text-xs text-slate-500" title={unitCode ?? undefined}>
         {unitCode ? formatIngredientUnitCode(unitCode) : "—"}
       </span>
     </div>

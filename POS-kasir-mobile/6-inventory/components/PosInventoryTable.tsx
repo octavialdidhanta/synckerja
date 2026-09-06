@@ -49,7 +49,7 @@ export function PosInventoryTable({
     <div className="min-h-0 flex-1 overflow-auto">
       <Table>
         <TableHeader>
-          <TableRow className="hover:bg-transparent">
+          <TableRow className="border-slate-200 hover:bg-transparent">
             <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t(POS_INVENTORY_I18N.columnName, "Ingredient Name")}
             </TableHead>
@@ -66,13 +66,13 @@ export function PosInventoryTable({
         </TableHeader>
         <TableBody>
           {isLoading ? (
-            <TableRow>
+            <TableRow className="border-slate-200">
               <TableCell colSpan={4} className="h-24 text-center text-sm text-slate-400">
                 …
               </TableCell>
             </TableRow>
           ) : isError ? (
-            <TableRow>
+            <TableRow className="border-slate-200">
               <TableCell colSpan={4} className="h-24 text-center">
                 <p className="mb-2 text-sm text-destructive">
                   {t(POS_INVENTORY_I18N.loadError, "Failed to load inventory.")}
@@ -85,7 +85,7 @@ export function PosInventoryTable({
               </TableCell>
             </TableRow>
           ) : rows.length === 0 ? (
-            <TableRow>
+            <TableRow className="border-slate-200">
               <TableCell colSpan={4} className="h-24 text-center text-sm text-slate-400">
                 {t(POS_INVENTORY_I18N.empty, "No ingredients found.")}
               </TableCell>
@@ -96,7 +96,7 @@ export function PosInventoryTable({
               const status = ingredientStockStatus(row, outletId);
               const warning = alertLabel(row);
               return (
-                <TableRow key={row.id} className="hover:bg-slate-50/80">
+                <TableRow key={row.id} className="border-slate-200 hover:bg-slate-50/80">
                   <TableCell>
                     <div className="flex min-w-0 items-center gap-3">
                       <PosInventoryRowAvatar name={row.name} />

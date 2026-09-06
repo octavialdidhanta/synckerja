@@ -54,16 +54,15 @@ const ExpenseBottomTabsComponent = ({
   };
 
   /**
-   * `mobile-app-bottom-nav`: di Android native `index.css` memaksa `padding-bottom: 0` pada nav + anak
-   * (selaras `IncomeBottomTabs` / Home) agar tidak strip putih ganda di atas bilah navigasi sistem.
-   * Di web/non-native, `safe-area-bottom-lower` pada grid tetap memberi inset bila perlu.
+   * `mobile-app-bottom-nav`: Android native CSS menerapkan `--footer-bottom-inset` pada `<nav>`.
+   * Kelas pada grid hanya untuk web/non-native.
    */
   return (
-    <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card">
+    <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card safe-area-bottom-lower">
       <div
         className={cn(
           "mx-auto grid min-h-[52px] w-full max-w-md grid-cols-5",
-          className ?? "safe-area-bottom-lower",
+          className,
         )}
       >
         {tabItems.map(({ key, icon: Icon }) => {

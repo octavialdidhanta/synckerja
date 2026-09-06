@@ -1,8 +1,11 @@
 import { Menu } from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "@/shared/lib/utils";
 
 type Props = {
   outletLabel: string;
+  /** Replaces the center outlet label (e.g. End Shift + Print in one row). */
+  center?: ReactNode;
   onOpenMenu: () => void;
   menuAriaLabel?: string;
   className?: string;
@@ -16,11 +19,12 @@ export const POS_APP_FOOTER_OVERLAY_BOTTOM_CLASS =
   "bottom-[calc(3.5rem+max(var(--safe-area-inset-bottom,0px),env(safe-area-inset-bottom,0px)))]";
 
 /**
- * Full-width brand footer: Menu (left) + outlet name (center).
+ * Full-width brand footer: Menu (left) + outlet name or custom center.
  * Content row is `min-h-14` like cashier; safe-area is extra below (not inside that height).
  */
 export function PosAppFooterBar({
   outletLabel,
+  center,
   onOpenMenu,
   menuAriaLabel = "Menu",
   className,
@@ -41,9 +45,13 @@ export function PosAppFooterBar({
         >
           <Menu className="h-5 w-5" />
         </button>
-        <p className="flex min-w-0 flex-1 items-center justify-center truncate px-3 text-sm font-semibold">
-          {outletLabel}
-        </p>
+        {center ? (
+          <div className="flex min-h-14 min-w-0 flex-1 items-stretch">{center}</div>
+        ) : (
+          <p className="flex min-w-0 flex-1 items-center justify-center truncate px-3 text-sm font-semibold">
+            {outletLabel}
+          </p>
+        )}
       </div>
     </footer>
   );

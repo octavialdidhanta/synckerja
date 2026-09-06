@@ -106,7 +106,7 @@ function PosSessionLeaveProviderInner({ children }: { children: ReactNode }) {
   const performLeave = useCallback(
     async (action: PosLeaveAction) => {
       if (action === "switch-outlet") {
-        navigate(POS_AUTH_PATHS.selectOutlet);
+        navigate(POS_AUTH_PATHS.selectOutlet, { replace: true });
         return;
       }
       clearPosAuthSurface();

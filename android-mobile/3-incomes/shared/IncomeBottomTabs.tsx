@@ -65,7 +65,7 @@ export function IncomeBottomTabs({ className }: IncomeBottomTabsProps) {
   ] as const;
 
   return (
-    <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card">
+    <nav className="mobile-app-bottom-nav fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card safe-area-bottom-lower">
       <div className={cn("mx-auto grid min-h-[52px] w-full max-w-md grid-cols-4", className)}>
         {tabs.map((tab) => (
           <MobileNavTabButton

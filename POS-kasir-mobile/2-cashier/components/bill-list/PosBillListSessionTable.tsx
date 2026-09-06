@@ -52,7 +52,7 @@ export function PosBillListSessionTable({
   if (filtered.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center px-4 py-16">
-        <p className="text-center text-sm text-slate-400">
+        <p className="text-center text-sm text-slate-500">
           {t(emptyKey, emptyFallback)}
         </p>
       </div>
@@ -60,7 +60,7 @@ export function PosBillListSessionTable({
   }
 
   return (
-    <div className="scrollbar-hide overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="min-w-0">
       <table
         className={cn(
           "w-full border-collapse text-left text-sm",
@@ -68,7 +68,7 @@ export function PosBillListSessionTable({
         )}
       >
         <thead>
-          <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-800">
+          <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-600">
             {hideTableColumn ? null : (
               <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colTable, "Table")}</th>
             )}
@@ -95,7 +95,7 @@ export function PosBillListSessionTable({
               <tr
                 key={row.session.id}
                 className={cn(
-                  "border-b border-slate-100",
+                  "border-b border-slate-200",
                   onSelect && "cursor-pointer hover:bg-slate-50",
                 )}
                 onClick={() => onSelect?.(row)}

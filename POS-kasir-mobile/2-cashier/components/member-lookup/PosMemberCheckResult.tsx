@@ -38,11 +38,11 @@ export function PosMemberCheckResult({
     <button
       type="button"
       className={cn(
-        "mt-3 w-full rounded-xl border-2 px-4 py-4 text-left transition-colors",
+        "mt-3 w-full rounded-lg border border-slate-200/80 px-3 py-3 text-left shadow-sm transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
         found
-          ? "border-emerald-200 bg-emerald-50 hover:bg-emerald-100/80"
-          : "border-amber-200 bg-amber-50 hover:bg-amber-100/80",
+          ? "border-emerald-200/80 bg-emerald-50 hover:bg-emerald-100/80"
+          : "border-amber-200/80 bg-amber-50 hover:bg-amber-100/80",
         locked && "cursor-default hover:bg-emerald-50",
       )}
       onClick={() => {
@@ -84,6 +84,11 @@ export function PosMemberCheckResult({
                 ? displayPhone(`62${phoneLocal}`)
                 : null}
           </span>
+          {customer?.email?.trim() ? (
+            <span className="mt-0.5 block truncate text-sm text-slate-600">
+              {customer.email.trim()}
+            </span>
+          ) : null}
           <span className="mt-2 block text-sm leading-snug text-slate-600">
             {locked
               ? t(

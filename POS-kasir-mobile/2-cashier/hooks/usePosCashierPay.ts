@@ -56,6 +56,7 @@ import { invalidateCatalogStockCaches } from "@/8-2-3-ingredient/library/hooks/i
 export type PosCashierPayInput = {
   clientName: string;
   clientPhone: string | null;
+  clientEmail?: string | null;
   paymentMethod: CustomerVisitCheckoutPaymentMethod;
   paymentChannelId?: string | null;
   paymentReference?: string | null;
@@ -164,6 +165,7 @@ export function usePosCashierPay() {
       const ensured = await ensurePosCheckoutLead({
         organizationId,
         phone: input.clientPhone,
+        email: input.clientEmail?.trim() || null,
         clientName: input.clientName,
         userId: user?.id ?? null,
       });

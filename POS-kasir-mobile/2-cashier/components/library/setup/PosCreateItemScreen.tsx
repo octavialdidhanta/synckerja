@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
 import {
   Select,
@@ -22,6 +27,12 @@ import {
   useCatalogModifierGroups,
 } from "@/8-2-1-default-prices/modifiers";
 import { formatIdIntegerGrouping } from "@/8-2-1-default-prices/utils/formatIdUnitPrice";
+import { cn } from "@/shared/lib/utils";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
+import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
+import { PosSafeAreaBottomSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaBottomSpacer";
+import { usePosKeyboardDock } from "@/pos-mobile/shared/hooks/usePosKeyboardDock";
+import { usePosCashierIsPhoneLayout } from "../../../hooks/usePosCashierIsPhoneLayout";
 import { PosCameraBarcodeScanDialog } from "../../scanner/PosCameraBarcodeScanDialog";
 import { applyScanToSkuField } from "../../../lib/scanner/applyScanToSkuField";
 import { POS_CASHIER_I18N } from "../../../lib/posCashierCopy";
@@ -68,6 +79,12 @@ export function PosCreateItemScreen({ open, outletId, onClose, onSaved }: Props)
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
+  const isPhone = usePosCashierIsPhoneLayout();
+  usePosKeyboardDock({
+    enabled: open,
+    /* Full-screen Create Item: focus scrollIntoView jumps the sheet before IME. */
+    scrollIntoView: false,
+  });
   const { create } = useDefaultPrices();
   const modifiers = useCatalogModifierGroups();
   const categoriesQuery = useCatalogProductCategories();
@@ -102,8 +119,7 @@ export function PosCreateItemScreen({ open, outletId, onClose, onSaved }: Props)
   }, [categoriesQuery.rows, outletId]);
 
   const hasVariants = form.variants.length > 0;
-
-  if (!open) return null;
+  const titleText = t(POS_CASHIER_I18N.setupCreateItem, "Create Item");
 
   const patch = (partial: Partial<PosCreateItemFormState>) =>
     setForm((prev) => ({ ...prev, ...partial }));
@@ -185,108 +201,121 @@ export function PosCreateItemScreen({ open, outletId, onClose, onSaved }: Props)
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[80] flex flex-col bg-white">
-      <header
-        className="flex flex-shrink-0 items-center gap-2 bg-primary px-2 pb-2.5 text-primary-foreground"
-        style={{
-          paddingTop:
-            "max(0.625rem, env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px))",
-        }}
-      >
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="h-9 w-9 text-primary-foreground hover:bg-white/15"
-          onClick={onClose}
-          aria-label={t(POS_CASHIER_I18N.setupClose, "Close")}
-        >
-          <X className="h-5 w-5" />
-        </Button>
-        <h1 className="min-w-0 flex-1 truncate text-center text-base font-semibold">
-          {t(POS_CASHIER_I18N.setupCreateItem, "Create Item")}
-        </h1>
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-9 px-3 font-bold uppercase tracking-wide text-primary-foreground hover:bg-white/15"
-          disabled={saving}
-          onClick={() => void onSave()}
-        >
-          {t(POS_CASHIER_I18N.setupSave, "SAVE")}
-        </Button>
-      </header>
+  const shell = (
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-100">
+      <div className="flex-shrink-0 border-b border-slate-200 bg-white">
+        <div className={cn(POS_PANEL.header, "border-b-0")}>
+          <button
+            type="button"
+            onClick={onClose}
+            className={POS_PANEL.headerBack}
+            aria-label={t(POS_CASHIER_I18N.setupClose, "Close")}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          {isPhone ? (
+            <h1 className={cn(POS_PANEL.headerTitle, "leading-none")}>{titleText}</h1>
+          ) : (
+            <DialogTitle className={cn(POS_PANEL.headerTitle, "leading-none")}>
+              {titleText}
+            </DialogTitle>
+          )}
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void onSave()}
+            className={cn(
+              "inline-flex h-10 min-w-[3.75rem] flex-shrink-0 items-center justify-center rounded-md px-2 text-sm font-semibold text-primary transition hover:bg-primary/10",
+              "disabled:pointer-events-none disabled:opacity-40",
+            )}
+          >
+            {t(POS_CASHIER_I18N.setupSave, "SAVE")}
+          </button>
+        </div>
+      </div>
 
       <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <PosCreateItemPhotoField
-          file={photoFile}
-          disabled={saving}
-          onChange={setPhotoFile}
-        />
+        <div className={POS_PANEL.body}>
+          <p className={cn(POS_PANEL.sectionTitle, "first:pt-0")}>
+            {t(POS_CASHIER_I18N.setupPhoto, "Photo")}
+          </p>
+          <div className={cn(POS_PANEL.card, "mb-1")}>
+            <PosCreateItemPhotoField
+              file={photoFile}
+              disabled={saving}
+              onChange={setPhotoFile}
+            />
+          </div>
 
-        <div className="border-b border-slate-200 px-4 py-3">
-          <Input
-            value={form.name}
-            onChange={(e) => patch({ name: e.target.value })}
-            placeholder={t(POS_CASHIER_I18N.setupItemName, "Item Name")}
-            className="h-11 border-0 bg-transparent px-3 shadow-none focus-visible:ring-0"
-            disabled={saving}
-          />
-        </div>
-
-        <div className="border-b border-slate-200 px-4 py-3">
-          <Select
-            value={form.categoryId ?? NONE_CATEGORY}
-            onValueChange={(value) =>
-              patch({ categoryId: value === NONE_CATEGORY ? null : value })
-            }
-            disabled={saving}
-          >
-            <SelectTrigger className="h-11 border-0 bg-transparent px-3 shadow-none focus:ring-0">
-              <SelectValue placeholder={t(POS_CASHIER_I18N.setupCategory, "Category")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE_CATEGORY}>
-                {t(POS_CASHIER_I18N.setupNoCategory, "No category")}
-              </SelectItem>
-              {categories.map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  {row.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {!hasVariants ? (
-          <>
-            <div className="border-b border-slate-200 px-4 py-3">
+          <p className={POS_PANEL.sectionTitle}>
+            {t(POS_CASHIER_I18N.setupDetails, "Details")}
+          </p>
+          <div className={POS_PANEL.card}>
+            <div className={POS_PANEL.formRow}>
               <Input
-                inputMode="numeric"
-                value={form.priceDisplay}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/[^\d]/g, "");
-                  patch({
-                    priceDisplay: digits ? formatIdIntegerGrouping(digits) : "",
-                  });
-                }}
-                placeholder={t(POS_CASHIER_I18N.setupPrice, "Price")}
-                className="h-11 border-0 bg-transparent px-3 shadow-none focus-visible:ring-0"
+                value={form.name}
+                onChange={(e) => patch({ name: e.target.value })}
+                placeholder={t(POS_CASHIER_I18N.setupItemName, "Item Name")}
+                className={POS_PANEL.formInput}
                 disabled={saving}
               />
             </div>
 
-            <PosCreateItemSkuField
-              value={form.catalogSku}
-              onChange={(catalogSku) => patch({ catalogSku })}
-              onOpenScan={() => setSkuScanOpen(true)}
-              disabled={saving}
-            />
-          </>
-        ) : null}
+            <div className={POS_PANEL.formRow}>
+              <Select
+                value={form.categoryId ?? NONE_CATEGORY}
+                onValueChange={(value) =>
+                  patch({ categoryId: value === NONE_CATEGORY ? null : value })
+                }
+                disabled={saving}
+              >
+                <SelectTrigger className={cn(POS_PANEL.formInput, "focus:ring-0")}>
+                  <SelectValue placeholder={t(POS_CASHIER_I18N.setupCategory, "Category")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_CATEGORY}>
+                    {t(POS_CASHIER_I18N.setupNoCategory, "No category")}
+                  </SelectItem>
+                  {categories.map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <div className="space-y-3 px-4 py-4">
+            {!hasVariants ? (
+              <>
+                <div className={POS_PANEL.formRow}>
+                  <span className={POS_PANEL.rowLabel}>
+                    {t(POS_CASHIER_I18N.setupPrice, "Price")}
+                  </span>
+                  <Input
+                    inputMode="numeric"
+                    value={form.priceDisplay}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/[^\d]/g, "");
+                      patch({
+                        priceDisplay: digits ? formatIdIntegerGrouping(digits) : "",
+                      });
+                    }}
+                    placeholder="0"
+                    className={POS_PANEL.formInputEnd}
+                    disabled={saving}
+                  />
+                </div>
+
+                <PosCreateItemSkuField
+                  value={form.catalogSku}
+                  onChange={(catalogSku) => patch({ catalogSku })}
+                  onOpenScan={() => setSkuScanOpen(true)}
+                  disabled={saving}
+                />
+              </>
+            ) : null}
+          </div>
+
           <PosCreateItemVariantsBlock
             variants={form.variants}
             dialogOpen={variantDialogOpen}
@@ -346,6 +375,7 @@ export function PosCreateItemScreen({ open, outletId, onClose, onSaved }: Props)
         selectedOutletId={outletId || undefined}
         open={createModifierOpen}
         onOpenChange={setCreateModifierOpen}
+        chrome="pos"
         onSaved={(groupId) => {
           setForm((prev) => ({
             ...prev,
@@ -356,5 +386,33 @@ export function PosCreateItemScreen({ open, outletId, onClose, onSaved }: Props)
         }}
       />
     </div>
+  );
+
+  if (isPhone) {
+    if (!open) return null;
+    return (
+      <div className="fixed inset-0 z-[80] flex flex-col overflow-hidden bg-slate-100">
+        <PosSafeAreaTopSpacer />
+        {shell}
+        <PosSafeAreaBottomSpacer className="bg-slate-100" />
+      </div>
+    );
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <DialogContent
+        hideCloseButton
+        className="flex h-[min(94dvh,980px)] w-[min(94vw,900px)] max-h-[min(94dvh,980px)] max-w-none flex-col gap-0 overflow-hidden rounded-lg border border-slate-200/80 bg-slate-100 p-0 shadow-sm [&>button]:hidden"
+        aria-describedby={undefined}
+      >
+        {shell}
+      </DialogContent>
+    </Dialog>
   );
 }

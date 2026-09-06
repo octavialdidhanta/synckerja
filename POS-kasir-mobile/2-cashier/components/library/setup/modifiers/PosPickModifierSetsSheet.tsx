@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ArrowLeft, Search } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -8,6 +8,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { Button } from "@/shared/components/ui/button";
@@ -17,6 +18,8 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { usePosCashierIsPhoneLayout } from "@/pos-mobile/2-cashier/hooks/usePosCashierIsPhoneLayout";
 import { usePhoneDrawerKeyboardChrome } from "@/shared/hooks/usePhoneDrawerKeyboardChrome";
 import { useCatalogModifierGroups } from "@/8-2-1-default-prices/modifiers";
+import { cn } from "@/shared/lib/utils";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { POS_CASHIER_I18N } from "../../../../lib/posCashierCopy";
 
 type Props = {
@@ -68,62 +71,98 @@ export function PosPickModifierSetsSheet({
     });
   };
 
-  const title = t(POS_CASHIER_I18N.setupPickModifierSets, "Add Modifier Set");
+  const titleText = t(POS_CASHIER_I18N.setupPickModifierSets, "Add Modifier Set");
+
+  const header = (titleNode: ReactNode) => (
+    <div className="flex-shrink-0 border-b border-slate-200 bg-white">
+      <div className={cn(POS_PANEL.header, "border-b-0")}>
+        {isPhone ? (
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className={POS_PANEL.headerBack}
+            aria-label={t("common.cancel", "Cancel")}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+        ) : null}
+        <div className="min-w-0 flex-1">{titleNode}</div>
+      </div>
+    </div>
+  );
 
   const body = (
-    <>
-      <div className="relative">
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t(POS_CASHIER_I18N.setupSearchModifiers, "Search")}
-          className="pr-9"
-        />
-        <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-      </div>
-      <Button
-        type="button"
-        className="w-full"
-        onClick={() => {
-          onOpenChange(false);
-          onCreateNew();
-        }}
-      >
-        {t(POS_CASHIER_I18N.setupCreateModifierSet, "Create new modifier set")}
-      </Button>
-      {isLoading ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          {t(POS_CASHIER_I18N.setupModifiersLoading, "Loading…")}
-        </p>
-      ) : filtered.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          {t(POS_CASHIER_I18N.setupModifiersEmpty, "No modifier sets for this outlet.")}
-        </p>
-      ) : (
-        <ul className="space-y-1">
-          {filtered.map((row) => (
-            <li key={row.id}>
-              <label className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1.5 hover:bg-muted/60">
+    <div
+      className={cn(
+        "min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-slate-100",
+        "scrollbar-hide seamless-scroll nested-scroll-touch-chain",
+        "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+      )}
+      data-vaul-no-drag=""
+    >
+      <div className={POS_PANEL.body}>
+        <div className={POS_PANEL.card}>
+          <div className={cn(POS_PANEL.formRow, "relative")}>
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t(POS_CASHIER_I18N.setupSearchModifiers, "Search")}
+              className={cn(POS_PANEL.formInput, "pr-9")}
+            />
+            <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          </div>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-3 h-11 w-full border-slate-200 bg-white text-sm font-semibold text-slate-800"
+          onClick={() => {
+            onOpenChange(false);
+            onCreateNew();
+          }}
+        >
+          {t(POS_CASHIER_I18N.setupCreateModifierSet, "Create new modifier set")}
+        </Button>
+
+        {isLoading ? (
+          <p className="px-0.5 py-6 text-center text-sm text-slate-500">
+            {t(POS_CASHIER_I18N.setupModifiersLoading, "Loading…")}
+          </p>
+        ) : filtered.length === 0 ? (
+          <p className="px-0.5 py-6 text-center text-sm text-slate-500">
+            {t(POS_CASHIER_I18N.setupModifiersEmpty, "No modifier sets for this outlet.")}
+          </p>
+        ) : (
+          <div className={cn(POS_PANEL.card, "mt-3")}>
+            {filtered.map((row) => (
+              <label key={row.id} className={cn(POS_PANEL.formRow, "cursor-pointer")}>
+                <span className={cn(POS_PANEL.rowLabel, "truncate")}>{row.name}</span>
                 <Checkbox
                   checked={draftIds.includes(row.id)}
                   onCheckedChange={(value) => toggle(row.id, value === true)}
                 />
-                <span className="min-w-0 flex-1 text-sm">{row.name}</span>
               </label>
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 
-  const footer = (
-    <div className="flex justify-end gap-2">
-      <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-        {t(POS_CASHIER_I18N.setupClose, "Close")}
+  const footerButtons = (
+    <div className="flex flex-row items-center justify-between gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        className="h-11 flex-1 border-slate-200 bg-white text-slate-800"
+        onClick={() => onOpenChange(false)}
+      >
+        {t("common.cancel", "Cancel")}
       </Button>
       <Button
         type="button"
+        className="h-11 flex-1 text-sm font-semibold"
         onClick={() => {
           onConfirm(draftIds);
           onOpenChange(false);
@@ -136,25 +175,29 @@ export function PosPickModifierSetsSheet({
 
   if (isPhone) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
         <DrawerContent
           aboveAppNav={false}
           smoothFast
-          className={drawerChrome.drawerClassName}
+          followKeyboard={false}
+          className={cn(
+            drawerChrome.drawerClassName,
+            "z-[90] rounded-t-2xl border-0 bg-slate-100 shadow-2xl",
+          )}
           overlayClassName="z-[90]"
           style={drawerChrome.drawerMaxHeightStyle}
         >
+          {header(
+            <DrawerTitle className={cn(POS_PANEL.headerTitle, "leading-none")}>
+              {titleText}
+            </DrawerTitle>,
+          )}
+          {body}
           <div
-            className="flex-shrink-0 bg-primary px-4 py-3"
-            style={drawerChrome.headerStyle}
+            className="flex-shrink-0 border-t border-slate-200 bg-white px-2 pt-3 sm:px-2.5"
+            style={drawerChrome.footerStyle}
           >
-            <DrawerTitle className="text-center text-base font-semibold text-primary-foreground">
-              {title}
-            </DrawerTitle>
-          </div>
-          <div className={drawerChrome.listBodyClassName}>{body}</div>
-          <div className="flex-shrink-0 border-t px-4 pt-3" style={drawerChrome.footerStyle}>
-            {footer}
+            {footerButtons}
           </div>
         </DrawerContent>
       </Drawer>
@@ -163,14 +206,19 @@ export function PosPickModifierSetsSheet({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md [&>button]:hidden">
-        <div className="bg-primary px-4 py-3">
-          <DialogTitle className="text-center text-base font-semibold text-primary-foreground">
-            {title}
-          </DialogTitle>
-        </div>
-        <div className="max-h-72 space-y-3 overflow-y-auto p-4">{body}</div>
-        <div className="border-t px-4 py-3">{footer}</div>
+      <DialogContent
+        hideCloseButton
+        className="flex h-[min(72dvh,640px)] max-h-[min(72dvh,640px)] w-full max-w-lg flex-col gap-0 overflow-hidden rounded-lg border border-slate-200/80 bg-slate-100 p-0 shadow-sm sm:max-w-lg"
+      >
+        {header(
+          <DialogTitle className={cn(POS_PANEL.headerTitle, "px-1 leading-none")}>
+            {titleText}
+          </DialogTitle>,
+        )}
+        {body}
+        <DialogFooter className="flex flex-shrink-0 flex-row items-center justify-between gap-2 border-t border-slate-200 bg-white px-2 py-3 sm:justify-between sm:px-2.5">
+          {footerButtons}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

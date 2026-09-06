@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -24,8 +24,10 @@ import {
 import { sumCustomerVisitCart } from "@/5-2-customer-visits/checkout/lib/sumCustomerVisitCart";
 import type { CatalogCheckoutTotals } from "@/8-2-1-default-prices/checkout/lib/computeCatalogCheckoutTotals";
 import { usePosTabletShell } from "@/pos-mobile/shared/hooks/usePosTabletShell";
+import { usePosKeyboardShellStyle } from "@/pos-mobile/shared/hooks/usePosKeyboardShellStyle";
 import { useMarkPosAuthSurface } from "@/pos-mobile/0-auth/lib/useMarkPosAuthSurface";
 import { POS_AUTH_PATHS } from "@/pos-mobile/0-auth/lib/posAuthPaths";
+import { POS_SHEET_MOTION_MS } from "@/pos-mobile/shared/lib/posPanelChrome";
 import {
   readPosSelectedOutlet,
   readPosSelectedOutletId,
@@ -105,6 +107,7 @@ export default function PosTableMapPage() {
   const isPhoneLayout = usePosCashierIsPhoneLayout();
   usePosTabletShell({ phoneOverlay: isPhoneLayout });
   useMarkPosAuthSurface();
+  const keyboardShellStyle = usePosKeyboardShellStyle();
   const { t } = useAppTranslation();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -130,6 +133,8 @@ export default function PosTableMapPage() {
   const [refundBusyId, setRefundBusyId] = useState<string | null>(null);
   const [refundTarget, setRefundTarget] = useState<PosBillListRow | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  /** After successful clear, skip restoring the table sheet when the confirm dialog closes. */
+  const skipRestoreSheetAfterClearRef = useRef(false);
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 30_000);
@@ -236,7 +241,7 @@ export default function PosTableMapPage() {
         });
       }
       setBillListOpen(false);
-      navigate(POS_AUTH_PATHS.cashier);
+      navigate(POS_AUTH_PATHS.cashier, { replace: true });
     },
     [navigate, outletId],
   );
@@ -244,7 +249,10 @@ export default function PosTableMapPage() {
   const onNewBillFromList = useCallback(() => {
     clearPosSelectedTable();
     setBillListOpen(false);
-    navigate(POS_AUTH_PATHS.cashier);
+    // Let bill-list sheet finish ease-in-out exit before route change.
+    window.setTimeout(() => {
+      navigate(POS_AUTH_PATHS.cashier, { replace: true });
+    }, POS_SHEET_MOTION_MS);
   }, [navigate]);
 
   const confirmCancelFromList = useCallback(
@@ -474,7 +482,7 @@ export default function PosTableMapPage() {
       });
       setSheetOpen(false);
       setBillListOpen(false);
-      navigate(POS_AUTH_PATHS.cashier);
+      navigate(POS_AUTH_PATHS.cashier, { replace: true });
     },
     [activeGroupId, navigate, outletId],
   );
@@ -542,12 +550,19 @@ export default function PosTableMapPage() {
 
   const onDeleteBill = useCallback(() => {
     if (!sheetTarget?.session) return;
-    setCancelReasonOpen(true);
+    // Same as Clear Table: avoid nesting Dialog under Sheet focus trap.
+    skipRestoreSheetAfterClearRef.current = false;
+    setSheetOpen(false);
+    window.setTimeout(() => setCancelReasonOpen(true), POS_SHEET_MOTION_MS);
   }, [sheetTarget?.session]);
 
   const onClearTable = useCallback(() => {
     if (!sheetTarget?.session) return;
-    setClearConfirmOpen(true);
+    // Close the table sheet first — nesting AlertDialog under Sheet (z-70)
+    // deadlocks Radix focus traps and freezes the UI.
+    skipRestoreSheetAfterClearRef.current = false;
+    setSheetOpen(false);
+    window.setTimeout(() => setClearConfirmOpen(true), POS_SHEET_MOTION_MS);
   }, [sheetTarget?.session]);
 
   const confirmClearTable = useCallback(() => {
@@ -558,6 +573,7 @@ export default function PosTableMapPage() {
       try {
         await sessionMutations.clearSeatedOpenSession.mutateAsync({ sessionId });
         toast({ title: t(POS_TABLE_MAP_I18N.sheetClearSuccess, "Table cleared") });
+        skipRestoreSheetAfterClearRef.current = true;
         setClearConfirmOpen(false);
         setSheetOpen(false);
         setSheetTarget(null);
@@ -578,6 +594,7 @@ export default function PosTableMapPage() {
     (reason: string) => {
       if (!sheetTarget?.session) return;
       const sessionId = sheetTarget.session.id;
+      skipRestoreSheetAfterClearRef.current = true;
       setCancelReasonOpen(false);
       runWithPin(POS_PIN_FEATURES.manageOpenBills, () => {
         void (async () => {
@@ -599,6 +616,8 @@ export default function PosTableMapPage() {
               description: msg,
               variant: "destructive",
             });
+            // Failed — allow restoring sheet if reason dialog already closed.
+            if (sheetTarget) setSheetOpen(true);
           } finally {
             setBusy(false);
           }
@@ -647,6 +666,7 @@ export default function PosTableMapPage() {
           ? "fixed inset-0 flex flex-col overflow-hidden bg-white"
           : "fixed inset-0 flex flex-col overflow-hidden bg-slate-100"
       }
+      style={keyboardShellStyle}
     >
       {isPhoneLayout ? <PosSafeAreaTopSpacer /> : null}
       <PosTableMapHeader
@@ -788,7 +808,16 @@ export default function PosTableMapPage() {
       />
       <PosBillReasonDialog
         open={cancelReasonOpen}
-        onOpenChange={setCancelReasonOpen}
+        onOpenChange={(open) => {
+          if (busy && !open) return;
+          setCancelReasonOpen(open);
+          if (!open) {
+            if (!skipRestoreSheetAfterClearRef.current && sheetTarget) {
+              setSheetOpen(true);
+            }
+            skipRestoreSheetAfterClearRef.current = false;
+          }
+        }}
         title={t(POS_BILL_LIST_I18N.cancelReasonTitle, "Reason for cancelling bill")}
         onConfirm={confirmDeleteBill}
         confirming={busy}
@@ -802,8 +831,23 @@ export default function PosTableMapPage() {
         onConfirm={confirmCancelFromList}
         confirming={busy}
       />
-      <AlertDialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={clearConfirmOpen}
+        onOpenChange={(open) => {
+          if (busy && !open) return;
+          setClearConfirmOpen(open);
+          if (!open) {
+            if (!skipRestoreSheetAfterClearRef.current && sheetTarget) {
+              setSheetOpen(true);
+            }
+            skipRestoreSheetAfterClearRef.current = false;
+          }
+        }}
+      >
+        <AlertDialogContent
+          className="z-[80]"
+          overlayClassName="z-[80]"
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>
               {t(POS_TABLE_MAP_I18N.sheetClearTable, "Clear table")}

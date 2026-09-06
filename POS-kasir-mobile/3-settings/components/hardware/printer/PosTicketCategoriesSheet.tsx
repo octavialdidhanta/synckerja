@@ -1,15 +1,13 @@
 import { useMemo } from "react";
+import { ArrowLeft } from "lucide-react";
 import { useCatalogProductCategories } from "@/8-2-1-default-prices/categories/hooks/useCatalogProductCategories";
 import { Switch } from "@/shared/components/ui/switch";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { POS_SETTINGS_I18N } from "../../../lib/posSettingsCopy";
 import type { PosSavedPrinter } from "../../../lib/printer/posPrinterTypes";
+import { PosPrinterPageChrome } from "./PosPrinterPageChrome";
 
 type Props = {
   open: boolean;
@@ -28,6 +26,7 @@ export function PosTicketCategoriesSheet({
 }: Props) {
   const { t } = useAppTranslation();
   const { rows, isLoading } = useCatalogProductCategories();
+  const title = t(POS_SETTINGS_I18N.printerTicketCategoriesTitle, "INCLUDE IN ORDER TICKET");
 
   const categories = useMemo(
     () =>
@@ -60,39 +59,51 @@ export function PosTicketCategoriesSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-md">
-        <SheetHeader className="border-b px-4 py-4 text-left">
-          <SheetTitle className="text-sm font-bold uppercase tracking-wide">
-            {t(POS_SETTINGS_I18N.printerTicketCategoriesTitle, "INCLUDE IN ORDER TICKET")}
-          </SheetTitle>
-        </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
-          {isLoading ? (
-            <div className="space-y-3 py-4" aria-busy>
-              <div className="h-10 animate-pulse rounded bg-slate-100" />
-              <div className="h-10 animate-pulse rounded bg-slate-100" />
-            </div>
-          ) : categories.length === 0 ? (
-            <p className="py-6 text-sm text-slate-400">—</p>
-          ) : (
-            <ul>
-              {categories.map((cat) => (
-                <li
-                  key={cat.id}
-                  className="flex items-center justify-between gap-3 border-b border-slate-100 py-3.5 last:border-b-0"
-                >
-                  <span className="text-sm text-slate-900">{cat.name}</span>
-                  <Switch
-                    checked={isOn(cat.id)}
-                    onCheckedChange={(v) => toggle(cat.id, v)}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
+    <PosPrinterPageChrome
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      zClassName="z-[90]"
+    >
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-100">
+        <div className="flex-shrink-0 border-b border-slate-200 bg-white">
+          <div className={cn(POS_PANEL.header, "flex-row space-y-0 border-b-0 text-left")}>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className={POS_PANEL.headerBack}
+              aria-label={t(POS_SETTINGS_I18N.back, "Back")}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <h1 className={cn(POS_PANEL.headerTitle, "leading-none")}>{title}</h1>
+          </div>
         </div>
-      </SheetContent>
-    </Sheet>
+        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className={POS_PANEL.body}>
+            {isLoading ? (
+              <div className="space-y-3" aria-busy>
+                <div className={cn(POS_PANEL.card, "h-12 animate-pulse bg-slate-200")} />
+                <div className={cn(POS_PANEL.card, "h-12 animate-pulse bg-slate-200")} />
+              </div>
+            ) : categories.length === 0 ? (
+              <p className="px-0.5 py-6 text-sm text-slate-400">—</p>
+            ) : (
+              <div className={POS_PANEL.card}>
+                {categories.map((cat) => (
+                  <div key={cat.id} className={POS_PANEL.row}>
+                    <span className={POS_PANEL.rowLabel}>{cat.name}</span>
+                    <Switch
+                      checked={isOn(cat.id)}
+                      onCheckedChange={(v) => toggle(cat.id, v)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </PosPrinterPageChrome>
   );
 }

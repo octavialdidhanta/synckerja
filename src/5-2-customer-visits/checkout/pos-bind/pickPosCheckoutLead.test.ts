@@ -6,6 +6,7 @@ function lead(partial: Partial<PosCheckoutLeadRow> & Pick<PosCheckoutLeadRow, "i
   return {
     client: "Walk-in",
     phone_number: "6281234567890",
+    email: null,
     source: "POS",
     ticket_id: `pos-walkin-${partial.id}`,
     updated_at: "2026-08-01T00:00:00.000Z",

@@ -12,8 +12,11 @@ import {
   DrawerTitle,
 } from "@/shared/components/ui/drawer";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { usePhoneDrawerKeyboardChrome } from "@/shared/hooks/usePhoneDrawerKeyboardChrome";
 import { personalCustomerName } from "@/pos-receipt-feedback/lib/isGenericCustomerName";
 import { usePosCashierIsPhoneLayout } from "@/pos-mobile/2-cashier/hooks/usePosCashierIsPhoneLayout";
+import { isValidPosReceiptEmail } from "@/pos-mobile/2-cashier/lib/sendPosDigitalReceipt";
+import { cn } from "@/shared/lib/utils";
 import { POS_ACTIVITY_I18N } from "../lib/posActivityCopy";
 
 type Channel = "email" | "sms";
@@ -42,6 +45,7 @@ export function PosActivitySendReceiptDialog({
 }: Props) {
   const { t } = useAppTranslation();
   const isPhone = usePosCashierIsPhoneLayout();
+  const drawerChrome = usePhoneDrawerKeyboardChrome();
   const [channel, setChannel] = useState<Channel>("email");
   const [customerName, setCustomerName] = useState("");
   const [email, setEmail] = useState("");
@@ -57,7 +61,9 @@ export function PosActivitySendReceiptDialog({
 
   const canSend =
     !busy &&
-    (channel === "email" ? email.trim().length > 3 : phoneLocal.trim().length >= 8);
+    (channel === "email"
+      ? isValidPosReceiptEmail(email)
+      : phoneLocal.trim().length >= 8);
 
   const titleText = t(POS_ACTIVITY_I18N.sendTitle, "Send receipt");
 
@@ -147,13 +153,21 @@ export function PosActivitySendReceiptDialog({
         <DrawerContent
           aboveAppNav={false}
           smoothFast
-          className="z-[70] flex max-h-[min(88dvh,860px)] flex-col gap-0 overflow-hidden rounded-t-2xl border-0 p-0 shadow-2xl"
+          className={cn(
+            drawerChrome.drawerClassName,
+            "z-[70] rounded-t-2xl border-0 shadow-2xl",
+          )}
+          style={drawerChrome.drawerMaxHeightStyle}
           overlayClassName="z-[70]"
         >
           <div className="shrink-0 px-4 pb-2 pt-1">
             <DrawerTitle className="text-base font-semibold">{titleText}</DrawerTitle>
           </div>
-          <div className="flex flex-col gap-3 px-4 pb-4" data-vaul-no-drag="">
+          <div
+            className="flex flex-col gap-3 px-4"
+            data-vaul-no-drag=""
+            style={drawerChrome.footerStyle}
+          >
             {form}
           </div>
         </DrawerContent>

@@ -351,22 +351,21 @@ export function ConversationList({
       const convId = el.getAttribute('data-conv-id');
       if (!convId) return;
       const handleTouchMove = (e: TouchEvent) => {
-        const locked = lockHorizontalRef.current;
         const start = touchStartForNativeRef.current;
-        let prevent = false;
-        let absX = 0, absY = 0;
-        if (start && e.touches.length > 0) {
+        if (start && e.touches.length > 0 && !lockHorizontalRef.current) {
           const deltaX = e.touches[0].clientX - start.startX;
           const deltaY = e.touches[0].clientY - start.startY;
-          absX = Math.abs(deltaX);
-          absY = Math.abs(deltaY);
-          if (absX > DIRECTION_LOCK_PX || absY > DIRECTION_LOCK_PX) {
-            const wouldLockH = absX > absY + DIRECTION_LOCK_MARGIN_PX;
-            if (wouldLockH) prevent = true;
+          const absX = Math.abs(deltaX);
+          const absY = Math.abs(deltaY);
+          if (
+            (absX > DIRECTION_LOCK_PX || absY > DIRECTION_LOCK_PX) &&
+            absX > absY + DIRECTION_LOCK_MARGIN_PX
+          ) {
+            lockHorizontalRef.current = true;
           }
         }
-        if (prevent || locked) {
-          if (e.cancelable) e.preventDefault();
+        if (lockHorizontalRef.current && e.cancelable) {
+          e.preventDefault();
         }
       };
       el.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });

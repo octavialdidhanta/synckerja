@@ -4,11 +4,14 @@ import {
 } from "@/pos-receipt-feedback/lib/isGenericCustomerName";
 import { POS_CHECKOUT_WALK_IN_CLIENT } from "@/5-2-customer-visits/checkout/pos-bind";
 import { normalizeCustomerVisitPhone } from "@/5-2-customer-visits/lib/normalizeCustomerVisitPhone";
+import { normalizeOptionalCustomerEmail } from "./isPosCustomerEmail";
 
 export type PosCashierCustomer = {
   leadId: string | null;
   name: string;
   phone: string;
+  /** Optional; empty string when not set. */
+  email: string;
   boundByPhone: boolean;
 };
 
@@ -16,6 +19,7 @@ export type PosLoyaltyIdentity = {
   id: string | null;
   name: string;
   phone: string;
+  email?: string;
 };
 
 /** Local digits after +62 for the Check input. */
@@ -26,12 +30,23 @@ export function posMemberPhoneLocalDigits(phone: string | null | undefined): str
   return digits;
 }
 
+/**
+ * Sanitize typed/pasted local phone for +62 fields: digits only, no leading 0
+ * (trunk prefix is already implied by the +62 chip).
+ */
+export function sanitizePosPhoneLocalInput(raw: string): string {
+  return String(raw ?? "")
+    .replace(/\D/g, "")
+    .replace(/^0+/, "");
+}
+
 export function posSessionOnlyGuest(name: string): PosCashierCustomer {
   const personal = personalCustomerName(name);
   return {
     leadId: null,
     name: personal ?? (name.trim() || POS_CHECKOUT_WALK_IN_CLIENT),
     phone: "",
+    email: "",
     boundByPhone: false,
   };
 }
@@ -48,12 +63,16 @@ export function posCashierCustomerFromLead(args: {
   leadId: string;
   client: string;
   phone: string;
+  email?: string | null;
   typedName?: string | null;
+  typedEmail?: string | null;
 }): PosCashierCustomer {
   const crmPersonal = personalCustomerName(args.client);
   const typedPersonal = personalCustomerName(args.typedName);
   const phone =
     normalizeCustomerVisitPhone(args.phone) ?? String(args.phone ?? "").trim();
+  const emailFromLead = normalizeOptionalCustomerEmail(args.email);
+  const emailTyped = normalizeOptionalCustomerEmail(args.typedEmail);
   return {
     leadId: args.leadId,
     name:
@@ -61,6 +80,7 @@ export function posCashierCustomerFromLead(args: {
       typedPersonal ??
       (String(args.client ?? "").trim() || POS_CHECKOUT_WALK_IN_CLIENT),
     phone,
+    email: emailTyped || emailFromLead,
     boundByPhone: true,
   };
 }
@@ -74,6 +94,7 @@ export function posCashierCustomerFromLoyalty(
     leadId: customer.id,
     name: String(customer.name ?? "").trim() || POS_CHECKOUT_WALK_IN_CLIENT,
     phone,
+    email: normalizeOptionalCustomerEmail(customer.email),
     boundByPhone,
   };
 }
@@ -88,6 +109,7 @@ export function posLoyaltyIdentityFromCashier(
     id: customer.leadId,
     name: customer.name,
     phone,
+    email: customer.email?.trim() || undefined,
   };
 }
 
@@ -101,4 +123,18 @@ export function posCashierCustomerBillLabel(
   if (customer.phone.trim()) return customer.name.trim() || null;
   if (isGenericCustomerName(customer.name)) return null;
   return customer.name.trim() || null;
+}
+
+/** Normalize draft/legacy customer rows that may omit email. */
+export function normalizePosCashierCustomer(
+  customer: Partial<PosCashierCustomer> | null | undefined,
+): PosCashierCustomer | null {
+  if (!customer) return null;
+  return {
+    leadId: customer.leadId ?? null,
+    name: String(customer.name ?? "").trim() || POS_CHECKOUT_WALK_IN_CLIENT,
+    phone: String(customer.phone ?? "").trim(),
+    email: normalizeOptionalCustomerEmail(customer.email),
+    boundByPhone: Boolean(customer.boundByPhone),
+  };
 }

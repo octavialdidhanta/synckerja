@@ -11,9 +11,16 @@ import type {
 } from "@/5-2-customer-visits/checkout/lib/customerVisitCheckout.types";
 import { personalCustomerName } from "@/pos-receipt-feedback/lib/isGenericCustomerName";
 import { isPaySuccessNewTransactionBlocked } from "../../lib/pay-first-seating";
+import { sanitizePosPhoneLocalInput } from "../../lib/posCashierCustomer";
+import { posPaySuccessContactPrefill } from "../../lib/posPaySuccessContactPrefill";
+import { shouldShowPosPaySuccessSmsRow } from "../../lib/shouldShowPosPaySuccessSmsRow";
 import { POS_PAY_SUCCESS_I18N } from "../../lib/posPaySuccessCopy";
 import { usePosCashierIsPhoneLayout } from "../../hooks/usePosCashierIsPhoneLayout";
+import { usePosOutletReceiptShareSettings } from "../../hooks/usePosOutletReceiptShareSettings";
+import { usePosReceiptSentStatus } from "@/pos-mobile/shared/hooks/usePosReceiptSentStatus";
+import { usePosKeyboardDock } from "@/pos-mobile/shared/hooks/usePosKeyboardDock";
 import { PosSafeAreaTopSpacer } from "@/pos-mobile/shared/layout/PosSafeAreaTopSpacer";
+import { cn } from "@/shared/lib/utils";
 
 export type PosPaySuccessPayload = {
   amountDue: number;
@@ -21,6 +28,10 @@ export type PosPaySuccessPayload = {
   paymentMethod: CustomerVisitCheckoutPaymentMethod;
   walletLabel: string | null;
   customerName: string;
+  /** Optional CRM / cart email for digital receipt prefill. */
+  customerEmail?: string | null;
+  /** Optional CRM / cart phone (any format) for SMS receipt prefill. */
+  customerPhone?: string | null;
   activityId: string | null;
   leadId: string | null;
   linesSnapshot: CustomerVisitCartLine[];
@@ -36,6 +47,7 @@ export type PosPaySuccessPayload = {
 type Props = {
   open: boolean;
   payload: PosPaySuccessPayload | null;
+  outletId?: string | null;
   digitalEnabled: boolean;
   sendingEmail?: boolean;
   sendingSms?: boolean;
@@ -67,6 +79,7 @@ function methodLabel(
 export function PosPaySuccessScreen({
   open,
   payload,
+  outletId,
   digitalEnabled,
   sendingEmail,
   sendingSms,
@@ -83,12 +96,21 @@ export function PosPaySuccessScreen({
   const [customerName, setCustomerName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneLocal, setPhoneLocal] = useState("");
+  const receiptSent = usePosReceiptSentStatus(open ? payload?.activityId ?? null : null);
+  const shareSettings = usePosOutletReceiptShareSettings(open ? outletId : null);
+  const shareViaEmail = Boolean(shareSettings.data?.shareViaEmail);
+  const shareViaSms = Boolean(shareSettings.data?.shareViaSms);
+  const keyboardDock = usePosKeyboardDock({ enabled: open && Boolean(payload) });
 
   useEffect(() => {
     if (!open || !payload) return;
     setCustomerName(personalCustomerName(payload.customerName) ?? "");
-    setEmail("");
-    setPhoneLocal("");
+    const contact = posPaySuccessContactPrefill({
+      email: payload.customerEmail,
+      phone: payload.customerPhone,
+    });
+    setEmail(contact.email);
+    setPhoneLocal(contact.phoneLocal);
   }, [open, payload]);
 
   if (!open || !payload) return null;
@@ -104,8 +126,17 @@ export function PosPaySuccessScreen({
   });
   const showPickTable =
     Boolean(payload.needsTablePick && !payload.tableLabel && onPickTable);
-  const showDigitalReceipt =
+  const digitalBase =
     digitalEnabled && payload.checkoutChannel !== "synckerja_cashier";
+  const showEmailRow = digitalBase && shareViaEmail;
+  const showSmsRow =
+    digitalBase &&
+    shouldShowPosPaySuccessSmsRow({
+      shareViaSms,
+      customerPhone: payload.customerPhone,
+      phoneLocal,
+    });
+  const showDigitalReceipt = showEmailRow || showSmsRow;
 
   return (
     <div className="fixed inset-0 z-[70] flex flex-col overflow-hidden bg-slate-100">
@@ -116,7 +147,10 @@ export function PosPaySuccessScreen({
         </p>
       </div>
 
-      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div
+        ref={keyboardDock.scrollRootRef}
+        className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         <div className="mx-auto flex min-h-full w-full max-w-md flex-col items-center justify-center py-3">
           <p className="text-sm text-slate-600">
             {t(POS_PAY_SUCCESS_I18N.paid, "Paid {{amount}}", {
@@ -176,51 +210,83 @@ export function PosPaySuccessScreen({
                 className="h-11 bg-white"
                 disabled={sendingEmail || sendingSms}
               />
-              <div className="flex gap-2">
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t(POS_PAY_SUCCESS_I18N.emailPlaceholder, "Email receipt")}
-                  className="h-11 flex-1 bg-white"
-                  disabled={sendingEmail}
-                />
-                <Button
-                  type="button"
-                  className="h-11 shrink-0 px-5"
-                  disabled={sendingEmail || !email.trim()}
-                  onClick={() => onSendEmail(email.trim(), customerName.trim())}
-                >
-                  {t(POS_PAY_SUCCESS_I18N.send, "Send")}
-                </Button>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-white px-2">
-                  <span className="shrink-0 text-sm font-medium text-slate-600">+62</span>
+              {showEmailRow ? (
+                <div className="flex gap-2">
                   <Input
-                    value={phoneLocal}
-                    onChange={(e) => setPhoneLocal(e.target.value.replace(/\D/g, ""))}
-                    placeholder={t(POS_PAY_SUCCESS_I18N.smsPlaceholder, "SMS receipt")}
-                    className="h-11 border-0 shadow-none focus-visible:ring-0"
-                    inputMode="tel"
-                    disabled={sendingSms}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={t(POS_PAY_SUCCESS_I18N.emailPlaceholder, "Email receipt")}
+                    className="h-11 flex-1 bg-white"
+                    disabled={sendingEmail || receiptSent.emailSent}
                   />
+                  <Button
+                    type="button"
+                    className={
+                      receiptSent.emailSent
+                        ? "h-11 shrink-0 gap-1.5 bg-emerald-600 px-5 hover:bg-emerald-600 disabled:opacity-100"
+                        : "h-11 shrink-0 px-5"
+                    }
+                    disabled={
+                      receiptSent.emailSent || sendingEmail || !email.trim()
+                    }
+                    onClick={() => onSendEmail(email.trim(), customerName.trim())}
+                  >
+                    {receiptSent.emailSent ? (
+                      <Check className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2.5} />
+                    ) : null}
+                    {t(POS_PAY_SUCCESS_I18N.send, "Send")}
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  className="h-11 shrink-0 px-5"
-                  disabled={sendingSms || phoneLocal.length < 8 || phoneLocal.length > 15}
-                  onClick={() => onSendSms(phoneLocal, customerName.trim())}
-                >
-                  {t(POS_PAY_SUCCESS_I18N.send, "Send")}
-                </Button>
-              </div>
+              ) : null}
+              {showSmsRow ? (
+                <div className="flex gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-white px-2">
+                    <span className="shrink-0 text-sm font-medium text-slate-600">+62</span>
+                    <Input
+                      value={phoneLocal}
+                      onChange={(e) =>
+                        setPhoneLocal(sanitizePosPhoneLocalInput(e.target.value))
+                      }
+                      placeholder={t(POS_PAY_SUCCESS_I18N.smsPlaceholder, "SMS receipt")}
+                      className="h-11 border-0 shadow-none focus-visible:ring-0"
+                      inputMode="tel"
+                      disabled={sendingSms || receiptSent.smsSent}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    className={
+                      receiptSent.smsSent
+                        ? "h-11 shrink-0 gap-1.5 bg-emerald-600 px-5 hover:bg-emerald-600 disabled:opacity-100"
+                        : "h-11 shrink-0 px-5"
+                    }
+                    disabled={
+                      receiptSent.smsSent ||
+                      sendingSms ||
+                      phoneLocal.length < 8 ||
+                      phoneLocal.length > 15
+                    }
+                    onClick={() => onSendSms(phoneLocal, customerName.trim())}
+                  >
+                    {receiptSent.smsSent ? (
+                      <Check className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2.5} />
+                    ) : null}
+                    {t(POS_PAY_SUCCESS_I18N.send, "Send")}
+                  </Button>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
       </div>
 
-      <div className="flex-shrink-0 border-t border-slate-200 bg-slate-100 px-6 pt-3">
+      <div
+        className={cn(
+          "flex-shrink-0 border-t border-slate-200 bg-slate-100 px-6 pt-3",
+          keyboardDock.keyboardOpen && "pb-1",
+        )}
+      >
         <div className="mx-auto w-full max-w-md space-y-2 pb-3">
           {showPickTable ? (
             <Button
@@ -260,7 +326,7 @@ export function PosPaySuccessScreen({
             {t(POS_PAY_SUCCESS_I18N.newTransaction, "New Transaction")}
           </Button>
         </div>
-        {isPhone ? (
+        {isPhone && !keyboardDock.keyboardOpen ? (
           <div
             aria-hidden
             className="h-[max(0.75rem,env(safe-area-inset-bottom,0px),var(--footer-bottom-inset,0px),3rem)]"

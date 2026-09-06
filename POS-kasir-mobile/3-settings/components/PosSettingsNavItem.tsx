@@ -14,11 +14,11 @@ export function PosSettingsNavItem({ label, statusLabel, active, onClick }: Prop
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex w-full items-center gap-2 px-4 py-3 text-left text-sm transition-colors",
+        "flex w-full items-center gap-2 border-b border-slate-200 px-3 py-3 text-left text-sm transition-colors last:border-b-0",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40",
         active
           ? "bg-primary font-semibold text-white"
-          : "bg-white text-slate-900 hover:bg-slate-50",
+          : "bg-white text-slate-900 hover:bg-slate-50/80",
       )}
     >
       <span className="min-w-0 flex-1 truncate">{label}</span>

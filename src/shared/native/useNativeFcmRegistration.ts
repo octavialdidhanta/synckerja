@@ -6,8 +6,15 @@ import { PushNotifications } from "@capacitor/push-notifications";
 import { useAuth } from "@/shared/auth/contexts/AuthContext";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { FirebaseReady } from "@/shared/native/firebaseReadyPlugin";
+import {
+  getNativeAppId,
+  isPosNativeApp,
+  NATIVE_APP_ID_OFFICE,
+  NATIVE_APP_ID_POS,
+} from "@/shared/native/appSurface";
 
-const CONTEXTS = ["livechat", "general"] as const;
+const OFFICE_CONTEXTS = ["livechat", "general"] as const;
+const POS_CONTEXTS = ["general"] as const;
 
 /** False when POS native has no initialized FirebaseApp (missing google-services.json). */
 async function isNativeFirebaseReady(): Promise<boolean> {
@@ -21,10 +28,23 @@ async function isNativeFirebaseReady(): Promise<boolean> {
 }
 
 async function persistFcmToken(fcmToken: string, platform: "android" | "ios") {
+  const appId = getNativeAppId() ?? (isPosNativeApp() ? NATIVE_APP_ID_POS : NATIVE_APP_ID_OFFICE);
+  const contexts = appId === NATIVE_APP_ID_POS ? POS_CONTEXTS : OFFICE_CONTEXTS;
+
+  // POS: always ask server to drop any stale livechat rows for this device token.
+  if (appId === NATIVE_APP_ID_POS) {
+    const { error } = await supabase.functions.invoke("livechat-save-fcm-token", {
+      body: { token: fcmToken, platform, context: "livechat", app_id: appId },
+    });
+    if (error) {
+      console.warn("[FCM] POS livechat cleanup failed", error.message);
+    }
+  }
+
   await Promise.all(
-    CONTEXTS.map(async (context) => {
+    contexts.map(async (context) => {
       const { error } = await supabase.functions.invoke("livechat-save-fcm-token", {
-        body: { token: fcmToken, platform, context },
+        body: { token: fcmToken, platform, context, app_id: appId },
       });
       if (error) {
         console.warn("[FCM] livechat-save-fcm-token failed", context, error.message);
@@ -34,8 +54,8 @@ async function persistFcmToken(fcmToken: string, platform: "android" | "ios") {
 }
 
 /**
- * Capacitor native: minta izin, daftar ke FCM/APNs, simpan token ke `fcm_tokens` (general + livechat)
- * supaya `livechat-send-push` dan `attendance-reminder-send` bisa mengirim notifikasi.
+ * Capacitor native: minta izin, daftar ke FCM/APNs, simpan token ke `fcm_tokens`.
+ * Omnichannel livechat tokens = Office only (`id.synckerja.app`).
  */
 export function useNativeFcmRegistration() {
   const { user, loading } = useAuth();

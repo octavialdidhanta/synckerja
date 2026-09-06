@@ -40,13 +40,18 @@ export function PosActivityListPane({
   return (
     <aside
       className={cn(
-        "flex min-h-0 flex-col overflow-hidden",
+        "flex min-h-0 flex-col overflow-hidden bg-slate-100",
         fullWidth
           ? "h-full w-full min-w-0"
-          : "w-[34%] min-w-[240px] max-w-md border-r border-slate-200",
+          : "w-[34%] min-w-[240px] max-w-md border-r border-slate-200 bg-white",
       )}
     >
-      <div className="flex-shrink-0 border-b border-slate-100 p-3">
+      <div
+        className={cn(
+          "flex-shrink-0 border-b border-slate-200 bg-white",
+          fullWidth ? "px-2 py-2.5 sm:px-2.5" : "p-3",
+        )}
+      >
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input
@@ -56,48 +61,83 @@ export function PosActivityListPane({
               POS_ACTIVITY_I18N.searchPlaceholder,
               "Receipt or invoice number",
             )}
-            className="h-10 border-slate-200 bg-slate-50 pl-9"
+            className="h-10 border-slate-200 bg-slate-50 pl-9 shadow-sm"
           />
         </div>
       </div>
 
       <div
-        className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
+        className={cn(
+          "scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden",
+          fullWidth && "px-2 pb-8 pt-2 sm:px-2.5",
+        )}
         data-vaul-no-drag=""
       >
         {flatCount === 0 ? (
           <p className="px-4 py-12 text-center text-sm text-slate-400">{emptyLabel}</p>
-        ) : (
-          groups.map((group) => (
-            <div key={group.key}>
-              <PosActivityDateGroupHeader group={group} />
-              {group.rows.map((row) => (
-                <ActivityRow
-                  key={row.id}
-                  row={row}
-                  selected={row.id === selectedId}
-                  onSelect={() => onSelect(row)}
-                />
-              ))}
-            </div>
-          ))
-        )}
-
-        {hasNextPage ? (
-          <div className="p-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              disabled={isFetchingNextPage}
-              onClick={onLoadMore}
-            >
-              {isFetchingNextPage
-                ? t(POS_ACTIVITY_I18N.loading, "Loading activity…")
-                : t(POS_ACTIVITY_I18N.loadMore, "Load more")}
-            </Button>
+        ) : fullWidth ? (
+          <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-sm">
+            {groups.map((group) => (
+              <div key={group.key}>
+                <PosActivityDateGroupHeader group={group} />
+                {group.rows.map((row) => (
+                  <ActivityRow
+                    key={row.id}
+                    row={row}
+                    selected={row.id === selectedId}
+                    onSelect={() => onSelect(row)}
+                  />
+                ))}
+              </div>
+            ))}
+            {hasNextPage ? (
+              <div className="border-t border-slate-200 p-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-slate-200"
+                  disabled={isFetchingNextPage}
+                  onClick={onLoadMore}
+                >
+                  {isFetchingNextPage
+                    ? t(POS_ACTIVITY_I18N.loading, "Loading activity…")
+                    : t(POS_ACTIVITY_I18N.loadMore, "Load more")}
+                </Button>
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        ) : (
+          <>
+            {groups.map((group) => (
+              <div key={group.key}>
+                <PosActivityDateGroupHeader group={group} />
+                {group.rows.map((row) => (
+                  <ActivityRow
+                    key={row.id}
+                    row={row}
+                    selected={row.id === selectedId}
+                    onSelect={() => onSelect(row)}
+                  />
+                ))}
+              </div>
+            ))}
+            {hasNextPage ? (
+              <div className="p-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-slate-200"
+                  disabled={isFetchingNextPage}
+                  onClick={onLoadMore}
+                >
+                  {isFetchingNextPage
+                    ? t(POS_ACTIVITY_I18N.loading, "Loading activity…")
+                    : t(POS_ACTIVITY_I18N.loadMore, "Load more")}
+                </Button>
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </aside>
   );

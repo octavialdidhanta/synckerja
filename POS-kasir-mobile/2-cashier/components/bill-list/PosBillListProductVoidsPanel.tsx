@@ -23,7 +23,7 @@ export function PosBillListProductVoidsPanel({ voids, query }: Props) {
   if (filtered.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center px-4 py-16">
-        <p className="text-center text-sm text-slate-400">
+        <p className="text-center text-sm text-slate-500">
           {t(POS_BILL_LIST_I18N.emptyVoids, "No product cancellations yet.")}
         </p>
       </div>
@@ -31,10 +31,10 @@ export function PosBillListProductVoidsPanel({ voids, query }: Props) {
   }
 
   return (
-    <div className="scrollbar-hide overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="min-w-0">
       <table className="w-full min-w-[640px] border-collapse text-left text-sm">
         <thead>
-          <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-800">
+          <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-600">
             <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colProduct, "Product")}</th>
             <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colQty, "Qty")}</th>
             <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colWaiter, "Waiter")}</th>
@@ -44,7 +44,7 @@ export function PosBillListProductVoidsPanel({ voids, query }: Props) {
         </thead>
         <tbody>
           {filtered.map((row) => (
-            <tr key={row.id} className="border-b border-slate-100">
+            <tr key={row.id} className="border-b border-slate-200">
               <td className="px-3 py-2.5">
                 <p className="font-medium text-slate-900">{row.product_name}</p>
                 <p className="text-xs text-slate-500">

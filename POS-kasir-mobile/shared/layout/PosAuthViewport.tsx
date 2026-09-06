@@ -10,18 +10,23 @@ export type PosAuthViewportProps = {
 
 /**
  * Full-viewport tablet-friendly shell for POS pre-auth screens.
- * Content is centered H+V with a capped width (not full-bleed).
+ * Matches employee-welcome optical center (`h-dvh` + slight lift).
  */
 export function PosAuthViewport({ children, className, innerClassName }: PosAuthViewportProps) {
   return (
     <div
       className={cn(
-        "flex min-h-dvh w-full flex-col bg-[#f7f7f7] safe-area-top",
+        "flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-[#f7f7f7] safe-area-top",
         className,
       )}
     >
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-8">
-        <div className={cn("flex w-full max-w-md flex-col items-center", innerClassName)}>
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 py-4">
+        <div
+          className={cn(
+            "flex w-full max-w-md -translate-y-6 flex-col items-center gap-0 sm:-translate-y-8",
+            innerClassName,
+          )}
+        >
           {children}
         </div>
       </div>

@@ -6,6 +6,7 @@ const bound: PosCashierCustomer = {
   leadId: "lead-octa",
   name: "Octa Vialdi",
   phone: "6281281714855",
+  email: "octa@mail.com",
   boundByPhone: true,
 };
 
@@ -17,6 +18,7 @@ describe("loyaltyOpenStateFromCashier", () => {
         id: "lead-octa",
         name: "Octa Vialdi",
         phone: "6281281714855",
+        email: "octa@mail.com",
       },
       checked: true,
     });
@@ -28,6 +30,7 @@ describe("loyaltyOpenStateFromCashier", () => {
         leadId: null,
         name: "Linda",
         phone: "",
+        email: "",
         boundByPhone: false,
       }),
     ).toEqual({ phoneLocal: "", customer: null, checked: false });
@@ -39,6 +42,7 @@ describe("loyaltyOpenStateFromCashier", () => {
         leadId: null,
         name: "Linda",
         phone: "081281714855",
+        email: "",
         boundByPhone: false,
       }),
     ).toEqual({
@@ -55,6 +59,7 @@ describe("loyaltySkipResult", () => {
       id: "lead-octa",
       name: "Octa Vialdi",
       phone: "6281281714855",
+      email: "octa@mail.com",
     };
     expect(loyaltySkipResult(bill)).toEqual({
       customer: bill,

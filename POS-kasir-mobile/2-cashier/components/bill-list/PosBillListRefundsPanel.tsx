@@ -41,7 +41,7 @@ export function PosBillListRefundsPanel({
   if (filtered.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center px-4 py-16">
-        <p className="text-center text-sm text-slate-400">
+        <p className="text-center text-sm text-slate-500">
           {t(POS_BILL_LIST_I18N.emptyPaid, "No paid bills available for refund.")}
         </p>
       </div>
@@ -49,10 +49,10 @@ export function PosBillListRefundsPanel({
   }
 
   return (
-    <div className="scrollbar-hide overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="min-w-0">
       <table className="w-full min-w-[640px] border-collapse text-left text-sm">
         <thead>
-          <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-800">
+          <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wide text-slate-600">
             <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colTable, "Table")}</th>
             <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colCustomer, "Customer")}</th>
             <th className="px-3 py-2">{t(POS_BILL_LIST_I18N.colWaiter, "Waiter")}</th>
@@ -69,7 +69,7 @@ export function PosBillListRefundsPanel({
             const activityId = row.session.sales_activity_id;
             const busy = refundBusyId === row.session.id;
             return (
-              <tr key={row.session.id} className="border-b border-slate-100">
+              <tr key={row.session.id} className="border-b border-slate-200">
                 <td className="px-3 py-2.5 font-medium text-slate-900">
                   {row.session.table_name || "—"}
                 </td>

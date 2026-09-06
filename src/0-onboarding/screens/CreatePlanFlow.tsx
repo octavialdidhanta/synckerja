@@ -20,11 +20,15 @@ import {
   resolvePaidPlanMemberFloor,
   sliderMaxMembers,
 } from "@/0-onboarding/utils/subscriptionPlanUtils";
-import { SynckerjaBrandLogo } from "@/shared/brand/brandLogo";
+import { SynckerjaBrandMark } from "@/shared/components/mobile/SynckerjaBrandMark";
+import { PosBrandMark } from "@/pos-mobile/shared/components/PosBrandMark";
+import { isPosAuthSurface } from "@/pos-mobile/0-auth/lib/posAuthSurface";
 
 const brandRed = "hsl(var(--brand-red))";
 
-const defaultPlanBrand = <SynckerjaBrandLogo />;
+function defaultPlanBrand() {
+  return isPosAuthSurface() ? <PosBrandMark /> : <SynckerjaBrandMark size="splash" />;
+}
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -41,9 +45,10 @@ export type CreatePlanFlowProps = {
   brandMark?: ReactNode;
 };
 
-export function CreatePlanFlow({ brandMark = defaultPlanBrand }: CreatePlanFlowProps) {
+export function CreatePlanFlow({ brandMark }: CreatePlanFlowProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const mark = brandMark ?? defaultPlanBrand();
 
   const [gatePhase, setGatePhase] = useState<"loading" | "ready" | "error">("loading");
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -306,7 +311,7 @@ export function CreatePlanFlow({ brandMark = defaultPlanBrand }: CreatePlanFlowP
   return (
     <div className="flex w-full min-w-0 flex-col items-center gap-6 pb-4 lg:max-w-[1400px] lg:gap-8 xl:max-w-[1520px]">
       <header className="flex w-full max-w-md flex-col items-center text-center lg:max-w-xl">
-        <div className="mb-2 flex justify-center">{brandMark}</div>
+        <div className="flex justify-center">{mark}</div>
         <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl lg:text-3xl">
           {t("onboarding.plan.title")}
         </h1>

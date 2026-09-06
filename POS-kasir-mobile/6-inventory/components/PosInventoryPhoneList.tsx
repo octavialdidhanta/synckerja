@@ -64,7 +64,7 @@ export function PosInventoryPhoneList({
 
   return (
     <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <ul className="divide-y divide-slate-100">
+      <ul className="divide-y divide-slate-200">
         {rows.map((row) => {
           const stock = stockForOutlet(row, outletId);
           const status = ingredientStockStatus(row, outletId);

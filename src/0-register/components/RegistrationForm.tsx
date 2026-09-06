@@ -35,8 +35,8 @@ export type RegistrationFormKeyboardProps = {
   submitButtonRef?: RefObject<HTMLButtonElement | null>;
   onKeyboardInputFocus?: () => void;
   onKeyboardInputBlur?: () => void;
-  /** When set, replaces the default favicon header mark. */
-  brandMark?: ReactNode;
+  /** When set, replaces the default favicon header mark. Pass `null` to hide (POS layout brand). */
+  brandMark?: ReactNode | null;
   /** “Already have an account? Log in” link target (default `/login`). */
   loginHref?: string;
 };
@@ -187,8 +187,8 @@ export function RegistrationForm(props: RegistrationFormKeyboardProps) {
 
   return (
     <div className={authFormRootClass}>
-      <header className="flex flex-col items-center text-center">
-        <div className={authFormHeaderLogoWrapper}>{brandMark}</div>
+      <header className="flex flex-col items-center gap-2 text-center">
+        {brandMark != null ? <div className={authFormHeaderLogoWrapper}>{brandMark}</div> : null}
         <h1 className={authFormTitleClass}>{t("auth.register.title")}</h1>
         <p className={authFormSubtitleClass}>{t("auth.register.subtitle")}</p>
       </header>

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Bell, RefreshCw, Loader2, CircleCheck, ClipboardList, NotebookPen, CalendarDays } from "lucide-react";
 import { TimeDisplay } from "@/mobile-app/components/TimeDisplay";
-import { LocationChecker, LocationButton } from "@/mobile-app/components/LocationChecker";
+import { LocationButton } from "@/mobile-app/components/LocationChecker";
 import { AttendanceStatus } from "@/mobile-app/components/AttendanceStatus";
 import { AttendanceActions } from "@/mobile/1-home/components/AttendanceActions";
 import { TodaySchedule } from "@/mobile/1-home/components/TodaySchedule";
@@ -1031,12 +1031,6 @@ const Absensi = () => {
                   {currentSchedule && workSchedule && (
                     <div>
                       <TodaySchedule schedule={currentSchedule} />
-                    </div>
-                  )}
-
-                  {currentOfficeLocation && (
-                    <div>
-                      <LocationChecker officeLocation={currentOfficeLocation} />
                     </div>
                   )}
                 </div>

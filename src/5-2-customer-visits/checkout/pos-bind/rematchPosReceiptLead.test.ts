@@ -6,6 +6,7 @@ const magnet: PosCheckoutLeadRow = {
   id: "magnet",
   client: "vialdi.id",
   phone_number: "6281234567890",
+  email: "magnet@mail.com",
   source: "Lead Magnet",
   ticket_id: "LEAD-10F9E361",
   updated_at: "2026-01-01T00:00:00.000Z",

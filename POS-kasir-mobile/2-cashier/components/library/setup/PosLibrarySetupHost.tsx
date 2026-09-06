@@ -49,6 +49,8 @@ export function PosLibrarySetupHost({
 
       <DiscountFormSheet
         discount={null}
+        selectedOutletId={outletId}
+        chrome="pos"
         open={discountOpen}
         onOpenChange={(open) => {
           setDiscountOpen(open);
@@ -59,6 +61,7 @@ export function PosLibrarySetupHost({
       <CategoryFormSheet
         category={null}
         selectedOutletId={outletId}
+        chrome="pos"
         open={categoryOpen}
         onOpenChange={(open) => {
           setCategoryOpen(open);

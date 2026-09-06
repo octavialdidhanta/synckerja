@@ -31,6 +31,7 @@ import { defaultPosOutletId } from "@/8-2-2-outlets/lib/assignedOutlets";
 import { cn } from "@/shared/lib/utils";
 import { useOutletReceiptSettings } from "../hooks/useOutletReceiptSettings";
 import { emptyToNull, nationalPhoneFromStored, storedPhoneFromNational } from "../lib/formatReceiptPhone";
+import { canSaveReceiptSettings } from "../lib/canSaveReceiptSettings";
 import { isSharingIncomplete } from "../lib/resolveReceiptDisplay";
 import { signOutletReceiptLogo } from "../lib/receiptLogoStorage";
 import type { ReceiptDraft } from "../types";
@@ -209,6 +210,12 @@ export function ReceiptSettings() {
   const previewLogoUrl = formLogoUrl ?? (company?.logo_url as string | null) ?? null;
   const sharingIncomplete = isSharingIncomplete(draft);
   const busy = receipt.isSaving || receipt.isLoading;
+  const canSave = canSaveReceiptSettings({
+    busy,
+    isDirty,
+    outletName: draft.outletName,
+    businessName: draft.businessName,
+  });
   const hasOutlets = outlets.length > 0;
 
   useEffect(() => {
@@ -350,7 +357,7 @@ export function ReceiptSettings() {
             )}
           </div>
           <div className="mt-4 flex justify-end border-t pt-3">
-            <Button type="button" onClick={() => void handleSave()} disabled={busy || !draft.outletName.trim() || !draft.businessName.trim()}>
+            <Button type="button" onClick={() => void handleSave()} disabled={!canSave}>
               {t("common.save", "Save")}
             </Button>
           </div>

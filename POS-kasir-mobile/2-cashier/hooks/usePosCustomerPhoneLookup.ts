@@ -6,6 +6,7 @@ export type PosLoyaltyCustomer = {
   id: string | null;
   name: string;
   phone: string;
+  email?: string | null;
 };
 
 export function usePosCustomerPhoneLookup() {
@@ -24,6 +25,7 @@ export function usePosCustomerPhoneLookup() {
         id: found.lead.id,
         name,
         phone: found.lead.phone_number ?? found.phoneKey,
+        email: found.lead.email ?? null,
       };
     },
   });

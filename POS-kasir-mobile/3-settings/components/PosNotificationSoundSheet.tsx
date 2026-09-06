@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -7,6 +7,7 @@ import {
 } from "@/shared/components/ui/sheet";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import {
   POS_NOTIFICATION_SOUND_OPTIONS,
   POS_SETTINGS_I18N,
@@ -30,35 +31,73 @@ export function PosNotificationSoundSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-80 p-0 sm:max-w-sm">
-        <SheetHeader className="border-b px-4 py-4 text-left">
-          <SheetTitle>
-            {t(POS_SETTINGS_I18N.soundSheetTitle, "Notification Sound")}
-          </SheetTitle>
-        </SheetHeader>
-        <div className="flex flex-col py-1">
-          {POS_NOTIFICATION_SOUND_OPTIONS.map((opt) => {
-            const selected = opt.id === value;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => {
-                  onSelect(opt.id);
-                  onOpenChange(false);
-                }}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3.5 text-left text-sm transition-colors hover:bg-slate-50",
-                  selected && "bg-primary/5 font-semibold text-primary",
-                )}
-              >
-                <span className="min-w-0 flex-1">
-                  {t(opt.labelKey, opt.fallback)}
-                </span>
-                {selected ? <Check className="h-4 w-4 text-primary" aria-hidden /> : null}
-              </button>
-            );
-          })}
+      <SheetContent
+        side="right"
+        className={cn(
+          "flex w-full flex-col gap-0 border-l border-slate-200 bg-slate-100 p-0 sm:max-w-md",
+          "[&>button]:hidden",
+        )}
+      >
+        <div
+          className="flex-shrink-0 border-b border-slate-200 bg-white"
+          style={{
+            paddingTop:
+              "max(0px, env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px))",
+          }}
+        >
+          <SheetHeader
+            className={cn(POS_PANEL.header, "flex-row space-y-0 border-b-0 text-left")}
+          >
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className={POS_PANEL.headerBack}
+              aria-label={t(POS_SETTINGS_I18N.back, "Back")}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <SheetTitle className={cn(POS_PANEL.headerTitle, "leading-none")}>
+              {t(POS_SETTINGS_I18N.soundSheetTitle, "Notification Sound")}
+            </SheetTitle>
+          </SheetHeader>
+        </div>
+
+        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className={POS_PANEL.body}>
+            <div className={POS_PANEL.card}>
+              {POS_NOTIFICATION_SOUND_OPTIONS.map((opt) => {
+                const selected = opt.id === value;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      onSelect(opt.id);
+                      onOpenChange(false);
+                    }}
+                    className={cn(
+                      POS_PANEL.row,
+                      "text-left transition-colors hover:bg-slate-50",
+                    )}
+                  >
+                    <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                      {selected ? (
+                        <Check className="h-5 w-5 text-primary" aria-hidden />
+                      ) : null}
+                    </span>
+                    <span
+                      className={cn(
+                        POS_PANEL.rowLabel,
+                        selected && "font-medium text-slate-900",
+                      )}
+                    >
+                      {t(opt.labelKey, opt.fallback)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </SheetContent>
     </Sheet>

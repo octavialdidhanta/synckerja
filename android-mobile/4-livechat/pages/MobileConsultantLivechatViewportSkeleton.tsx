@@ -48,7 +48,14 @@ export function MobileConsultantLivechatChromeSkeleton({
         aria-busy="true"
         aria-label={aria}
       >
-        <header className="safe-area-top sticky top-0 z-30 flex flex-shrink-0 flex-col gap-2 border-b border-primary/20 bg-primary px-2 pb-2">
+        <div
+          className="shrink-0 bg-white"
+          style={{
+            height: "max(var(--safe-area-inset-top, 0px), env(safe-area-inset-top, 0px))",
+          }}
+          aria-hidden
+        />
+        <header className="sticky top-0 z-30 flex flex-shrink-0 flex-col gap-2 border-b border-primary/20 bg-primary px-2 pb-2">
           <div className="flex items-center gap-2">
             <Skeleton className="h-9 w-9 shrink-0 rounded-md" aria-hidden />
             <div className="min-w-0 flex-1 space-y-2">
@@ -71,7 +78,7 @@ export function MobileConsultantLivechatChromeSkeleton({
             )}
           >
             <div className="h-0 shrink-0" aria-hidden />
-            <div className="content-padding-above-nav-livechat flex min-h-0 flex-col">
+            <div className="content-padding-above-nav-livechat flex min-h-full min-w-0 flex-col">
               <MobileConsultantLivechatBodySkeleton />
             </div>
           </div>

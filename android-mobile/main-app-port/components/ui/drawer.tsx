@@ -70,6 +70,8 @@ const DrawerContent = React.forwardRef<
           <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
         ) : null}
         {children}
+        {/* Clears Android system nav / home indicator for every Office bottom sheet. */}
+        <div className="drawer-safe-area-spacer" aria-hidden />
       </DrawerPrimitive.Content>
     </DrawerPortal>
   )

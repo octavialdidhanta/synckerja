@@ -42,7 +42,11 @@ export function PosBillReasonDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className="max-w-md gap-3 rounded-xl p-4 [&>button]:hidden" aria-describedby={undefined}>
+      <DialogContent
+        className="z-[80] max-w-md gap-3 rounded-xl p-4 [&>button]:hidden"
+        overlayClassName="z-[80]"
+        aria-describedby={undefined}
+      >
         <DialogTitle className="text-base font-semibold">{title}</DialogTitle>
         <Input
           value={reason}

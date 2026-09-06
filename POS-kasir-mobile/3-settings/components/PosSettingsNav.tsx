@@ -1,4 +1,5 @@
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { PosSettingsNavItem } from "./PosSettingsNavItem";
 import {
   POS_SETTINGS_NAV,
@@ -41,33 +42,35 @@ export function PosSettingsNav({ activeId, onSelect, statusOverrides }: Props) {
   const grouped = groupNav(POS_SETTINGS_NAV);
 
   return (
-    <nav className="flex flex-col" aria-label="Settings">
+    <nav className="flex flex-col gap-2 px-2 pb-3 sm:px-2.5" aria-label="Settings">
       {grouped.map((group) => (
-        <div key={group.sectionKey} className="border-b border-slate-200">
-          <p className="bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-900">
+        <div key={group.sectionKey}>
+          <p className={POS_PANEL.sectionTitle}>
             {t(group.sectionKey, group.sectionFallback)}
           </p>
-          {group.items.map((item) => {
-            const override = statusOverrides?.[item.id];
-            let statusLabel: string | undefined;
-            if (override === null) {
-              statusLabel = undefined;
-            } else if (typeof override === "string") {
-              statusLabel = override;
-            } else if (item.statusKey) {
-              statusLabel = t(item.statusKey, item.statusFallback ?? "Active");
-            }
+          <div className={POS_PANEL.card}>
+            {group.items.map((item) => {
+              const override = statusOverrides?.[item.id];
+              let statusLabel: string | undefined;
+              if (override === null) {
+                statusLabel = undefined;
+              } else if (typeof override === "string") {
+                statusLabel = override;
+              } else if (item.statusKey) {
+                statusLabel = t(item.statusKey, item.statusFallback ?? "Active");
+              }
 
-            return (
-              <PosSettingsNavItem
-                key={item.id}
-                label={t(item.labelKey, item.labelFallback)}
-                statusLabel={statusLabel}
-                active={item.id === activeId}
-                onClick={() => onSelect(item.id)}
-              />
-            );
-          })}
+              return (
+                <PosSettingsNavItem
+                  key={item.id}
+                  label={t(item.labelKey, item.labelFallback)}
+                  statusLabel={statusLabel}
+                  active={item.id === activeId}
+                  onClick={() => onSelect(item.id)}
+                />
+              );
+            })}
+          </div>
         </div>
       ))}
     </nav>

@@ -33,6 +33,7 @@ export function PosShiftSkeleton() {
     <PosSettingsShell
       leftHeader="…"
       rightHeader="…"
+      rightPaneClassName="bg-slate-100"
       left={
         <div className="space-y-3 p-4" aria-hidden>
           <div className="mx-auto h-20 w-24 animate-pulse rounded bg-slate-200" />
@@ -43,10 +44,10 @@ export function PosShiftSkeleton() {
         </div>
       }
       right={
-        <div className="space-y-4 p-4" aria-hidden>
-          <div className="h-14 animate-pulse rounded bg-slate-100" />
-          <div className="h-14 animate-pulse rounded bg-slate-100" />
-          <div className="h-24 animate-pulse rounded bg-slate-100" />
+        <div className="min-h-full space-y-4 bg-slate-100 p-4" aria-hidden>
+          <div className="h-14 animate-pulse rounded-lg bg-white shadow-sm" />
+          <div className="h-14 animate-pulse rounded-lg bg-white shadow-sm" />
+          <div className="h-24 animate-pulse rounded-lg bg-white shadow-sm" />
         </div>
       }
       footer={

@@ -23,6 +23,7 @@ export function AssignModifierOutletDialog({
       confirmLabel={t("defaultPrices.modifiers.assignModifier", "Assign Modifier")}
       selectedIds={selectedIds}
       onConfirm={onConfirm}
+      chrome="pos"
     />
   );
 }

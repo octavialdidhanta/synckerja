@@ -7,6 +7,7 @@ import {
 } from "@/pos-mobile/1-outlet-select/lib/posSelectedOutletStorage";
 import { PosPrinterUnavailableError } from "@/pos-mobile/shared/printing/PosPrinterBridge";
 import { printPosTestPage } from "@/pos-mobile/shared/printing/posPrintService";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { POS_SETTINGS_I18N } from "../../../lib/posSettingsCopy";
 import { createPosSavedPrinter } from "../../../lib/printer/posPrinterStorage";
 import { usePosBluetoothScan } from "../../../lib/printer/usePosBluetoothScan";
@@ -122,7 +123,7 @@ export function PosPrinterSettingsPanel() {
   const onlyBluetooth = settings.printers.every((p) => p.transport === "bluetooth");
 
   return (
-    <div className="px-4 py-2 pb-8">
+    <div className={POS_PANEL.body}>
       <PosAvailablePrintersBlock
         printers={settings.printers}
         refreshing={scan.scanning}

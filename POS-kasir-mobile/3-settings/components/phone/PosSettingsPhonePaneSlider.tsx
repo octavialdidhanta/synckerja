@@ -1,4 +1,4 @@
-import { useCallback, useRef, type PointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type PointerEvent, type ReactNode } from "react";
 import { cn } from "@/shared/lib/utils";
 import type { PosSettingsPhonePane } from "../../lib/posSettingsPhoneLayout";
 
@@ -11,6 +11,15 @@ type Props = {
   detail: ReactNode;
   className?: string;
 };
+
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return Boolean(
+    target.closest(
+      "button, a, input, textarea, select, [role='button'], [data-no-pane-swipe]",
+    ),
+  );
+}
 
 /**
  * Two-pane phone slider — absolute panes (no w-[200%]) so the page cannot grow wider than the viewport.
@@ -25,9 +34,25 @@ export function PosSettingsPhonePaneSlider({
   const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
   const tracking = useRef(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const hidden = pane === "list" ? detailRef.current : listRef.current;
+    const active = document.activeElement;
+    if (hidden && active instanceof HTMLElement && hidden.contains(active)) {
+      active.blur();
+    }
+  }, [pane]);
 
   const onPointerDown = useCallback((e: PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (isInteractiveTarget(e.target)) {
+      tracking.current = false;
+      startX.current = null;
+      startY.current = null;
+      return;
+    }
     startX.current = e.clientX;
     startY.current = e.clientY;
     tracking.current = true;
@@ -71,22 +96,26 @@ export function PosSettingsPhonePaneSlider({
       onPointerCancel={onPointerCancel}
     >
       <div
+        ref={listRef}
         className={cn(
           "absolute inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden [touch-action:pan-y]",
           "transition-transform duration-200 ease-out will-change-transform",
           pane === "list" ? "translate-x-0" : "-translate-x-full pointer-events-none",
         )}
         aria-hidden={pane !== "list"}
+        {...(pane === "list" ? {} : { inert: "" })}
       >
         {list}
       </div>
       <div
+        ref={detailRef}
         className={cn(
           "absolute inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden [touch-action:pan-y]",
           "transition-transform duration-200 ease-out will-change-transform",
           pane === "detail" ? "translate-x-0" : "translate-x-full pointer-events-none",
         )}
         aria-hidden={pane !== "detail"}
+        {...(pane === "detail" ? {} : { inert: "" })}
       >
         {detail}
       </div>

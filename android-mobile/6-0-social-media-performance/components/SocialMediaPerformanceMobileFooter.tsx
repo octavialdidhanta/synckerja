@@ -15,10 +15,10 @@ export function SocialMediaPerformanceMobileFooter({
   const { t } = useAppTranslation();
 
   return (
-    <nav className="mobile-app-bottom-nav relative z-30 shrink-0 border-t border-border bg-card">
+    <nav className="mobile-app-bottom-nav relative z-30 shrink-0 border-t border-border bg-card safe-area-bottom-lower">
       <div
         className={`scrollbar-hide mx-auto flex max-w-md min-h-[52px] items-stretch overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-          className ?? "safe-area-padding-bottom-capped"
+          className ?? ""
         }`.trim()}
       >
         {SOCIAL_MEDIA_PERFORMANCE_TABS.map((tab) => {

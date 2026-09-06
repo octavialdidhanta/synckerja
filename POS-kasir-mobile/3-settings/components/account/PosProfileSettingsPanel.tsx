@@ -31,6 +31,9 @@ import {
   readPosSelectedOutletId,
   stashPosSelectedOutlet,
 } from "@/pos-mobile/1-outlet-select/lib/posSelectedOutletStorage";
+import { cn } from "@/shared/lib/utils";
+import { usePosKeyboardDock } from "@/pos-mobile/shared/hooks/usePosKeyboardDock";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { POS_SETTINGS_I18N } from "../../lib/posSettingsCopy";
 import { PosProfileLogoField } from "./PosProfileLogoField";
 
@@ -49,7 +52,7 @@ function FieldLabel({ children }: { children: ReactNode }) {
 
 function ViewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border-b border-slate-100 px-4 py-3 last:border-b-0">
+    <div className="border-b border-slate-200 px-3 py-3 last:border-b-0">
       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </p>
@@ -83,6 +86,7 @@ export function PosProfileSettingsPanel({
   );
 
   const [editing, setEditing] = useState(false);
+  usePosKeyboardDock({ enabled: editing });
   const [draft, setDraft] = useState<OutletDraft>(() =>
     outlet ? draftFromOutlet(outlet) : emptyOutletDraft(),
   );
@@ -231,7 +235,7 @@ export function PosProfileSettingsPanel({
 
   if (!outletId) {
     return (
-      <div className="px-4 py-8 text-center text-sm text-slate-600">
+      <div className={cn(POS_PANEL.body, "py-8 text-center text-sm text-slate-600")}>
         <p className="mb-3">
           {t(POS_SETTINGS_I18N.profileMissingOutlet, "Selected outlet was not found.")}
         </p>
@@ -247,15 +251,15 @@ export function PosProfileSettingsPanel({
   if (isLoading && !outlet) {
     return (
       <div
-        className="space-y-4 px-4 py-4"
+        className={cn(POS_PANEL.body, "space-y-3")}
         aria-busy
         aria-label={t(POS_SETTINGS_I18N.profileLoading, "Loading outlet profile…")}
       >
         <div className="h-4 w-24 animate-pulse rounded bg-slate-200" />
-        <div className="h-10 animate-pulse rounded-md bg-slate-200" />
-        <div className="grid grid-cols-[1fr_auto] gap-4">
-          <div className="h-24 animate-pulse rounded-md bg-slate-200" />
-          <div className="h-28 w-28 animate-pulse rounded-md bg-slate-200" />
+        <div className={cn(POS_PANEL.card, "h-10 animate-pulse bg-slate-200")} />
+        <div className="grid grid-cols-[1fr_auto] gap-3">
+          <div className={cn(POS_PANEL.card, "h-24 animate-pulse bg-slate-200")} />
+          <div className="h-28 w-28 animate-pulse rounded-lg bg-slate-200" />
         </div>
       </div>
     );
@@ -263,7 +267,7 @@ export function PosProfileSettingsPanel({
 
   if (!outlet) {
     return (
-      <div className="px-4 py-8 text-center text-sm text-slate-600">
+      <div className={cn(POS_PANEL.body, "py-8 text-center text-sm text-slate-600")}>
         <p className="mb-3">
           {t(POS_SETTINGS_I18N.profileMissingOutlet, "Selected outlet was not found.")}
         </p>
@@ -278,15 +282,15 @@ export function PosProfileSettingsPanel({
 
   if (!editing) {
     return (
-      <div className="flex min-h-full flex-col px-4 py-4 pb-8">
-        <div className="mb-4 flex justify-end">
+      <div className={cn(POS_PANEL.body, "flex min-h-full flex-col")}>
+        <div className="mb-3 flex justify-end">
           <Button type="button" variant="outline" onClick={() => setEditing(true)}>
             {t(POS_SETTINGS_I18N.profileEdit, "Edit")}
           </Button>
         </div>
 
-        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <div className="flex items-start gap-4 border-b border-slate-100 px-4 py-4">
+        <div className={POS_PANEL.card}>
+          <div className="flex items-start gap-4 border-b border-slate-200 px-3 py-3">
             <div className="min-w-0 flex-1 space-y-3">
               <div>
                 <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -341,8 +345,8 @@ export function PosProfileSettingsPanel({
   }
 
   return (
-    <div className="flex min-h-full flex-col px-4 py-4 pb-8">
-      <div className="space-y-5">
+    <div className={cn(POS_PANEL.body, "flex min-h-full flex-col")}>
+      <div className={cn(POS_PANEL.card, "space-y-5 p-3")}>
         <div>
           <FieldLabel>
             {t(POS_SETTINGS_I18N.profileBusinessName, "Business name")}
@@ -433,7 +437,7 @@ export function PosProfileSettingsPanel({
           />
         </div>
 
-        <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-3">
+        <div className={cn(POS_PANEL.row, "rounded-md border border-slate-200/80")}>
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               {t(POS_SETTINGS_I18N.profileStatus, "Status")}
@@ -454,7 +458,7 @@ export function PosProfileSettingsPanel({
         </div>
       </div>
 
-      <div className="mt-8 flex justify-end gap-2 border-t border-slate-100 pt-4">
+      <div className="mt-6 flex justify-end gap-2 border-t border-slate-200 pt-4">
         <Button type="button" variant="outline" onClick={handleCancel} disabled={busy}>
           {t(POS_SETTINGS_I18N.profileCancel, "Cancel")}
         </Button>

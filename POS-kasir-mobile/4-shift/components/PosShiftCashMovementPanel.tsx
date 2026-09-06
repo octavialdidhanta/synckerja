@@ -11,6 +11,7 @@ import {
 import { cn } from "@/shared/lib/utils";
 import { formatPosCash, formatPosCashOut } from "../lib/formatPosCash";
 import { POS_SHIFT_I18N } from "../lib/posShiftCopy";
+import { POS_SHIFT_PANEL } from "../lib/posShiftPanelChrome";
 import type { PosCashMovement, PosCashMovementDirection } from "../lib/posShiftTypes";
 import { usePosCashierShiftActions } from "../lib/usePosCashierShift";
 
@@ -83,114 +84,124 @@ export function PosShiftCashMovementPanel({
   };
 
   return (
-    <div className="flex min-h-full flex-col">
-      <div className="flex h-12 flex-shrink-0 items-center gap-2 border-b border-slate-200 bg-slate-50 px-3">
+    <div className={POS_SHIFT_PANEL.page}>
+      <div className={POS_SHIFT_PANEL.header}>
         <button
           type="button"
           onClick={onBack}
-          className="rounded-md p-1.5 text-primary hover:bg-slate-100"
-          aria-label="Back"
+          onPointerDown={(e) => e.stopPropagation()}
+          className={POS_SHIFT_PANEL.headerBack}
+          aria-label={t(POS_SHIFT_I18N.back, "Back")}
+          data-no-pane-swipe
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <h2 className="flex-1 pr-8 text-center text-base font-semibold text-slate-900">
+        <h2 className={POS_SHIFT_PANEL.headerTitle}>
           {t(POS_SHIFT_I18N.cashIoTitle, "Cash Out / Cash In")}
         </h2>
       </div>
 
-      <div className="flex-1 px-4 py-4 pb-8">
+      <div className={POS_SHIFT_PANEL.body}>
         {readOnly ? null : (
           <>
-        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5">
-            <span className="flex-shrink-0 text-sm text-slate-700">
-              {t(POS_SHIFT_I18N.description, "Description")}
-            </span>
-            <input
-              type="text"
-              value={description}
-              disabled={confirming || isAddingMovement}
-              onChange={(e) => {
-                setDescription(e.target.value);
-                setConfirming(false);
-              }}
-              placeholder={t(POS_SHIFT_I18N.descriptionPlaceholder, "Enter description")}
-              className="min-w-0 flex-1 border-0 bg-transparent text-right text-sm text-slate-900 outline-none placeholder:text-slate-400"
-            />
-          </div>
+            <div className={POS_SHIFT_PANEL.card}>
+              <div className={cn(POS_SHIFT_PANEL.row, "gap-3")}>
+                <span className="flex-shrink-0 text-sm text-slate-800">
+                  {t(POS_SHIFT_I18N.description, "Description")}
+                </span>
+                <input
+                  type="text"
+                  value={description}
+                  disabled={confirming || isAddingMovement}
+                  onChange={(e) => {
+                    setDescription(e.target.value);
+                    setConfirming(false);
+                  }}
+                  placeholder={t(
+                    POS_SHIFT_I18N.descriptionPlaceholder,
+                    "Enter description",
+                  )}
+                  className="min-w-0 flex-1 border-0 bg-transparent text-right text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                />
+              </div>
 
-          <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-            <button
-              type="button"
-              disabled={isAddingMovement}
-              onClick={() => {
-                setDirection("in");
-                setConfirming(false);
-              }}
-              className={cn(
-                "rounded-md px-4 py-2 text-xs font-bold uppercase tracking-wide text-white",
-                direction === "in" ? "bg-emerald-500" : "bg-slate-300",
-              )}
-            >
-              {t(POS_SHIFT_I18N.cashIn, "CASH IN")}
-            </button>
-            <button
-              type="button"
-              disabled={isAddingMovement}
-              onClick={() => {
-                setDirection("out");
-                setConfirming(false);
-              }}
-              className={cn(
-                "rounded-md px-4 py-2 text-xs font-bold uppercase tracking-wide text-white",
-                direction === "out" ? "bg-rose-500" : "bg-slate-300",
-              )}
-            >
-              {t(POS_SHIFT_I18N.cashOut, "CASH OUT")}
-            </button>
-            <div className="ml-auto flex items-center gap-1">
-              <span className="text-sm text-slate-500">Rp</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                disabled={confirming || isAddingMovement}
-                value={formatIdrThousandsFromDigits(amountDigits)}
-                onChange={(e) => {
-                  setAmountDigits(idrDigitsOnly(e.target.value));
-                  setConfirming(false);
-                }}
-                placeholder={t(POS_SHIFT_I18N.amountPlaceholder, "Enter amount")}
-                className="w-32 border-0 bg-transparent text-right text-sm font-semibold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400"
-              />
+              <div className="flex flex-wrap items-center gap-2 px-3 py-3">
+                <button
+                  type="button"
+                  disabled={isAddingMovement}
+                  onClick={() => {
+                    setDirection("in");
+                    setConfirming(false);
+                  }}
+                  className={cn(
+                    "rounded-md px-3 py-2 text-xs font-bold uppercase tracking-wide text-white",
+                    direction === "in" ? "bg-emerald-500" : "bg-slate-300",
+                  )}
+                >
+                  {t(POS_SHIFT_I18N.cashIn, "CASH IN")}
+                </button>
+                <button
+                  type="button"
+                  disabled={isAddingMovement}
+                  onClick={() => {
+                    setDirection("out");
+                    setConfirming(false);
+                  }}
+                  className={cn(
+                    "rounded-md px-3 py-2 text-xs font-bold uppercase tracking-wide text-white",
+                    direction === "out" ? "bg-rose-500" : "bg-slate-300",
+                  )}
+                >
+                  {t(POS_SHIFT_I18N.cashOut, "CASH OUT")}
+                </button>
+                <div className="ml-auto flex min-w-0 items-center gap-1">
+                  <span className="text-sm text-slate-500">Rp</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    disabled={confirming || isAddingMovement}
+                    value={formatIdrThousandsFromDigits(amountDigits)}
+                    onChange={(e) => {
+                      setAmountDigits(idrDigitsOnly(e.target.value));
+                      setConfirming(false);
+                    }}
+                    placeholder={t(POS_SHIFT_I18N.amountPlaceholder, "Enter amount")}
+                    className="w-28 min-w-0 border-0 bg-transparent text-right text-sm font-semibold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400 sm:w-32"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        <Button
-          type="button"
-          disabled={!canSubmit || isAddingMovement}
-          onClick={() => {
-            if (!confirming) {
-              setConfirming(true);
-              return;
-            }
-            void handleConfirm();
-          }}
-          className="mt-4 h-12 w-full text-base font-bold uppercase"
-        >
-          {confirming
-            ? t(POS_SHIFT_I18N.confirm, "Confirm")
-            : t(POS_SHIFT_I18N.send, "Send")}
-        </Button>
+            <Button
+              type="button"
+              disabled={!canSubmit || isAddingMovement}
+              onClick={() => {
+                if (!confirming) {
+                  setConfirming(true);
+                  return;
+                }
+                void handleConfirm();
+              }}
+              className="mt-3 h-11 w-full text-sm font-bold uppercase shadow-sm"
+            >
+              {confirming
+                ? t(POS_SHIFT_I18N.confirm, "Confirm")
+                : t(POS_SHIFT_I18N.send, "Send")}
+            </Button>
           </>
         )}
 
-        <p className={cn("mb-2 text-sm font-medium text-slate-500", readOnly ? "mt-0" : "mt-8")}>
+        <p
+          className={cn(
+            POS_SHIFT_PANEL.sectionTitle,
+            readOnly ? "first:pt-0" : undefined,
+          )}
+        >
           {t(POS_SHIFT_I18N.cashIoListTitle, "Cash Out / Cash In")}
         </p>
-        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className={POS_SHIFT_PANEL.card}>
           {movements.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-slate-400">—</p>
+            <p className="px-3 py-5 text-center text-sm text-slate-400">—</p>
           ) : (
             movements.map((m) => {
               const time = new Date(m.created_at).toLocaleTimeString(undefined, {
@@ -198,16 +209,13 @@ export function PosShiftCashMovementPanel({
                 minute: "2-digit",
               });
               return (
-                <div
-                  key={m.id}
-                  className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
-                >
-                  <span className="text-sm text-slate-800">
+                <div key={m.id} className={POS_SHIFT_PANEL.row}>
+                  <span className={cn(POS_SHIFT_PANEL.rowLabel, "pr-2")}>
                     {time} - {m.description}
                   </span>
                   <span
                     className={cn(
-                      "text-sm font-medium",
+                      "flex-shrink-0 text-sm font-medium tabular-nums",
                       m.direction === "out" ? "text-rose-600" : "text-emerald-600",
                     )}
                   >
@@ -219,13 +227,18 @@ export function PosShiftCashMovementPanel({
               );
             })
           )}
-          <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3">
-            <span className="text-sm font-medium text-slate-800">
+          <div
+            className={cn(
+              POS_SHIFT_PANEL.row,
+              "border-b-0 border-t border-slate-200 bg-slate-50 last:border-b-0",
+            )}
+          >
+            <span className="min-w-0 flex-1 text-sm font-medium text-slate-800">
               {t(POS_SHIFT_I18N.cashIoTotal, "Total Cash Out/Cash In")}
             </span>
             <span
               className={cn(
-                "text-sm font-semibold",
+                "flex-shrink-0 text-sm font-semibold tabular-nums",
                 netTotal < 0 ? "text-rose-600" : "text-slate-900",
               )}
             >

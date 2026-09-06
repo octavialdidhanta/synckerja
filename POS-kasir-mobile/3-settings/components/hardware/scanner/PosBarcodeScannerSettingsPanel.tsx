@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Switch } from "@/shared/components/ui/switch";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
 import { readPosSelectedOutletId } from "@/pos-mobile/1-outlet-select/lib/posSelectedOutletStorage";
+import { POS_PANEL } from "@/pos-mobile/shared/lib/posPanelChrome";
 import { POS_SETTINGS_I18N } from "../../../lib/posSettingsCopy";
 import { usePosBarcodeScannerSettings } from "../../../lib/scanner/usePosBarcodeScannerSettings";
 import { usePosBarcodeWedgeScan } from "@/pos-mobile/2-cashier/hooks/usePosBarcodeWedgeScan";
@@ -31,7 +33,7 @@ export function PosBarcodeScannerSettingsPanel() {
     checked: boolean,
     onChange: (v: boolean) => void,
   ) => (
-    <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3.5 last:border-b-0">
+    <div className={cn(POS_PANEL.row, hint && "items-start")}>
       <div className="min-w-0 flex-1">
         <p className="text-sm text-slate-900">{label}</p>
         {hint ? <p className="mt-1 text-xs leading-relaxed text-slate-400">{hint}</p> : null}
@@ -41,15 +43,15 @@ export function PosBarcodeScannerSettingsPanel() {
   );
 
   return (
-    <div className="px-4 py-2 pb-8">
-      <p className="mb-3 text-xs leading-relaxed text-slate-500">
+    <div className={POS_PANEL.body}>
+      <p className="mb-3 px-0.5 text-xs leading-relaxed text-slate-500">
         {t(
           POS_SETTINGS_I18N.barcodeScannerHint,
           "Pair a Bluetooth scanner in system settings as a keyboard (HID). Camera scan is available on the cashier screen.",
         )}
       </p>
 
-      <div className="mb-6 overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className={cn(POS_PANEL.card, "mb-4")}>
         {row(
           t(POS_SETTINGS_I18N.barcodeScannerWedge, "Keyboard wedge (HID)"),
           t(
@@ -86,28 +88,30 @@ export function PosBarcodeScannerSettingsPanel() {
       </div>
 
       <section>
-        <h3 className="mb-2 text-sm font-semibold text-slate-900">
+        <p className={POS_PANEL.sectionTitle}>
           {t(POS_SETTINGS_I18N.barcodeScannerTestTitle, "Test wedge")}
-        </h3>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-10 w-full border-primary text-primary"
-          disabled={!settings.wedgeEnabled}
-          onClick={() => {
-            setLastScan(null);
-            setTestListening(true);
-          }}
-        >
-          {testListening
-            ? t(POS_SETTINGS_I18N.barcodeScannerTestListening, "Listening… scan now")
-            : t(POS_SETTINGS_I18N.barcodeScannerTestStart, "Start test scan")}
-        </Button>
-        {lastScan ? (
-          <p className="mt-2 break-all rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-700">
-            {t(POS_SETTINGS_I18N.barcodeScannerLastScan, "Last scan")}: {lastScan}
-          </p>
-        ) : null}
+        </p>
+        <div className={cn(POS_PANEL.card, "p-3")}>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 w-full border-primary text-primary"
+            disabled={!settings.wedgeEnabled}
+            onClick={() => {
+              setLastScan(null);
+              setTestListening(true);
+            }}
+          >
+            {testListening
+              ? t(POS_SETTINGS_I18N.barcodeScannerTestListening, "Listening… scan now")
+              : t(POS_SETTINGS_I18N.barcodeScannerTestStart, "Start test scan")}
+          </Button>
+          {lastScan ? (
+            <p className="mt-2 break-all rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-700">
+              {t(POS_SETTINGS_I18N.barcodeScannerLastScan, "Last scan")}: {lastScan}
+            </p>
+          ) : null}
+        </div>
       </section>
     </div>
   );

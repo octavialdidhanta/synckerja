@@ -26,7 +26,7 @@ export default function MobileDigitalMarketingReportPageSkeleton() {
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="mx-auto w-full max-w-md space-y-2 px-2 pt-2 pb-[calc(0.5rem+3.25rem+env(safe-area-inset-bottom,0px))] [[data-synckerja-android-native]_&]:pb-[calc(0.5rem+3.25rem)]">
+              <div className="content-padding-above-nav-default mx-auto w-full max-w-md space-y-2 px-2 pt-2">
                 <div className="-mx-2 grid grid-cols-2 gap-px overflow-hidden border-y border-border bg-border">
                   {Array.from({ length: REPORT_SUMMARY_MOBILE_SLOT_COUNT }, (_, i) => (
                     <div key={i} className="bg-card px-4 py-3">

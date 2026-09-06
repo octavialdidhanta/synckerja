@@ -6,6 +6,7 @@ export type HydratePosBillLead = {
   id: string;
   client: string;
   phone_number: string | null;
+  email?: string | null;
 };
 
 /**
@@ -26,6 +27,7 @@ export function hydratePosBillCustomer(args: {
       leadId: null,
       name: sessionName || POS_CHECKOUT_WALK_IN_CLIENT,
       phone: "",
+      email: "",
       boundByPhone: false,
     };
   }
@@ -42,6 +44,7 @@ export function hydratePosBillCustomer(args: {
           sessionName ||
           POS_CHECKOUT_WALK_IN_CLIENT),
       phone: args.lead.phone_number?.trim() || sessionPhone,
+      email: String(args.lead.email ?? "").trim().toLowerCase(),
       boundByPhone: true,
     };
   }
@@ -50,6 +53,7 @@ export function hydratePosBillCustomer(args: {
     leadId: null,
     name: sessionName || POS_CHECKOUT_WALK_IN_CLIENT,
     phone: sessionPhone,
+    email: "",
     boundByPhone: false,
   };
 }

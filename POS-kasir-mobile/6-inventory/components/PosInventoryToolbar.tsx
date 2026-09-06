@@ -124,7 +124,7 @@ export function PosInventoryPhoneToolbar({
   ];
 
   return (
-    <div className="flex flex-shrink-0 flex-col gap-2 border-b border-slate-100 bg-white px-3 py-2.5">
+    <div className="flex flex-shrink-0 flex-col gap-2 border-b border-slate-200 bg-white px-2 py-2.5 sm:px-2.5">
       <div className="relative w-full">
         <Input
           value={search}
@@ -182,7 +182,7 @@ export function PosInventoryToolbar({
         value={kind}
         onValueChange={(v) => onKindChange(v as PosInventoryKindFilter)}
       >
-        <SelectTrigger className="h-10 w-[180px] bg-white">
+        <SelectTrigger className="h-10 w-[180px] border-slate-200 bg-white shadow-sm">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -202,7 +202,7 @@ export function PosInventoryToolbar({
         value={inventoryStatus}
         onValueChange={(v) => onInventoryStatusChange(v as PosInventoryStatusFilter)}
       >
-        <SelectTrigger className="h-10 w-[160px] bg-white">
+        <SelectTrigger className="h-10 w-[160px] border-slate-200 bg-white shadow-sm">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -223,7 +223,7 @@ export function PosInventoryToolbar({
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={t(POS_INVENTORY_I18N.search, "Search")}
-          className="h-10 bg-white pr-9"
+          className="h-10 border-slate-200 bg-white shadow-sm pr-9"
         />
         <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
       </div>
