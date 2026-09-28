@@ -24,7 +24,8 @@ describe("moduleCatalog", () => {
 
   it("includes leadMagnet in sales module keys", () => {
     expect(SALES_MODULE_KEYS).toContain("leadMagnet");
-    expect(SALES_MODULE_KEYS).toHaveLength(9);
+    expect(SALES_MODULE_KEYS).not.toContain("thinking");
+    expect(SALES_MODULE_KEYS).toHaveLength(11);
   });
 
   it("resolves dashboard to null", () => {
@@ -33,6 +34,7 @@ describe("moduleCatalog", () => {
 
   it("resolves each sales module key from representative paths", () => {
     expect(resolveSalesModuleForPath("/okr/company-objective")).toBe("okr");
+    expect(resolveSalesModuleForPath("/thinking-lab")).toBe("digitalMarketing");
     expect(resolveSalesModuleForPath("/employees")).toBe("humanResources");
     expect(resolveSalesModuleForPath("/incomes/dashboard")).toBe("finance");
     expect(resolveSalesModuleForPath("/expenses/dashboard")).toBe("finance");

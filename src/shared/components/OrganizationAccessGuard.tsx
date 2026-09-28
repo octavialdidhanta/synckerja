@@ -22,8 +22,17 @@ function OrganizationAccessLoadingShell({ posSurface }: { posSurface: boolean })
   );
 }
 
+/** These pages choose the next step themselves. Bouncing them restarts the same four checks. */
+const ONBOARDING_PATHS = new Set([
+  "/organization-unavailable",
+  "/create-organization",
+  "/create-plan",
+  "/employee-welcome",
+]);
+
 /**
- * Redirects authenticated users with no org membership after CMS hard delete.
+ * Sends a user who has never joined an organization to create one.
+ * Sends a user whose organization was removed to the unavailable page.
  * Must sit inside RequireAuth and before SubscriptionExpiryGuard.
  */
 export function OrganizationAccessGuard({ children }: { children?: ReactNode }) {
@@ -31,7 +40,7 @@ export function OrganizationAccessGuard({ children }: { children?: ReactNode }) 
   const location = useLocation();
   const posSurface = shouldUsePosLoginRedirect(location.pathname);
 
-  if (location.pathname === "/organization-unavailable") {
+  if (ONBOARDING_PATHS.has(location.pathname)) {
     return children ? <>{children}</> : <Outlet />;
   }
 
@@ -42,6 +51,10 @@ export function OrganizationAccessGuard({ children }: { children?: ReactNode }) 
     organizationAccessState === "orphan_recovering"
   ) {
     return <OrganizationAccessLoadingShell posSurface={posSurface} />;
+  }
+
+  if (organizationAccessState === "needs_organization") {
+    return <Navigate to="/create-organization" replace state={{ from: location.pathname }} />;
   }
 
   if (organizationAccessState === "no_membership") {

@@ -4,6 +4,7 @@ import {
   APP_LANGUAGE_DEVICE_OVERRIDE_KEY,
   DEFAULT_LANGUAGE,
   LANGUAGE_STORAGE_KEY,
+  clearTranslationDictionaryCache,
   loadTranslationDictionary,
   type AppLanguage,
 } from "./translations";
@@ -88,8 +89,8 @@ function scheduleIdleTask(task: () => void, timeoutMs: number) {
 }
 
 /** Loads JSON + flat dictionary and registers a full translation bundle. */
-export async function ensureLocaleBundleReady(lng: AppLanguage): Promise<void> {
-  if (localeBundlesReady.has(lng)) return;
+export async function ensureLocaleBundleReady(lng: AppLanguage, force = false): Promise<void> {
+  if (!force && localeBundlesReady.has(lng)) return;
 
   const merged = await buildResourcesForLanguage(lng);
   // deep=false so top-level keys (e.g. posCashier) replace wholesale — avoids a
@@ -114,11 +115,12 @@ if (import.meta.hot) {
   import.meta.hot.accept(
     ["./translations", "./translations-en", "./translations-id"],
     () => {
+      clearTranslationDictionaryCache();
       localeBundlesReady.clear();
       const lng = (i18n.language === "id" || i18n.language === "en"
         ? i18n.language
         : DEFAULT_LANGUAGE) as AppLanguage;
-      void ensureLocaleBundleReady(lng);
+      void ensureLocaleBundleReady(lng, true);
     },
   );
 }

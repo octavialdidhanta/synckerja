@@ -98,6 +98,13 @@ Deno.serve(async (req: Request) => {
     const sectionType = body.sectionType != null ? String(body.sectionType).trim() : "";
     const previousRowText = body.previousRowText != null ? String(body.previousRowText).trim() : "";
     const nextRowText = body.nextRowText != null ? String(body.nextRowText).trim() : "";
+    const isThinkingJson = String(body.purpose ?? "").trim() === "thinking_json";
+    const requestedTemp = typeof body.temperature === "number" && Number.isFinite(body.temperature)
+      ? body.temperature
+      : null;
+    const temperature = requestedTemp ?? (isThinkingJson ? 0 : 0.2);
+    const THINKING_JSON_SYSTEM =
+      "Return JSON only. Do not write advertising scripts, captions, hashtags, Scene, Visual, VO, timing tables, or 15–60 second formats.";
 
     const isReframe = body.mode === "reframe";
     const isRevise =
@@ -208,7 +215,9 @@ ${contextBlock}${neighborBlock}${partToReviseBlock}
 
 Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output harus sama (markdown, tabel, dll) sesuai teks asli. Jangan ubah struktur, hanya revisi konten sesuai instruksi.${tableRowHint}${BAHASA_INSTRUCTION}`;
     } else {
-      fullPrompt = prompt + BAHASA_INSTRUCTION + FORMAT_INSTRUCTION;
+      fullPrompt = isThinkingJson
+        ? `${THINKING_JSON_SYSTEM}\n\n${prompt}`
+        : prompt + BAHASA_INSTRUCTION + FORMAT_INSTRUCTION;
     }
 
     let script = "";
@@ -236,7 +245,8 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
           body: JSON.stringify({
             model,
             messages: [{ role: "user", content: fullPrompt }],
-            temperature: 0.2,
+            temperature,
+            ...(isThinkingJson ? { response_format: { type: "json_object" } } : {}),
           }),
         });
       };
@@ -407,6 +417,10 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: fullPrompt }] }],
+          generationConfig: {
+            temperature,
+            ...(isThinkingJson ? { responseMimeType: "application/json" } : {}),
+          },
         }),
       });
 

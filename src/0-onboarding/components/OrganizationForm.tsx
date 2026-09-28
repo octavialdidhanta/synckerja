@@ -9,6 +9,7 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { ensureOrganizationOwnerEmployee } from "@/shared/lib/ensureOrganizationOwnerEmployee";
 import { toast } from "@/shared/hooks/use-toast";
+import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 
 export interface OrganizationFormProps {
   formId?: string;
@@ -53,6 +54,7 @@ export default function OrganizationForm({
 }: OrganizationFormProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { forceRefreshUserData } = useCentralizedUserData();
   const [formData, setFormData] = useState<OrganizationFormData>(initialFormData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -197,7 +199,13 @@ export default function OrganizationForm({
       if (typeof window !== "undefined") {
         sessionStorage.setItem("organizationJustCreated", "true");
         sessionStorage.setItem("newOrganizationId", orgId);
-        sessionStorage.setItem("forceRefreshUserData", "true");
+        sessionStorage.setItem("forceRefreshUserData", "1");
+      }
+
+      try {
+        await forceRefreshUserData();
+      } catch (refreshErr) {
+        console.warn("refresh after organization create:", refreshErr);
       }
 
       navigate("/create-plan", { replace: true });

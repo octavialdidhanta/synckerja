@@ -407,7 +407,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
       const accessResolution = await resolveOrganizationAccessState(user.id, organizationId ?? null);
       setOrganizationAccessState(accessResolution.accessState);
 
-      if (accessResolution.accessState === 'no_membership') {
+      if (accessResolution.accessState === 'no_membership' || accessResolution.accessState === 'needs_organization') {
         organizationId = undefined;
         fetchedUserData = { ...fetchedUserData, active_organization_id: undefined };
         setUserData(fetchedUserData);
@@ -745,7 +745,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
         memberRolesForHydration.length === 0;
       setCentralProfileHydrated(!rolesStillPending);
       setOrganizationAccessState((prev) => {
-        if (prev === 'no_membership') return prev;
+        if (prev === 'no_membership' || prev === 'needs_organization') return prev;
         if (!activeOrgId) return prev === 'ready' ? 'no_membership' : prev;
         return 'ready';
       });

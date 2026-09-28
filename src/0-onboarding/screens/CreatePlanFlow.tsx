@@ -319,7 +319,7 @@ export function CreatePlanFlow({ brandMark }: CreatePlanFlowProps) {
       </header>
 
       {/* Mobile: vertical stack (one card per row). Desktop: horizontal carousel. */}
-      <div className="w-full min-w-0 overflow-x-hidden lg:overflow-x-auto lg:overflow-y-visible lg:[overscroll-behavior-x:contain]">
+      <div className="w-full min-w-0 overflow-x-hidden overflow-y-clip lg:overflow-x-auto lg:[overscroll-behavior-x:contain]">
         <div className="mx-auto flex w-full min-w-0 flex-col items-stretch gap-5 lg:w-max lg:max-w-full lg:flex-row lg:flex-nowrap lg:justify-center lg:gap-6 lg:px-1 lg:py-1 lg:pb-2">
           {plans.map((p) => {
             const kind = classifyOnboardingPlan(p);

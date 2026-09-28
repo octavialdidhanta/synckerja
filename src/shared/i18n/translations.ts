@@ -14,6 +14,11 @@ export function getCachedTranslationDictionary(
   return cache[lang];
 }
 
+export function clearTranslationDictionaryCache() {
+  cache.en = undefined;
+  cache.id = undefined;
+}
+
 /** Loads one language dictionary (code-split chunk). */
 export async function loadTranslationDictionary(
   lang: AppLanguage,
@@ -26,6 +31,13 @@ export async function loadTranslationDictionary(
   const dict = lang === "en" ? mod.enTranslations : mod.idTranslations;
   cache[lang] = dict;
   return dict;
+}
+
+if (import.meta.hot) {
+  import.meta.hot.accept(["./translations-en", "./translations-id"], () => {
+    cache.en = undefined;
+    cache.id = undefined;
+  });
 }
 
 export const applyVariables = (

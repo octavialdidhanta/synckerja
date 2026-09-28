@@ -74,7 +74,7 @@ export async function resolveOrganizationAccessState(
   if (!activeOrganizationId) {
     const membershipOrgIds = await listActiveMembershipOrgIds(userId);
     if (membershipOrgIds.length === 0) {
-      return { organizationId: null, accessState: "no_membership" };
+      return { organizationId: null, accessState: "needs_organization" };
     }
     return reconcileMissingOrganizationRow(userId, null);
   }

@@ -476,6 +476,8 @@ const OmnichannelContactPage = lazy(() =>
 // Keep initial bundle small: lazy-load large desktop modules/pages.
 import { OkrRouteElement } from "@/1-OKR/OkrRouteElement";
 import { OkrRouteAccessLoadingShell } from "@/1-OKR/components/OkrRouteAccessLoadingShell";
+import { ThinkingLabRouteElement } from "@/thinking-lab";
+import { ThinkingLabPageSkeleton } from "@/thinking-lab";
 const SettingsRouteElement = lazy(() =>
   import("@/shared/components/mobile/mainAppMobileRouteElements").then((m) => ({
     default: m.SettingsRouteElement,
@@ -1094,6 +1096,18 @@ function AppRoutes() {
                     loadingShellWrapperClassName="bg-gray-100 dark:bg-muted/30"
                   >
                     <OkrRouteElement />
+                  </PageAccessGuard>
+                }
+              />
+              <Route
+                path="/thinking-lab"
+                element={
+                  <PageAccessGuard
+                    pagePath="/thinking-lab"
+                    loadingShell={<ThinkingLabPageSkeleton />}
+                    loadingShellWrapperClassName="bg-gray-100"
+                  >
+                    <ThinkingLabRouteElement />
                   </PageAccessGuard>
                 }
               />
@@ -4038,6 +4052,18 @@ const App = () => (
                               loadingShellWrapperClassName="bg-gray-100 dark:bg-muted/30"
                             >
                               <OkrRouteElement />
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/thinking-lab"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/thinking-lab"
+                              loadingShell={<ThinkingLabPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <ThinkingLabRouteElement />
                             </PageAccessGuard>
                           }
                         />

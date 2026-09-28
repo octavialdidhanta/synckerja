@@ -314,7 +314,9 @@ export function AppSidebar() {
     }
     if (item.path && item.path !== "#") {
       const mainActive =
-        item.path === "/" ? currentPath === "/" : currentPath.startsWith(item.path);
+        item.path === "/"
+          ? currentPath === "/"
+          : currentPath === item.path || currentPath.startsWith(`${item.path}/`);
       if (mainActive) return true;
     }
     return Boolean(

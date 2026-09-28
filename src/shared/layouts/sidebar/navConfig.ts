@@ -185,6 +185,11 @@ export const mainNavItems: MainNavItem[] = [
         path: "/kol-management/dashboard",
         activePathPrefixes: ["/kol-management"],
       },
+      {
+        titleKey: "sidebar.digitalMarketing.thinkingLab.title",
+        path: "/thinking-lab",
+        activePathPrefixes: ["/thinking-lab"],
+      },
     ],
   },
   {

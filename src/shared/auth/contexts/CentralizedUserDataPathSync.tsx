@@ -31,7 +31,8 @@ export function CentralizedUserDataPathSync() {
     const leftAuthScreen = isAuthPath(prevPath) && !isAuthPath(pathname);
     let forceRefresh = false;
     try {
-      forceRefresh = sessionStorage.getItem("forceRefreshUserData") === "1";
+      const flag = sessionStorage.getItem("forceRefreshUserData");
+      forceRefresh = flag === "1" || flag === "true";
     } catch {
       forceRefresh = false;
     }

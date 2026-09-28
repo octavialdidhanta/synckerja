@@ -1,14 +1,14 @@
 import { useLayoutEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/shared/lib/supabaseClient";
 
 /**
  * Guards /create-organization: redirects when unauthenticated, unverified, or already onboarded.
  * Returns true while the initial check is running.
+ * Runs once per visit. Re-running on every location key retried the same checks after each redirect.
  */
 export function useCreateOrganizationGate(): boolean {
   const navigate = useNavigate();
-  const location = useLocation();
   const [loading, setLoading] = useState(true);
 
   useLayoutEffect(() => {
@@ -76,7 +76,7 @@ export function useCreateOrganizationGate(): boolean {
     return () => {
       cancelled = true;
     };
-  }, [navigate, location.key]);
+  }, [navigate]);
 
   return loading;
 }

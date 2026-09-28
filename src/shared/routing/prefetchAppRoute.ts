@@ -366,6 +366,11 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefetch: () => import("@/2-1-employees/EmployeePage"),
   },
   {
+    prefix: "/thinking-lab",
+    prefetch: () =>
+      import("@/thinking-lab/page/ThinkingLabPage").then((module) => ({ default: module.ThinkingLabPage })),
+  },
+  {
     prefix: "/okr",
     prefetch: () => import("@/1-OKR").then((m) => ({ default: m.OKRPage })),
   },
