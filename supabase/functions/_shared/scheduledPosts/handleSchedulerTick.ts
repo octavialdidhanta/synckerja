@@ -12,10 +12,15 @@ import { runWithConcurrency } from "./process/runWithConcurrency.ts";
 import { clearOrgRateLimitCache } from "./rateLimit/acquirePublishSlot.ts";
 import { runScheduledPostJob } from "./runScheduledPostJob.ts";
 import type { RunScheduledPostJobResult } from "./runScheduledPostJob.ts";
+import { instagramPublishShouldFollowPeers } from "./sharedPublishContext.ts";
+import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
 
 /** @deprecated Use loadSchedulerConfig — kept for imports that read batch default. */
 export const SCHEDULER_BATCH_SIZE = 20;
 export const SCHEDULER_RESUME_BATCH_SIZE = 10;
+
+/** pg_cron HTTP timeout is 45s. Leave headroom before starting another video upload. */
+const SCHEDULER_UPLOAD_BUDGET_MS = 40_000;
 
 export type SchedulerTickResult = {
   processed: number;
@@ -51,20 +56,61 @@ function tallyResults(results: RunScheduledPostJobResult[]): {
   return { deferredRateLimited, publishedOk, failed };
 }
 
+async function releaseInstagramForNextTick(
+  admin: SupabaseClient,
+  row: ScheduledPostRow,
+): Promise<RunScheduledPostJobResult> {
+  const now = new Date().toISOString();
+  const nextRetryAt = new Date(Date.now() + 15_000).toISOString();
+  await admin
+    .from("social_media_scheduled_posts")
+    .update({
+      status: "pending",
+      locked_at: null,
+      next_retry_at: nextRetryAt,
+      updated_at: now,
+    })
+    .eq("id", row.id)
+    .eq("status", "publishing");
+
+  return {
+    id: row.id,
+    ok: false,
+    platform: row.platform,
+    deferred: "instagram_after_peers",
+  };
+}
+
 async function processClaimedRows(
   admin: SupabaseClient,
   rows: Awaited<ReturnType<typeof claimDueScheduledPosts>>,
   config: SchedulerConfig,
+  tickStartMs: number,
 ): Promise<RunScheduledPostJobResult[]> {
   if (rows.length === 0) return [];
 
-  return runWithConcurrency(rows, config.tick_concurrency, (row) =>
+  const runRow = (row: ScheduledPostRow) =>
     runScheduledPostJob(admin, row.id, {
       preloadedRow: row,
       fromClaim: true,
       schedulerConfig: config,
-    })
-  );
+    });
+
+  const instagramAfterPeers = rows.filter((row) => instagramPublishShouldFollowPeers(row));
+  const withPeers = rows.filter((row) => !instagramPublishShouldFollowPeers(row));
+
+  const peerResults = await runWithConcurrency(withPeers, config.tick_concurrency, runRow);
+  const instagramResults: RunScheduledPostJobResult[] = [];
+
+  for (const row of instagramAfterPeers) {
+    if (Date.now() - tickStartMs > SCHEDULER_UPLOAD_BUDGET_MS) {
+      instagramResults.push(await releaseInstagramForNextTick(admin, row));
+      continue;
+    }
+    instagramResults.push(await runRow(row));
+  }
+
+  return [...peerResults, ...instagramResults];
 }
 
 export async function handleSchedulerTick(
@@ -79,7 +125,7 @@ export async function handleSchedulerTick(
 
   const recoveredStale = await recoverStalePublishingRows(admin);
   const claimedResume = await claimResumePublishingPosts(admin, config.resume_batch_size);
-  const resumeResults = await processClaimedRows(admin, claimedResume, config);
+  const resumeResults = await processClaimedRows(admin, claimedResume, config, tickStartMs);
 
   let totalClaimed = 0;
   const allResults: RunScheduledPostJobResult[] = [...resumeResults];
@@ -101,6 +147,7 @@ export async function handleSchedulerTick(
       admin,
       claimedPending,
       config,
+      tickStartMs,
     );
     allResults.push(...batchResults);
   }

@@ -58,15 +58,16 @@ export async function uploadInstagramReelsVideo(
   pageAccessToken: string,
   videoBytes: Uint8Array,
 ): Promise<void> {
+  const body = videoBytes.slice();
   const res = await fetch(uploadUri, {
     method: "POST",
     headers: {
       Authorization: `OAuth ${pageAccessToken}`,
       "Content-Type": "application/octet-stream",
       offset: "0",
-      file_size: String(videoBytes.byteLength),
+      file_size: String(body.byteLength),
     },
-    body: videoBytes,
+    body,
   });
 
   if (!res.ok) {

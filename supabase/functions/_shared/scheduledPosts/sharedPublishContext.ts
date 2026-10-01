@@ -43,6 +43,37 @@ export function isPlanPublishSequential(): boolean {
   return raw?.toLowerCase() === "true" || raw === "1";
 }
 
+/**
+ * Instagram Reels upload to rupload fails with HTTP 400 when it runs in the
+ * same moment as Facebook (same Meta app). A later solo retry succeeds, which
+ * is why the row sits on Scheduled for several minutes. Upload Instagram after
+ * the other platforms in the same job. A container that is already uploaded
+ * only needs media_publish and can stay in the parallel batch.
+ */
+export function instagramPublishShouldFollowPeers(row: {
+  platform: string;
+  provider_config?: Record<string, unknown> | null;
+}): boolean {
+  if (row.platform !== "Instagram") return false;
+  const phase = String(row.provider_config?.ig_upload_phase ?? "").trim();
+  return phase !== "uploaded";
+}
+
+/** Each parallel upload must own its bytes. A shared Uint8Array can be detached by the first fetch. */
+export function cloneSharedPublishContext(ctx: SharedPublishContext): SharedPublishContext {
+  if (!ctx.preloadedVideo) {
+    return { driveUrl: ctx.driveUrl, drivePublicDownloadUrl: ctx.drivePublicDownloadUrl };
+  }
+  return {
+    driveUrl: ctx.driveUrl,
+    drivePublicDownloadUrl: ctx.drivePublicDownloadUrl,
+    preloadedVideo: {
+      bytes: ctx.preloadedVideo.bytes.slice(),
+      mimeType: ctx.preloadedVideo.mimeType,
+    },
+  };
+}
+
 export async function buildSharedPublishContext(
   driveUrl: string,
   platforms: string[],

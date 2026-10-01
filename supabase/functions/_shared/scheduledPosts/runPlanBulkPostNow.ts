@@ -7,6 +7,8 @@ import { runScheduledPostJob } from "./runScheduledPostJob.ts";
 import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
 import {
   buildSharedPublishContext,
+  cloneSharedPublishContext,
+  instagramPublishShouldFollowPeers,
   isPlanPublishSequential,
   type SharedPublishContext,
 } from "./sharedPublishContext.ts";
@@ -110,36 +112,63 @@ export async function runPlanBulkPostNowJob(
     `plan_bulk_publish download_ok planId=${args.planId} platforms=${platforms.join(",")} download_ms=${downloadMs} preloaded_bytes=${sharedCtx.preloadedVideo?.bytes.byteLength ?? 0}`,
   );
 
+  const instagramAfterPeers = schedules.filter((row) => instagramPublishShouldFollowPeers(row));
+  const withPeers = schedules.filter((row) => !instagramPublishShouldFollowPeers(row));
+  const instagramCopies = new Map(
+    instagramAfterPeers.map((row) => [row.id, cloneSharedPublishContext(sharedCtx)]),
+  );
+  const publishRow = (row: ScheduledPostRow) =>
+    publishScheduleWithContext(
+      admin,
+      row.id,
+      row,
+      instagramCopies.get(row.id) ?? sharedCtx,
+    );
   const sequential = isPlanPublishSequential();
+  const results: PlanBulkPostNowTargetResult[] = [];
 
   if (sequential) {
-    const results: PlanBulkPostNowTargetResult[] = [];
-    for (const row of schedules) {
-      try {
-        results.push(await publishScheduleWithContext(admin, row.id, row, sharedCtx));
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "publish_failed";
-        results.push({
-          platform: row.platform,
-          account_label: String(
-            (row.provider_config as { account_label?: string })?.account_label ?? "",
-          ),
-          schedule_id: row.id,
-          ok: false,
-          error: msg,
-        });
-      }
+    for (const row of withPeers) {
+      results.push(await publishRowSettled(row, publishRow));
     }
-    logPlanBulkSummary(args.planId, platforms, downloadMs, results);
-    return results;
+  } else if (withPeers.length > 0) {
+    const settled = await Promise.allSettled(withPeers.map((row) => publishRow(row)));
+    results.push(...settlePublishResults(withPeers, settled));
   }
 
-  const settled = await Promise.allSettled(
-    schedules.map((row) => publishScheduleWithContext(admin, row.id, row, sharedCtx)),
-  );
+  for (const row of instagramAfterPeers) {
+    results.push(await publishRowSettled(row, publishRow));
+  }
 
-  const results = settled.map((outcome, index) => {
-    const row = schedules[index];
+  logPlanBulkSummary(args.planId, platforms, downloadMs, results);
+  return results;
+}
+
+async function publishRowSettled(
+  row: ScheduledPostRow,
+  publishRow: (row: ScheduledPostRow) => Promise<PlanBulkPostNowTargetResult>,
+): Promise<PlanBulkPostNowTargetResult> {
+  try {
+    return await publishRow(row);
+  } catch (e) {
+    return {
+      platform: row.platform,
+      account_label: String(
+        (row.provider_config as { account_label?: string })?.account_label ?? "",
+      ),
+      schedule_id: row.id,
+      ok: false,
+      error: e instanceof Error ? e.message : "publish_failed",
+    };
+  }
+}
+
+function settlePublishResults(
+  rows: ScheduledPostRow[],
+  settled: PromiseSettledResult<PlanBulkPostNowTargetResult>[],
+): PlanBulkPostNowTargetResult[] {
+  return settled.map((outcome, index) => {
+    const row = rows[index];
     if (outcome.status === "fulfilled") return outcome.value;
     return {
       platform: row.platform,
@@ -151,9 +180,6 @@ export async function runPlanBulkPostNowJob(
       error: "publish_failed",
     };
   });
-
-  logPlanBulkSummary(args.planId, platforms, downloadMs, results);
-  return results;
 }
 
 function logPlanBulkSummary(

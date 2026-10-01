@@ -12,6 +12,7 @@ import {
   isPlanEligibleForInstagramAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
 } from "./scheduledPostEligibility.ts";
+import { sleepMs } from "./scheduledPostRetry.ts";
 import { resolveVideoBytesForUpload, type SharedPublishContext } from "./sharedPublishContext.ts";
 import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import type { InstagramProviderConfig, ScheduledPostRow } from "./scheduledPostTypes.ts";
@@ -84,6 +85,53 @@ async function clearInstagramUploadState(
     .update({ provider_config: next, updated_at: new Date().toISOString() })
     .eq("id", scheduleId);
   return next;
+}
+
+function isInstagramUploadRejected(message: string): boolean {
+  return message.toLowerCase().includes("meta_reels_upload");
+}
+
+/**
+ * A 400 from rupload often means this session was opened while Facebook was
+ * uploading. Discard it and upload once more on a new container in this job
+ * instead of waiting for the 5-minute scheduler backoff.
+ */
+async function uploadInstagramVideoOrReplaceContainer(
+  admin: SupabaseClient,
+  scheduleId: string,
+  igAccountId: string,
+  pageAccessToken: string,
+  caption: string,
+  providerConfig: Record<string, unknown>,
+  containerId: string,
+  uploadUri: string,
+  videoBytes: Uint8Array,
+): Promise<{ providerConfig: Record<string, unknown>; containerId: string }> {
+  try {
+    await uploadInstagramReelsVideo(uploadUri, pageAccessToken, videoBytes);
+    return { providerConfig, containerId };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!isInstagramUploadRejected(message)) throw err;
+
+    console.warn(
+      `instagram_upload_rejected schedule=${scheduleId} opening a new container`,
+    );
+    const cleared = await clearInstagramUploadState(admin, scheduleId, providerConfig);
+    await sleepMs(2_000);
+    const container = await createInstagramReelsContainer(
+      igAccountId,
+      pageAccessToken,
+      { caption },
+    );
+    const next = await persistInstagramProviderConfig(admin, scheduleId, cleared, {
+      ig_container_id: container.containerId,
+      ig_upload_session_id: container.uploadUri,
+      ig_upload_phase: "created",
+    });
+    await uploadInstagramReelsVideo(container.uploadUri, pageAccessToken, videoBytes);
+    return { providerConfig: next, containerId: container.containerId };
+  }
 }
 
 function isFatalInstagramContainerError(message: string): boolean {
@@ -264,7 +312,19 @@ export async function executeInstagramScheduledPost(
       });
     }
 
-    await uploadInstagramReelsVideo(uploadUri, account.pageAccessToken, videoBytes);
+    const uploaded = await uploadInstagramVideoOrReplaceContainer(
+      admin,
+      schedule.id,
+      igAccountId,
+      account.pageAccessToken,
+      caption,
+      providerConfig,
+      containerId,
+      uploadUri,
+      videoBytes,
+    );
+    providerConfig = uploaded.providerConfig;
+    containerId = uploaded.containerId;
     providerConfig = await persistInstagramProviderConfig(admin, schedule.id, providerConfig, {
       ig_upload_phase: "uploaded",
     });

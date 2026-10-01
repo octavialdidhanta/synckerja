@@ -31,7 +31,7 @@ export type RunScheduledPostJobResult = {
   tiktok_publish_path?: "pull" | "file_upload";
   retry_count?: number;
   skipped?: "already_published" | "already_claimed";
-  deferred?: "rate_limit" | "rate_limit_global";
+  deferred?: "rate_limit" | "rate_limit_global" | "instagram_after_peers";
 };
 
 export type RunScheduledPostJobOptions = {

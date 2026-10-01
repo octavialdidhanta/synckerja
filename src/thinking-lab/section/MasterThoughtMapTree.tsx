@@ -29,9 +29,9 @@ export type MasterMapAngle = {
 };
 
 export type MasterMapTerritory = {
-  id: string;
-  code: string;
-  statement: string;
+    id: string;
+    code: string;
+    statement: string;
   childCount?: number;
   angles?: MasterMapAngle[];
 };
@@ -433,14 +433,14 @@ export function MasterThoughtMapTree({
       {others.length > 0 ? (
         <div className="mb-2 flex flex-wrap gap-1">
           {others.map((row) => (
-            <button
+              <button
               key={row.id}
-              type="button"
-              onClick={() => onSelect(row.id)}
+                type="button"
+                onClick={() => onSelect(row.id)}
               className="max-w-[12rem] truncate rounded-full border border-border bg-background px-2 py-1 text-xs text-foreground"
-            >
+              >
               {masterNodeTitle(row)}
-            </button>
+              </button>
           ))}
         </div>
       ) : null}
@@ -468,44 +468,44 @@ export function MasterThoughtMapTree({
           {selected ? (
             <div className="flex items-center gap-14 py-2 pr-8">
               <div className="flex items-center">
-                <DropdownMenu modal={false}>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
                             className="h-6 w-6 shrink-0"
-                            disabled={deleteDisabled}
-                            aria-label={t("thinkingLab.action.more", "More actions")}
-                            onClick={(event) => event.stopPropagation()}
+                    disabled={deleteDisabled}
+                    aria-label={t("thinkingLab.action.more", "More actions")}
+                    onClick={(event) => event.stopPropagation()}
                             onPointerDown={(event) => event.stopPropagation()}
-                          >
-                            <MoreVertical className="h-3.5 w-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-[9rem]">
-                          <DropdownMenuItem
-                            className="cursor-pointer gap-2"
+                  >
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[9rem]">
+                  <DropdownMenuItem
+                    className="cursor-pointer gap-2"
                             disabled={selected.mtStatus === "locked"}
-                            onSelect={() => {
+                    onSelect={() => {
                               window.setTimeout(() => onRequestEdit(selected.id), 0);
-                            }}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            {t("thinkingLab.action.edit", "Edit")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                            disabled={deleteDisabled}
-                            onSelect={() => {
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    {t("thinkingLab.action.edit", "Edit")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                    disabled={deleteDisabled}
+                    onSelect={() => {
                               window.setTimeout(() => onRequestDelete(selected.id), 0);
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            {t("thinkingLab.action.delete", "Delete")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                </DropdownMenu>
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {t("thinkingLab.action.delete", "Delete")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
                 <Pill
                       nodeId={`master:${selected.id}`}
                       tone="master"
@@ -523,15 +523,15 @@ export function MasterThoughtMapTree({
                         );
                       }}
                     />
-              </div>
+            </div>
                   {expanded.master && children.length > 0 ? (
                     <div className="flex flex-col justify-center gap-3">
-                      {children.map((child) => (
+                {children.map((child) => (
                         <div key={child.id} className="flex items-center gap-14">
                           <div className="relative">
                           {territoryGenerateThoughtId === child.id && onGenerateTerritory ? (
                             <Button
-                              type="button"
+                      type="button"
                               size="icon"
                               variant="ghost"
                               className="absolute right-full top-1/2 mr-0.5 h-5 w-5 -translate-y-1/2"
@@ -580,7 +580,7 @@ export function MasterThoughtMapTree({
                           </div>
                           {expanded.thoughts.has(child.id) && child.territories && child.territories.length > 0 ? (
                             <div className="flex flex-col justify-center gap-3">
-                              {child.territories.map((territory) => (
+                        {child.territories.map((territory) => (
                                 <div key={territory.id} className="flex items-center gap-14">
                                   <Pill
                                     nodeId={`tr:${territory.id}`}
@@ -609,7 +609,7 @@ export function MasterThoughtMapTree({
                                   />
                                   {expanded.territories.has(territory.id) && territory.angles && territory.angles.length > 0 ? (
                                     <div className="flex flex-col justify-center gap-3">
-                                      {territory.angles.map((angle) => (
+                                {territory.angles.map((angle) => (
                                         <div key={angle.id} className="flex items-center gap-14">
                                           <Pill
                                             nodeId={`an:${angle.id}`}
@@ -631,7 +631,7 @@ export function MasterThoughtMapTree({
                                           />
                                           {expanded.angles.has(angle.id) && angle.ideas && angle.ideas.length > 0 ? (
                                             <div className="flex flex-col justify-center gap-3">
-                                              {angle.ideas.map((idea) => (
+                                          {angle.ideas.map((idea) => (
                                                 <Pill
                                                   key={idea.id}
                                                   nodeId={`idea:${idea.id}`}
@@ -645,21 +645,21 @@ export function MasterThoughtMapTree({
                                                 />
                                               ))}
                                             </div>
-                                          ) : null}
+                                      ) : null}
                                         </div>
                                       ))}
                                     </div>
                                   ) : null}
                                 </div>
-                              ))}
+                                ))}
                             </div>
-                          ) : null}
+                            ) : null}
                         </div>
-                      ))}
+                        ))}
                     </div>
                   ) : null}
             </div>
-          ) : null}
+                    ) : null}
         </div>
         {zoomHost ? (
           createPortal(
@@ -670,7 +670,7 @@ export function MasterThoughtMapTree({
           <div className="absolute right-2 top-2">
             <ZoomControls view={view} onZoom={zoomBy} onReset={() => setView({ x: 12, y: 12, scale: 1 })} />
           </div>
-        ) : null}
+            ) : null}
       </div>
     </div>
   );
