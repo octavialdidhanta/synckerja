@@ -56,9 +56,8 @@ export interface ServiceKPISettings {
 
 export interface SalesKPISettings {
   budget: string;
-  cpc: string;
+  cpm: string;
   landingPageCtr: string;
-  targetCtr: string;
   productViewRate: string;
   addToCartRate: string;
   checkoutRate: string;

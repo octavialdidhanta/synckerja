@@ -69,6 +69,17 @@ const formatCurrency = (num: number) =>
 
 const formatDecimal = (num: number, decimals: number = 2) => num.toFixed(decimals);
 
+/** Templates saved with CPC are converted once: CPM = CPC × CTR × 10. */
+const resolveSalesCpm = (settings: { cpm?: string; cpc?: string; landingPageCtr?: string }) => {
+  if (settings.cpm) return normalizeCurrencyValue(settings.cpm);
+  const legacyCpc = currencyStringToNumber(settings.cpc || '');
+  const ctr = percentageStringToNumber(settings.landingPageCtr || '');
+  if (legacyCpc > 0 && ctr > 0) {
+    return String(Math.round(legacyCpc * (ctr / 100) * 1000));
+  }
+  return '';
+};
+
 interface PercentageInputFieldProps {
   id: string;
   value: string;
@@ -124,9 +135,8 @@ const SalesCalculator = ({
 
   // Basic Marketing KPIs
   const [budget, setBudget] = useState<string>(normalizeCurrencyValue(initialSettings.budget || ''));
-  const [cpc, setCpc] = useState<string>(normalizeCurrencyValue(initialSettings.cpc || ''));
+  const [cpm, setCpm] = useState<string>(resolveSalesCpm(initialSettings));
   const [landingPageCtr, setLandingPageCtr] = useState<string>(normalizePercentageValue(initialSettings.landingPageCtr || ''));
-  const [targetCtr, setTargetCtr] = useState<string>(normalizePercentageValue(initialSettings.targetCtr || ''));
   
   // Sales Funnel Conversion Rates
   const [productViewRate, setProductViewRate] = useState<string>(normalizePercentageValue(initialSettings.productViewRate || ''));
@@ -173,9 +183,8 @@ const SalesCalculator = ({
   useEffect(() => {
     const currentSettingsStr = JSON.stringify({
       budget: initialSettings.budget || '',
-      cpc: initialSettings.cpc || '',
+      cpm: initialSettings.cpm || '',
       landingPageCtr: initialSettings.landingPageCtr || '',
-      targetCtr: initialSettings.targetCtr || '',
       productViewRate: initialSettings.productViewRate || '',
       addToCartRate: initialSettings.addToCartRate || '',
       checkoutRate: initialSettings.checkoutRate || '',
@@ -199,9 +208,8 @@ const SalesCalculator = ({
       isSyncingFromPropsRef.current = true;
       
       setBudget(normalizeCurrencyValue(initialSettings.budget || ''));
-      setCpc(normalizeCurrencyValue(initialSettings.cpc || ''));
+      setCpm(resolveSalesCpm(initialSettings));
       setLandingPageCtr(normalizePercentageValue(initialSettings.landingPageCtr || ''));
-      setTargetCtr(normalizePercentageValue(initialSettings.targetCtr || ''));
       setProductViewRate(normalizePercentageValue(initialSettings.productViewRate || ''));
       setAddToCartRate(normalizePercentageValue(initialSettings.addToCartRate || ''));
       setCheckoutRate(normalizePercentageValue(initialSettings.checkoutRate || ''));
@@ -219,9 +227,8 @@ const SalesCalculator = ({
     }
   }, [
     initialSettings.budget,
-    initialSettings.cpc,
+    initialSettings.cpm,
     initialSettings.landingPageCtr,
-    initialSettings.targetCtr,
     initialSettings.productViewRate,
     initialSettings.addToCartRate,
     initialSettings.checkoutRate,
@@ -236,9 +243,8 @@ const SalesCalculator = ({
     if (!isSyncingFromPropsRef.current && onSettingsChange) {
       lastEmittedSettingsRef.current = JSON.stringify({
         budget: updatedSettings.budget || '',
-        cpc: updatedSettings.cpc || '',
+        cpm: updatedSettings.cpm || '',
         landingPageCtr: updatedSettings.landingPageCtr || '',
-        targetCtr: updatedSettings.targetCtr || '',
         productViewRate: updatedSettings.productViewRate || '',
         addToCartRate: updatedSettings.addToCartRate || '',
         checkoutRate: updatedSettings.checkoutRate || '',
@@ -256,9 +262,8 @@ const SalesCalculator = ({
     setBudget(value);
     notifySettingsChange({
       budget: value,
-      cpc,
+      cpm,
       landingPageCtr,
-      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
@@ -269,13 +274,12 @@ const SalesCalculator = ({
     });
   };
 
-  const handleCpcChange = (value: string) => {
-    setCpc(value);
+  const handleCpmChange = (value: string) => {
+    setCpm(value);
     notifySettingsChange({
       budget,
-      cpc: value,
+      cpm: value,
       landingPageCtr,
-      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
@@ -290,26 +294,8 @@ const SalesCalculator = ({
     setLandingPageCtr(value);
     notifySettingsChange({
       budget,
-      cpc,
+      cpm,
       landingPageCtr: value,
-      targetCtr,
-      productViewRate,
-      addToCartRate,
-      checkoutRate,
-      avgOrderValue,
-      profitMargin,
-      repeatPurchaseRate,
-      upsellRate,
-    });
-  };
-
-  const handleTargetCtrChange = (value: string) => {
-    setTargetCtr(value);
-    notifySettingsChange({
-      budget,
-      cpc,
-      landingPageCtr,
-      targetCtr: value,
       productViewRate,
       addToCartRate,
       checkoutRate,
@@ -324,9 +310,8 @@ const SalesCalculator = ({
     setProductViewRate(value);
     notifySettingsChange({
       budget,
-      cpc,
+      cpm,
       landingPageCtr,
-      targetCtr,
       productViewRate: value,
       addToCartRate,
       checkoutRate,
@@ -341,9 +326,8 @@ const SalesCalculator = ({
     setAddToCartRate(value);
     notifySettingsChange({
       budget,
-      cpc,
+      cpm,
       landingPageCtr,
-      targetCtr,
       productViewRate,
       addToCartRate: value,
       checkoutRate,
@@ -358,9 +342,8 @@ const SalesCalculator = ({
     setCheckoutRate(value);
     notifySettingsChange({
       budget,
-      cpc,
+      cpm,
       landingPageCtr,
-      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate: value,
@@ -375,9 +358,8 @@ const SalesCalculator = ({
     setAvgOrderValue(value);
     notifySettingsChange({
       budget,
-      cpc,
+      cpm,
       landingPageCtr,
-      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
@@ -392,9 +374,8 @@ const SalesCalculator = ({
     setProfitMargin(value);
     notifySettingsChange({
       budget,
-      cpc,
+      cpm,
       landingPageCtr,
-      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
@@ -409,9 +390,8 @@ const SalesCalculator = ({
     setRepeatPurchaseRate(value);
     notifySettingsChange({
       budget,
-      cpc,
+      cpm,
       landingPageCtr,
-      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
@@ -426,9 +406,8 @@ const SalesCalculator = ({
     setUpsellRate(value);
     notifySettingsChange({
       budget,
-      cpc,
+      cpm,
       landingPageCtr,
-      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
@@ -441,14 +420,13 @@ const SalesCalculator = ({
 
   useEffect(() => {
     calculateResults();
-  }, [budget, cpc, landingPageCtr, targetCtr, productViewRate, addToCartRate, checkoutRate,
+  }, [budget, cpm, landingPageCtr, productViewRate, addToCartRate, checkoutRate,
       avgOrderValue, profitMargin, repeatPurchaseRate, upsellRate]);
 
   const calculateResults = () => {
     const budgetNum = currencyStringToNumber(budget);
-    const cpcNum = currencyStringToNumber(cpc) || 1;
+    const cpmNum = currencyStringToNumber(cpm);
     const landingPageCtrNum = percentageStringToNumber(landingPageCtr);
-    const targetCtrNum = percentageStringToNumber(targetCtr);
     const productViewRateNum = percentageStringToNumber(productViewRate);
     const addToCartRateNum = percentageStringToNumber(addToCartRate);
     const checkoutRateNum = percentageStringToNumber(checkoutRate);
@@ -457,20 +435,14 @@ const SalesCalculator = ({
     const repeatPurchaseRateNum = percentageStringToNumber(repeatPurchaseRate);
     const upsellRateNum = percentageStringToNumber(upsellRate);
 
-    // Current CTR and CPC fix this month's CPM. A target CTR keeps that CPM,
-    // so the same budget buys more clicks at a lower CPC.
-    const hasTargetCtr = targetCtrNum > 0 && landingPageCtrNum > 0;
-    const cpm = landingPageCtrNum > 0 ? cpcNum * (landingPageCtrNum / 100) * 1000 : 0;
-    const scenarioCtr = hasTargetCtr ? targetCtrNum : landingPageCtrNum;
-    const effectiveCpc = hasTargetCtr ? cpcNum * (landingPageCtrNum / targetCtrNum) : cpcNum;
-    const clicksExact = effectiveCpc > 0 ? budgetNum / effectiveCpc : 0;
+    // Impressions come from budget and CPM. CTR turns those impressions into clicks.
+    const impressionsExact = cpmNum > 0 ? (budgetNum / cpmNum) * 1000 : 0;
+    const clicksExact = impressionsExact * (landingPageCtrNum / 100);
     const productViewsExact = clicksExact * (productViewRateNum / 100);
     const addToCartsExact = productViewsExact * (addToCartRateNum / 100);
     const ordersExact = addToCartsExact * (checkoutRateNum / 100);
     const clicks = Math.round(clicksExact);
-    const impressions = scenarioCtr > 0
-      ? Math.round(clicksExact / (scenarioCtr / 100))
-      : 0;
+    const impressions = Math.round(impressionsExact);
     const productViews = Math.round(productViewsExact);
     const addToCarts = Math.round(addToCartsExact);
     const checkoutStarted = Math.round(ordersExact);
@@ -498,7 +470,7 @@ const SalesCalculator = ({
     setResults({
       clicks,
       impressions,
-      cpm,
+      cpm: cpmNum,
       productViews,
       addToCarts,
       checkoutStarted,
@@ -521,9 +493,8 @@ const SalesCalculator = ({
 
   const handleResetSales = () => {
     setBudget('');
-    setCpc('');
+    setCpm('');
     setLandingPageCtr('');
-    setTargetCtr('');
     setProductViewRate('');
     setAddToCartRate('');
     setCheckoutRate('');
@@ -544,9 +515,8 @@ const SalesCalculator = ({
           <SalesTemplateManager
             currentSettings={{
               budget,
-              cpc,
+              cpm,
               landingPageCtr,
-              targetCtr,
               productViewRate,
               addToCartRate,
               checkoutRate,
@@ -558,9 +528,8 @@ const SalesCalculator = ({
             onLoadTemplate={(settings) => {
               isSyncingFromPropsRef.current = true;
               setBudget(normalizeCurrencyValue(settings.budget));
-              setCpc(normalizeCurrencyValue(settings.cpc));
+              setCpm(resolveSalesCpm(settings));
               setLandingPageCtr(normalizePercentageValue(settings.landingPageCtr));
-              setTargetCtr(normalizePercentageValue(settings.targetCtr || ''));
               setProductViewRate(normalizePercentageValue(settings.productViewRate));
               setAddToCartRate(normalizePercentageValue(settings.addToCartRate));
               setCheckoutRate(normalizePercentageValue(settings.checkoutRate));
@@ -600,15 +569,11 @@ const SalesCalculator = ({
             <div className="text-4xl font-bold text-primary">{formatCurrency(results.totalRevenue)}</div>
           </div>
         </div>
-        {percentageStringToNumber(targetCtr) > 0 && percentageStringToNumber(landingPageCtr) > 0 && (
+        {results.impressions > 0 && (
           <p className="mt-3 text-sm text-muted-foreground">
             {applyVariables(
-              t(
-                'pages.calculator.sales.targetProjection',
-                'CPM stays {{cpm}}. Impressions stay {{impressions}}. Projected CPC is {{cpc}}.',
-              ),
+              t('pages.calculator.sales.audienceResult', '{{impressions}} impressions. CPC {{cpc}}.'),
               {
-                cpm: formatCurrency(results.cpm),
                 impressions: formatNumber(results.impressions),
                 cpc: formatCurrency(results.costPerClick),
               },
@@ -694,37 +659,26 @@ const SalesCalculator = ({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="cpc">
-                    {t('pages.calculator.sales.cpc', 'Cost per Click (Rp)')}
+                  <Label htmlFor="cpm">
+                    {t('pages.calculator.sales.cpm', 'CPM (Rp)')}
                   </Label>
                   <Input
-                    id="cpc"
+                    id="cpm"
                     type="text"
-                    value={formatCurrencyDisplay(cpc)}
-                    onChange={(e) => handleCpcChange(normalizeCurrencyValue(e.target.value))}
+                    value={formatCurrencyDisplay(cpm)}
+                    onChange={(e) => handleCpmChange(normalizeCurrencyValue(e.target.value))}
                     className="mt-1"
                     placeholder="0"
                   />
                 </div>
                 <div>
                   <Label htmlFor="ctr">
-                    {t('pages.calculator.sales.landingPageCtr', 'Current CTR (%)')}
+                    {t('pages.calculator.sales.landingPageCtr', 'CTR (%)')}
                   </Label>
                   <PercentageInputField
                     id="ctr"
                     value={landingPageCtr}
                     onValueChange={handleLandingPageCtrChange}
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="targetCtr">
-                    {t('pages.calculator.sales.targetCtr', 'Target CTR (%)')}
-                  </Label>
-                  <PercentageInputField
-                    id="targetCtr"
-                    value={targetCtr}
-                    onValueChange={handleTargetCtrChange}
                     placeholder="0"
                   />
                 </div>

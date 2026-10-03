@@ -217,9 +217,8 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
             <p><strong>{t('pages.calculator.tutorial.sales.marketingKPI.description', 'Set your campaign parameters:')}</strong></p>
             <ul className="ml-2 list-inside list-disc space-y-1 text-muted-foreground">
               <li>{t('pages.calculator.tutorial.sales.marketingKPI.budget', 'Budget (Rp): Total campaign budget')}</li>
-              <li>{t('pages.calculator.tutorial.sales.marketingKPI.cpc', 'CPC (Rp): Cost per click')}</li>
-              <li>{t('pages.calculator.tutorial.sales.marketingKPI.ctr', 'Current CTR (%): This month’s link CTR. Together with CPC it sets the CPM.')}</li>
-              <li>{t('pages.calculator.tutorial.sales.marketingKPI.targetCtr', 'Target CTR (%): Next month’s CTR. CPM stays the same, so CPC falls and orders rise.')}</li>
+              <li>{t('pages.calculator.tutorial.sales.marketingKPI.cpm', 'CPM (Rp): Cost per 1,000 impressions. A higher CPM means a narrower audience.')}</li>
+              <li>{t('pages.calculator.tutorial.sales.marketingKPI.ctr', 'CTR (%): Link clicks divided by impressions. Raising CTR increases clicks while CPM stays the same.')}</li>
             </ul>
           </div>
         </CardContent>

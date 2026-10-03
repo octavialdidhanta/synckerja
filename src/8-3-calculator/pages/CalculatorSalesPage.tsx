@@ -13,9 +13,8 @@ import type { SalesKPISettings } from "@/8-3-calculator/types/kpi-templates";
 const CalculatorSalesPage = () => {
   const [salesSettings, setSalesSettings] = useState<SalesKPISettings>({
     budget: "",
-    cpc: "",
+    cpm: "",
     landingPageCtr: "",
-    targetCtr: "",
     productViewRate: "",
     addToCartRate: "",
     checkoutRate: "",
