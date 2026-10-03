@@ -58,16 +58,14 @@ export interface SalesKPISettings {
   budget: string;
   cpc: string;
   landingPageCtr: string;
+  targetCtr: string;
   productViewRate: string;
   addToCartRate: string;
   checkoutRate: string;
-  paymentSuccessRate: string;
-  productPrice: string;
   avgOrderValue: string;
   profitMargin: string;
   repeatPurchaseRate: string;
   upsellRate: string;
-  seasonalMultiplier: string;
 }
 
 export interface TemplateUsage {

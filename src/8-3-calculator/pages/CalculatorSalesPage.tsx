@@ -15,16 +15,14 @@ const CalculatorSalesPage = () => {
     budget: "",
     cpc: "",
     landingPageCtr: "",
+    targetCtr: "",
     productViewRate: "",
     addToCartRate: "",
     checkoutRate: "",
-    paymentSuccessRate: "",
-    productPrice: "",
     avgOrderValue: "",
     profitMargin: "",
     repeatPurchaseRate: "",
     upsellRate: "",
-    seasonalMultiplier: "",
   });
 
   return (

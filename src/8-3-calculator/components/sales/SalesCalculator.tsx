@@ -24,23 +24,37 @@ const currencyStringToNumber = (value: string) => {
   return Number.isNaN(numericValue) ? 0 : numericValue;
 };
 
+const PERCENTAGE_FRACTION_DIGITS = 2;
+
+/** Titik ketikan jadi koma desimal. Hanya satu koma, dua angka di belakang. */
 const normalizePercentageValue = (value: string) => {
   if (!value) return '';
-  return value.replace(/[^0-9,.\-]/g, '');
+  const cleaned = value.replace(/[^0-9,.\-]/g, '').replace(/\./g, ',');
+  const negative = cleaned.startsWith('-');
+  const unsigned = cleaned.replace(/-/g, '');
+  const commaIndex = unsigned.indexOf(',');
+  if (commaIndex === -1) return `${negative ? '-' : ''}${unsigned}`;
+  const whole = unsigned.slice(0, commaIndex);
+  const fraction = unsigned.slice(commaIndex + 1).replace(/,/g, '').slice(0, PERCENTAGE_FRACTION_DIGITS);
+  return `${negative ? '-' : ''}${whole},${fraction}`;
 };
 
 const percentageStringToNumber = (value: string) => {
-  const normalized = value.replace(',', '.');
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+  const normalized = trimmed.includes(',')
+    ? trimmed.replace(/\./g, '').replace(',', '.')
+    : trimmed;
   const numericValue = Number(normalized);
   return Number.isNaN(numericValue) ? 0 : numericValue;
 };
 
-const normalizeFloatValue = (value: string) => value.replace(/[^0-9,.\-]/g, '');
-
-const floatStringToNumber = (value: string) => {
-  const normalized = value.replace(',', '.');
-  const numericValue = Number(normalized);
-  return Number.isNaN(numericValue) ? 0 : numericValue;
+const formatPercentageDisplay = (value: string) => {
+  if (!value || value === '-' || value === ',' || value === '-,') return '';
+  return new Intl.NumberFormat('id-ID', {
+    minimumFractionDigits: PERCENTAGE_FRACTION_DIGITS,
+    maximumFractionDigits: PERCENTAGE_FRACTION_DIGITS,
+  }).format(percentageStringToNumber(value));
 };
 
 const formatNumber = (num: number) => new Intl.NumberFormat('id-ID').format(num);
@@ -65,21 +79,37 @@ interface PercentageInputFieldProps {
 const PercentageInputField = ({
   id,
   value,
-  placeholder,
   onValueChange
-}: PercentageInputFieldProps) => (
-  <div className="relative">
-    <Input
-      id={id}
-      type="text"
-      value={value}
-      onChange={(e) => onValueChange(normalizePercentageValue(e.target.value))}
-      className="mt-1 pr-10"
-      placeholder={placeholder}
-    />
-    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground">%</span>
-  </div>
-);
+}: PercentageInputFieldProps) => {
+  const [focused, setFocused] = useState(false);
+  const shown = focused ? value : (value ? formatPercentageDisplay(value) : '');
+
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type="text"
+        inputMode="decimal"
+        value={shown}
+        onChange={(e) => onValueChange(normalizePercentageValue(e.target.value))}
+        onFocus={(event) => {
+          setFocused(true);
+          const formatted = value ? formatPercentageDisplay(value) : '';
+          if (formatted && formatted !== value) onValueChange(formatted);
+          requestAnimationFrame(() => event.currentTarget.select());
+        }}
+        onBlur={() => {
+          setFocused(false);
+          const formatted = formatPercentageDisplay(value);
+          if (formatted !== value) onValueChange(formatted);
+        }}
+        className="mt-1 pr-10"
+        placeholder="0,00"
+      />
+      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground">%</span>
+    </div>
+  );
+};
 
 interface SalesCalculatorProps {
   initialSettings?: SalesKPISettings;
@@ -96,29 +126,30 @@ const SalesCalculator = ({
   const [budget, setBudget] = useState<string>(normalizeCurrencyValue(initialSettings.budget || ''));
   const [cpc, setCpc] = useState<string>(normalizeCurrencyValue(initialSettings.cpc || ''));
   const [landingPageCtr, setLandingPageCtr] = useState<string>(normalizePercentageValue(initialSettings.landingPageCtr || ''));
+  const [targetCtr, setTargetCtr] = useState<string>(normalizePercentageValue(initialSettings.targetCtr || ''));
   
   // Sales Funnel Conversion Rates
   const [productViewRate, setProductViewRate] = useState<string>(normalizePercentageValue(initialSettings.productViewRate || ''));
   const [addToCartRate, setAddToCartRate] = useState<string>(normalizePercentageValue(initialSettings.addToCartRate || ''));
   const [checkoutRate, setCheckoutRate] = useState<string>(normalizePercentageValue(initialSettings.checkoutRate || ''));
-  const [paymentSuccessRate, setPaymentSuccessRate] = useState<string>(normalizePercentageValue(initialSettings.paymentSuccessRate || ''));
   
   // Product & Revenue KPIs
-  const [productPrice, setProductPrice] = useState<string>(normalizeCurrencyValue(initialSettings.productPrice || ''));
   const [avgOrderValue, setAvgOrderValue] = useState<string>(normalizeCurrencyValue(initialSettings.avgOrderValue || ''));
   const [profitMargin, setProfitMargin] = useState<string>(normalizePercentageValue(initialSettings.profitMargin || ''));
   
   // Advanced Metrics
   const [repeatPurchaseRate, setRepeatPurchaseRate] = useState<string>(normalizePercentageValue(initialSettings.repeatPurchaseRate || ''));
   const [upsellRate, setUpsellRate] = useState<string>(normalizePercentageValue(initialSettings.upsellRate || ''));
-  const [seasonalMultiplier, setSeasonalMultiplier] = useState<string>(normalizeFloatValue(initialSettings.seasonalMultiplier || '1'));
 
   // Use ref to track if update is from user input or from props
   const isSyncingFromPropsRef = useRef(false);
   const prevInitialSettingsRef = useRef<string>(JSON.stringify(initialSettings));
+  const lastEmittedSettingsRef = useRef<string | null>(null);
 
   const [results, setResults] = useState({
     clicks: 0,
+    impressions: 0,
+    cpm: 0,
     productViews: 0,
     addToCarts: 0,
     checkoutStarted: 0,
@@ -144,18 +175,23 @@ const SalesCalculator = ({
       budget: initialSettings.budget || '',
       cpc: initialSettings.cpc || '',
       landingPageCtr: initialSettings.landingPageCtr || '',
+      targetCtr: initialSettings.targetCtr || '',
       productViewRate: initialSettings.productViewRate || '',
       addToCartRate: initialSettings.addToCartRate || '',
       checkoutRate: initialSettings.checkoutRate || '',
-      paymentSuccessRate: initialSettings.paymentSuccessRate || '',
-      productPrice: initialSettings.productPrice || '',
       avgOrderValue: initialSettings.avgOrderValue || '',
       profitMargin: initialSettings.profitMargin || '',
       repeatPurchaseRate: initialSettings.repeatPurchaseRate || '',
       upsellRate: initialSettings.upsellRate || '',
-      seasonalMultiplier: initialSettings.seasonalMultiplier || '1'
     });
     
+    // Parent echoes each keystroke. Applying that echo overwrites the comma
+    // the user just typed.
+    if (currentSettingsStr === lastEmittedSettingsRef.current) {
+      prevInitialSettingsRef.current = currentSettingsStr;
+      return;
+    }
+
     // Only sync if initialSettings actually changed (template was loaded)
     if (currentSettingsStr !== prevInitialSettingsRef.current) {
       prevInitialSettingsRef.current = currentSettingsStr;
@@ -165,16 +201,14 @@ const SalesCalculator = ({
       setBudget(normalizeCurrencyValue(initialSettings.budget || ''));
       setCpc(normalizeCurrencyValue(initialSettings.cpc || ''));
       setLandingPageCtr(normalizePercentageValue(initialSettings.landingPageCtr || ''));
+      setTargetCtr(normalizePercentageValue(initialSettings.targetCtr || ''));
       setProductViewRate(normalizePercentageValue(initialSettings.productViewRate || ''));
       setAddToCartRate(normalizePercentageValue(initialSettings.addToCartRate || ''));
       setCheckoutRate(normalizePercentageValue(initialSettings.checkoutRate || ''));
-      setPaymentSuccessRate(normalizePercentageValue(initialSettings.paymentSuccessRate || ''));
-      setProductPrice(normalizeCurrencyValue(initialSettings.productPrice || ''));
       setAvgOrderValue(normalizeCurrencyValue(initialSettings.avgOrderValue || ''));
       setProfitMargin(normalizePercentageValue(initialSettings.profitMargin || ''));
       setRepeatPurchaseRate(normalizePercentageValue(initialSettings.repeatPurchaseRate || ''));
       setUpsellRate(normalizePercentageValue(initialSettings.upsellRate || ''));
-      setSeasonalMultiplier(normalizeFloatValue(initialSettings.seasonalMultiplier || '1'));
       
       // Reset flag after state updates complete
       requestAnimationFrame(() => {
@@ -187,21 +221,32 @@ const SalesCalculator = ({
     initialSettings.budget,
     initialSettings.cpc,
     initialSettings.landingPageCtr,
+    initialSettings.targetCtr,
     initialSettings.productViewRate,
     initialSettings.addToCartRate,
     initialSettings.checkoutRate,
-    initialSettings.paymentSuccessRate,
-    initialSettings.productPrice,
     initialSettings.avgOrderValue,
     initialSettings.profitMargin,
     initialSettings.repeatPurchaseRate,
     initialSettings.upsellRate,
-    initialSettings.seasonalMultiplier
   ]);
 
   // Helper function to notify parent of settings change (only when user makes changes)
   const notifySettingsChange = useCallback((updatedSettings: SalesKPISettings) => {
     if (!isSyncingFromPropsRef.current && onSettingsChange) {
+      lastEmittedSettingsRef.current = JSON.stringify({
+        budget: updatedSettings.budget || '',
+        cpc: updatedSettings.cpc || '',
+        landingPageCtr: updatedSettings.landingPageCtr || '',
+        targetCtr: updatedSettings.targetCtr || '',
+        productViewRate: updatedSettings.productViewRate || '',
+        addToCartRate: updatedSettings.addToCartRate || '',
+        checkoutRate: updatedSettings.checkoutRate || '',
+        avgOrderValue: updatedSettings.avgOrderValue || '',
+        profitMargin: updatedSettings.profitMargin || '',
+        repeatPurchaseRate: updatedSettings.repeatPurchaseRate || '',
+        upsellRate: updatedSettings.upsellRate || '',
+      });
       onSettingsChange(updatedSettings);
     }
   }, [onSettingsChange]);
@@ -213,16 +258,14 @@ const SalesCalculator = ({
       budget: value,
       cpc,
       landingPageCtr,
+      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
-      paymentSuccessRate,
-      productPrice,
       avgOrderValue,
       profitMargin,
       repeatPurchaseRate,
       upsellRate,
-      seasonalMultiplier
     });
   };
 
@@ -232,16 +275,14 @@ const SalesCalculator = ({
       budget,
       cpc: value,
       landingPageCtr,
+      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
-      paymentSuccessRate,
-      productPrice,
       avgOrderValue,
       profitMargin,
       repeatPurchaseRate,
       upsellRate,
-      seasonalMultiplier
     });
   };
 
@@ -251,16 +292,31 @@ const SalesCalculator = ({
       budget,
       cpc,
       landingPageCtr: value,
+      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
-      paymentSuccessRate,
-      productPrice,
       avgOrderValue,
       profitMargin,
       repeatPurchaseRate,
       upsellRate,
-      seasonalMultiplier
+    });
+  };
+
+  const handleTargetCtrChange = (value: string) => {
+    setTargetCtr(value);
+    notifySettingsChange({
+      budget,
+      cpc,
+      landingPageCtr,
+      targetCtr: value,
+      productViewRate,
+      addToCartRate,
+      checkoutRate,
+      avgOrderValue,
+      profitMargin,
+      repeatPurchaseRate,
+      upsellRate,
     });
   };
 
@@ -270,16 +326,14 @@ const SalesCalculator = ({
       budget,
       cpc,
       landingPageCtr,
+      targetCtr,
       productViewRate: value,
       addToCartRate,
       checkoutRate,
-      paymentSuccessRate,
-      productPrice,
       avgOrderValue,
       profitMargin,
       repeatPurchaseRate,
       upsellRate,
-      seasonalMultiplier
     });
   };
 
@@ -289,16 +343,14 @@ const SalesCalculator = ({
       budget,
       cpc,
       landingPageCtr,
+      targetCtr,
       productViewRate,
       addToCartRate: value,
       checkoutRate,
-      paymentSuccessRate,
-      productPrice,
       avgOrderValue,
       profitMargin,
       repeatPurchaseRate,
       upsellRate,
-      seasonalMultiplier
     });
   };
 
@@ -308,54 +360,14 @@ const SalesCalculator = ({
       budget,
       cpc,
       landingPageCtr,
+      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate: value,
-      paymentSuccessRate,
-      productPrice,
       avgOrderValue,
       profitMargin,
       repeatPurchaseRate,
       upsellRate,
-      seasonalMultiplier
-    });
-  };
-
-  const handlePaymentSuccessRateChange = (value: string) => {
-    setPaymentSuccessRate(value);
-    notifySettingsChange({
-      budget,
-      cpc,
-      landingPageCtr,
-      productViewRate,
-      addToCartRate,
-      checkoutRate,
-      paymentSuccessRate: value,
-      productPrice,
-      avgOrderValue,
-      profitMargin,
-      repeatPurchaseRate,
-      upsellRate,
-      seasonalMultiplier
-    });
-  };
-
-  const handleProductPriceChange = (value: string) => {
-    setProductPrice(value);
-    notifySettingsChange({
-      budget,
-      cpc,
-      landingPageCtr,
-      productViewRate,
-      addToCartRate,
-      checkoutRate,
-      paymentSuccessRate,
-      productPrice: value,
-      avgOrderValue,
-      profitMargin,
-      repeatPurchaseRate,
-      upsellRate,
-      seasonalMultiplier
     });
   };
 
@@ -365,16 +377,14 @@ const SalesCalculator = ({
       budget,
       cpc,
       landingPageCtr,
+      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
-      paymentSuccessRate,
-      productPrice,
       avgOrderValue: value,
       profitMargin,
       repeatPurchaseRate,
       upsellRate,
-      seasonalMultiplier
     });
   };
 
@@ -384,16 +394,14 @@ const SalesCalculator = ({
       budget,
       cpc,
       landingPageCtr,
+      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
-      paymentSuccessRate,
-      productPrice,
       avgOrderValue,
       profitMargin: value,
       repeatPurchaseRate,
       upsellRate,
-      seasonalMultiplier
     });
   };
 
@@ -403,16 +411,14 @@ const SalesCalculator = ({
       budget,
       cpc,
       landingPageCtr,
+      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
-      paymentSuccessRate,
-      productPrice,
       avgOrderValue,
       profitMargin,
       repeatPurchaseRate: value,
       upsellRate,
-      seasonalMultiplier
     });
   };
 
@@ -422,65 +428,53 @@ const SalesCalculator = ({
       budget,
       cpc,
       landingPageCtr,
+      targetCtr,
       productViewRate,
       addToCartRate,
       checkoutRate,
-      paymentSuccessRate,
-      productPrice,
       avgOrderValue,
       profitMargin,
       repeatPurchaseRate,
       upsellRate: value,
-      seasonalMultiplier
-    });
-  };
-
-  const handleSeasonalMultiplierChange = (value: string) => {
-    setSeasonalMultiplier(value);
-    notifySettingsChange({
-      budget,
-      cpc,
-      landingPageCtr,
-      productViewRate,
-      addToCartRate,
-      checkoutRate,
-      paymentSuccessRate,
-      productPrice,
-      avgOrderValue,
-      profitMargin,
-      repeatPurchaseRate,
-      upsellRate,
-      seasonalMultiplier: value
     });
   };
 
   useEffect(() => {
     calculateResults();
-  }, [budget, cpc, landingPageCtr, productViewRate, addToCartRate, checkoutRate, 
-      paymentSuccessRate, productPrice, avgOrderValue, profitMargin, repeatPurchaseRate, 
-      upsellRate, seasonalMultiplier]);
+  }, [budget, cpc, landingPageCtr, targetCtr, productViewRate, addToCartRate, checkoutRate,
+      avgOrderValue, profitMargin, repeatPurchaseRate, upsellRate]);
 
   const calculateResults = () => {
     const budgetNum = currencyStringToNumber(budget);
     const cpcNum = currencyStringToNumber(cpc) || 1;
     const landingPageCtrNum = percentageStringToNumber(landingPageCtr);
+    const targetCtrNum = percentageStringToNumber(targetCtr);
     const productViewRateNum = percentageStringToNumber(productViewRate);
     const addToCartRateNum = percentageStringToNumber(addToCartRate);
     const checkoutRateNum = percentageStringToNumber(checkoutRate);
-    const paymentSuccessRateNum = percentageStringToNumber(paymentSuccessRate);
-    const productPriceNum = currencyStringToNumber(productPrice);
     const avgOrderValueNum = currencyStringToNumber(avgOrderValue);
     const profitMarginNum = percentageStringToNumber(profitMargin);
     const repeatPurchaseRateNum = percentageStringToNumber(repeatPurchaseRate);
     const upsellRateNum = percentageStringToNumber(upsellRate);
-    const seasonalMultiplierNum = floatStringToNumber(seasonalMultiplier) || 1;
 
-    // Calculate sales funnel
-    const clicks = Math.floor(budgetNum / cpcNum);
-    const productViews = Math.floor(clicks * (productViewRateNum / 100));
-    const addToCarts = Math.floor(productViews * (addToCartRateNum / 100));
-    const checkoutStarted = Math.floor(addToCarts * (checkoutRateNum / 100));
-    const successfulOrders = Math.floor(checkoutStarted * (paymentSuccessRateNum / 100) * seasonalMultiplierNum);
+    // Current CTR and CPC fix this month's CPM. A target CTR keeps that CPM,
+    // so the same budget buys more clicks at a lower CPC.
+    const hasTargetCtr = targetCtrNum > 0 && landingPageCtrNum > 0;
+    const cpm = landingPageCtrNum > 0 ? cpcNum * (landingPageCtrNum / 100) * 1000 : 0;
+    const scenarioCtr = hasTargetCtr ? targetCtrNum : landingPageCtrNum;
+    const effectiveCpc = hasTargetCtr ? cpcNum * (landingPageCtrNum / targetCtrNum) : cpcNum;
+    const clicksExact = effectiveCpc > 0 ? budgetNum / effectiveCpc : 0;
+    const productViewsExact = clicksExact * (productViewRateNum / 100);
+    const addToCartsExact = productViewsExact * (addToCartRateNum / 100);
+    const ordersExact = addToCartsExact * (checkoutRateNum / 100);
+    const clicks = Math.round(clicksExact);
+    const impressions = scenarioCtr > 0
+      ? Math.round(clicksExact / (scenarioCtr / 100))
+      : 0;
+    const productViews = Math.round(productViewsExact);
+    const addToCarts = Math.round(addToCartsExact);
+    const checkoutStarted = Math.round(ordersExact);
+    const successfulOrders = checkoutStarted;
     
     // Calculate revenue
     const totalRevenue = successfulOrders * avgOrderValueNum;
@@ -499,10 +493,12 @@ const SalesCalculator = ({
     const customerLifetimeValue = avgOrderValueNum * (1 + (repeatPurchaseRateNum / 100) * 2.5) * (1 + (upsellRateNum / 100));
     const clvToCacRatio = customerAcquisitionCost > 0 ? customerLifetimeValue / customerAcquisitionCost : 0;
     const breakEvenOrders = grossProfit > 0 ? Math.ceil(budgetNum / (avgOrderValueNum * (profitMarginNum / 100))) : 0;
-    const monthlyRevenue = totalRevenue * seasonalMultiplierNum;
+    const monthlyRevenue = totalRevenue;
 
     setResults({
       clicks,
+      impressions,
+      cpm,
       productViews,
       addToCarts,
       checkoutStarted,
@@ -527,16 +523,14 @@ const SalesCalculator = ({
     setBudget('');
     setCpc('');
     setLandingPageCtr('');
+    setTargetCtr('');
     setProductViewRate('');
     setAddToCartRate('');
     setCheckoutRate('');
-    setPaymentSuccessRate('');
-    setProductPrice('');
     setAvgOrderValue('');
     setProfitMargin('');
     setRepeatPurchaseRate('');
     setUpsellRate('');
-    setSeasonalMultiplier('1');
   };
 
   return (
@@ -552,32 +546,28 @@ const SalesCalculator = ({
               budget,
               cpc,
               landingPageCtr,
+              targetCtr,
               productViewRate,
               addToCartRate,
               checkoutRate,
-              paymentSuccessRate,
-              productPrice,
               avgOrderValue,
               profitMargin,
               repeatPurchaseRate,
               upsellRate,
-              seasonalMultiplier
             }}
             onLoadTemplate={(settings) => {
               isSyncingFromPropsRef.current = true;
               setBudget(normalizeCurrencyValue(settings.budget));
               setCpc(normalizeCurrencyValue(settings.cpc));
               setLandingPageCtr(normalizePercentageValue(settings.landingPageCtr));
+              setTargetCtr(normalizePercentageValue(settings.targetCtr || ''));
               setProductViewRate(normalizePercentageValue(settings.productViewRate));
               setAddToCartRate(normalizePercentageValue(settings.addToCartRate));
               setCheckoutRate(normalizePercentageValue(settings.checkoutRate));
-              setPaymentSuccessRate(normalizePercentageValue(settings.paymentSuccessRate));
-              setProductPrice(normalizeCurrencyValue(settings.productPrice));
               setAvgOrderValue(normalizeCurrencyValue(settings.avgOrderValue));
               setProfitMargin(normalizePercentageValue(settings.profitMargin));
               setRepeatPurchaseRate(normalizePercentageValue(settings.repeatPurchaseRate));
               setUpsellRate(normalizePercentageValue(settings.upsellRate));
-              setSeasonalMultiplier(normalizeFloatValue(settings.seasonalMultiplier || '1'));
               requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
                   isSyncingFromPropsRef.current = false;
@@ -610,6 +600,21 @@ const SalesCalculator = ({
             <div className="text-4xl font-bold text-primary">{formatCurrency(results.totalRevenue)}</div>
           </div>
         </div>
+        {percentageStringToNumber(targetCtr) > 0 && percentageStringToNumber(landingPageCtr) > 0 && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {applyVariables(
+              t(
+                'pages.calculator.sales.targetProjection',
+                'CPM stays {{cpm}}. Impressions stay {{impressions}}. Projected CPC is {{cpc}}.',
+              ),
+              {
+                cpm: formatCurrency(results.cpm),
+                impressions: formatNumber(results.impressions),
+                cpc: formatCurrency(results.costPerClick),
+              },
+            )}
+          </p>
+        )}
       </div>
 
       {/* Key Metrics */}
@@ -703,12 +708,23 @@ const SalesCalculator = ({
                 </div>
                 <div>
                   <Label htmlFor="ctr">
-                    {t('pages.calculator.sales.landingPageCtr', 'Landing Page CTR (%)')}
+                    {t('pages.calculator.sales.landingPageCtr', 'Current CTR (%)')}
                   </Label>
                   <PercentageInputField
                     id="ctr"
                     value={landingPageCtr}
                     onValueChange={handleLandingPageCtrChange}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="targetCtr">
+                    {t('pages.calculator.sales.targetCtr', 'Target CTR (%)')}
+                  </Label>
+                  <PercentageInputField
+                    id="targetCtr"
+                    value={targetCtr}
+                    onValueChange={handleTargetCtrChange}
                     placeholder="0"
                   />
                 </div>
@@ -756,17 +772,6 @@ const SalesCalculator = ({
                     placeholder="0"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="payment">
-                    {t('pages.calculator.sales.paymentSuccessRate', 'Payment Success Rate (%)')}
-                  </Label>
-                  <PercentageInputField
-                    id="payment"
-                    value={paymentSuccessRate}
-                    onValueChange={handlePaymentSuccessRateChange}
-                    placeholder="0"
-                  />
-                </div>
               </CardContent>
             </Card>
 
@@ -778,19 +783,6 @@ const SalesCalculator = ({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="productPrice">
-                    {t('pages.calculator.sales.productPrice', 'Product Price (Rp)')}
-                  </Label>
-                  <Input
-                    id="productPrice"
-                    type="text"
-                    value={formatCurrencyDisplay(productPrice)}
-                    onChange={(e) => handleProductPriceChange(normalizeCurrencyValue(e.target.value))}
-                    className="mt-1"
-                    placeholder="0"
-                  />
-                </div>
                 <div>
                   <Label htmlFor="aov">
                     {t('pages.calculator.sales.avgOrderValue', 'Average Order Value (Rp)')}
@@ -813,19 +805,6 @@ const SalesCalculator = ({
                     value={profitMargin}
                     onValueChange={handleProfitMarginChange}
                     placeholder="0"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="seasonal">
-                    {t('pages.calculator.sales.seasonalMultiplier', 'Seasonal Multiplier')}
-                  </Label>
-                  <Input
-                    id="seasonal"
-                    type="text"
-                    value={seasonalMultiplier}
-                    onChange={(e) => handleSeasonalMultiplierChange(normalizeFloatValue(e.target.value))}
-                    className="mt-1"
-                    placeholder="1"
                   />
                 </div>
               </CardContent>
@@ -914,6 +893,9 @@ const SalesCalculator = ({
                       {applyVariables(t('pages.calculator.sales.analysis.clicks', 'Your ads will generate {{clicks}} clicks from the current budget'), {
                         clicks: formatNumber(results.clicks)
                       })}
+                      {results.impressions > 0
+                        ? ` (${formatNumber(results.impressions)} impressions)`
+                        : ''}
                     </span>
                   </div>
                   <div className="flex items-center">

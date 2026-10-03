@@ -198,7 +198,7 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
               <li>{t('pages.calculator.tutorial.sales.salesFunnel.productViews', 'Product Views: Visitors who view product pages')}</li>
               <li>{t('pages.calculator.tutorial.sales.salesFunnel.addToCart', 'Add to Cart: Visitors who add products to cart')}</li>
               <li>{t('pages.calculator.tutorial.sales.salesFunnel.checkout', 'Checkout: Customers who start checkout process')}</li>
-              <li>{t('pages.calculator.tutorial.sales.salesFunnel.orders', 'Orders: Successful completed orders')}</li>
+              <li>{t('pages.calculator.tutorial.sales.salesFunnel.orders', 'Orders: Same count as checkout')}</li>
             </ul>
           </div>
         </CardContent>
@@ -218,7 +218,8 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
             <ul className="ml-2 list-inside list-disc space-y-1 text-muted-foreground">
               <li>{t('pages.calculator.tutorial.sales.marketingKPI.budget', 'Budget (Rp): Total campaign budget')}</li>
               <li>{t('pages.calculator.tutorial.sales.marketingKPI.cpc', 'CPC (Rp): Cost per click')}</li>
-              <li>{t('pages.calculator.tutorial.sales.marketingKPI.ctr', 'Landing Page CTR (%): Click-through rate to product pages')}</li>
+              <li>{t('pages.calculator.tutorial.sales.marketingKPI.ctr', 'Current CTR (%): This month’s link CTR. Together with CPC it sets the CPM.')}</li>
+              <li>{t('pages.calculator.tutorial.sales.marketingKPI.targetCtr', 'Target CTR (%): Next month’s CTR. CPM stays the same, so CPC falls and orders rise.')}</li>
             </ul>
           </div>
         </CardContent>
@@ -239,7 +240,6 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
               <li>{t('pages.calculator.tutorial.sales.conversionRates.productView', 'Product View Rate: Landing to product view conversion')}</li>
               <li>{t('pages.calculator.tutorial.sales.conversionRates.addToCart', 'Add to Cart Rate: Product view to cart conversion')}</li>
               <li>{t('pages.calculator.tutorial.sales.conversionRates.checkout', 'Checkout Rate: Cart to checkout conversion')}</li>
-              <li>{t('pages.calculator.tutorial.sales.conversionRates.payment', 'Payment Success Rate: Checkout to payment success')}</li>
             </ul>
           </div>
         </CardContent>
@@ -257,10 +257,8 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
           <div className="space-y-2 text-sm">
             <p><strong>{t('pages.calculator.tutorial.sales.revenueMetrics.description', 'Set product and revenue parameters:')}</strong></p>
             <ul className="ml-2 list-inside list-disc space-y-1 text-muted-foreground">
-              <li>{t('pages.calculator.tutorial.sales.revenueMetrics.productPrice', 'Product Price (Rp): Individual product price')}</li>
               <li>{t('pages.calculator.tutorial.sales.revenueMetrics.avgOrderValue', 'Average Order Value (Rp): Average revenue per order')}</li>
               <li>{t('pages.calculator.tutorial.sales.revenueMetrics.profitMargin', 'Profit Margin (%): Profit percentage per order')}</li>
-              <li>{t('pages.calculator.tutorial.sales.revenueMetrics.seasonal', 'Seasonal Multiplier: Adjust for seasonal variations')}</li>
             </ul>
           </div>
         </CardContent>
@@ -329,7 +327,7 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
             <ul className="space-y-1 text-xs text-success-foreground">
               <li>{t('pages.calculator.tutorial.sales.bestPractices.optimize', '• Optimize conversion rates at each funnel stage')}</li>
               <li>{t('pages.calculator.tutorial.sales.bestPractices.monitor', '• Monitor ROAS and CLV/CAC ratio for profitability')}</li>
-              <li>{t('pages.calculator.tutorial.sales.bestPractices.test', '• Test different product prices and profit margins')}</li>
+              <li>{t('pages.calculator.tutorial.sales.bestPractices.test', '• Test different average order values and profit margins')}</li>
               <li>{t('pages.calculator.tutorial.sales.bestPractices.retention', '• Focus on repeat purchase and upsell rates for growth')}</li>
             </ul>
           </div>

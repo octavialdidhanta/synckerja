@@ -885,15 +885,15 @@ export function ThinkingLabPage() {
     setPendingDelete(null);
     if (target.kind === "master") {
       const deletingSelected = selectedId === target.id;
-      if (deletingSelected) skipAutoSelect.current = true;
-      void run(async () => {
-        try {
+    if (deletingSelected) skipAutoSelect.current = true;
+    void run(async () => {
+      try {
           await masters.remove.mutateAsync(target.id);
-          if (deletingSelected) setSelectedId(null);
-        } catch (error) {
-          if (deletingSelected) skipAutoSelect.current = false;
-          throw error;
-        }
+        if (deletingSelected) setSelectedId(null);
+      } catch (error) {
+        if (deletingSelected) skipAutoSelect.current = false;
+        throw error;
+      }
       });
       return;
     }
@@ -1372,7 +1372,7 @@ export function ThinkingLabPage() {
         );
         const offers: Array<{ angleId: string; failedCode: string; statement: string; facts: IdeaSemanticFacts }> = [];
         for (const row of failed) {
-          const script = await askThinkingLab(
+        const script = await askThinkingLab(
             buildIdeaFixOptionsPrompt({
               parentStatement: focusedAngle.statement,
               masterSubject,
@@ -1694,7 +1694,7 @@ export function ThinkingLabPage() {
       const row = (labTerritories.data ?? []).find((item) => item.id === id && item.bigThoughtId === focusedThought.id);
       if (!row || row.status !== "candidate") return null;
       const facts = await judgeAndSealTerritory({
-        parentStatement: focusedThought.statement,
+            parentStatement: focusedThought.statement,
         ancestors: territoryAncestors,
         audience: selected?.audience,
         code: row.code,
@@ -2181,9 +2181,9 @@ export function ThinkingLabPage() {
         );
         const offers: Array<{ thoughtId: string; failedCode: string; statement: string; facts: TerritorySemanticFacts }> = [];
         for (const row of failed) {
-          const script = await askThinkingLab(
+        const script = await askThinkingLab(
             buildTerritoryFixOptionsPrompt({
-              parentStatement: focusedThought.statement,
+            parentStatement: focusedThought.statement,
               ancestors: territoryAncestors,
               audience: selected?.audience,
               failed: { code: row.code, statement: row.statement },
@@ -2195,14 +2195,14 @@ export function ThinkingLabPage() {
           const statements = parseTerritoryFixOptionsScript(script).filter((statement) => statement !== row.statement.trim());
           for (const statement of statements) {
             if (offers.some((offer) => offer.failedCode === row.code && offer.statement === statement)) continue;
-            const facts = await judgeAndSealTerritory({
-              parentStatement: focusedThought.statement,
+          const facts = await judgeAndSealTerritory({
+            parentStatement: focusedThought.statement,
               ancestors: territoryAncestors,
               audience: selected?.audience,
-              code: row.code,
+            code: row.code,
               statement,
-              ask: (prompt) => askThinkingLab(prompt, 0),
-            });
+            ask: (prompt) => askThinkingLab(prompt, 0),
+          });
             if (admitTerritory(facts) !== "GENERATE_VALID") continue;
             const rows = admittedTerritories.map((item) => ({
               code: item.code,
@@ -2280,9 +2280,9 @@ export function ThinkingLabPage() {
         );
         const items = holdPassingTerritoryVerdicts(
           scoreTerritoryAudit({
-            codes: admittedTerritories.map((row) => row.code),
-            siblingSet,
-            siblingSetCurrent: true,
+          codes: admittedTerritories.map((row) => row.code),
+          siblingSet,
+          siblingSetCurrent: true,
           }),
           passingCodes,
         ).map((item) => {
@@ -2462,18 +2462,18 @@ export function ThinkingLabPage() {
       });
       const items = holdPassingAuditVerdicts(
         scoreAudit({
-          rows: local.map((row) => ({
-            code: row.code,
-            admission: individualAdmission({
-              facts: row.canonicalSemantic,
-              factsCurrent: fingerprintsMatch(
-                row.semanticFingerprint,
-                bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
-              ),
-            }),
-          })),
-          siblingSet: sibling,
-          siblingSetCurrent: siblingSetIsCurrent(sibling, nextSetFingerprint),
+        rows: local.map((row) => ({
+          code: row.code,
+          admission: individualAdmission({
+            facts: row.canonicalSemantic,
+            factsCurrent: fingerprintsMatch(
+              row.semanticFingerprint,
+              bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
+            ),
+          }),
+        })),
+        siblingSet: sibling,
+        siblingSetCurrent: siblingSetIsCurrent(sibling, nextSetFingerprint),
         }),
         held.map((item) => item.code),
       ).map((item) => {
@@ -2616,9 +2616,9 @@ export function ThinkingLabPage() {
                 ...current,
                 {
                   ...presentFixModelResponse("sibling", script, [
-                    ...currentIncumbents.map((row) => row.code),
-                    "NEW",
-                  ]),
+                  ...currentIncumbents.map((row) => row.code),
+                  "NEW",
+                ]),
                   code: subjectCode,
                 },
               ]);
@@ -2657,19 +2657,19 @@ export function ThinkingLabPage() {
       );
       const previous = active.find((row) => row.code.toUpperCase() === failedCode.toUpperCase());
       if (!offer || !previous) return;
-      await thoughts.reject.mutateAsync(previous.id);
+        await thoughts.reject.mutateAsync(previous.id);
       const known = thoughts.data ?? [];
       const code = nextBigThoughtCode(known.map((row) => row.code));
       const sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0) + 1;
       const facts: BigThoughtFacts = { ...offer.facts, code };
-      await thoughts.insert.mutateAsync({
-        code,
+        await thoughts.insert.mutateAsync({
+          code,
         statement: offer.statement,
         label: offer.label,
-        sortOrder: sort,
-        facts,
-        masterFingerprint: parentFp,
-      });
+          sortOrder: sort,
+          facts,
+          masterFingerprint: parentFp,
+        });
       const held = heldAuditAfterFix({
         items: parseLabSetRecord(selected.lastAudit)?.audit?.items,
         rows: active
@@ -2701,7 +2701,7 @@ export function ThinkingLabPage() {
         await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: persisted.lastAudit });
       }
       setFixOffers((current) => current.filter((row) => row.failedCode.toUpperCase() !== failedCode.toUpperCase()));
-      setNotice(null);
+        setNotice(null);
     });
 
   const onChallenger = () =>
@@ -2822,7 +2822,7 @@ export function ThinkingLabPage() {
                           <>
                           <label className="shrink-0 space-y-1 text-sm font-medium text-foreground">
                             {t("thinkingLab.master.prior", "Old belief (false belief)")}
-                            <Textarea
+                          <Textarea
                               value={newPrior}
                               onChange={(event) => setNewPrior(event.target.value)}
                               rows={2}
@@ -3062,8 +3062,8 @@ export function ThinkingLabPage() {
                                     : focus.kind === "territory"
                                       ? focusedTerritory?.code
                                       : focus.kind === "bigThought"
-                                        ? lockedChildren.get(selected.id)?.find((child) => child.id === focus.thoughtId)?.code
-                                        : undefined
+                                    ? lockedChildren.get(selected.id)?.find((child) => child.id === focus.thoughtId)?.code
+                                    : undefined
                                 }
                                 title={
                                   focus.kind === "bigThought"
@@ -3136,7 +3136,7 @@ export function ThinkingLabPage() {
                                       ? (statement) => onEditAngle(focusedAngle.id, statement)
                                       : focus?.kind === "idea" && focusedIdea?.status === "candidate"
                                         ? (statement) => onEditIdea(focusedIdea.id, statement)
-                                        : undefined
+                                    : undefined
                                 }
                                 onEditTerritory={onEditTerritory}
                                 onEditAngle={onEditAngle}
@@ -3381,30 +3381,30 @@ export function ThinkingLabPage() {
                                   busy={busy}
                                   showSpinner={!auditProgress?.current}
                                   onGenerate={() => void onGenerate()}
-                                  onAudit={() => void onAudit()}
-                                  onFix={() => void onFix()}
-                                  onChallenger={() => void onChallenger()}
-                                  onLock={() => void onLock()}
-                                />
-                              ) : null}
-                              {(ready || locked || rowViews.length > 0) && !editingBelief ? (
-                                <BigThoughtSection
+                                      onAudit={() => void onAudit()}
+                                      onFix={() => void onFix()}
+                                      onChallenger={() => void onChallenger()}
+                                      onLock={() => void onLock()}
+                                    />
+                                  ) : null}
+                                  {(ready || locked || rowViews.length > 0) && !editingBelief ? (
+                                    <BigThoughtSection
                                   parentStatement={becauseParent}
-                                  rows={rowViews}
-                                  missingWhy={missingWhy}
-                                  notice={notice}
-                                  auditProgress={auditProgress}
-                                  fixResponses={fixResponses}
+                                      rows={rowViews}
+                                      missingWhy={missingWhy}
+                                      notice={notice}
+                                      auditProgress={auditProgress}
+                                      fixResponses={fixResponses}
                                   fixOffers={fixOffers}
                                   onPickFixOffer={(code, statement) => void onPickFixOffer(code, statement)}
-                                  generateBusy={busy}
-                                  onGenerateTerritory={(bigThoughtId) => void onGenerateTerritory(bigThoughtId)}
+                                      generateBusy={busy}
+                                      onGenerateTerritory={(bigThoughtId) => void onGenerateTerritory(bigThoughtId)}
                                   onEditBigThought={onEditBigThought}
                                   onDeleteBigThought={(bigThoughtId) =>
                                     setPendingDelete({ kind: "bigThought", id: bigThoughtId })
                                   }
-                                />
-                              ) : null}
+                                    />
+                                  ) : null}
                             </>
                           ) : (
                             <p className="text-sm text-muted-foreground">
@@ -3448,9 +3448,9 @@ export function ThinkingLabPage() {
                       "This deletes the Big Thought and the Territories and Angles under it. This cannot be undone.",
                     )
                   : t(
-                      "thinkingLab.confirm.deleteBody",
-                      "This deletes the Master Thought and everything under it: Big Thoughts, plus any Territories, Angles, and Ideas. This cannot be undone.",
-                    )}
+                "thinkingLab.confirm.deleteBody",
+                "This deletes the Master Thought and everything under it: Big Thoughts, plus any Territories, Angles, and Ideas. This cannot be undone.",
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
