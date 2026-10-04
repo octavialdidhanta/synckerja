@@ -2,10 +2,9 @@ import { useState } from "react";
 import { CalculatorModuleShell } from "@/8-3-calculator/layout/CalculatorModuleShell";
 import {
   CALCULATOR_MAIN_CARD,
-  CALCULATOR_MAIN_GRID,
   CALCULATOR_MAIN_SECTION,
 } from "@/8-3-calculator/layout/calculatorLayout";
-import { TutorialSidebar } from "@/8-3-calculator/components/TutorialSidebar";
+import { CalculatorPageLayout } from "@/8-3-calculator/components/TutorialSidebar";
 import CalculatorMainFooter from "@/8-3-calculator/components/CalculatorMainFooter";
 import EngagementCalculator from "@/8-3-calculator/components/services/EngagementCalculator";
 import TrafficCalculator from "@/8-3-calculator/components/services/TrafficCalculator";
@@ -43,8 +42,7 @@ const CalculatorServicesPage = () => {
 
   return (
     <CalculatorModuleShell>
-      <div className={CALCULATOR_MAIN_GRID}>
-        <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
+      <CalculatorPageLayout activeTab="services">
           <div className={CALCULATOR_MAIN_SECTION}>
             <div className={CALCULATOR_MAIN_CARD}>
               <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -147,10 +145,7 @@ const CalculatorServicesPage = () => {
               <CalculatorMainFooter activeTab="services" />
             </div>
           </div>
-        </div>
-
-        <TutorialSidebar activeTab="services" />
-      </div>
+      </CalculatorPageLayout>
     </CalculatorModuleShell>
   );
 };

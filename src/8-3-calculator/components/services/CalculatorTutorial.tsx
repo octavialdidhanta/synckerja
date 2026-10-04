@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Badge } from '@/shared/components/ui/badge';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { 
-  BookOpen, 
+  BookOpen,
+  ChevronsRight, 
   Target, 
   TrendingUp,
   CheckCircle,
@@ -17,9 +18,10 @@ import {
 
 interface CalculatorTutorialProps {
   currentTab: string;
+  onCollapse?: () => void;
 }
 
-export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentTab }) => {
+export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentTab, onCollapse }) => {
   const { t } = useAppTranslation();
   
   const renderServicesTutorial = () => (
@@ -338,10 +340,21 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 border-b border-primary/10 pb-2">
-        <BookOpen className="h-5 w-5 text-primary" />
-        <h3 className="text-lg font-semibold">
+        <BookOpen className="h-5 w-5 shrink-0 text-primary" />
+        <h3 className="min-w-0 flex-1 text-lg font-semibold">
           {t('pages.calculator.tutorial.title', 'Calculator Tutorial')}
         </h3>
+        {onCollapse ? (
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-expanded
+            aria-label={t('pages.calculator.tutorial.collapse', 'Collapse tutorial')}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </button>
+        ) : null}
       </div>
       {currentTab === 'services' ? renderServicesTutorial() : renderSalesTutorial()}
     </div>

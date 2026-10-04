@@ -6915,6 +6915,8 @@ export const idTranslations: TranslationDictionary = {
   "pages.calculator.sales.estimateNote.title": "Cara membaca perkiraan ini",
   "pages.calculator.sales.estimateNote.body": "Angka di atas dihitung ulang dari CPM, CTR, rasio funnel, dan nilai pesanan rata-rata di halaman ini. Ads Manager menampilkan CPM dalam rupiah bulat dan persentase dengan dua angka desimal, jadi label itu sudah dibulatkan. Perkiraan dari label yang sudah dibulatkan bisa selisih sekitar satu pesanan dari pembelian yang dihitung Ads Manager. Total terhitung di Ads Manager adalah catatan periode yang sudah berjalan. Halaman ini adalah rencana yang dibandingkan dengan catatan itu.",
   "pages.calculator.footer.tutorialReminder": "Butuh bantuan? Lihat langkah tutorial di sebelah kanan.",
+  "pages.calculator.tutorial.expand": "Buka tutorial",
+  "pages.calculator.tutorial.collapse": "Tutup tutorial",
   "pages.calculator.footer.autoUpdate": "Panduan menyesuaikan tab yang dipilih.",
   "pages.calculator.loadingAria": "Memuat kalkulator",
   "pph21.page.subtitle": "Hitung pajak penghasilan berdasarkan UU PPh Pasal 17 dan PER-16/PJ/2016",

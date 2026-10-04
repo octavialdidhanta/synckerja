@@ -6914,6 +6914,8 @@ export const enTranslations: TranslationDictionary = {
   "pages.calculator.sales.estimateNote.title": "How to read this estimate",
   "pages.calculator.sales.estimateNote.body": "The numbers above are rebuilt from the CPM, CTR, funnel rates, and average order value on this page. Ads Manager shows CPM as a whole rupiah and percentages with two decimals, so those labels are already rounded. An estimate rebuilt from the rounded labels can differ by about one order from the purchases Ads Manager counted. The counted total in Ads Manager is the record of a finished period. This page is the plan you compare with that record.",
   "pages.calculator.footer.tutorialReminder": "Need help? Review the tutorial steps on the right.",
+  "pages.calculator.tutorial.expand": "Expand tutorial",
+  "pages.calculator.tutorial.collapse": "Collapse tutorial",
   "pages.calculator.footer.autoUpdate": "Guides update based on the selected tab.",
   "pages.calculator.loadingAria": "Loading calculator",
   "pph21.page.subtitle": "Calculate income tax based on Article 17 of the Income Tax Law and PER-16/PJ/2016",
