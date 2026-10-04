@@ -1346,6 +1346,9 @@ export const enTranslations: TranslationDictionary = {
     "Enter a valid non-negative number for all targets.",
   "digitalMarketing.dmReportTargets.actualLabel": "Actual",
   "digitalMarketing.dmReportTargets.currentLabel": "Current",
+  "digitalMarketing.dmReportTargets.beforeLabel": "Before",
+  "digitalMarketing.dmReportTargets.beforeHint":
+    "Previous period actual. Leave it to use that actual, or type a number to override.",
   "digitalMarketing.dmReportTargets.targetLabel": "Target",
   "digitalMarketing.dmReportTargets.periodNotStarted": "Not started",
   "digitalMarketing.dmReportTargets.useActualAsTarget": "Click to use as target",

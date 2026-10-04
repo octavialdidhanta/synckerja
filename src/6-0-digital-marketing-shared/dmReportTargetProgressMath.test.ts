@@ -59,6 +59,12 @@ describe("dmReportTargetProgressMath", () => {
     expect(computeDmReportSummaryDisplayPercentage(1_029, 2_950, "cpc")).toBe(100);
   });
 
+  it("keeps fractional CTR targets and scores them on the percent scale", () => {
+    expect(computeDmReportSummaryDisplayPercentage(1.5, 2, "ctr")).toBe(75);
+    expect(computeDmReportSummaryDisplayPercentage(0.8, 1.2, "ctr")).toBe(67);
+    expect(computeDmReportSummaryDisplayPercentage(2, 2, "ctr")).toBe(100);
+  });
+
   it("report summary bar: Asc can exceed 100% when above target", () => {
     expect(computeDmReportSummaryDisplayPercentage(23_619, 22_500, "cost", { cost: "higher_is_better" })).toBe(
       105,

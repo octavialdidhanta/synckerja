@@ -2,8 +2,10 @@ import { useMemo } from "react";
 import {
   actualValueForAccount,
   formatDmActualValue,
+  formatDmProgressValue,
 } from "@/6-0-digital-marketing-shared/dmReportTargetActuals";
 import { aggregateDmTargetMetrics } from "@/6-0-digital-marketing-shared/dmReportTargetAggregates";
+import { aggregateTargetValues } from "@/6-0-digital-marketing-shared/dmReportTargetMetricAggregate";
 import { channelLabel } from "@/6-0-digital-marketing-shared/dmReportTargetMetricMapping";
 import {
   isDmReportActualOnTrackForDirection,
@@ -11,7 +13,10 @@ import {
   resolveDmReportMetricDirection,
   type DmReportMetricDirectionsMap,
 } from "@/6-0-digital-marketing-shared/dmReportMetricDirections";
-import { isPercentageMetricKey } from "@/6-0-digital-marketing-shared/dmReportTargetPeriod";
+import {
+  dmActualOnTargetScale,
+  isPercentScaleMetricKey,
+} from "@/6-0-digital-marketing-shared/dmReportTargetPeriod";
 import {
   dmTargetAccountKey,
   dmTargetCellKey,
@@ -68,8 +73,10 @@ type Props = {
   employeesLoading: boolean;
   inputsDisabled?: boolean;
   metricDirections: DmReportMetricDirectionsMap;
+  baselineMap: Record<string, string>;
   onAssigneeChange: (account: DmReportTargetAccountRef, employeeId: string | null) => void;
   onCellChange: (account: DmReportTargetAccountRef, metricKey: string, raw: string) => void;
+  onBaselineChange: (account: DmReportTargetAccountRef, metricKey: string, raw: string) => void;
   onCellBlur: (account: DmReportTargetAccountRef, metricKey: string) => void;
 };
 
@@ -85,7 +92,9 @@ type MetricCellProps = {
   targetsLoading: boolean;
   inputsDisabled: boolean;
   metricDirections: DmReportMetricDirectionsMap;
+  baselineMap: Record<string, string>;
   onCellChange: (account: DmReportTargetAccountRef, metricKey: string, raw: string) => void;
+  onBaselineChange: (account: DmReportTargetAccountRef, metricKey: string, raw: string) => void;
   onCellBlur: (account: DmReportTargetAccountRef, metricKey: string) => void;
 };
 
@@ -101,11 +110,14 @@ function MetricCell({
   targetsLoading,
   inputsDisabled,
   metricDirections,
+  baselineMap,
   onCellChange,
+  onBaselineChange,
   onCellBlur,
 }: MetricCellProps) {
   const { t } = useAppTranslation();
   const rawActual = actualValueForAccount(actuals, metricKey);
+  const comparableActual = dmActualOnTargetScale(metricKey, rawActual);
   const formattedActual = periodNotStarted
     ? t("digitalMarketing.dmReportTargets.periodNotStarted", "Not started")
     : !actuals.hasConnectedAccount
@@ -118,14 +130,16 @@ function MetricCell({
         );
 
   const cellKey = dmTargetCellKey(account.channel, account.accountId, metricKey);
-  const showPercentSuffix = isPercentageMetricKey(metricKey) || valueKind === "rate";
+  const showPercentSuffix = isPercentScaleMetricKey(metricKey) || valueKind === "rate";
+  const metricLabelClass =
+    "w-16 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground";
 
   const canUseActualAsTarget =
     !inputsDisabled &&
     !periodNotStarted &&
     actuals.hasConnectedAccount &&
-    rawActual != null &&
-    rawActual > 0;
+    comparableActual != null &&
+    comparableActual > 0;
 
   const targetLabel = t("digitalMarketing.dmReportTargets.targetLabel", "Target");
   const direction = resolveDmReportMetricDirection(metricKey, metricDirections);
@@ -133,20 +147,20 @@ function MetricCell({
   const actualOnTrack =
     Number.isFinite(parsedTarget) &&
     parsedTarget > 0 &&
-    rawActual != null &&
-    isDmReportActualOnTrackForDirection(rawActual, parsedTarget, metricKey, metricDirections);
+    comparableActual != null &&
+    isDmReportActualOnTrackForDirection(comparableActual, parsedTarget, metricKey, metricDirections);
   const actualOffTrack =
     Number.isFinite(parsedTarget) &&
     parsedTarget > 0 &&
-    rawActual != null &&
-    rawActual > 0 &&
-    !isDmReportActualOnTrackForDirection(rawActual, parsedTarget, metricKey, metricDirections);
+    comparableActual != null &&
+    comparableActual > 0 &&
+    !isDmReportActualOnTrackForDirection(comparableActual, parsedTarget, metricKey, metricDirections);
   const targetViolatesToggle =
     Number.isFinite(parsedTarget) &&
     parsedTarget > 0 &&
-    rawActual != null &&
-    rawActual > 0 &&
-    !isDmReportTargetRespectingToggle(parsedTarget, rawActual, metricKey, metricDirections);
+    comparableActual != null &&
+    comparableActual > 0 &&
+    !isDmReportTargetRespectingToggle(parsedTarget, comparableActual, metricKey, metricDirections);
   const ruleHint =
     direction === "lower_is_better"
       ? t(
@@ -157,15 +171,18 @@ function MetricCell({
           "digitalMarketing.dmReportTargets.ruleAsc",
           "Asc: target cannot be below actual (target ≥ actual)",
         );
-  const metricLabelClass =
-    "w-14 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground";
+  const beforeLabel = t("digitalMarketing.dmReportTargets.beforeLabel", "Before");
+  const beforeHint = t(
+    "digitalMarketing.dmReportTargets.beforeHint",
+    "Previous period actual. Leave it to use that actual, or type a number to override.",
+  );
   const metricValueColClass =
     "min-w-0 flex-1 text-right text-xs font-semibold tabular-nums text-gray-800";
 
   return (
     <div className="min-w-[5.5rem]">
       {showActualsLoading ? (
-        <Skeleton className="h-[3.25rem] w-full rounded-md" />
+        <Skeleton className="h-[4.75rem] w-full rounded-md" />
       ) : (
         <div
           className={cn(
@@ -174,6 +191,39 @@ function MetricCell({
           )}
           title={ruleHint}
         >
+          <div className="flex items-center gap-1.5 border-b border-gray-100 px-2 py-0.5">
+            <span className={metricLabelClass}>{beforeLabel}</span>
+            <div className="relative min-w-0 flex-1">
+              <Input
+                type="number"
+                min={0}
+                step={showPercentSuffix ? 0.01 : 1}
+                className={cn(
+                  metricValueColClass,
+                  "h-7 w-full rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0",
+                  "[appearance:textfield] [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+                  showPercentSuffix && "pr-3",
+                  (baselineMap[cellKey] ?? "") ? "text-gray-800" : "text-muted-foreground/40",
+                )}
+                disabled={inputsDisabled || targetsLoading}
+                aria-label={beforeLabel}
+                title={beforeHint}
+                value={baselineMap[cellKey] ?? ""}
+                onChange={(e) => onBaselineChange(account, metricKey, e.target.value)}
+              />
+              {showPercentSuffix ? (
+                <span
+                  className={cn(
+                    "pointer-events-none absolute inset-y-0 right-0 flex items-center text-xs font-semibold tabular-nums",
+                    (baselineMap[cellKey] ?? "") ? "text-gray-800" : "text-muted-foreground/40",
+                  )}
+                  aria-hidden
+                >
+                  %
+                </span>
+              ) : null}
+            </div>
+          </div>
           <button
             type="button"
             className={cn(
@@ -186,8 +236,10 @@ function MetricCell({
             title={t("digitalMarketing.dmReportTargets.useActualAsTarget", "Click to use as target")}
             disabled={!canUseActualAsTarget}
             onClick={() => {
-              if (rawActual == null || rawActual <= 0) return;
-              const value = showPercentSuffix ? rawActual.toFixed(2) : String(Math.round(rawActual));
+              if (comparableActual == null || comparableActual <= 0) return;
+              const value = showPercentSuffix
+                ? comparableActual.toFixed(2)
+                : String(Math.round(comparableActual));
               onCellChange(account, metricKey, value);
             }}
           >
@@ -239,9 +291,9 @@ function MetricCell({
 function MetricSummaryCell({
   channel,
   metricKey,
-  valueKind,
   actual,
   target,
+  baseline,
   currencyCode,
   actualLabel,
   periodNotStarted,
@@ -252,6 +304,7 @@ function MetricSummaryCell({
   valueKind: DmReportMetricValueKind;
   actual: number | null;
   target: number | null;
+  baseline: number | null;
   currencyCode: string | null;
   actualLabel: string;
   periodNotStarted: boolean;
@@ -259,22 +312,40 @@ function MetricSummaryCell({
 }) {
   const { t } = useAppTranslation();
   const targetLabel = t("digitalMarketing.dmReportTargets.targetLabel", "Target");
+  const beforeLabel = t("digitalMarketing.dmReportTargets.beforeLabel", "Before");
   const metricLabelClass =
-    "w-14 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground";
+    "w-16 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground";
   const metricValueColClass =
     "min-w-0 flex-1 text-right text-xs font-semibold tabular-nums text-gray-800";
 
+  const formatSummaryValue = (value: number | null) =>
+    isPercentScaleMetricKey(metricKey)
+      ? formatDmProgressValue(metricKey, value, currencyCode)
+      : formatDmActualValue(channel, metricKey, value, currencyCode);
   const formattedActual = periodNotStarted
     ? t("digitalMarketing.dmReportTargets.periodNotStarted", "Not started")
-    : formatDmActualValue(channel, metricKey, actual, currencyCode);
-  const formattedTarget = formatDmActualValue(channel, metricKey, target, currencyCode);
+    : formatSummaryValue(actual);
+  const formattedBefore = formatSummaryValue(baseline);
+  const formattedTarget = formatSummaryValue(target);
 
   return (
     <div className="min-w-[5.5rem]">
       {showActualsLoading ? (
-        <Skeleton className="h-[3.25rem] w-full rounded-md" />
+        <Skeleton className="h-[4.75rem] w-full rounded-md" />
       ) : (
         <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+          <div className="flex items-center gap-1.5 border-b border-gray-100 px-2 py-1">
+            <span className={metricLabelClass}>{beforeLabel}</span>
+            <span
+              className={cn(
+                metricValueColClass,
+                "truncate",
+                baseline == null && "text-muted-foreground/40",
+              )}
+            >
+              {formattedBefore}
+            </span>
+          </div>
           <div className="flex items-center gap-1.5 border-b border-gray-100 bg-gray-50/90 px-2 py-1">
             <span className={metricLabelClass}>{actualLabel}</span>
             <span className={cn(metricValueColClass, "truncate")}>{formattedActual}</span>
@@ -314,8 +385,10 @@ export function DmReportTargetsTable({
   employeesLoading,
   inputsDisabled = false,
   metricDirections,
+  baselineMap,
   onAssigneeChange,
   onCellChange,
+  onBaselineChange,
   onCellBlur,
 }: Props) {
   const { t } = useAppTranslation();
@@ -333,6 +406,26 @@ export function DmReportTargetsTable({
     }
     return result;
   }, [accounts, selectedMetrics, getAccountActuals, formMap, periodNotStarted]);
+
+  const baselineAggregates = useMemo(() => {
+    const result: Record<string, number | null> = {};
+    for (const metricKey of selectedMetrics) {
+      const entries = accounts.flatMap((account) => {
+        const raw = baselineMap[dmTargetCellKey(account.channel, account.accountId, metricKey)]?.trim();
+        const value = Number(raw);
+        if (!raw || !Number.isFinite(value) || value <= 0) return [];
+        return [
+          {
+            channel: account.channel,
+            accountKey: dmTargetAccountKey(account.channel, account.accountId),
+            value,
+          },
+        ];
+      });
+      result[metricKey] = aggregateTargetValues(metricKey, entries);
+    }
+    return result;
+  }, [accounts, selectedMetrics, baselineMap]);
 
   const primaryCurrency = accounts[0]?.currencyCode ?? null;
 
@@ -432,7 +525,9 @@ export function DmReportTargetsTable({
                       targetsLoading={targetsLoading}
                       inputsDisabled={inputsDisabled}
                       metricDirections={metricDirections}
+                      baselineMap={baselineMap}
                       onCellChange={onCellChange}
+                      onBaselineChange={onBaselineChange}
                       onCellBlur={onCellBlur}
                     />
                   </TableCell>
@@ -460,6 +555,7 @@ export function DmReportTargetsTable({
                       valueKind={metricValueKinds[metricKey] ?? "count"}
                       actual={agg?.actual ?? null}
                       target={agg?.target ?? null}
+                      baseline={baselineAggregates[metricKey] ?? null}
                       currencyCode={primaryCurrency}
                       actualLabel={actualLabel}
                       periodNotStarted={periodNotStarted}

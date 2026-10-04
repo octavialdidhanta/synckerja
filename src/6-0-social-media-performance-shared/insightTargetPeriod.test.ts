@@ -39,6 +39,47 @@ describe("resolveInsightTargetPeriod", () => {
     expect(period?.quarter).toBe(2);
   });
 
+  it("maps a custom full calendar month to that monthly period", () => {
+    const selection: GoogleAdsDateRangeSelection = {
+      preset: "custom",
+      rollingDays: 30,
+      range: {
+        from: new Date(2026, 9, 1),
+        to: new Date(2026, 9, 31),
+      },
+    };
+    const period = resolveInsightTargetPeriod(selection, new Date(2026, 9, 4));
+    expect(period?.periodType).toBe("monthly");
+    expect(period?.year).toBe(2026);
+    expect(period?.month).toBe(10);
+  });
+
+  it("maps a custom month-to-date range to the current month", () => {
+    const selection: GoogleAdsDateRangeSelection = {
+      preset: "custom",
+      rollingDays: 30,
+      range: {
+        from: new Date(2026, 9, 1),
+        to: new Date(2026, 9, 4),
+      },
+    };
+    const period = resolveInsightTargetPeriod(selection, new Date(2026, 9, 4));
+    expect(period?.month).toBe(10);
+    expect(period?.year).toBe(2026);
+  });
+
+  it("returns null for a partial custom month that is not month-to-date", () => {
+    const selection: GoogleAdsDateRangeSelection = {
+      preset: "custom",
+      rollingDays: 30,
+      range: {
+        from: new Date(2026, 9, 1),
+        to: new Date(2026, 9, 15),
+      },
+    };
+    expect(resolveInsightTargetPeriod(selection, new Date(2026, 9, 4))).toBeNull();
+  });
+
   it("returns null for last_30_days", () => {
     const selection: GoogleAdsDateRangeSelection = {
       preset: "last_30_days",

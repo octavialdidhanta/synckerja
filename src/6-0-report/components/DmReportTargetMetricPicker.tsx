@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Plus, TrendingDown, TrendingUp, X } from "lucide-react";
 import { DM_REPORT_TARGET_MAX_METRICS } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
+import type { DmReportChannel } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
 import {
   defaultDmReportMetricDirection,
   type DmReportMetricDirectionsMap,
@@ -8,7 +9,6 @@ import {
 import type { DmReportTargetDirection } from "@/6-0-digital-marketing-shared/dmReportTargetProgressMath";
 import {
   REPORT_SUMMARY_METRIC_OPTIONS,
-  reportSummaryMetricGroups,
 } from "@/6-0-digital-marketing-shared/reportSummaryMetrics";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -30,6 +30,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 
 type Props = {
+  channel?: DmReportChannel;
   selectedMetrics: string[];
   onChange: (metrics: string[]) => void;
   metricDirections: DmReportMetricDirectionsMap;
@@ -91,6 +92,7 @@ function MetricDirectionToggle({
 }
 
 export function DmReportTargetMetricPicker({
+  channel,
   selectedMetrics,
   onChange,
   metricDirections,
@@ -100,30 +102,57 @@ export function DmReportTargetMetricPicker({
   const { t } = useAppTranslation();
   const [open, setOpen] = useState(false);
 
-  const metricOptions = useMemo(
-    () =>
-      REPORT_SUMMARY_METRIC_OPTIONS.map((opt) => ({
-        ...opt,
-        label:
-          opt.key === "cost"
-            ? t("digitalMarketing.report.tableCost", "Cost")
-            : opt.key === "cpc"
-              ? t("digitalMarketing.report.tableCpc", "CPC")
-              : opt.key === "cpa"
-                ? t("digitalMarketing.report.tableCostPerLead", "CPA")
-                : opt.key === "converted_leads"
-                  ? t("digitalMarketing.report.tableConv", "Conv.")
-                  : opt.key === "impressions"
-                    ? t("digitalMarketing.report.tableImpressions", "Impressions")
-                    : opt.key === "ctr"
-                      ? t("digitalMarketing.report.tableCtr", "CTR")
-                      : opt.key === "clicks"
-                        ? t("digitalMarketing.report.tableClicks", "Clicks")
-                        : opt.label,
-        groupLabel: t("digitalMarketing.report.summaryMetricGroupPerformance", "Performance"),
-      })),
-    [t],
-  );
+  const metricOptions = useMemo(() => {
+    const base = REPORT_SUMMARY_METRIC_OPTIONS.map((opt) => ({
+      ...opt,
+      label:
+        opt.key === "cost"
+          ? t("digitalMarketing.report.tableCost", "Cost")
+          : opt.key === "cpc"
+            ? t("digitalMarketing.report.tableCpc", "CPC")
+            : opt.key === "cpa"
+              ? t("digitalMarketing.report.tableCostPerLead", "CPA")
+              : opt.key === "converted_leads"
+                ? t("digitalMarketing.report.tableConv", "Conv.")
+                : opt.key === "impressions"
+                  ? t("digitalMarketing.report.tableImpressions", "Impressions")
+                  : opt.key === "ctr"
+                    ? t("digitalMarketing.report.tableCtr", "CTR")
+                    : opt.key === "clicks"
+                      ? t("digitalMarketing.report.tableClicks", "Clicks")
+                      : opt.label,
+      groupLabel: t("digitalMarketing.report.summaryMetricGroupPerformance", "Performance"),
+    }));
+    if (channel !== "meta") return base;
+    const groupLabel = t("digitalMarketing.report.summaryMetricGroupPerformance", "Performance");
+    return [
+      ...base,
+      {
+        key: "cpm" as const,
+        label: t("digitalMarketing.metaAds.cpm", "CPM"),
+        groupId: "performance" as const,
+        groupLabel,
+      },
+      {
+        key: "view_to_atc_rate" as const,
+        label: t("digitalMarketing.metaAds.viewToAtcRate", "% View to ATC"),
+        groupId: "performance" as const,
+        groupLabel,
+      },
+      {
+        key: "atc_to_purchase_rate" as const,
+        label: t("digitalMarketing.metaAds.atcToPurchaseRate", "% ATC to Purchase"),
+        groupId: "performance" as const,
+        groupLabel,
+      },
+      {
+        key: "aov" as const,
+        label: t("digitalMarketing.metaAds.aov", "AOV"),
+        groupId: "performance" as const,
+        groupLabel,
+      },
+    ];
+  }, [channel, t]);
 
   const labelByKey = useMemo(() => {
     const map = new Map<string, string>();
@@ -131,7 +160,16 @@ export function DmReportTargetMetricPicker({
     return map;
   }, [metricOptions]);
 
-  const groups = useMemo(() => reportSummaryMetricGroups(metricOptions), [metricOptions]);
+  const groups = useMemo(
+    () => [
+      {
+        id: "performance",
+        label: metricOptions[0]?.groupLabel ?? "Performance",
+        options: metricOptions,
+      },
+    ],
+    [metricOptions],
+  );
 
   const atMax = selectedMetrics.length >= DM_REPORT_TARGET_MAX_METRICS;
 

@@ -2,12 +2,12 @@ import { useMemo } from "react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useMetaAdsReportTargetProgress } from "@/6-0-digital-marketing-shared/hooks/useMetaAdsReportTargetProgress";
-import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
+import { formatMetaAdsTargetProgressRatio } from "@/6-0-digital-marketing-shared/metaAdsPageTargetProgress";
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type { MetaAdsMetricsRow } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type { MetaAdsMetricCatalogItem } from "@/meta-ads/metrics/metaAdsMetricCatalog";
 import {
-  META_ADS_SUMMARY_SLOT_COUNT,
+  META_ADS_CPAS_SUMMARY_SLOT_COUNT,
   buildMetaAdsSummaryMetricOptions,
   buildMetaAdsSummaryTotals,
   formatMetaAdsSummaryMetricValue,
@@ -20,8 +20,6 @@ import {
   metaAdsPeriodCompareBits,
   useMetaAdsSummaryPeriodCompare,
 } from "@/6-0-meta-ads/hooks/useMetaAdsSummaryPeriodCompare";
-import type { DmReportTargetProgress } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
-
 type Summary = {
   spend: number;
   impressions: number;
@@ -44,34 +42,6 @@ type Props = {
   dateEnd?: string | null;
   compareEnabled?: boolean;
 };
-
-function formatProgressRatio(
-  tableKey: MetaAdsTableMetricKey,
-  progress: DmReportTargetProgress | undefined,
-  currency: string,
-): string | null {
-  if (
-    !progress?.showProgress ||
-    progress.target == null ||
-    progress.target <= 0 ||
-    progress.actual == null
-  ) {
-    return null;
-  }
-  const fmt = (v: number) => {
-    if (tableKey === "ctr") {
-      return formatMetaMetricValue("ctr", v, currency, { ctrSource: "computed" });
-    }
-    if (tableKey === "service_cpl") {
-      return formatMetaMetricValue("service_cpl", v, currency);
-    }
-    if (tableKey === "service_converted_leads") {
-      return formatMetaMetricValue("service_converted_leads", v, currency);
-    }
-    return formatMetaMetricValue(tableKey, v, currency);
-  };
-  return `${fmt(progress.actual)} / ${fmt(progress.target)}`;
-}
 
 export function MobileMetaAdsSummaryBar({
   entity,
@@ -155,6 +125,15 @@ export function MobileMetaAdsSummaryBar({
       enabled: compareEnabled,
     });
 
+  const showsFixedCost = !(
+    slots.length === META_ADS_CPAS_SUMMARY_SLOT_COUNT && !slots.includes("spend")
+  );
+  const extraSlots = showsFixedCost
+    ? slots.length === META_ADS_CPAS_SUMMARY_SLOT_COUNT
+      ? slots.filter((key) => key !== "spend").slice(0, META_ADS_CPAS_SUMMARY_SLOT_COUNT - 1)
+      : slots
+    : slots;
+
   if (isLoading) {
     return (
       <div
@@ -162,7 +141,7 @@ export function MobileMetaAdsSummaryBar({
         aria-busy="true"
         aria-label={t("digitalMarketing.metaAds.summaryLoading", "Loading summary metrics")}
       >
-        {Array.from({ length: 1 + META_ADS_SUMMARY_SLOT_COUNT }, (_, i) => (
+        {Array.from({ length: (showsFixedCost ? 1 : 0) + extraSlots.length }, (_, i) => (
           <div key={i} className="bg-card px-4 py-3">
             <Skeleton className="mb-1.5 h-3 w-16" />
             <Skeleton className="h-6 w-24" />
@@ -186,6 +165,7 @@ export function MobileMetaAdsSummaryBar({
 
   return (
     <div className="-mx-2 grid grid-cols-2 gap-px overflow-hidden border-y border-border bg-border">
+      {showsFixedCost ? (
       <MobileMetaAdsSummaryMetricCard
         selectedKey="spend"
         onSelectKey={() => {}}
@@ -196,10 +176,11 @@ export function MobileMetaAdsSummaryBar({
         fixedValue={formatMetaAdsSummaryMetricValue("spend", totals)}
         targetProgress={costProgress}
         targetsLoading={targetsLoading}
-        progressRatioText={formatProgressRatio("spend", costProgress, currencyCode)}
+        progressRatioText={formatMetaAdsTargetProgressRatio("spend", costProgress, currencyCode)}
         {...costCompare}
       />
-      {slots.map((key, index) => {
+      ) : null}
+      {extraSlots.map((key, index) => {
         const progress = progressByTableMetric.get(key);
         const slotCompare = metaAdsPeriodCompareBits({
           metricKey: key,
@@ -214,8 +195,14 @@ export function MobileMetaAdsSummaryBar({
             key={index}
             selectedKey={key}
             onSelectKey={(nextKey) => {
+              const source = extraSlots;
               const next = normalizeMetaAdsSummarySlotKeys(
-                slots.map((k, i) => (i === index ? nextKey : k)),
+                showsFixedCost && slots.length === META_ADS_CPAS_SUMMARY_SLOT_COUNT
+                  ? ["spend", ...source.map((k, i) => (i === index ? nextKey : k))].slice(
+                      0,
+                      META_ADS_CPAS_SUMMARY_SLOT_COUNT,
+                    )
+                  : slots.map((k, i) => (i === index ? nextKey : k)),
                 validKeys,
                 entity,
               );
@@ -226,7 +213,7 @@ export function MobileMetaAdsSummaryBar({
             isLoading={isLoading}
             targetProgress={progress}
             targetsLoading={targetsLoading}
-            progressRatioText={formatProgressRatio(key, progress, currencyCode)}
+            progressRatioText={formatMetaAdsTargetProgressRatio(key, progress, currencyCode)}
             {...slotCompare}
           />
         );

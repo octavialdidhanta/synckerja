@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useDigitalMarketingReportData } from "@/6-0-digital-marketing-shared/DigitalMarketingReportDataContext";
-import { formatDmActualValue } from "@/6-0-digital-marketing-shared/dmReportTargetActuals";
+import { formatDmReportProgressRatio } from "@/6-0-digital-marketing-shared/dmReportTargetActuals";
 import { reportMetricValueKind } from "@/6-0-digital-marketing-shared/dmReportTargetMetricMapping";
 import { useDmReportTargetProgress } from "@/6-0-digital-marketing-shared/hooks/useDmReportTargetProgress";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -128,6 +128,7 @@ export function MobileReportSummaryBar({
     tiktokAdvertiserId: null,
     selectedReportMetrics: slots,
     valueKinds: metricValueKinds,
+    cardActualByMetric: { ctr: totals.ctr },
   });
 
   const loading = servicesLoading || rowsLoading;
@@ -163,13 +164,7 @@ export function MobileReportSummaryBar({
     <div className="-mx-2 grid grid-cols-2 gap-px overflow-hidden border-y border-border bg-border">
       {slots.map((key, index) => {
         const progress = progressByReportSlot.get(key);
-        const ratioText =
-          progress?.showProgress &&
-          progress.target != null &&
-          progress.target > 0 &&
-          progress.actual != null
-            ? `${formatDmActualValue("google", key, progress.actual, currencyCode)} / ${formatDmActualValue("google", key, progress.target, currencyCode)}`
-            : null;
+        const ratioText = formatDmReportProgressRatio(progress, currencyCode);
         const slotCompare = reportPeriodCompareBits({
           metricKey: key,
           currentTotals: totals,

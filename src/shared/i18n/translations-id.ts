@@ -1345,6 +1345,9 @@ export const idTranslations: TranslationDictionary = {
     "Masukkan angka valid (≥ 0) untuk semua target.",
   "digitalMarketing.dmReportTargets.actualLabel": "Aktual",
   "digitalMarketing.dmReportTargets.currentLabel": "Saat ini",
+  "digitalMarketing.dmReportTargets.beforeLabel": "Sebelum",
+  "digitalMarketing.dmReportTargets.beforeHint":
+    "Aktual periode sebelumnya. Kosongkan untuk memakai aktual itu, atau isi angka untuk menimpanya.",
   "digitalMarketing.dmReportTargets.targetLabel": "Target",
   "digitalMarketing.dmReportTargets.periodNotStarted": "Belum dimulai",
   "digitalMarketing.dmReportTargets.useActualAsTarget": "Klik untuk pakai sebagai target",

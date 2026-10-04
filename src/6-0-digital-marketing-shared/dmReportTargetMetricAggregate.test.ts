@@ -77,6 +77,15 @@ describe("dmReportTargetMetricAggregate", () => {
     ).toBe(3_000);
   });
 
+  it("blends CTR as a percent so it matches the percent target", () => {
+    const map = new Map<string, DmAccountPeriodActuals>([
+      ["google:a", makeActuals({ clicks: 20, impressions: 1_000 })],
+      ["meta:b", makeActuals({ clicks: 30, impressions: 1_000 })],
+    ]);
+
+    expect(aggregateEfficiencyActualFromAccounts("ctr", map, null)).toBeCloseTo(2.5, 5);
+  });
+
   it("sums cost targets", () => {
     expect(
       aggregateTargetValues("cost", [

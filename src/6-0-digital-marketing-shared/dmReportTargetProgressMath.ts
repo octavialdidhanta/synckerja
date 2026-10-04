@@ -1,5 +1,6 @@
 import { resolveDmReportMetricDirection } from "@/6-0-digital-marketing-shared/dmReportMetricDirections";
 import type { DmReportMetricDirectionsMap } from "@/6-0-digital-marketing-shared/dmReportMetricDirections";
+import { isPercentScaleMetricKey } from "@/6-0-digital-marketing-shared/dmReportTargetPeriod";
 import { normalizeMonthlyTargetValue } from "@/6-1-dashboard/utils/performanceEmployeeMetrics";
 import { catalogKeyToReportSlotKey } from "@/6-0-digital-marketing-shared/googleAdsReportTargetMetricMapping";
 import { isReportMetricKey } from "@/6-0-digital-marketing-shared/dmReportTargetMetricMapping";
@@ -14,6 +15,15 @@ export function dmReportMetricDirection(
   return resolveDmReportMetricDirection(metricKey, directions);
 }
 
+/** Volume targets are whole numbers. CTR stays fractional (1.5% must not become 1). */
+function progressTargetValue(target: number, metricKey: string): number {
+  if (isPercentScaleMetricKey(metricKey)) {
+    const n = Number(target);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+  return normalizeMonthlyTargetValue(target);
+}
+
 function resolveReportMetricKey(metricKey: string): ReportTableMetricKey | null {
   if (isReportMetricKey(metricKey)) return metricKey;
   return catalogKeyToReportSlotKey(metricKey);
@@ -26,7 +36,7 @@ export function computeDmReportTargetProgressPercentage(
   metricKey: string,
   directions?: DmReportMetricDirectionsMap | null,
 ): number {
-  const normalizedTarget = normalizeMonthlyTargetValue(target);
+  const normalizedTarget = progressTargetValue(target, metricKey);
   if (normalizedTarget <= 0) return 0;
 
   const utilization = Math.round((actual / normalizedTarget) * 100);
@@ -45,7 +55,7 @@ export function computeDmReportTargetOkrPercentage(
   metricKey: string,
   directions?: DmReportMetricDirectionsMap | null,
 ): number {
-  const normalizedTarget = normalizeMonthlyTargetValue(target);
+  const normalizedTarget = progressTargetValue(target, metricKey);
   if (normalizedTarget <= 0) return 0;
 
   if (dmReportMetricDirection(metricKey, directions) === "lower_is_better") {
@@ -67,7 +77,7 @@ export function computeDmReportSummaryDisplayPercentage(
   metricKey: string,
   directions?: DmReportMetricDirectionsMap | null,
 ): number {
-  const normalizedTarget = normalizeMonthlyTargetValue(target);
+  const normalizedTarget = progressTargetValue(target, metricKey);
   if (normalizedTarget <= 0) return 0;
 
   if (dmReportMetricDirection(metricKey, directions) === "lower_is_better") {
@@ -84,7 +94,7 @@ export function computeDmReportTargetDeviationPercentage(
   metricKey: string,
   directions?: DmReportMetricDirectionsMap | null,
 ): number {
-  const normalizedTarget = normalizeMonthlyTargetValue(target);
+  const normalizedTarget = progressTargetValue(target, metricKey);
   if (normalizedTarget <= 0) return 0;
 
   if (dmReportMetricDirection(metricKey, directions) === "lower_is_better") {

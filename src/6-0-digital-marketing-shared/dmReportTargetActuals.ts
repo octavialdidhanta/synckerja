@@ -1,15 +1,24 @@
 import { formatMetricValue } from "@/google-ads/metrics/formatMetricValue";
-import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
-import { computeSummaryCpc, computeSummaryCtr } from "@/meta-ads/metrics/formatMetaMetricValue";
+import {
+  computeSummaryCpc,
+  computeSummaryCtr,
+  formatMetaCtr,
+  formatMetaMetricValue,
+} from "@/meta-ads/metrics/formatMetaMetricValue";
 import type { GoogleAdsMetricsSummaryTotals } from "@/google-ads/metrics/types";
 import type { MetaAdsMetricsRow } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type { TikTokAdsMetricsRow } from "@/tiktok-ads/hooks/useTikTokAdsMetricsQuery";
-import type { DmAccountPeriodActuals, DmReportChannel } from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
+import type {
+  DmAccountPeriodActuals,
+  DmReportChannel,
+  DmReportTargetProgress,
+} from "@/6-0-digital-marketing-shared/dmReportTargetTypes";
 import type { ReportTableMetricKey } from "@/6-0-digital-marketing-shared/reportSummaryMetrics";
 import {
   expandReportMetricsWithDependencies,
   reportMetricValueKind,
 } from "@/6-0-digital-marketing-shared/dmReportTargetMetricMapping";
+import { isPercentScaleMetricKey } from "@/6-0-digital-marketing-shared/dmReportTargetPeriod";
 
 function parseMetricNumber(raw: unknown): number | null {
   if (raw == null) return null;
@@ -29,6 +38,52 @@ function aggregateConvertedLeads(rows: Array<MetaAdsMetricsRow | TikTokAdsMetric
     }
   }
   return hasLeads ? convertedLeads : null;
+}
+
+export type DmMetaPeriodSummary = {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  currency: string;
+  content_views?: number;
+  adds_to_cart?: number;
+  purchases?: number;
+  purchase_conversion_value?: number;
+  view_to_atc_rate?: number | null;
+  atc_to_purchase_rate?: number | null;
+  aov?: number | null;
+};
+
+function finiteOrNull(value: number | null | undefined): number | null {
+  return value != null && Number.isFinite(value) ? value : null;
+}
+
+/** Meta KPI extras. Rates are already percent (2.5 = 2.5%). CPM is cost per 1,000 impressions. */
+export function metaKpiActualFromSummary(
+  summary: DmMetaPeriodSummary | null | undefined,
+  metricKey: string,
+): number | null {
+  if (!summary) return null;
+  switch (metricKey) {
+    case "cpm":
+      return summary.impressions > 0 ? (summary.spend / summary.impressions) * 1000 : null;
+    case "view_to_atc_rate":
+      return finiteOrNull(summary.view_to_atc_rate);
+    case "atc_to_purchase_rate":
+      return finiteOrNull(summary.atc_to_purchase_rate);
+    case "aov":
+      return finiteOrNull(summary.aov);
+    case "content_views":
+      return finiteOrNull(summary.content_views);
+    case "adds_to_cart":
+      return finiteOrNull(summary.adds_to_cart);
+    case "purchases":
+      return finiteOrNull(summary.purchases);
+    case "purchase_conversion_value":
+      return finiteOrNull(summary.purchase_conversion_value);
+    default:
+      return null;
+  }
 }
 
 export function actualValueFromGoogleTotals(
@@ -59,7 +114,7 @@ export function actualValueFromGoogleTotals(
 }
 
 export function actualValueFromMetaTikTok(
-  summary: { spend: number; impressions: number; clicks: number; currency: string } | null | undefined,
+  summary: DmMetaPeriodSummary | null | undefined,
   rows: Array<MetaAdsMetricsRow | TikTokAdsMetricsRow>,
   reportKey: ReportTableMetricKey,
 ): number | null {
@@ -96,14 +151,17 @@ export function buildDmAccountActuals(args: {
   connected: boolean;
   currencyCode: string | null;
   googleTotals?: GoogleAdsMetricsSummaryTotals | null;
-  metaTikTokSummary?: { spend: number; impressions: number; clicks: number; currency: string } | null;
+  metaTikTokSummary?: DmMetaPeriodSummary | null;
   metaTikTokRows?: Array<MetaAdsMetricsRow | TikTokAdsMetricsRow>;
 }): DmAccountPeriodActuals {
   const metrics: Record<string, number | null> = {};
   const keysToPopulate = expandReportMetricsWithDependencies(args.selectedMetricKeys);
   for (const key of keysToPopulate) {
     if (!isReportMetricKey(key)) {
-      metrics[key] = null;
+      metrics[key] =
+        args.channel === "google"
+          ? null
+          : metaKpiActualFromSummary(args.metaTikTokSummary, key);
       continue;
     }
     if (args.channel === "google") {
@@ -151,6 +209,14 @@ export function formatDmActualValue(
   currencyCode: string | null | undefined,
 ): string {
   if (value == null || !Number.isFinite(value)) return "—";
+  if (
+    metricKey === "cpm" ||
+    metricKey === "aov" ||
+    metricKey === "view_to_atc_rate" ||
+    metricKey === "atc_to_purchase_rate"
+  ) {
+    return formatMetaMetricValue(metricKey, value, currencyCode ?? "IDR");
+  }
   const kind = isReportMetricKey(metricKey) ? reportMetricValueKind(metricKey) : "count";
 
   if (channel === "google") {
@@ -174,6 +240,10 @@ export function formatDmActualValue(
     );
   }
 
+  if (metricKey === "ctr") {
+    return formatMetaCtr(value, "computed");
+  }
+
   const metaKey =
     metricKey === "cost"
       ? "spend"
@@ -183,4 +253,38 @@ export function formatDmActualValue(
           ? "service_cpl"
           : metricKey;
   return formatMetaMetricValue(metaKey, value, currencyCode ?? "IDR");
+}
+
+/** Progress actual/target are already on the target scale (CTR is percent, not a fraction). */
+export function formatDmProgressValue(
+  metricKey: string,
+  value: number | null | undefined,
+  currencyCode: string | null | undefined,
+): string {
+  if (isPercentScaleMetricKey(metricKey)) {
+    if (value == null || !Number.isFinite(value)) return "—";
+    return `${value.toFixed(2)}%`;
+  }
+  return formatDmActualValue("google", metricKey, value, currencyCode);
+}
+
+export function formatDmReportProgressRatio(
+  progress: DmReportTargetProgress | undefined,
+  currencyCode: string | null | undefined,
+): string | null {
+  if (
+    !progress?.showProgress ||
+    progress.target == null ||
+    progress.target <= 0 ||
+    progress.actual == null
+  ) {
+    return null;
+  }
+  const current = formatDmProgressValue(progress.metricKey, progress.actual, currencyCode);
+  const target = formatDmProgressValue(progress.metricKey, progress.target, currencyCode);
+  if (progress.baseline != null) {
+    const before = formatDmProgressValue(progress.metricKey, progress.baseline, currencyCode);
+    return `${before} → ${current} / ${target}`;
+  }
+  return `${current} / ${target}`;
 }

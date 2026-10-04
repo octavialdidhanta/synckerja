@@ -44,7 +44,8 @@ import {
 } from "@/meta-ads/metrics/metaAdsRowIdentity";
 
 export const metaAdsMetricsTableScrollClass = cn(
-  "nested-scroll-touch-chain seamless-scroll min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto",
+  "nested-scroll-touch-chain seamless-scroll scrollbar-hide min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto",
+  "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
 );
 
 const thBase =

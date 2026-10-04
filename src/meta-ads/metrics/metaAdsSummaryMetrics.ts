@@ -57,6 +57,95 @@ export const META_ADS_SUMMARY_DEFAULT_SLOT_KEYS: MetaAdsTableMetricKey[] = [
   "cpc",
 ];
 
+/** Cost, Impressions, CPM, CPC, CTR, Link clicks — CPAS summary uses four of these. */
+export const META_ADS_CPAS_SUMMARY_CLUSTER_KEYS = [
+  "impressions",
+  "cpm",
+  "cpc",
+  "ctr",
+  "clicks",
+] as const;
+
+/** Link clicks through ATC conversion value — the other CPAS summary uses four of these. */
+export const META_ADS_CPAS_FUNNEL_SUMMARY_CLUSTER_KEYS = [
+  "clicks",
+  "click_to_view_rate",
+  "content_views",
+  "view_to_atc_rate",
+  "adds_to_cart",
+  "atc_conversion_value",
+] as const;
+
+export const META_ADS_CPAS_SUMMARY_SLOT_COUNT = 4;
+
+export const META_ADS_CPAS_SUMMARY_DEFAULT_SLOT_KEYS: MetaAdsTableMetricKey[] = [
+  "spend",
+  "impressions",
+  "cpm",
+  "ctr",
+];
+
+export const META_ADS_CPAS_FUNNEL_SUMMARY_DEFAULT_SLOT_KEYS: MetaAdsTableMetricKey[] = [
+  "spend",
+  "click_to_view_rate",
+  "view_to_atc_rate",
+  "atc_conversion_value",
+];
+
+/** Adds to cart through AOV — purchase CPAS summary uses four of these. */
+export const META_ADS_CPAS_PURCHASE_SUMMARY_CLUSTER_KEYS = [
+  "adds_to_cart",
+  "atc_to_purchase_rate",
+  "purchases",
+  "purchase_conversion_value",
+  "cost_per_purchase",
+  "aov",
+] as const;
+
+export const META_ADS_CPAS_PURCHASE_SUMMARY_DEFAULT_SLOT_KEYS: MetaAdsTableMetricKey[] = [
+  "atc_to_purchase_rate",
+  "purchase_conversion_value",
+  "cost_per_purchase",
+  "aov",
+];
+
+function columnSetHasEveryKey(metricKeys: readonly string[], required: readonly string[]): boolean {
+  const selected = new Set(metricKeys);
+  return required.every((key) => selected.has(key));
+}
+
+export function isMetaAdsCpasSummaryColumnSet(metricKeys: readonly string[]): boolean {
+  return columnSetHasEveryKey(metricKeys, META_ADS_CPAS_SUMMARY_CLUSTER_KEYS);
+}
+
+export function isMetaAdsCpasFunnelSummaryColumnSet(metricKeys: readonly string[]): boolean {
+  return columnSetHasEveryKey(metricKeys, META_ADS_CPAS_FUNNEL_SUMMARY_CLUSTER_KEYS);
+}
+
+export function isMetaAdsCpasPurchaseSummaryColumnSet(metricKeys: readonly string[]): boolean {
+  return columnSetHasEveryKey(metricKeys, META_ADS_CPAS_PURCHASE_SUMMARY_CLUSTER_KEYS);
+}
+
+function cpasSummaryDefaultsForSlots(keys: readonly string[]): MetaAdsTableMetricKey[] | null {
+  if (keys.length !== META_ADS_CPAS_SUMMARY_SLOT_COUNT) return null;
+  const selected = new Set(keys);
+  const candidates = [
+    META_ADS_CPAS_PURCHASE_SUMMARY_DEFAULT_SLOT_KEYS,
+    META_ADS_CPAS_FUNNEL_SUMMARY_DEFAULT_SLOT_KEYS,
+    META_ADS_CPAS_SUMMARY_DEFAULT_SLOT_KEYS,
+  ];
+  let best = META_ADS_CPAS_SUMMARY_DEFAULT_SLOT_KEYS;
+  let bestScore = -1;
+  for (const candidate of candidates) {
+    const score = candidate.filter((key) => selected.has(key)).length;
+    if (score > bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 const CAMPAIGN_ONLY_KEYS = new Set<MetaAdsTableMetricKey>([
   "service_cpl",
   "service_converted_leads",
@@ -178,6 +267,15 @@ export function summarySlotKeysFromMetricKeys(
   metricKeys: string[],
   entity: MetaAdsMetricEntity,
 ): MetaAdsTableMetricKey[] {
+  if (isMetaAdsCpasSummaryColumnSet(metricKeys)) {
+    return [...META_ADS_CPAS_SUMMARY_DEFAULT_SLOT_KEYS];
+  }
+  if (isMetaAdsCpasFunnelSummaryColumnSet(metricKeys)) {
+    return [...META_ADS_CPAS_FUNNEL_SUMMARY_DEFAULT_SLOT_KEYS];
+  }
+  if (isMetaAdsCpasPurchaseSummaryColumnSet(metricKeys)) {
+    return [...META_ADS_CPAS_PURCHASE_SUMMARY_DEFAULT_SLOT_KEYS];
+  }
   const valid = new Set(metaAdsSummaryValidKeys(entity));
   const picked: MetaAdsTableMetricKey[] = [];
   const seen = new Set<string>();
@@ -420,10 +518,14 @@ export function normalizeMetaAdsSummarySlotKeys(
   validKeys: Iterable<MetaAdsTableMetricKey>,
   entity: MetaAdsMetricEntity,
 ): MetaAdsTableMetricKey[] {
+  const cpasDefaults = cpasSummaryDefaultsForSlots(keys);
+  const cpasSlots = cpasDefaults != null;
+  const slotCount = cpasSlots ? META_ADS_CPAS_SUMMARY_SLOT_COUNT : META_ADS_SUMMARY_SLOT_COUNT;
+  const defaults = cpasDefaults ?? META_ADS_SUMMARY_DEFAULT_SLOT_KEYS;
   const valid = new Set(validKeys);
   const result: MetaAdsTableMetricKey[] = [];
-  for (let i = 0; i < META_ADS_SUMMARY_SLOT_COUNT; i++) {
-    const fallback = META_ADS_SUMMARY_DEFAULT_SLOT_KEYS[i] ?? "spend";
+  for (let i = 0; i < slotCount; i++) {
+    const fallback = defaults[i] ?? "spend";
     const key = keys[i];
     if (key && valid.has(key as MetaAdsTableMetricKey)) {
       const k = key as MetaAdsTableMetricKey;

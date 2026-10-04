@@ -32,6 +32,11 @@ export function resolveInsightTargetPeriod(
     };
   }
 
+  if (preset === "custom") {
+    const monthly = monthlyPeriodFromCustomRange(dateSelection, now);
+    if (monthly) return monthly;
+  }
+
   if (preset === "calendar_quarter") {
     const year = dateSelection.calendarYear;
     const quarter = dateSelection.calendarQuarter;
@@ -49,6 +54,35 @@ export function resolveInsightTargetPeriod(
   }
 
   return null;
+}
+
+/** Calendar month, or the current month through today, chosen on the date picker. */
+function monthlyPeriodFromCustomRange(
+  dateSelection: GoogleAdsDateRangeSelection,
+  now: Date,
+): ResolvedInsightTargetPeriod | null {
+  const from = dateSelection.range.from;
+  const to = dateSelection.range.to;
+  if (!from || !to) return null;
+
+  const periodStart = startOfMonth(from);
+  if (startOfDay(from).getTime() !== startOfDay(periodStart).getTime()) return null;
+
+  const periodEnd = endOfMonth(periodStart);
+  const endDay = startOfDay(to).getTime();
+  const monthEndDay = startOfDay(periodEnd).getTime();
+  const today = startOfDay(now).getTime();
+  const monthToDate =
+    today >= startOfDay(periodStart).getTime() && today <= monthEndDay && endDay === today;
+  if (endDay !== monthEndDay && !monthToDate) return null;
+
+  return {
+    periodType: "monthly",
+    year: periodStart.getFullYear(),
+    month: periodStart.getMonth() + 1,
+    periodStart,
+    periodEnd,
+  };
 }
 
 export function isPeriodInProgress(period: ResolvedInsightTargetPeriod, now: Date = new Date()): boolean {

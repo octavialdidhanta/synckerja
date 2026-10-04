@@ -27,12 +27,14 @@ export function reportMetricToGoogleApiKey(reportKey: ReportTableMetricKey): str
   return GOOGLE_API_KEYS[reportKey];
 }
 
-const EFFICIENCY_METRIC_DEPENDENCIES: Partial<
-  Record<ReportTableMetricKey, ReportTableMetricKey[]>
-> = {
+const EFFICIENCY_METRIC_DEPENDENCIES: Partial<Record<string, string[]>> = {
   cpc: ["cost", "clicks"],
   cpa: ["cost", "converted_leads"],
   ctr: ["clicks", "impressions"],
+  cpm: ["cost", "impressions"],
+  view_to_atc_rate: ["adds_to_cart", "content_views"],
+  atc_to_purchase_rate: ["purchases", "adds_to_cart"],
+  aov: ["purchase_conversion_value", "purchases"],
 };
 
 /** Include base metrics required to blend CPC/CPA/CTR across accounts. */
@@ -40,7 +42,6 @@ export function expandReportMetricsWithDependencies(keys: string[]): string[] {
   const result = new Set<string>();
   for (const key of keys) {
     result.add(key);
-    if (!isReportMetricKey(key)) continue;
     for (const dep of EFFICIENCY_METRIC_DEPENDENCIES[key] ?? []) {
       result.add(dep);
     }
@@ -62,13 +63,17 @@ export function isReportMetricKey(key: string): key is ReportTableMetricKey {
   return key in GOOGLE_API_KEYS;
 }
 
-export function reportMetricValueKind(key: ReportTableMetricKey): import("@/6-0-digital-marketing-shared/dmReportTargetTypes").DmReportMetricValueKind {
+export function reportMetricValueKind(key: string): import("@/6-0-digital-marketing-shared/dmReportTargetTypes").DmReportMetricValueKind {
   switch (key) {
     case "cost":
     case "cpc":
     case "cpa":
+    case "cpm":
+    case "aov":
       return "currency";
     case "ctr":
+    case "view_to_atc_rate":
+    case "atc_to_purchase_rate":
       return "rate";
     default:
       return "count";

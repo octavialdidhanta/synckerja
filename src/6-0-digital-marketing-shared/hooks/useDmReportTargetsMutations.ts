@@ -264,7 +264,10 @@ async function saveTargetRows(
     if (existing) {
       const { data, error } = await supabase
         .from("digital_marketing_report_targets")
-        .update({ target_value: value.targetValue })
+        .update({
+          target_value: value.targetValue,
+          baseline_value: value.baselineValue ?? null,
+        })
         .eq("id", existing.id)
         .select()
         .single();
@@ -283,6 +286,7 @@ async function saveTargetRows(
           month: filter.period_type === "monthly" ? filter.month ?? null : null,
           quarter: filter.period_type === "quarterly" ? filter.quarter ?? null : null,
           target_value: value.targetValue,
+          baseline_value: value.baselineValue ?? null,
         })
         .select()
         .single();

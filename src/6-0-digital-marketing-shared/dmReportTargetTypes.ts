@@ -7,7 +7,7 @@ export type DmReportChannel = "google" | "meta" | "tiktok";
 export type DmReportTargetPeriodKey = InsightTargetPeriodKey;
 export type DmReportTargetPeriodType = InsightTargetPeriodType;
 
-export const DM_REPORT_TARGET_MAX_METRICS = 8;
+export const DM_REPORT_TARGET_MAX_METRICS = 12;
 
 export const DM_REPORT_METRIC_KEYS: ReportTableMetricKey[] = [
   "cost",
@@ -38,6 +38,8 @@ export type DmReportTargetRow = {
   month: number | null;
   quarter: number | null;
   target_value: number;
+  /** CTR before-value on the percent scale. Null uses the previous period actual. */
+  baseline_value: number | null;
   individual_objective_id: string | null;
   created_at: string;
   updated_at: string;
@@ -85,6 +87,8 @@ export type DmReportTargetFormValue = {
   accountId: string;
   metricKey: string;
   targetValue: number;
+  /** Previous-period baseline on the target scale. Null keeps that period's actual. */
+  baselineValue?: number | null;
 };
 
 export type DmReportMetricValueKind = "currency" | "count" | "rate" | "micros";
@@ -94,6 +98,8 @@ export type DmReportTargetProgress = {
   actual: number | null;
   target: number | null;
   targetRaw: number | null;
+  /** Before value on the target scale. Volume metrics are paced while the period is open. */
+  baseline: number | null;
   /** Report summary bar %: Desc = OKR score, Asc = uncapped achievement. */
   percentage: number | null;
   /** OKR-style deviation: 0 = on target, negative = off-track for direction. */

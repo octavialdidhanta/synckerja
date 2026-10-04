@@ -1,5 +1,9 @@
 import { actualValueForAccount } from "@/6-0-digital-marketing-shared/dmReportTargetActuals";
-import { isEfficiencyMetricKey } from "@/6-0-digital-marketing-shared/dmReportTargetPeriod";
+import {
+  dmCtrFractionToPercent,
+  isEfficiencyMetricKey,
+  isPercentageMetricKey,
+} from "@/6-0-digital-marketing-shared/dmReportTargetPeriod";
 import {
   parseDmTargetAccountKey,
   type DmAccountPeriodActuals,
@@ -40,6 +44,32 @@ function efficiencyPair(
     if (numerator == null || denominator == null || denominator <= 0) return null;
     return { numerator, denominator };
   }
+  if (metricKey === "cpm") {
+    const cost = actualValueForAccount(actuals, "cost");
+    const impressions = actualValueForAccount(actuals, "impressions");
+    if (cost != null && impressions != null && impressions > 0) {
+      return { numerator: cost * 1000, denominator: impressions };
+    }
+    return null;
+  }
+  if (metricKey === "view_to_atc_rate") {
+    const numerator = actualValueForAccount(actuals, "adds_to_cart");
+    const denominator = actualValueForAccount(actuals, "content_views");
+    if (numerator == null || denominator == null || denominator <= 0) return null;
+    return { numerator: numerator * 100, denominator };
+  }
+  if (metricKey === "atc_to_purchase_rate") {
+    const numerator = actualValueForAccount(actuals, "purchases");
+    const denominator = actualValueForAccount(actuals, "adds_to_cart");
+    if (numerator == null || denominator == null || denominator <= 0) return null;
+    return { numerator: numerator * 100, denominator };
+  }
+  if (metricKey === "aov") {
+    const numerator = actualValueForAccount(actuals, "purchase_conversion_value");
+    const denominator = actualValueForAccount(actuals, "purchases");
+    if (numerator == null || denominator == null || denominator <= 0) return null;
+    return { numerator, denominator };
+  }
   return null;
 }
 
@@ -55,6 +85,7 @@ export function aggregateEfficiencyActualFromAccounts(
 ): number | null {
   let numerator = 0;
   let denominator = 0;
+  const stored: DmTargetValueEntry[] = [];
 
   for (const [accountKey, actuals] of accountActuals) {
     if (filterAccountKeys && !filterAccountKeys.has(accountKey)) continue;
@@ -62,12 +93,22 @@ export function aggregateEfficiencyActualFromAccounts(
     if (!actuals.hasConnectedAccount) continue;
 
     const pair = efficiencyPair(metricKey, actuals);
-    if (!pair) continue;
-    numerator += pair.numerator;
-    denominator += pair.denominator;
+    if (pair) {
+      numerator += pair.numerator;
+      denominator += pair.denominator;
+      continue;
+    }
+    const storedValue = actualValueForAccount(actuals, metricKey);
+    if (storedValue != null && storedValue > 0) {
+      stored.push({ channel: actuals.channel, accountKey, value: storedValue });
+    }
   }
 
-  return denominator > 0 ? numerator / denominator : null;
+  if (denominator > 0) {
+    const ratio = numerator / denominator;
+    return isPercentageMetricKey(metricKey) ? dmCtrFractionToPercent(ratio) : ratio;
+  }
+  return aggregateEfficiencyTargetValues(stored);
 }
 
 export function aggregateSumActualForTargetedAccounts(

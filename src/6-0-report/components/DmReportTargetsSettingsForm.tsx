@@ -9,6 +9,11 @@ import {
   reportMetricValueKind,
 } from "@/6-0-digital-marketing-shared/dmReportTargetMetricMapping";
 import { actualValueForAccount } from "@/6-0-digital-marketing-shared/dmReportTargetActuals";
+import { savedDmBaselineValue } from "@/6-0-digital-marketing-shared/dmReportTargetBaseline";
+import {
+  dmActualOnTargetScale,
+  previousDmReportTargetPeriod,
+} from "@/6-0-digital-marketing-shared/dmReportTargetPeriod";
 import {
   clearDmReportTargetToggleViolations,
   collectDmReportTargetToggleViolations,
@@ -72,6 +77,20 @@ function rowsToAssignmentsMap(rows: DmReportTargetAssignmentRow[]): Record<strin
   return map;
 }
 
+function formatBaselineInput(value: number): string {
+  return String(Math.round(value * 100) / 100);
+}
+
+function rowsToBaselineMap(rows: DmReportTargetRow[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const row of rows) {
+    const value = savedDmBaselineValue(row);
+    if (value == null) continue;
+    map[dmTargetCellKey(row.channel, row.account_id, row.metric_key)] = formatBaselineInput(value);
+  }
+  return map;
+}
+
 function rowsToFormMap(rows: DmReportTargetRow[]): Record<string, string> {
   const map: Record<string, string> = {};
   for (const row of rows) {
@@ -101,6 +120,8 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
     initialPeriod?.quarter ?? Math.floor(now.getMonth() / 3) + 1,
   );
   const [formMap, setFormMap] = useState<Record<string, string>>({});
+  const [baselineMap, setBaselineMap] = useState<Record<string, string>>({});
+  const baselineTouchedRef = useRef(new Set<string>());
   const [assignmentsMap, setAssignmentsMap] = useState<Record<string, string>>({});
   const [companyObjectiveId, setCompanyObjectiveId] = useState<string>("");
   const [selectedMetricsByChannel, setSelectedMetricsByChannel] =
@@ -125,7 +146,16 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
   } = useInsightPeriodCompanyObjectives(periodKey);
   const { data: employees = [], isLoading: employeesLoading } = useAvailableEmployees();
 
-  const metricLabels = useMemo(() => buildReportMetricLabels(t), [t]);
+  const metricLabels = useMemo(
+    () => ({
+      ...buildReportMetricLabels(t),
+      cpm: t("digitalMarketing.metaAds.cpm", "CPM"),
+      view_to_atc_rate: t("digitalMarketing.metaAds.viewToAtcRate", "% View to ATC"),
+      atc_to_purchase_rate: t("digitalMarketing.metaAds.atcToPurchaseRate", "% ATC to Purchase"),
+      aov: t("digitalMarketing.metaAds.aov", "AOV"),
+    }),
+    [t],
+  );
 
   const metricValueKinds = useMemo(() => {
     const map: Record<string, ReturnType<typeof reportMetricValueKind>> = {};
@@ -142,6 +172,15 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
     periodNotStarted,
     isLoading: actualsLoading,
   } = useDmReportPeriodActuals(periodKey, selectedMetricsByChannel);
+
+  const previousPeriod = useMemo(
+    () => previousDmReportTargetPeriod(periodKey),
+    [periodKey],
+  );
+  const baselineMetrics = selectedMetricsByChannel;
+  const { getAccountActuals: getPreviousActuals, isLoading: previousActualsLoading } =
+    useDmReportPeriodActuals(previousPeriod, baselineMetrics);
+  const periodIdentity = `${periodKey.periodType}:${periodKey.year}:${periodKey.month ?? ""}:${periodKey.quarter ?? ""}`;
   const { saveTargets } = useDmReportTargetsMutations();
   const lastAutoClearToastRef = useRef("");
 
@@ -199,15 +238,18 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
             sortOrder: 0,
           }).hasConnectedAccount,
         getActual: (channel, accountId, metricKey) =>
-          actualValueForAccount(
-            getAccountActuals({
-              channel: channel as DmReportChannel,
-              accountId,
-              accountLabel: accountId,
-              currencyCode: null,
-              sortOrder: 0,
-            }),
+          dmActualOnTargetScale(
             metricKey,
+            actualValueForAccount(
+              getAccountActuals({
+                channel: channel as DmReportChannel,
+                accountId,
+                accountLabel: accountId,
+                currencyCode: null,
+                sortOrder: 0,
+              }),
+              metricKey,
+            ),
           ),
       }),
     [
@@ -232,6 +274,51 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
   const actualLabel = inProgress
     ? t("digitalMarketing.dmReportTargets.currentLabel", "Current")
     : t("digitalMarketing.dmReportTargets.actualLabel", "Actual");
+
+  useEffect(() => {
+    baselineTouchedRef.current = new Set();
+  }, [periodIdentity]);
+
+  useEffect(() => {
+    if (!targetsQuery.data) return;
+    const fromRows = rowsToBaselineMap(targetsQuery.data);
+    setBaselineMap((prev) => {
+      const next = { ...fromRows };
+      for (const key of baselineTouchedRef.current) {
+        if (Object.prototype.hasOwnProperty.call(prev, key)) next[key] = prev[key];
+      }
+      if (!previousActualsLoading) {
+        for (const account of accounts) {
+          const metrics = selectedMetricsByChannel[account.channel] ?? [];
+          for (const metricKey of metrics) {
+            const key = dmTargetCellKey(account.channel, account.accountId, metricKey);
+            if (baselineTouchedRef.current.has(key) || next[key]?.trim()) continue;
+            const suggested = dmActualOnTargetScale(
+              metricKey,
+              actualValueForAccount(getPreviousActuals(account), metricKey),
+            );
+            if (suggested == null || suggested <= 0) continue;
+            next[key] = formatBaselineInput(suggested);
+          }
+        }
+      }
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (
+        prevKeys.length === nextKeys.length &&
+        nextKeys.every((key) => prev[key] === next[key])
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, [
+    targetsQuery.data,
+    previousActualsLoading,
+    accounts,
+    selectedMetricsByChannel,
+    getPreviousActuals,
+  ]);
 
   useEffect(() => {
     if (!targetsQuery.data) return;
@@ -322,6 +409,19 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
     return years;
   }, [currentYear]);
 
+  const setBaselineValue = useCallback(
+    (
+      account: { channel: DmReportTargetFormValue["channel"]; accountId: string },
+      metricKey: string,
+      raw: string,
+    ) => {
+      const key = dmTargetCellKey(account.channel, account.accountId, metricKey);
+      baselineTouchedRef.current.add(key);
+      setBaselineMap((prev) => ({ ...prev, [key]: raw }));
+    },
+    [],
+  );
+
   const setCellValue = useCallback(
     (
       account: { channel: DmReportTargetFormValue["channel"]; accountId: string; accountLabel?: string },
@@ -355,7 +455,10 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
           currencyCode: null,
           sortOrder: 0,
         });
-        const rawActual = actualValueForAccount(actuals, metricKey);
+        const rawActual = dmActualOnTargetScale(
+          metricKey,
+          actualValueForAccount(actuals, metricKey),
+        );
 
         if (
           !actuals.hasConnectedAccount ||
@@ -439,7 +542,10 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
         }
 
         const actuals = getAccountActuals(account);
-        const rawActual = actualValueForAccount(actuals, metricKey);
+        const rawActual = dmActualOnTargetScale(
+          metricKey,
+          actualValueForAccount(actuals, metricKey),
+        );
         if (
           !periodNotStarted &&
           actuals.hasConnectedAccount &&
@@ -465,11 +571,28 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
           continue;
         }
 
+        let baselineValue: number | null = null;
+        const baselineRaw = baselineMap[cellKey]?.trim() ?? "";
+        if (baselineRaw) {
+          const parsedBaseline = Number(baselineRaw);
+          if (!Number.isFinite(parsedBaseline) || parsedBaseline < 0) {
+            toast.error(
+              t(
+                "digitalMarketing.dmReportTargets.invalidValue",
+                "Enter a valid non-negative number for all targets.",
+              ),
+            );
+            return;
+          }
+          baselineValue = parsedBaseline > 0 ? parsedBaseline : null;
+        }
+
         values.push({
           channel: account.channel,
           accountId: account.accountId,
           metricKey,
           targetValue: parsed,
+          baselineValue,
         });
       }
     }
@@ -762,6 +885,7 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
                   {t("digitalMarketing.dmReportTargets.channelMetricsLabel", "Metrics")}
                 </Label>
                 <DmReportTargetMetricPicker
+                  channel={channel}
                   selectedMetrics={channelMetrics}
                   onChange={(metrics) => setChannelMetrics(channel, metrics)}
                   metricDirections={metricDirections}
@@ -802,8 +926,10 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
                   employeesLoading={employeesLoading}
                   inputsDisabled={inputsDisabled}
                   metricDirections={metricDirections}
+                  baselineMap={baselineMap}
                   onAssigneeChange={setAssignee}
                   onCellChange={setCellValue}
+                  onBaselineChange={setBaselineValue}
                   onCellBlur={validateCellOnBlur}
                 />
               )}

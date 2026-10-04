@@ -1,3 +1,7 @@
+import {
+  computeDmReportBaselineGapPercentage,
+  dmMetricBaselineOnTargetScale,
+} from "@/6-0-digital-marketing-shared/dmReportTargetBaseline";
 import type { DmReportMetricDirectionsMap } from "@/6-0-digital-marketing-shared/dmReportMetricDirections";
 import {
   computeDmReportTargetDeviationPercentage,
@@ -11,8 +15,10 @@ import {
   type DmTargetValueEntry,
 } from "@/6-0-digital-marketing-shared/dmReportTargetMetricAggregate";
 import {
+  dmCtrFractionToPercent,
   effectiveTargetForDmMetric,
   isEfficiencyMetricKey,
+  isPercentageMetricKey,
   resolveDmReportTargetPeriod,
   resolvePeriodKeyToBounds,
 } from "@/6-0-digital-marketing-shared/dmReportTargetPeriod";
@@ -43,6 +49,10 @@ export function computeDmReportTargetProgress(args: {
   valueKinds: Record<string, DmReportMetricValueKind>;
   filterAccountKeys?: Set<string> | null;
   metricDirections?: DmReportMetricDirectionsMap | null;
+  /** Headline card values. CTR is a click/impression fraction; it replaces the account blend. */
+  cardActualByMetric?: Partial<Record<string, number | null>>;
+  /** Previous-period actuals keyed by dmTargetPeriodCacheKey(previous period). */
+  previousActualsByPeriod?: ReadonlyMap<string, Map<string, DmAccountPeriodActuals>>;
 }): DmReportTargetProgress[] {
   const resolvedPeriod = resolveDmReportTargetPeriod(args.dateSelection);
   if (!resolvedPeriod) return [];
@@ -78,7 +88,7 @@ export function computeDmReportTargetProgress(args: {
     const valueKind = args.valueKinds[metricKey] ?? "count";
     const showProgress = effectiveTarget != null && effectiveTarget > 0;
 
-    const actual = isEfficiencyMetricKey(metricKey)
+    let actual = isEfficiencyMetricKey(metricKey)
       ? aggregateEfficiencyActualFromAccounts(
           metricKey,
           args.accountActuals,
@@ -91,14 +101,36 @@ export function computeDmReportTargetProgress(args: {
           targetedAccountKeys,
         );
 
+    const cardFraction = args.cardActualByMetric?.[metricKey];
+    if (
+      isPercentageMetricKey(metricKey) &&
+      cardFraction != null &&
+      Number.isFinite(cardFraction)
+    ) {
+      actual = dmCtrFractionToPercent(cardFraction);
+    }
+
+    const baselineFull = dmMetricBaselineOnTargetScale({
+      metricKey,
+      rows: args.targetRows,
+      filterAccountKeys: args.filterAccountKeys,
+      previousActualsByPeriod: args.previousActualsByPeriod ?? new Map(),
+    });
+    const baseline =
+      baselineFull != null
+        ? effectiveTargetForDmMetric(baselineFull, metricKey, bounds)
+        : null;
+
     const percentage =
       showProgress && actual != null && effectiveTarget != null
-        ? computeDmReportSummaryDisplayPercentage(
-            actual,
-            effectiveTarget,
-            metricKey,
-            args.metricDirections,
-          )
+        ? baseline != null
+          ? computeDmReportBaselineGapPercentage(actual, baseline, effectiveTarget)
+          : computeDmReportSummaryDisplayPercentage(
+              actual,
+              effectiveTarget,
+              metricKey,
+              args.metricDirections,
+            )
         : null;
     const deviationPercentage =
       showProgress && actual != null && effectiveTarget != null
@@ -117,6 +149,7 @@ export function computeDmReportTargetProgress(args: {
       targetRaw: rawTarget,
       percentage,
       deviationPercentage,
+      baseline,
       showProgress,
       valueKind,
     });
