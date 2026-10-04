@@ -344,7 +344,7 @@ export function LabNodeInspector({
         ? t("thinkingLab.tree.angle", "Angle")
         : kind === "territory"
           ? t("thinkingLab.tree.territory", "Territory")
-          : t("thinkingLab.tree.bigThought", "Big Thought");
+      : t("thinkingLab.tree.bigThought", "Big Thought");
   const heading = (title?.trim() || (kind === "master" && subject?.trim()) || statement).trim();
   const detail = statement.trim() !== heading ? statement.trim() : "";
   const showTerritoryGenerate = Boolean(

@@ -73,10 +73,14 @@ export function MetaAdsSummaryMetricPicker({
   const label = selected?.label ?? selectedKey;
   const value = formatMetaAdsSummaryMetricValue(selectedKey, totals);
 
+  const purchaseValueCard = selectedKey === "purchase_conversion_value";
+  const compareBadgeClass = purchaseValueCard ? "rounded bg-white px-1 py-0.5" : undefined;
+
   return (
     <div
       className={cn(
-        "rounded-md border border-gray-200 bg-white px-3 py-2",
+        "rounded-md border px-3 py-2",
+        purchaseValueCard ? "border-brand-blue-deep bg-brand-blue" : "border-gray-200 bg-white",
         className,
       )}
     >
@@ -85,12 +89,20 @@ export function MetaAdsSummaryMetricPicker({
           <Button
             type="button"
             variant="ghost"
-            className="h-auto w-full justify-start gap-1 px-0 py-0 text-left font-normal hover:bg-transparent"
+            className={cn(
+              "h-auto w-full justify-start gap-1 px-0 py-0 text-left font-normal hover:bg-transparent",
+              purchaseValueCard && "text-white hover:text-white",
+            )}
             disabled={isLoading || options.length === 0}
           >
             <span className="flex w-full min-w-0 flex-col items-start">
               <span className="flex w-full min-w-0 items-center gap-1">
-                <span className="inline-flex min-w-0 items-center gap-0.5 text-xs text-muted-foreground">
+                <span
+                  className={cn(
+                    "inline-flex min-w-0 items-center gap-0.5 text-xs",
+                    purchaseValueCard ? "text-white" : "text-muted-foreground",
+                  )}
+                >
                   <span className="truncate">{label}</span>
                   <ChevronDown className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
                 </span>
@@ -99,10 +111,16 @@ export function MetaAdsSummaryMetricPicker({
                     delta={compareDelta}
                     metricKey={compareMetricKey ?? selectedKey}
                     loading={compareLoading}
+                    className={compareBadgeClass}
                   />
                 ) : null}
               </span>
-              <span className="text-base font-semibold tabular-nums text-gray-900">
+              <span
+                className={cn(
+                  "text-base font-semibold tabular-nums",
+                  purchaseValueCard ? "text-white" : "text-gray-900",
+                )}
+              >
                 {isLoading ? (
                   <span className="inline-block h-5 w-20 animate-pulse rounded bg-muted" />
                 ) : (
@@ -149,6 +167,7 @@ export function MetaAdsSummaryMetricPicker({
           rangeLabel={compareRangeLabel}
           previousText={comparePreviousText}
           loading={compareLoading}
+          className={purchaseValueCard ? "text-white" : undefined}
         />
       ) : null}
       <div className="mt-2 min-h-[1.125rem]">
@@ -163,15 +182,27 @@ export function MetaAdsSummaryMetricPicker({
             target={targetProgress.target}
             percentage={targetProgress.percentage ?? undefined}
             color="primary"
+            className={
+              purchaseValueCard
+                ? "[&_.bg-gray-200]:bg-white/25 [&_.bg-primary]:bg-white [&_.text-primary]:text-white"
+                : undefined
+            }
           />
         ) : (
           <div className="flex h-[1.125rem] items-center">
-            <span className="text-xs text-gray-400">—</span>
+            <span className={cn("text-xs", purchaseValueCard ? "text-white/80" : "text-gray-400")}>—</span>
           </div>
         )}
       </div>
       {progressRatioText ? (
-        <p className="mt-0.5 text-[10px] tabular-nums text-muted-foreground">{progressRatioText}</p>
+        <p
+          className={cn(
+            "mt-0.5 text-[10px] tabular-nums",
+            purchaseValueCard ? "text-white" : "text-muted-foreground",
+          )}
+        >
+          {progressRatioText}
+        </p>
       ) : null}
     </div>
   );

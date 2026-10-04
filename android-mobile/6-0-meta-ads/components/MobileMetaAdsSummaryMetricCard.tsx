@@ -66,22 +66,44 @@ export function MobileMetaAdsSummaryMetricCard({
     fixedValue ??
     (isLoading ? null : formatMetaAdsSummaryMetricValue(selectedKey, totals));
 
+  const purchaseValueCard = selectedKey === "purchase_conversion_value";
+  const compareBadgeClass = purchaseValueCard ? "rounded bg-white px-1 py-0.5" : undefined;
+
   return (
-    <div className={cn("bg-card px-4 py-3", className)}>
+    <div
+      className={cn(
+        "px-4 py-3",
+        purchaseValueCard ? "bg-brand-blue" : "bg-card",
+        className,
+      )}
+    >
       {isFixed ? (
         <div className="flex min-w-0 flex-col items-start">
           <div className="flex w-full min-w-0 items-center gap-1">
-            <span className="min-w-0 truncate text-xs text-muted-foreground">{label}</span>
+            <span
+              className={cn(
+                "min-w-0 truncate text-xs",
+                purchaseValueCard ? "text-white" : "text-muted-foreground",
+              )}
+            >
+              {label}
+            </span>
             {compareVisible ? (
               <PeriodCompareDeltaBadge
                 compact
                 delta={compareDelta}
                 metricKey={compareMetricKey ?? selectedKey}
                 loading={compareLoading}
+                className={compareBadgeClass}
               />
             ) : null}
           </div>
-          <span className="text-lg font-semibold tabular-nums text-foreground">
+          <span
+            className={cn(
+              "text-lg font-semibold tabular-nums",
+              purchaseValueCard ? "text-white" : "text-foreground",
+            )}
+          >
             {isLoading ? (
               <span className="inline-block h-6 w-24 animate-pulse rounded bg-muted" />
             ) : (
@@ -93,26 +115,40 @@ export function MobileMetaAdsSummaryMetricCard({
         <Button
           type="button"
           variant="ghost"
-          className="h-auto w-full justify-start gap-1 px-0 py-0 text-left font-normal hover:bg-transparent"
+          className={cn(
+            "h-auto w-full justify-start gap-1 px-0 py-0 text-left font-normal hover:bg-transparent",
+            purchaseValueCard && "text-white hover:text-white",
+          )}
           disabled={isLoading || options.length === 0}
           onClick={() => setOpen(true)}
         >
           <span className="flex w-full min-w-0 flex-col items-start">
             <span className="flex w-full min-w-0 items-center gap-1">
-              <span className="inline-flex min-w-0 items-center gap-0.5 text-xs text-muted-foreground">
+              <span
+                className={cn(
+                  "inline-flex min-w-0 items-center gap-0.5 text-xs",
+                  purchaseValueCard ? "text-white" : "text-muted-foreground",
+                )}
+              >
                 <span className="truncate">{label}</span>
                 <ChevronDown className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
               </span>
               {compareVisible ? (
-                <PeriodCompareDeltaBadge
-                  compact
-                  delta={compareDelta}
-                  metricKey={compareMetricKey ?? selectedKey}
-                  loading={compareLoading}
-                />
+              <PeriodCompareDeltaBadge
+                compact
+                delta={compareDelta}
+                metricKey={compareMetricKey ?? selectedKey}
+                loading={compareLoading}
+                className={compareBadgeClass}
+              />
               ) : null}
             </span>
-            <span className="text-lg font-semibold tabular-nums text-foreground">
+            <span
+              className={cn(
+                "text-lg font-semibold tabular-nums",
+                purchaseValueCard ? "text-white" : "text-foreground",
+              )}
+            >
               {isLoading ? (
                 <span className="inline-block h-6 w-24 animate-pulse rounded bg-muted" />
               ) : (
@@ -128,6 +164,7 @@ export function MobileMetaAdsSummaryMetricCard({
           rangeLabel={compareRangeLabel}
           previousText={comparePreviousText}
           loading={compareLoading}
+          className={purchaseValueCard ? "text-white" : undefined}
         />
       ) : null}
 
@@ -143,15 +180,27 @@ export function MobileMetaAdsSummaryMetricCard({
             target={targetProgress.target}
             percentage={targetProgress.percentage ?? undefined}
             color="primary"
+            className={
+              purchaseValueCard
+                ? "[&_.bg-gray-200]:bg-white/25 [&_.bg-primary]:bg-white [&_.text-primary]:text-white"
+                : undefined
+            }
           />
         ) : (
           <div className="flex h-[1.125rem] items-center">
-            <span className="text-xs text-muted-foreground/60">—</span>
+            <span className={cn("text-xs", purchaseValueCard ? "text-white/80" : "text-muted-foreground/60")}>—</span>
           </div>
         )}
       </div>
       {progressRatioText ? (
-        <p className="mt-0.5 text-[10px] tabular-nums text-muted-foreground">{progressRatioText}</p>
+        <p
+          className={cn(
+            "mt-0.5 text-[10px] tabular-nums",
+            purchaseValueCard ? "text-white" : "text-muted-foreground",
+          )}
+        >
+          {progressRatioText}
+        </p>
       ) : null}
 
       {!isFixed ? (

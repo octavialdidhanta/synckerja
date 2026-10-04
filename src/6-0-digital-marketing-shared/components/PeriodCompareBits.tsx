@@ -10,6 +10,7 @@ type PeriodCompareDeltaBadgeProps = {
   loading?: boolean;
   compact?: boolean;
   metricDirections?: DmReportMetricDirectionsMap | null;
+  className?: string;
 };
 
 export function PeriodCompareDeltaBadge({
@@ -18,6 +19,7 @@ export function PeriodCompareDeltaBadge({
   loading = false,
   compact = false,
   metricDirections,
+  className,
 }: PeriodCompareDeltaBadgeProps) {
   if (loading) {
     return (
@@ -34,6 +36,7 @@ export function PeriodCompareDeltaBadge({
         "inline-flex shrink-0 items-center gap-0.5 font-medium leading-none",
         compact ? "text-[10px]" : "text-xs",
         kpiCompareToneClass(tone),
+        className,
       )}
     >
       {delta.direction === "up" ? (
@@ -55,6 +58,7 @@ type PeriodCompareFooterProps = {
   visible?: boolean;
   /** Hide the previous-period value so the current number stays the only figure. */
   hidePrevious?: boolean;
+  className?: string;
 };
 
 export function PeriodCompareFooter({
@@ -64,6 +68,7 @@ export function PeriodCompareFooter({
   compact = false,
   visible = true,
   hidePrevious = false,
+  className,
 }: PeriodCompareFooterProps) {
   if (!visible && !loading) return null;
   if (loading) {
@@ -80,6 +85,7 @@ export function PeriodCompareFooter({
         className={cn(
           "mt-1 min-w-0 truncate leading-tight text-muted-foreground",
           compact ? "text-[10px]" : "text-xs",
+          className,
         )}
       >
         vs {rangeLabel}
@@ -91,6 +97,7 @@ export function PeriodCompareFooter({
       className={cn(
         "mt-1 flex items-baseline justify-between gap-1 leading-tight text-muted-foreground",
         compact ? "text-[10px]" : "text-xs",
+        className,
       )}
     >
       <span className="min-w-0 truncate">{rangeLabel}</span>
