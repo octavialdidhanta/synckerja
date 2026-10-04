@@ -112,7 +112,7 @@ export function DmReportTargetMetricPicker({
               : opt.key === "cpa"
                 ? t("digitalMarketing.report.tableCostPerLead", "CPA")
                 : opt.key === "converted_leads"
-                  ? t("digitalMarketing.report.tableConv", "Conv.")}
+                  ? t("digitalMarketing.report.tableConv", "Conv.")
                   : opt.key === "impressions"
                     ? t("digitalMarketing.report.tableImpressions", "Impressions")
                     : opt.key === "ctr"
