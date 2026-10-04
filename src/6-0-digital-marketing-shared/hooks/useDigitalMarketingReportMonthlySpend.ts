@@ -36,7 +36,10 @@ export type MonthlySpendBucket = {
   month: number;
   spend: number;
   converted_leads?: number;
+  /** CRM CPA (spend ÷ converted leads). The account CPA chart uses platform_results. */
   cpa?: number | null;
+  /** Meta purchases, or Google/TikTok conversions, for the ad-delivery month. */
+  platform_results?: number;
 };
 
 export type ReportChartSpanMode = "calendar_year" | "all_time";
@@ -97,6 +100,7 @@ export type ReportMonthlyCpaChartPoint = {
   tiktokSpend: number;
   /** Scoped totals for "All channels" (matches table when a service filter is active). */
   totalSpend: number;
+  /** Platform results in scope (Meta purchases + Google/TikTok conversions). */
   totalLeads: number;
   googleLeads: number;
   metaLeads: number;
@@ -143,7 +147,35 @@ function emptyMonths(fallbackYear = new Date().getFullYear()): MonthlySpendBucke
     spend: 0,
     converted_leads: 0,
     cpa: null,
+    platform_results: 0,
   }));
+}
+
+function readPlatformResults(row: MonthlySpendBucket | undefined): number {
+  const n = Number(row?.platform_results);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function platformCpa(spend: number, results: number): number | null {
+  if (!(spend > 0) || !(results > 0)) return null;
+  return spend / results;
+}
+
+function overlayPlatformResults(
+  months: MonthlySpendBucket[],
+  overlay: MonthlySpendBucket[] | undefined,
+): MonthlySpendBucket[] {
+  if (!overlay?.length) return months;
+  return months.map((month) => {
+    const hit = overlay.find(
+      (row) =>
+        row.month === month.month &&
+        (row.year == null || month.year == null || Number(row.year) === Number(month.year)),
+    );
+    if (hit?.platform_results == null) return month;
+    const n = Number(hit.platform_results);
+    return { ...month, platform_results: Number.isFinite(n) && n > 0 ? n : 0 };
+  });
 }
 
 function monthPeriodKey(year: number, month: number): string {
@@ -163,6 +195,7 @@ function normalizeMonthlyBuckets(
         month: r.month,
         spend: r.spend ?? 0,
         converted_leads: r.converted_leads ?? 0,
+        platform_results: readPlatformResults(r),
         cpa:
           r.cpa !== undefined
             ? r.cpa
@@ -184,7 +217,14 @@ function normalizeMonthlyBuckets(
         : spend > 0 && converted_leads > 0
           ? spend / converted_leads
           : null;
-    return { year: fallbackYear, month, spend, converted_leads, cpa };
+    return {
+      year: fallbackYear,
+      month,
+      spend,
+      converted_leads,
+      platform_results: readPlatformResults(row),
+      cpa,
+    };
   });
 }
 
@@ -229,17 +269,20 @@ function aggregateBucketsByCalendarMonth(
     month: i + 1,
     spend: 0,
     converted_leads: 0,
+    platform_results: 0,
   }));
   for (const r of rows) {
     if (r.month < 1 || r.month > 12) continue;
     const slot = sums[r.month - 1]!;
     slot.spend += Number.isFinite(r.spend) ? r.spend : 0;
     slot.converted_leads += Number.isFinite(r.converted_leads) ? r.converted_leads! : 0;
+    slot.platform_results += readPlatformResults(r);
   }
   return sums.map((b) => ({
     month: b.month,
     spend: b.spend,
     converted_leads: b.converted_leads,
+    platform_results: b.platform_results,
     cpa:
       b.spend > 0 && b.converted_leads > 0 ? b.spend / b.converted_leads : null,
   }));
@@ -465,6 +508,40 @@ export function buildMonthlySpendChartPoints(args: {
   });
 }
 
+/**
+ * Account Cost/Purchase for a date filter that starts on the 1st and stays
+ * inside one calendar month. The CPA bar for that month uses these figures
+ * so it matches the summary card, not a separate monthly insights total.
+ */
+export type MetaAccountCpaAnchor = {
+  year: number;
+  month: number;
+  spend: number;
+  purchases: number;
+};
+
+export function metaCpaAnchorFromAccountSummary(
+  period: {
+    dateStart: string;
+    dateEnd: string;
+    spend: number;
+    purchases: number;
+  } | null,
+): MetaAccountCpaAnchor | null {
+  if (!period) return null;
+  const start = /^(\d{4})-(\d{2})-(\d{2})$/.exec(period.dateStart.trim());
+  const end = /^(\d{4})-(\d{2})-(\d{2})$/.exec(period.dateEnd.trim());
+  if (!start || !end) return null;
+  if (start[1] !== end[1] || start[2] !== end[2] || start[3] !== "01") return null;
+  if (!(period.spend > 0) || !(period.purchases > 0)) return null;
+  return {
+    year: Number(start[1]),
+    month: Number(start[2]),
+    spend: period.spend,
+    purchases: period.purchases,
+  };
+}
+
 export function buildMonthlyCpaChartPoints(args: {
   year: number;
   locale: string;
@@ -473,8 +550,19 @@ export function buildMonthlyCpaChartPoints(args: {
   meta: MonthlySpendChannelSeries;
   tiktok: MonthlySpendChannelSeries;
   combinedScope?: ReportCombinedChannelScope;
+  /** Same spend and purchases as the Meta Cost/Purchase card for that month. */
+  metaPeriodAnchor?: MetaAccountCpaAnchor | null;
 }): ReportMonthlyCpaChartPoint[] {
-  const { year, locale, google, meta, tiktok, combinedScope, spanMode = "calendar_year" } = args;
+  const {
+    year,
+    locale,
+    google,
+    meta,
+    tiktok,
+    combinedScope,
+    spanMode = "calendar_year",
+    metaPeriodAnchor = null,
+  } = args;
   const scope =
     combinedScope ??
     buildReportCombinedChannelScope({
@@ -516,33 +604,33 @@ export function buildMonthlyCpaChartPoints(args: {
     const metaRow = findBucketForChart(metaMonths, month, y, spanMode);
     const tiktokRow = findBucketForChart(tiktokMonths, month, y, spanMode);
     const googleSpend = google.connected ? (googleRow?.spend ?? 0) : 0;
-    const metaSpend = meta.connected ? (metaRow?.spend ?? 0) : 0;
+    const anchoredMeta =
+      meta.connected &&
+      spanMode !== "all_time" &&
+      metaPeriodAnchor != null &&
+      y === metaPeriodAnchor.year &&
+      month === metaPeriodAnchor.month
+        ? metaPeriodAnchor
+        : null;
+    const metaSpend = anchoredMeta
+      ? anchoredMeta.spend
+      : meta.connected
+        ? (metaRow?.spend ?? 0)
+        : 0;
     const tiktokSpend = tiktok.connected ? (tiktokRow?.spend ?? 0) : 0;
-    const googleLeads = google.connected ? (googleRow?.converted_leads ?? 0) : 0;
-    const metaLeads = meta.connected ? (metaRow?.converted_leads ?? 0) : 0;
-    const tiktokLeads = tiktok.connected ? (tiktokRow?.converted_leads ?? 0) : 0;
-    const googleCpa =
-      google.connected && googleSpend > 0 && googleLeads > 0
-        ? googleSpend / googleLeads
-        : google.connected
-          ? (googleRow?.cpa ?? null)
-          : null;
-    const metaCpa =
-      meta.connected && metaSpend > 0 && metaLeads > 0
-        ? metaSpend / metaLeads
-        : meta.connected
-          ? (metaRow?.cpa ?? null)
-          : null;
-    const tiktokCpa =
-      tiktok.connected && tiktokSpend > 0 && tiktokLeads > 0
-        ? tiktokSpend / tiktokLeads
-        : tiktok.connected
-          ? (tiktokRow?.cpa ?? null)
-          : null;
-    const totalLeads = combineMonthlyGoogleMeta(googleLeads, metaLeads, tiktokLeads, scope);
+    const googleResults = google.connected ? readPlatformResults(googleRow) : 0;
+    const metaResults = anchoredMeta
+      ? anchoredMeta.purchases
+      : meta.connected
+        ? readPlatformResults(metaRow)
+        : 0;
+    const tiktokResults = tiktok.connected ? readPlatformResults(tiktokRow) : 0;
+    const googleCpa = platformCpa(googleSpend, googleResults);
+    const metaCpa = platformCpa(metaSpend, metaResults);
+    const tiktokCpa = platformCpa(tiktokSpend, tiktokResults);
+    const totalResults = combineMonthlyGoogleMeta(googleResults, metaResults, tiktokResults, scope);
     const totalSpend = combineMonthlyGoogleMeta(googleSpend, metaSpend, tiktokSpend, scope);
-    const totalCpa =
-      canCombineCpa && totalLeads > 0 && totalSpend > 0 ? totalSpend / totalLeads : null;
+    const totalCpa = canCombineCpa ? platformCpa(totalSpend, totalResults) : null;
 
     return {
       year: y,
@@ -557,10 +645,10 @@ export function buildMonthlyCpaChartPoints(args: {
       metaSpend,
       tiktokSpend,
       totalSpend,
-      totalLeads,
-      googleLeads,
-      metaLeads,
-      tiktokLeads,
+      totalLeads: totalResults,
+      googleLeads: googleResults,
+      metaLeads: metaResults,
+      tiktokLeads: tiktokResults,
     };
   });
 }
@@ -570,6 +658,11 @@ export type UseDigitalMarketingReportMonthlySpendOptions = {
   forChartsCompare?: boolean;
   /** When false, monthly chart queries are not fetched (lazy / deferred load). */
   enabled?: boolean;
+  /**
+   * Spend, CPA, and Conv. leads charts stay on the chart year.
+   * Month filters inside that year update the table only.
+   */
+  followChartYear?: boolean;
 };
 
 export function useDigitalMarketingReportMonthlySpend(
@@ -647,15 +740,24 @@ export function useDigitalMarketingReportMonthlySpend(
 
   const googleAccountEarliestYmd = accountDateBounds?.earliest_date ?? null;
 
+  /**
+   * Spend / CPA / Conv. leads stay on the chart year.
+   * A month filter inside that year updates the table only.
+   * All time still uses the full history.
+   */
+  const chartsUseFullCalendarYear =
+    compareActive ||
+    (Boolean(options?.followChartYear) && dateSelection.preset !== "all_time");
+
   const chartDateSelection = useMemo(
     () =>
       resolveReportChartMonthlyDateSelection(
         dateSelection,
         selectedYear,
-        compareActive,
+        chartsUseFullCalendarYear,
         googleAccountEarliestYmd,
       ),
-    [dateSelection, selectedYear, compareActive, googleAccountEarliestYmd],
+    [dateSelection, selectedYear, chartsUseFullCalendarYear, googleAccountEarliestYmd],
   );
 
   const chartDateOverlap = chartDateSelection != null;
@@ -665,10 +767,10 @@ export function useDigitalMarketingReportMonthlySpend(
       resolveReportGoogleDateRangePayloadForCharts(
         dateSelection,
         selectedYear,
-        compareActive,
+        chartsUseFullCalendarYear,
         googleAccountEarliestYmd,
       ),
-    [dateSelection, selectedYear, compareActive, googleAccountEarliestYmd],
+    [dateSelection, selectedYear, chartsUseFullCalendarYear, googleAccountEarliestYmd],
   );
 
   const metaReportRange = useMemo(
@@ -676,9 +778,9 @@ export function useDigitalMarketingReportMonthlySpend(
       resolveReportMetaDateRangePayloadForCharts(
         dateSelection,
         selectedYear,
-        compareActive,
+        chartsUseFullCalendarYear,
       ),
-    [dateSelection, selectedYear, compareActive],
+    [dateSelection, selectedYear, chartsUseFullCalendarYear],
   );
 
   const tiktokReportRange = useMemo(
@@ -686,9 +788,9 @@ export function useDigitalMarketingReportMonthlySpend(
       resolveReportTikTokDateRangePayloadForCharts(
         dateSelection,
         selectedYear,
-        compareActive,
+        chartsUseFullCalendarYear,
       ),
-    [dateSelection, selectedYear, compareActive],
+    [dateSelection, selectedYear, chartsUseFullCalendarYear],
   );
 
   const metaRangeWithinLookback = useMemo(
@@ -696,10 +798,10 @@ export function useDigitalMarketingReportMonthlySpend(
       !isReportMetaRangeUnavailableForCharts(
         dateSelection,
         selectedYear,
-        compareActive,
+        chartsUseFullCalendarYear,
         googleAccountEarliestYmd,
       ),
-    [dateSelection, selectedYear, compareActive, googleAccountEarliestYmd],
+    [dateSelection, selectedYear, chartsUseFullCalendarYear, googleAccountEarliestYmd],
   );
 
   const tiktokRangeWithinLookback = useMemo(
@@ -707,10 +809,10 @@ export function useDigitalMarketingReportMonthlySpend(
       !isReportTikTokRangeUnavailableForCharts(
         dateSelection,
         selectedYear,
-        compareActive,
+        chartsUseFullCalendarYear,
         googleAccountEarliestYmd,
       ),
-    [dateSelection, selectedYear, compareActive, googleAccountEarliestYmd],
+    [dateSelection, selectedYear, chartsUseFullCalendarYear, googleAccountEarliestYmd],
   );
 
   const { data: metaSettings, isPending: metaSettingsPending } = useMetaAdsSettings(
@@ -755,7 +857,7 @@ export function useDigitalMarketingReportMonthlySpend(
 
   const googleMonthlyQuery = useQuery({
     queryKey: [
-      "dm-report-google-monthly-spend-v12",
+      "dm-report-google-monthly-spend-v13",
       organizationId,
       effectiveGoogleCustomerId,
       selectedYear,
@@ -798,7 +900,7 @@ export function useDigitalMarketingReportMonthlySpend(
 
   const metaMonthlyQuery = useQuery({
     queryKey: [
-      "dm-report-meta-monthly-spend-v10",
+      "dm-report-meta-monthly-spend-v11",
       organizationId,
       effectiveMetaAdAccountId,
       selectedYear,
@@ -840,9 +942,55 @@ export function useDigitalMarketingReportMonthlySpend(
     staleTime: 10 * 60 * 1000,
   });
 
+  const metaMonthlyHasPlatformResults = (metaMonthlyQuery.data?.months ?? []).some(
+    (row) => row.platform_results != null,
+  );
+  const metaPurchasesQuery = useQuery({
+    queryKey: [
+      "dm-report-meta-monthly-purchases-v1",
+      organizationId,
+      effectiveMetaAdAccountId,
+      selectedYear,
+      metaReportRange?.start,
+      metaReportRange?.end,
+    ],
+    queryFn: async (): Promise<{ months?: MonthlySpendBucket[] }> => {
+      if (!organizationId || !effectiveMetaAdAccountId || !metaReportRange) {
+        throw new Error("Missing organization or Meta ad account");
+      }
+      const { data, error } = await supabase.functions.invoke("meta-ads-monthly-purchases", {
+        body: {
+          organization_id: organizationId,
+          ad_account_id: effectiveMetaAdAccountId,
+          year: selectedYear,
+          date_start: metaReportRange.start,
+          date_end: metaReportRange.end,
+        },
+      });
+      if (error) throw await parseMetaEdgeError(error, data);
+      const payload = data as { months?: MonthlySpendBucket[]; error?: string };
+      if (payload?.error) throw await parseMetaEdgeError(null, payload);
+      return payload;
+    },
+    enabled: Boolean(
+      chartsQueryEnabled &&
+        filtersHydrated &&
+        organizationId &&
+        metaReportingEnabled &&
+        effectiveMetaAdAccountId &&
+        chartDateOverlap &&
+        metaReportRange &&
+        metaRangeWithinLookback &&
+        !apiServiceId &&
+        metaMonthlyQuery.isSuccess &&
+        !metaMonthlyHasPlatformResults,
+    ),
+    staleTime: 10 * 60 * 1000,
+  });
+
   const tiktokMonthlyQuery = useQuery({
     queryKey: [
-      "dm-report-tiktok-monthly-spend-v1",
+      "dm-report-tiktok-monthly-spend-v2",
       organizationId,
       effectiveTikTokAdvertiserId,
       selectedYear,
@@ -954,6 +1102,13 @@ export function useDigitalMarketingReportMonthlySpend(
     selectedYear,
   ]);
 
+  const metaPurchasesOutstanding =
+    !apiServiceId &&
+    metaMonthlyQuery.isSuccess &&
+    !metaMonthlyHasPlatformResults &&
+    !metaPurchasesQuery.data &&
+    !metaPurchasesQuery.isError;
+
   const metaSeries: MonthlySpendChannelSeries = useMemo(() => {
     const loading =
       chartsQueryEnabled &&
@@ -961,7 +1116,8 @@ export function useDigitalMarketingReportMonthlySpend(
         !filtersHydrated ||
         metaReportingPending ||
         metaSettingsPending ||
-        (metaReportingEnabled && metaMonthlyQuery.isLoading));
+        (metaReportingEnabled &&
+          (metaMonthlyQuery.isLoading || metaPurchasesOutstanding || metaPurchasesQuery.isLoading)));
     if (!chartsQueryEnabled) {
       return {
         connected: Boolean(metaReportingEnabled),
@@ -1015,7 +1171,10 @@ export function useDigitalMarketingReportMonthlySpend(
       };
     }
     const data = metaMonthlyQuery.data;
-    const months = normalizeMonthlyBuckets(data?.months, selectedYear);
+    const months = overlayPlatformResults(
+      normalizeMonthlyBuckets(data?.months, selectedYear),
+      !apiServiceId && !metaMonthlyHasPlatformResults ? metaPurchasesQuery.data?.months : undefined,
+    );
     return {
       connected: true,
       loading,
@@ -1032,6 +1191,11 @@ export function useDigitalMarketingReportMonthlySpend(
     metaSettingsPending,
     metaReportingEnabled,
     metaMonthlyQuery,
+    metaPurchasesQuery.data,
+    metaPurchasesQuery.isLoading,
+    metaPurchasesOutstanding,
+    metaMonthlyHasPlatformResults,
+    apiServiceId,
     chartDateOverlap,
     metaRangeWithinLookback,
     selectedYear,

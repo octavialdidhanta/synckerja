@@ -35,10 +35,12 @@ import { MetaAdsMetricsPageSkeleton } from "@/6-0-meta-ads/skeletons/MetaAdsMetr
 import { MetaAdsEntityNav, type MetaAdsNavAccount } from "@/6-0-meta-ads/components/MetaAdsEntityNav";
 import { MetaAdsMetricsSummaryBar } from "@/6-0-meta-ads/components/MetaAdsMetricsSummaryBar";
 import { MetaAdsMetricsTable } from "@/6-0-meta-ads/components/MetaAdsMetricsTable";
+import { MetaAdsParentFilterSelects } from "@/6-0-meta-ads/components/MetaAdsParentFilterSelects";
 import { MetaAdsMetricsTableFooter } from "@/6-0-meta-ads/components/MetaAdsMetricsTableFooter";
 import { MetaAdsModifyColumnsDialog } from "@/6-0-meta-ads/components/MetaAdsModifyColumnsDialog";
 import { MetaAdsDateRangePicker } from "@/6-0-meta-ads/components/MetaAdsDateRangePicker";
 import { useMetaAdsMetricsPreferences } from "@/meta-ads/hooks/useMetaAdsMetricsPreferences";
+import { useMetaAdsParentScope } from "@/meta-ads/hooks/useMetaAdsParentScope";
 import {
   useMetaAdsColumnSets,
 } from "@/meta-ads/hooks/useMetaAdsColumnSets";
@@ -60,6 +62,7 @@ import {
   META_ADS_SUMMARY_DEFAULT_SLOT_KEYS,
   metaAdsSummaryValidKeys,
   normalizeMetaAdsSummarySlotKeys,
+  summarySlotKeysFromMetricKeys,
   type MetaAdsTableMetricKey,
 } from "@/meta-ads/metrics/metaAdsSummaryMetrics";
 import {
@@ -131,6 +134,7 @@ function MetaAdsMetricsPageContent() {
   const setAdAccountId = setMetaAdAccountId;
   const [sort, setSort] = useState<MetaAdsMetricsSort>({ field: "spend", direction: "desc" });
   const [metricsDialogOpen, setMetricsDialogOpen] = useState(false);
+  const [pendingColumnSetId, setPendingColumnSetId] = useState<string | null>(null);
   const [isRefreshingMetrics, setIsRefreshingMetrics] = useState(false);
   const sortHydratedForEntityRef = useRef<string | null>(null);
 
@@ -144,12 +148,14 @@ function MetaAdsMetricsPageContent() {
   );
 
   const {
-    visibleColumns: selectedMetrics,
+    visibleColumns: storedMetricKeys,
     storedSort,
     isPending: prefsPending,
     save: saveMetrics,
     saveSort,
   } = useMetaAdsMetricsPreferences(organizationId, entity, validMetricKeys);
+  const [metricKeysOverride, setMetricKeysOverride] = useState<string[] | null>(null);
+  const selectedMetrics = metricKeysOverride ?? storedMetricKeys;
 
   /** All time on Meta = 37 months (not Google account earliest). */
   useEffect(() => {
@@ -232,6 +238,7 @@ function MetaAdsMetricsPageContent() {
     () => findMatchingMetaAdsColumnSet(columnSets, selectedMetrics),
     [columnSets, selectedMetrics],
   );
+  const summarySyncedSetIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setSummarySlotMetricKeys(
@@ -242,6 +249,29 @@ function MetaAdsMetricsPageContent() {
       ),
     );
   }, [entity]);
+
+  useEffect(() => {
+    summarySyncedSetIdRef.current = null;
+    setPendingColumnSetId(null);
+    setMetricKeysOverride(null);
+  }, [entity, organizationId]);
+
+  useEffect(() => {
+    if (pendingColumnSetId && matchedColumnSet?.id === pendingColumnSetId) {
+      setPendingColumnSetId(null);
+    }
+  }, [pendingColumnSetId, matchedColumnSet?.id]);
+
+  useEffect(() => {
+    if (!matchedColumnSet) return;
+    if (summarySyncedSetIdRef.current === matchedColumnSet.id) return;
+    summarySyncedSetIdRef.current = matchedColumnSet.id;
+    const keys = filterMetaAdsPreferenceMetricKeys(matchedColumnSet.metric_keys, validMetricKeys);
+    if (keys.length === 0) return;
+    const slots = summarySlotKeysFromMetricKeys(keys, entity);
+    setSummarySlotMetricKeys(slots);
+    saveMetaAdsSummarySlotMetrics(entity, slots);
+  }, [matchedColumnSet, entity, validMetricKeys]);
 
   const sortColumnOptions = useMemo(
     () => buildMetaAdsSortColumnOptions(entity, selectedMetrics),
@@ -268,18 +298,35 @@ function MetaAdsMetricsPageContent() {
     });
   }, [sortColumnOptions]);
 
+  const metricsEnabled =
+    reportingEnabled &&
+    Boolean(adAccountId) &&
+    metricsReadyAccounts.some((a) => a.ad_account_id === adAccountId) &&
+    !isSettingsView &&
+    canManage;
+
   const metricsQuery = useMetaAdsMetricsQuery({
     organizationId,
     adAccountId,
     entity,
     dateStart,
     dateEnd,
-    enabled:
-      reportingEnabled &&
-      Boolean(adAccountId) &&
-      metricsReadyAccounts.some((a) => a.ad_account_id === adAccountId) &&
-      !isSettingsView &&
-      canManage,
+    enabled: metricsEnabled,
+  });
+
+  const metricsTableLoading =
+    metricsQuery.isLoading || (metricsQuery.isFetching && !metricsQuery.data);
+
+  const parentScope = useMetaAdsParentScope({
+    organizationId,
+    adAccountId,
+    entity,
+    dateStart,
+    dateEnd,
+    enabled: metricsEnabled,
+    rows: metricsQuery.data?.rows ?? [],
+    rowsLoading: metricsTableLoading,
+    summary: metricsQuery.data?.summary,
   });
 
   const handleRefreshMetrics = useCallback(async () => {
@@ -293,6 +340,24 @@ function MetaAdsMetricsPageContent() {
         dateStart,
         dateEnd,
       });
+      if (entity === "ad" || entity === "adset") {
+        await refreshMetaAdsMetrics(queryClient, {
+          organizationId,
+          adAccountId,
+          entity: "campaign",
+          dateStart,
+          dateEnd,
+        });
+      }
+      if (entity === "ad") {
+        await refreshMetaAdsMetrics(queryClient, {
+          organizationId,
+          adAccountId,
+          entity: "adset",
+          dateStart,
+          dateEnd,
+        });
+      }
       toast.success(
         t("digitalMarketing.metaAds.refreshSuccess", "Metrics refreshed from Meta."),
       );
@@ -310,6 +375,7 @@ function MetaAdsMetricsPageContent() {
     dateEnd,
     queryClient,
     metricsQuery,
+    parentScope,
     isRefreshingMetrics,
     t,
   ]);
@@ -319,10 +385,15 @@ function MetaAdsMetricsPageContent() {
     return sortColumnOptions[0]?.key ?? "spend";
   }, [sort.field, sortColumnOptions]);
 
-  const sortedRows = useMemo(() => {
-    const rows = metricsQuery.data?.rows ?? [];
-    return sortMetaAdsRows(rows, { field: sortFieldValue, direction: sort.direction }, entity);
-  }, [metricsQuery.data?.rows, sortFieldValue, sort.direction, entity]);
+  const sortedRows = useMemo(
+    () =>
+      sortMetaAdsRows(
+        parentScope.scopedRows,
+        { field: sortFieldValue, direction: sort.direction },
+        entity,
+      ),
+    [parentScope.scopedRows, sortFieldValue, sort.direction, entity],
+  );
 
   const handleSortFieldChange = (field: string) => {
     const kind = getMetaAdsSortColumnKind(field);
@@ -331,17 +402,16 @@ function MetaAdsMetricsPageContent() {
       direction: defaultMetaAdsSortDirection(kind),
     };
     setSort(next);
-    void saveSort.mutateAsync(next);
+    void saveSort.mutateAsync({ ...next, visibleColumns: selectedMetrics });
   };
 
   const handleSortDirectionChange = (direction: "asc" | "desc") => {
     const next: MetaAdsMetricsSort = { field: sortFieldValue, direction };
     setSort(next);
-    void saveSort.mutateAsync(next);
+    void saveSort.mutateAsync({ ...next, visibleColumns: selectedMetrics });
   };
 
   const handleSwitchColumnSet = async (setId: string) => {
-    if (matchedColumnSet?.id === setId) return;
     const set = columnSets.find((s) => s.id === setId);
     if (!set) return;
     const keys = filterMetaAdsPreferenceMetricKeys(set.metric_keys, validMetricKeys);
@@ -354,22 +424,33 @@ function MetaAdsMetricsPageContent() {
       );
       return;
     }
-    await handleApplyMetrics(keys);
+    setPendingColumnSetId(setId);
+    const slots = summarySlotKeysFromMetricKeys(keys, entity);
+    setSummarySlotMetricKeys(slots);
+    saveMetaAdsSummarySlotMetrics(entity, slots);
+    if (matchedColumnSet?.id === setId) return;
+    try {
+      await handleApplyMetrics(keys);
+    } catch {
+      setPendingColumnSetId(null);
+    }
   };
 
   const handleApplyMetrics = async (
     keys: string[],
     options?: { saveColumnSetName?: string },
   ) => {
+    const nextKeys = filterMetaAdsPreferenceMetricKeys(keys, validMetricKeys);
+    setMetricKeysOverride(nextKeys);
     try {
-      const itemsAfterApply = resolveMetaAdsMetricItems(keys, entity);
+      const itemsAfterApply = resolveMetaAdsMetricItems(nextKeys, entity);
       const optionsAfterApply = buildMetaAdsSortColumnOptions(
         entity,
         itemsAfterApply.map((m) => m.key),
       );
       const nextSort = resolveSortForOptions(sort, optionsAfterApply);
       setSort(nextSort);
-      await saveMetrics.mutateAsync({ visibleColumns: keys, sort: nextSort });
+      await saveMetrics.mutateAsync({ visibleColumns: nextKeys, sort: nextSort });
       if (options?.saveColumnSetName) {
         await saveColumnSet.mutateAsync({
           name: options.saveColumnSetName,
@@ -378,6 +459,7 @@ function MetaAdsMetricsPageContent() {
         toast.success("Column set saved");
       }
     } catch (e) {
+      setMetricKeysOverride(null);
       toast.error((e as Error).message);
       throw e;
     }
@@ -420,9 +502,6 @@ function MetaAdsMetricsPageContent() {
       );
     }
   };
-
-  const metricsTableLoading =
-    metricsQuery.isLoading || (metricsQuery.isFetching && !metricsQuery.data);
 
   const accountSelectReady = !settingsPending && navAccounts.length > 0;
   const rawPageLoadPending = gatePending || reportingPending || (canManage && settingsPending);
@@ -570,7 +649,25 @@ function MetaAdsMetricsPageContent() {
                                   </Alert>
                                 ) : null}
 
-                                <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+                                <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                                  <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+                                    {(entity === "adset" || entity === "ad") &&
+                                    reportingEnabled &&
+                                    adAccountId ? (
+                                      <MetaAdsParentFilterSelects
+                                        entity={entity}
+                                        campaignId={parentScope.campaignFilterId}
+                                        onCampaignChange={parentScope.onCampaignChange}
+                                        campaignOptions={parentScope.campaignOptions}
+                                        adsetId={parentScope.adsetFilterId}
+                                        onAdsetChange={parentScope.onAdsetChange}
+                                        adsetOptions={parentScope.adsetOptions}
+                                        adsetOptionsLoading={parentScope.adsetOptionsLoading}
+                                        controlSize="md"
+                                      />
+                                    ) : null}
+                                  </div>
+                                  <div className="flex shrink-0 flex-wrap items-center gap-2">
                                   <Button
                                     type="button"
                                     variant="outline"
@@ -616,6 +713,7 @@ function MetaAdsMetricsPageContent() {
                                     <Columns3 className="mr-2 h-4 w-4" />
                                     {t("digitalMarketing.metaAds.metricsButton", "Metrics")}
                                   </Button>
+                                  </div>
                                 </div>
                               </div>
 
@@ -625,7 +723,9 @@ function MetaAdsMetricsPageContent() {
                                     entity={entity}
                                     adAccountId={adAccountId}
                                     summary={
-                                      metricsTableLoading ? undefined : metricsQuery.data?.summary
+                                      metricsTableLoading || parentScope.summaryPending
+                                        ? undefined
+                                        : parentScope.scopedSummary
                                     }
                                     rows={sortedRows}
                                     catalogItems={allEntityMetricItems}
@@ -634,12 +734,15 @@ function MetaAdsMetricsPageContent() {
                                       setSummarySlotMetricKeys(keys);
                                       saveMetaAdsSummarySlotMetrics(entity, keys);
                                     }}
-                                    isLoading={metricsTableLoading}
+                                    isLoading={metricsTableLoading || parentScope.summaryPending}
                                     organizationId={organizationId}
                                     dateStart={dateStart}
                                     dateEnd={dateEnd}
                                     compareEnabled={
-                                      reportingEnabled && Boolean(adAccountId) && canManage
+                                      reportingEnabled &&
+                                      Boolean(adAccountId) &&
+                                      canManage &&
+                                      !parentScope.parentFilterActive
                                     }
                                   />
                                 </div>
@@ -647,41 +750,43 @@ function MetaAdsMetricsPageContent() {
 
                               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-gray-100">
                                 {columnSets.length > 0 ? (
-                                  <div className="flex shrink-0 items-center gap-2 px-4 py-2 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:py-1.5">
+                                  <div className="flex min-w-0 shrink-0 items-center gap-2 px-4 py-2 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:py-1.5">
                                     <span className="shrink-0 text-xs text-muted-foreground">
                                       {t(
                                         "digitalMarketing.metaAds.activeColumnSet",
                                         "Column set",
                                       )}
                                     </span>
-                                    <Select
-                                      value={matchedColumnSet?.id}
-                                      onValueChange={(id) => void handleSwitchColumnSet(id)}
-                                      disabled={saveMetrics.isPending}
-                                    >
-                                      <SelectTrigger className="h-7 w-auto min-w-[10rem] max-w-[min(20rem,100%)] border-gray-200 bg-white text-xs font-medium shadow-none">
-                                        <SelectValue
-                                          placeholder={t(
-                                            "digitalMarketing.metaAds.chooseColumnSet",
-                                            "Choose a saved set",
-                                          )}
-                                        />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {columnSets.map((set) => (
-                                          <SelectItem
-                                            key={set.id}
-                                            value={set.id}
-                                            className={cn(
-                                              "text-xs",
-                                              META_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
+                                    <div className="min-w-0 max-w-full">
+                                      <Select
+                                        value={pendingColumnSetId ?? matchedColumnSet?.id}
+                                        onValueChange={(id) => void handleSwitchColumnSet(id)}
+                                        disabled={saveMetrics.isPending}
+                                      >
+                                        <SelectTrigger className="h-7 w-max max-w-full justify-start gap-1.5 border-gray-200 bg-white px-2.5 text-xs font-medium shadow-none [&>span]:line-clamp-none [&>span]:w-max [&>span]:overflow-visible [&>span]:whitespace-nowrap [&>svg]:shrink-0">
+                                          <SelectValue
+                                            placeholder={t(
+                                              "digitalMarketing.metaAds.chooseColumnSet",
+                                              "Choose a saved set",
                                             )}
-                                          >
-                                            <MetaAdsColumnSetOptionLabel set={set} />
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                          />
+                                        </SelectTrigger>
+                                        <SelectContent className="w-max max-w-[min(42rem,calc(100vw-2rem))]">
+                                          {columnSets.map((set) => (
+                                            <SelectItem
+                                              key={set.id}
+                                              value={set.id}
+                                              className={cn(
+                                                "h-auto whitespace-normal text-xs",
+                                                META_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
+                                              )}
+                                            >
+                                              <MetaAdsColumnSetOptionLabel set={set} />
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
                                   </div>
                                 ) : null}
 
@@ -707,6 +812,8 @@ function MetaAdsMetricsPageContent() {
                                       entity={entity}
                                       rows={sortedRows}
                                       metricItems={metricItems}
+                                      organizationId={organizationId}
+                                      adAccountId={adAccountId}
                                       currencyCode={
                                         metricsQuery.data?.summary?.currency ?? null
                                       }
@@ -724,6 +831,7 @@ function MetaAdsMetricsPageContent() {
                                           : undefined
                                       }
                                       serviceMappingPending={serviceMappingMutation.isPending}
+                                      campaignIdsWithBudget={parentScope.campaignIdsWithBudget}
                                     />
                                   </div>
 

@@ -584,7 +584,7 @@ export function MetaAdsModifyColumnsDialog({
                         value={activeColumnSetId ?? undefined}
                         onValueChange={loadPreset}
                       >
-                        <SelectTrigger className="h-9 min-w-0 flex-1 border-gray-200 bg-white text-sm shadow-sm">
+                        <SelectTrigger className="h-auto min-h-9 min-w-0 flex-1 border-gray-200 bg-white py-1.5 text-left text-sm shadow-sm [&>span]:line-clamp-none [&>span]:overflow-visible [&>span]:whitespace-normal">
                           <SelectValue placeholder="Choose a saved set" />
                         </SelectTrigger>
                         <SelectContent>

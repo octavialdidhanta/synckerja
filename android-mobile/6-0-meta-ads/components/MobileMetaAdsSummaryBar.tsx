@@ -93,7 +93,10 @@ export function MobileMetaAdsSummaryBar({
     () =>
       buildMetaAdsSummaryMetricOptions({
         entity,
-        catalogItems,
+        catalogItems: catalogItems.map((item) => ({
+          ...item,
+          defaultLabel: t(item.labelKey, item.defaultLabel),
+        })),
         labels: {
           performance: t(
             "digitalMarketing.metaAds.summaryMetricGroupPerformance",

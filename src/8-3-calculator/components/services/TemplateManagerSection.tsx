@@ -19,7 +19,7 @@ export const TemplateManagerSection = ({
       <div className="rounded-lg border border-primary/15 bg-card shadow-sm ring-1 ring-primary/5">
         <div className="px-6 py-4">
           <div className="flex items-center gap-4">
-            <span className="text-sm font-medium text-foreground">Template:</span>
+            <span className="text-sm font-medium text-foreground">Saved KPIs:</span>
             <TemplateManager
               calculatorType={calculatorType}
               currentSettings={currentSettings}

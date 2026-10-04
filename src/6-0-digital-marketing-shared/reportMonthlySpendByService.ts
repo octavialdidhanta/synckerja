@@ -135,6 +135,71 @@ export function sumMonthlySpendForChannelFilter(
   return out;
 }
 
+type ServiceSpendRow = {
+  serviceId: string | null;
+  serviceName: string;
+  amount: number;
+};
+
+function includeSpendChannel(
+  channelFilter: MonthlyChartChannelFilter,
+  channel: "google" | "meta" | "tiktok",
+): boolean {
+  if (channelFilter === "all" || channelFilter === "by_channel") return true;
+  return channelFilter === channel;
+}
+
+/**
+ * One bar per product or service, using the same spend as the report table.
+ * That table sums the campaign rows already aligned with Meta Ads Manager.
+ */
+export function buildSpendByServiceChartPointsFromReportRows(args: {
+  googleRows: ServiceSpendRow[];
+  metaRows: ServiceSpendRow[];
+  tiktokRows: ServiceSpendRow[];
+  channelFilter: MonthlyChartChannelFilter;
+  unmappedLabel: string;
+}): ReportSpendByServiceChartPoint[] {
+  const totals = new Map<string, { serviceId: string | null; label: string; spend: number }>();
+
+  const add = (row: ServiceSpendRow) => {
+    const serviceId = row.serviceId;
+    const key = serviceId ?? REPORT_UNMAPPED_SERVICE_KEY;
+    const spend = Number.isFinite(row.amount) ? row.amount : 0;
+    const prev = totals.get(key);
+    if (prev) {
+      prev.spend += spend;
+      if (!prev.label && row.serviceName.trim()) prev.label = row.serviceName.trim();
+      return;
+    }
+    totals.set(key, {
+      serviceId,
+      label: serviceId ? row.serviceName.trim() : args.unmappedLabel,
+      spend,
+    });
+  };
+
+  if (includeSpendChannel(args.channelFilter, "google")) {
+    for (const row of args.googleRows) add(row);
+  }
+  if (includeSpendChannel(args.channelFilter, "meta")) {
+    for (const row of args.metaRows) add(row);
+  }
+  if (includeSpendChannel(args.channelFilter, "tiktok")) {
+    for (const row of args.tiktokRows) add(row);
+  }
+
+  return [...totals.values()]
+    .filter((row) => row.spend > 0)
+    .sort((a, b) => b.spend - a.spend)
+    .map((row, index) => ({
+      dataKey: serviceDataKeyForChart(row.serviceId),
+      serviceLabel: row.label || args.unmappedLabel,
+      spend: row.spend,
+      color: SERVICE_CHART_COLORS[index % SERVICE_CHART_COLORS.length]!,
+    }));
+}
+
 export function buildSpendByServiceTotalsChartPoints(
   services: ReportServiceSpendSeries[],
   spendByServiceKey: Map<string, Map<string, number>>,

@@ -16,11 +16,6 @@ function readMetric(row: Record<string, unknown>, key: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function readServiceNumber(raw: unknown): number | null {
-  if (raw == null || !Number.isFinite(Number(raw))) return null;
-  return Number(raw);
-}
-
 export function aggregateMetaRowsByService(
   rows: Record<string, unknown>[],
   unmappedLabel: string,
@@ -40,7 +35,7 @@ export function aggregateMetaRowsByService(
         amount: 0,
         impressions: 0,
         clicks: 0,
-        converted_leads: serviceId ? 0 : null,
+        converted_leads: 0,
         cost_per_lead: null,
       };
       buckets.set(key, bucket);
@@ -49,21 +44,13 @@ export function aggregateMetaRowsByService(
     bucket.amount += readMetric(row, "spend");
     bucket.impressions += readMetric(row, "impressions");
     bucket.clicks += readMetric(row, "clicks");
-
-    if (serviceId) {
-      const cl = readServiceNumber(row.service_converted_leads);
-      if (cl != null) bucket.converted_leads = (bucket.converted_leads ?? 0) + cl;
-    }
+    bucket.converted_leads = (bucket.converted_leads ?? 0) + readMetric(row, "purchases");
   }
 
   const result = [...buckets.values()];
   for (const bucket of result) {
-    if (bucket.service_id && bucket.converted_leads != null && bucket.converted_leads > 0) {
-      bucket.cost_per_lead = bucket.amount / bucket.converted_leads;
-    }
-    if (!bucket.service_id && bucket.amount > 0 && bucket.converted_leads == null) {
-      bucket.converted_leads = 0;
-    }
+    const results = bucket.converted_leads ?? 0;
+    bucket.cost_per_lead = results > 0 ? bucket.amount / results : null;
   }
 
   return result.sort((a, b) => b.amount - a.amount);

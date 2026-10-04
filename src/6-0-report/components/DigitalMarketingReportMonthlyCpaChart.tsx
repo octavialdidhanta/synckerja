@@ -73,18 +73,17 @@ function formatCpaValue(value: number, currency: string | null): string {
   return formatMetricValue("spent", value, currency, "micros");
 }
 
+function formatResultCount(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  const rounded = Math.round(value * 100) / 100;
+  if (Math.abs(rounded - Math.round(rounded)) < 0.001) return String(Math.round(rounded));
+  return rounded.toFixed(2).replace(/\.?0+$/, "");
+}
+
 function formatCpaBarLabel(value: unknown, currency: string | null): string {
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n) || n <= 0) return "";
-  const code = (currency ?? "IDR").toUpperCase();
-  if (code === "IDR") {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 1 : 2)}jt`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 100_000 ? 0 : 1)}rb`;
-    return String(Math.round(n));
-  }
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return n.toFixed(0);
+  return formatCpaValue(n, currency);
 }
 
 function resolveLabelNumericValue(
@@ -220,7 +219,8 @@ function CpaTooltip({
       <>
         {cpaLine}
         <p className="mt-0.5 tabular-nums text-muted-foreground">
-          {labels.spendLabel}: {formatCpaValue(spend, currency)} · {labels.leadsLabel}: {leads}
+          {labels.spendLabel}: {formatCpaValue(spend, currency)} · {labels.leadsLabel}:{" "}
+          {formatResultCount(leads)}
         </p>
         {leads > 0 && spend <= 0 && options?.noSpendHint ? (
           <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
@@ -467,6 +467,17 @@ export function DigitalMarketingReportMonthlyCpaChart({
       (row.tiktokCpa != null && row.tiktokCpa > 0)
     );
   });
+  const hasActivity = chartData.some(
+    (row) =>
+      row.totalSpend > 0 ||
+      row.googleSpend > 0 ||
+      row.metaSpend > 0 ||
+      row.tiktokSpend > 0 ||
+      row.totalLeads > 0 ||
+      row.googleLeads > 0 ||
+      row.metaLeads > 0 ||
+      row.tiktokLeads > 0,
+  );
 
   const loading = chartLoading;
 
@@ -503,7 +514,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
       ),
       notCalculable: t(
         "digitalMarketing.report.monthlyCpaNotCalculable",
-        "Cannot calculate (no converted leads)",
+        "Cannot calculate (no platform results)",
       ),
       cpaNotAvailable: t(
         "digitalMarketing.report.monthlyCpaNoSpend",
@@ -511,14 +522,14 @@ export function DigitalMarketingReportMonthlyCpaChart({
       ),
       cpaNoSpendThisMonthHint: t(
         "digitalMarketing.report.monthlyCpaNoSpendHint",
-        "Leads use conversion month; Meta spend uses the ad delivery month.",
+        "Platform results are counted in the same month as ad delivery.",
       ),
       periodSpendNote: t(
         "digitalMarketing.report.monthlyCpaPeriodSpendNote",
         "Spend in filtered period (other months)",
       ),
       spendLabel: t("digitalMarketing.report.monthlyCpaTooltipSpend", "Spend"),
-      leadsLabel: t("digitalMarketing.report.tableConvertedLeads", "Conv. leads"),
+      leadsLabel: t("digitalMarketing.report.monthlyCpaTooltipResults", "Results"),
     }),
     [t],
   );
@@ -549,7 +560,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
           <p className="mt-0.5 text-xs text-muted-foreground">
             {t(
               "digitalMarketing.report.monthlyCpaSubtitle",
-              "Account-level cost per acquisition by month (spend ÷ converted leads with matching campaign UTM).",
+              "Account-level CPA by month (spend ÷ platform results: Meta purchases, Google and TikTok conversions).",
             )}
           </p>
         </div>
@@ -585,8 +596,13 @@ export function DigitalMarketingReportMonthlyCpaChart({
           {blockingError}
         </div>
       ) : !hasData ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 text-sm text-muted-foreground">
-          {t("digitalMarketing.report.monthlyCpaEmpty", "No CPA data for this year.")}
+        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
+          {hasActivity
+            ? t(
+                "digitalMarketing.report.monthlyCpaNeedsLeads",
+                "CPA is spend divided by platform results (Meta purchases, Google and TikTok conversions). This period has ad spend, but no platform results, so there is no CPA to plot.",
+              )
+            : t("digitalMarketing.report.monthlyCpaEmpty", "No CPA data for this year.")}
         </div>
       ) : (
         <>

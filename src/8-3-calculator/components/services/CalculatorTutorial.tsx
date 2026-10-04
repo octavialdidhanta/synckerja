@@ -116,7 +116,7 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Save className="h-4 w-4 text-primary" />
-            {t('pages.calculator.tutorial.services.template.title', 'Save & Load Template')}
+            {t('pages.calculator.tutorial.services.template.title', 'Save & Open KPI')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -124,15 +124,15 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
             <div className="flex items-start gap-2">
               <Save className="mt-0.5 h-4 w-4 text-primary" />
               <div>
-                <p className="font-medium">{t('pages.calculator.tutorial.services.template.save', 'Save Template')}</p>
-                <p className="text-xs text-muted-foreground">{t('pages.calculator.tutorial.services.template.saveDescription', 'Each calculator (Engagement, Traffic, Conversion) has its own Save Template button. Save settings separately for each objective.')}</p>
+                <p className="font-medium">{t('pages.calculator.tutorial.services.template.save', 'Save KPI')}</p>
+                <p className="text-xs text-muted-foreground">{t('pages.calculator.tutorial.services.template.saveDescription', 'Each calculator (Engagement, Traffic, Conversion) has its own Save KPI button. Keep a record for each objective and period.')}</p>
               </div>
             </div>
             <div className="flex items-start gap-2">
               <Upload className="mt-0.5 h-4 w-4 text-primary" />
               <div>
-                <p className="font-medium">{t('pages.calculator.tutorial.services.template.load', 'Load Template')}</p>
-                <p className="text-xs text-muted-foreground">{t('pages.calculator.tutorial.services.template.loadDescription', 'Load a previously saved template for the specific calculator. Templates are saved per calculator type.')}</p>
+                <p className="font-medium">{t('pages.calculator.tutorial.services.template.load', 'Open KPI')}</p>
+                <p className="text-xs text-muted-foreground">{t('pages.calculator.tutorial.services.template.loadDescription', 'Open a saved KPI period for this calculator and compare it with the current numbers.')}</p>
               </div>
             </div>
           </div>
@@ -141,9 +141,9 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
             <div className="flex items-start gap-2">
               <Lightbulb className="mt-0.5 h-4 w-4 text-primary" />
               <div className="text-sm">
-                <p className="font-medium text-foreground">{t('pages.calculator.tutorial.services.template.tips', 'Template Tips:')}</p>
+                <p className="font-medium text-foreground">{t('pages.calculator.tutorial.services.template.tips', 'How to use saved KPIs:')}</p>
                 <p className="text-muted-foreground">
-                  {t('pages.calculator.tutorial.services.template.tipsDescription', 'Create separate templates for each calculator. This allows you to mix and match different scenarios (e.g., high engagement + low traffic + high conversion).')}
+                  {t('pages.calculator.tutorial.services.template.tipsDescription', 'Save a record for each calculator and period. Open an older record anytime to compare it with the numbers you are working on.')}
                 </p>
               </div>
             </div>
@@ -166,7 +166,7 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
               <li>{t('pages.calculator.tutorial.services.bestPractices.engagement', '• Start with Engagement calculator to build warm audience')}</li>
               <li>{t('pages.calculator.tutorial.services.bestPractices.traffic', '• Use Traffic calculator to drive website visitors')}</li>
               <li>{t('pages.calculator.tutorial.services.bestPractices.conversion', '• Use Conversion calculator with remarketing audience from Engagement or Traffic')}</li>
-              <li>{t('pages.calculator.tutorial.services.bestPractices.template', '• Save templates for each calculator separately for flexibility')}</li>
+              <li>{t('pages.calculator.tutorial.services.bestPractices.template', '• Save each period’s KPI so you can open and compare it later')}</li>
             </ul>
           </div>
         </CardContent>
@@ -289,7 +289,7 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Save className="h-4 w-4 text-primary" />
-            {t('pages.calculator.tutorial.sales.template.title', 'Save & Load Template')}
+            {t('pages.calculator.tutorial.sales.template.title', 'Save & Open KPI')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -297,15 +297,15 @@ export const CalculatorTutorial: React.FC<CalculatorTutorialProps> = ({ currentT
             <div className="flex items-start gap-2">
               <Save className="mt-0.5 h-4 w-4 text-primary" />
               <div>
-                <p className="font-medium">{t('pages.calculator.tutorial.sales.template.save', 'Save Template')}</p>
-                <p className="text-xs text-muted-foreground">{t('pages.calculator.tutorial.sales.template.saveDescription', 'Save your sales campaign settings for future use.')}</p>
+                <p className="font-medium">{t('pages.calculator.tutorial.sales.template.save', 'Save KPI')}</p>
+                <p className="text-xs text-muted-foreground">{t('pages.calculator.tutorial.sales.template.saveDescription', 'Save this period’s sales KPI so you can open it later.')}</p>
               </div>
             </div>
             <div className="flex items-start gap-2">
               <Upload className="mt-0.5 h-4 w-4 text-primary" />
               <div>
-                <p className="font-medium">{t('pages.calculator.tutorial.sales.template.load', 'Load Template')}</p>
-                <p className="text-xs text-muted-foreground">{t('pages.calculator.tutorial.sales.template.loadDescription', 'Load a previously saved sales campaign template.')}</p>
+                <p className="font-medium">{t('pages.calculator.tutorial.sales.template.load', 'Open KPI')}</p>
+                <p className="text-xs text-muted-foreground">{t('pages.calculator.tutorial.sales.template.loadDescription', 'Open a saved sales KPI period and compare it with the current numbers.')}</p>
               </div>
             </div>
           </div>

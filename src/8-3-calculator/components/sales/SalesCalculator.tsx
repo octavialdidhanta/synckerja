@@ -6,6 +6,8 @@ import { Label } from '@/shared/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
+import { Info } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
 import { SalesTemplateManager } from './SalesTemplateManager';
 import { SalesKPISettings } from '@/8-3-calculator/types/kpi-templates';
 
@@ -552,8 +554,34 @@ const SalesCalculator = ({
 
       {/* Header with Estimated Result */}
       <div className="text-center">
-        <h2 className="text-2xl font-bold mb-4">
-          {t('pages.calculator.sales.resultEstimation', 'Sales Campaign Result Estimation')}
+        <h2 className="mb-4 flex items-center justify-center gap-2 text-2xl font-bold">
+          <span>{t('pages.calculator.sales.resultEstimation', 'Sales Campaign Result Estimation')}</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={t('pages.calculator.sales.estimateNote.title', 'How to read this estimate')}
+                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-muted-foreground/30 bg-muted/60 text-muted-foreground transition-colors hover:bg-muted"
+              >
+                <Info className="h-3 w-3" strokeWidth={2.5} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="bottom"
+              align="center"
+              className="w-[min(100vw-2rem,22rem)] text-left text-sm leading-relaxed"
+            >
+              <p className="font-medium text-foreground">
+                {t('pages.calculator.sales.estimateNote.title', 'How to read this estimate')}
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                {t(
+                  'pages.calculator.sales.estimateNote.body',
+                  'The numbers above are rebuilt from the CPM, CTR, funnel rates, and average order value on this page. Ads Manager shows CPM as a whole rupiah and percentages with two decimals, so those labels are already rounded. An estimate rebuilt from the rounded labels can differ by about one order from the purchases Ads Manager counted. The counted total in Ads Manager is the record of a finished period. This page is the plan you compare with that record.',
+                )}
+              </p>
+            </PopoverContent>
+          </Popover>
         </h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="rounded-lg border-2 border-dashed border-primary/25 bg-brand-blue-soft/80 p-6">
@@ -583,9 +611,10 @@ const SalesCalculator = ({
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="mb-6">
+        <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-4">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="px-6 pb-1 pt-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">ROAS</CardTitle>
           </CardHeader>
           <CardContent>
@@ -593,7 +622,7 @@ const SalesCalculator = ({
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="px-6 pb-1 pt-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               {t('pages.calculator.sales.costPerOrder', 'Cost Per Order')}
             </CardTitle>
@@ -603,23 +632,106 @@ const SalesCalculator = ({
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">CLV/CAC Ratio</CardTitle>
+          <CardHeader className="px-6 pb-1 pt-3">
+            <CardTitle className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+              <span>CLV/CAC Ratio</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t('pages.calculator.sales.clvNote.title', 'How CLV/CAC is calculated')}
+                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-muted-foreground/30 bg-muted/60 text-muted-foreground transition-colors hover:bg-muted"
+                  >
+                    <Info className="h-2.5 w-2.5" strokeWidth={2.5} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="bottom"
+                  align="center"
+                  className="w-[min(100vw-2rem,28rem)] text-left text-sm leading-relaxed"
+                >
+                  <p className="font-medium text-foreground">
+                    {t('pages.calculator.sales.clvNote.title', 'How CLV/CAC is calculated')}
+                  </p>
+                  <div className="mt-1.5 space-y-0.5 tabular-nums text-muted-foreground">
+                    <p>
+                      {formatCurrency(currencyStringToNumber(avgOrderValue))}
+                      <span> × (1 + </span>
+                      {new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(
+                        percentageStringToNumber(repeatPurchaseRate),
+                      )}
+                      <span>% × 2,5) × (1 + </span>
+                      {new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(
+                        percentageStringToNumber(upsellRate),
+                      )}
+                      <span>%) = </span>
+                      {formatCurrency(results.customerLifetimeValue)}
+                    </p>
+                    <p>
+                      {formatCurrency(results.customerLifetimeValue)}
+                      <span> ÷ </span>
+                      {formatCurrency(results.costPerOrder)}
+                      <span> = </span>
+                      {formatDecimal(results.clvToCacRatio)}
+                    </p>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">{formatDecimal(results.clvToCacRatio)}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              {t('pages.calculator.sales.netProfit', 'Net Profit')}
+          <CardHeader className="px-6 pb-1 pt-3">
+            <CardTitle className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+              <span>{t('pages.calculator.sales.netProfit', 'Net Profit')}</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t('pages.calculator.sales.netProfitNote.title', 'How net profit is calculated')}
+                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-muted-foreground/30 bg-muted/60 text-muted-foreground transition-colors hover:bg-muted"
+                  >
+                    <Info className="h-2.5 w-2.5" strokeWidth={2.5} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="bottom"
+                  align="end"
+                  className="w-[min(100vw-2rem,26rem)] text-left text-sm leading-relaxed"
+                >
+                  <p className="font-medium text-foreground">
+                    {t('pages.calculator.sales.netProfitNote.title', 'How net profit is calculated')}
+                  </p>
+                  <div className="mt-1.5 space-y-0.5 tabular-nums text-muted-foreground">
+                    <p>
+                      {formatCurrency(results.totalRevenue)}
+                      <span> × </span>
+                      {new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(
+                        percentageStringToNumber(profitMargin),
+                      )}
+                      <span>% = </span>
+                      {formatCurrency(results.grossProfit)}
+                    </p>
+                    <p>
+                      {formatCurrency(results.grossProfit)}
+                      <span> − </span>
+                      {formatCurrency(currencyStringToNumber(budget))}
+                      <span> = </span>
+                      {formatCurrency(results.netProfit)}
+                    </p>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold">{formatCurrency(results.netProfit)}</div>
           </CardContent>
         </Card>
+        </div>
       </div>
 
       <Tabs defaultValue="basic" className="w-full">

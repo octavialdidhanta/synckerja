@@ -200,7 +200,14 @@ export function aggregateRowsByService(
   return result.sort((a, b) => b.amount - a.amount);
 }
 
-/** Single GAQL pass: spend grouped by calendar month (replaces per-month loops). */
+function readGaqlMetric(raw: Record<string, unknown> | undefined, key: string): number {
+  const metrics = (raw?.metrics ?? raw?.Metrics) as Record<string, unknown> | undefined;
+  const camel = key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+  const v = Number(metrics?.[camel] ?? metrics?.[key] ?? 0);
+  return Number.isFinite(v) ? v : 0;
+}
+
+/** Single GAQL pass: spend and conversions grouped by calendar month. */
 export async function fetchCampaignSpendByMonthInRange(
   cfg: GoogleAdsConfig,
   accessToken: string,
@@ -208,18 +215,43 @@ export async function fetchCampaignSpendByMonthInRange(
   start: string,
   end: string,
   allowedCampaignIds?: Set<string> | null,
-): Promise<{ spendByPeriod: Map<string, number>; currencyCode: string | null }> {
+  includeConversions = true,
+): Promise<{
+  spendByPeriod: Map<string, number>;
+  conversionsByPeriod: Map<string, number>;
+  currencyCode: string | null;
+}> {
   if (allowedCampaignIds && allowedCampaignIds.size === 0) {
-    return { spendByPeriod: new Map(), currencyCode: null };
+    return { spendByPeriod: new Map(), conversionsByPeriod: new Map(), currencyCode: null };
   }
 
   const filterByCampaign = allowedCampaignIds != null;
+  const conversionField = includeConversions ? ", metrics.conversions" : "";
   const query = filterByCampaign
-    ? `SELECT campaign.id, segments.month_of_year, segments.year, metrics.cost_micros, customer.currency_code FROM campaign WHERE segments.date BETWEEN '${start}' AND '${end}'`
-    : `SELECT segments.month_of_year, segments.year, metrics.cost_micros, customer.currency_code FROM campaign WHERE segments.date BETWEEN '${start}' AND '${end}'`;
+    ? `SELECT campaign.id, segments.month_of_year, segments.year, metrics.cost_micros${conversionField}, customer.currency_code FROM campaign WHERE segments.date BETWEEN '${start}' AND '${end}'`
+    : `SELECT segments.month_of_year, segments.year, metrics.cost_micros${conversionField}, customer.currency_code FROM campaign WHERE segments.date BETWEEN '${start}' AND '${end}'`;
 
-  const rawRows = await fetchAllGaqlListRows(cfg, accessToken, metricsCustomerId, query);
+  let rawRows: Record<string, unknown>[];
+  try {
+    rawRows = await fetchAllGaqlListRows(cfg, accessToken, metricsCustomerId, query);
+  } catch (e) {
+    if (includeConversions) {
+      console.warn("google monthly conversions failed, retrying spend only:", e);
+      return fetchCampaignSpendByMonthInRange(
+        cfg,
+        accessToken,
+        metricsCustomerId,
+        start,
+        end,
+        allowedCampaignIds,
+        false,
+      );
+    }
+    throw e;
+  }
+
   const spendByPeriod = new Map<string, number>();
+  const conversionsByPeriod = new Map<string, number>();
   let currencyCode: string | null = null;
 
   for (const raw of rawRows) {
@@ -237,6 +269,12 @@ export async function fetchCampaignSpendByMonthInRange(
     const periodKey = monthPeriodKey(year, month);
     const micros = readMicros(raw, "cost_micros");
     spendByPeriod.set(periodKey, (spendByPeriod.get(periodKey) ?? 0) + micros / 1_000_000);
+    if (includeConversions) {
+      conversionsByPeriod.set(
+        periodKey,
+        (conversionsByPeriod.get(periodKey) ?? 0) + readGaqlMetric(raw, "conversions"),
+      );
+    }
 
     if (!currencyCode) {
       const customer = (raw.customer ?? raw.Customer) as Record<string, unknown> | undefined;
@@ -245,5 +283,5 @@ export async function fetchCampaignSpendByMonthInRange(
     }
   }
 
-  return { spendByPeriod, currencyCode };
+  return { spendByPeriod, conversionsByPeriod, currencyCode };
 }

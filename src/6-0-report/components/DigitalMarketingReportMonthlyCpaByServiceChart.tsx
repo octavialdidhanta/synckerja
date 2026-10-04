@@ -3,7 +3,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   LabelList,
   ResponsiveContainer,
   Tooltip,
@@ -14,7 +13,6 @@ import type { TooltipProps } from "recharts";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { formatMetricValue } from "@/google-ads/metrics/formatMetricValue";
-import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
 import type { MonthlyChartChannelFilter } from "@/6-0-digital-marketing-shared/dmPaidAdsFiltersStorage";
 import type { MonthlySpendChannelSeries } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportMonthlySpend";
 import type { ReportCpaByServiceChartPoint } from "@/6-0-digital-marketing-shared/reportMonthlyCpaByService";
@@ -52,11 +50,7 @@ function formatCpaAxisTick(value: number, currency: string | null): string {
 }
 
 function formatCpaValue(value: number, currency: string | null): string {
-  const code = (currency ?? "IDR").toUpperCase();
-  if (code === "IDR") {
-    return formatMetaMetricValue("spend", value, currency);
-  }
-  return formatMetricValue("spent", value, currency, "micros");
+  return formatMetricValue("spent", value, currency ?? "IDR", "micros");
 }
 
 function truncateAxisLabel(label: string): string {
@@ -64,23 +58,22 @@ function truncateAxisLabel(label: string): string {
   return `${label.slice(0, AXIS_LABEL_MAX - 1)}…`;
 }
 
-function resolveCpaLabelValue(
-  raw: number | string | Array<number | string> | undefined,
+function readCpaLabelNumber(
+  value: number | string | Array<number | string> | undefined,
   payload: ReportCpaByServiceChartPoint | undefined,
+  dataKey: "productCpa" | "serviceCpa",
 ): number | null {
-  if (Array.isArray(raw)) {
-    const first = raw[0];
-    const n = typeof first === "number" ? first : Number(first);
-    if (Number.isFinite(n)) return n;
-  } else if (raw != null && raw !== "") {
-    const n = typeof raw === "number" ? raw : Number(raw);
-    if (Number.isFinite(n)) return n;
-  }
-  if (payload && Number.isFinite(payload.cpa)) return payload.cpa;
-  return null;
+  const raw = Array.isArray(value) ? value[0] : value;
+  const fromValue = typeof raw === "number" ? raw : Number(raw);
+  if (Number.isFinite(fromValue)) return fromValue;
+  const fromRow = payload?.[dataKey];
+  return typeof fromRow === "number" && Number.isFinite(fromRow) ? fromRow : null;
 }
 
-function createServiceCpaBarLabelRenderer(currency: string | null) {
+function createServiceCpaBarLabelRenderer(
+  currency: string | null,
+  dataKey: "productCpa" | "serviceCpa",
+) {
   return function ServiceCpaBarLabelContent(props: {
     x?: number | string;
     y?: number | string;
@@ -91,8 +84,8 @@ function createServiceCpaBarLabelRenderer(currency: string | null) {
     const x = Number(props.x);
     const y = Number(props.y);
     const width = Number(props.width);
-    const n = resolveCpaLabelValue(props.value, props.payload);
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || n == null || n <= 0) {
+    const n = readCpaLabelNumber(props.value, props.payload, dataKey);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || n == null || !(n > 0)) {
       return null;
     }
     const text = formatCpaValue(n, currency);
@@ -100,10 +93,10 @@ function createServiceCpaBarLabelRenderer(currency: string | null) {
     return (
       <text
         x={x + width / 2}
-        y={y - 6}
+        y={y - 8}
         fill="#374151"
         textAnchor="middle"
-        fontSize={10}
+        fontSize={12}
         fontWeight={600}
       >
         {text}
@@ -114,17 +107,34 @@ function createServiceCpaBarLabelRenderer(currency: string | null) {
 
 type ServiceCpaTooltipProps = TooltipProps<number, string> & {
   currency: string | null;
+  productsLabel: string;
+  servicesLabel: string;
 };
 
-function ServiceCpaTooltip({ active, payload, currency }: ServiceCpaTooltipProps) {
+function ServiceCpaTooltip({
+  active,
+  payload,
+  currency,
+  productsLabel,
+  servicesLabel,
+}: ServiceCpaTooltipProps) {
   if (!active || !payload?.length) return null;
   const row = payload[0]?.payload as ReportCpaByServiceChartPoint | undefined;
-  if (!row || row.cpa <= 0) return null;
+  if (!row || (row.productCpa <= 0 && row.serviceCpa <= 0)) return null;
 
   return (
     <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm">
       <p className="font-medium text-gray-900">{row.serviceLabel}</p>
-      <p className="mt-0.5 tabular-nums text-gray-900">CPA: {formatCpaValue(row.cpa, currency)}</p>
+      {row.productCpa > 0 ? (
+        <p className="mt-1 tabular-nums text-gray-900">
+          {productsLabel}: {formatCpaValue(row.productCpa, currency)}
+        </p>
+      ) : null}
+      {row.serviceCpa > 0 ? (
+        <p className="mt-1 tabular-nums text-gray-900">
+          {servicesLabel}: {formatCpaValue(row.serviceCpa, currency)}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -165,7 +175,11 @@ export function DigitalMarketingReportMonthlyCpaByServiceChart({
       ? metaSeries.unavailableReason
       : null;
 
-  const hasData = chartData.some((row) => row.cpa > 0);
+  const hasData = chartData.some((row) => row.productCpa > 0 || row.serviceCpa > 0);
+  const showProducts = chartData.some((row) => row.productCpa > 0);
+  const showServices = chartData.some((row) => row.serviceCpa > 0);
+  const productsLabel = t("digitalMarketing.report.convertedProducts", "Products");
+  const servicesLabel = t("digitalMarketing.report.convertedServices", "Services");
   const loading = chartLoading;
 
   const barLayout = useMemo(() => {
@@ -228,6 +242,20 @@ export function DigitalMarketingReportMonthlyCpaByServiceChart({
           {metaSkippedNotice ? (
             <p className="mb-2 text-xs text-amber-700">{metaSkippedNotice}</p>
           ) : null}
+          <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-gray-600">
+            {showProducts ? (
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "hsl(160 52% 36%)" }} aria-hidden />
+                {productsLabel}
+              </span>
+            ) : null}
+            {showServices ? (
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "hsl(262 55% 52%)" }} aria-hidden />
+                {servicesLabel}
+              </span>
+            ) : null}
+          </div>
           {currency ? (
             <p className="mb-2 text-xs text-muted-foreground">{currency}</p>
           ) : null}
@@ -263,21 +291,39 @@ export function DigitalMarketingReportMonthlyCpaByServiceChart({
                     width={48}
                     tickFormatter={(v) => formatCpaAxisTick(Number(v), currency)}
                   />
-                  <Tooltip content={<ServiceCpaTooltip currency={currency} />} />
-                  <Bar
-                    dataKey="cpa"
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={barLayout.maxBarSize}
-                    isAnimationActive={false}
-                  >
-                    {chartData.map((entry) => (
-                      <Cell key={entry.dataKey} fill={entry.color} />
-                    ))}
-                    <LabelList
-                      position="top"
-                      content={createServiceCpaBarLabelRenderer(currency)}
-                    />
-                  </Bar>
+                  <Tooltip
+                    content={
+                      <ServiceCpaTooltip
+                        currency={currency}
+                        productsLabel={productsLabel}
+                        servicesLabel={servicesLabel}
+                      />
+                    }
+                  />
+                  {showProducts ? (
+                    <Bar
+                      dataKey="productCpa"
+                      name={productsLabel}
+                      fill="hsl(160 52% 36%)"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={barLayout.maxBarSize}
+                      isAnimationActive={false}
+                    >
+                      <LabelList position="top" content={createServiceCpaBarLabelRenderer(currency, "productCpa")} />
+                    </Bar>
+                  ) : null}
+                  {showServices ? (
+                    <Bar
+                      dataKey="serviceCpa"
+                      name={servicesLabel}
+                      fill="hsl(262 55% 52%)"
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={barLayout.maxBarSize}
+                      isAnimationActive={false}
+                    >
+                      <LabelList position="top" content={createServiceCpaBarLabelRenderer(currency, "serviceCpa")} />
+                    </Bar>
+                  ) : null}
                 </BarChart>
               </ResponsiveContainer>
             </div>

@@ -53,11 +53,11 @@ export function MobileMetaAdsColumnSetPicker({
           {columnSetLabel}
         </span>
         <span className="flex w-full min-w-0 items-center gap-1">
-          <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+          <span className="min-w-0 flex-1 whitespace-normal break-words text-xs font-medium text-foreground">
             {isLoading ? (
               <span className="inline-block h-4 w-28 animate-pulse rounded bg-muted" />
             ) : activeSet ? (
-              <MetaAdsColumnSetOptionLabel set={activeSet} />
+              <MetaAdsColumnSetOptionLabel className="w-auto whitespace-normal" set={activeSet} />
             ) : (
               t("digitalMarketing.metaAds.chooseColumnSet", "Choose a saved set")
             )}

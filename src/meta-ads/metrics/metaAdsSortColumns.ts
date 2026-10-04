@@ -15,11 +15,62 @@ export type MetaAdsSortColumnKind = "text" | "numeric";
 
 const METRIC_KEYS: MetaAdsSortColumnOption[] = [
   { key: "impressions", labelKey: "digitalMarketing.metaAds.impressions", defaultLabel: "Impressions" },
-  { key: "clicks", labelKey: "digitalMarketing.metaAds.clicks", defaultLabel: "Clicks" },
+  { key: "clicks", labelKey: "digitalMarketing.metaAds.clicks", defaultLabel: "Link clicks" },
   { key: "ctr", labelKey: "digitalMarketing.metaAds.ctr", defaultLabel: "CTR" },
   { key: "cpc", labelKey: "digitalMarketing.metaAds.cpc", defaultLabel: "CPC" },
   { key: "cpm", labelKey: "digitalMarketing.metaAds.cpm", defaultLabel: "CPM" },
   { key: "reach", labelKey: "digitalMarketing.metaAds.reach", defaultLabel: "Reach" },
+  { key: "frequency", labelKey: "digitalMarketing.metaAds.frequency", defaultLabel: "Frequency" },
+  { key: "delivery", labelKey: "digitalMarketing.metaAds.delivery", defaultLabel: "Delivery" },
+  { key: "budget", labelKey: "digitalMarketing.metaAds.budget", defaultLabel: "Budget" },
+  {
+    key: "click_to_view_rate",
+    labelKey: "digitalMarketing.metaAds.clickToViewRate",
+    defaultLabel: "% Click to View",
+  },
+  {
+    key: "content_views",
+    labelKey: "digitalMarketing.metaAds.contentViews",
+    defaultLabel: "Content views",
+  },
+  {
+    key: "view_to_atc_rate",
+    labelKey: "digitalMarketing.metaAds.viewToAtcRate",
+    defaultLabel: "% View to ATC",
+  },
+  {
+    key: "adds_to_cart",
+    labelKey: "digitalMarketing.metaAds.addsToCart",
+    defaultLabel: "Adds to cart",
+  },
+  { key: "cost_per_atc", labelKey: "digitalMarketing.metaAds.costPerAtc", defaultLabel: "Cost/ATC" },
+  {
+    key: "atc_conversion_value",
+    labelKey: "digitalMarketing.metaAds.atcConversionValue",
+    defaultLabel: "ATC conversion value",
+  },
+  { key: "purchases", labelKey: "digitalMarketing.metaAds.purchases", defaultLabel: "Purchases" },
+  {
+    key: "atc_to_purchase_rate",
+    labelKey: "digitalMarketing.metaAds.atcToPurchaseRate",
+    defaultLabel: "% ATC to Purchase",
+  },
+  {
+    key: "purchase_conversion_value",
+    labelKey: "digitalMarketing.metaAds.purchaseConversionValue",
+    defaultLabel: "Purchase conversion value",
+  },
+  { key: "aov", labelKey: "digitalMarketing.metaAds.aov", defaultLabel: "AOV" },
+  {
+    key: "cost_per_purchase",
+    labelKey: "digitalMarketing.metaAds.costPerPurchase",
+    defaultLabel: "Cost/Purchase",
+  },
+  {
+    key: "purchase_roas",
+    labelKey: "digitalMarketing.metaAds.purchaseRoas",
+    defaultLabel: "Purchase ROAS",
+  },
   {
     key: "traffic_total_visit_page",
     labelKey: "digitalMarketing.metaAds.trafficTotalVisitPage",
@@ -47,7 +98,7 @@ const METRIC_KEYS: MetaAdsSortColumnOption[] = [
   },
 ];
 
-const TEXT_FIELDS = new Set(["name", "campaign_name", "adset_name", "service"]);
+const TEXT_FIELDS = new Set(["name", "campaign_name", "adset_name", "service", "delivery", "ad_toggle"]);
 
 const CAMPAIGN_ONLY_SORT_KEYS = new Set([
   "traffic_total_visit_page",

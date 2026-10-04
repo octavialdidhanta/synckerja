@@ -28,7 +28,7 @@ import {
 
 const CACHE_TTL_MINUTES = 10;
 const METRICS_CACHE_KEY = "integrated-report-v1";
-const MONTHLY_CACHE_KEY = "monthly-spend-v1";
+const MONTHLY_CACHE_KEY = "monthly-spend-v2";
 const MAX_LOOKBACK_DAYS = 365;
 
 type MetricEntity = TikTokMetricEntity;
@@ -109,10 +109,16 @@ async function handleMonthlySpendBreakdown(
   }
 
   const windows = buildMonthWindowsInRange(dateStart, dateEnd).filter((w) => w.year === year);
-  const months = emptySpendBucketsForWindows(windows);
+  const months = emptySpendBucketsForWindows(windows).map((bucket) => ({
+    ...bucket,
+    platform_results: 0,
+    converted_leads: 0,
+    cpa: null as number | null,
+  }));
 
   for (let i = 0; i < windows.length; i++) {
     const w = windows[i] as MonthWindow;
+    const monthMetrics = ["spend", "currency", "conversion"];
     try {
       const { summary } = await fetchTikTokIntegratedReport(
         accessToken,
@@ -120,10 +126,25 @@ async function handleMonthlySpendBreakdown(
         "campaign",
         w.start,
         w.end,
+        { metrics: monthMetrics },
       );
-      months[i].spend = summary.spend as number ?? 0;
+      months[i].spend = Number(summary.spend) || 0;
+      months[i].platform_results = Number(summary.conversion) || 0;
     } catch (e) {
-      console.warn("tiktok monthly window:", w.start, w.end, e);
+      console.warn("tiktok monthly conversions failed, retrying spend only:", w.start, w.end, e);
+      try {
+        const { summary } = await fetchTikTokIntegratedReport(
+          accessToken,
+          advertiserId,
+          "campaign",
+          w.start,
+          w.end,
+          { metrics: ["spend", "currency"] },
+        );
+        months[i].spend = Number(summary.spend) || 0;
+      } catch (fallbackError) {
+        console.warn("tiktok monthly window:", w.start, w.end, fallbackError);
+      }
     }
   }
 

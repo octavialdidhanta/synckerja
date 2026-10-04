@@ -13,7 +13,10 @@ export type MonthlyMetricsBucket = {
   month: number;
   spend: number;
   converted_leads: number;
+  /** CRM CPA: spend ÷ converted leads. Account-chart CPA uses platform_results. */
   cpa: number | null;
+  /** Meta purchases, or Google/TikTok conversions, in the ad-delivery month. */
+  platform_results: number;
 };
 
 export function monthPeriodKey(year: number, month: number): string {
@@ -95,17 +98,19 @@ export function computeMonthlyCpa(spend: number, convertedLeads: number): number
 }
 
 export function enrichSpendBucketsWithAttribution(
-  buckets: { year: number; month: number; spend: number }[],
+  buckets: { year: number; month: number; spend: number; platform_results?: number }[],
   leadsByPeriod: Map<string, number>,
 ): MonthlyMetricsBucket[] {
   return buckets.map((b) => {
     const converted_leads = leadsByPeriod.get(monthPeriodKey(b.year, b.month)) ?? 0;
+    const platformResults = Number(b.platform_results);
     return {
       year: b.year,
       month: b.month,
       spend: b.spend,
       converted_leads,
       cpa: computeMonthlyCpa(b.spend, converted_leads),
+      platform_results: Number.isFinite(platformResults) && platformResults > 0 ? platformResults : 0,
     };
   });
 }

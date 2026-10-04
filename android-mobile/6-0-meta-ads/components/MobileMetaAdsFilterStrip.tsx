@@ -11,6 +11,8 @@ import {
 } from "@/mobile-app/components/ui/drawer";
 import { MobileTrafficDateRangeDrawer } from "@/mobile/6-0-web-traffic/components/MobileTrafficDateRangeDrawer";
 import { MobileMetaAdsColumnSetPicker } from "@/mobile/6-0-meta-ads/components/MobileMetaAdsColumnSetPicker";
+import { MetaAdsParentFilterSelects } from "@/6-0-meta-ads/components/MetaAdsParentFilterSelects";
+import type { MetaAdsParentOption } from "@/meta-ads/metrics/metaAdsParentFilters";
 import { MobileMetaAdsEntityPicker } from "@/mobile/6-0-meta-ads/components/MobileMetaAdsEntityPicker";
 import { MobileMetaAdsSortPickers } from "@/mobile/6-0-meta-ads/components/MobileMetaAdsSortPickers";
 import type { MetaAdsColumnSet } from "@/meta-ads/hooks/useMetaAdsColumnSets";
@@ -54,12 +56,19 @@ type Props = {
   onSortDirectionChange?: (direction: "asc" | "desc") => void;
   showSort?: boolean;
   showAccount?: boolean;
+  campaignFilterId?: string | null;
+  onCampaignFilterChange?: (id: string | null) => void;
+  campaignOptions?: MetaAdsParentOption[];
+  adsetFilterId?: string | null;
+  onAdsetFilterChange?: (id: string | null) => void;
+  adsetOptions?: MetaAdsParentOption[];
+  adsetOptionsLoading?: boolean;
   className?: string;
 };
 
 /**
  * Full-bleed horizontal filter strip (Meta desktop parity):
- * Account · Date · Level · Column set · Sort (no Campaign).
+ * Account · Date · Level · Column set · Campaign · Ad set · Sort.
  */
 export function MobileMetaAdsFilterStrip({
   accounts,
@@ -87,6 +96,13 @@ export function MobileMetaAdsFilterStrip({
   onSortDirectionChange,
   showSort = false,
   showAccount = true,
+  campaignFilterId = null,
+  onCampaignFilterChange,
+  campaignOptions = [],
+  adsetFilterId = null,
+  onAdsetFilterChange,
+  adsetOptions = [],
+  adsetOptionsLoading = false,
   className,
 }: Props) {
   const { t } = useAppTranslation();
@@ -166,6 +182,20 @@ export function MobileMetaAdsFilterStrip({
                 isLoading={columnSetLoading}
               />
             </div>
+          ) : null}
+
+          {onCampaignFilterChange && onAdsetFilterChange ? (
+            <MetaAdsParentFilterSelects
+              entity={entity}
+              campaignId={campaignFilterId}
+              onCampaignChange={onCampaignFilterChange}
+              campaignOptions={campaignOptions}
+              adsetId={adsetFilterId}
+              onAdsetChange={onAdsetFilterChange}
+              adsetOptions={adsetOptions}
+              adsetOptionsLoading={adsetOptionsLoading}
+              layout="stacked"
+            />
           ) : null}
 
           {showSort && sort && onSortFieldChange && onSortDirectionChange ? (

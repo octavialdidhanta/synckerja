@@ -20,10 +20,10 @@ const CalculatorMainFooter = ({ activeTab }: CalculatorMainFooterProps) => {
 
   const reminder =
     activeTab === "sales"
-      ? t("pages.calculator.footer.salesTemplateReminder", "Tip: Save templates to reuse your sales campaign settings.")
+      ? t("pages.calculator.footer.salesTemplateReminder", "Tip: Save this period’s KPI so you can open it later for comparison.")
       : t(
           "pages.calculator.footer.servicesTemplateReminder",
-          "Tip: Save templates separately for each calculator (Engagement, Traffic, Conversion).",
+          "Tip: Save each period’s KPI so you can open and compare it later.",
         );
 
   return (

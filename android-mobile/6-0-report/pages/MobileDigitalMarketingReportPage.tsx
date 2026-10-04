@@ -249,7 +249,7 @@ function MobileDigitalMarketingReportPageBody({
       buildReportServiceFilterOptions(
         [...googleServiceRows, ...metaServiceRows, ...tiktokServiceRows],
         {
-          all: t("digitalMarketing.report.serviceFilterAll", "All services"),
+          all: t("digitalMarketing.report.serviceFilterAll", "All products or services"),
           unmapped: t("digitalMarketing.report.serviceUnmapped", "Belum di-map"),
         },
       ),

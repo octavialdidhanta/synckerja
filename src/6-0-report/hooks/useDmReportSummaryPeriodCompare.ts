@@ -339,6 +339,7 @@ export function useDmReportSummaryPeriodCompare() {
   const metaByServiceQuery = useQuery({
     queryKey: [
       "dm-report-meta-by-service-compare",
+      "purchases",
       organizationId,
       effectiveMetaAdAccountId,
       previousRange?.fromDate ?? "",

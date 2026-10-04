@@ -34,7 +34,7 @@ export type MetaAdsMetricCatalogResponse = {
   categories: MetaAdsMetricCatalogCategory[];
 };
 
-export const META_ADS_MAX_METRICS = 20;
+export const META_ADS_MAX_METRICS = 30;
 
 /** Always shown after Name — not user-selectable in Modify columns. */
 export const META_ADS_PINNED_METRIC_KEYS = ["spend"] as const;
@@ -57,6 +57,33 @@ export const META_ADS_SYNCKERJA_METRIC_KEYS = [
   "leads_cost_per_lead",
 ] as const;
 
+export const META_ADS_CPAS_PRESET_METRIC_KEYS = [
+  "delivery",
+  "budget",
+  "reach",
+  "impressions",
+  "frequency",
+  "cpm",
+  "cpc",
+  "ctr",
+  "clicks",
+  "click_to_view_rate",
+  "content_views",
+  "view_to_atc_rate",
+  "adds_to_cart",
+  "cost_per_atc",
+  "atc_conversion_value",
+  "purchases",
+  "atc_to_purchase_rate",
+  "purchase_conversion_value",
+  "aov",
+  "cost_per_purchase",
+  "purchase_roas",
+] as const;
+
+/** Row fields that are not account totals, so they stay out of the summary cards. */
+export const META_ADS_SUMMARY_EXCLUDED_METRIC_KEYS = ["delivery", "budget"] as const;
+
 export const META_ADS_ALL_METRIC_KEYS = [
   "spend",
   "impressions",
@@ -65,6 +92,21 @@ export const META_ADS_ALL_METRIC_KEYS = [
   "cpc",
   "cpm",
   "reach",
+  "frequency",
+  "delivery",
+  "budget",
+  "click_to_view_rate",
+  "content_views",
+  "view_to_atc_rate",
+  "adds_to_cart",
+  "cost_per_atc",
+  "atc_conversion_value",
+  "purchases",
+  "atc_to_purchase_rate",
+  "purchase_conversion_value",
+  "aov",
+  "cost_per_purchase",
+  "purchase_roas",
   ...META_ADS_SYNCKERJA_METRIC_KEYS,
 ] as const;
 
@@ -98,9 +140,9 @@ const CORE_METRICS: MetaAdsMetricCatalogItem[] = [
   {
     key: "clicks",
     labelKey: "digitalMarketing.metaAds.clicks",
-    defaultLabel: "Clicks",
+    defaultLabel: "Link clicks",
     descriptionKey: "digitalMarketing.metaAds.metricClicksDesc",
-    defaultDescription: "Clicks on ads",
+    defaultDescription: "Clicks on links in the ad",
     valueKind: "count",
     entities: ["campaign", "adset", "ad"],
     defaultSelected: true,
@@ -111,7 +153,7 @@ const CORE_METRICS: MetaAdsMetricCatalogItem[] = [
     labelKey: "digitalMarketing.metaAds.ctr",
     defaultLabel: "CTR",
     descriptionKey: "digitalMarketing.metaAds.metricCtrDesc",
-    defaultDescription: "Click-through rate",
+    defaultDescription: "Link clicks divided by impressions",
     valueKind: "percent",
     entities: ["campaign", "adset", "ad"],
     defaultSelected: true,
@@ -122,7 +164,7 @@ const CORE_METRICS: MetaAdsMetricCatalogItem[] = [
     labelKey: "digitalMarketing.metaAds.cpc",
     defaultLabel: "CPC",
     descriptionKey: "digitalMarketing.metaAds.metricCpcDesc",
-    defaultDescription: "Cost per click",
+    defaultDescription: "Cost per link click",
     valueKind: "currency",
     entities: ["campaign", "adset", "ad"],
     defaultSelected: false,
@@ -147,6 +189,179 @@ const CORE_METRICS: MetaAdsMetricCatalogItem[] = [
     defaultDescription: "Unique people reached",
     valueKind: "count",
     entities: ["campaign", "adset", "ad"],
+    defaultSelected: false,
+    sortable: true,
+  },
+];
+
+const ALL_ENTITIES: MetaAdsMetricCatalogItem["entities"] = ["campaign", "adset", "ad"];
+
+const DELIVERY_BUDGET_METRICS: MetaAdsMetricCatalogItem[] = [
+  {
+    key: "delivery",
+    labelKey: "digitalMarketing.metaAds.delivery",
+    defaultLabel: "Delivery",
+    descriptionKey: "digitalMarketing.metaAds.metricDeliveryDesc",
+    defaultDescription: "Active or off, from the campaign, ad set, or ad status",
+    valueKind: "text",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "budget",
+    labelKey: "digitalMarketing.metaAds.budget",
+    defaultLabel: "Budget",
+    descriptionKey: "digitalMarketing.metaAds.metricBudgetDesc",
+    defaultDescription: "Daily budget, or lifetime budget when the daily budget is not set",
+    valueKind: "currency",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "frequency",
+    labelKey: "digitalMarketing.metaAds.frequency",
+    defaultLabel: "Frequency",
+    descriptionKey: "digitalMarketing.metaAds.metricFrequencyDesc",
+    defaultDescription: "Average times each person saw the ad",
+    valueKind: "decimal",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+];
+
+const CPAS_METRICS: MetaAdsMetricCatalogItem[] = [
+  {
+    key: "click_to_view_rate",
+    labelKey: "digitalMarketing.metaAds.clickToViewRate",
+    defaultLabel: "% Click to View",
+    descriptionKey: "digitalMarketing.metaAds.metricClickToViewDesc",
+    defaultDescription: "Content views with shared items divided by link clicks",
+    valueKind: "percent",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "content_views",
+    labelKey: "digitalMarketing.metaAds.contentViews",
+    defaultLabel: "Content views",
+    descriptionKey: "digitalMarketing.metaAds.metricContentViewsDesc",
+    defaultDescription: "Content views with shared items",
+    valueKind: "count",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "view_to_atc_rate",
+    labelKey: "digitalMarketing.metaAds.viewToAtcRate",
+    defaultLabel: "% View to ATC",
+    descriptionKey: "digitalMarketing.metaAds.metricViewToAtcDesc",
+    defaultDescription: "Adds to cart with shared items divided by content views",
+    valueKind: "percent",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "adds_to_cart",
+    labelKey: "digitalMarketing.metaAds.addsToCart",
+    defaultLabel: "Adds to cart",
+    descriptionKey: "digitalMarketing.metaAds.metricAddsToCartDesc",
+    defaultDescription: "Adds to cart with shared items",
+    valueKind: "count",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "cost_per_atc",
+    labelKey: "digitalMarketing.metaAds.costPerAtc",
+    defaultLabel: "Cost/ATC",
+    descriptionKey: "digitalMarketing.metaAds.metricCostPerAtcDesc",
+    defaultDescription: "Amount spent divided by adds to cart with shared items",
+    valueKind: "currency",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "atc_conversion_value",
+    labelKey: "digitalMarketing.metaAds.atcConversionValue",
+    defaultLabel: "ATC conversion value",
+    descriptionKey: "digitalMarketing.metaAds.metricAtcConversionValueDesc",
+    defaultDescription: "Adds to cart conversion value for shared items only",
+    valueKind: "currency",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "purchases",
+    labelKey: "digitalMarketing.metaAds.purchases",
+    defaultLabel: "Purchases",
+    descriptionKey: "digitalMarketing.metaAds.metricPurchasesDesc",
+    defaultDescription: "Purchases with shared items",
+    valueKind: "count",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "atc_to_purchase_rate",
+    labelKey: "digitalMarketing.metaAds.atcToPurchaseRate",
+    defaultLabel: "% ATC to Purchase",
+    descriptionKey: "digitalMarketing.metaAds.metricAtcToPurchaseDesc",
+    defaultDescription: "Purchases with shared items divided by adds to cart",
+    valueKind: "percent",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "purchase_conversion_value",
+    labelKey: "digitalMarketing.metaAds.purchaseConversionValue",
+    defaultLabel: "Purchase conversion value",
+    descriptionKey: "digitalMarketing.metaAds.metricPurchaseConversionValueDesc",
+    defaultDescription: "Purchases conversion value for shared items only",
+    valueKind: "currency",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "aov",
+    labelKey: "digitalMarketing.metaAds.aov",
+    defaultLabel: "AOV",
+    descriptionKey: "digitalMarketing.metaAds.metricAovDesc",
+    defaultDescription: "Purchase conversion value divided by purchases",
+    valueKind: "currency",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "cost_per_purchase",
+    labelKey: "digitalMarketing.metaAds.costPerPurchase",
+    defaultLabel: "Cost/Purchase",
+    descriptionKey: "digitalMarketing.metaAds.metricCostPerPurchaseDesc",
+    defaultDescription: "Amount spent divided by purchases with shared items",
+    valueKind: "currency",
+    entities: ALL_ENTITIES,
+    defaultSelected: false,
+    sortable: true,
+  },
+  {
+    key: "purchase_roas",
+    labelKey: "digitalMarketing.metaAds.purchaseRoas",
+    defaultLabel: "Purchase ROAS",
+    descriptionKey: "digitalMarketing.metaAds.metricPurchaseRoasDesc",
+    defaultDescription: "Purchase conversion value divided by amount spent",
+    valueKind: "decimal",
+    entities: ALL_ENTITIES,
     defaultSelected: false,
     sortable: true,
   },
@@ -212,9 +427,12 @@ export function getMetaAdsCatalogMetricKeys(): Set<string> {
 }
 
 export function getMetaAdsMetricsForEntity(entity: MetaAdsMetricEntity): MetaAdsMetricCatalogItem[] {
-  const core = CORE_METRICS.filter((m) => m.entities.includes(entity));
-  if (entity !== "campaign") return core;
-  return [...core, ...SYNCKERJA_METRICS];
+  const performance = [...CORE_METRICS, ...DELIVERY_BUDGET_METRICS].filter((m) =>
+    m.entities.includes(entity),
+  );
+  const cpas = CPAS_METRICS.filter((m) => m.entities.includes(entity));
+  if (entity !== "campaign") return [...performance, ...cpas];
+  return [...performance, ...cpas, ...SYNCKERJA_METRICS];
 }
 
 /** Table Modify columns — excludes pinned metrics always shown in the grid. */
@@ -239,7 +457,7 @@ function getMetaAdsCampaignServiceColumns(): MetaAdsIdentityColumn[] {
     {
       key: "service",
       labelKey: "digitalMarketing.metaAds.columnService",
-      defaultLabel: "Service",
+      defaultLabel: "Service/products",
     },
     {
       key: "service_cpl",
@@ -309,15 +527,36 @@ export function getMetaAdsLockedTableColumns(entity: MetaAdsMetricEntity): MetaA
   if (entity === "campaign") {
     return [...getMetaAdsCampaignServiceColumns(), name, ...pinned];
   }
+  if (entity === "ad") {
+    return [
+      name,
+      {
+        key: "running_days",
+        labelKey: "digitalMarketing.metaAds.runningDays",
+        defaultLabel: "Days",
+      },
+      {
+        key: "ad_toggle",
+        labelKey: "digitalMarketing.metaAds.adToggle",
+        defaultLabel: "On",
+      },
+      ...pinned,
+      ...parents,
+    ];
+  }
   return [name, ...pinned, ...parents];
 }
 
 export function buildMetaAdsMetricCatalogResponse(
   entity: MetaAdsMetricEntity,
 ): MetaAdsMetricCatalogResponse {
-  const coreMetrics = getMetaAdsSelectableMetricsForEntity(entity).filter((m) =>
-    CORE_METRICS.some((core) => core.key === m.key),
+  const selectable = getMetaAdsSelectableMetricsForEntity(entity);
+  const performanceKeys = new Set(
+    [...CORE_METRICS, ...DELIVERY_BUDGET_METRICS].map((metric) => metric.key),
   );
+  const cpasKeys = new Set(CPAS_METRICS.map((metric) => metric.key));
+  const coreMetrics = selectable.filter((metric) => performanceKeys.has(metric.key));
+  const cpasMetrics = selectable.filter((metric) => cpasKeys.has(metric.key));
   const synckerjaMetrics = getMetaAdsSynckerjaMetricsForEntity(entity);
   const recommended = coreMetrics.filter((m) => m.defaultSelected);
   const categories: MetaAdsMetricCatalogCategory[] = [
@@ -326,6 +565,12 @@ export function buildMetaAdsMetricCatalogResponse(
       labelKey: "digitalMarketing.metaAds.catalogPerformance",
       defaultLabel: "Performance",
       metrics: coreMetrics,
+    },
+    {
+      id: "cpas",
+      labelKey: "digitalMarketing.metaAds.catalogCpas",
+      defaultLabel: "CPAS",
+      metrics: cpasMetrics,
     },
   ];
   if (synckerjaMetrics.length > 0) {

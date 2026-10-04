@@ -37,7 +37,7 @@ export function MobileReportServicePicker({
     [options, value],
   );
 
-  const fieldLabel = t("digitalMarketing.report.tableServiceFilterLabel", "Service");
+  const fieldLabel = t("digitalMarketing.report.tableServiceFilterLabel", "Products or Services");
 
   return (
     <div className={cn("w-full", className)}>
@@ -56,7 +56,7 @@ export function MobileReportServicePicker({
         <span className="flex w-full min-w-0 items-center gap-1">
           <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
             {active?.label ??
-              t("digitalMarketing.report.serviceFilterAll", "All services")}
+              t("digitalMarketing.report.serviceFilterAll", "All products or services")}
           </span>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
         </span>

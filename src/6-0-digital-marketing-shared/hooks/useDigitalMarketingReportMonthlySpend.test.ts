@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCombinedChartPeriodSummary,
+  buildMonthlyCpaChartPoints,
   buildMonthlySpendChartPoints,
+  metaCpaAnchorFromAccountSummary,
   sumReportMonthlySpendChartPoints,
   type MonthlySpendChannelSeries,
 } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportMonthlySpend";
@@ -96,5 +98,83 @@ describe("report monthly spend chart totals", () => {
 
     expect(barTotal).toBe(2_611_404);
     expect(periodTotal.spend).toBe(2_611_404);
+  });
+});
+
+describe("account CPA chart uses platform results", () => {
+  it("divides spend by purchases even when converted leads are zero", () => {
+    const meta: MonthlySpendChannelSeries = {
+      ...emptySeries(),
+      months: [
+        { year: 2026, month: 3, spend: 4_000_000, converted_leads: 0, cpa: null, platform_results: 8 },
+        { year: 2026, month: 4, spend: 1_000_000, converted_leads: 2, cpa: 500_000, platform_results: 0 },
+      ],
+    };
+    const google = { ...emptySeries(), connected: false, months: [] };
+    const tiktok = emptyTikTok();
+    const points = buildMonthlyCpaChartPoints({
+      year: 2026,
+      locale: "en-US",
+      google,
+      meta,
+      tiktok,
+      combinedScope: { includeGoogle: false, includeMeta: true, includeTikTok: false },
+    });
+
+    expect(points.find((p) => p.month === 3)?.metaCpa).toBe(500_000);
+    expect(points.find((p) => p.month === 4)?.metaCpa).toBeNull();
+    expect(points.find((p) => p.month === 3)?.metaLeads).toBe(8);
+  });
+
+  it("uses the account Cost/Purchase card for the filtered month", () => {
+    const meta: MonthlySpendChannelSeries = {
+      ...emptySeries(),
+      months: [
+        { year: 2026, month: 9, spend: 5_000_000, converted_leads: 0, platform_results: 400 },
+        { year: 2026, month: 10, spend: 2_237_406, converted_leads: 0, platform_results: 160 },
+      ],
+    };
+    const google = { ...emptySeries(), connected: false, months: [] };
+    const tiktok = emptyTikTok();
+    const anchor = metaCpaAnchorFromAccountSummary({
+      dateStart: "2026-10-01",
+      dateEnd: "2026-10-04",
+      spend: 2_237_069,
+      purchases: 150,
+    });
+    const points = buildMonthlyCpaChartPoints({
+      year: 2026,
+      locale: "en-US",
+      google,
+      meta,
+      tiktok,
+      combinedScope: { includeGoogle: false, includeMeta: true, includeTikTok: false },
+      metaPeriodAnchor: anchor,
+    });
+
+    expect(anchor).toEqual({ year: 2026, month: 10, spend: 2_237_069, purchases: 150 });
+    expect(points.find((p) => p.month === 10)?.metaCpa).toBe(2_237_069 / 150);
+    expect(points.find((p) => p.month === 10)?.metaSpend).toBe(2_237_069);
+    expect(points.find((p) => p.month === 10)?.metaLeads).toBe(150);
+    expect(points.find((p) => p.month === 9)?.metaCpa).toBe(5_000_000 / 400);
+  });
+
+  it("does not anchor a range that crosses months or starts after the 1st", () => {
+    expect(
+      metaCpaAnchorFromAccountSummary({
+        dateStart: "2026-09-01",
+        dateEnd: "2026-10-04",
+        spend: 100,
+        purchases: 2,
+      }),
+    ).toBeNull();
+    expect(
+      metaCpaAnchorFromAccountSummary({
+        dateStart: "2026-10-02",
+        dateEnd: "2026-10-04",
+        spend: 100,
+        purchases: 2,
+      }),
+    ).toBeNull();
   });
 });

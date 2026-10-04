@@ -4,7 +4,7 @@ import type { DmReportTargetProgress } from "@/6-0-digital-marketing-shared/dmRe
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
-import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
+import type { MetaAdsAccountSummary, MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type { MetaAdsMetricsRow } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type { MetaAdsMetricCatalogItem } from "@/meta-ads/metrics/metaAdsMetricCatalog";
 import {
@@ -21,18 +21,10 @@ import {
   useMetaAdsSummaryPeriodCompare,
 } from "@/6-0-meta-ads/hooks/useMetaAdsSummaryPeriodCompare";
 
-type Summary = {
-  spend: number;
-  impressions: number;
-  clicks: number;
-  reach?: number;
-  currency: string;
-};
-
 type Props = {
   entity: MetaAdsMetricEntity;
   adAccountId: string | null;
-  summary: Summary | null | undefined;
+  summary: MetaAdsAccountSummary | null | undefined;
   rows: MetaAdsMetricsRow[];
   catalogItems: MetaAdsMetricCatalogItem[];
   metricKeys: MetaAdsTableMetricKey[];
@@ -97,7 +89,10 @@ export function MetaAdsMetricsSummaryBar({
     () =>
       buildMetaAdsSummaryMetricOptions({
         entity,
-        catalogItems,
+        catalogItems: catalogItems.map((item) => ({
+          ...item,
+          defaultLabel: t(item.labelKey, item.defaultLabel),
+        })),
         labels: {
           performance: t(
             "digitalMarketing.metaAds.summaryMetricGroupPerformance",

@@ -1,8 +1,10 @@
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
+import type { MetaAdsAccountSummary } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type { MetaAdsMetricsRow } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import {
   getMetaAdsMetricsForEntity,
   isMetaAdsSynckerjaMetricKey,
+  META_ADS_SUMMARY_EXCLUDED_METRIC_KEYS,
   type MetaAdsMetricCatalogItem,
 } from "@/meta-ads/metrics/metaAdsMetricCatalog";
 import {
@@ -22,6 +24,19 @@ export type MetaAdsTableMetricKey =
   | "cpc"
   | "cpm"
   | "reach"
+  | "frequency"
+  | "content_views"
+  | "click_to_view_rate"
+  | "adds_to_cart"
+  | "view_to_atc_rate"
+  | "cost_per_atc"
+  | "atc_conversion_value"
+  | "purchases"
+  | "atc_to_purchase_rate"
+  | "purchase_conversion_value"
+  | "aov"
+  | "cost_per_purchase"
+  | "purchase_roas"
   | "service_cpl"
   | "service_converted_leads";
 
@@ -56,6 +71,19 @@ export type MetaAdsSummaryTotals = {
   ctr: number | null;
   cpc: number | null;
   cpm: number | null;
+  frequency: number | null;
+  contentViews: number | null;
+  clickToViewRate: number | null;
+  addsToCart: number | null;
+  viewToAtcRate: number | null;
+  costPerAtc: number | null;
+  atcConversionValue: number | null;
+  purchases: number | null;
+  atcToPurchaseRate: number | null;
+  purchaseConversionValue: number | null;
+  aov: number | null;
+  costPerPurchase: number | null;
+  purchaseRoas: number | null;
   convertedLeads: number | null;
   cpa: number | null;
 };
@@ -82,14 +110,13 @@ function aggregateCampaignAttribution(rows: MetaAdsMetricsRow[]): {
   return { convertedLeads, hasLeads };
 }
 
+function summaryMetricNumber(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return value;
+}
+
 export function buildMetaAdsSummaryTotals(
-  summary: {
-    spend: number;
-    impressions: number;
-    clicks: number;
-    reach?: number;
-    currency: string;
-  } | null | undefined,
+  summary: MetaAdsAccountSummary | null | undefined,
   rows: MetaAdsMetricsRow[],
   entity: MetaAdsMetricEntity,
 ): MetaAdsSummaryTotals | null {
@@ -117,19 +144,57 @@ export function buildMetaAdsSummaryTotals(
     ctr: computeSummaryCtr(clicks, impressions),
     cpc: computeSummaryCpc(spend, clicks),
     cpm: computeSummaryCpm(spend, impressions),
+    frequency: summaryMetricNumber(summary.frequency),
+    contentViews: summaryMetricNumber(summary.content_views),
+    clickToViewRate: summaryMetricNumber(summary.click_to_view_rate),
+    addsToCart: summaryMetricNumber(summary.adds_to_cart),
+    viewToAtcRate: summaryMetricNumber(summary.view_to_atc_rate),
+    costPerAtc: summaryMetricNumber(summary.cost_per_atc),
+    atcConversionValue: summaryMetricNumber(summary.atc_conversion_value),
+    purchases: summaryMetricNumber(summary.purchases),
+    atcToPurchaseRate: summaryMetricNumber(summary.atc_to_purchase_rate),
+    purchaseConversionValue: summaryMetricNumber(summary.purchase_conversion_value),
+    aov: summaryMetricNumber(summary.aov),
+    costPerPurchase: summaryMetricNumber(summary.cost_per_purchase),
+    purchaseRoas: summaryMetricNumber(summary.purchase_roas),
     convertedLeads: attribution.hasLeads ? attribution.convertedLeads : null,
     cpa,
   };
 }
 
 export function metaAdsSummaryValidKeys(entity: MetaAdsMetricEntity): MetaAdsTableMetricKey[] {
+  const excluded = new Set<string>(META_ADS_SUMMARY_EXCLUDED_METRIC_KEYS);
   const keys = getMetaAdsMetricsForEntity(entity)
-    .filter((m) => !isMetaAdsSynckerjaMetricKey(m.key))
+    .filter((m) => !isMetaAdsSynckerjaMetricKey(m.key) && !excluded.has(m.key))
     .map((m) => m.key as MetaAdsTableMetricKey);
   if (entity === "campaign") {
     keys.push("service_cpl", "service_converted_leads");
   }
   return keys;
+}
+
+/** First summary cards follow the chosen column-set order. Delivery and budget stay in the table only. */
+export function summarySlotKeysFromMetricKeys(
+  metricKeys: string[],
+  entity: MetaAdsMetricEntity,
+): MetaAdsTableMetricKey[] {
+  const valid = new Set(metaAdsSummaryValidKeys(entity));
+  const picked: MetaAdsTableMetricKey[] = [];
+  const seen = new Set<string>();
+  for (const raw of metricKeys) {
+    if (picked.length >= META_ADS_SUMMARY_SLOT_COUNT) break;
+    const key = String(raw ?? "").trim();
+    if (!key || seen.has(key) || !valid.has(key as MetaAdsTableMetricKey)) continue;
+    seen.add(key);
+    picked.push(key as MetaAdsTableMetricKey);
+  }
+  for (const fallback of META_ADS_SUMMARY_DEFAULT_SLOT_KEYS) {
+    if (picked.length >= META_ADS_SUMMARY_SLOT_COUNT) break;
+    if (seen.has(fallback) || !valid.has(fallback)) continue;
+    seen.add(fallback);
+    picked.push(fallback);
+  }
+  return normalizeMetaAdsSummarySlotKeys(picked, valid, entity);
 }
 
 export function buildMetaAdsSummaryMetricOptions(args: {
@@ -151,8 +216,9 @@ export function buildMetaAdsSummaryMetricOptions(args: {
 }): MetaAdsSummaryMetricOption[] {
   const options: MetaAdsSummaryMetricOption[] = [];
 
+  const excluded = new Set<string>(META_ADS_SUMMARY_EXCLUDED_METRIC_KEYS);
   for (const item of args.catalogItems) {
-    if (isMetaAdsSynckerjaMetricKey(item.key)) continue;
+    if (isMetaAdsSynckerjaMetricKey(item.key) || excluded.has(item.key)) continue;
     const key = item.key as MetaAdsTableMetricKey;
     options.push({
       key,
@@ -245,6 +311,36 @@ export function formatMetaAdsSummaryMetricValue(
       return formatMetaMetricValue("cpc", totals.cpc, totals.currency);
     case "cpm":
       return formatMetaMetricValue("cpm", totals.cpm, totals.currency);
+    case "frequency":
+      return formatMetaMetricValue("frequency", totals.frequency, totals.currency);
+    case "content_views":
+      return formatMetaMetricValue("content_views", totals.contentViews, totals.currency);
+    case "click_to_view_rate":
+      return formatMetaMetricValue("click_to_view_rate", totals.clickToViewRate, totals.currency);
+    case "adds_to_cart":
+      return formatMetaMetricValue("adds_to_cart", totals.addsToCart, totals.currency);
+    case "view_to_atc_rate":
+      return formatMetaMetricValue("view_to_atc_rate", totals.viewToAtcRate, totals.currency);
+    case "cost_per_atc":
+      return formatMetaMetricValue("cost_per_atc", totals.costPerAtc, totals.currency);
+    case "atc_conversion_value":
+      return formatMetaMetricValue("atc_conversion_value", totals.atcConversionValue, totals.currency);
+    case "purchases":
+      return formatMetaMetricValue("purchases", totals.purchases, totals.currency);
+    case "atc_to_purchase_rate":
+      return formatMetaMetricValue("atc_to_purchase_rate", totals.atcToPurchaseRate, totals.currency);
+    case "purchase_conversion_value":
+      return formatMetaMetricValue(
+        "purchase_conversion_value",
+        totals.purchaseConversionValue,
+        totals.currency,
+      );
+    case "aov":
+      return formatMetaMetricValue("aov", totals.aov, totals.currency);
+    case "cost_per_purchase":
+      return formatMetaMetricValue("cost_per_purchase", totals.costPerPurchase, totals.currency);
+    case "purchase_roas":
+      return formatMetaMetricValue("purchase_roas", totals.purchaseRoas, totals.currency);
     case "service_converted_leads":
       if (totals.convertedLeads == null) return "—";
       return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
@@ -278,6 +374,32 @@ export function metaAdsSummaryNumericValue(
       return totals.cpc;
     case "cpm":
       return totals.cpm;
+    case "frequency":
+      return totals.frequency;
+    case "content_views":
+      return totals.contentViews;
+    case "click_to_view_rate":
+      return totals.clickToViewRate;
+    case "adds_to_cart":
+      return totals.addsToCart;
+    case "view_to_atc_rate":
+      return totals.viewToAtcRate;
+    case "cost_per_atc":
+      return totals.costPerAtc;
+    case "atc_conversion_value":
+      return totals.atcConversionValue;
+    case "purchases":
+      return totals.purchases;
+    case "atc_to_purchase_rate":
+      return totals.atcToPurchaseRate;
+    case "purchase_conversion_value":
+      return totals.purchaseConversionValue;
+    case "aov":
+      return totals.aov;
+    case "cost_per_purchase":
+      return totals.costPerPurchase;
+    case "purchase_roas":
+      return totals.purchaseRoas;
     case "service_converted_leads":
       return totals.convertedLeads;
     case "service_cpl":

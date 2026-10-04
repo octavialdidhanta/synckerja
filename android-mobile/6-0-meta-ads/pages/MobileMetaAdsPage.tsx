@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/aler
 import { DigitalMarketingMobileFooter } from "@/mobile/6-0-digital-marketing/components/DigitalMarketingMobileFooter";
 import { MetaAdsMobileShellHeader } from "@/mobile/6-0-meta-ads/components/MetaAdsMobileShellHeader";
 import { MobileMetaAdsSummaryBar } from "@/mobile/6-0-meta-ads/components/MobileMetaAdsSummaryBar";
+import { MetaAdsParentFilterSelects } from "@/6-0-meta-ads/components/MetaAdsParentFilterSelects";
 import { MobileMetaAdsFilterStrip } from "@/mobile/6-0-meta-ads/components/MobileMetaAdsFilterStrip";
 import { MobileMetaAdsMetricsTable } from "@/mobile/6-0-meta-ads/components/MobileMetaAdsMetricsTable";
 import { MobileManageCommentsAccountButton } from "@/mobile/6-0-social-media-performance/components/MobileManageCommentsAccountButton";
@@ -39,6 +40,7 @@ import {
 } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import { useMetaAdsColumnSets } from "@/meta-ads/hooks/useMetaAdsColumnSets";
 import { useMetaAdsMetricsPreferences } from "@/meta-ads/hooks/useMetaAdsMetricsPreferences";
+import { useMetaAdsParentScope } from "@/meta-ads/hooks/useMetaAdsParentScope";
 import {
   getMetaAdsCatalogMetricKeys,
   getMetaAdsMetricsForEntity,
@@ -52,6 +54,7 @@ import {
   META_ADS_SUMMARY_DEFAULT_SLOT_KEYS,
   metaAdsSummaryValidKeys,
   normalizeMetaAdsSummarySlotKeys,
+  summarySlotKeysFromMetricKeys,
   type MetaAdsTableMetricKey,
 } from "@/meta-ads/metrics/metaAdsSummaryMetrics";
 import {
@@ -93,6 +96,7 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
   const [customDateRange, setCustomDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [entity, setEntity] = useState<MetaAdsMetricEntity>("campaign");
+  const [pendingColumnSetId, setPendingColumnSetId] = useState<string | null>(null);
   const [summarySlotMetricKeys, setSummarySlotMetricKeys] = useState<MetaAdsTableMetricKey[]>(
     () => [...META_ADS_SUMMARY_DEFAULT_SLOT_KEYS],
   );
@@ -168,12 +172,14 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
   const { columnSets } = useMetaAdsColumnSets(organizationId, entity, true);
 
   const {
-    visibleColumns: selectedMetrics,
+    visibleColumns: storedMetricKeys,
     storedSort,
     isPending: prefsPending,
     save: saveMetrics,
     saveSort,
   } = useMetaAdsMetricsPreferences(organizationId, entity, validMetricKeys);
+  const [metricKeysOverride, setMetricKeysOverride] = useState<string[] | null>(null);
+  const selectedMetrics = metricKeysOverride ?? storedMetricKeys;
 
   const metricItems = useMemo(
     () => resolveMetaAdsMetricItems(selectedMetrics, entity),
@@ -184,6 +190,7 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
     () => findMatchingMetaAdsColumnSet(columnSets, selectedMetrics),
     [columnSets, selectedMetrics],
   );
+  const summarySyncedSetIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setSummarySlotMetricKeys(
@@ -194,6 +201,29 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
       ),
     );
   }, [entity]);
+
+  useEffect(() => {
+    summarySyncedSetIdRef.current = null;
+    setPendingColumnSetId(null);
+    setMetricKeysOverride(null);
+  }, [entity, organizationId]);
+
+  useEffect(() => {
+    if (pendingColumnSetId && matchedColumnSet?.id === pendingColumnSetId) {
+      setPendingColumnSetId(null);
+    }
+  }, [pendingColumnSetId, matchedColumnSet?.id]);
+
+  useEffect(() => {
+    if (!matchedColumnSet) return;
+    if (summarySyncedSetIdRef.current === matchedColumnSet.id) return;
+    summarySyncedSetIdRef.current = matchedColumnSet.id;
+    const keys = filterMetaAdsPreferenceMetricKeys(matchedColumnSet.metric_keys, validMetricKeys);
+    if (keys.length === 0) return;
+    const slots = summarySlotKeysFromMetricKeys(keys, entity);
+    setSummarySlotMetricKeys(slots);
+    saveMetaAdsSummarySlotMetrics(entity, slots);
+  }, [matchedColumnSet, entity, validMetricKeys]);
 
   const handleSummaryKeysChange = useCallback(
     (keys: MetaAdsTableMetricKey[]) => {
@@ -232,17 +262,28 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
     Boolean(adAccountId) &&
     metricsReadyAccounts.some((a) => a.ad_account_id === adAccountId);
 
+  const metricsEnabled =
+    reportingEnabled && accountReadyForMetrics && canManage && !gatePending;
+
   const metricsQuery = useMetaAdsMetricsQuery({
     organizationId,
     adAccountId,
     entity,
     dateStart,
     dateEnd,
-    enabled:
-      reportingEnabled &&
-      accountReadyForMetrics &&
-      canManage &&
-      !gatePending,
+    enabled: metricsEnabled,
+  });
+
+  const parentScope = useMetaAdsParentScope({
+    organizationId,
+    adAccountId,
+    entity,
+    dateStart,
+    dateEnd,
+    enabled: metricsEnabled,
+    rows: metricsQuery.data?.rows ?? [],
+    rowsLoading: metricsQuery.isPending || (metricsQuery.isFetching && !metricsQuery.data),
+    summary: metricsQuery.data?.summary,
   });
 
   const sortFieldValue = useMemo(() => {
@@ -250,10 +291,15 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
     return sortColumnOptions[0]?.key ?? "spend";
   }, [sort.field, sortColumnOptions]);
 
-  const sortedRows = useMemo(() => {
-    const rows = metricsQuery.data?.rows ?? [];
-    return sortMetaAdsRows(rows, { field: sortFieldValue, direction: sort.direction }, entity);
-  }, [metricsQuery.data?.rows, sortFieldValue, sort.direction, entity]);
+  const sortedRows = useMemo(
+    () =>
+      sortMetaAdsRows(
+        parentScope.scopedRows,
+        { field: sortFieldValue, direction: sort.direction },
+        entity,
+      ),
+    [parentScope.scopedRows, sortFieldValue, sort.direction, entity],
+  );
 
   const handleSortFieldChange = useCallback(
     (field: string) => {
@@ -263,41 +309,44 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
         direction: defaultMetaAdsSortDirection(kind),
       };
       setSort(next);
-      void saveSort.mutateAsync(next);
+      void saveSort.mutateAsync({ ...next, visibleColumns: selectedMetrics });
     },
-    [saveSort],
+    [saveSort, selectedMetrics],
   );
 
   const handleSortDirectionChange = useCallback(
     (direction: "asc" | "desc") => {
       const next: MetaAdsMetricsSort = { field: sortFieldValue, direction };
       setSort(next);
-      void saveSort.mutateAsync(next);
+      void saveSort.mutateAsync({ ...next, visibleColumns: selectedMetrics });
     },
-    [sortFieldValue, saveSort],
+    [sortFieldValue, saveSort, selectedMetrics],
   );
 
   const handleApplyMetrics = useCallback(
     async (keys: string[]) => {
+      const nextKeys = filterMetaAdsPreferenceMetricKeys(keys, validMetricKeys);
+      setMetricKeysOverride(nextKeys);
       try {
-        const itemsAfterApply = resolveMetaAdsMetricItems(keys, entity);
+        const itemsAfterApply = resolveMetaAdsMetricItems(nextKeys, entity);
         const optionsAfterApply = buildMetaAdsSortColumnOptions(
           entity,
           itemsAfterApply.map((m) => m.key),
         );
         const nextSort = resolveSortForOptions(sort, optionsAfterApply);
         setSort(nextSort);
-        await saveMetrics.mutateAsync({ visibleColumns: keys, sort: nextSort });
+        await saveMetrics.mutateAsync({ visibleColumns: nextKeys, sort: nextSort });
       } catch (e) {
+        setMetricKeysOverride(null);
         toast.error((e as Error).message);
+        throw e;
       }
     },
-    [entity, sort, saveMetrics],
+    [entity, sort, saveMetrics, validMetricKeys],
   );
 
   const handleSwitchColumnSet = useCallback(
     async (setId: string) => {
-      if (matchedColumnSet?.id === setId) return;
       const set = columnSets.find((s) => s.id === setId);
       if (!set) return;
       const keys = filterMetaAdsPreferenceMetricKeys(set.metric_keys, validMetricKeys);
@@ -310,9 +359,18 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
         );
         return;
       }
-      await handleApplyMetrics(keys);
+      setPendingColumnSetId(setId);
+      const slots = summarySlotKeysFromMetricKeys(keys, entity);
+      setSummarySlotMetricKeys(slots);
+      saveMetaAdsSummarySlotMetrics(entity, slots);
+      if (matchedColumnSet?.id === setId) return;
+      try {
+        await handleApplyMetrics(keys);
+      } catch {
+        setPendingColumnSetId(null);
+      }
     },
-    [matchedColumnSet?.id, columnSets, validMetricKeys, handleApplyMetrics, t],
+    [matchedColumnSet?.id, columnSets, validMetricKeys, handleApplyMetrics, t, entity],
   );
 
   const handleCustomDateRange = useCallback(
@@ -343,6 +401,7 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
         ["meta-ads-metrics", organizationId, adAccountId, entity, dateStart, dateEnd, ""],
         fresh,
       );
+      if (entity === "ad") await parentScope.refetchAdsetCatalog();
     } catch (e) {
       toast.error((e as Error).message);
       await metricsQuery.refetch();
@@ -358,6 +417,7 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
     isRefreshing,
     queryClient,
     metricsQuery,
+    parentScope,
   ]);
 
   const showContentGate = !gatePending && canManage;
@@ -518,11 +578,28 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
 
                   {canManage && oauthConnected && allActiveAccounts.length > 0 ? (
                     <>
+                      {(entity === "adset" || entity === "ad") &&
+                      reportingEnabled &&
+                      accountReadyForMetrics ? (
+                        <div className="flex flex-wrap items-center gap-2 px-1">
+                          <MetaAdsParentFilterSelects
+                            entity={entity}
+                            campaignId={parentScope.campaignFilterId}
+                            onCampaignChange={parentScope.onCampaignChange}
+                            campaignOptions={parentScope.campaignOptions}
+                            adsetId={parentScope.adsetFilterId}
+                            onAdsetChange={parentScope.onAdsetChange}
+                            adsetOptions={parentScope.adsetOptions}
+                            adsetOptionsLoading={parentScope.adsetOptionsLoading}
+                          />
+                        </div>
+                      ) : null}
+
                       {reportingEnabled && accountReadyForMetrics ? (
                         <MobileMetaAdsSummaryBar
                           entity={entity}
                           adAccountId={adAccountId}
-                          summary={metricsQuery.data?.summary}
+                          summary={parentScope.scopedSummary}
                           rows={sortedRows}
                           catalogItems={catalogItems}
                           metricKeys={summarySlotMetricKeys}
@@ -535,7 +612,8 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
                             reportingEnabled &&
                             accountReadyForMetrics &&
                             canManage &&
-                            !gatePending
+                            !gatePending &&
+                            !parentScope.parentFilterActive
                           }
                         />
                       ) : null}
@@ -559,7 +637,7 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
                         onEntityChange={setEntity}
                         showEntity={reportingEnabled && accountReadyForMetrics}
                         columnSets={columnSets}
-                        activeColumnSetId={matchedColumnSet?.id}
+                        activeColumnSetId={pendingColumnSetId ?? matchedColumnSet?.id}
                         onColumnSetSelect={(id) => void handleSwitchColumnSet(id)}
                         columnSetDisabled={saveMetrics.isPending}
                         columnSetLoading={prefsPending}
@@ -578,6 +656,8 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
                           metricItems={metricItems}
                           currencyCode={metricsQuery.data?.summary?.currency ?? null}
                           isLoading={tableLoading && !metricsQuery.data}
+                          organizationId={organizationId}
+                          adAccountId={adAccountId}
                         />
                       ) : null}
 

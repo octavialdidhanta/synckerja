@@ -7,15 +7,30 @@ export type MetaAdsMetricEntity = "campaign" | "adset" | "ad";
 
 export type MetaAdsMetricsRow = Record<string, unknown>;
 
+export type MetaAdsAccountSummary = {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  reach?: number;
+  currency: string;
+  content_views?: number;
+  adds_to_cart?: number;
+  purchases?: number;
+  atc_conversion_value?: number;
+  purchase_conversion_value?: number;
+  click_to_view_rate?: number | null;
+  view_to_atc_rate?: number | null;
+  atc_to_purchase_rate?: number | null;
+  cost_per_atc?: number | null;
+  cost_per_purchase?: number | null;
+  aov?: number | null;
+  purchase_roas?: number | null;
+  frequency?: number | null;
+};
+
 export type MetaAdsMetricsResponse = {
   rows: MetaAdsMetricsRow[];
-  summary: {
-    spend: number;
-    impressions: number;
-    clicks: number;
-    reach: number;
-    currency: string;
-  };
+  summary: MetaAdsAccountSummary;
   entity: MetaAdsMetricEntity;
   ad_account_id: string;
   date_start: string;
@@ -41,6 +56,7 @@ export function buildMetaAdsMetricsQueryKey(args: {
     dateStart,
     dateEnd,
     pageToken,
+    "v10",
   ] as const;
 }
 

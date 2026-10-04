@@ -1048,7 +1048,10 @@ async function handleFetchMonthlySpend(
   const allowedCampaignIds = serviceIdFilter != null ? scope.googleCampaignIds : null;
 
   const monthWindows = buildMonthWindowsInRange(start, end);
-  const buckets = emptySpendBucketsForWindows(monthWindows);
+  const buckets = emptySpendBucketsForWindows(monthWindows).map((bucket) => ({
+    ...bucket,
+    platform_results: 0,
+  }));
   let currencyCode: string | null = null;
 
   const clients = queryTarget.managerAggregate
@@ -1063,7 +1066,7 @@ async function handleFetchMonthlySpend(
         loginCustomerId: queryTarget.loginCustomerId ?? runtimeConfig.loginCustomerId,
       };
 
-      const { spendByPeriod, currencyCode: clientCurrency } =
+      const { spendByPeriod, conversionsByPeriod, currencyCode: clientCurrency } =
         await fetchCampaignSpendByMonthInRange(
           cfg,
           accessToken,
@@ -1076,6 +1079,7 @@ async function handleFetchMonthlySpend(
         const window = monthWindows[i]!;
         const periodKey = monthPeriodKey(window.year, window.month);
         buckets[i]!.spend += spendByPeriod.get(periodKey) ?? 0;
+        buckets[i]!.platform_results += conversionsByPeriod.get(periodKey) ?? 0;
       }
       if (!currencyCode && clientCurrency) currencyCode = clientCurrency;
     }

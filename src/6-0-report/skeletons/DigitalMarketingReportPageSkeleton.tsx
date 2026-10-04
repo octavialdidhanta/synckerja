@@ -8,7 +8,7 @@ const CHART_TAB_SKELETON_WIDTHS = ["w-14", "w-12", "w-[4.5rem]", "w-[5.5rem]", "
 
 /** Mirrors `DigitalMarketingReportTable` column alignment for skeleton cells. */
 function reportTableSkeletonClass(columnIndex: number): string {
-  const isRight = columnIndex >= 2 && columnIndex !== 4 && columnIndex !== 5;
+  const isRight = columnIndex >= 3;
   return cn("h-4", isRight ? "ml-auto h-5 w-16" : "w-20");
 }
 
@@ -80,7 +80,7 @@ export function DigitalMarketingReportPageSkeleton() {
                   {/* Service table — min-w-[1040px], 11 columns, 4 loading rows */}
         <div className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
           <div className="nested-scroll-touch-chain-xy seamless-scroll min-w-0 w-full overflow-x-auto overflow-y-hidden">
-            <table className="w-max min-w-[1040px] caption-bottom border-collapse text-sm">
+            <table className="w-full min-w-[1040px] caption-bottom border-collapse text-sm">
                         <thead>
                           <tr className="border-b border-gray-200">
                             {Array.from({ length: REPORT_TABLE_COLUMN_COUNT }, (_, i) => (
@@ -88,13 +88,13 @@ export function DigitalMarketingReportPageSkeleton() {
                                 key={i}
                                 className={cn(
                                   "h-10 whitespace-nowrap bg-gray-50 px-3 text-left align-middle",
-                                  i >= 2 && i !== 4 && i !== 5 && "text-right",
+                                  i >= 3 && "text-right",
                                 )}
                               >
                                 <Skeleton
                                   className={cn(
                                     "h-4",
-                                    i >= 2 && i !== 4 && i !== 5 ? "ml-auto w-14" : "w-16",
+                                    i >= 3 ? "ml-auto w-14" : "w-16",
                                   )}
                                 />
                               </th>

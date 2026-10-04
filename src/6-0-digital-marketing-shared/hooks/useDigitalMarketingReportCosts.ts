@@ -73,6 +73,14 @@ export type ReportCurrencySubtotal = {
   total: number;
 };
 
+/** Account-level Meta spend and purchases for the active date filter. */
+export type MetaAccountPeriodPurchase = {
+  dateStart: string;
+  dateEnd: string;
+  spend: number;
+  purchases: number;
+};
+
 type GoogleSummaryTotals = {
   spent?: number;
   impressions?: number;
@@ -357,6 +365,7 @@ export function useDigitalMarketingReportCosts() {
   const metaByServiceQuery = useQuery({
     queryKey: [
       "meta-ads-report-by-service",
+      "purchases",
       organizationId,
       effectiveMetaAdAccountId,
       metaDateRangePayload.start,
@@ -809,6 +818,18 @@ export function useDigitalMarketingReportCosts() {
 
   const googleSummaryTotals = googleMetricsQuery.data?.summary_totals ?? null;
 
+  const metaAccountPeriod = useMemo((): MetaAccountPeriodPurchase | null => {
+    const data = metaMetricsQuery.data;
+    const spend = data?.summary?.spend;
+    const purchases = data?.summary?.purchases;
+    const dateStart = data?.date_start ?? metaDateRangePayload.start;
+    const dateEnd = data?.date_end ?? metaDateRangePayload.end;
+    if (spend == null || purchases == null) return null;
+    if (!(spend > 0) || !(purchases > 0)) return null;
+    if (!dateStart || !dateEnd) return null;
+    return { dateStart, dateEnd, spend, purchases };
+  }, [metaMetricsQuery.data, metaDateRangePayload.start, metaDateRangePayload.end]);
+
   return {
     googleCost,
     metaCost,
@@ -835,5 +856,6 @@ export function useDigitalMarketingReportCosts() {
     effectiveMetaAdAccountId,
     effectiveTikTokAdvertiserId,
     googleSummaryTotals,
+    metaAccountPeriod,
   };
 }

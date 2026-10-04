@@ -9,8 +9,8 @@ type Props = {
 export function MetaAdsColumnSetOptionLabel({ set, className }: Props) {
   const isGlobal = set.scope === "global";
   return (
-    <span className={cn("flex min-w-0 items-center gap-1.5", className)}>
-      <span className="truncate">{set.name}</span>
+    <span className={cn("inline-flex w-max max-w-full items-baseline gap-1.5", className)}>
+      <span className="break-words text-left">{set.name}</span>
       <span
         className={cn(
           "shrink-0 text-[10px] lowercase text-muted-foreground",

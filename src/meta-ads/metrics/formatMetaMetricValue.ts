@@ -1,15 +1,15 @@
-export type MetaMetricValueKind = "currency" | "percent" | "count" | "decimal";
+export type MetaMetricValueKind = "currency" | "percent" | "count" | "decimal" | "text";
 
 export type MetaCtrValueSource = "api" | "computed";
 
-/** Meta Insights returns CTR as percent strings; summary CTR is clicks/impressions (fraction). */
+/** Meta Insights CTR is already a percent, including values under 1. */
 export function formatMetaCtr(
   value: unknown,
   source: MetaCtrValueSource,
 ): string {
   const n = parseMetricNumber(value);
   if (n == null || !Number.isFinite(n)) return "—";
-  const pct = source === "computed" ? n * 100 : n <= 1 ? n * 100 : n;
+  const pct = source === "computed" ? n * 100 : n;
   return `${pct.toFixed(2)}%`;
 }
 
@@ -19,6 +19,12 @@ export function formatMetaMetricValue(
   currencyCode: string | null | undefined,
   options?: { ctrSource?: MetaCtrValueSource },
 ): string {
+  if (key === "delivery") {
+    const label = String(value ?? "").trim();
+    if (label === "Active" || label === "Off") return label;
+    return "—";
+  }
+
   const n = parseMetricNumber(value);
   if (n == null || !Number.isFinite(n)) return "—";
 
@@ -59,10 +65,29 @@ export function parseMetricNumber(value: unknown): number | null {
 }
 
 function inferMetaKind(key: string): MetaMetricValueKind {
-  if (key === "spend" || key === "cpc" || key === "cpm" || key === "leads_cost_per_lead") {
+  if (key === "delivery") return "text";
+  if (
+    key === "spend" ||
+    key === "cpc" ||
+    key === "cpm" ||
+    key === "budget" ||
+    key === "leads_cost_per_lead" ||
+    key === "cost_per_atc" ||
+    key === "cost_per_purchase" ||
+    key === "atc_conversion_value" ||
+    key === "purchase_conversion_value" ||
+    key === "aov"
+  ) {
     return "currency";
   }
-  if (key === "ctr" || key === "traffic_visit_click_rate" || key === "leads_visit_rate") {
+  if (
+    key === "ctr" ||
+    key === "traffic_visit_click_rate" ||
+    key === "leads_visit_rate" ||
+    key === "click_to_view_rate" ||
+    key === "view_to_atc_rate" ||
+    key === "atc_to_purchase_rate"
+  ) {
     return "percent";
   }
   if (
@@ -70,11 +95,38 @@ function inferMetaKind(key: string): MetaMetricValueKind {
     key === "clicks" ||
     key === "reach" ||
     key === "traffic_total_visit_page" ||
-    key === "leads_total"
+    key === "leads_total" ||
+    key === "content_views" ||
+    key === "adds_to_cart" ||
+    key === "purchases"
   ) {
     return "count";
   }
   return "decimal";
+}
+
+export function formatMetaDeliveryCell(
+  value: unknown,
+  labels: { active: string; off: string; learning?: string; learningLimited?: string },
+): string {
+  const label = String(value ?? "").trim();
+  if (label === "Active") return labels.active;
+  if (label === "Off") return labels.off;
+  if (label === "Learning") return labels.learning ?? label;
+  if (label === "Learning limited") return labels.learningLimited ?? label;
+  return "—";
+}
+
+export function formatMetaBudgetCell(args: {
+  budget: unknown;
+  usesCampaignBudget: boolean;
+  currencyCode: string | null | undefined;
+  usesCampaignLabel: string;
+}): string {
+  if (args.usesCampaignBudget && (args.budget == null || args.budget === "")) {
+    return args.usesCampaignLabel;
+  }
+  return formatMetaMetricValue("budget", args.budget, args.currencyCode);
 }
 
 export function computeSummaryCtr(clicks: number, impressions: number): number | null {

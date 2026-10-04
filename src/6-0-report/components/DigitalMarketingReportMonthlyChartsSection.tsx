@@ -21,6 +21,7 @@ import {
   buildMonthlyCpaChartPoints,
   buildMonthlyLeadsChartPoints,
   buildMonthlySpendChartPoints,
+  metaCpaAnchorFromAccountSummary,
 } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportMonthlySpend";
 import type { DigitalMarketingReportDataContextValue } from "@/6-0-digital-marketing-shared/DigitalMarketingReportDataContext";
 import { DigitalMarketingReportChartsSkeleton } from "@/6-0-report/skeletons/DigitalMarketingReportChartsSkeleton";
@@ -31,9 +32,9 @@ import { DigitalMarketingReportMonthlyLeadsChart } from "@/6-0-report/components
 import { DigitalMarketingReportMonthlySpendByServiceChart } from "@/6-0-report/components/DigitalMarketingReportMonthlySpendByServiceChart";
 import { DigitalMarketingReportMonthlyLeadsByServiceChart } from "@/6-0-report/components/DigitalMarketingReportMonthlyLeadsByServiceChart";
 import { DigitalMarketingReportMonthlyCpaByServiceChart } from "@/6-0-report/components/DigitalMarketingReportMonthlyCpaByServiceChart";
-import { useDigitalMarketingReportMonthlySpendByService } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportMonthlySpendByService";
 import { useDigitalMarketingReportMonthlyLeadsByService } from "@/6-0-digital-marketing-shared/hooks/useDigitalMarketingReportMonthlyLeadsByService";
-import { buildCpaByServiceTotalsChartPoints } from "@/6-0-digital-marketing-shared/reportMonthlyCpaByService";
+import { buildSpendByServiceChartPointsFromReportRows } from "@/6-0-digital-marketing-shared/reportMonthlySpendByService";
+import { buildCpaByServiceChartPointsFromReportRows } from "@/6-0-digital-marketing-shared/reportMonthlyCpaByService";
 
 const CHANNEL_FILTER_WIDTH = "11.5rem";
 const CHANNEL_FILTER_WRAPPER_CLASS = "w-[11.5rem] shrink-0";
@@ -77,7 +78,8 @@ export function DigitalMarketingReportMonthlyChartsSection({
   const chartUsesAllTime = dateSelection.preset === "all_time";
   const showServiceBreakdownTabs = !reportServiceFilter;
 
-  const { googleServiceRows, metaServiceRows, tiktokServiceRows } = useDigitalMarketingReportData();
+  const { googleServiceRows, metaServiceRows, tiktokServiceRows, metaAccountPeriod } =
+    useDigitalMarketingReportData();
 
   useEffect(() => {
     if (
@@ -93,7 +95,7 @@ export function DigitalMarketingReportMonthlyChartsSection({
     const options = buildReportServiceFilterOptions(
       [...googleServiceRows, ...metaServiceRows, ...tiktokServiceRows],
       {
-        all: t("digitalMarketing.report.serviceFilterAll", "All services"),
+        all: t("digitalMarketing.report.serviceFilterAll", "All products or services"),
         unmapped: t("digitalMarketing.report.serviceUnmapped", "Belum di-map"),
       },
     );
@@ -113,11 +115,8 @@ export function DigitalMarketingReportMonthlyChartsSection({
     chartDateOverlap,
   } = monthlySpend;
 
-  const isServiceBreakdownTab =
-    chartTab === "spend_service" ||
-    chartTab === "service_converted" ||
-    chartTab === "cost_service_converted";
-  const serviceBreakdownFetchEnabled = showServiceBreakdownTabs && isServiceBreakdownTab;
+  const serviceBreakdownFetchEnabled =
+    showServiceBreakdownTabs && chartTab === "service_converted";
 
   const { filteredGoogleRows, filteredMetaRows, filteredTikTokRows } =
     useDigitalMarketingReportFilteredRows(
@@ -171,9 +170,15 @@ export function DigitalMarketingReportMonthlyChartsSection({
     [chartPointsArgs],
   );
 
+  const metaPeriodAnchor = useMemo(
+    () =>
+      reportServiceFilter ? null : metaCpaAnchorFromAccountSummary(metaAccountPeriod),
+    [reportServiceFilter, metaAccountPeriod],
+  );
+
   const cpaChartData = useMemo(
-    () => buildMonthlyCpaChartPoints(chartPointsArgs),
-    [chartPointsArgs],
+    () => buildMonthlyCpaChartPoints({ ...chartPointsArgs, metaPeriodAnchor }),
+    [chartPointsArgs, metaPeriodAnchor],
   );
 
   const leadsChartData = useMemo(
@@ -182,20 +187,27 @@ export function DigitalMarketingReportMonthlyChartsSection({
   );
 
   const unmappedLabel = t("digitalMarketing.report.serviceUnmapped", "Belum di-map");
-  const {
-    chartData: spendByServiceChartData,
-    loading: spendByServiceLoading,
-    currency: spendByServiceCurrency,
-    error: spendByServiceError,
-  } = useDigitalMarketingReportMonthlySpendByService({
-    enabled: serviceBreakdownFetchEnabled,
-    selectedYear: year,
-    chartSpanMode,
-    googleServiceRows,
-    metaServiceRows,
-    unmappedLabel,
-    chartDateOverlap,
-  });
+  const noServiceLabel = t("digitalMarketing.report.serviceConvertedNoService", "No service");
+  const spendByServiceChartData = useMemo(
+    () =>
+      showServiceBreakdownTabs
+        ? buildSpendByServiceChartPointsFromReportRows({
+            googleRows: filteredGoogleRows,
+            metaRows: filteredMetaRows,
+            tiktokRows: filteredTikTokRows,
+            channelFilter: monthlyChartChannelFilter,
+            unmappedLabel,
+          })
+        : [],
+    [
+      showServiceBreakdownTabs,
+      filteredGoogleRows,
+      filteredMetaRows,
+      filteredTikTokRows,
+      monthlyChartChannelFilter,
+      unmappedLabel,
+    ],
+  );
 
   const {
     chartData: leadsByServiceChartData,
@@ -208,22 +220,40 @@ export function DigitalMarketingReportMonthlyChartsSection({
     googleServiceRows,
     metaServiceRows,
     unmappedLabel,
+    noServiceLabel,
     chartDateOverlap,
   });
 
   const cpaByServiceChartData = useMemo(
     () =>
       showServiceBreakdownTabs
-        ? buildCpaByServiceTotalsChartPoints(
-            spendByServiceChartData,
-            leadsByServiceChartData,
-          )
+        ? buildCpaByServiceChartPointsFromReportRows({
+            googleRows: filteredGoogleRows,
+            metaRows: filteredMetaRows,
+            tiktokRows: filteredTikTokRows,
+            channelFilter: monthlyChartChannelFilter,
+            unmappedLabel,
+          })
         : [],
-    [showServiceBreakdownTabs, spendByServiceChartData, leadsByServiceChartData],
+    [
+      showServiceBreakdownTabs,
+      filteredGoogleRows,
+      filteredMetaRows,
+      filteredTikTokRows,
+      monthlyChartChannelFilter,
+      unmappedLabel,
+    ],
   );
 
-  const serviceBreakdownLoading = spendByServiceLoading || leadsByServiceLoading;
-  const serviceBreakdownError = spendByServiceError ?? leadsByServiceError;
+  const cpaByServiceCurrency = useMemo(() => {
+    const row = [...filteredMetaRows, ...filteredGoogleRows, ...filteredTikTokRows].find(
+      (candidate) => candidate.currency,
+    );
+    return row?.currency ?? null;
+  }, [filteredMetaRows, filteredGoogleRows, filteredTikTokRows]);
+
+  const serviceBreakdownLoading = leadsByServiceLoading;
+  const serviceBreakdownError = leadsByServiceError;
 
   const compareChartSubtitle =
     chartTab === "spend"
@@ -255,12 +285,12 @@ export function DigitalMarketingReportMonthlyChartsSection({
       : chartTab === "service_converted"
         ? t(
             "digitalMarketing.report.monthlyLeadsByServiceSubtitle",
-            "Total converted leads per service for the selected date range and channel filter.",
+            "Products are Meta purchases. Services are converted leads from Leads Management. The two stay separate.",
           )
         : chartTab === "cost_service_converted"
           ? t(
               "digitalMarketing.report.monthlyCpaByServiceSubtitle",
-              "Cost per converted lead (CPA) per service for the selected date range and channel filter.",
+              "Same CPA as the table. Products: spend ÷ purchases. Services: spend ÷ converted leads.",
             )
       : compareActive
         ? compareChartSubtitle
@@ -275,11 +305,11 @@ export function DigitalMarketingReportMonthlyChartsSection({
             ? chartUsesAllTime
               ? t(
                   "digitalMarketing.report.monthlyCpaSubtitleAllTime",
-                  "Account-level CPA by calendar month (Jan–Dec), aggregated across the selected date range (spend ÷ converted leads with matching campaign UTM).",
+                  "Account-level CPA by calendar month (Jan–Dec), aggregated across the selected date range (spend ÷ platform results: Meta purchases, Google and TikTok conversions).",
                 )
               : t(
                   "digitalMarketing.report.monthlyCpaSubtitle",
-                  "Account-level cost per acquisition by month (spend ÷ converted leads with matching campaign UTM).",
+                  "Account-level CPA by month (spend ÷ platform results: Meta purchases, Google and TikTok conversions).",
                 )
             : chartUsesAllTime
               ? t(
@@ -372,18 +402,18 @@ export function DigitalMarketingReportMonthlyChartsSection({
       {showServiceBreakdownTabs ? (
         <>
           <TabsTrigger value="spend_service" className={tabTriggerClass}>
-            {t("digitalMarketing.report.monthlyChartTabSpendByService", "Spend/Service")}
+            {t("digitalMarketing.report.monthlyChartTabSpendByService", "Spend/Products or Services")}
           </TabsTrigger>
           <TabsTrigger value="service_converted" className={tabTriggerClass}>
             {t(
               "digitalMarketing.report.monthlyChartTabServiceConverted",
-              "Service Converted",
+              "Products or Services Converted",
             )}
           </TabsTrigger>
           <TabsTrigger value="cost_service_converted" className={tabTriggerClass}>
             {t(
               "digitalMarketing.report.monthlyChartTabCostServiceConverted",
-              "CPA Service",
+              "CPA Products or Services",
             )}
           </TabsTrigger>
         </>
@@ -406,10 +436,10 @@ export function DigitalMarketingReportMonthlyChartsSection({
           googleSeries={googleSeries}
           metaSeries={metaSeries}
           tiktokSeries={tiktokSeries}
-          chartLoading={serviceBreakdownLoading}
+          chartLoading={false}
           chartDateOverlap={chartDateOverlap}
-          currency={spendByServiceCurrency}
-          error={serviceBreakdownError}
+          currency={cpaByServiceCurrency}
+          error={null}
           embedded
         />
       ) : chartTab === "service_converted" ? (
@@ -433,10 +463,10 @@ export function DigitalMarketingReportMonthlyChartsSection({
           googleSeries={googleSeries}
           metaSeries={metaSeries}
           tiktokSeries={tiktokSeries}
-          chartLoading={serviceBreakdownLoading}
-          chartDateOverlap={chartDateOverlap}
-          currency={spendByServiceCurrency}
-          error={serviceBreakdownError}
+          chartLoading={false}
+          chartDateOverlap
+          currency={cpaByServiceCurrency}
+          error={null}
           embedded
         />
       ) : chartTab === "cpa" ? (

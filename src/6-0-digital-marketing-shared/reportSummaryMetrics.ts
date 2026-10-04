@@ -32,7 +32,7 @@ export const REPORT_SUMMARY_METRIC_OPTIONS: ReportSummaryMetricOption[] = [
   { key: "cpa", label: "CPA", groupId: "performance", groupLabel: "Performance" },
   {
     key: "converted_leads",
-    label: "Conv. leads",
+    label: "Conv.",
     groupId: "performance",
     groupLabel: "Performance",
   },

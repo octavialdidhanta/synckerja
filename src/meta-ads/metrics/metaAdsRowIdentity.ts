@@ -1,4 +1,5 @@
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
+import { metaAdRunningDays } from "@/meta-ads/metrics/metaAdRunningDays";
 import type { MetaAdsMetricsRow } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 
 export function metaAdsRowDisplayName(
@@ -55,6 +56,8 @@ export function metaAdsRowSortKey(
     const n = Number(r.service_converted_leads);
     return Number.isFinite(n) ? n : -1;
   }
+  if (field === "running_days") return metaAdRunningDays(r.created_time) ?? -1;
+  if (field === "ad_toggle") return String(r.configured_status ?? r.delivery ?? "").toLowerCase();
   const raw = r[field];
   const n = parseFloat(String(raw ?? "").replace(/,/g, ""));
   if (Number.isFinite(n)) return n;

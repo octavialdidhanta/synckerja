@@ -51,7 +51,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
     if (!organizationId || !userId) {
       toast({
         title: "Organization Required",
-        description: "Please select an active organization before saving templates.",
+        description: "Please select an active organization before saving a KPI record.",
         variant: "destructive"
       });
       return;
@@ -87,7 +87,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
 
     if (error) {
       toast({
-        title: "Failed to save template",
+        title: "Failed to save KPI",
         description: error.message || "Please try again later.",
         variant: "destructive"
       });
@@ -98,8 +98,8 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
     setSaveForm({ name: '', description: '', category: '' as TemplateCategory, is_public: false });
     
     toast({
-      title: "Template Saved",
-      description: `KPI template "${saveForm.name}" has been saved successfully`
+      title: "KPI saved",
+      description: `"${saveForm.name}" is saved and can be opened later for comparison.`
     });
 
     if (onSaveTemplate) {
@@ -116,7 +116,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <Save className="h-4 w-4 mr-2" />
-          Save Template
+          Save KPI
         </Button>
       </DialogTrigger>
       <DialogContent className="flex max-h-[min(90vh,640px)] w-[min(520px,calc(100vw-2rem))] min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]">
@@ -127,10 +127,10 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
             </div>
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-left text-xl font-semibold leading-snug">
-                Save KPI Template
+                Save KPI
               </DialogTitle>
               <DialogDescription className="mt-1.5 text-left text-sm text-muted-foreground">
-                Store your current KPI calculator settings for quick reuse.
+                Save this period’s numbers so you can open and compare them later.
               </DialogDescription>
             </div>
           </div>
@@ -138,13 +138,13 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-5">
           <div className="flex flex-col gap-5">
             <div className="flex min-w-0 flex-col gap-2">
-              <Label htmlFor="template-name">Template Name *</Label>
+              <Label htmlFor="template-name">KPI name *</Label>
               <Input
                 id="template-name"
                 className="w-full min-w-0"
                 value={saveForm.name}
                 onChange={(e) => setSaveForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g., Healthcare Patient Acquisition"
+                placeholder="e.g., Rapa Meta ads September 2026"
               />
             </div>
 
@@ -179,7 +179,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
                 className="min-h-[88px] w-full min-w-0 resize-y"
                 value={saveForm.description}
                 onChange={(e) => setSaveForm((prev) => ({ ...prev, description: e.target.value }))}
-                placeholder="Describe when to use this template..."
+                placeholder="Period note, for example 1–30 September 2026"
                 rows={3}
               />
             </div>
@@ -193,7 +193,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
                 className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300"
               />
               <Label htmlFor="is-public" className="text-sm font-normal leading-snug">
-                Share with team (make template public)
+                Share with team
               </Label>
             </div>
           </div>
@@ -208,7 +208,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
             className="w-full bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto"
           >
             {isSavingTemplate && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Template
+            Save KPI
           </Button>
         </DialogFooter>
       </DialogContent>

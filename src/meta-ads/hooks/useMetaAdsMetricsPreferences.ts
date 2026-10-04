@@ -125,6 +125,11 @@ export function useMetaAdsMetricsPreferences(
     return { visibleColumns: sanitized, sort };
   };
 
+  const writePreferencesCache = (data: PreferencesRow) => {
+    void queryClient.cancelQueries({ queryKey });
+    queryClient.setQueryData<PreferencesRow>(queryKey, data);
+  };
+
   const save = useMutation({
     mutationFn: async (
       input: string[] | { visibleColumns: string[]; sort?: MetaAdsMetricsSort },
@@ -133,19 +138,25 @@ export function useMetaAdsMetricsPreferences(
       const sort = Array.isArray(input)
         ? (query.data?.sort ?? DEFAULT_SORT)
         : (input.sort ?? query.data?.sort ?? DEFAULT_SORT);
-      return upsertPreferences(visibleColumns, sort);
+      const saved = await upsertPreferences(visibleColumns, sort);
+      writePreferencesCache(saved);
+      return saved;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 
   const saveSort = useMutation({
-    mutationFn: async (sort: MetaAdsMetricsSort) => {
+    mutationFn: async (sort: MetaAdsMetricsSort & { visibleColumns?: string[] }) => {
       const cols =
+        sort.visibleColumns ??
         query.data?.visibleColumns ??
         sanitizeKeys([...META_ADS_DEFAULT_METRIC_KEYS], catalogKeys);
-      return upsertPreferences(cols, sort);
+      const saved = await upsertPreferences(cols, {
+        field: sort.field,
+        direction: sort.direction,
+      });
+      writePreferencesCache(saved);
+      return saved;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 
   const visibleColumns = useMemo(

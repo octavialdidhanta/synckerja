@@ -26,11 +26,6 @@ function readMetric(row: MetaAdsMetricsRow, key: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function readServiceNumber(raw: unknown): number | null {
-  if (raw == null || !Number.isFinite(Number(raw))) return null;
-  return Number(raw);
-}
-
 /**
  * Aggregate Meta campaign rows into per-service buckets (+ unmapped).
  */
@@ -55,7 +50,7 @@ export function aggregateMetaCampaignMetricsByService(
         amount: 0,
         impressions: 0,
         clicks: 0,
-        convertedLeads: serviceId ? 0 : null,
+        convertedLeads: 0,
         costPerLead: null,
       };
       buckets.set(bucketKey, bucket);
@@ -64,23 +59,14 @@ export function aggregateMetaCampaignMetricsByService(
     bucket.amount += readMetric(row, "spend");
     bucket.impressions += readMetric(row, "impressions");
     bucket.clicks += readMetric(row, "clicks");
-
-    if (serviceId) {
-      const cl = readServiceNumber(r.service_converted_leads);
-      if (cl != null) bucket.convertedLeads = (bucket.convertedLeads ?? 0) + cl;
-    }
+    bucket.convertedLeads = (bucket.convertedLeads ?? 0) + readMetric(row, "purchases");
   }
 
   const result = [...buckets.values()];
 
   for (const bucket of result) {
-    if (bucket.serviceId && bucket.convertedLeads != null && bucket.convertedLeads > 0) {
-      bucket.costPerLead = bucket.amount / bucket.convertedLeads;
-    }
-    if (!bucket.serviceId && bucket.amount > 0 && bucket.convertedLeads == null) {
-      bucket.convertedLeads = 0;
-      bucket.costPerLead = null;
-    }
+    const results = bucket.convertedLeads ?? 0;
+    bucket.costPerLead = results > 0 ? bucket.amount / results : null;
   }
 
   return result.sort((a, b) => b.amount - a.amount);

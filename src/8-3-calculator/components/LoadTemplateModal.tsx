@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/shared/components/ui/dialog';
 import { Badge } from '@/shared/components/ui/badge';
 import { FolderOpen, Share2, Lock, Loader2 } from 'lucide-react';
@@ -46,7 +46,7 @@ export const LoadTemplateModal: React.FC<LoadTemplateModalProps> = ({
     if (error) {
       if (notifyOnError) {
         toast({
-          title: 'Unable to load templates',
+          title: 'Unable to open saved KPIs',
           description: 'Please try again in a moment.',
           variant: 'destructive'
         });
@@ -70,8 +70,8 @@ export const LoadTemplateModal: React.FC<LoadTemplateModalProps> = ({
   const handleDeleteTemplate = async (template: KPITemplate) => {
     if (!userId || template.created_by !== userId) {
       toast({
-        title: 'Cannot delete template',
-        description: 'Only the creator can delete this template.',
+        title: 'Cannot delete this KPI',
+        description: 'Only the person who saved it can delete this record.',
         variant: 'destructive'
       });
       return;
@@ -87,7 +87,7 @@ export const LoadTemplateModal: React.FC<LoadTemplateModalProps> = ({
 
     if (error) {
       toast({
-        title: 'Failed to delete template',
+        title: 'Failed to delete KPI',
         description: error.message || 'Please try again later.',
         variant: 'destructive'
       });
@@ -96,7 +96,7 @@ export const LoadTemplateModal: React.FC<LoadTemplateModalProps> = ({
 
     await fetchTemplates(true);
     toast({
-      title: 'Template deleted',
+      title: 'KPI deleted',
       description: `"${template.name}" has been removed.`
     });
   };
@@ -106,8 +106,8 @@ export const LoadTemplateModal: React.FC<LoadTemplateModalProps> = ({
     setIsLibraryOpen(false);
     
     toast({
-      title: "Template Loaded",
-      description: `KPI settings from "${template.name}" have been applied`
+      title: "KPI opened",
+      description: `Numbers from "${template.name}" are now on the calculator for comparison.`
     });
   };
 
@@ -136,19 +136,19 @@ export const LoadTemplateModal: React.FC<LoadTemplateModalProps> = ({
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <FolderOpen className="h-4 w-4 mr-2" />
-          Load Template
+          Open KPI
         </Button>
       </DialogTrigger>
-      <DialogContent className="flex max-h-[min(90vh,680px)] w-[min(640px,calc(100vw-2rem))] min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
+      <DialogContent className="flex max-h-[min(90vh,680px)] w-[min(920px,calc(100vw-2rem))] min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-[920px]">
         <DialogHeader className="shrink-0 border-b bg-gradient-to-r from-primary/10 to-primary/5 px-6 pb-4 pt-6">
           <div className="flex items-start gap-3 pr-8">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15">
               <FolderOpen className="h-5 w-5 text-primary" />
             </div>
             <div className="min-w-0 flex-1">
-              <DialogTitle className="text-left text-xl font-semibold leading-snug">KPI Template Library</DialogTitle>
+              <DialogTitle className="text-left text-xl font-semibold leading-snug">Saved KPIs</DialogTitle>
               <DialogDescription className="mt-1.5 text-left text-sm text-muted-foreground">
-                Browse saved templates to quickly apply previous KPI settings.
+                Open a saved period anytime to compare or apply those numbers.
               </DialogDescription>
             </div>
           </div>
@@ -156,78 +156,88 @@ export const LoadTemplateModal: React.FC<LoadTemplateModalProps> = ({
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-6 py-5">
           {!organizationId ? (
             <div className="space-y-2 py-8 text-center text-gray-500">
-              <p>You need an active organization to access KPI templates.</p>
-              <p className="text-sm">Join or create an organization, then save templates for your campaigns.</p>
+              <p>You need an active organization to save and open KPI records.</p>
+              <p className="text-sm">Join or create an organization, then keep each period for comparison.</p>
             </div>
           ) : isLoadingTemplates ? (
             <div className="flex flex-col items-center justify-center space-y-3 py-8 text-gray-500">
               <Loader2 className="h-5 w-5 animate-spin" />
-              <p>Loading templates...</p>
+              <p>Loading saved KPIs...</p>
             </div>
           ) : templates.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {templates.map((template) => (
-                <Card key={template.id} className="cursor-pointer transition-shadow hover:shadow-md">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-sm font-medium">{template.name}</CardTitle>
-                        <p className="mt-1 text-xs text-gray-500">{template.description}</p>
-                      </div>
-                      <Badge className={`text-xs ${getCategoryColor(template.category)}`}>
-                        {getCategoryLabel(template.category)}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 pt-0">
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <div className="flex items-center gap-1">
-                        {template.is_public ? (
-                          <>
-                            <Share2 className="h-3 w-3 text-primary" />
-                            <span>Shared with organization</span>
-                          </>
-                        ) : (
-                          <>
-                            <Lock className="h-3 w-3 text-gray-400" />
-                            <span>Private template</span>
-                          </>
-                        )}
-                      </div>
-                      <span>Used {template.usage_count ?? 0} times</span>
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleLoadTemplate(template)}
-                        className="h-7 px-3 text-xs"
-                      >
-                        Load
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteTemplate(template)}
-                        className="h-7 px-3 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
-                        disabled={isDeletingTemplateId === template.id}
-                      >
-                        {isDeletingTemplateId === template.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          "Delete"
-                        )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="overflow-hidden rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Visibility</TableHead>
+                    <TableHead className="text-right">Used</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {templates.map((template) => (
+                    <TableRow key={template.id}>
+                      <TableCell className="font-medium">{template.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{template.description || "—"}</TableCell>
+                      <TableCell>
+                        <Badge className={`text-xs ${getCategoryColor(template.category)}`}>
+                          {getCategoryLabel(template.category)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          {template.is_public ? (
+                            <>
+                              <Share2 className="h-3 w-3 text-primary" />
+                              <span>Shared</span>
+                            </>
+                          ) : (
+                            <>
+                              <Lock className="h-3 w-3" />
+                              <span>Private</span>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">{template.usage_count ?? 0}</TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleLoadTemplate(template)}
+                            className="h-7 px-3 text-xs"
+                          >
+                            Open
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteTemplate(template)}
+                            className="h-7 px-3 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                            disabled={isDeletingTemplateId === template.id}
+                          >
+                            {isDeletingTemplateId === template.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              "Delete"
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           ) : (
             <div className="py-8 text-center text-gray-500">
               <FolderOpen className="mx-auto mb-2 h-12 w-12 opacity-50" />
-              <p>No templates found for {calculatorType} calculator</p>
-              <p className="text-sm">Save your current settings as a template to get started</p>
+              <p>No saved KPIs for the {calculatorType} calculator</p>
+              <p className="text-sm">Save the current numbers to keep this period</p>
             </div>
           )}
         </div>

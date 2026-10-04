@@ -55,6 +55,7 @@ export function useMetaAdsSummaryPeriodCompare({
       entity,
       previousRange?.fromDate ?? "",
       previousRange?.toDate ?? "",
+      "v10",
     ],
     queryFn: async () => {
       if (!organizationId || !adAccountId || !previousRange) {

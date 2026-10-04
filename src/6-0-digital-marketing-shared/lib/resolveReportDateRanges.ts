@@ -164,8 +164,8 @@ export function resolveReportChartDateSelection(
 }
 
 /**
- * Report Spend/CPA/Leads charts when Compare is ON: full calendar year for reportChartYear.
- * Otherwise same as resolveReportChartDateSelection.
+ * Report Spend/CPA/Leads charts: full calendar year for reportChartYear.
+ * Pass compareEnabled=false only for All time, which keeps the history window.
  */
 export function resolveReportChartMonthlyDateSelection(
   dateSelection: GoogleAdsDateRangeSelection,

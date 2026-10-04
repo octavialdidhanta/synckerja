@@ -211,7 +211,7 @@ function DigitalMarketingReportPageBody({
       buildReportServiceFilterOptions(
         [...googleServiceRows, ...metaServiceRows, ...tiktokServiceRows],
         {
-          all: t("digitalMarketing.report.serviceFilterAll", "All services"),
+          all: t("digitalMarketing.report.serviceFilterAll", "All products or services"),
           unmapped: t("digitalMarketing.report.serviceUnmapped", "Belum di-map"),
         },
       ),
@@ -276,13 +276,13 @@ function DigitalMarketingReportPageBody({
                                       className="h-9 w-[14rem] shrink-0 border-gray-200 bg-gray-50 text-sm"
                                       aria-label={t(
                                         "digitalMarketing.report.tableServiceFilterLabel",
-                                        "Service",
+                                        "Products or Services",
                                       )}
                                     >
                                       <SelectValue
                                         placeholder={t(
                                           "digitalMarketing.report.serviceFilterAll",
-                                          "All services",
+                                          "All products or services",
                                         )}
                                       />
                                     </SelectTrigger>

@@ -197,6 +197,7 @@ export async function fetchTikTokIntegratedReport(
   entity: TikTokMetricEntity,
   dateStart: string,
   dateEnd: string,
+  options?: { metrics?: string[] },
 ): Promise<{ rows: Record<string, unknown>[]; summary: Record<string, unknown> }> {
   const allRows: Record<string, unknown>[] = [];
   let totalMetrics: Record<string, string | number> = {};
@@ -213,7 +214,7 @@ export async function fetchTikTokIntegratedReport(
         service_type: "AUCTION",
         data_level: DATA_LEVEL[entity],
         dimensions: DIMENSIONS[entity],
-        metrics: metricsForEntity(entity),
+        metrics: options?.metrics ?? metricsForEntity(entity),
         start_date: dateStart,
         end_date: dateEnd,
         page,
@@ -237,6 +238,7 @@ export async function fetchTikTokIntegratedReport(
     impressions: parseFloat(String(totalMetrics.impressions ?? 0)) || 0,
     clicks: parseFloat(String(totalMetrics.clicks ?? 0)) || 0,
     reach: parseFloat(String(totalMetrics.reach ?? 0)) || 0,
+    conversion: parseFloat(String(totalMetrics.conversion ?? 0)) || 0,
     currency: String(totalMetrics.currency ?? "USD"),
   };
 

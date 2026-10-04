@@ -1,9 +1,19 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
+import { toast } from "sonner";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type { MetaAdsMetricsRow } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
-import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
+import { MetaAdsDeliveryBadge } from "@/6-0-meta-ads/components/MetaAdsDeliveryBadge";
+import {
+  MetaAdsRunningDaysBadge,
+  MetaAdsRunningDaysInfo,
+} from "@/6-0-meta-ads/components/MetaAdsRunningDaysBadge";
+import { Switch } from "@/shared/components/ui/switch";
+import { useSetMetaAdStatus } from "@/meta-ads/hooks/useSetMetaAdStatus";
+import { metaAdIsOn, metaAdStatusLocked } from "@/meta-ads/metrics/metaAdStatus";
+import { formatMetaBudgetCell, formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
+import { metaAdRunningDays } from "@/meta-ads/metrics/metaAdRunningDays";
 import {
   getMetaAdsLockedTableColumns,
   isMetaAdsPinnedMetricKey,
@@ -23,6 +33,8 @@ type Props = {
   isLoading?: boolean;
   emptyMessage?: string;
   className?: string;
+  organizationId?: string | null;
+  adAccountId?: string | null;
 };
 
 function formatServiceCpa(value: unknown, currencyCode: string | null): string {
@@ -49,6 +61,10 @@ function identityCellText(
     }
     case "name":
       return metaAdsRowDisplayName(row, entity);
+    case "running_days": {
+      const days = metaAdRunningDays(r.created_time);
+      return days == null ? "—" : String(days);
+    }
     case "campaign_name":
     case "campaign":
     case "adset_name":
@@ -70,8 +86,11 @@ export function MobileMetaAdsMetricsTable({
   isLoading,
   emptyMessage,
   className,
+  organizationId = null,
+  adAccountId = null,
 }: Props) {
   const { t } = useAppTranslation();
+  const adStatus = useSetMetaAdStatus();
 
   const identityCols = useMemo(
     () =>
@@ -81,9 +100,20 @@ export function MobileMetaAdsMetricsTable({
       })),
     [entity, t],
   );
+  const deliveryMetric =
+    entity === "ad"
+      ? (metricItems.find((item) => item.key === "delivery") ?? {
+          key: "delivery",
+          labelKey: "digitalMarketing.metaAds.delivery",
+          defaultLabel: "Delivery",
+        })
+      : undefined;
   const visibleMetricItems = useMemo(
-    () => metricItems.filter((m) => !isMetaAdsPinnedMetricKey(m.key)),
-    [metricItems],
+    () =>
+      metricItems.filter(
+        (item) => !isMetaAdsPinnedMetricKey(item.key) && !(entity === "ad" && item.key === "delivery"),
+      ),
+    [metricItems, entity],
   );
 
   const thClass =
@@ -147,18 +177,26 @@ export function MobileMetaAdsMetricsTable({
         <thead>
           <tr>
             {identityCols.map((col) => (
-              <th
-                key={col.key}
-                className={cn(
-                  thClass,
-                  (col.key === "service_cpl" ||
-                    col.key === "service_converted_leads" ||
-                    col.key === "spend") &&
-                    "text-right",
-                )}
-              >
-                {col.label}
-              </th>
+              <Fragment key={col.key}>
+                <th
+                  className={cn(
+                    thClass,
+                    (col.key === "service_cpl" ||
+                      col.key === "service_converted_leads" ||
+                      col.key === "spend") &&
+                      "text-right",
+                    col.key === "running_days" && "text-center",
+                  )}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {col.label}
+                    {col.key === "running_days" ? <MetaAdsRunningDaysInfo /> : null}
+                  </span>
+                </th>
+                {deliveryMetric && col.key === "ad_toggle" ? (
+                  <th className={thClass}>{t(deliveryMetric.labelKey, deliveryMetric.defaultLabel)}</th>
+                ) : null}
+              </Fragment>
             ))}
             {visibleMetricItems.map((m) => (
               <th key={m.key} className={cn(thClass, "text-right")}>
@@ -171,24 +209,74 @@ export function MobileMetaAdsMetricsTable({
           {rows.map((row, i) => (
             <tr key={metaAdsRowReactKey(row, entity, i)} className="bg-card">
               {identityCols.map((col) => {
+                const record = row as Record<string, unknown>;
+                const runningDays = col.key === "running_days" ? metaAdRunningDays(record.created_time) : null;
                 const text = identityCellText(entity, col.key, row, currencyCode);
                 const alignRight =
                   col.key === "service_cpl" ||
                   col.key === "service_converted_leads" ||
                   col.key === "spend";
                 return (
+                  <Fragment key={col.key}>
                   <td
-                    key={col.key}
                     className={cn(
                       tdClass,
                       alignRight && "text-right tabular-nums",
+                      col.key === "running_days" && "text-center tabular-nums",
                       col.key === "name" && "max-w-[11rem] truncate font-medium",
                       col.key === "service" && "max-w-[8rem] truncate",
                     )}
                     title={text}
                   >
-                    {text}
+                    {col.key === "running_days" && runningDays != null ? (
+                      <MetaAdsRunningDaysBadge days={runningDays} ctr={record.ctr} />
+                    ) : col.key === "ad_toggle" ? (
+                      <Switch
+                        checked={metaAdIsOn(record)}
+                        disabled={
+                          !organizationId ||
+                          !adAccountId ||
+                          !String(record.ad_id ?? "").trim() ||
+                          metaAdStatusLocked(record) ||
+                          adStatus.isPending
+                        }
+                        aria-label={
+                          metaAdIsOn(record)
+                            ? t("digitalMarketing.metaAds.adToggleOff", "Turn this ad off")
+                            : t("digitalMarketing.metaAds.adToggleOn", "Turn this ad on")
+                        }
+                        onCheckedChange={(checked) => {
+                          const adId = String(record.ad_id ?? "").trim();
+                          if (!organizationId || !adAccountId || !adId) return;
+                          adStatus.mutate(
+                            {
+                              organizationId,
+                              adAccountId,
+                              adId,
+                              status: checked ? "ACTIVE" : "PAUSED",
+                            },
+                            {
+                              onError: (error) => {
+                                toast.error(
+                                  error instanceof Error
+                                    ? error.message
+                                    : t("digitalMarketing.metaAds.adToggleFailed", "Could not update the ad."),
+                                );
+                              },
+                            },
+                          );
+                        }}
+                      />
+                    ) : (
+                      text
+                    )}
                   </td>
+                  {deliveryMetric && col.key === "ad_toggle" ? (
+                    <td className={tdClass}>
+                      <MetaAdsDeliveryBadge value={record.delivery} />
+                    </td>
+                  ) : null}
+                  </Fragment>
                 );
               })}
               {visibleMetricItems.map((m) => {
@@ -198,9 +286,21 @@ export function MobileMetaAdsMetricsTable({
                     key={m.key}
                     className={cn(tdClass, "text-right tabular-nums")}
                   >
-                    {formatMetaMetricValue(m.key, r[m.key], currencyCode, {
-                      ctrSource: m.key === "ctr" ? "api" : undefined,
-                    })}
+                    {m.key === "delivery" ? (
+                      <MetaAdsDeliveryBadge value={r[m.key]} />
+                    ) : m.key === "budget"
+                        ? formatMetaBudgetCell({
+                            budget: r.budget,
+                            usesCampaignBudget: r.budget_uses_campaign === true,
+                            currencyCode,
+                            usesCampaignLabel: t(
+                              "digitalMarketing.metaAds.budgetUsesCampaign",
+                              "Using campaign budget",
+                            ),
+                          })
+                        : formatMetaMetricValue(m.key, r[m.key], currencyCode, {
+                            ctrSource: m.key === "ctr" ? "api" : undefined,
+                          })}
                   </td>
                 );
               })}

@@ -27,6 +27,7 @@ export function DigitalMarketingReportDataProvider({
   const { reportChartYear } = useDigitalMarketingPaidAdsFilters();
   const monthlySpend = useDigitalMarketingReportMonthlySpend(reportChartYear, {
     forChartsCompare: true,
+    followChartYear: true,
     enabled: chartsEnabled,
   });
 

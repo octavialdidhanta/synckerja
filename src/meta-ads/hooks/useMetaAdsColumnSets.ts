@@ -1,6 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
+import { META_ADS_CPAS_PRESET_METRIC_KEYS } from "@/meta-ads/metrics/metaAdsMetricCatalog";
+
+export const META_ADS_CPAS_COLUMN_SET_ID = "builtin-cpas";
+
+export function metaAdsCpasColumnSet(): MetaAdsColumnSet {
+  return {
+    id: META_ADS_CPAS_COLUMN_SET_ID,
+    name: "CPAS",
+    metric_keys: [...META_ADS_CPAS_PRESET_METRIC_KEYS],
+    scope: "global",
+  };
+}
 
 export type MetaAdsColumnSet = {
   id: string;
@@ -124,8 +136,10 @@ export function useMetaAdsColumnSets(
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 
+  const remoteSets = (listQuery.data ?? []).filter((set) => set.id !== META_ADS_CPAS_COLUMN_SET_ID);
+
   return {
-    columnSets: listQuery.data ?? [],
+    columnSets: [metaAdsCpasColumnSet(), ...remoteSets],
     isLoading: listQuery.isPending,
     isError: listQuery.isError,
     save,

@@ -82,7 +82,7 @@ export function buildReportMetricLabels(
     cost: t("digitalMarketing.report.tableCost", "Cost"),
     cpc: t("digitalMarketing.report.tableCpc", "CPC"),
     cpa: t("digitalMarketing.report.tableCostPerLead", "CPA"),
-    converted_leads: t("digitalMarketing.report.tableConvertedLeads", "Conv. leads"),
+    converted_leads: t("digitalMarketing.report.tableConv", "Conv."),
     impressions: t("digitalMarketing.report.tableImpressions", "Impressions"),
     ctr: t("digitalMarketing.report.tableCtr", "CTR"),
     clicks: t("digitalMarketing.report.tableClicks", "Clicks"),
