@@ -1340,11 +1340,11 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
 
               {/* Service */}
               <div className="space-y-1">
-                <Label htmlFor="service_name">Service</Label>
+                <Label htmlFor="service_name">Category</Label>
                 {renderFormSelect('service', {
-                  title: 'Service',
+                  title: 'Category',
                   value: selectedServiceId || '',
-                  placeholder: 'Pilih Service',
+                  placeholder: 'Pilih Category',
                   triggerClassName: 'min-h-11 text-base',
                   options: services
                     .filter((service) => {
@@ -1400,7 +1400,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                   }}
                 >
                   <SelectTrigger className="min-h-11 text-base">
-                    <SelectValue placeholder="Pilih Service" />
+                    <SelectValue placeholder="Pilih Category" />
                   </SelectTrigger>
                   <SelectContent>
                     {services
@@ -1425,11 +1425,11 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
 
               {/* Sub Service */}
               <div className="space-y-1">
-                <Label htmlFor="sub_service_name">Sub Service</Label>
+                <Label htmlFor="sub_service_name">Sub Category</Label>
                 {renderFormSelect('subService', {
-                  title: 'Sub Service',
+                  title: 'Sub Category',
                   value: formData.sub_service_name || '',
-                  placeholder: selectedServiceId ? 'Pilih Sub Service' : 'Pilih Service dulu',
+                  placeholder: selectedServiceId ? 'Pilih Sub Category' : 'Pilih Category dulu',
                   triggerClassName: 'min-h-11 text-base',
                   disabled: !selectedServiceId,
                   options: filteredSubServices
@@ -1487,7 +1487,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                   disabled={!selectedServiceId}
                 >
                   <SelectTrigger className="min-h-11 text-base">
-                    <SelectValue placeholder={selectedServiceId ? "Pilih Sub Service" : "Pilih Service dulu"} />
+                    <SelectValue placeholder={selectedServiceId ? "Pilih Sub Category" : "Pilih Category dulu"} />
                   </SelectTrigger>
                   <SelectContent>
                     {filteredSubServices
@@ -1794,7 +1794,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                 {renderFormSelect('feature', {
                   title: 'Feature',
                   value: formData.feature_name?.trim() || '__none__',
-                  placeholder: selectedServiceId ? 'Pilih Feature' : 'Pilih Service terlebih dahulu',
+                  placeholder: selectedServiceId ? 'Pilih Feature' : 'Pilih Category terlebih dahulu',
                   triggerClassName: !selectedServiceId ? 'opacity-70' : '',
                   disabled: !selectedServiceId,
                   options: [
@@ -1897,7 +1897,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                   </SelectTrigger>
                   <SelectContent>
                     {!selectedServiceId && (
-                      <SelectItem value="__need_service__">Pilih Service terlebih dahulu</SelectItem>
+                      <SelectItem value="__need_service__">Pilih Category terlebih dahulu</SelectItem>
                     )}
                     <SelectItem value="__none__">Pilih Feature</SelectItem>
                     {featureOptions.map((name) => (
@@ -1976,14 +1976,14 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     : formData.target_market?.trim() || '__none__',
                   placeholder: useCreativeContextFlow
                     ? !selectedServiceId
-                      ? 'Pilih Service terlebih dahulu'
+                      ? 'Pilih Category terlebih dahulu'
                       : !selectedFormContentPillarId
                         ? 'Pilih Content Pillar terlebih dahulu'
                         : storyCreativeDetailOptions.length === 0
                           ? 'Tidak ada baris Creative untuk pillar & layanan ini'
                           : 'Pilih baris Creative (Target market)'
                     : !selectedServiceId
-                      ? 'Pilih Service terlebih dahulu'
+                      ? 'Pilih Category terlebih dahulu'
                       : !formData.feature_name?.trim()
                         ? 'Pilih Feature terlebih dahulu'
                         : customerPersonas.length === 0
@@ -2046,14 +2046,14 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       placeholder={
                         useCreativeContextFlow
                           ? !selectedServiceId
-                            ? 'Pilih Service terlebih dahulu'
+                            ? 'Pilih Category terlebih dahulu'
                             : !selectedFormContentPillarId
                               ? 'Pilih Content Pillar terlebih dahulu'
                             : storyCreativeDetailOptions.length === 0
                               ? 'Tidak ada baris Creative untuk pillar & layanan ini'
                               : 'Pilih baris Creative (Target market)'
                           : !selectedServiceId
-                            ? 'Pilih Service terlebih dahulu'
+                            ? 'Pilih Category terlebih dahulu'
                             : !formData.feature_name?.trim()
                               ? 'Pilih Feature terlebih dahulu'
                               : customerPersonas.length === 0
@@ -2069,7 +2069,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                     {useCreativeContextFlow ? (
                       !selectedServiceId ? (
                         <SelectItem value="select-service-first" disabled>
-                          Pilih Service terlebih dahulu
+                          Pilih Category terlebih dahulu
                         </SelectItem>
                       ) : !selectedFormContentPillarId ? (
                         <SelectItem value="select-pillar-first" disabled>
@@ -2103,7 +2103,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       )
                     ) : !selectedServiceId ? (
                       <SelectItem value="select-service-first" disabled>
-                        Pilih Service terlebih dahulu
+                        Pilih Category terlebih dahulu
                       </SelectItem>
                     ) : !formData.feature_name?.trim() ? (
                       <SelectItem value="select-feature-first" disabled>
@@ -2232,7 +2232,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                   placeholder: !useKeyword
                     ? 'Aktifkan checkbox untuk menggunakan keyword'
                     : !selectedServiceId
-                      ? 'Pilih Service terlebih dahulu'
+                      ? 'Pilih Category terlebih dahulu'
                       : formData.keywords && formData.keywords.length >= 3
                         ? 'Maksimal 3 keyword sudah tercapai'
                         : 'Pilih Keyword',
@@ -2240,7 +2240,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                   disabled: !useKeyword || !selectedServiceId || (formData.keywords && formData.keywords.length >= 3),
                   searchPlaceholder: 'Cari keyword...',
                   emptyText: !selectedServiceId
-                    ? 'Pilih Service terlebih dahulu'
+                    ? 'Pilih Category terlebih dahulu'
                     : 'Tidak ada keyword tersedia untuk Service ini',
                   options: filteredKeywords
                     .filter((kw) => !formData.keywords?.includes(kw.keyword))
@@ -2260,7 +2260,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       {!useKeyword
                         ? "Aktifkan checkbox untuk menggunakan keyword"
                         : !selectedServiceId
-                        ? "Pilih Service terlebih dahulu"
+                        ? "Pilih Category terlebih dahulu"
                         : formData.keywords && formData.keywords.length >= 3
                         ? "Maksimal 3 keyword sudah tercapai"
                         : "Pilih Keyword"}
@@ -2277,7 +2277,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                       <CommandList>
                         <CommandEmpty>
                           {!selectedServiceId
-                            ? "Pilih Service terlebih dahulu"
+                            ? "Pilih Category terlebih dahulu"
                             : filteredKeywords.length === 0
                             ? "Tidak ada keyword tersedia untuk Service ini"
                             : "Keyword tidak ditemukan"}
@@ -2336,7 +2336,7 @@ export const ScriptGeneratorForm: React.FC<ScriptGeneratorFormProps> = ({
                 )}
                 {useKeyword && !selectedServiceId && (
                   <p className="text-xs text-gray-500 mt-1">
-                    Pilih Service terlebih dahulu untuk memilih keyword
+                    Pilih Category terlebih dahulu untuk memilih keyword
                   </p>
                 )}
                 {errors.keywords && (

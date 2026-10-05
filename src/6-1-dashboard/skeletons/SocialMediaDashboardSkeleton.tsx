@@ -145,7 +145,7 @@ function MasterDataFooterSkeleton() {
         <Skeleton className="h-3 w-24 rounded-sm" />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {['Content Types', 'Services', 'Sub Svcs', 'Pillars', 'Names'].map((label) => (
+        {['Content Types', 'Categories', 'Sub Cats', 'Pillars', 'Names'].map((label) => (
           <div key={label} className="flex items-center gap-1">
             <Skeleton className="h-3 w-14 rounded-sm" />
             <Skeleton className="h-7 w-7 rounded-md" />

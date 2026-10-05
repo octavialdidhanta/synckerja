@@ -134,7 +134,7 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
           <div className="sticky top-0 bg-white z-10 border-b">
             <DropdownMenuItem onClick={handleAdd} className="cursor-pointer">
               <Plus className="mr-2 h-4 w-4" />
-              Add Service
+              Add Category
             </DropdownMenuItem>
           </div>
           
@@ -145,7 +145,7 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
                 <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="Search services..."
+                  placeholder="Search categories..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 h-8 text-sm"
@@ -166,7 +166,7 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
               {defaultServices.length > 0 && (
                 <>
                   <div className="px-2 py-1 text-xs font-medium text-gray-500 bg-gray-50">
-                    Default Services (Read-only)
+                    Default Categories (Read-only)
                   </div>
                   {defaultServices.map((item) => (
                     <div key={item.id} className="flex items-center justify-between px-2 py-2 bg-gray-50/50">
@@ -184,7 +184,7 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
                 <>
                   {defaultServices.length > 0 && <DropdownMenuSeparator />}
                   <div className="px-2 py-1 text-xs font-medium text-gray-500">
-                    Custom Services
+                    Custom Categories
                   </div>
                   {customServices.map((item) => (
                     <div key={item.id} className="flex items-center justify-between px-2 py-1 hover:bg-gray-50">
@@ -219,7 +219,7 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
                 <>
                   <DropdownMenuSeparator />
                   <div className="px-2 py-2 text-xs text-gray-500 text-center italic">
-                    No custom services yet
+                    No custom categories yet
                   </div>
                 </>
               )}
@@ -229,7 +229,7 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
                 <>
                   <DropdownMenuSeparator />
                   <div className="px-2 py-2 text-xs text-gray-500 text-center italic">
-                    {searchQuery ? `No services found for "${searchQuery}"` : 'No services available'}
+                    {searchQuery ? `No categories found for "${searchQuery}"` : 'No categories available'}
                   </div>
                 </>
               )}
@@ -250,7 +250,7 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
             aria-modal="true"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <h3 className="mb-4 text-lg font-semibold">Service</h3>
+            <h3 className="mb-4 text-lg font-semibold">Category</h3>
             <div className="space-y-4">
               <div>
                 <label className="mb-2 block text-sm font-medium">Name</label>
@@ -259,7 +259,7 @@ export const ServiceManager: React.FC<ServiceManagerProps> = React.memo(({ onDat
                   value={draftName}
                   onChange={(e) => setDraftName(e.target.value)}
                   className="w-full"
-                  placeholder="Enter service name"
+                  placeholder="Enter category name"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {

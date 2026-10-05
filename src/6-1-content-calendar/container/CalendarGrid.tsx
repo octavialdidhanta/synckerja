@@ -324,7 +324,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                       <div className={`truncate text-[10px] ${cardMetaLineClass(cardTone)}`}>
                         {[plan?.service?.name, plan?.sub_service?.name, plan?.content_pillar?.name]
                           .filter(Boolean)
-                          .join(' - ') || 'No Service'}
+                          .join(' - ') || 'No Category'}
                       </div>
 
                       {/* Title */}

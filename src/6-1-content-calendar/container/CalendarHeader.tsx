@@ -81,10 +81,10 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
           <Filter className="h-4 w-4 text-gray-500" />
           <Select value={selectedService} onValueChange={onServiceChange}>
             <SelectTrigger className="w-[180px] h-8 text-xs">
-              <SelectValue placeholder="Filter by Service" />
+              <SelectValue placeholder="Filter by Category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Services</SelectItem>
+              <SelectItem value="all">All Categories</SelectItem>
               {services.map((service) => (
                 <SelectItem key={service.id} value={service.id}>
                   {service.name}

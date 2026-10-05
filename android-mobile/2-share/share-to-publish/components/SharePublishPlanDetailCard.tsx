@@ -54,11 +54,11 @@ export function SharePublishPlanDetailCard({ plan }: Props) {
           value={plan.content_type?.name}
         />
         <DetailItem
-          label={t("share.publish.fields.service", "Service")}
+          label={t("share.publish.fields.service", "Category")}
           value={plan.service?.name}
         />
         <DetailItem
-          label={t("share.publish.fields.subService", "Sub service")}
+          label={t("share.publish.fields.subService", "Sub Category")}
           value={plan.sub_service?.name}
         />
         <DetailItem

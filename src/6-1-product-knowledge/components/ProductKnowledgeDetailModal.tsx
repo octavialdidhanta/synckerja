@@ -226,7 +226,7 @@ export const ProductKnowledgeDetailModal: React.FC<ProductKnowledgeDetailModalPr
           <DialogFormScrollArea className="space-y-4 pr-1">
             <div className="space-y-2">
               <Label htmlFor="service_id">
-                {t('productKnowledgeDetail.modal.service', 'Product Service')} *
+                {t('productKnowledgeDetail.modal.service', 'Category')} *
               </Label>
               <Select
                 value={formData.service_id || undefined}
@@ -235,7 +235,7 @@ export const ProductKnowledgeDetailModal: React.FC<ProductKnowledgeDetailModalPr
               >
                 <SelectTrigger id="service_id">
                   <SelectValue
-                    placeholder={t('productKnowledgeDetail.modal.servicePlaceholder', 'Select service')}
+                    placeholder={t('productKnowledgeDetail.modal.servicePlaceholder', 'Select category')}
                   />
                 </SelectTrigger>
                 <SelectContent>
@@ -252,7 +252,7 @@ export const ProductKnowledgeDetailModal: React.FC<ProductKnowledgeDetailModalPr
 
             <div className="space-y-2">
               <Label htmlFor="sub_service_id">
-                {t('productKnowledgeDetail.modal.subService', 'Sub Service')}
+                {t('productKnowledgeDetail.modal.subService', 'Sub Category')}
               </Label>
               <Select
                 value={formData.sub_service_id || undefined}
@@ -263,8 +263,8 @@ export const ProductKnowledgeDetailModal: React.FC<ProductKnowledgeDetailModalPr
                   <SelectValue
                     placeholder={
                       selectedServiceId
-                        ? t('productKnowledgeDetail.modal.subServicePlaceholder', 'Select sub service')
-                        : t('productKnowledgeDetail.modal.selectServiceFirst', 'Select service first')
+                        ? t('productKnowledgeDetail.modal.subServicePlaceholder', 'Select sub category')
+                        : t('productKnowledgeDetail.modal.selectServiceFirst', 'Select category first')
                     }
                   />
                 </SelectTrigger>

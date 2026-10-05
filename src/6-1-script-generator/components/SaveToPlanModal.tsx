@@ -508,9 +508,9 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                           <span>{selectedPlan.pic?.full_name ?? '-'}</span>
                           <span className="text-muted-foreground">{t('scriptGenerator.saveToPlanModal.contentType', 'Content Type')}:</span>
                           <span>{selectedPlan.content_type?.name ?? '-'}</span>
-                          <span className="text-muted-foreground">{t('scriptGenerator.saveToPlanModal.service', 'Service')}:</span>
+                          <span className="text-muted-foreground">{t('scriptGenerator.saveToPlanModal.service', 'Category')}:</span>
                           <span>{selectedPlan.service?.name ?? '-'}</span>
-                          <span className="text-muted-foreground">{t('scriptGenerator.saveToPlanModal.subService', 'Sub Service')}:</span>
+                          <span className="text-muted-foreground">{t('scriptGenerator.saveToPlanModal.subService', 'Sub Category')}:</span>
                           <span>{selectedPlan.sub_service?.name ?? '-'}</span>
                           <span className="text-muted-foreground">{t('scriptGenerator.saveToPlanModal.titleField', 'Title')}:</span>
                           <span className="font-medium">{selectedPlan.title?.trim() || '-'}</span>
@@ -591,11 +591,11 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                           })}
                         </div>
                         <div className="space-y-2">
-                          <LabelWithTooltip label={t('scriptGenerator.saveToPlanModal.service', 'Service')} tooltip={t('scriptGenerator.saveToPlanModal.tooltipService', 'Related service')} />
+                          <LabelWithTooltip label={t('scriptGenerator.saveToPlanModal.service', 'Category')} tooltip={t('scriptGenerator.saveToPlanModal.tooltipService', 'Related category')} />
                           {renderPlanFieldSelect('service', {
-                            title: t('scriptGenerator.saveToPlanModal.service', 'Service'),
+                            title: t('scriptGenerator.saveToPlanModal.service', 'Category'),
                             value: newPlanForm.service_id,
-                            placeholder: t('scriptGenerator.saveToPlanModal.service', 'Service'),
+                            placeholder: t('scriptGenerator.saveToPlanModal.service', 'Category'),
                             options: services.map((s) => ({ value: s.id, label: s.name })),
                             onSelect: (v) => setNewPlanForm((p) => ({ ...p, service_id: v, sub_service_id: '' })),
                             desktop: (
@@ -603,7 +603,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                                 value={newPlanForm.service_id}
                                 onValueChange={(v) => setNewPlanForm((p) => ({ ...p, service_id: v, sub_service_id: '' }))}
                               >
-                                <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.service', 'Service')} /></SelectTrigger>
+                                <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.service', 'Category')} /></SelectTrigger>
                                 <SelectContent>
                                   {services.map((s) => (
                                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
@@ -614,13 +614,13 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                           })}
                         </div>
                         <div className="space-y-2">
-                          <LabelWithTooltip label={t('scriptGenerator.saveToPlanModal.subService', 'Sub Service')} tooltip={t('scriptGenerator.saveToPlanModal.tooltipSubService', 'Sub service')} />
+                          <LabelWithTooltip label={t('scriptGenerator.saveToPlanModal.subService', 'Sub Category')} tooltip={t('scriptGenerator.saveToPlanModal.tooltipSubService', 'Sub category')} />
                           {renderPlanFieldSelect('subService', {
-                            title: t('scriptGenerator.saveToPlanModal.subService', 'Sub Service'),
+                            title: t('scriptGenerator.saveToPlanModal.subService', 'Sub Category'),
                             value: newPlanForm.sub_service_id,
                             placeholder: newPlanForm.service_id
-                              ? t('scriptGenerator.saveToPlanModal.subService', 'Sub Service')
-                              : t('scriptGenerator.saveToPlanModal.selectServiceFirst', 'Select service first'),
+                              ? t('scriptGenerator.saveToPlanModal.subService', 'Sub Category')
+                              : t('scriptGenerator.saveToPlanModal.selectServiceFirst', 'Select category first'),
                             options: filteredSubServices.map((s) => ({ value: s.id, label: s.name })),
                             onSelect: (v) => setNewPlanForm((p) => ({ ...p, sub_service_id: v })),
                             disabled: !newPlanForm.service_id,
@@ -631,7 +631,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                                 disabled={!newPlanForm.service_id}
                               >
                                 <SelectTrigger>
-                                  <SelectValue placeholder={newPlanForm.service_id ? t('scriptGenerator.saveToPlanModal.subService', 'Sub Service') : t('scriptGenerator.saveToPlanModal.selectServiceFirst', 'Select service first')} />
+                                  <SelectValue placeholder={newPlanForm.service_id ? t('scriptGenerator.saveToPlanModal.subService', 'Sub Category') : t('scriptGenerator.saveToPlanModal.selectServiceFirst', 'Select category first')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {filteredSubServices.map((s) => (

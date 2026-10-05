@@ -137,7 +137,7 @@ export function ContentCalendarPageSkeleton() {
                           <Skeleton className="h-3 w-[4.5rem] rounded-sm" />
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {['Content Types', 'Services', 'Sub Services', 'Content Pillars', 'Social Media Names'].map(
+                          {['Content Types', 'Categories', 'Sub Categories', 'Content Pillars', 'Social Media Names'].map(
                             (_, j) => (
                               <div key={j} className="flex items-center gap-0.5">
                                 <Skeleton className="h-3 w-16 rounded-sm" />

@@ -58,7 +58,7 @@ export function ContentCalendarMobileShellHeader({
                 "h-9 w-9 shrink-0",
                 selectedService !== "all" && "text-primary",
               )}
-              aria-label={t("contentCalendar.filter.service", "Service")}
+              aria-label={t("contentCalendar.filter.service", "Category")}
               onClick={() => setOpen(true)}
             >
               <Filter className="h-4 w-4" aria-hidden />
@@ -68,7 +68,7 @@ export function ContentCalendarMobileShellHeader({
               <DrawerContent className="max-h-[85vh] px-0 pb-4">
                 <DrawerHeader className="px-4 pb-2 text-left">
                   <DrawerTitle className="text-base">
-                    {t("contentCalendar.filter.service", "Service")}
+                    {t("contentCalendar.filter.service", "Category")}
                   </DrawerTitle>
                 </DrawerHeader>
                 <div className="max-h-[min(60vh,360px)] overflow-y-auto px-2 pb-2">
@@ -83,7 +83,7 @@ export function ContentCalendarMobileShellHeader({
                     )}
                   >
                     <span className="min-w-0 flex-1 truncate">
-                      {t("contentCalendar.filter.allServices", "All Services")}
+                      {t("contentCalendar.filter.allServices", "All Categories")}
                     </span>
                     {selectedService === "all" ? (
                       <Check className="h-4 w-4 shrink-0" aria-hidden />

@@ -164,7 +164,7 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
           <div className="sticky top-0 bg-white z-20 border-b shadow-sm">
             <DropdownMenuItem onClick={handleAdd} className="cursor-pointer rounded-none m-0">
               <Plus className="mr-2 h-4 w-4" />
-              Add Sub Service
+              Add Sub Category
             </DropdownMenuItem>
           </div>
           
@@ -176,7 +176,7 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
                   <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                   <input
                     type="text"
-                    placeholder="Search sub services..."
+                    placeholder="Search sub categories..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -198,7 +198,7 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
               {defaultSubServices.length > 0 && (
                 <>
                   <div className="px-2 py-1 text-xs font-medium text-gray-500 bg-gray-50">
-                    Default Sub Services (Read-only)
+                    Default Sub Categories (Read-only)
                   </div>
                   {defaultSubServices.map((item) => (
                     <div key={item.id} className="flex items-center justify-between px-2 py-2 bg-gray-50/50">
@@ -207,7 +207,7 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
                         <div className="flex flex-col flex-1 min-w-0">
                           <span className="text-sm text-gray-600 truncate">{item.name}</span>
                           <span className="text-xs text-gray-400 truncate">
-                            {services.find(s => s.id === item.service_id)?.name || 'No Service'}
+                            {services.find(s => s.id === item.service_id)?.name || 'No Category'}
                           </span>
                         </div>
                       </div>
@@ -221,14 +221,14 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
                 <>
                   {defaultSubServices.length > 0 && <DropdownMenuSeparator />}
                   <div className="px-2 py-1 text-xs font-medium text-gray-500">
-                    Custom Sub Services
+                    Custom Sub Categories
                   </div>
                   {customSubServices.map((item) => (
                     <div key={item.id} className="flex items-center justify-between px-2 py-1 hover:bg-gray-50">
                       <div className="flex flex-col flex-1 min-w-0 mr-2">
                         <span className="text-sm truncate">{item.name}</span>
                         <span className="text-xs text-gray-500 truncate">
-                          {services.find(s => s.id === item.service_id)?.name || 'No Service'}
+                          {services.find(s => s.id === item.service_id)?.name || 'No Category'}
                         </span>
                       </div>
                       <div className="flex gap-1">
@@ -261,7 +261,7 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
                 <>
                   <DropdownMenuSeparator />
                   <div className="px-2 py-2 text-xs text-gray-500 text-center italic">
-                    No custom sub services yet
+                    No custom sub categories yet
                   </div>
                 </>
               )}
@@ -271,7 +271,7 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
                 <>
                   <DropdownMenuSeparator />
                   <div className="px-2 py-2 text-xs text-gray-500 text-center italic">
-                    No sub services available
+                    No sub categories available
                   </div>
                 </>
               )}
@@ -304,12 +304,12 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
             onMouseDown={(e) => e.stopPropagation()}
           >
             <h2 className="mb-4 text-lg font-semibold">
-              {modalData.mode === 'add' ? 'Add Sub Service' : 'Edit Sub Service'}
+              {modalData.mode === 'add' ? 'Add Sub Category' : 'Edit Sub Category'}
             </h2>
 
             <div className="mb-4">
               <label className="mb-2 block text-sm font-medium text-gray-700">
-                Service *
+                Category *
               </label>
               <select
                 value={selectedServiceId}
@@ -317,7 +317,7 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
-                <option value="">Select a service...</option>
+                <option value="">Select a category...</option>
                 {services.map((service) => (
                   <option key={service.id} value={service.id}>
                     {service.name}
@@ -328,14 +328,14 @@ export const SubServiceManager: React.FC<SubServiceManagerProps> = React.memo(
 
             <div className="mb-4">
               <label className="mb-2 block text-sm font-medium text-gray-700">
-                Sub Service Name *
+                Sub Category Name *
               </label>
               <input
                 type="text"
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter sub service name"
+                placeholder="Enter sub category name"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {

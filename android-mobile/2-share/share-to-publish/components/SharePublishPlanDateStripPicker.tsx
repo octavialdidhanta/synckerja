@@ -350,13 +350,13 @@ export function SharePublishPlanDateStripPicker({
                   </div>
                   <div>
                     <p className="font-medium text-foreground/80">
-                      {t("share.publish.fields.service", "Service")}
+                      {t("share.publish.fields.service", "Category")}
                     </p>
                     <p className="mt-0.5">{plan.service?.name || "-"}</p>
                   </div>
                   <div>
                     <p className="font-medium text-foreground/80">
-                      {t("share.publish.fields.subService", "Sub service")}
+                      {t("share.publish.fields.subService", "Sub Category")}
                     </p>
                     <p className="mt-0.5">{plan.sub_service?.name || "-"}</p>
                   </div>

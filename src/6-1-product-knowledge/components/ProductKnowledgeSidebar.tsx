@@ -1219,7 +1219,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
             {selectedKeyword.service_name && (
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-gray-800">
-                  {t('productKnowledge.keywords.detail.service', 'Service')}
+                  {t('productKnowledge.keywords.detail.service', 'Category')}
                 </h3>
                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                   <p className="text-sm text-gray-700">{selectedKeyword.service_name}</p>
@@ -1602,14 +1602,14 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <span className="font-medium">
-                  {t('productKnowledge.detail.service', 'Service')}:
+                  {t('productKnowledge.detail.service', 'Category')}:
                 </span>
                 <span>{selectedDetail.service_name || t('productKnowledge.detail.notSet', 'Not set')}</span>
               </div>
               {selectedDetail.sub_service_name && (
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <span className="font-medium">
-                    {t('productKnowledge.detail.subService', 'Sub Service')}:
+                    {t('productKnowledge.detail.subService', 'Sub Category')}:
                   </span>
                   <span>{selectedDetail.sub_service_name}</span>
                 </div>

@@ -35,11 +35,11 @@ export const ProductKnowledgeTableFooter: React.FC<ProductKnowledgeTableFooterPr
         </div>
         <div className="flex items-center gap-1.5">
           <div className="flex items-center gap-0.5">
-            <span className="text-xs text-gray-600">{t('productKnowledge.masterData.services', 'Services')}</span>
+            <span className="text-xs text-gray-600">{t('productKnowledge.masterData.services', 'Categories')}</span>
             <ServiceManager onDataChange={onDataChange} />
           </div>
           <div className="flex items-center gap-0.5">
-            <span className="text-xs text-gray-600">{t('productKnowledge.masterData.subServices', 'Sub Services')}</span>
+            <span className="text-xs text-gray-600">{t('productKnowledge.masterData.subServices', 'Sub Categories')}</span>
             <SubServiceManager onDataChange={onDataChange} services={services} />
           </div>
           <div className="flex items-center gap-0.5">

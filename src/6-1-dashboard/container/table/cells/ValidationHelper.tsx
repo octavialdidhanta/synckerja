@@ -11,12 +11,12 @@ export const validateRequiredFields = (planData: ContentPlan) => {
   
   // Column 5: Service
   if (!planData.service_id) {
-    missingFields.push('Service');
+    missingFields.push('Category');
   }
   
   // Column 6: Sub Service
   if (!planData.sub_service_id) {
-    missingFields.push('Sub Service');
+    missingFields.push('Sub Category');
   }
   
   // Column 7: Title

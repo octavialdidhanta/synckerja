@@ -63,7 +63,7 @@ function TableFooterStripSkeleton() {
           <Skeleton className="h-3 w-24 rounded-sm" />
         </div>
         <div className="flex items-center gap-1.5 px-2">
-          {['Services', 'Sub Services', 'Feature'].map((_, j) => (
+          {['Categories', 'Sub Categories', 'Feature'].map((_, j) => (
             <div key={j} className="flex items-center gap-0.5">
               <Skeleton className="h-3 w-14 rounded-sm" />
               <Skeleton className="h-5 w-5 shrink-0 rounded-sm" />

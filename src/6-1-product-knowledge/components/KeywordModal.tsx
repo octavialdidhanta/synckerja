@@ -299,7 +299,7 @@ export const KeywordModal: React.FC<KeywordModalProps> = ({
             {/* Service */}
             <div className="space-y-2">
               <Label htmlFor="keyword-service">
-                {t('productKnowledge.keywords.modal.serviceLabel', 'Service')} *
+                {t('productKnowledge.keywords.modal.serviceLabel', 'Category')} *
               </Label>
               <Select
                 value={serviceId}
@@ -308,7 +308,7 @@ export const KeywordModal: React.FC<KeywordModalProps> = ({
                 required={keywordsList.length === 0}
               >
                 <SelectTrigger id="keyword-service">
-                  <SelectValue placeholder={t('productKnowledge.keywords.modal.servicePlaceholder', 'Select service')} />
+                  <SelectValue placeholder={t('productKnowledge.keywords.modal.servicePlaceholder', 'Select category')} />
                 </SelectTrigger>
                 <SelectContent>
                   {services

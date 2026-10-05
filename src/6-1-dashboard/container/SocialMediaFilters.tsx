@@ -159,10 +159,10 @@ export const SocialMediaFilters = React.memo<SocialMediaFiltersProps>(({
         <Select value={serviceFilter} onValueChange={setServiceFilter}>
           <SelectTrigger className="w-48 h-9">
             <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filter by service" />
+            <SelectValue placeholder="Filter by category" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Services</SelectItem>
+            <SelectItem value="all">All Categories</SelectItem>
             {services && services.length > 0 && services.map((service) => (
               <SelectItem key={service.id} value={service.id}>
                 {service.name}

@@ -136,16 +136,16 @@ export const ContentSchedulingSection: React.FC = () => {
 
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold">Service Required Platforms</h3>
+          <h3 className="text-lg font-semibold">Category Required Platforms</h3>
           <p className="text-sm text-muted-foreground">
-            Configure required platforms for each service. Plans will only be marked as done when all required platforms have links filled.
+            Configure required platforms for each category. Plans will only be marked as done when all required platforms have links filled.
           </p>
         </div>
       </div>
 
       {services.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
-          <p>No services found. Please create services first.</p>
+          <p>No categories found. Please create categories first.</p>
         </div>
       ) : (
         <div className="space-y-6">

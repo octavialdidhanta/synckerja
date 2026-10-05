@@ -178,7 +178,7 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
       return;
     }
     if (modalData.mode === 'add' && !service_id) {
-      toast.error(t('productKnowledge.masterData.selectServiceRequired', 'Pilih Service untuk feature baru.'));
+      toast.error(t('productKnowledge.masterData.selectServiceRequired', 'Pilih Category untuk feature baru.'));
       return;
     }
     const normalizedFeatureDescription = normalizeRichText(feature_description);
@@ -480,7 +480,7 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
                 <div className="space-y-4 pb-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      {t('productKnowledge.masterData.service', 'Service')} *
+                      {t('productKnowledge.masterData.service', 'Category')} *
                     </label>
                     <Select
                       value={modalData.service_id ?? 'placeholder'}
@@ -489,14 +489,14 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
                       }
                     >
                       <SelectTrigger className="w-full h-9 text-sm border rounded">
-                        <SelectValue placeholder={t('productKnowledge.masterData.selectService', 'Pilih Service')} />
+                        <SelectValue placeholder={t('productKnowledge.masterData.selectService', 'Pilih Category')} />
                       </SelectTrigger>
                       <SelectContent
                         position="popper"
                         className="z-[10050] max-h-[min(16rem,calc(90vh-8rem))]"
                       >
                         <SelectItem value="placeholder" disabled>
-                          {t('productKnowledge.masterData.selectService', 'Pilih Service')}
+                          {t('productKnowledge.masterData.selectService', 'Pilih Category')}
                         </SelectItem>
                         {services.map((s) => (
                           <SelectItem key={s.id} value={s.id}>
@@ -506,7 +506,7 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-gray-500 mt-1">
-                      {t('productKnowledge.masterData.serviceFeatureHint', 'Feature hanya muncul di baris yang memilih Service ini.')}
+                      {t('productKnowledge.masterData.serviceFeatureHint', 'Feature hanya muncul di baris yang memilih Category ini.')}
                     </p>
                   </div>
                   <div>

@@ -77,7 +77,7 @@ export const generateScript = async (
     if (!request.service_name && !request.content_type) {
       return {
         success: false,
-        error: 'Minimal perlu mengisi Service atau Content Type untuk generate prompt'
+        error: 'Minimal perlu mengisi Category atau Content Type untuk generate prompt'
       };
     }
 
@@ -355,10 +355,10 @@ function buildMinimalChatGPTPrompt(request: ScriptGeneratorRequest): string {
   if (request.service_name || request.sub_service_name) {
     promptParts.push('## Informasi Produk/Layanan ##');
     if (request.service_name) {
-      promptParts.push(`- **Service:** ${request.service_name}`);
+      promptParts.push(`- **Category:** ${request.service_name}`);
     }
     if (request.sub_service_name) {
-      promptParts.push(`- **Sub Service:** ${request.sub_service_name}`);
+      promptParts.push(`- **Sub Category:** ${request.sub_service_name}`);
     }
     promptParts.push('');
   }
@@ -724,10 +724,10 @@ function buildChatGPTPrompt(request: ScriptGeneratorRequest): string {
   if (request.service_name || request.sub_service_name) {
     promptParts.push('## Informasi Produk/Layanan ##');
     if (request.service_name) {
-      promptParts.push(`- **Service:** ${request.service_name}`);
+      promptParts.push(`- **Category:** ${request.service_name}`);
     }
     if (request.sub_service_name) {
-      promptParts.push(`- **Sub Service:** ${request.sub_service_name}`);
+      promptParts.push(`- **Sub Category:** ${request.sub_service_name}`);
     }
     promptParts.push('');
   }

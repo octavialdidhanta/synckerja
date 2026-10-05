@@ -44,12 +44,12 @@ export const MasterDataToolbar: React.FC<MasterDataToolbarProps> = React.memo(({
         </div>
         
         <div className="flex items-center gap-0.5">
-          <span className="text-xs text-gray-600">Services</span>
+          <span className="text-xs text-gray-600">Categories</span>
           <ServiceManager onDataChange={onServiceDataChange} />
         </div>
 
         <div className="flex items-center gap-0.5">
-          <span className="text-xs text-gray-600">Sub Services</span>
+          <span className="text-xs text-gray-600">Sub Categories</span>
           <SubServiceManager onDataChange={onServiceDataChange} services={services} />
         </div>
         

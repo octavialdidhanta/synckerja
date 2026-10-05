@@ -655,7 +655,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="placeholder" disabled>Select Service</SelectItem>
+                <SelectItem value="placeholder" disabled>Select Category</SelectItem>
                 {services.map(service => <SelectItem key={service.id} value={service.id}>
                     {service.name}
                   </SelectItem>)}
@@ -677,7 +677,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="placeholder" disabled>Select Sub Service</SelectItem>
+                <SelectItem value="placeholder" disabled>Select Sub Category</SelectItem>
                 {(getFilteredSubServices ? getFilteredSubServices(plan.service_id) : subServices.filter(sub => sub.service_id === plan.service_id)).map(subService => <SelectItem key={subService.id} value={subService.id}>
                     {subService.name}
                   </SelectItem>)}

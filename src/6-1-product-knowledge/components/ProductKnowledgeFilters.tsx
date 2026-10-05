@@ -54,11 +54,11 @@ export const ProductKnowledgeFilters: React.FC<ProductKnowledgeFiltersProps> = (
       </div>
       <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
         <SelectTrigger className="h-9 w-[200px] shrink-0 text-sm">
-          <SelectValue placeholder={t('productKnowledge.filters.servicePlaceholder', 'All Services')} />
+          <SelectValue placeholder={t('productKnowledge.filters.servicePlaceholder', 'All Categories')} />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">
-            {t('productKnowledge.filters.allServices', 'All Services')}
+            {t('productKnowledge.filters.allServices', 'All Categories')}
           </SelectItem>
           {services.map((service) => (
             <SelectItem key={service.id} value={service.id}>

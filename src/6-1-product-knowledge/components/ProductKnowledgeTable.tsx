@@ -124,10 +124,10 @@ export const ProductKnowledgeTable: React.FC<ProductKnowledgeTableProps> = ({
                   />
                 </th>
                 <th style={{ width: '180px', minWidth: '180px', maxWidth: '180px' }} className="px-2 py-2 text-center text-xs font-semibold text-gray-700 uppercase border-r border-gray-200 border-b-2 border-gray-300">
-                  {t('productKnowledge.table.headers.productService', 'Product/Service')}
+                  {t('productKnowledge.table.headers.productService', 'Category')}
                 </th>
                 <th style={{ width: '180px', minWidth: '180px', maxWidth: '180px' }} className="px-2 py-2 text-center text-xs font-semibold text-gray-700 uppercase border-r border-gray-200 border-b-2 border-gray-300">
-                  {t('productKnowledge.table.headers.subService', 'Sub Service')}
+                  {t('productKnowledge.table.headers.subService', 'Sub Category')}
                 </th>
                 <th style={{ width: '180px', minWidth: '180px', maxWidth: '180px' }} className="px-2 py-2 text-center text-xs font-semibold text-gray-700 uppercase border-r border-gray-200 border-b-2 border-gray-300">
                   {t('productKnowledge.table.headers.feature', 'Feature')}
@@ -654,10 +654,10 @@ const ProductKnowledgeRow: React.FC<ProductKnowledgeRowProps> = ({
           }}
         >
           <SelectTrigger className="h-8 text-xs border-gray-200 text-left">
-            <SelectValue placeholder={t('productKnowledge.table.selectService', 'Select Service')} />
+            <SelectValue placeholder={t('productKnowledge.table.selectService', 'Select Category')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="placeholder" disabled>{t('productKnowledge.table.selectService', 'Select Service')}</SelectItem>
+            <SelectItem value="placeholder" disabled>{t('productKnowledge.table.selectService', 'Select Category')}</SelectItem>
             {services.map(service => (
               <SelectItem key={service.id} value={service.id}>
                 {service.name}
@@ -681,10 +681,10 @@ const ProductKnowledgeRow: React.FC<ProductKnowledgeRowProps> = ({
           disabled={!item.service_id}
         >
           <SelectTrigger className="h-8 text-xs border-gray-200 text-left">
-            <SelectValue placeholder={item.service_id ? t('productKnowledge.table.selectSubService', 'Select Sub Service') : t('productKnowledge.table.selectServiceFirst', 'Select Service First')} />
+            <SelectValue placeholder={item.service_id ? t('productKnowledge.table.selectSubService', 'Select Sub Category') : t('productKnowledge.table.selectServiceFirst', 'Select Category First')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="placeholder" disabled>{t('productKnowledge.table.selectSubService', 'Select Sub Service')}</SelectItem>
+            <SelectItem value="placeholder" disabled>{t('productKnowledge.table.selectSubService', 'Select Sub Category')}</SelectItem>
             {subServices
               .filter(subService => subService.service_id === item.service_id)
               .map(subService => (
@@ -1157,11 +1157,11 @@ const ProductKnowledgeRow: React.FC<ProductKnowledgeRowProps> = ({
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-2 seamless-scroll">
             <div className="space-y-4 pr-2">
               <MainTableDetailSection
-                label={t('productKnowledge.table.headers.productService', 'Product/Service')}
+                label={t('productKnowledge.table.headers.productService', 'Category')}
                 value={getProductServiceName(item) || '—'}
               />
               <MainTableDetailSection
-                label={t('productKnowledge.table.headers.subService', 'Sub Service')}
+                label={t('productKnowledge.table.headers.subService', 'Sub Category')}
                 value={item.sub_service_name || '—'}
               />
               <MainTableDetailSection

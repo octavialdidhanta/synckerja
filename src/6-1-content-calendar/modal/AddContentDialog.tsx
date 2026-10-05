@@ -765,10 +765,10 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
           </div>
 
           <AddContentSelectField
-            label="Service"
+            label="Category"
             value={formData.service_id}
-            placeholder="Select service"
-            emptyText="No services available"
+            placeholder="Select category"
+            emptyText="No categories available"
             isMobile={isMobile}
             options={services.map((service) => ({ id: service.id, label: service.name }))}
             onChange={(value) => {
@@ -781,10 +781,10 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
           />
 
           <AddContentSelectField
-            label="Sub Service"
+            label="Sub Category"
             value={formData.sub_service_id}
-            placeholder={formData.service_id ? 'Select sub service' : 'Please select service first'}
-            emptyText="No sub services available"
+            placeholder={formData.service_id ? 'Select sub category' : 'Please select category first'}
+            emptyText="No sub categories available"
             isMobile={isMobile}
             disabled={!formData.service_id}
             options={filteredSubServices.map((subService) => ({

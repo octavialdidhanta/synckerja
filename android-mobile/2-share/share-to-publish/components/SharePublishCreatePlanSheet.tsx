@@ -273,7 +273,7 @@ export function SharePublishCreatePlanSheet({
           </div>
 
           <div className="space-y-1.5">
-            <Label>{t("share.publish.fields.service", "Service")}</Label>
+            <Label>{t("share.publish.fields.service", "Category")}</Label>
             <Select
               value={serviceId || undefined}
               onValueChange={handleServiceChange}
@@ -283,7 +283,7 @@ export function SharePublishCreatePlanSheet({
                 <SelectValue
                   placeholder={t(
                     "share.publish.create.servicePlaceholder",
-                    "Select service",
+                    "Select category",
                   )}
                 />
               </SelectTrigger>
@@ -298,7 +298,7 @@ export function SharePublishCreatePlanSheet({
           </div>
 
           <div className="space-y-1.5">
-            <Label>{t("share.publish.fields.subService", "Sub service")}</Label>
+            <Label>{t("share.publish.fields.subService", "Sub Category")}</Label>
             <Select
               value={subServiceId || undefined}
               onValueChange={setSubServiceId}
@@ -310,7 +310,7 @@ export function SharePublishCreatePlanSheet({
                 <SelectValue
                   placeholder={t(
                     "share.publish.create.subServicePlaceholder",
-                    "Select sub service",
+                    "Select sub category",
                   )}
                 />
               </SelectTrigger>

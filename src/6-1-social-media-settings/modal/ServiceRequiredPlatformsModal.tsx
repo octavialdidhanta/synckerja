@@ -153,7 +153,7 @@ export const ServiceRequiredPlatformsModal: React.FC<ServiceRequiredPlatformsMod
 
   const handleSave = async () => {
     if (!serviceId || !organizationId) {
-      toast.error('Service ID or Organization ID is missing');
+      toast.error('Category ID or Organization ID is missing');
       return;
     }
 
@@ -263,7 +263,7 @@ export const ServiceRequiredPlatformsModal: React.FC<ServiceRequiredPlatformsMod
             {editingPlatform ? 'Edit Required Platform' : 'Add Required Platform'}
           </DialogTitle>
           <DialogDescription>
-            Configure a required platform for this service. Plans will need to have links for all
+            Configure a required platform for this category. Plans will need to have links for all
             required platforms before being marked as done.
           </DialogDescription>
         </DialogHeader>

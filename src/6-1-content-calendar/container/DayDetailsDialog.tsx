@@ -164,7 +164,7 @@ export const DayDetailsDialog: React.FC<DayDetailsDialogProps> = ({
                                 plan?.service?.name,
                                 plan?.sub_service?.name,
                                 plan?.content_pillar?.name
-                              ].filter(Boolean).join(' - ') || 'No Service'}
+                              ].filter(Boolean).join(' - ') || 'No Category'}
                               {' · '}
                               <strong>PIC:</strong> {plan?.pic?.full_name || 'Unassigned'}
                             </p>

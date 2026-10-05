@@ -809,7 +809,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                     </div>
                     <div className="flex items-center gap-1 min-w-0">
                       <Briefcase className="h-3 w-3 text-gray-600 flex-shrink-0" />
-                      <span className="text-gray-700 font-medium flex-shrink-0">{t('socialMediaDashboard.reviewModal.service', 'Service')}:</span>
+                      <span className="text-gray-700 font-medium flex-shrink-0">{t('socialMediaDashboard.reviewModal.service', 'Category')}:</span>
                       <span className="text-gray-800 truncate max-w-[180px]" title={serviceName?.trim() || undefined}>
                         {serviceName?.trim()
                           ? serviceName.trim()
