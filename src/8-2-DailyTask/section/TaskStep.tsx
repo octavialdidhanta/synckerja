@@ -46,6 +46,18 @@ import type { TaskStep as TaskStepData } from '../types/taskTypes';
 import { getStepCheckboxRule } from '../utils/stepCheckboxRules';
 import { LINK_REMOVED_FROM_PREVIEW_REJECT_REASON } from '../services/completionApprovalService';
 
+const STEP_FILE_ACCEPT =
+  '.pdf,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif,.zip,.rar,.wav,.mp3,.m4a,.aac,.ogg,.flac,.mp4,.avi,.mov,.wmv,.flv,.webm,.mkv,.m4v';
+
+function openStepAttachment(fileUrl: string, filename: string) {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  const href =
+    ext === 'ppt' || ext === 'pptx'
+      ? `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`
+      : fileUrl;
+  window.open(href, '_blank', 'noopener,noreferrer');
+}
+
 /** Smooth transition when step settles after reorder drop */
 const SORT_DROP_TRANSITION = 'transform 0.38s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.2s ease-out';
 
@@ -1469,7 +1481,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                 type="file"
                 onChange={handleFileSelect}
                 className="hidden"
-                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.zip,.rar,.wav,.mp3,.m4a,.aac,.ogg,.flac,.mp4,.avi,.mov,.wmv,.flv,.webm,.mkv,.m4v"
+                accept={STEP_FILE_ACCEPT}
               />
               <Button
                 variant="outline"
@@ -1500,7 +1512,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => window.open(file.file_url, '_blank')}
+                          onClick={() => openStepAttachment(file.file_url, file.filename)}
                           className="h-6 w-6 p-0 text-primary hover:text-primary/90"
                           title="View file"
                         >
@@ -1534,7 +1546,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
             type="file"
             onChange={handleFileSelect}
             className="hidden"
-            accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.zip,.rar,.wav,.mp3,.m4a,.aac,.ogg,.flac,.mp4,.avi,.mov,.wmv,.flv,.webm,.mkv,.m4v"
+            accept={STEP_FILE_ACCEPT}
           />
           
           <Button
@@ -1569,7 +1581,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => window.open(file.file_url, '_blank')}
+                    onClick={() => openStepAttachment(file.file_url, file.filename)}
                     className="h-6 w-6 p-0 text-primary hover:text-primary/90"
                     title="View file"
                   >

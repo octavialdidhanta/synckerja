@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Flag, User, Calendar, Building2, Target, Unlink } from 'lucide-react';
+import { X, Flag, User, Calendar, Building2, Target, Unlink, ClipboardList } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -285,28 +285,53 @@ export const EditTaskDialog: React.FC<EditTaskDialogProps> = ({ isOpen, onClose,
     >
       <DialogContent
         className={cn(
-          'p-0 flex flex-col gap-0',
+          'flex flex-col gap-0 overflow-hidden p-0',
           isMobile
             ? 'fixed left-0 right-0 top-0 translate-x-0 translate-y-0 w-full max-w-none max-h-none rounded-none modal-above-safe-area z-30'
-            : 'w-[620px] max-w-[90vw] max-h-[90vh] h-[600px]'
+            : 'h-[600px] w-[620px] max-h-[90vh] max-w-[90vw] rounded-lg'
         )}
         overlayClassName={isMobile ? 'z-30' : undefined}
-        hideCloseButton={isMobile}
+        hideCloseButton
         fullscreenAnimation={isMobile}
       >
-        <DialogHeader className="flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 text-left safe-area-top px-4 pt-4 pb-3">
-          <DialogTitle className="text-lg font-semibold">Edit Task</DialogTitle>
+        <DialogHeader
+          className={cn(
+            'flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 text-left dark:from-blue-950/20 dark:to-indigo-950/20',
+            isMobile
+              ? 'safe-area-top flex flex-row flex-nowrap items-stretch gap-0 space-y-0 px-0 py-0'
+              : 'rounded-t-lg px-4 py-2.5',
+          )}
+        >
+          <div
+            className={cn(
+              'flex w-full min-w-0 items-center gap-2',
+              isMobile ? 'gap-1.5 px-3 py-1.5' : 'pr-1',
+            )}
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-100 dark:bg-blue-900/30">
+              <ClipboardList className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="m-0 truncate text-base font-semibold leading-tight">
+                Edit Task
+              </DialogTitle>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="inline-flex h-8 w-8 shrink-0 rounded-md p-0"
+              onClick={onClose}
+              disabled={isSubmitting}
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </DialogHeader>
 
         <form ref={formRef} onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div
-            className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-6"
-            style={{
-              scrollbarWidth: 'thin',
-              scrollBehavior: 'smooth',
-              scrollbarColor: '#d1d5db transparent',
-            }}
-          >
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="space-y-6 min-w-0">
               <div className="space-y-4 min-w-0">
           {/* Task Title */}
@@ -603,7 +628,7 @@ export const EditTaskDialog: React.FC<EditTaskDialogProps> = ({ isOpen, onClose,
     </form>
         
         {/* Action Buttons - rules: px-4 pt-3 pb-3, no safe-area-padding-bottom */}
-        <div className="px-4 pt-3 pb-3 flex-shrink-0 border-t bg-muted/30">
+        <div className={cn('flex-shrink-0 border-t bg-muted/30 px-4 pt-3 pb-3', !isMobile && 'rounded-b-lg')}>
           <div className="flex items-center justify-end gap-2">
             <Button
               type="button"
