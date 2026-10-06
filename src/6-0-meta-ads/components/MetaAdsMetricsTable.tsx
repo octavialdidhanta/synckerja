@@ -31,6 +31,10 @@ import { useMetaAdsAdCreatives } from "@/meta-ads/hooks/useMetaAdsAdCreatives";
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import type { MetaAdsMetricsRow } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import { formatMetaBudgetCell, formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
+import {
+  metaAdsExtremeBounds,
+  metaAdsExtremeCellStyle,
+} from "@/meta-ads/metrics/metaAdsExtremeHighlights";
 import { metaAdRunningDays } from "@/meta-ads/metrics/metaAdRunningDays";
 import {
   getMetaAdsLockedTableColumns,
@@ -430,6 +434,7 @@ export function MetaAdsMetricsTable({
     ? identityCols.slice(identityCols.findIndex((col) => col.key === "ad_toggle") + 1)
     : [];
 
+  const extremeBounds = useMemo(() => metaAdsExtremeBounds(rows), [rows]);
   const colSpan = identityCols.length + (deliveryMetric ? 1 : 0) + visibleMetricItems.length;
   const metricColClass = "min-w-[5.5rem] whitespace-nowrap px-3 text-right";
 
@@ -522,6 +527,7 @@ export function MetaAdsMetricsTable({
                         <td
                           key={m.key}
                           className={cn("p-2 align-middle tabular-nums", metricColClass)}
+                          style={metaAdsExtremeCellStyle(m.key, r[m.key], extremeBounds) ?? undefined}
                         >
                           {m.key === "delivery" ? (
                             <MetaAdsDeliveryBadge value={r[m.key]} />

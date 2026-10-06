@@ -13,6 +13,10 @@ import { Switch } from "@/shared/components/ui/switch";
 import { useSetMetaAdStatus } from "@/meta-ads/hooks/useSetMetaAdStatus";
 import { metaAdIsOn, metaAdStatusLocked } from "@/meta-ads/metrics/metaAdStatus";
 import { formatMetaBudgetCell, formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
+import {
+  metaAdsExtremeBounds,
+  metaAdsExtremeCellStyle,
+} from "@/meta-ads/metrics/metaAdsExtremeHighlights";
 import { metaAdRunningDays } from "@/meta-ads/metrics/metaAdRunningDays";
 import {
   getMetaAdsLockedTableColumns,
@@ -108,6 +112,7 @@ export function MobileMetaAdsMetricsTable({
           defaultLabel: "Delivery",
         })
       : undefined;
+  const extremeBounds = useMemo(() => metaAdsExtremeBounds(rows), [rows]);
   const visibleMetricItems = useMemo(
     () =>
       metricItems.filter(
@@ -285,6 +290,7 @@ export function MobileMetaAdsMetricsTable({
                   <td
                     key={m.key}
                     className={cn(tdClass, "text-right tabular-nums")}
+                    style={metaAdsExtremeCellStyle(m.key, r[m.key], extremeBounds) ?? undefined}
                   >
                     {m.key === "delivery" ? (
                       <MetaAdsDeliveryBadge value={r[m.key]} />
