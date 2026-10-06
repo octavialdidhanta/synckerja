@@ -45,6 +45,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import type { TaskStep as TaskStepData } from '../types/taskTypes';
 import { getStepCheckboxRule } from '../utils/stepCheckboxRules';
 import { LINK_REMOVED_FROM_PREVIEW_REJECT_REASON } from '../services/completionApprovalService';
+import { isDueOnLocalToday, isOverdueIncomplete } from '@/shared/hooks/daily-task/todayWorkQueue';
 
 const STEP_FILE_ACCEPT =
   '.pdf,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif,.zip,.rar,.wav,.mp3,.m4a,.aac,.ogg,.flac,.mp4,.avi,.mov,.wmv,.flv,.webm,.mkv,.m4v';
@@ -481,6 +482,29 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
       text: `Overdue ${overdueDays} day${overdueDays > 1 ? 's' : ''}`,
       className: 'text-[10px] text-red-600',
     };
+  };
+
+  const getDueTodayLabel = (): { text: string; className: string } | null => {
+    if (!step.assigned_due_date || isCompleted || getOverdueLabel()) return null;
+    if (!isDueOnLocalToday(step.assigned_due_date)) return null;
+    return { text: 'Due today', className: 'text-[10px] font-medium text-amber-700' };
+  };
+
+  const getSubStepAttentionLabel = (): { text: string; className: string } | null => {
+    const subSteps = step.sub_steps ?? [];
+    const hasOverdue = subSteps.some((subStep) =>
+      isOverdueIncomplete(subStep.assigned_due_date, subStep.is_completed === true),
+    );
+    if (hasOverdue) {
+      return { text: 'Sub-step overdue', className: 'text-[10px] font-medium text-red-600' };
+    }
+    const hasDueToday = subSteps.some(
+      (subStep) => !subStep.is_completed && isDueOnLocalToday(subStep.assigned_due_date),
+    );
+    if (hasDueToday) {
+      return { text: 'Sub-step due today', className: 'text-[10px] font-medium text-amber-700' };
+    }
+    return null;
   };
 
   // Load history count and link count for badges
@@ -1279,7 +1303,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
       {/* Icons below title when no sub-steps */}
             {subStepCount === 0 && (
               contentOnly ? (
-                (step.assigned_due_date || step.assigned_at || isAssignedToMe || (step.assigned_to && isStepCreator) || step.has_assigned_substeps || getOverdueLabel() || getFinishStatusLabel()) && (
+                (step.assigned_due_date || step.assigned_at || isAssignedToMe || (step.assigned_to && isStepCreator) || step.has_assigned_substeps || getOverdueLabel() || getDueTodayLabel() || getSubStepAttentionLabel() || getFinishStatusLabel()) && (
                   <div className="flex flex-wrap items-end gap-x-2 gap-y-0.5 text-[10px] text-gray-500 min-w-0">
                     {isAssignedToMe && (
                       <span className="text-[10px] text-green-600">
@@ -1304,6 +1328,12 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                     )}
                     {getOverdueLabel() && (
                       <span className={getOverdueLabel()!.className}>{getOverdueLabel()!.text}</span>
+                    )}
+                    {getDueTodayLabel() && (
+                      <span className={getDueTodayLabel()!.className}>{getDueTodayLabel()!.text}</span>
+                    )}
+                    {getSubStepAttentionLabel() && (
+                      <span className={getSubStepAttentionLabel()!.className}>{getSubStepAttentionLabel()!.text}</span>
                     )}
                     {getFinishStatusLabel() && (
                       <span className={getFinishStatusLabel()!.className}>{getFinishStatusLabel()!.text}</span>
@@ -1312,7 +1342,7 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                 )
               ) : (
               <div className="flex items-end justify-between gap-2 flex-wrap">
-                {(step.assigned_due_date || step.assigned_at || isAssignedToMe || (step.assigned_to && isStepCreator) || step.has_assigned_substeps || getOverdueLabel() || getFinishStatusLabel()) && (
+                {(step.assigned_due_date || step.assigned_at || isAssignedToMe || (step.assigned_to && isStepCreator) || step.has_assigned_substeps || getOverdueLabel() || getDueTodayLabel() || getSubStepAttentionLabel() || getFinishStatusLabel()) && (
                   <div className="flex flex-wrap items-end gap-x-2 gap-y-0.5 text-[10px] text-gray-500 min-w-0">
                     {isAssignedToMe && (
                       <span className="text-[10px] text-green-600">
@@ -1337,6 +1367,12 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                     )}
                     {getOverdueLabel() && (
                       <span className={getOverdueLabel()!.className}>{getOverdueLabel()!.text}</span>
+                    )}
+                    {getDueTodayLabel() && (
+                      <span className={getDueTodayLabel()!.className}>{getDueTodayLabel()!.text}</span>
+                    )}
+                    {getSubStepAttentionLabel() && (
+                      <span className={getSubStepAttentionLabel()!.className}>{getSubStepAttentionLabel()!.text}</span>
                     )}
                     {getFinishStatusLabel() && (
                       <span className={getFinishStatusLabel()!.className}>{getFinishStatusLabel()!.text}</span>
@@ -1405,6 +1441,12 @@ const TaskStepInner = forwardRef<TaskStepHandle, TaskStepInnerProps>(function Ta
                     )}
                     {getOverdueLabel() && (
                       <span className={getOverdueLabel()!.className}>{getOverdueLabel()!.text}</span>
+                    )}
+                    {getDueTodayLabel() && (
+                      <span className={getDueTodayLabel()!.className}>{getDueTodayLabel()!.text}</span>
+                    )}
+                    {getSubStepAttentionLabel() && (
+                      <span className={getSubStepAttentionLabel()!.className}>{getSubStepAttentionLabel()!.text}</span>
                     )}
                     {isCompleted && completedAt && (
                       <span className="text-gray-500">Finished: {formatDateTime(completedAt)}</span>

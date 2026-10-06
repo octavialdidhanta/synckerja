@@ -39,6 +39,7 @@ export interface TaskSubStep {
     full_name: string;
     email?: string;
   } | null;
+  assigned_due_date?: string | null;
 }
 
 export interface TaskStep {

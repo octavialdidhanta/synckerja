@@ -3,6 +3,7 @@ import { Task, TaskStep } from '@/8-2-DailyTask/types';
 import type { SummaryData } from '@/8-2-DailyTask/types';
 import { calculateProgress } from '@/8-2-DailyTask/utils/taskUtils';
 import { startOfMonth, isSameMonth, addMonths, subMonths } from 'date-fns';
+import { isOverdueIncomplete, stepBelongsInTodayQueue, taskMatchesTodayWorkQueue } from './todayWorkQueue';
 
 export interface TaskFilters {
   search: string;
@@ -131,6 +132,11 @@ export const useTaskFilters = ({
 
       const now = new Date();
 
+      // Today is the working day: due today, plus unfinished work that is already late.
+      if (filters.dateRange === 'today') {
+        return taskMatchesTodayWorkQueue(task, now);
+      }
+
       // Helper: determine if a given ISO date string falls within the active filter
       const isInActiveRange = (isoDate?: string | null): boolean => {
         if (!isoDate) return false;
@@ -202,9 +208,8 @@ export const useTaskFilters = ({
         return true;
       }
 
-      // Include overdue only for preset month ranges (this_month, last_month), not for "today" / "yesterday" / "this_week" / "custom"
-      // so that "Today" and "Custom range" (e.g. November 2025) show only tasks due in that range
-      const isStrictRange = ['today', 'yesterday', 'this_week', 'custom'].includes(filters.dateRange);
+      // Yesterday, this week, and custom stay a strict due-date window. Month presets also keep unfinished overdue work.
+      const isStrictRange = ['yesterday', 'this_week', 'custom'].includes(filters.dateRange);
       if (!isStrictRange) {
         // - Task overdue (task.due_date past) and task not completed
         if (isOverdueDate(task.due_date) && (task.status !== 'completed')) {
@@ -779,9 +784,16 @@ export const useTaskFilters = ({
 
       // Apply date range filter at step level:
       // When a date filter is active, show steps whose assigned_due_date falls in range
-      // OR steps that are overdue (assigned_due_date in past) and not completed
+      // OR steps that are overdue (assigned_due_date in past) and not completed.
+      // Today is applied later for every viewer, including the task creator and Owner.
       // Skip date range filter if user is task creator, task is assigned at task level, atau Owner
-      if (filters.dateRange && filters.dateRange !== 'all' && !shouldShowAllSteps && !isOwner) {
+      if (
+        filters.dateRange &&
+        filters.dateRange !== 'all' &&
+        filters.dateRange !== 'today' &&
+        !shouldShowAllSteps &&
+        !isOwner
+      ) {
         const now = new Date();
         const isOverdue = (step: TaskStep): boolean => {
           if (!step.assigned_due_date) return false;
@@ -891,6 +903,11 @@ export const useTaskFilters = ({
         }
       }
 
+      if (filters.dateRange === 'today') {
+        const now = new Date();
+        steps = steps.filter((step) => stepBelongsInTodayQueue(step, now));
+      }
+
       return steps;
     },
     [filters, currentEmployeeId, currentUserId, isOwner]
@@ -931,12 +948,21 @@ export const useTaskFilters = ({
       completed: list.filter((t) => t && getDisplayStatus(t) === 'completed').length,
       cancelled: list.filter((t) => t && getDisplayStatus(t) === 'cancelled').length,
       overdue: list.filter((t) => {
-        if (!t || !t.due_date) return false;
-        return new Date(t.due_date) < new Date() && getDisplayStatus(t) !== 'completed';
+        if (!t) return false;
+        const display = getDisplayStatus(t);
+        if (display === 'completed' || display === 'cancelled') return false;
+        if (isOverdueIncomplete(t.due_date, false)) return true;
+        return (t.steps ?? []).some(
+          (step) =>
+            isOverdueIncomplete(step.assigned_due_date, step.is_completed === true) ||
+            (step.sub_steps ?? []).some((subStep) =>
+              isOverdueIncomplete(subStep.assigned_due_date, subStep.is_completed === true),
+            ),
+        );
       }).length,
-      totalSteps: list.reduce((sum, t) => sum + (t?.steps?.length || 0), 0),
+      totalSteps: list.reduce((sum, t) => sum + (t ? getVisibleSteps(t).length : 0), 0),
       completedSteps: list.reduce(
-        (sum, t) => sum + (t?.steps?.filter((s) => s && s.is_completed).length || 0),
+        (sum, t) => sum + (t ? getVisibleSteps(t).filter((s) => s && s.is_completed).length : 0),
         0
       ),
       tasksPlannedThisMonth: list.filter((t) => {
@@ -945,7 +971,7 @@ export const useTaskFilters = ({
         return planDate >= currentMonthStart && planDate < nextMonthStart;
       }).length,
     };
-  }, [filteredTasks, getDisplayStatus]);
+  }, [filteredTasks, getDisplayStatus, getVisibleSteps]);
 
   return {
     filteredTasks,

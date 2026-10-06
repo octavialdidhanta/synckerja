@@ -964,6 +964,74 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
         }
       });
 
+      const subStepDueByAssignmentId: Record<string, string> = {};
+      const subAssignmentIds = subStepAssignmentsData
+        .map((assignment: any) => assignment.id)
+        .filter(Boolean);
+      if (subAssignmentIds.length > 50) {
+        const assignmentIdToSubStepId: Record<string, string> = {};
+        subStepAssignmentsData.forEach((assignment: any) => {
+          if (assignment.id && assignment.task_steps_to_steps_id) {
+            assignmentIdToSubStepId[assignment.id] = assignment.task_steps_to_steps_id;
+          }
+        });
+        (async () => {
+          try {
+            const dueRows = await batchQuery(subAssignmentIds, async (batch) => {
+              const { data, error } = await supabase
+                .from('task_steps_assigned_duedate')
+                .select('task_steps_to_steps_assigned_id, due_date')
+                .in('task_steps_to_steps_assigned_id', batch)
+                .order('created_at', { ascending: false });
+              return { data: data || [], error };
+            });
+            const dueBySubStepId: Record<string, string> = {};
+            dueRows.forEach((row: any) => {
+              const subStepId = assignmentIdToSubStepId[row.task_steps_to_steps_assigned_id];
+              if (subStepId && row.due_date && !dueBySubStepId[subStepId]) {
+                dueBySubStepId[subStepId] = row.due_date;
+              }
+            });
+            setTasks((prevTasks) =>
+              prevTasks.map((task) => ({
+                ...task,
+                steps: (task.steps ?? []).map((step) => ({
+                  ...step,
+                  sub_steps: (step.sub_steps ?? []).map((subStep) => {
+                    const dueDate = dueBySubStepId[subStep.id];
+                    return dueDate ? { ...subStep, assigned_due_date: dueDate } : subStep;
+                  }),
+                })),
+              })),
+            );
+          } catch (error) {
+            console.warn('Error fetching sub-step due dates in background (non-critical):', error);
+          }
+        })().catch((err) => console.warn('Background sub-step due dates fetch failed:', err));
+      } else if (subAssignmentIds.length > 0) {
+        try {
+          const dueRows = await batchQuery(subAssignmentIds, async (batch) => {
+            const { data, error } = await supabase
+              .from('task_steps_assigned_duedate')
+              .select('task_steps_to_steps_assigned_id, due_date')
+              .in('task_steps_to_steps_assigned_id', batch)
+              .order('created_at', { ascending: false });
+            return { data: data || [], error };
+          });
+          dueRows.forEach((row: any) => {
+            if (
+              row.task_steps_to_steps_assigned_id &&
+              row.due_date &&
+              !subStepDueByAssignmentId[row.task_steps_to_steps_assigned_id]
+            ) {
+              subStepDueByAssignmentId[row.task_steps_to_steps_assigned_id] = row.due_date;
+            }
+          });
+        } catch (error) {
+          console.warn('Error fetching sub-step due dates (non-critical, continuing):', error);
+        }
+      }
+
       // Group sub-steps by parent_step_id
       const subStepsByParentStepId: Record<string, any[]> = {};
       subStepsData.forEach(subStep => {
@@ -998,7 +1066,10 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
           return {
             ...subStep,
             assigned_to: subStepAssignment?.employee_id || null,
-            assigned_employee: subStepAssignment?.employee || null
+            assigned_employee: subStepAssignment?.employee || null,
+            assigned_due_date: subStepAssignment
+              ? subStepDueByAssignmentId[subStepAssignment.id] || null
+              : null,
           };
         });
 
