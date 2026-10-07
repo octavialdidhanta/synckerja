@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
-import { Building2, Filter, ImageIcon, LayoutGrid, Megaphone, Settings, type LucideIcon } from "lucide-react";
+import { Building2, Filter, ImageIcon, LayoutGrid, Megaphone, PieChart, Settings, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 
-export type MetaAdsNavView = MetaAdsMetricEntity | "funnel";
+export type MetaAdsNavView = MetaAdsMetricEntity | "funnel" | "breakdown";
 
 export type MetaAdsNavAccount = {
   id: string;
@@ -46,6 +46,12 @@ const ENTITY_ITEMS: NavItemDef[] = [
     labelKey: "digitalMarketing.metaAds.navFunnel",
     defaultLabel: "Funnel",
     icon: Filter,
+  },
+  {
+    id: "breakdown",
+    labelKey: "digitalMarketing.metaAds.navBreakdown",
+    defaultLabel: "Breakdown",
+    icon: PieChart,
   },
 ];
 

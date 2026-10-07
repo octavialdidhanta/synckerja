@@ -44,6 +44,7 @@ import {
   readStoredCpasCounts,
   type CpasCounts,
 } from "../_shared/metaAdsCpasMetrics.ts";
+import { loadMetaDemographicBreakdown } from "../_shared/metaAdsDemographicBreakdown.ts";
 
 const CACHE_TTL_MINUTES = 10;
 
@@ -1428,6 +1429,34 @@ Deno.serve(async (req: Request) => {
 
   if (action === "setAdStatus") {
     return await handleSetAdStatus(admin, body, organizationId);
+  }
+
+  if (action === "fetchDemographicBreakdown") {
+    const dr = defaultDateRange();
+    const rawStart = String(body.date_start ?? dr.start).trim();
+    const rawEnd = String(body.date_end ?? dr.end).trim();
+    const { start: dateStart, end: dateEnd } = clampMetaAdsDateRange(rawStart, rawEnd, now);
+    const adAccountIdParam = body.ad_account_id != null ? String(body.ad_account_id).trim() : null;
+    const resolved = await resolveOrgMetaAdsForMetrics(admin, organizationId, adAccountIdParam);
+    if (!resolved) {
+      return metaAdsJson({ error: "Meta Ads not connected or no account configured" }, 400);
+    }
+    try {
+      const payload = await loadMetaDemographicBreakdown({
+        graphVersion: metaGraphVersion(),
+        act: metaActId(resolved.account.ad_account_id),
+        accessToken: resolved.accessToken,
+        dateStart,
+        dateEnd,
+        campaignIds: body.campaign_ids,
+        adsetIds: body.adset_ids,
+        adIds: body.ad_ids,
+      });
+      return metaAdsJson(payload, 200);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to load breakdown";
+      return metaAdsJson({ error: msg }, 400);
+    }
   }
 
   const entity = (String(body.entity ?? "campaign").trim() as MetricEntity) || "campaign";

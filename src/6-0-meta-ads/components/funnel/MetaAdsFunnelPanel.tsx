@@ -1,6 +1,9 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Eye, Loader2, MousePointerClick, ShoppingCart, Wallet, type LucideIcon } from "lucide-react";
+import { Copy, Eye, Loader2, MousePointerClick, ShoppingCart, Wallet, type LucideIcon } from "lucide-react";
+import { toast } from "sonner";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { Button } from "@/shared/components/ui/button";
+import { copyElementAsPng } from "@/meta-ads/metrics/copyElementAsPng";
 import {
   Select,
   SelectContent,
@@ -25,8 +28,11 @@ import {
 } from "@/meta-ads/metrics/metaAdsFunnel";
 
 const STAGE_COLORS = ["#1D6FEA", "#3B82F6", "#5B9BFF", "#FF6A3D"] as const;
-const STEP_CALLOUT_TOP = ["14%", "40%", "64%"] as const;
-const STEP_CALLOUT_HEIGHT = ["24%", "22%", "20%"] as const;
+const STEP_CALLOUT_TOP = ["14%", "40%", "60%"] as const;
+const STEP_CALLOUT_HEIGHT = ["22%", "16%", "22%"] as const;
+const COST_PER_PURCHASE_FRACTION = 0.91;
+const COST_COLOR = "#1D6FEA";
+const PURCHASE_COLOR = "#FF6A3D";
 const FUNNEL_EDGE_GAP = 8;
 const FUNNEL_SHORT_LABELS: Record<string, string> = {
   impressions: "Impressions",
@@ -104,6 +110,7 @@ type Props = {
   adAccountId: string;
   dateStart: string;
   dateEnd: string;
+  reportTitle: string;
   enabled: boolean;
   campaignIds: readonly string[];
   adsetIds: readonly string[];
@@ -115,12 +122,16 @@ export function MetaAdsFunnelPanel({
   adAccountId,
   dateStart,
   dateEnd,
+  reportTitle,
   enabled,
   campaignIds,
   adsetIds,
   adIds,
 }: Props) {
   const [metricKeys, setMetricKeys] = useState<string[]>(() => [...META_ADS_FUNNEL_DEFAULT_KEYS]);
+  const [copying, setCopying] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
+  const { t } = useAppTranslation();
   const level = resolveMetaAdsFunnelLevel({ campaignIds, adsetIds, adIds });
   const metricsQuery = useMetaAdsMetricsQuery({
     organizationId,
@@ -191,8 +202,42 @@ export function MetaAdsFunnelPanel({
     );
   }
 
+  const copyReportImage = () => {
+    const node = reportRef.current;
+    if (!node || copying) return;
+    setCopying(true);
+    void copyElementAsPng(node)
+      .then(() => {
+        toast.success(
+          t("digitalMarketing.metaAds.funnelCopyImageDone", "Image copied. Paste it into WhatsApp."),
+        );
+      })
+      .catch(() => {
+        toast.error(
+          t("digitalMarketing.metaAds.funnelCopyImageFailed", "Could not copy the image."),
+        );
+      })
+      .finally(() => setCopying(false));
+  };
+
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 items-stretch overflow-x-auto">
+    <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="absolute right-3 top-1.5 z-30 h-7 gap-1.5 bg-white"
+        disabled={copying || loading}
+        onClick={copyReportImage}
+      >
+        {copying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+        {t("digitalMarketing.metaAds.funnelCopyImage", "Copy image")}
+      </Button>
+      <div ref={reportRef} className="flex h-full min-h-0 w-full flex-1 flex-col bg-white">
+      <p className="shrink-0 px-6 pr-36 pt-2 text-sm font-semibold leading-5 text-[#1c1e21]">
+        {reportTitle}
+      </p>
+      <div className="flex h-full min-h-0 w-full flex-1 items-stretch overflow-x-auto">
       {columns.map((column) => (
         <div key={column.id} className="flex h-full min-h-0 min-w-[28rem] flex-1 flex-col">
           {comparing ? (
@@ -212,6 +257,8 @@ export function MetaAdsFunnelPanel({
           />
         </div>
       ))}
+      </div>
+      </div>
     </div>
   );
 }
@@ -258,13 +305,28 @@ function FunnelChart({
         : null;
     return {
       rate,
+      currentKey: previous?.key ?? "",
+      nextKey: stage.key,
       current: funnelShortLabel(previous?.key ?? "", previous?.label ?? ""),
       next: funnelShortLabel(stage.key, stage.label),
     };
   });
   const purchaseRoas = readMetaAdsPurchaseRoas(summary);
+  const cost = readMetaAdsFunnelMetric(summary, "spend");
+  const purchaseValue = readMetaAdsFunnelMetric(summary, "purchase_conversion_value");
+  const purchases = readMetaAdsFunnelMetric(summary, "purchases");
+  const storedCostPerPurchase = readMetaAdsFunnelMetric(summary, "cost_per_purchase");
+  const costPerPurchase =
+    storedCostPerPurchase ??
+    (cost != null && purchases != null && purchases > 0 ? cost / purchases : null);
+  const storedAov = readMetaAdsFunnelMetric(summary, "aov");
+  const aov =
+    storedAov ??
+    (purchaseValue != null && purchases != null && purchases > 0 ? purchaseValue / purchases : null);
   const funnelRef = useRef<HTMLDivElement>(null);
   const [funnelWidth, setFunnelWidth] = useState(0);
+  const costPerPurchaseTipX = funnelEdgeX(funnelWidth, COST_PER_PURCHASE_FRACTION) + FUNNEL_EDGE_GAP;
+  const costPerPurchaseLabelX = costPerPurchaseTipX + 46;
   useLayoutEffect(() => {
     const node = funnelRef.current;
     if (!node) return;
@@ -276,7 +338,7 @@ function FunnelChart({
   }, []);
 
   return (
-    <div className={`relative h-full min-h-0 px-6 py-4 ${className ?? ""}`}>
+    <div className={`relative h-full min-h-0 px-6 pb-4 pt-1 ${className ?? ""}`}>
       <div ref={funnelRef} className={`flex h-full w-full min-w-[16rem] flex-col ${funnelClassName}`}>
         {stages.map((stage) => {
           const Icon = STAGE_ICONS[stage.key] ?? Eye;
@@ -336,10 +398,14 @@ function FunnelChart({
             return (
               <ElbowCallout
                 key={`${step.current}-${step.next}`}
-                label={t("digitalMarketing.metaAds.funnelStageTo", "{{current}} to {{next}}", {
-                  current: step.current,
-                  next: step.next,
-                })}
+                label={
+                  step.currentKey === "impressions" && step.nextKey === "clicks"
+                    ? t("digitalMarketing.metaAds.ctr", "CTR")
+                    : t("digitalMarketing.metaAds.funnelStageTo", "{{current}} to {{next}}", {
+                        current: step.current,
+                        next: step.next,
+                      })
+                }
                 value={formatRate(step.rate)}
                 color={STAGE_COLORS[index + 1] ?? STAGE_COLORS[0]}
                 top={top}
@@ -349,11 +415,39 @@ function FunnelChart({
               />
             );
           })}
-          <PlainLeftCallout
-            label={t("digitalMarketing.metaAds.funnelShortRoas", "ROAS")}
-            value={loading ? "—" : formatMetaMetricValue("purchase_roas", purchaseRoas, currency)}
-            color="#FF6A3D"
-            tipX={funnelEdgeX(funnelWidth, 0.93) + FUNNEL_EDGE_GAP}
+          <FunnelArrowHead
+            color={COST_COLOR}
+            left={costPerPurchaseTipX}
+            top={`${COST_PER_PURCHASE_FRACTION * 100}%`}
+          />
+          <FunnelHLine
+            color={COST_COLOR}
+            left={costPerPurchaseTipX + 10}
+            top={`${COST_PER_PURCHASE_FRACTION * 100}%`}
+            width={28}
+          />
+          <BridgeMetric
+            left={costPerPurchaseLabelX}
+            top={`${COST_PER_PURCHASE_FRACTION * 100}%`}
+            label={t("digitalMarketing.metaAds.costPerPurchase", "Cost/Purchase")}
+            value={loading ? "—" : formatMetaMetricValue("cost_per_purchase", costPerPurchase, currency)}
+            color={COST_COLOR}
+          />
+          <RoasBridge
+            funnelWidth={funnelWidth}
+            clearanceX={costPerPurchaseLabelX + 168}
+            clearanceFraction={COST_PER_PURCHASE_FRACTION}
+            costLabel={t("digitalMarketing.metaAds.funnelCost", "Cost")}
+            costValue={loading ? "—" : formatMetaMetricValue("spend", cost, currency)}
+            purchaseLabel={t("digitalMarketing.metaAds.funnelPurchaseValue", "Purchase conversion value")}
+            purchaseValueText={
+              loading ? "—" : formatMetaMetricValue("purchase_conversion_value", purchaseValue, currency)
+            }
+            purchaseCountText={loading ? "—" : formatMetaMetricValue("purchases", purchases, currency)}
+            aovLabel={t("digitalMarketing.metaAds.aov", "AOV")}
+            aovValue={loading ? "—" : formatMetaMetricValue("aov", aov, currency)}
+            roasLabel={t("digitalMarketing.metaAds.funnelShortRoas", "ROAS")}
+            roasValue={loading ? "—" : formatMetaMetricValue("purchase_roas", purchaseRoas, currency)}
           />
         </div>
       ) : null}
@@ -420,39 +514,204 @@ function ElbowCallout({
   );
 }
 
-function PlainLeftCallout({
+function RoasBridge({
+  funnelWidth,
+  clearanceX,
+  clearanceFraction,
+  costLabel,
+  costValue,
+  purchaseLabel,
+  purchaseValueText,
+  purchaseCountText,
+  aovLabel,
+  aovValue,
+  roasLabel,
+  roasValue,
+}: {
+  funnelWidth: number;
+  clearanceX: number;
+  clearanceFraction: number;
+  costLabel: string;
+  costValue: string;
+  purchaseLabel: string;
+  purchaseValueText: string;
+  purchaseCountText: string;
+  aovLabel: string;
+  aovValue: string;
+  roasLabel: string;
+  roasValue: string;
+}) {
+  const topFraction = 0.08;
+  const bottomFraction = 0.96;
+  const midFraction = (topFraction + bottomFraction) / 2;
+  const arrowWidth = 10;
+  const topTipX = funnelEdgeX(funnelWidth, topFraction) + FUNNEL_EDGE_GAP;
+  const bottomTipX = funnelEdgeX(funnelWidth, bottomFraction) + FUNNEL_EDGE_GAP;
+  const costSpineX = funnelEdgeX(funnelWidth, 0) + FUNNEL_EDGE_GAP + 168;
+  const span = bottomFraction - topFraction;
+  const clearanceT = span > 0 ? (clearanceFraction - topFraction) / span : 1;
+  const slantedSpineX =
+    clearanceT > 0.05 ? costSpineX + (clearanceX - costSpineX) / clearanceT : costSpineX - 72;
+  const purchaseSpineX = Math.max(bottomTipX + arrowWidth + 36, slantedSpineX);
+  const midX =
+    costSpineX + ((midFraction - topFraction) / span) * (purchaseSpineX - costSpineX);
+  const topY = `${topFraction * 100}%`;
+  const midY = `${midFraction * 100}%`;
+  const bottomY = `${bottomFraction * 100}%`;
+
+  return (
+    <>
+      <FunnelArrowHead color={COST_COLOR} left={topTipX} top={topY} />
+      <FunnelHLine
+        color={COST_COLOR}
+        left={topTipX + arrowWidth}
+        top={topY}
+        width={Math.max(8, costSpineX - topTipX - arrowWidth)}
+      />
+      <svg className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
+        <line
+          x1={costSpineX + 1}
+          y1={topY}
+          x2={midX + 1}
+          y2={midY}
+          stroke={COST_COLOR}
+          strokeWidth={2}
+        />
+        <line
+          x1={midX + 1}
+          y1={midY}
+          x2={purchaseSpineX + 1}
+          y2={bottomY}
+          stroke={PURCHASE_COLOR}
+          strokeWidth={2}
+        />
+      </svg>
+      <FunnelHLine
+        color={PURCHASE_COLOR}
+        left={bottomTipX + arrowWidth}
+        top={bottomY}
+        width={Math.max(8, purchaseSpineX - bottomTipX - arrowWidth)}
+      />
+      <FunnelArrowHead color={PURCHASE_COLOR} left={bottomTipX} top={bottomY} />
+      <BridgeMetric left={costSpineX + 16} top={topY} label={costLabel} value={costValue} color={COST_COLOR} />
+      <BridgeMetric left={midX + 16} top={midY} label={roasLabel} value={roasValue} color={PURCHASE_COLOR} />
+      <PurchaseValueEquation
+        left={purchaseSpineX + 16}
+        top={`${clearanceFraction * 100}%`}
+        label={purchaseLabel}
+        value={purchaseValueText}
+        purchasesText={purchaseCountText}
+        aovLabel={aovLabel}
+        aovValue={aovValue}
+        color={PURCHASE_COLOR}
+      />
+    </>
+  );
+}
+
+function FunnelArrowHead({ color, left, top }: { color: string; left: number; top: string }) {
+  return (
+    <svg
+      width="10"
+      height="12"
+      viewBox="0 0 10 12"
+      className="absolute -translate-y-1/2"
+      style={{ left, top }}
+      aria-hidden
+    >
+      <path d="M9.5 0.75 L0.75 6 L9.5 11.25 Z" fill={color} />
+    </svg>
+  );
+}
+
+function FunnelHLine({
+  color,
+  left,
+  top,
+  width,
+}: {
+  color: string;
+  left: number;
+  top: string;
+  width: number;
+}) {
+  return (
+    <span
+      className="absolute h-0.5 -translate-y-1/2"
+      style={{ left, top, width, backgroundColor: color }}
+      aria-hidden
+    />
+  );
+}
+
+function BridgeMetric({
+  left,
+  top,
   label,
   value,
   color,
-  tipX,
 }: {
+  left: number;
+  top: string;
   label: string;
   value: string;
   color: string;
-  tipX: number;
 }) {
   return (
-    <div className="absolute inset-x-0" style={{ top: "86%", height: "14%" }}>
-      <svg
-        width="10"
-        height="12"
-        viewBox="0 0 10 12"
-        className="absolute top-1/2 -translate-y-1/2"
-        style={{ left: tipX }}
-        aria-hidden
-      >
-        <path d="M9.5 0.75 L0.75 6 L9.5 11.25 Z" fill={color} />
-      </svg>
-      <span
-        className="absolute top-1/2 h-0.5 w-5 -translate-y-1/2"
-        style={{ left: tipX + 10, backgroundColor: color }}
-        aria-hidden
-      />
-      <div className="absolute top-1/2 min-w-0 -translate-y-1/2" style={{ left: tipX + 36 }}>
-        <p className="text-xs leading-snug text-[#65676b]">{label}</p>
-        <p className="text-2xl font-semibold tabular-nums leading-none" style={{ color }}>
+    <div className="absolute min-w-0 -translate-y-1/2" style={{ left, top }}>
+      <p className="whitespace-nowrap text-xs leading-none text-[#65676b]">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums leading-none" style={{ color }}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function PurchaseValueEquation({
+  left,
+  top,
+  label,
+  value,
+  purchasesText,
+  aovLabel,
+  aovValue,
+  color,
+}: {
+  left: number;
+  top: string;
+  label: string;
+  value: string;
+  purchasesText: string;
+  aovLabel: string;
+  aovValue: string;
+  color: string;
+}) {
+  return (
+    <div className="absolute min-w-0 -translate-y-1/2" style={{ left, top }}>
+      <p className="whitespace-nowrap text-xs leading-none text-[#65676b]">{label}</p>
+      <div className="relative mt-1 w-max">
+        <p className="whitespace-nowrap text-2xl font-semibold tabular-nums leading-none" style={{ color }}>
           {value}
         </p>
+        <div className="absolute left-0 right-0 top-full mt-1.5">
+          <div className="flex flex-col items-center">
+            <span className="h-px w-full" style={{ backgroundColor: color }} aria-hidden />
+            <span className="mt-1 text-center text-sm font-semibold tabular-nums leading-none" style={{ color }}>
+              {purchasesText}
+            </span>
+          </div>
+          <div className="absolute left-full top-0 flex -translate-y-1/2 items-center gap-2.5 pl-2.5">
+            <span className="text-xl font-semibold leading-none text-[#1c1e21]">=</span>
+            <span className="relative">
+              <span className="absolute bottom-full left-0 mb-1 whitespace-nowrap text-xs leading-none text-[#65676b]">
+                {aovLabel}
+              </span>
+              <span className="text-2xl font-semibold tabular-nums leading-none" style={{ color }}>
+                {aovValue}
+              </span>
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );

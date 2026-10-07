@@ -598,12 +598,22 @@ export function buildMetaAdsMetricCatalogResponse(
   };
 }
 
+/** AOV sits immediately left of Cost/Purchase when both columns are visible. */
+function placeAovBeforeCostPerPurchase(keys: string[]): string[] {
+  const withoutAov = keys.filter((key) => key !== "aov");
+  const costIndex = withoutAov.indexOf("cost_per_purchase");
+  if (costIndex < 0 || !keys.includes("aov")) return keys;
+  const next = [...withoutAov];
+  next.splice(costIndex, 0, "aov");
+  return next;
+}
+
 export function resolveMetaAdsMetricItems(
   selectedKeys: string[],
   entity: MetaAdsMetricEntity,
 ): MetaAdsMetricCatalogItem[] {
   const map = new Map(getMetaAdsSelectableMetricsForEntity(entity).map((m) => [m.key, m]));
-  return stripMetaAdsPinnedMetricKeys(selectedKeys)
+  return stripMetaAdsPinnedMetricKeys(placeAovBeforeCostPerPurchase(selectedKeys))
     .map((k) => map.get(k))
     .filter((m): m is MetaAdsMetricCatalogItem => Boolean(m));
 }

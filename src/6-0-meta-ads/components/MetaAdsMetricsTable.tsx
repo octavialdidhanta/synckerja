@@ -53,7 +53,8 @@ export const metaAdsMetricsTableScrollClass = cn(
 );
 
 const thBase =
-  "h-10 whitespace-nowrap bg-gray-50 px-3 text-left align-middle text-sm font-medium text-muted-foreground";
+  "h-10 whitespace-nowrap border-r border-border bg-gray-50 px-3 text-left align-middle text-sm font-medium text-muted-foreground last:border-r-0";
+const tdDivider = "border-r border-border last:border-r-0";
 
 type ServiceOption = { id: string; name: string };
 
@@ -638,7 +639,7 @@ export function MetaAdsMetricsTable({
                       {selectable ? (
                         <td
                           className={cn(
-                            "sticky left-0 z-10 w-12 min-w-12 bg-clip-padding p-0 align-middle",
+                            "sticky left-0 z-10 w-12 min-w-12 border-r border-border bg-clip-padding p-0 align-middle",
                             rowSelected
                               ? "bg-[#e7f3ff] group-hover:bg-[#dcebfe]"
                               : "bg-[#ffffff] group-hover:bg-[#f5f6f7]",
@@ -657,20 +658,20 @@ export function MetaAdsMetricsTable({
                       {identityBeforeDelivery.map((col) => (
                         <td
                           key={col.key}
-                          className={cn("p-2 align-middle", col.cellClassName)}
+                          className={cn("p-2 align-middle", tdDivider, col.cellClassName)}
                         >
                           {col.render(row)}
                         </td>
                       ))}
                       {deliveryMetric ? (
-                        <td className="p-2 align-middle">
+                        <td className={cn("p-2 align-middle", tdDivider)}>
                           <MetaAdsDeliveryBadge value={r.delivery} />
                         </td>
                       ) : null}
                       {identityAfterDelivery.map((col) => (
                         <td
                           key={col.key}
-                          className={cn("p-2 align-middle", col.cellClassName)}
+                          className={cn("p-2 align-middle", tdDivider, col.cellClassName)}
                         >
                           {col.render(row)}
                         </td>
@@ -678,7 +679,7 @@ export function MetaAdsMetricsTable({
                       {visibleMetricItems.map((m) => (
                         <td
                           key={m.key}
-                          className={cn("p-2 align-middle tabular-nums", metricColClass)}
+                          className={cn("p-2 align-middle tabular-nums shadow-[inset_-1px_0_0_hsl(var(--border))]", metricColClass)}
                           style={metaAdsExtremeCellStyle(m.key, r[m.key], extremeBounds) ?? undefined}
                         >
                           {m.key === "delivery" ? (

@@ -26,6 +26,7 @@ import {
   type MetaAdsMetricEntity,
   type MetaAdsMetricsRow,
 } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
+import { refreshMetaAdsDemographicBreakdown } from "@/meta-ads/hooks/useMetaAdsDemographicBreakdown";
 import { MetaAdsSettingsPanel } from "@/meta-ads/settings/MetaAdsSettingsPanel";
 import {
   META_ADS_DIGITAL_MARKETING_BASE_PATH,
@@ -33,7 +34,8 @@ import {
 } from "@/meta-ads/settings/metaAdsSettingsPaths";
 import { MetaAdsMetricsPageSkeleton } from "@/6-0-meta-ads/skeletons/MetaAdsMetricsPageSkeleton";
 import { MetaAdsEntityNav, type MetaAdsNavAccount, type MetaAdsNavView } from "@/6-0-meta-ads/components/MetaAdsEntityNav";
-import { MetaAdsFunnelPanel } from "@/6-0-meta-ads/components/MetaAdsFunnelPanel";
+import { MetaAdsFunnelPanel } from "@/6-0-meta-ads/components/funnel/MetaAdsFunnelPanel";
+import { MetaAdsBreakdownPage } from "@/6-0-meta-ads/components/breakdown/MetaAdsBreakdownPage";
 import { MetaAdsMetricsSummaryBar } from "@/6-0-meta-ads/components/MetaAdsMetricsSummaryBar";
 import { MetaAdsMetricsTable } from "@/6-0-meta-ads/components/MetaAdsMetricsTable";
 import { MetaAdsSelectionBar } from "@/6-0-meta-ads/components/MetaAdsSelectionBar";
@@ -43,6 +45,7 @@ import { MetaAdsDateRangePicker } from "@/6-0-meta-ads/components/MetaAdsDateRan
 import { useMetaAdsMetricsPreferences } from "@/meta-ads/hooks/useMetaAdsMetricsPreferences";
 import { useMetaAdsParentScope } from "@/meta-ads/hooks/useMetaAdsParentScope";
 import { resolveMetaAdsFunnelLevel } from "@/meta-ads/metrics/metaAdsFunnel";
+import { formatMetaAdsFunnelReportTitle } from "@/meta-ads/lib/formatMetaAdsFunnelReportTitle";
 import {
   useMetaAdsColumnSets,
 } from "@/meta-ads/hooks/useMetaAdsColumnSets";
@@ -129,6 +132,7 @@ function MetaAdsMetricsPageContent() {
   const { dateSelection, setDateSelection, metaAdAccountId, setMetaAdAccountId } =
     useDigitalMarketingPaidAdsFilters();
   const [panel, setPanel] = useState<MetaAdsNavView>("campaign");
+  const showsMetricsTable = panel === "campaign" || panel === "adset" || panel === "ad";
   const [entity, setEntity] = useState<MetaAdsMetricEntity>("campaign");
   const [summarySlotMetricKeys, setSummarySlotMetricKeys] = useState<MetaAdsTableMetricKey[]>(
     () => [...META_ADS_SUMMARY_DEFAULT_SLOT_KEYS],
@@ -336,6 +340,21 @@ function MetaAdsMetricsPageContent() {
     if (!organizationId || !adAccountId || isRefreshingMetrics) return;
     setIsRefreshingMetrics(true);
     try {
+      if (panel === "breakdown") {
+        await refreshMetaAdsDemographicBreakdown(queryClient, {
+          organizationId,
+          adAccountId,
+          dateStart,
+          dateEnd,
+          campaignIds: parentScope.campaignFilterIds,
+          adsetIds: parentScope.adsetFilterIds,
+          adIds: parentScope.adFilterIds,
+        });
+        toast.success(
+          t("digitalMarketing.metaAds.refreshSuccess", "Metrics refreshed from Meta."),
+        );
+        return;
+      }
       const refreshEntity =
         panel === "funnel"
           ? resolveMetaAdsFunnelLevel({
@@ -556,7 +575,7 @@ function MetaAdsMetricsPageContent() {
                           entity={isSettingsView ? entity : panel}
                           onEntityChange={(next) => {
                             setPanel(next);
-                            if (next !== "funnel") setEntity(next);
+                            if (next === "campaign" || next === "adset" || next === "ad") setEntity(next);
                             if (isSettingsView) {
                               navigate(META_ADS_DIGITAL_MARKETING_BASE_PATH);
                             }
@@ -713,7 +732,7 @@ function MetaAdsMetricsPageContent() {
                                     onChange={setDateSelection}
                                   />
 
-                                  {panel !== "funnel" ? (
+                                  {showsMetricsTable ? (
                                     <Button
                                       type="button"
                                       variant="outline"
@@ -730,7 +749,7 @@ function MetaAdsMetricsPageContent() {
                                 </div>
                               </div>
 
-                              {reportingEnabled && adAccountId && panel !== "funnel" ? (
+                              {reportingEnabled && adAccountId && showsMetricsTable ? (
                                 <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pb-2">
                                   <MetaAdsMetricsSummaryBar
                                     entity={entity}
@@ -762,19 +781,36 @@ function MetaAdsMetricsPageContent() {
                               ) : null}
 
                               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-gray-100">
+                                {panel === "breakdown" ? (
+                                  <MetaAdsBreakdownPage
+                                    organizationId={organizationId}
+                                    adAccountId={adAccountId}
+                                    dateStart={dateStart}
+                                    dateEnd={dateEnd}
+                                    campaignIds={parentScope.campaignFilterIds}
+                                    adsetIds={parentScope.adsetFilterIds}
+                                    adIds={parentScope.adFilterIds}
+                                    enabled={metricsEnabled}
+                                  />
+                                ) : null}
                                 {panel === "funnel" && reportingEnabled && adAccountId ? (
                                   <MetaAdsFunnelPanel
                                     organizationId={organizationId}
                                     adAccountId={adAccountId}
                                     dateStart={dateStart}
                                     dateEnd={dateEnd}
+                                    reportTitle={formatMetaAdsFunnelReportTitle(
+                                      navAccounts.find((account) => account.ad_account_id === adAccountId)?.label ||
+                                        adAccountId,
+                                      dateSelection,
+                                    )}
                                     enabled={metricsEnabled}
                                     campaignIds={parentScope.campaignFilterIds}
                                     adsetIds={parentScope.adsetFilterIds}
                                     adIds={parentScope.adFilterIds}
                                   />
                                 ) : null}
-                                {panel !== "funnel" && columnSets.length > 0 ? (
+                                {showsMetricsTable && columnSets.length > 0 ? (
                                   <div className="flex min-w-0 shrink-0 items-center gap-2 px-4 py-2 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:py-1.5">
                                     <span className="shrink-0 text-xs text-muted-foreground">
                                       {t(
@@ -815,7 +851,7 @@ function MetaAdsMetricsPageContent() {
                                   </div>
                                 ) : null}
 
-                                {panel !== "funnel" && metricsQuery.isError ? (
+                                {showsMetricsTable && metricsQuery.isError ? (
                                   <div className="shrink-0 px-4 pb-2">
                                     <Alert variant="destructive">
                                       <AlertTitle>
@@ -831,7 +867,7 @@ function MetaAdsMetricsPageContent() {
                                   </div>
                                 ) : null}
 
-                                {panel !== "funnel" ? (
+                                {showsMetricsTable ? (
                                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4">
                                   <div className="min-h-0 flex-1 overflow-hidden">
                                     <MetaAdsMetricsTable

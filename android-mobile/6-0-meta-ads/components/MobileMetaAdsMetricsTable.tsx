@@ -122,8 +122,9 @@ export function MobileMetaAdsMetricsTable({
   );
 
   const thClass =
-    "sticky top-0 z-10 whitespace-nowrap border-b border-border bg-muted/80 px-3 py-2 text-left text-xs font-medium text-muted-foreground backdrop-blur-sm";
-  const tdClass = "whitespace-nowrap border-b border-border/60 px-3 py-2.5 text-sm align-middle";
+    "sticky top-0 z-10 whitespace-nowrap border-b border-r border-border bg-muted/80 px-3 py-2 text-left text-xs font-medium text-muted-foreground backdrop-blur-sm last:border-r-0";
+  const tdClass =
+    "whitespace-nowrap border-b border-r border-border/60 px-3 py-2.5 text-sm align-middle last:border-r-0";
 
   if (isLoading) {
     return (
@@ -289,7 +290,10 @@ export function MobileMetaAdsMetricsTable({
                 return (
                   <td
                     key={m.key}
-                    className={cn(tdClass, "text-right tabular-nums")}
+                    className={cn(
+                      tdClass,
+                      "text-right tabular-nums shadow-[inset_-1px_0_0_hsl(var(--border))]",
+                    )}
                     style={metaAdsExtremeCellStyle(m.key, r[m.key], extremeBounds) ?? undefined}
                   >
                     {m.key === "delivery" ? (
