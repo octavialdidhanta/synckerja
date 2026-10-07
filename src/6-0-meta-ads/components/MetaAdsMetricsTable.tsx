@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from "react";
-import { ImageIcon, Loader2 } from "lucide-react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
+import { Check, ImageIcon, Loader2, Minus } from "lucide-react";
 import { toast } from "sonner";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
@@ -328,6 +328,11 @@ function lockedIdentityColumns(
   });
 }
 
+export type MetaAdsTableSelection = {
+  selectedIds: readonly string[];
+  onChange: (ids: string[]) => void;
+};
+
 type Props = {
   entity: MetaAdsMetricEntity;
   rows: MetaAdsMetricsRow[];
@@ -342,7 +347,64 @@ type Props = {
   onServiceMappingChange?: (row: MetaAdsMetricsRow, serviceId: string | null) => void;
   serviceMappingPending?: boolean;
   campaignIdsWithBudget?: ReadonlySet<string>;
+  selection?: MetaAdsTableSelection;
 };
+
+function selectionRowId(row: MetaAdsMetricsRow, entity: MetaAdsMetricEntity): string {
+  const record = row as Record<string, unknown>;
+  if (entity === "campaign") return String(record.campaign_id ?? "").trim();
+  if (entity === "adset") return String(record.adset_id ?? "").trim();
+  if (entity === "ad") return String(record.ad_id ?? "").trim();
+  return "";
+}
+
+function MetaAdsManagerCheckbox({
+  checked,
+  label,
+  disabled,
+  onToggle,
+}: {
+  checked: boolean | "indeterminate";
+  label: string;
+  disabled?: boolean;
+  onToggle: (shiftKey: boolean) => void;
+}) {
+  const filled = checked === true || checked === "indeterminate";
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked === "indeterminate" ? "mixed" : checked}
+      aria-label={label}
+      disabled={disabled}
+      className="inline-flex h-10 w-12 items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0064e0] disabled:cursor-not-allowed disabled:opacity-40"
+      onMouseDown={(event) => {
+        if (event.shiftKey) event.preventDefault();
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!disabled) onToggle(event.shiftKey);
+      }}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "flex h-4 w-4 shrink-0 items-center justify-center rounded-[2px] border",
+          filled
+            ? "border-[#0064e0] bg-[#0064e0] text-white"
+            : "border-[#8d949e] bg-[#ffffff]",
+        )}
+      >
+        {checked === "indeterminate" ? (
+          <Minus className="h-3 w-3" strokeWidth={3} />
+        ) : checked ? (
+          <Check className="h-3 w-3" strokeWidth={3} />
+        ) : null}
+      </span>
+    </button>
+  );
+}
 
 export function MetaAdsMetricsTable({
   entity,
@@ -358,8 +420,10 @@ export function MetaAdsMetricsTable({
   onServiceMappingChange,
   serviceMappingPending = false,
   campaignIdsWithBudget,
+  selection,
 }: Props) {
   const { t } = useAppTranslation();
+  const selectionAnchorRef = useRef<string | null>(null);
   const [previewRow, setPreviewRow] = useState<MetaAdsMetricsRow | null>(null);
   const [audienceRow, setAudienceRow] = useState<MetaAdsMetricsRow | null>(null);
   const adIds = useMemo(
@@ -435,7 +499,61 @@ export function MetaAdsMetricsTable({
     : [];
 
   const extremeBounds = useMemo(() => metaAdsExtremeBounds(rows), [rows]);
-  const colSpan = identityCols.length + (deliveryMetric ? 1 : 0) + visibleMetricItems.length;
+  const selectable =
+    Boolean(selection) && (entity === "campaign" || entity === "adset" || entity === "ad");
+  const selectedSet = useMemo(
+    () => new Set(selection?.selectedIds ?? []),
+    [selection?.selectedIds],
+  );
+  const visibleIds = useMemo(
+    () => (selectable ? rows.map((row) => selectionRowId(row, entity)).filter(Boolean) : []),
+    [selectable, rows, entity],
+  );
+  const selectedVisibleCount = visibleIds.filter((id) => selectedSet.has(id)).length;
+  const allVisibleSelected = visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
+  const headerChecked: boolean | "indeterminate" = allVisibleSelected
+    ? true
+    : selectedVisibleCount > 0
+      ? "indeterminate"
+      : false;
+
+  const toggleVisibleAll = (checked: boolean) => {
+    if (!selection) return;
+    const next = new Set(selectedSet);
+    for (const id of visibleIds) {
+      if (checked) next.add(id);
+      else next.delete(id);
+    }
+    selectionAnchorRef.current = null;
+    selection.onChange([...next]);
+  };
+
+  const toggleRow = (id: string, shiftKey: boolean) => {
+    if (!selection || !id) return;
+    const next = new Set(selectedSet);
+    const anchor = selectionAnchorRef.current;
+    if (shiftKey && anchor) {
+      const start = visibleIds.indexOf(anchor);
+      const end = visibleIds.indexOf(id);
+      if (start >= 0 && end >= 0) {
+        const [lo, hi] = start < end ? [start, end] : [end, start];
+        for (const rangeId of visibleIds.slice(lo, hi + 1)) next.add(rangeId);
+        selectionAnchorRef.current = id;
+        selection.onChange([...next]);
+        return;
+      }
+    }
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    selectionAnchorRef.current = id;
+    selection.onChange([...next]);
+  };
+
+  const colSpan =
+    (selectable ? 1 : 0) +
+    identityCols.length +
+    (deliveryMetric ? 1 : 0) +
+    visibleMetricItems.length;
   const metricColClass = "min-w-[5.5rem] whitespace-nowrap px-3 text-right";
 
   return (
@@ -445,6 +563,16 @@ export function MetaAdsMetricsTable({
           <table className="w-max min-w-full caption-bottom border-collapse text-sm">
             <thead className="sticky top-0 z-20 bg-gray-50 shadow-sm">
               <tr className="border-b border-border hover:bg-transparent">
+                {selectable ? (
+                  <th className={cn(thBase, "sticky left-0 z-30 w-12 min-w-12 px-0 text-center")}>
+                    <MetaAdsManagerCheckbox
+                      checked={headerChecked}
+                      disabled={visibleIds.length === 0}
+                      label={t("digitalMarketing.metaAds.selectAllRows", "Select all")}
+                      onToggle={() => toggleVisibleAll(!allVisibleSelected)}
+                    />
+                  </th>
+                ) : null}
                 {identityBeforeDelivery.map((h) => (
                   <th
                     key={h.key}
@@ -497,11 +625,35 @@ export function MetaAdsMetricsTable({
               ) : (
                 rows.map((row, i) => {
                   const r = row as Record<string, unknown>;
+                  const rowSelectionId = selectable ? selectionRowId(row, entity) : "";
+                  const rowSelected = Boolean(rowSelectionId) && selectedSet.has(rowSelectionId);
                   return (
                     <tr
                       key={metaAdsRowReactKey(row, entity, i)}
-                      className="border-b border-border transition-colors hover:bg-muted/50"
+                      className={cn(
+                        "group border-b border-border transition-colors",
+                        rowSelected ? "bg-[#e7f3ff] hover:bg-[#dcebfe]" : "hover:bg-[#f5f6f7]",
+                      )}
                     >
+                      {selectable ? (
+                        <td
+                          className={cn(
+                            "sticky left-0 z-10 w-12 min-w-12 bg-clip-padding p-0 align-middle",
+                            rowSelected
+                              ? "bg-[#e7f3ff] group-hover:bg-[#dcebfe]"
+                              : "bg-[#ffffff] group-hover:bg-[#f5f6f7]",
+                          )}
+                        >
+                          <MetaAdsManagerCheckbox
+                            checked={rowSelected}
+                            disabled={!rowSelectionId}
+                            label={t("digitalMarketing.metaAds.selectRow", "Select {{name}}", {
+                              name: metaAdsRowDisplayName(row, entity),
+                            })}
+                            onToggle={(shiftKey) => toggleRow(rowSelectionId, shiftKey)}
+                          />
+                        </td>
+                      ) : null}
                       {identityBeforeDelivery.map((col) => (
                         <td
                           key={col.key}

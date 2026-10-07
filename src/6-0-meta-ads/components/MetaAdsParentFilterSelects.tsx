@@ -65,7 +65,7 @@ export function MetaAdsParentFilterSelects({
             "digitalMarketing.metaAds.filterAdsetNeedsCampaign",
             "Choose a campaign first",
           )}
-          allLabel={t("digitalMarketing.metaAds.filterAllActiveAdsets", "All active ad sets")}
+          allLabel={t("digitalMarketing.metaAds.filterAllActiveAdsets", "All ad sets")}
           options={adsetOptions}
           stacked={stacked}
           controlSize={controlSize}

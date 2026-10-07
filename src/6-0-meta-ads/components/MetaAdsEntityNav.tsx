@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
-import { Building2, ImageIcon, LayoutGrid, Megaphone, Settings, type LucideIcon } from "lucide-react";
+import { Building2, Filter, ImageIcon, LayoutGrid, Megaphone, Settings, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
+
+export type MetaAdsNavView = MetaAdsMetricEntity | "funnel";
 
 export type MetaAdsNavAccount = {
   id: string;
@@ -14,7 +16,7 @@ export type MetaAdsNavAccount = {
 };
 
 type NavItemDef = {
-  id: MetaAdsMetricEntity;
+  id: MetaAdsNavView;
   labelKey: string;
   defaultLabel: string;
   icon: LucideIcon;
@@ -39,6 +41,12 @@ const ENTITY_ITEMS: NavItemDef[] = [
     defaultLabel: "Ads",
     icon: ImageIcon,
   },
+  {
+    id: "funnel",
+    labelKey: "digitalMarketing.metaAds.navFunnel",
+    defaultLabel: "Funnel",
+    icon: Filter,
+  },
 ];
 
 const ACCOUNT_NAV_MAX_VISIBLE = 5;
@@ -62,8 +70,8 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 type MetaAdsEntityNavProps = {
-  entity: MetaAdsMetricEntity;
-  onEntityChange: (entity: MetaAdsMetricEntity) => void;
+  entity: MetaAdsNavView;
+  onEntityChange: (entity: MetaAdsNavView) => void;
   className?: string;
   accounts: MetaAdsNavAccount[];
   adAccountId: string;

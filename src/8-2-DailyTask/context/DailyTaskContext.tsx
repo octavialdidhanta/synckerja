@@ -181,7 +181,7 @@ export interface DailyTaskContextType {
   updateTask: (id: string, data: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   addTaskStep: (taskId: string, title: string, description?: string) => Promise<string | undefined>;
-  updateTaskStep: (stepId: string, data: Partial<TaskStep>, options?: { autoReorder?: boolean; skipRefresh?: boolean }) => Promise<void>;
+  updateTaskStep: (stepId: string, data: Partial<TaskStep>, options?: { autoReorder?: boolean; skipRefresh?: boolean }) => Promise<boolean>;
   deleteTaskStep: (stepId: string) => Promise<void>;
   assignTaskStep: (stepId: string, employeeId: string | null, dueDateIso?: string | null) => Promise<void>;
   reorderTaskSteps: (taskId: string, stepIds: string[]) => Promise<void>;
@@ -1709,7 +1709,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
     }
   };
 
-  const updateTaskStep = async (stepId: string, data: Partial<TaskStep>, options?: { autoReorder?: boolean; skipRefresh?: boolean }) => {
+  const updateTaskStep = async (stepId: string, data: Partial<TaskStep>, options?: { autoReorder?: boolean; skipRefresh?: boolean }): Promise<boolean> => {
     try {
       // Fetch existing to detect status change - with retry
       const { data: before } = await retryableQuery(async () => {
@@ -1969,6 +1969,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
         );
         clearCache(`tasks_${organizationId}_*`);
       }
+      return true;
     } catch (error: any) {
       console.error('Error updating step:', error);
       
@@ -1985,6 +1986,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
           : 'Failed to update step',
         variant: 'destructive'
       });
+      return false;
     }
   };
 

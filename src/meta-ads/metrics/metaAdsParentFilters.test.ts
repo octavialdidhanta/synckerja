@@ -3,6 +3,7 @@ import type { MetaAdsMetricsRow } from "@/meta-ads/hooks/useMetaAdsMetricsQuery"
 import {
   filterMetaAdsRowsByParent,
   metaAdsActiveAdsetOptions,
+  metaAdsAdsetOptions,
   metaAdsCampaignOptions,
   applyParentReach,
   summarizeMetaAdsFilteredRows,
@@ -63,26 +64,48 @@ describe("metaAdsParentFilters", () => {
       { id: "s1", name: "Loop" },
     ]);
     expect(metaAdsActiveAdsetOptions(adsets, null)).toEqual([]);
+    expect(metaAdsAdsetOptions(adsets, ["c1"]).map((option) => option.id)).toEqual([
+      "s4",
+      "s1",
+      "s2",
+    ]);
+    expect(metaAdsAdsetOptions(adsets, [])).toEqual([]);
   });
 
-  it("filters ad sets by campaign and ads by that campaign's active ad sets", () => {
+  it("filters child rows from the checked campaigns and ad sets, including Off", () => {
     expect(
       filterMetaAdsRowsByParent({
         entity: "adset",
         rows: adsets,
-        campaignId: "c1",
-        adsetId: null,
-        activeAdsetIds: ["s1"],
+        campaignIds: ["c1"],
+        adsetIds: [],
       }).map((row) => row.adset_id),
     ).toEqual(["s1", "s2", "s4"]);
 
     expect(
       filterMetaAdsRowsByParent({
+        entity: "adset",
+        rows: adsets,
+        campaignIds: ["c1", "c2"],
+        adsetIds: [],
+      }).map((row) => row.adset_id),
+    ).toEqual(["s1", "s2", "s4", "s3"]);
+
+    expect(
+      filterMetaAdsRowsByParent({
         entity: "ad",
         rows: ads,
-        campaignId: "c1",
-        adsetId: null,
-        activeAdsetIds: ["s1"],
+        campaignIds: ["c1"],
+        adsetIds: [],
+      }).map((row) => row.ad_id),
+    ).toEqual(["a1", "a2"]);
+
+    expect(
+      filterMetaAdsRowsByParent({
+        entity: "ad",
+        rows: ads,
+        campaignIds: ["c1", "c2"],
+        adsetIds: ["s1"],
       }).map((row) => row.ad_id),
     ).toEqual(["a1"]);
 
@@ -90,19 +113,17 @@ describe("metaAdsParentFilters", () => {
       filterMetaAdsRowsByParent({
         entity: "ad",
         rows: ads,
-        campaignId: "c1",
-        adsetId: "s1",
-        activeAdsetIds: ["s1"],
+        campaignIds: [],
+        adsetIds: ["s1", "s3"],
       }).map((row) => row.ad_id),
-    ).toEqual(["a1"]);
+    ).toEqual(["a1", "a3"]);
 
     expect(
       filterMetaAdsRowsByParent({
         entity: "ad",
         rows: ads,
-        campaignId: null,
-        adsetId: null,
-        activeAdsetIds: [],
+        campaignIds: [],
+        adsetIds: [],
       }),
     ).toBe(ads);
   });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, MessageSquare, X } from 'lucide-react';
+import { FileText, Loader2, MessageSquare, PenLine, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,19 +12,27 @@ import {
   SheetTitle,
 } from '@/shared/components/ui/sheet';
 import { Button } from '@/shared/components/ui/button';
+import { TaskStepDescriptionEditor } from '@/8-2-DailyTask/components/TaskStepDescriptionEditor';
 import { TaskStepDescriptionView } from '@/8-2-DailyTask/components/TaskStepDescriptionView';
+import { useDailyTask } from '@/8-2-DailyTask/context/DailyTaskContext';
+import { finalizeDescriptionForSave } from '@/8-2-DailyTask/lib/taskStepDescription';
 import type { ImageLoupeState } from '@/8-2-DailyTask/components/TaskStepDescriptionImageLoupePanel';
 import { TaskStepDescriptionImageLoupeFloating } from '@/8-2-DailyTask/components/TaskStepDescriptionImageLoupeFloating';
 import { plainTextPreview } from '@/8-2-DailyTask/lib/taskStepDescription';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
+import { useCurrentUser } from '@/shared/hooks/useCurrentUser';
+import { useToast } from '@/shared/components/ui/use-toast';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { useVisualViewport } from '@/shared/hooks/useVisualViewport';
 import { cn } from '@/shared/lib/utils';
 import { TaskStepCommentPanel } from './TaskStepCommentPanel';
 import { useTaskStepCommentUnread } from '../hooks/useTaskStepCommentUnread';
+import { canWriteStepComment } from '../lib/commentAccess';
 import type { StepCommentWriteContext } from '../types';
 
-type SeeMoreTab = 'detail' | 'discussion';
+type SeeMoreTab = 'detail' | 'update' | 'discussion';
 
 /** Match CreateDailyTemplateModal sheet sizing (full height, sm:max-w-xl). */
 const SEE_MORE_SHEET_CLASS =
@@ -75,11 +83,25 @@ export function TaskStepSeeMoreEntry({
   onImageLoupeChange,
 }: TaskStepSeeMoreEntryProps) {
   const { t } = useAppTranslation();
+  const { toast } = useToast();
+  const { updateTaskStep } = useDailyTask();
+  const { organizationId } = useCurrentOrg();
+  const { user } = useCurrentUser();
+  const { data: currentEmployee } = useCurrentEmployee();
   const isMobile = useIsMobile();
   const { height, offsetTop, isKeyboardShellOpen } = useVisualViewport();
   const [discussionOpen, setDiscussionOpen] = useState(false);
+  const [updateOpen, setUpdateOpen] = useState(false);
+  const [updateDraft, setUpdateDraft] = useState('');
+  const [savingUpdate, setSavingUpdate] = useState(false);
   const [mobileTab, setMobileTab] = useState<SeeMoreTab>('detail');
   const { unreadCount } = useTaskStepCommentUnread(stepId);
+  const canUpdate = canWriteStepComment({
+    ...writeContext,
+    hasCommented: false,
+    currentUserId: user?.id,
+    currentEmployeeId: currentEmployee?.id,
+  });
 
   const hasDescription = Boolean(description?.trim());
   const hasLongDescription =
@@ -92,6 +114,8 @@ export function TaskStepSeeMoreEntry({
   useEffect(() => {
     if (!open) {
       setDiscussionOpen(false);
+      setUpdateOpen(false);
+      setUpdateDraft('');
       setMobileTab('detail');
       return;
     }
@@ -106,6 +130,7 @@ export function TaskStepSeeMoreEntry({
 
   const openDiscussion = () => {
     onImageLoupeChange(null);
+    setUpdateOpen(false);
     setDiscussionOpen(true);
     if (isMobile) setMobileTab('discussion');
   };
@@ -115,10 +140,43 @@ export function TaskStepSeeMoreEntry({
     if (isMobile) setMobileTab('detail');
   };
 
+  const openUpdate = () => {
+    onImageLoupeChange(null);
+    setDiscussionOpen(false);
+    if (!updateOpen && mobileTab !== 'update') {
+      setUpdateDraft(description ?? '');
+    }
+    setUpdateOpen(true);
+    if (isMobile) setMobileTab('update');
+  };
+
+  const closeUpdate = () => {
+    setUpdateOpen(false);
+    setUpdateDraft('');
+    if (isMobile) setMobileTab('detail');
+  };
+
+  const saveUpdate = async () => {
+    if (!organizationId) return;
+    const nextDescription = finalizeDescriptionForSave(updateDraft);
+    setSavingUpdate(true);
+    const saved = await updateTaskStep(stepId, { description: nextDescription }, { skipRefresh: true });
+    setSavingUpdate(false);
+    if (!saved) return;
+    setUpdateDraft('');
+    setUpdateOpen(false);
+    setMobileTab('detail');
+    toast({
+      title: t('dailyTask.stepUpdate.saved', 'Update added'),
+    });
+  };
+
   if (!showEntry) return null;
 
+  const updateActive = updateOpen || mobileTab === 'update';
   const showDiscussionTab =
-    discussionOpen || mobileTab === 'discussion' || !hasDescription;
+    !updateActive && (discussionOpen || mobileTab === 'discussion');
+  const detailActive = !updateActive && !showDiscussionTab;
 
   const renderDiscussionPanel = () => (
     <TaskStepCommentPanel
@@ -130,24 +188,111 @@ export function TaskStepSeeMoreEntry({
     />
   );
 
-  const commentFooterButton = (
-    <div className="flex w-full gap-2 sm:w-auto sm:justify-end">
+  const renderUpdatePanel = () => (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <TaskStepDescriptionEditor
+        value={updateDraft}
+        onChange={setUpdateDraft}
+        disabled={savingUpdate || !organizationId}
+        stepId={stepId}
+        organizationId={organizationId ?? ''}
+        fill
+        placeholder={t(
+          'dailyTask.stepUpdate.placeholder',
+          'Edit the notes, or add what you finished. You can paste images.',
+        )}
+        minHeight="min-h-[280px]"
+      />
+    </div>
+  );
+
+  const updateFooter = (
+    <div className="flex w-full justify-end gap-2">
       <Button
         type="button"
-        variant={!discussionOpen && mobileTab !== 'discussion' ? 'secondary' : 'outline'}
+        variant="outline"
+        size="sm"
+        className="h-8 text-xs"
+        disabled={savingUpdate}
+        onClick={(e) => {
+          e.stopPropagation();
+          closeUpdate();
+        }}
+      >
+        {t('dailyTask.stepUpdate.cancel', 'Cancel')}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        className="h-8 text-xs"
+        disabled={savingUpdate || !organizationId}
+        onClick={(e) => {
+          e.stopPropagation();
+          void saveUpdate();
+        }}
+      >
+        {savingUpdate ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+        {t('dailyTask.stepUpdate.save', 'Save update')}
+      </Button>
+    </div>
+  );
+
+  const renderDetailBody = (withLoupe: boolean) =>
+    hasDescription ? (
+      <div
+        className={cn(
+          'scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          isMobile ? 'px-4 py-3' : 'px-6 py-4',
+        )}
+      >
+        <TaskStepDescriptionView
+          value={description}
+          enableImageLoupe={withLoupe}
+          onImageLoupeChange={withLoupe ? onImageLoupeChange : undefined}
+        />
+      </div>
+    ) : (
+      <div className={cn('min-h-0 flex-1', isMobile ? 'px-4 py-3' : 'px-6 py-4')}>
+        <p className="text-sm text-muted-foreground">
+          {t('dailyTask.stepUpdate.noNotes', 'No notes yet. Use Update to add what you finished.')}
+        </p>
+      </div>
+    );
+
+  const commentFooterButton = (
+    <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+      <Button
+        type="button"
+        variant={detailActive ? 'secondary' : 'outline'}
         size="sm"
         className="h-8 flex-1 gap-1.5 text-xs sm:flex-none"
         onClick={(e) => {
           e.stopPropagation();
           closeDiscussion();
+          setUpdateOpen(false);
         }}
       >
         <FileText className="h-3.5 w-3.5" />
         {t('dailyTask.stepComments.tabDetail', 'Detail')}
       </Button>
+      {canUpdate ? (
+        <Button
+          type="button"
+          variant={updateActive ? 'secondary' : 'outline'}
+          size="sm"
+          className="h-8 flex-1 gap-1.5 text-xs sm:flex-none"
+          onClick={(e) => {
+            e.stopPropagation();
+            openUpdate();
+          }}
+        >
+          <PenLine className="h-3.5 w-3.5" />
+          {t('dailyTask.stepComments.footerUpdate', 'Update')}
+        </Button>
+      ) : null}
       <Button
         type="button"
-        variant={discussionOpen || mobileTab === 'discussion' ? 'secondary' : 'outline'}
+        variant={showDiscussionTab ? 'secondary' : 'outline'}
         size="sm"
         className="h-8 flex-1 gap-1.5 text-xs sm:flex-none"
         onClick={(e) => {
@@ -231,17 +376,17 @@ export function TaskStepSeeMoreEntry({
               </div>
             ) : null}
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              {mobileTab === 'detail' && hasDescription ? (
-                <div className="scrollbar-hide seamless-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
-                  <TaskStepDescriptionView value={description} />
-                </div>
-              ) : (
+              {updateActive ? (
+                renderUpdatePanel()
+              ) : showDiscussionTab ? (
                 renderDiscussionPanel()
+              ) : (
+                renderDetailBody(false)
               )}
             </div>
-            {hasDescription && !isKeyboardShellOpen ? (
+            {(hasDescription || canUpdate) && !isKeyboardShellOpen ? (
               <div className="flex shrink-0 items-center border-t border-border px-4 py-2">
-                {commentFooterButton}
+                {updateActive ? updateFooter : commentFooterButton}
               </div>
             ) : null}
           </DialogContent>
@@ -250,7 +395,7 @@ export function TaskStepSeeMoreEntry({
     );
   }
 
-  const showDescriptionBody = hasDescription && !discussionOpen;
+  const showDescriptionBody = hasDescription && detailActive;
 
   return (
     <>
@@ -286,24 +431,20 @@ export function TaskStepSeeMoreEntry({
             ref={popoverAnchorRef}
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
           >
-            {showDescriptionBody ? (
-              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <TaskStepDescriptionView
-                  value={description}
-                  enableImageLoupe
-                  onImageLoupeChange={onImageLoupeChange}
-                />
-              </div>
-            ) : (
+            {updateActive ? (
+              renderUpdatePanel()
+            ) : showDiscussionTab ? (
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 py-2">
                 {renderDiscussionPanel()}
               </div>
+            ) : (
+              renderDetailBody(true)
             )}
           </div>
 
-          {hasDescription && (
+          {(hasDescription || canUpdate) && (
             <div className="flex shrink-0 border-t bg-background px-6 py-4">
-              {commentFooterButton}
+              {updateActive ? updateFooter : commentFooterButton}
             </div>
           )}
         </SheetContent>

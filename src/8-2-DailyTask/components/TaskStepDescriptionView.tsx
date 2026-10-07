@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { cn } from '@/shared/lib/utils';
 import {
+  isSafeDescriptionHref,
   looksLikeHtml,
   prepareTaskStepDescriptionHtmlForView,
 } from '@/8-2-DailyTask/lib/taskStepDescription';
@@ -15,7 +16,7 @@ type TaskStepDescriptionViewProps = {
 };
 
 const articleClass =
-  'text-sm text-gray-700 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:leading-snug [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:leading-snug [&_h3]:mb-1.5 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:leading-snug [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-md [&_img]:border [&_img]:border-gray-200 [&_a]:text-primary [&_a]:underline [&_a]:break-all [&_a]:hover:text-primary/90';
+  'task-step-desc-editor text-sm text-gray-700 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:leading-snug [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:leading-snug [&_h3]:mb-1.5 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:leading-snug [&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-md [&_img]:border [&_img]:border-gray-200 [&_a]:text-primary [&_a]:underline [&_a]:break-all [&_a]:hover:text-primary/90';
 
 const loupeArticleClass = `${articleClass} [&_img]:cursor-zoom-in`;
 
@@ -118,9 +119,13 @@ export function TaskStepDescriptionView({
         className={cn(enableImageLoupe ? loupeArticleClass : articleClass, className)}
         dangerouslySetInnerHTML={{ __html: html }}
         onClick={(event) => {
-          if ((event.target as HTMLElement).closest('a')) {
-            event.stopPropagation();
-          }
+          const anchor = (event.target as HTMLElement).closest('a');
+          if (!anchor) return;
+          const href = anchor.getAttribute('href') ?? '';
+          if (!isSafeDescriptionHref(href)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          window.open(href, '_blank', 'noopener,noreferrer');
         }}
       />
     );

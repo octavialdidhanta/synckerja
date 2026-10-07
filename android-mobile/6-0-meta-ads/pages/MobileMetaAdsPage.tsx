@@ -584,11 +584,16 @@ function MobileMetaAdsPageContent({ hasPageAccess }: { hasPageAccess: boolean })
                         <div className="flex flex-wrap items-center gap-2 px-1">
                           <MetaAdsParentFilterSelects
                             entity={entity}
-                            campaignId={parentScope.campaignFilterId}
-                            onCampaignChange={parentScope.onCampaignChange}
+                            campaignId={parentScope.campaignFilterIds[0] ?? null}
+                            onCampaignChange={(id) => {
+                              parentScope.setCampaignFilterIds(id ? [id] : []);
+                              parentScope.setAdsetFilterIds([]);
+                            }}
                             campaignOptions={parentScope.campaignOptions}
-                            adsetId={parentScope.adsetFilterId}
-                            onAdsetChange={parentScope.onAdsetChange}
+                            adsetId={parentScope.adsetFilterIds[0] ?? null}
+                            onAdsetChange={(id) =>
+                              parentScope.setAdsetFilterIds(id ? [id] : [])
+                            }
                             adsetOptions={parentScope.adsetOptions}
                             adsetOptionsLoading={parentScope.adsetOptionsLoading}
                           />

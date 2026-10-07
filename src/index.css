@@ -593,6 +593,54 @@ All colors MUST be HSL.
     touch-action: pan-y;
   }
 
+  /*
+    The description editor scrolls (overflow not visible). Chrome then paints the native
+    list marker on top of the first letters. Draw the bullet in a reserved gutter instead.
+  */
+  .task-step-desc-editor ul,
+  .task-step-desc-editor ol {
+    margin: 0;
+    padding-left: 0;
+    list-style: none !important;
+  }
+
+  .task-step-desc-editor li {
+    position: relative;
+    display: block;
+    list-style: none !important;
+    margin: 0 0 0.25rem;
+    padding-left: 1.35rem;
+  }
+
+  .task-step-desc-editor li::marker {
+    content: none !important;
+    font-size: 0;
+  }
+
+  .task-step-desc-editor li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1.35rem;
+    text-align: center;
+    font-weight: 400;
+    line-height: inherit;
+  }
+
+  .task-step-desc-editor ol {
+    counter-reset: task-step-desc-ol;
+  }
+
+  .task-step-desc-editor ol > li {
+    counter-increment: task-step-desc-ol;
+  }
+
+  .task-step-desc-editor ol > li::before {
+    content: counter(task-step-desc-ol) ".";
+    font-size: 0.85em;
+  }
+
   /* Wide tables/grids: allow horizontal + vertical touch pan (e.g. habit tracker, payment table). */
   .nested-scroll-touch-chain-xy {
     overscroll-behavior: auto;

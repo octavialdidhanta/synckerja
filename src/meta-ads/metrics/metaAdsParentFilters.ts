@@ -45,7 +45,7 @@ export function metaAdsCampaignOptions(rows: MetaAdsMetricsRow[]): MetaAdsParent
 
 const RUNNING_ADSET_DELIVERY = new Set(["Active", "Learning", "Learning limited"]);
 
-/** Running ad sets of the chosen campaign, including those still in learning. */
+/** Running ad sets of one campaign, including those still in learning. */
 export function metaAdsActiveAdsetOptions(
   adsetRows: MetaAdsMetricsRow[],
   campaignId: string | null,
@@ -62,24 +62,61 @@ export function metaAdsActiveAdsetOptions(
   return [...names.entries()].map(([id, name]) => ({ id, name })).sort(byName);
 }
 
+export function uniqueMetaAdsIds(ids: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of ids) {
+    const id = raw.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+/** Every ad set under the checked campaigns, including Off. */
+export function metaAdsAdsetOptions(
+  adsetRows: MetaAdsMetricsRow[],
+  campaignIds: readonly string[],
+): MetaAdsParentOption[] {
+  const allowed = new Set(uniqueMetaAdsIds(campaignIds));
+  if (allowed.size === 0) return [];
+  const names = new Map<string, string>();
+  for (const row of adsetRows) {
+    if (!allowed.has(rowText(row, "campaign_id"))) continue;
+    const id = rowText(row, "adset_id");
+    if (!id || names.has(id)) continue;
+    names.set(id, rowText(row, "adset_name") || id);
+  }
+  return [...names.entries()].map(([id, name]) => ({ id, name })).sort(byName);
+}
+
+/**
+ * Ads Manager selection: an empty list means that level is not filtering.
+ * Ad sets follow checked campaigns. Ads follow checked ad sets, and also
+ * checked campaigns when no ad set is checked. Off rows stay included.
+ */
 export function filterMetaAdsRowsByParent(args: {
   entity: MetaAdsMetricEntity;
   rows: MetaAdsMetricsRow[];
-  campaignId: string | null;
-  adsetId: string | null;
-  activeAdsetIds: string[];
+  campaignIds: readonly string[];
+  adsetIds: readonly string[];
 }): MetaAdsMetricsRow[] {
-  const { entity, rows, campaignId, adsetId, activeAdsetIds } = args;
-  if (!campaignId) return rows;
-  if (entity === "adset") {
-    return rows.filter((row) => rowText(row, "campaign_id") === campaignId);
+  const campaignIds = new Set(uniqueMetaAdsIds(args.campaignIds));
+  const adsetIds = new Set(uniqueMetaAdsIds(args.adsetIds));
+  if (args.entity === "adset") {
+    if (campaignIds.size === 0) return args.rows;
+    return args.rows.filter((row) => campaignIds.has(rowText(row, "campaign_id")));
   }
-  if (entity === "ad") {
-    if (adsetId) return rows.filter((row) => rowText(row, "adset_id") === adsetId);
-    const allowed = new Set(activeAdsetIds);
-    return rows.filter((row) => allowed.has(rowText(row, "adset_id")));
+  if (args.entity === "ad") {
+    if (campaignIds.size === 0 && adsetIds.size === 0) return args.rows;
+    return args.rows.filter((row) => {
+      if (adsetIds.size > 0 && !adsetIds.has(rowText(row, "adset_id"))) return false;
+      if (campaignIds.size > 0 && !campaignIds.has(rowText(row, "campaign_id"))) return false;
+      return true;
+    });
   }
-  return rows;
+  return args.rows;
 }
 
 /** One campaign insight row, including unique reach. Used for the ad set cards. */

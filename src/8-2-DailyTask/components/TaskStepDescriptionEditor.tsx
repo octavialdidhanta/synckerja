@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Bold, List, Loader2 } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { cn } from '@/shared/lib/utils';
@@ -6,9 +6,17 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
 import {
   isDescriptionEmpty,
+  isSafeDescriptionHref,
+  linkifyDescriptionElement,
+  linkifyPlainTextToHtml,
   sanitizeTaskStepDescriptionHtml,
   toEditorHtml,
 } from '@/8-2-DailyTask/lib/taskStepDescription';
+import {
+  handleDescriptionListKeyDown,
+  normalizeDescriptionLists,
+  removeUnorderedListAtSelection,
+} from '@/8-2-DailyTask/lib/taskStepDescriptionLists';
 import { uploadTaskStepDescriptionImage } from '@/8-2-DailyTask/services/taskStepDescriptionImageService';
 
 type TaskStepDescriptionEditorProps = {
@@ -19,6 +27,8 @@ type TaskStepDescriptionEditorProps = {
   organizationId: string;
   placeholder?: string;
   minHeight?: string;
+  /** Stretch the writing area to the parent height so existing notes stay on screen. */
+  fill?: boolean;
 };
 
 function insertHtmlAtSelection(html: string) {
@@ -47,16 +57,19 @@ export function TaskStepDescriptionEditor({
   organizationId,
   placeholder,
   minHeight = 'min-h-[180px]',
+  fill = false,
 }: TaskStepDescriptionEditorProps) {
   const { t } = useAppTranslation();
   const { toast } = useToast();
   const editorRef = useRef<HTMLDivElement>(null);
   const [uploadingCount, setUploadingCount] = useState(0);
   const lastSyncedValue = useRef<string>('');
+  const listEditFromKeyDown = useRef(false);
 
   const emitChange = useCallback(() => {
     const el = editorRef.current;
     if (!el) return;
+    normalizeDescriptionLists(el);
     const html = sanitizeTaskStepDescriptionHtml(el.innerHTML);
     lastSyncedValue.current = html;
     onChange(html);
@@ -69,7 +82,9 @@ export function TaskStepDescriptionEditor({
     if (next === lastSyncedValue.current && el.innerHTML === next) return;
     if (document.activeElement === el) return;
     el.innerHTML = next;
-    lastSyncedValue.current = next;
+    normalizeDescriptionLists(el);
+    linkifyDescriptionElement(el);
+    lastSyncedValue.current = sanitizeTaskStepDescriptionHtml(el.innerHTML);
   }, [value]);
 
   const runFormatBlock = useCallback(
@@ -91,6 +106,62 @@ export function TaskStepDescriptionEditor({
     },
     [disabled, emitChange],
   );
+
+  const toggleBulletList = useCallback(() => {
+    if (disabled) return;
+    const root = editorRef.current;
+    root?.focus();
+    if (root && removeUnorderedListAtSelection(root)) {
+      emitChange();
+      return;
+    }
+    runCommand('insertUnorderedList');
+  }, [disabled, emitChange, runCommand]);
+
+  const handleEditorKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      const root = editorRef.current;
+      if (!root) return;
+      if (!handleDescriptionListKeyDown(event, root)) return;
+      if (event.key === 'Backspace') listEditFromKeyDown.current = true;
+      emitChange();
+      queueMicrotask(() => {
+        listEditFromKeyDown.current = false;
+      });
+    },
+    [emitChange],
+  );
+
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    const onBeforeInput = (event: InputEvent) => {
+      if (event.inputType !== 'deleteContentBackward') return;
+      if (listEditFromKeyDown.current) {
+        event.preventDefault();
+        return;
+      }
+      if (
+        !handleDescriptionListKeyDown(
+          {
+            key: 'Backspace',
+            shiftKey: false,
+            altKey: event.altKey,
+            ctrlKey: event.ctrlKey,
+            metaKey: event.metaKey,
+            preventDefault() {},
+          },
+          el,
+        )
+      ) {
+        return;
+      }
+      event.preventDefault();
+      emitChange();
+    };
+    el.addEventListener('beforeinput', onBeforeInput);
+    return () => el.removeEventListener('beforeinput', onBeforeInput);
+  }, [emitChange]);
 
   const handlePasteImage = useCallback(
     async (file: File | Blob) => {
@@ -145,15 +216,12 @@ export function TaskStepDescriptionEditor({
       }
 
       const plain = event.clipboardData?.getData('text/plain');
-      if (plain && event.clipboardData?.types.includes('text/html')) {
+      const hasHtml = Boolean(event.clipboardData?.types.includes('text/html'));
+      if (plain && (hasHtml || /https?:\/\//i.test(plain))) {
         event.preventDefault();
-        const escaped = plain
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-        const html = escaped
+        const html = plain
           .split(/\n{2,}/)
-          .map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+          .map((paragraph) => `<p>${linkifyPlainTextToHtml(paragraph)}</p>`)
           .join('');
         insertHtmlAtSelection(html || '<p><br></p>');
         emitChange();
@@ -165,8 +233,13 @@ export function TaskStepDescriptionEditor({
   const showPlaceholder = isDescriptionEmpty(value) && uploadingCount === 0;
 
   return (
-    <div className="space-y-1.5">
-      <div className="overflow-hidden rounded-md border border-input bg-background">
+    <div className={cn('space-y-1.5', fill && 'flex min-h-0 flex-1 flex-col')}>
+      <div
+        className={cn(
+          'overflow-hidden border border-input bg-background',
+          fill ? 'flex min-h-0 flex-1 flex-col rounded-none border-x-0' : 'rounded-md',
+        )}
+      >
         <div className="flex flex-wrap items-center gap-0.5 border-b border-border bg-muted/40 px-1 py-1">
           <Button
             type="button"
@@ -223,7 +296,7 @@ export function TaskStepDescriptionEditor({
             className="h-7 w-7 p-0"
             disabled={disabled}
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => runCommand('insertUnorderedList')}
+            onClick={toggleBulletList}
             title={t('dailyTask.stepDescription.bulletList', 'Bullet list')}
           >
             <List className="h-3.5 w-3.5" />
@@ -235,7 +308,7 @@ export function TaskStepDescriptionEditor({
             </span>
           ) : null}
         </div>
-        <div className="relative">
+        <div className={cn('relative', fill && 'min-h-0 flex-1')}>
           {showPlaceholder ? (
             <span className="pointer-events-none absolute left-3 top-2 text-sm text-muted-foreground">
               {placeholder ??
@@ -254,23 +327,45 @@ export function TaskStepDescriptionEditor({
             data-gramm_editor="false"
             data-enable-grammarly="false"
             onInput={emitChange}
+            onKeyDown={handleEditorKeyDown}
             onPaste={(e) => void handlePaste(e)}
-            onBlur={emitChange}
+            onMouseDown={(event) => {
+              if (disabled || event.button !== 0) return;
+              const el = editorRef.current;
+              if (!el || !/https?:\/\//i.test(el.innerText)) return;
+              linkifyDescriptionElement(el);
+              const hit = document.elementFromPoint(event.clientX, event.clientY);
+              const anchor = hit instanceof Element ? hit.closest('a') : null;
+              if (!anchor || !el.contains(anchor)) return;
+              const href = anchor.getAttribute('href') ?? '';
+              if (!isSafeDescriptionHref(href)) return;
+              event.preventDefault();
+              event.stopPropagation();
+              window.open(href, '_blank', 'noopener,noreferrer');
+            }}
+            onBlur={() => {
+              const el = editorRef.current;
+              if (el) linkifyDescriptionElement(el);
+              emitChange();
+            }}
             className={cn(
               minHeight,
-              'scrollbar-hide seamless-scroll nested-scroll-touch-chain max-h-[280px] w-full overflow-y-auto overflow-x-hidden p-3 text-sm outline-none',
-              '[&_ol]:list-decimal [&_ul]:list-disc [&_ol]:pl-6 [&_ul]:pl-6',
+              fill ? 'h-full max-h-none min-h-[280px]' : 'max-h-[280px]',
+              'task-step-desc-editor scrollbar-hide seamless-scroll nested-scroll-touch-chain w-full overflow-y-auto overflow-x-hidden text-sm outline-none',
+              fill ? 'px-2 py-3' : 'p-3',
               '[&_p]:mb-2 [&_p:last-child]:mb-0',
               '[&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-bold [&_h1]:leading-snug',
               '[&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:leading-snug',
               '[&_h3]:mb-1.5 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:leading-snug',
-              '[&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-md [&_img]:border [&_img]:border-border',
+              fill
+                ? '[&_img]:my-3 [&_img]:w-full [&_img]:max-w-full [&_img]:rounded-md [&_img]:border [&_img]:border-border'
+                : '[&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-md [&_img]:border [&_img]:border-border',
               disabled && 'cursor-not-allowed opacity-60',
             )}
           />
         </div>
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className={cn('text-[11px] text-muted-foreground', fill && 'px-4 sm:px-6')}>
         {t(
           'dailyTask.stepDescription.pasteHint',
           'Paste images between paragraphs (Ctrl+V). Max 5 MB per image.',

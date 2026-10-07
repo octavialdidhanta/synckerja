@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify';
 
-const URL_REGEX = /(https?:\/\/[^\s<>"'{}|\\^`[\]]+)/gi;
+/** A URL token, plus the same token continued after a line break. */
+const URL_REGEX = /https?:\/\/[^\s<>"'{}|\\^`[\]]+(?:\r?\n[^\s<>"'{}|\\^`[\]]+)*/gi;
 
 const ALLOWED_TAGS = ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'img', 'div', 'span', 'a', 'h1', 'h2', 'h3'];
 const ALLOWED_ATTR = ['src', 'alt', 'class', 'loading', 'href', 'target', 'rel'];
@@ -42,7 +43,8 @@ export function splitTextWithUrls(text: string): TextUrlSegment[] {
     if (match.index > lastIndex) {
       segments.push({ type: 'text', value: text.slice(lastIndex, match.index) });
     }
-    const { url, trailing } = trimTrailingUrlPunctuation(match[0]);
+    const collapsed = match[0].replace(/\r?\n/g, '');
+    const { url, trailing } = trimTrailingUrlPunctuation(collapsed);
     if (url) segments.push({ type: 'url', value: url });
     if (trailing) segments.push({ type: 'text', value: trailing });
     lastIndex = match.index + match[0].length;
@@ -63,43 +65,111 @@ function normalizeAnchorsInHtmlRoot(root: HTMLElement): void {
     }
     anchor.setAttribute('target', '_blank');
     anchor.setAttribute('rel', 'noopener noreferrer');
-    anchor.classList.add('text-primary', 'underline', 'break-all', 'hover:text-primary/90');
+    anchor.spellcheck = false;
+    anchor.classList.add('cursor-pointer', 'text-primary', 'underline', 'break-all', 'hover:text-primary/90');
   });
 }
 
-function linkifyBareUrlsInHtmlRoot(root: HTMLElement): void {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const textNodes: Text[] = [];
+type LinkPiece =
+  | { kind: 'text'; node: Text; start: number; end: number }
+  | { kind: 'br'; node: HTMLBRElement; start: number; end: number };
+
+function isInsideAnchor(node: Node): boolean {
+  const el = node instanceof Element ? node : node.parentElement;
+  return Boolean(el?.closest('a'));
+}
+
+function collectLinkPieces(root: HTMLElement): { text: string; pieces: LinkPiece[] } {
+  const pieces: LinkPiece[] = [];
+  let text = '';
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
   let node: Node | null;
   while ((node = walker.nextNode())) {
-    const parent = node.parentElement;
-    if (!parent || parent.closest('a')) continue;
-    const content = node.textContent ?? '';
-    if (URL_REGEX.test(content)) {
-      textNodes.push(node as Text);
+    if (isInsideAnchor(node)) continue;
+    if (node instanceof HTMLBRElement) {
+      const start = text.length;
+      text += '\n';
+      pieces.push({ kind: 'br', node, start, end: text.length });
+      continue;
     }
-    URL_REGEX.lastIndex = 0;
+    if (node instanceof Text) {
+      const value = node.textContent ?? '';
+      if (!value) continue;
+      const start = text.length;
+      text += value;
+      pieces.push({ kind: 'text', node, start, end: text.length });
+    }
+  }
+  return { text, pieces };
+}
+
+function styleDescriptionAnchor(anchor: HTMLAnchorElement, href: string) {
+  anchor.href = href;
+  anchor.target = '_blank';
+  anchor.rel = 'noopener noreferrer';
+  anchor.spellcheck = false;
+  anchor.className = 'cursor-pointer text-primary underline break-all hover:text-primary/90';
+  anchor.textContent = href;
+}
+
+function replacePiecesWithAnchor(pieces: LinkPiece[], start: number, end: number, href: string) {
+  const overlapping = pieces.filter((piece) => piece.end > start && piece.start < end);
+  if (overlapping.length === 0) return;
+  const anchor = document.createElement('a');
+  styleDescriptionAnchor(anchor, href);
+  const first = overlapping[0];
+  const last = overlapping[overlapping.length - 1];
+
+  let prefixNode: Text | null = null;
+  let suffixNode: Text | null = null;
+
+  if (first.kind === 'text' && first.start < start) {
+    const original = first.node.textContent ?? '';
+    first.node.textContent = original.slice(0, start - first.start);
+    prefixNode = first.node;
+    if (first === last && first.end > end) {
+      suffixNode = document.createTextNode(original.slice(end - first.start));
+    }
+  } else if (first === last && first.kind === 'text' && first.end > end) {
+    suffixNode = document.createTextNode((first.node.textContent ?? '').slice(end - first.start));
   }
 
-  for (const textNode of textNodes) {
-    const parts = splitTextWithUrls(textNode.textContent ?? '');
-    if (parts.length === 1 && parts[0]?.type === 'text') continue;
-    const frag = document.createDocumentFragment();
-    for (const part of parts) {
-      if (part.type === 'url' && isSafeDescriptionHref(part.value)) {
-        const anchor = document.createElement('a');
-        anchor.href = part.value;
-        anchor.target = '_blank';
-        anchor.rel = 'noopener noreferrer';
-        anchor.className = 'text-primary underline break-all hover:text-primary/90';
-        anchor.textContent = part.value;
-        frag.appendChild(anchor);
-      } else {
-        frag.appendChild(document.createTextNode(part.value));
-      }
-    }
-    textNode.parentNode?.replaceChild(frag, textNode);
+  if (last !== first && last.kind === 'text' && last.end > end) {
+    suffixNode = document.createTextNode((last.node.textContent ?? '').slice(end - last.start));
   }
+
+  if (prefixNode) prefixNode.after(anchor);
+  else first.node.parentNode?.insertBefore(anchor, first.node);
+  if (suffixNode) anchor.after(suffixNode);
+
+  for (const piece of overlapping) {
+    if (piece.node === prefixNode) continue;
+    piece.node.remove();
+  }
+}
+
+function linkifyBareUrlsInHtmlRoot(root: HTMLElement): void {
+  for (let guard = 0; guard < 50; guard += 1) {
+    const { text, pieces } = collectLinkPieces(root);
+    if (!text || pieces.length === 0) return;
+    const match = new RegExp(URL_REGEX.source, 'i').exec(text);
+    if (!match || match.index == null) return;
+    const collapsed = match[0].replace(/\r?\n/g, '');
+    const { url } = trimTrailingUrlPunctuation(collapsed);
+    if (!url || !isSafeDescriptionHref(url)) return;
+    const before = root.innerHTML;
+    const trailing = collapsed.length - url.length;
+    replacePiecesWithAnchor(pieces, match.index, match.index + match[0].length - trailing, url);
+    if (root.innerHTML === before) return;
+  }
+}
+
+/** Turn bare URLs in an editor or view root into links, including URLs split by line breaks. */
+export function linkifyDescriptionElement(root: HTMLElement): boolean {
+  const before = root.innerHTML;
+  linkifyBareUrlsInHtmlRoot(root);
+  normalizeAnchorsInHtmlRoot(root);
+  return root.innerHTML !== before;
 }
 
 function enrichDescriptionHtml(html: string): string {
@@ -118,7 +188,7 @@ export function linkifyPlainTextToHtml(text: string): string {
     .map((seg) => {
       if (seg.type === 'url' && isSafeDescriptionHref(seg.value)) {
         const href = escapeHtml(seg.value);
-        return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-primary underline break-all hover:text-primary/90">${href}</a>`;
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer" spellcheck="false" class="cursor-pointer text-primary underline break-all hover:text-primary/90">${href}</a>`;
       }
       return escapeHtml(seg.value).replace(/\n/g, '<br>');
     })
