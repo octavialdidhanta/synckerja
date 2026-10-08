@@ -20,7 +20,13 @@ export const DEMOGRAPHIC_METRIC_KEYS = [
 
 export type DemographicMetricKey = (typeof DEMOGRAPHIC_METRIC_KEYS)[number];
 
-export type DemographicBreakdownKind = "age" | "gender" | "region";
+export type DemographicBreakdownKind =
+  | "age"
+  | "gender"
+  | "region"
+  | "device_platform"
+  | "publisher_platform"
+  | "hourly_stats_aggregated_by_advertiser_time_zone";
 
 export type DemographicBucket = {
   key: string;
@@ -32,8 +38,20 @@ export type DemographicBreakdownPayload = {
   gender: DemographicBucket[];
   region: DemographicBucket[];
   region_error: string | null;
+  device: DemographicBucket[];
+  publisher: DemographicBucket[];
+  day: DemographicBucket[];
+  hour: DemographicBucket[];
+  device_error: string | null;
+  publisher_error: string | null;
+  day_error: string | null;
+  hour_error: string | null;
 };
 
+const DEVICE_ORDER = ["desktop", "mobile_app", "mobile_web"] as const;
+const PUBLISHER_ORDER = ["audience_network", "facebook", "instagram", "messenger", "threads"] as const;
+const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+const HOUR_ORDER = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, "0")}:00`);
 const AGE_ORDER = ["13-17", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"] as const;
 const ALWAYS_VISIBLE_AGES = ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"] as const;
 const GENDER_ORDER = ["female", "male", "unknown"] as const;
@@ -42,7 +60,6 @@ const MAX_PAGES = 15;
 
 const CORE_FIELDS = "impressions,inline_link_clicks,clicks,spend,reach,account_currency";
 const FULL_FIELDS = `${CORE_FIELDS},unique_clicks,outbound_clicks,unique_outbound_clicks`;
-const COMMERCE_FIELDS = `${FULL_FIELDS},actions,action_values`;
 const SHARED_ITEM_FIELDS = "catalog_segment_actions,catalog_segment_value";
 const ACTION_FIELDS = "actions,action_values";
 
@@ -144,6 +161,34 @@ function normalizeRegion(raw: string): string | null {
   if (!key) return null;
   if (key.toLowerCase() === "unknown") return "Unknown";
   return key;
+}
+
+function normalizeDevice(raw: string): string | null {
+  const key = raw.trim().toLowerCase();
+  if (!key || key === "unknown") return null;
+  return key;
+}
+
+function normalizePublisher(raw: string): string | null {
+  const key = raw.trim().toLowerCase();
+  if (!key || key === "unknown") return null;
+  return key;
+}
+
+function normalizeHour(raw: string): string | null {
+  const match = /^(\d{1,2})/.exec(raw.trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+
+function weekdayKey(raw: string): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw.trim());
+  if (!match) return null;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (Number.isNaN(date.getTime())) return null;
+  return WEEKDAY_ORDER[date.getUTCDay()] ?? null;
 }
 
 export function readDemographicIds(value: unknown): string[] {
@@ -261,30 +306,52 @@ export function demographicInsightScope(args: {
   return { level: "account", field: null, ids: [] };
 }
 
+function breakdownBucketKey(breakdown: DemographicBreakdownKind, raw: string): string | null {
+  if (breakdown === "age") return normalizeAge(raw);
+  if (breakdown === "gender") return normalizeGender(raw);
+  if (breakdown === "region") return normalizeRegion(raw);
+  if (breakdown === "device_platform") return normalizeDevice(raw);
+  if (breakdown === "publisher_platform") return normalizePublisher(raw);
+  return normalizeHour(raw);
+}
+
+function addInsightRow(
+  totals: Map<string, Record<DemographicMetricKey, number>>,
+  key: string,
+  row: Record<string, unknown>,
+) {
+  const current = totals.get(key) ?? emptyMetrics();
+  const next = emptyMetrics();
+  for (const metric of DEMOGRAPHIC_METRIC_KEYS) {
+    if ((SHARED_ITEM_KEYS as readonly string[]).includes(metric)) continue;
+    next[metric] = readCount(row[metric]);
+  }
+  const shared = readBreakdownCommerce(row);
+  next.content_views = shared.contentViews;
+  next.adds_to_cart = shared.addsToCart;
+  next.purchases = shared.purchases;
+  next.atc_conversion_value = shared.atcConversionValue;
+  next.purchase_conversion_value = shared.purchaseConversionValue;
+  for (const metric of DEMOGRAPHIC_METRIC_KEYS) current[metric] += next[metric];
+  totals.set(key, current);
+}
+
+function bucketsFor(keys: readonly string[], totals: Map<string, Record<DemographicMetricKey, number>>): DemographicBucket[] {
+  return keys.map((key) => ({
+    key,
+    ...(totals.get(key) ?? emptyMetrics()),
+  }));
+}
+
 export function aggregateDemographicRows(
   breakdown: DemographicBreakdownKind,
   rows: Record<string, unknown>[],
 ): DemographicBucket[] {
   const totals = new Map<string, Record<DemographicMetricKey, number>>();
   for (const row of rows) {
-    const raw = String(row[breakdown] ?? "");
-    const key =
-      breakdown === "age" ? normalizeAge(raw) : breakdown === "gender" ? normalizeGender(raw) : normalizeRegion(raw);
+    const key = breakdownBucketKey(breakdown, String(row[breakdown] ?? ""));
     if (!key) continue;
-    const current = totals.get(key) ?? emptyMetrics();
-    const next = emptyMetrics();
-    for (const metric of DEMOGRAPHIC_METRIC_KEYS) {
-      if ((SHARED_ITEM_KEYS as readonly string[]).includes(metric)) continue;
-      next[metric] = readCount(row[metric]);
-    }
-    const shared = readBreakdownCommerce(row);
-    next.content_views = shared.contentViews;
-    next.adds_to_cart = shared.addsToCart;
-    next.purchases = shared.purchases;
-    next.atc_conversion_value = shared.atcConversionValue;
-    next.purchase_conversion_value = shared.purchaseConversionValue;
-    for (const metric of DEMOGRAPHIC_METRIC_KEYS) current[metric] += next[metric];
-    totals.set(key, current);
+    addInsightRow(totals, key, row);
   }
 
   const keys =
@@ -300,12 +367,32 @@ export function aggregateDemographicRows(
             "male",
             ...(hasAnyValue(totals.get("unknown")) ? ["unknown"] : []),
           ]
+        : breakdown === "device_platform"
+          ? [
+              ...DEVICE_ORDER,
+              ...[...totals.keys()].filter((key) => !(DEVICE_ORDER as readonly string[]).includes(key)).sort(),
+            ]
+          : breakdown === "publisher_platform"
+            ? [
+                ...PUBLISHER_ORDER.filter((key) => key === "audience_network" || key === "facebook" || key === "instagram" || hasAnyValue(totals.get(key))),
+                ...[...totals.keys()].filter((key) => !(PUBLISHER_ORDER as readonly string[]).includes(key)).sort(),
+              ]
+            : breakdown === "hourly_stats_aggregated_by_advertiser_time_zone"
+              ? HOUR_ORDER
         : [...totals.keys()].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
 
-  return keys.map((key) => ({
-    key,
-    ...(totals.get(key) ?? emptyMetrics()),
-  }));
+  return bucketsFor(keys, totals);
+}
+
+/** Daily insight rows, summed into Sunday–Saturday in the account calendar. */
+export function aggregateWeekdayRows(rows: Record<string, unknown>[]): DemographicBucket[] {
+  const totals = new Map<string, Record<DemographicMetricKey, number>>();
+  for (const row of rows) {
+    const key = weekdayKey(String(row.date_start ?? ""));
+    if (!key) continue;
+    addInsightRow(totals, key, row);
+  }
+  return bucketsFor(WEEKDAY_ORDER, totals);
 }
 
 function readCurrency(rows: Record<string, unknown>[]): string | null {
@@ -346,25 +433,27 @@ async function fetchBreakdownPages(args: {
   graphVersion: string;
   act: string;
   accessToken: string;
-  breakdown: DemographicBreakdownKind;
+  breakdown: string | null;
   scope: InsightScope;
   dateStart: string;
   dateEnd: string;
   fields: string;
   excludeInactive?: boolean;
+  timeIncrement?: string;
 }): Promise<Record<string, unknown>[]> {
   const rows: Record<string, unknown>[] = [];
   let after = "";
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const params = new URLSearchParams({
       fields: args.fields,
-      breakdowns: args.breakdown,
       level: args.scope.level,
       use_unified_attribution_setting: "true",
       time_range: JSON.stringify({ since: args.dateStart, until: args.dateEnd }),
       limit: "500",
       access_token: args.accessToken,
     });
+    if (args.breakdown) params.set("breakdowns", args.breakdown);
+    if (args.timeIncrement) params.set("time_increment", args.timeIncrement);
     if (after) params.set("after", after);
     const filtering = insightFiltering(args.scope, args.excludeInactive === true);
     if (filtering) params.set("filtering", filtering);
@@ -386,15 +475,10 @@ async function fetchBreakdownRows(
   args: Omit<Parameters<typeof fetchBreakdownPages>[0], "fields">,
 ): Promise<Record<string, unknown>[]> {
   try {
-    return await fetchBreakdownPages({ ...args, fields: COMMERCE_FIELDS });
+    return await fetchBreakdownPages({ ...args, fields: FULL_FIELDS });
   } catch (error) {
     if (!isInvalidFieldError(error)) throw error;
-    try {
-      return await fetchBreakdownPages({ ...args, fields: FULL_FIELDS });
-    } catch (inner) {
-      if (!isInvalidFieldError(inner)) throw inner;
-      return await fetchBreakdownPages({ ...args, fields: CORE_FIELDS });
-    }
+    return await fetchBreakdownPages({ ...args, fields: CORE_FIELDS });
   }
 }
 
@@ -427,23 +511,6 @@ async function fetchSharedItemRows(
   return withSharedItemActions(actionRows);
 }
 
-async function resolveCommerceRows(
-  args: Omit<Parameters<typeof fetchBreakdownPages>[0], "fields" | "excludeInactive">,
-  deliveryRows: Record<string, unknown>[],
-): Promise<Record<string, unknown>[]> {
-  const plain = withoutCommerceFields(deliveryRows);
-  const campaignRows = await fetchSharedItemRows(args, "campaign");
-  if (hasNamedPurchases(aggregateDemographicRows(args.breakdown, [...plain, ...campaignRows]))) {
-    return campaignRows;
-  }
-  if (args.scope.level === "ad") return campaignRows;
-  const adRows = await fetchSharedItemRows(args, "ad");
-  if (hasNamedPurchases(aggregateDemographicRows(args.breakdown, [...plain, ...adRows]))) {
-    return adRows;
-  }
-  return campaignRows.length > 0 ? campaignRows : adRows;
-}
-
 export async function loadMetaDemographicBreakdown(args: {
   graphVersion: string;
   act: string;
@@ -467,29 +534,56 @@ export async function loadMetaDemographicBreakdown(args: {
     dateStart: args.dateStart,
     dateEnd: args.dateEnd,
   };
-  const [ageRows, genderRows, regionOutcome] = await Promise.all([
-    fetchBreakdownRows({ ...request, breakdown: "age" }),
-    fetchBreakdownRows({ ...request, breakdown: "gender" }),
-    fetchBreakdownRows({ ...request, breakdown: "region" })
+  const settle = (promise: Promise<Record<string, unknown>[]>, fallback: string) =>
+    promise
       .then((rows) => ({ rows, error: null as string | null }))
       .catch((error: unknown) => ({
         rows: [] as Record<string, unknown>[],
-        error: redactToken(error instanceof Error ? error.message : "Failed to load region breakdown"),
-      })),
-  ]);
-  const plainAge = withoutCommerceFields(ageRows);
-  const plainGender = withoutCommerceFields(genderRows);
-  const plainRegion = withoutCommerceFields(regionOutcome.rows);
-  const [ageShared, genderShared, regionShared] = await Promise.all([
-    resolveCommerceRows({ ...request, breakdown: "age" }, ageRows),
-    resolveCommerceRows({ ...request, breakdown: "gender" }, genderRows),
-    resolveCommerceRows({ ...request, breakdown: "region" }, regionOutcome.rows),
-  ]);
+        error: redactToken(error instanceof Error ? error.message : fallback),
+      }));
+  const [ageRows, genderRows, regionOutcome, ageShared, genderShared, deviceOutcome, publisherOutcome, dayOutcome, hourOutcome] =
+    await Promise.all([
+      fetchBreakdownRows({ ...request, breakdown: "age" }),
+      fetchBreakdownRows({ ...request, breakdown: "gender" }),
+      settle(fetchBreakdownRows({ ...request, breakdown: "region" }), "Failed to load region breakdown"),
+      fetchSharedItemRows({ ...request, breakdown: "age" }, "campaign"),
+      fetchSharedItemRows({ ...request, breakdown: "gender" }, "campaign"),
+      settle(fetchBreakdownRows({ ...request, breakdown: "device_platform" }), "Failed to load device breakdown"),
+      settle(fetchBreakdownRows({ ...request, breakdown: "publisher_platform" }), "Failed to load publisher breakdown"),
+      settle(fetchDailyRows(request), "Failed to load day breakdown"),
+      settle(
+        fetchBreakdownRows({ ...request, breakdown: "hourly_stats_aggregated_by_advertiser_time_zone" }),
+        "Failed to load hour breakdown",
+      ),
+    ]);
   return {
-    currency: readCurrency(ageRows) ?? readCurrency(genderRows) ?? readCurrency(regionOutcome.rows),
-    age: aggregateDemographicRows("age", [...plainAge, ...ageShared]),
-    gender: aggregateDemographicRows("gender", [...plainGender, ...genderShared]),
-    region: aggregateDemographicRows("region", [...plainRegion, ...regionShared]),
+    currency:
+      readCurrency(ageRows) ??
+      readCurrency(genderRows) ??
+      readCurrency(regionOutcome.rows) ??
+      readCurrency(deviceOutcome.rows),
+    age: aggregateDemographicRows("age", [...withoutCommerceFields(ageRows), ...ageShared]),
+    gender: aggregateDemographicRows("gender", [...withoutCommerceFields(genderRows), ...genderShared]),
+    region: aggregateDemographicRows("region", withoutCommerceFields(regionOutcome.rows)),
     region_error: regionOutcome.error,
+    device: aggregateDemographicRows("device_platform", deviceOutcome.rows),
+    publisher: aggregateDemographicRows("publisher_platform", publisherOutcome.rows),
+    day: aggregateWeekdayRows(dayOutcome.rows),
+    hour: aggregateDemographicRows("hourly_stats_aggregated_by_advertiser_time_zone", hourOutcome.rows),
+    device_error: deviceOutcome.error,
+    publisher_error: publisherOutcome.error,
+    day_error: dayOutcome.error,
+    hour_error: hourOutcome.error,
   };
+}
+
+async function fetchDailyRows(
+  args: Omit<Parameters<typeof fetchBreakdownRows>[0], "breakdown">,
+): Promise<Record<string, unknown>[]> {
+  try {
+    return await fetchBreakdownPages({ ...args, breakdown: null, fields: FULL_FIELDS, timeIncrement: "1" });
+  } catch (error) {
+    if (!isInvalidFieldError(error)) throw error;
+    return await fetchBreakdownPages({ ...args, breakdown: null, fields: CORE_FIELDS, timeIncrement: "1" });
+  }
 }

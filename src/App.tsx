@@ -3118,7 +3118,8 @@ function MetaAdsMetricsPageRouteElement() {
   const { isDesktop } = useAuthSurface();
   const location = useLocation();
   const isSettingsView = location.pathname.includes("/settings");
-  const useMobileShell = !isDesktop && !isSettingsView;
+  const isBreakdownView = location.pathname === "/digital-marketing/meta-ads/breakdown";
+  const useMobileShell = !isDesktop && !isSettingsView && !isBreakdownView;
 
   return (
     <Suspense
@@ -5600,6 +5601,18 @@ const App = () => (
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <GoogleAdsMetricsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/meta-ads/breakdown"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/meta-ads"
+                                loadingShell={<MetaAdsMobileAwareLoadingShell />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <MetaAdsMetricsPageRouteElement />
                               </PageAccessGuard>
                             }
                           />

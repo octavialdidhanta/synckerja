@@ -20,6 +20,18 @@ export type MetaAdsDemographicBreakdown = {
   region: MetaAdsDemographicBucket[];
   regionReady: boolean;
   regionError: string | null;
+  device: MetaAdsDemographicBucket[];
+  publisher: MetaAdsDemographicBucket[];
+  day: MetaAdsDemographicBucket[];
+  hour: MetaAdsDemographicBucket[];
+  deviceReady: boolean;
+  publisherReady: boolean;
+  dayReady: boolean;
+  hourReady: boolean;
+  deviceError: string | null;
+  publisherError: string | null;
+  dayError: string | null;
+  hourError: string | null;
 };
 
 export const META_ADS_DEMOGRAPHIC_QUERY_ROOT = "meta-ads-demographic-breakdown";
@@ -47,7 +59,7 @@ export function buildMetaAdsDemographicQueryKey(args: {
     sortedIds(args.campaignIds),
     sortedIds(args.adsetIds),
     sortedIds(args.adIds),
-    "age-gender-region-shared-v4",
+    "age-gender-region-placement-v5",
   ] as const;
 }
 
@@ -102,7 +114,17 @@ export async function fetchMetaAdsDemographicBreakdown(args: {
     gender?: unknown;
     region?: unknown;
     region_error?: unknown;
+    device?: unknown;
+    publisher?: unknown;
+    day?: unknown;
+    hour?: unknown;
+    device_error?: unknown;
+    publisher_error?: unknown;
+    day_error?: unknown;
+    hour_error?: unknown;
   };
+  const note = (value: unknown) =>
+    typeof value === "string" && value.trim() ? value.trim() : null;
   if (payload?.error) throw await parseEdgeFunctionError(null, payload);
   if (!Array.isArray(payload?.age) || !Array.isArray(payload?.gender)) {
     throw new Error("BREAKDOWN_UNAVAILABLE");
@@ -111,15 +133,29 @@ export async function fetchMetaAdsDemographicBreakdown(args: {
     ? payload.currency.trim()
     : null;
   const regionReady = Array.isArray(payload.region);
+  const deviceReady = Array.isArray(payload.device);
+  const publisherReady = Array.isArray(payload.publisher);
+  const dayReady = Array.isArray(payload.day);
+  const hourReady = Array.isArray(payload.hour);
   return {
     currency,
     age: asBuckets(payload.age),
     gender: asBuckets(payload.gender),
     region: regionReady ? asBuckets(payload.region) : [],
     regionReady,
-    regionError: typeof payload.region_error === "string" && payload.region_error.trim()
-      ? payload.region_error.trim()
-      : null,
+    regionError: note(payload.region_error),
+    device: deviceReady ? asBuckets(payload.device) : [],
+    publisher: publisherReady ? asBuckets(payload.publisher) : [],
+    day: dayReady ? asBuckets(payload.day) : [],
+    hour: hourReady ? asBuckets(payload.hour) : [],
+    deviceReady,
+    publisherReady,
+    dayReady,
+    hourReady,
+    deviceError: note(payload.device_error),
+    publisherError: note(payload.publisher_error),
+    dayError: note(payload.day_error),
+    hourError: note(payload.hour_error),
   };
 }
 

@@ -30,6 +30,7 @@ import { refreshMetaAdsDemographicBreakdown } from "@/meta-ads/hooks/useMetaAdsD
 import { MetaAdsSettingsPanel } from "@/meta-ads/settings/MetaAdsSettingsPanel";
 import {
   META_ADS_DIGITAL_MARKETING_BASE_PATH,
+  META_ADS_DIGITAL_MARKETING_BREAKDOWN_PATH,
   META_ADS_DIGITAL_MARKETING_SETTINGS_PATH,
 } from "@/meta-ads/settings/metaAdsSettingsPaths";
 import { MetaAdsMetricsPageSkeleton } from "@/6-0-meta-ads/skeletons/MetaAdsMetricsPageSkeleton";
@@ -122,6 +123,7 @@ function MetaAdsMetricsPageContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const isSettingsView = location.pathname === META_ADS_DIGITAL_MARKETING_SETTINGS_PATH;
+  const isBreakdownView = location.pathname === META_ADS_DIGITAL_MARKETING_BREAKDOWN_PATH;
   const { organizationId, canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
   const { data: reportingEnabled = false, isPending: reportingPending } =
     useMetaAdsReportingEnabled(organizationId);
@@ -131,7 +133,14 @@ function MetaAdsMetricsPageContent() {
 
   const { dateSelection, setDateSelection, metaAdAccountId, setMetaAdAccountId } =
     useDigitalMarketingPaidAdsFilters();
-  const [panel, setPanel] = useState<MetaAdsNavView>("campaign");
+  const [panel, setPanel] = useState<MetaAdsNavView>(isBreakdownView ? "breakdown" : "campaign");
+  useEffect(() => {
+    if (isBreakdownView) {
+      setPanel("breakdown");
+      return;
+    }
+    setPanel((current) => (current === "breakdown" ? "campaign" : current));
+  }, [isBreakdownView]);
   const showsMetricsTable = panel === "campaign" || panel === "adset" || panel === "ad";
   const [entity, setEntity] = useState<MetaAdsMetricEntity>("campaign");
   const [summarySlotMetricKeys, setSummarySlotMetricKeys] = useState<MetaAdsTableMetricKey[]>(
@@ -572,11 +581,16 @@ function MetaAdsMetricsPageContent() {
                     ) : (
                       <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-row overflow-hidden">
                         <MetaAdsEntityNav
-                          entity={isSettingsView ? entity : panel}
+                          entity={isBreakdownView ? "breakdown" : isSettingsView ? entity : panel}
                           onEntityChange={(next) => {
+                            if (next === "breakdown") {
+                              setPanel("breakdown");
+                              if (!isBreakdownView) navigate(META_ADS_DIGITAL_MARKETING_BREAKDOWN_PATH);
+                              return;
+                            }
                             setPanel(next);
                             if (next === "campaign" || next === "adset" || next === "ad") setEntity(next);
-                            if (isSettingsView) {
+                            if (isSettingsView || isBreakdownView) {
                               navigate(META_ADS_DIGITAL_MARKETING_BASE_PATH);
                             }
                           }}

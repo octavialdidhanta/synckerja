@@ -19,12 +19,14 @@ export function MetaAdsBreakdownChart({
   color,
   currency,
   labelFor,
+  compactLabels = false,
 }: {
   rows: MetaAdsDemographicBucket[];
   metric: BreakdownMetricKey;
   color: string;
   currency: string | null;
   labelFor: (key: string) => string;
+  compactLabels?: boolean;
 }) {
   const plotRef = useRef<HTMLDivElement>(null);
   const [tip, setTip] = useState<{ index: number; x: number; y: number } | null>(null);
@@ -41,7 +43,7 @@ export function MetaAdsBreakdownChart({
   return (
     <div className="relative h-[268px] w-full">
       <div className="flex h-full">
-        <div className="flex w-14 shrink-0 flex-col justify-between pb-11 pr-2 text-right text-[11px] leading-none text-[#65676b]">
+        <div className={`flex w-14 shrink-0 flex-col justify-between pr-2 text-right text-[11px] leading-none text-[#65676b] ${compactLabels ? "pb-8" : "pb-11"}`}>
           {ticks.map((tick) => (
             <span key={tick}>
               {formatBreakdownDisplay(metric, tick, currency, breakdownMetricKind(metric) === "currency")}
@@ -49,7 +51,7 @@ export function MetaAdsBreakdownChart({
           ))}
         </div>
         <div ref={plotRef} className="relative min-w-0 flex-1">
-          <div className="pointer-events-none absolute inset-x-0 top-0 bottom-11 flex flex-col justify-between">
+          <div className={`pointer-events-none absolute inset-x-0 top-0 flex flex-col justify-between ${compactLabels ? "bottom-8" : "bottom-11"}`}>
             {ticks.map((tick) => (
               <div key={tick} className="border-t border-[#e5e7eb]" />
             ))}
@@ -93,8 +95,14 @@ export function MetaAdsBreakdownChart({
                       </div>
                     </div>
                   </div>
-                  <div className="flex h-11 shrink-0 items-start justify-center px-0.5 pt-1.5 text-center text-[10px] leading-[13px] text-[#65676b]">
-                    <span className="line-clamp-3 w-full">{row.label}</span>
+                  <div
+                    className={
+                      compactLabels
+                        ? "flex h-8 shrink-0 items-start justify-center pt-1 text-center text-[9px] leading-3 text-[#65676b]"
+                        : "flex h-11 shrink-0 items-start justify-center px-0.5 pt-1.5 text-center text-[10px] leading-[13px] text-[#65676b]"
+                    }
+                  >
+                    <span className={compactLabels ? "w-full whitespace-nowrap" : "line-clamp-3 w-full"}>{row.label}</span>
                   </div>
                 </div>
               );

@@ -8,6 +8,7 @@ import {
 import {
   DEMOGRAPHIC_METRIC_KEYS,
   aggregateDemographicRows,
+  aggregateWeekdayRows,
   demographicInsightScope,
   readDemographicIds,
   sharedItemInsightScope,
@@ -229,6 +230,34 @@ describe("meta demographic breakdown", () => {
     expect(
       sharedItemInsightScope({ level: "ad", field: "ad.id", ids: ["9"] }).level,
     ).toBe("ad");
+  });
+
+  it("keeps device, weekday, and hour bars in Ads Manager order", () => {
+    const device = aggregateDemographicRows("device_platform", [
+      { device_platform: "mobile_web", impressions: "1650" },
+      { device_platform: "desktop", impressions: "125" },
+      { device_platform: "mobile_app", impressions: "750580" },
+    ]);
+    expect(device.map((row) => row.key)).toEqual(["desktop", "mobile_app", "mobile_web"]);
+    expect(device[1]?.impressions).toBe(750580);
+
+    const days = aggregateWeekdayRows([
+      { date_start: "2026-10-04", impressions: "10" },
+      { date_start: "2026-10-08", impressions: "40" },
+      { date_start: "2026-10-05", impressions: "15" },
+    ]);
+    expect(days.map((row) => row.key)).toEqual(["sun", "mon", "tue", "wed", "thu", "fri", "sat"]);
+    expect(days[0]?.impressions).toBe(10);
+    expect(days[4]?.impressions).toBe(40);
+
+    const hours = aggregateDemographicRows("hourly_stats_aggregated_by_advertiser_time_zone", [
+      { hourly_stats_aggregated_by_advertiser_time_zone: "18:00:00 - 18:59:59", impressions: "100" },
+      { hourly_stats_aggregated_by_advertiser_time_zone: "00:00:00 - 00:59:59", impressions: "4" },
+    ]);
+    expect(hours).toHaveLength(24);
+    expect(hours[0]?.key).toBe("00:00");
+    expect(hours[0]?.impressions).toBe(4);
+    expect(hours[18]?.impressions).toBe(100);
   });
 
   it("compacts bar labels the way Ads Manager does", () => {

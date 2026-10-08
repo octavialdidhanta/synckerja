@@ -1,4 +1,6 @@
 export const META_ADS_DIGITAL_MARKETING_BASE_PATH = "/digital-marketing/meta-ads";
+export const META_ADS_DIGITAL_MARKETING_BREAKDOWN_PATH =
+  "/digital-marketing/meta-ads/breakdown";
 export const META_ADS_DIGITAL_MARKETING_SETTINGS_PATH =
   "/digital-marketing/meta-ads/settings";
 export const META_ADS_OMNICHANNEL_SETTINGS_PATH = "/omnichannel/settings/offline-conversion";

@@ -1,9 +1,12 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { differenceInCalendarDays, startOfDay, subDays } from "date-fns";
 import { Copy, Eye, Loader2, MousePointerClick, ShoppingCart, Wallet, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { Button } from "@/shared/components/ui/button";
 import { copyElementAsPng } from "@/meta-ads/metrics/copyElementAsPng";
+import { parseYmdLocal, toYmdLocal } from "@/6-0-google-ads/lib/googleAdsDatePresets";
+import { MetaAdsFunnelActionFlow } from "@/6-0-meta-ads/components/funnel/MetaAdsFunnelActionFlow";
 import {
   Select,
   SelectContent,
@@ -19,6 +22,8 @@ import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue"
 import { metaAdsCampaignOptions } from "@/meta-ads/metrics/metaAdsParentFilters";
 import {
   META_ADS_FUNNEL_DEFAULT_KEYS,
+  META_ADS_FUNNEL_PRESET_CPAS_ID,
+  META_ADS_FUNNEL_PRESETS,
   META_ADS_FUNNEL_SLOT_COUNT,
   buildMetaAdsFunnelSummary,
   metaAdsFunnelMetricOptions,
@@ -128,11 +133,22 @@ export function MetaAdsFunnelPanel({
   adsetIds,
   adIds,
 }: Props) {
-  const [metricKeys, setMetricKeys] = useState<string[]>(() => [...META_ADS_FUNNEL_DEFAULT_KEYS]);
+  const cpasPreset = META_ADS_FUNNEL_PRESETS[0];
+  const [metricKeys, setMetricKeys] = useState<string[]>(() => [...cpasPreset.funnelKeys]);
+  const [flowKeys, setFlowKeys] = useState<string[]>(() => [...cpasPreset.flowKeys]);
   const [copying, setCopying] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
   const { t } = useAppTranslation();
   const level = resolveMetaAdsFunnelLevel({ campaignIds, adsetIds, adIds });
+  const previousRange = useMemo(() => {
+    const from = parseYmdLocal(dateStart);
+    const to = parseYmdLocal(dateEnd);
+    if (!from || !to) return null;
+    const days = differenceInCalendarDays(to, from) + 1;
+    const previousTo = subDays(startOfDay(from), 1);
+    const previousFrom = subDays(previousTo, Math.max(0, days - 1));
+    return { fromDate: toYmdLocal(previousFrom), toDate: toYmdLocal(previousTo), days };
+  }, [dateStart, dateEnd]);
   const metricsQuery = useMetaAdsMetricsQuery({
     organizationId,
     adAccountId,
@@ -140,6 +156,14 @@ export function MetaAdsFunnelPanel({
     dateStart,
     dateEnd,
     enabled,
+  });
+  const previousQuery = useMetaAdsMetricsQuery({
+    organizationId,
+    adAccountId,
+    entity: level,
+    dateStart: previousRange?.fromDate ?? dateStart,
+    dateEnd: previousRange?.toDate ?? dateEnd,
+    enabled: enabled && previousRange != null,
   });
   const campaignQuery = useMetaAdsMetricsQuery({
     organizationId,
@@ -165,6 +189,17 @@ export function MetaAdsFunnelPanel({
       }),
     [metricsQuery.data, campaignIds, adsetIds, adIds],
   );
+  const previousSummary = useMemo(
+    () =>
+      buildMetaAdsFunnelSummary({
+        rows: previousQuery.data?.rows ?? [],
+        accountSummary: previousQuery.data?.summary,
+        campaignIds,
+        adsetIds,
+        adIds,
+      }),
+    [previousQuery.data, campaignIds, adsetIds, adIds],
+  );
   const currency = summary?.currency ?? metricsQuery.data?.summary?.currency ?? null;
   const loading = metricsQuery.isLoading || (metricsQuery.isFetching && !metricsQuery.data);
   const comparing = campaignIds.length >= 2;
@@ -182,6 +217,21 @@ export function MetaAdsFunnelPanel({
         }),
       }))
     : [{ id: "primary", name: "", summary }];
+
+  const activePresetId = META_ADS_FUNNEL_PRESETS.find(
+    (preset) =>
+      preset.funnelKeys.length === metricKeys.length &&
+      preset.funnelKeys.every((key, index) => key === metricKeys[index]) &&
+      preset.flowKeys.length === flowKeys.length &&
+      preset.flowKeys.every((key, index) => key === flowKeys[index]),
+  )?.id;
+
+  const applyPreset = (id: string) => {
+    const preset = META_ADS_FUNNEL_PRESETS.find((item) => item.id === id);
+    if (!preset) return;
+    setMetricKeys([...preset.funnelKeys]);
+    setFlowKeys([...preset.flowKeys]);
+  };
 
   const setSlot = (index: number, key: string) => {
     setMetricKeys((current) => {
@@ -221,25 +271,26 @@ export function MetaAdsFunnelPanel({
   };
 
   return (
-    <div className="relative flex h-full min-h-0 w-full flex-1 flex-col">
+    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 w-full min-w-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden bg-white [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div ref={reportRef} className="relative flex h-full w-max shrink-0 flex-col bg-white">
       <Button
         type="button"
         variant="outline"
         size="sm"
-        className="absolute right-3 top-1.5 z-30 h-7 gap-1.5 bg-white"
+        className="absolute right-3 top-1.5 z-20 h-7 gap-1.5 bg-white"
         disabled={copying || loading}
         onClick={copyReportImage}
       >
         {copying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
         {t("digitalMarketing.metaAds.funnelCopyImage", "Copy image")}
       </Button>
-      <div ref={reportRef} className="flex h-full min-h-0 w-full flex-1 flex-col bg-white">
       <p className="shrink-0 px-6 pr-36 pt-2 text-sm font-semibold leading-5 text-[#1c1e21]">
         {reportTitle}
       </p>
-      <div className="flex h-full min-h-0 w-full flex-1 items-stretch overflow-x-auto">
+      <div className="flex h-full min-h-0 w-max flex-1 items-stretch">
       {columns.map((column) => (
-        <div key={column.id} className="flex h-full min-h-0 min-w-[28rem] flex-1 flex-col">
+        <div key={column.id} className="flex h-full w-[64rem] shrink-0 flex-col">
           {comparing ? (
             <p className="h-9 shrink-0 truncate px-6 pt-3 text-sm font-medium text-[#1c1e21]" title={column.name}>
               {column.name}
@@ -258,6 +309,21 @@ export function MetaAdsFunnelPanel({
         </div>
       ))}
       </div>
+      </div>
+      <div className="w-px shrink-0 self-stretch bg-[#d8dbe0]" aria-hidden />
+      <MetaAdsFunnelActionFlow
+        summary={summary}
+        previousSummary={previousQuery.data ? previousSummary : null}
+        loading={loading}
+        compareDays={previousRange?.days ?? null}
+        dateStart={dateStart}
+        dateEnd={dateEnd}
+        metricKeys={flowKeys}
+        onMetricKeysChange={setFlowKeys}
+        presetValue={activePresetId ?? "custom"}
+        onPresetChange={applyPreset}
+        presetCustom={activePresetId == null}
+      />
       </div>
     </div>
   );

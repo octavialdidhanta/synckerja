@@ -20,6 +20,23 @@ export const META_ADS_FUNNEL_DEFAULT_KEYS = [
   "purchases",
 ] as const;
 
+export const META_ADS_FUNNEL_FLOW_DEFAULT_KEYS = [
+  "content_views",
+  "adds_to_cart",
+  "purchases",
+] as const;
+
+export const META_ADS_FUNNEL_PRESET_CPAS_ID = "meta-cpas";
+
+export const META_ADS_FUNNEL_PRESETS = [
+  {
+    id: META_ADS_FUNNEL_PRESET_CPAS_ID,
+    name: "Meta CPAS",
+    funnelKeys: META_ADS_FUNNEL_DEFAULT_KEYS,
+    flowKeys: META_ADS_FUNNEL_FLOW_DEFAULT_KEYS,
+  },
+] as const;
+
 export function metaAdsFunnelMetricOptions() {
   return getMetaAdsMetricsForEntity("ad").filter(
     (metric) => metric.valueKind !== "text" && metric.key !== "budget",

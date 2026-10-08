@@ -28,7 +28,7 @@ import {
 } from "@/meta-ads/hooks/useMetaAdsDemographicBreakdown";
 import { MetaAdsBreakdownChart } from "@/6-0-meta-ads/components/breakdown/MetaAdsBreakdownChart";
 
-type BreakdownKind = "age" | "gender" | "region";
+type BreakdownKind = "age" | "gender" | "region" | "device" | "publisher" | "day" | "hour";
 
 const REGION_PAGE_SIZE = 6;
 type CardView = "chart" | "table";
@@ -114,6 +114,9 @@ function BreakdownCard({
   loading,
   errorMessage,
   labelFor,
+  widthClass = "w-[560px]",
+  badge,
+  compactLabels = false,
 }: {
   kind: BreakdownKind;
   title: string;
@@ -123,9 +126,12 @@ function BreakdownCard({
   loading: boolean;
   errorMessage: string | null;
   labelFor: (key: string) => string;
+  widthClass?: string;
+  badge?: string;
+  compactLabels?: boolean;
 }) {
   const { t } = useTranslation();
-  const [view, setView] = useState<CardView>(kind === "region" ? "table" : "chart");
+  const [view, setView] = useState<CardView>("chart");
   const [page, setPage] = useState(0);
   const rowSignature = rows.map((row) => row.key).join("|");
   useEffect(() => {
@@ -140,11 +146,21 @@ function BreakdownCard({
 
   return (
     <section
-      className="flex min-h-[280px] w-[560px] shrink-0 flex-col rounded-lg border border-[#dddfe2] bg-white p-4"
+      className={cn(
+        "flex min-h-[280px] shrink-0 flex-col rounded-lg border border-[#dddfe2] bg-white p-4",
+        widthClass,
+      )}
       style={kind === "region" && view === "chart" ? { width: Math.max(560, rows.length * 104) } : undefined}
     >
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-bold text-[#1c1e21]">{title}</h3>
+        <div className="flex min-w-0 items-center gap-2">
+          <h3 className="text-sm font-bold text-[#1c1e21]">{title}</h3>
+          {badge ? (
+            <span className="inline-flex items-center rounded-full bg-[#f0f2f5] px-2 py-0.5 text-[11px] font-medium text-[#1c1e21]">
+              {badge}
+            </span>
+          ) : null}
+        </div>
         <div className="flex items-center rounded-lg border border-[#dddfe2] p-0.5">
           <button
             type="button"
@@ -209,6 +225,7 @@ function BreakdownCard({
                 color={item.color}
                 currency={currency}
                 labelFor={labelFor}
+                compactLabels={compactLabels}
               />
             </div>
           ))
@@ -318,8 +335,33 @@ export function MetaAdsBreakdownPage({
     if (key === "unknown" || key === "Unknown") {
       return t("digitalMarketing.metaAds.breakdownUnknown", "Unknown");
     }
-    if (kind === "age" || kind === "region") return key;
+    if (kind === "device") {
+      if (key === "desktop") return t("digitalMarketing.metaAds.breakdownDesktop", "Desktop");
+      if (key === "mobile_app") return t("digitalMarketing.metaAds.breakdownMobileApp", "Mobile App");
+      if (key === "mobile_web") return t("digitalMarketing.metaAds.breakdownMobileWeb", "Mobile Web");
+    }
+    if (kind === "publisher") {
+      if (key === "audience_network") return t("digitalMarketing.metaAds.breakdownAudienceNetwork", "Audience Network");
+      if (key === "facebook") return t("digitalMarketing.metaAds.breakdownFacebook", "Facebook");
+      if (key === "instagram") return t("digitalMarketing.metaAds.breakdownInstagram", "Instagram");
+      if (key === "messenger") return t("digitalMarketing.metaAds.breakdownMessenger", "Messenger");
+      if (key === "threads") return t("digitalMarketing.metaAds.breakdownThreads", "Threads");
+    }
+    if (kind === "day") {
+      if (key === "sun") return t("digitalMarketing.metaAds.breakdownSunday", "Sunday");
+      if (key === "mon") return t("digitalMarketing.metaAds.breakdownMonday", "Monday");
+      if (key === "tue") return t("digitalMarketing.metaAds.breakdownTuesday", "Tuesday");
+      if (key === "wed") return t("digitalMarketing.metaAds.breakdownWednesday", "Wednesday");
+      if (key === "thu") return t("digitalMarketing.metaAds.breakdownThursday", "Thursday");
+      if (key === "fri") return t("digitalMarketing.metaAds.breakdownFriday", "Friday");
+      if (key === "sat") return t("digitalMarketing.metaAds.breakdownSaturday", "Saturday");
+    }
     return key;
+  };
+  const sideError = (ready: boolean | undefined, detail: string | null | undefined, unavailable: string) => {
+    if (detail) return detail;
+    if (ready === false) return unavailable;
+    return null;
   };
   const selected = slots.flatMap((slot, index) => {
     if (slot === "none") return [];
@@ -421,6 +463,68 @@ export function MetaAdsBreakdownPage({
               : null)
           }
           labelFor={(key) => labelForBucket("region", key)}
+        />
+        <BreakdownCard
+          kind="device"
+          title={t("digitalMarketing.metaAds.breakdownDevice", "Device")}
+          rows={query.data?.device ?? []}
+          metrics={selected}
+          currency={currency}
+          loading={loading}
+          widthClass="w-[480px]"
+          errorMessage={errorMessage ?? sideError(
+            query.data?.deviceReady,
+            query.data?.deviceError,
+            t("digitalMarketing.metaAds.breakdownDeviceUnavailable", "Device is not available from the server yet."),
+          )}
+          labelFor={(key) => labelForBucket("device", key)}
+        />
+        <BreakdownCard
+          kind="publisher"
+          title={t("digitalMarketing.metaAds.breakdownPublisher", "Publisher")}
+          rows={query.data?.publisher ?? []}
+          metrics={selected}
+          currency={currency}
+          loading={loading}
+          widthClass="w-[480px]"
+          errorMessage={errorMessage ?? sideError(
+            query.data?.publisherReady,
+            query.data?.publisherError,
+            t("digitalMarketing.metaAds.breakdownPublisherUnavailable", "Publisher is not available from the server yet."),
+          )}
+          labelFor={(key) => labelForBucket("publisher", key)}
+        />
+        <BreakdownCard
+          kind="day"
+          title={t("digitalMarketing.metaAds.breakdownDay", "Day")}
+          rows={query.data?.day ?? []}
+          metrics={selected}
+          currency={currency}
+          loading={loading}
+          widthClass="w-[520px]"
+          errorMessage={errorMessage ?? sideError(
+            query.data?.dayReady,
+            query.data?.dayError,
+            t("digitalMarketing.metaAds.breakdownDayUnavailable", "Day is not available from the server yet."),
+          )}
+          labelFor={(key) => labelForBucket("day", key)}
+        />
+        <BreakdownCard
+          kind="hour"
+          title={t("digitalMarketing.metaAds.breakdownHour", "Hour")}
+          badge={t("digitalMarketing.metaAds.breakdownAdvertiserTimezone", "Advertiser Timezone")}
+          rows={query.data?.hour ?? []}
+          metrics={selected}
+          currency={currency}
+          loading={loading}
+          widthClass="w-[920px]"
+          compactLabels
+          errorMessage={errorMessage ?? sideError(
+            query.data?.hourReady,
+            query.data?.hourError,
+            t("digitalMarketing.metaAds.breakdownHourUnavailable", "Hour is not available from the server yet."),
+          )}
+          labelFor={(key) => labelForBucket("hour", key)}
         />
       </div>
       </div>
