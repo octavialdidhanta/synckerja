@@ -71,32 +71,22 @@ function SocialMediaInsightTargetsSettingsPageRoot() {
     <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2">
       <div className="col-span-12">
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold text-gray-900">
-                {t(
-                  "digitalMarketing.socialMediaInsightTargets.title",
-                  "Insight KPI targets",
-                )}
-              </h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {t(
-                  "digitalMarketing.socialMediaInsightTargets.subtitle",
-                  "Set monthly or quarterly targets per platform for the Social Media Insight Report summary cards.",
-                )}
-              </p>
-            </div>
-            <Button variant="outline" size="sm" asChild>
-              <Link to={SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                {t(
-                  "digitalMarketing.socialMediaInsightTargets.backToReport",
-                  "Back to report",
-                )}
-              </Link>
-            </Button>
-          </div>
-          <InsightTargetsSettingsForm initialPeriod={initialPeriod} />
+          <InsightTargetsSettingsForm
+            initialPeriod={initialPeriod}
+            headerEnd={
+              <Button variant="outline" size="icon" className="h-9 w-9" asChild>
+                <Link
+                  to={SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH}
+                  aria-label={t(
+                    "digitalMarketing.socialMediaInsightTargets.backToReport",
+                    "Back to report",
+                  )}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+              </Button>
+            }
+          />
         </div>
       </div>
     </div>

@@ -1,4 +1,9 @@
+import {
+  aggregateInsightBaseline,
+  computeInsightBaselineGapPercentage,
+} from "@/6-0-social-media-performance-shared/insightTargetBaseline";
 import { computeProgressAgainstMonthlyTarget } from "@/6-1-dashboard/utils/performanceEmployeeMetrics";
+import type { PlatformPeriodActuals } from "@/6-0-social-media-performance-shared/insightTargetPlatformActuals";
 import {
   effectiveTargetForMetric,
   resolveInsightTargetPeriod,
@@ -120,48 +125,82 @@ function actualForMetric(
   }
 }
 
+function emptyProgress(
+  metric: InsightTargetMetric,
+  actual: number | null,
+  targetRaw: number,
+  showProgress: boolean,
+): InsightTargetProgress {
+  const hasTarget = targetRaw > 0;
+  return {
+    metric,
+    actual,
+    target: hasTarget ? targetRaw : null,
+    targetRaw: hasTarget ? targetRaw : null,
+    baseline: null,
+    percentage: null,
+    showProgress: showProgress && hasTarget,
+  };
+}
+
 function buildMetricProgress(
   metric: InsightTargetMetric,
   actual: number | null,
   targetRaw: number,
+  baselineFull: number | null,
   period: ResolvedInsightTargetPeriod | null,
   showProgress: boolean,
   now: Date,
 ): InsightTargetProgress {
   if (!showProgress || targetRaw <= 0) {
-    return {
-      metric,
-      actual,
-      target: targetRaw > 0 ? targetRaw : null,
-      targetRaw: targetRaw > 0 ? targetRaw : null,
-      percentage: null,
-      showProgress: false,
-    };
+    return emptyProgress(metric, actual, targetRaw, false);
   }
 
   if (actual == null) {
-    return {
-      metric,
-      actual: null,
-      target: targetRaw,
-      targetRaw,
-      percentage: null,
-      showProgress: true,
-    };
+    return emptyProgress(metric, null, targetRaw, true);
   }
 
   const target = effectiveTargetForMetric(targetRaw, metric, period, now);
+  const baseline =
+    baselineFull != null ? effectiveTargetForMetric(baselineFull, metric, period, now) : null;
   const percentage =
-    target > 0 ? computeProgressAgainstMonthlyTarget(actual, target) : null;
+    target > 0
+      ? baseline != null
+        ? computeInsightBaselineGapPercentage(actual, baseline, target)
+        : computeProgressAgainstMonthlyTarget(actual, target)
+      : null;
 
   return {
     metric,
     actual,
     target,
     targetRaw,
+    baseline,
     percentage,
     showProgress: true,
   };
+}
+
+function formatCount(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  return value.toLocaleString();
+}
+
+function formatPercent(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  return `${value.toFixed(2)}%`;
+}
+
+/** `before → current / target` when a baseline exists, otherwise `current / target`. */
+export function formatInsightTargetRatio(progress: InsightTargetProgress | undefined): string | null {
+  if (!progress?.showProgress || progress.target == null || progress.target <= 0) return null;
+  if (progress.actual == null) return null;
+  const format = (value: number) =>
+    progress.metric === "avg_engagement_rate" ? formatPercent(value) : formatCount(value);
+  if (progress.baseline != null) {
+    return `${format(progress.baseline)} → ${format(progress.actual)} / ${format(progress.target)}`;
+  }
+  return `${format(progress.actual)} / ${format(progress.target)}`;
 }
 
 export function computeInsightTargetProgress(args: {
@@ -170,12 +209,20 @@ export function computeInsightTargetProgress(args: {
   platformFilter: SocialMediaPlatformFilter;
   dateSelection: GoogleAdsDateRangeSelection;
   targetRows: SocialMediaInsightTargetRow[];
+  previousActualsByAccount?: Record<string, PlatformPeriodActuals>;
   now?: Date;
 }): InsightTargetProgress[] {
   const now = args.now ?? new Date();
   const period = resolveInsightTargetPeriod(args.dateSelection, now);
   const showProgress = period != null;
   const targetMap = targetMapFromRows(args.targetRows);
+  const rowsByCell = new Map<string, SocialMediaInsightTargetRow>();
+  for (const row of args.targetRows) {
+    const accountId = row.account_id?.trim();
+    if (!accountId) continue;
+    rowsByCell.set(`${row.platform}:${accountId}:${row.metric}`, row);
+  }
+  const previousActualsByAccount = args.previousActualsByAccount ?? {};
 
   const filteredAccounts =
     args.platformFilter === "all"
@@ -189,7 +236,14 @@ export function computeInsightTargetProgress(args: {
         : singlePlatformTarget(metric, args.platformFilter, targetMap, filteredAccounts);
 
     const actual = actualForMetric(metric, args.summary);
-    return buildMetricProgress(metric, actual, targetRaw, period, showProgress, now);
+    const baselineFull = aggregateInsightBaseline({
+      metric,
+      accounts: filteredAccounts,
+      targetMap,
+      rowsByCell,
+      previousActualsByAccount,
+    });
+    return buildMetricProgress(metric, actual, targetRaw, baselineFull, period, showProgress, now);
   });
 }
 

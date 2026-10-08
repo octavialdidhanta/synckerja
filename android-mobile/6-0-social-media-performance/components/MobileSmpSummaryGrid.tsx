@@ -1,7 +1,7 @@
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { ProgressBar } from "@/shared/components/ProgressBar";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { formatSmpCount, formatSmpPercent } from "@/mobile/6-0-social-media-performance/shared/formatSmpMetrics";
+import { formatInsightTargetRatio } from "@/6-0-social-media-performance-shared/insightTargetProgress";
 import type {
   InsightTargetMetric,
   InsightTargetProgress,
@@ -34,23 +34,6 @@ type MobileSmpSummaryGridProps = {
   targetProgress?: InsightTargetProgress[];
 };
 
-function formatTargetRatio(
-  metric: InsightTargetMetric,
-  progress: InsightTargetProgress | undefined,
-): string | null {
-  if (!progress?.showProgress || progress.target == null || progress.target <= 0) return null;
-  if (progress.actual == null) return null;
-  if (metric === "avg_engagement_rate") {
-    return `${formatSmpPercent(progress.actual)} / ${formatSmpPercent(progress.target)}`;
-  }
-  return `${formatSmpCount(progress.actual)} / ${formatSmpCount(progress.target)}`;
-}
-
-function targetProgressPercent(current: number, target: number): number {
-  if (target <= 0) return 0;
-  return Math.max(0, Math.round((current / target) * 100));
-}
-
 export function MobileSmpSummaryGrid({
   cards,
   isLoading,
@@ -65,15 +48,13 @@ export function MobileSmpSummaryGrid({
     <div className="-mx-2 grid shrink-0 grid-cols-2 gap-px overflow-hidden border-y border-border bg-border">
       {cards.map((card) => {
         const progress = card.metric ? progressByMetric.get(card.metric) : undefined;
-        const ratioText = card.metric ? formatTargetRatio(card.metric, progress) : null;
+        const ratioText = formatInsightTargetRatio(progress);
         const showBar =
           progress?.showProgress &&
           progress.target != null &&
           progress.target > 0 &&
           progress.actual != null;
-        const progressPercent = showBar
-          ? targetProgressPercent(progress.actual ?? 0, progress.target ?? 0)
-          : null;
+        const progressPercent = showBar ? Math.max(0, Math.round(progress.percentage ?? 0)) : null;
         const compareVisible = Boolean(card.compareVisible);
 
         return (
@@ -112,6 +93,7 @@ export function MobileSmpSummaryGrid({
                     <ProgressBar
                       current={progress.actual ?? 0}
                       target={progress.target ?? 0}
+                      percentage={progress.percentage ?? undefined}
                       color="primary"
                       showLabel={false}
                     />

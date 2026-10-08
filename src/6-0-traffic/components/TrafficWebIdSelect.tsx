@@ -53,7 +53,7 @@ export function TrafficWebIdSelect({
           variant="outline"
           size="sm"
           disabled={disabled || loading}
-          className="h-8 min-w-[10rem] max-w-[14rem] justify-between gap-1 px-2 text-xs font-normal"
+          className="h-9 min-w-[10rem] max-w-[14rem] justify-between gap-1 bg-white px-2 text-xs font-normal"
           aria-label="web_id"
         >
           <span className="truncate">{triggerLabel}</span>

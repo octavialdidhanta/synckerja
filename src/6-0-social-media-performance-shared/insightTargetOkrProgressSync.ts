@@ -1,5 +1,6 @@
 import { fetchInsightPeriodActualsByAccount } from "@/6-0-social-media-performance-shared/fetchInsightPeriodActualsByAccount";
-import { insightKeyResultProgress } from "@/6-0-social-media-performance-shared/insightTargetOkrProgress";
+import { previousInsightTargetPeriod } from "@/6-0-social-media-performance-shared/insightTargetPeriod";
+import { insightObjectiveProgressPercentage } from "@/6-0-social-media-performance-shared/insightTargetOkrProgress";
 import {
   actualValueForMetric,
   type PlatformPeriodActuals,
@@ -59,6 +60,15 @@ export async function syncInsightIndividualObjectiveProgress(args: {
     actualsMap = new Map();
   }
 
+  const previousActuals =
+    args.accounts && args.accounts.length > 0
+      ? await fetchInsightPeriodActualsByAccount({
+          organizationId: args.organizationId,
+          period: previousInsightTargetPeriod(args.period),
+          accounts: args.accounts,
+        })
+      : null;
+
   const deptObjectiveIds = new Set<string>();
   let updated = 0;
 
@@ -69,7 +79,13 @@ export async function syncInsightIndividualObjectiveProgress(args: {
 
     const actuals = actualsMap.get(accountKey(row.platform, row.account_id));
     const actual = actuals != null ? actualValueForMetric(actuals, row.metric) : null;
-    const progress = insightKeyResultProgress(row.metric, actual, targetValue);
+    const progress = insightObjectiveProgressPercentage({
+      row,
+      actual,
+      targetRaw: targetValue,
+      period: args.period,
+      previousActuals,
+    });
 
     const { data: io, error: ioFetchError } = await args.supabase
       .from("individual_objectives")

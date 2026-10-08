@@ -2,9 +2,13 @@ import {
   buildInsightObjectiveTitle,
   resolveOkrCycleForInsightPeriod,
 } from "@/6-0-social-media-performance-shared/insightTargetOkrCycleResolver";
-import { insightKeyResultProgress } from "@/6-0-social-media-performance-shared/insightTargetOkrProgress";
+import { fetchInsightPeriodActualsByAccount } from "@/6-0-social-media-performance-shared/fetchInsightPeriodActualsByAccount";
+import { insightObjectiveProgressPercentage } from "@/6-0-social-media-performance-shared/insightTargetOkrProgress";
 import { buildInsightMetricObjectiveTitle } from "@/6-0-social-media-performance-shared/insightTargetMetricObjectiveTitle";
-import { periodKeyToQueryFilter } from "@/6-0-social-media-performance-shared/insightTargetPeriod";
+import {
+  periodKeyToQueryFilter,
+  previousInsightTargetPeriod,
+} from "@/6-0-social-media-performance-shared/insightTargetPeriod";
 import {
   actualValueForMetric,
   type PlatformPeriodActuals,
@@ -322,6 +326,14 @@ export async function syncInsightTargetsToOkr(args: {
   }
 
   let syncedIndividualObjectiveCount = 0;
+  const previousActuals =
+    args.accountRefs.length > 0
+      ? await fetchInsightPeriodActualsByAccount({
+          organizationId: args.organizationId,
+          period: previousInsightTargetPeriod(args.period),
+          accounts: args.accountRefs,
+        })
+      : null;
 
   for (const row of (targets ?? []) as SocialMediaInsightTargetRow[]) {
     const targetValue = Number(row.target_value);
@@ -351,7 +363,13 @@ export async function syncInsightTargetsToOkr(args: {
     const actuals = args.accountActuals?.get(accountKey);
     const actual =
       actuals != null ? actualValueForMetric(actuals, row.metric) : null;
-    const progress = insightKeyResultProgress(row.metric, actual, targetValue);
+    const progress = insightObjectiveProgressPercentage({
+      row,
+      actual,
+      targetRaw: targetValue,
+      period: args.period,
+      previousActuals,
+    });
 
     const ioId = await findOrCreateInsightMetricIndividualObjective({
       supabase: args.supabase,

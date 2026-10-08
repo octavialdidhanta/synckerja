@@ -17,4 +17,8 @@ describe("insightKeyResultProgress", () => {
   it("returns 0 when actual is null", () => {
     expect(insightKeyResultProgress("views", null, 1000)).toBe(0);
   });
+
+  it("measures the gap from before to target", () => {
+    expect(insightKeyResultProgress("views", 80, 100, 50)).toBe(60);
+  });
 });

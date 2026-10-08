@@ -35,8 +35,6 @@ const META_BAR = "hsl(262 55% 52%)";
 const TIKTOK_BAR = "hsl(350 80% 50%)";
 /** Combined all-channel total — distinct from Google (blue) and Meta (purple). */
 const COMBINED_BAR = "hsl(160 52% 36%)";
-/** Per-month slot width so full spend labels (e.g. IDR amounts) do not collide on scroll charts. */
-const MONTHLY_CATEGORY_MIN_PX = 128;
 
 const WIDE_MONTHLY_BAR_LAYOUT = {
   barCategoryGap: "8%" as const,
@@ -514,13 +512,7 @@ export function DigitalMarketingReportMonthlySpendChart({
               </span>
             ) : null}
           </div>
-          <div className={cn(plotClassName, "w-full min-w-0 overflow-x-auto")}>
-            <div
-              className="h-full"
-              style={{
-                minWidth: Math.max(chartData.length * MONTHLY_CATEGORY_MIN_PX, 720),
-              }}
-            >
+          <div className={cn(plotClassName, "w-full min-w-0 overflow-hidden")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={chartData}
@@ -564,7 +556,7 @@ export function DigitalMarketingReportMonthlySpendChart({
                     fill={COMBINED_BAR}
                     radius={[4, 4, 0, 0]}
                     name="totalSpend"
-                    barSize={barChartSpacing.combinedBarSize}
+                    maxBarSize={barChartSpacing.combinedBarSize}
                     isAnimationActive={false}
                   >
                     <LabelList
@@ -583,7 +575,7 @@ export function DigitalMarketingReportMonthlySpendChart({
                     fill={GOOGLE_BAR}
                     radius={[4, 4, 0, 0]}
                     name="googleSpend"
-                    barSize={
+                    maxBarSize={
                       showMeta || showTikTok
                         ? barChartSpacing.groupedBarSize
                         : barChartSpacing.singleBarSize
@@ -606,7 +598,7 @@ export function DigitalMarketingReportMonthlySpendChart({
                     fill={META_BAR}
                     radius={[4, 4, 0, 0]}
                     name="metaSpend"
-                    barSize={
+                    maxBarSize={
                       showGoogle || showTikTok
                         ? barChartSpacing.groupedBarSize
                         : barChartSpacing.singleBarSize
@@ -629,7 +621,7 @@ export function DigitalMarketingReportMonthlySpendChart({
                     fill={TIKTOK_BAR}
                     radius={[4, 4, 0, 0]}
                     name="tiktokSpend"
-                    barSize={
+                    maxBarSize={
                       showGoogle || showMeta
                         ? barChartSpacing.groupedBarSize
                         : barChartSpacing.singleBarSize
@@ -652,7 +644,7 @@ export function DigitalMarketingReportMonthlySpendChart({
                     fill={GOOGLE_BAR}
                     radius={[4, 4, 0, 0]}
                     name="googleSpend"
-                    barSize={barChartSpacing.singleBarSize}
+                    maxBarSize={barChartSpacing.singleBarSize}
                     isAnimationActive={false}
                   >
                     <LabelList
@@ -671,7 +663,7 @@ export function DigitalMarketingReportMonthlySpendChart({
                     fill={META_BAR}
                     radius={[4, 4, 0, 0]}
                     name="metaSpend"
-                    barSize={barChartSpacing.singleBarSize}
+                    maxBarSize={barChartSpacing.singleBarSize}
                     isAnimationActive={false}
                   >
                     <LabelList
@@ -690,7 +682,7 @@ export function DigitalMarketingReportMonthlySpendChart({
                     fill={TIKTOK_BAR}
                     radius={[4, 4, 0, 0]}
                     name="tiktokSpend"
-                    barSize={barChartSpacing.singleBarSize}
+                    maxBarSize={barChartSpacing.singleBarSize}
                     isAnimationActive={false}
                   >
                     <LabelList
@@ -705,7 +697,6 @@ export function DigitalMarketingReportMonthlySpendChart({
                 ) : null}
               </BarChart>
             </ResponsiveContainer>
-            </div>
           </div>
         </>
       )}

@@ -31,18 +31,20 @@ export function GoogleAdsMetricsPanelSkeleton() {
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="shrink-0 border-b border-gray-200 p-4">
-            <Skeleton className="h-6 w-48" />
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Skeleton className="h-9 w-9 shrink-0" />
-              <Skeleton className="h-9 w-40" />
-              <Skeleton className="h-9 w-56" />
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+            <div className="flex flex-wrap gap-2">
               <Skeleton className="h-12 w-[min(220px,45vw)]" />
               <Skeleton className="h-12 w-[min(200px,40vw)]" />
             </div>
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-100 px-4 py-2">
+              <Skeleton className="h-7 w-40" />
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-7 w-28" />
+                <Skeleton className="h-7 w-24" />
+                <Skeleton className="h-7 w-36" />
+              </div>
+            </div>
             <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
               <div className="min-h-0 overflow-hidden p-4">
                 <Skeleton className="h-full min-h-[200px] w-full" />
@@ -68,7 +70,15 @@ export function GoogleAdsMetricsPageSkeleton() {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="mb-1 min-w-0 shrink-0">
-                <HeaderAndTab />
+                <HeaderAndTab
+                  actions={
+                    <>
+                      <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+                      <Skeleton className="h-9 w-56 rounded-md" />
+                      <Skeleton className="h-9 w-24 rounded-md" />
+                    </>
+                  }
+                />
               </div>
               <GoogleAdsMetricsPanelSkeleton />
             </div>

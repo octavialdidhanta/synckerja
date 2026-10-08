@@ -1,12 +1,16 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { differenceInCalendarDays, startOfDay, subDays } from "date-fns";
-import { Copy, Eye, Loader2, MousePointerClick, ShoppingCart, Wallet, type LucideIcon } from "lucide-react";
-import { toast } from "sonner";
+import { differenceInCalendarDays, format, startOfDay, subDays, subMonths, type Locale } from "date-fns";
+import { Eye, Loader2, MousePointerClick, ShoppingCart, Wallet, type LucideIcon } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { Button } from "@/shared/components/ui/button";
-import { copyElementAsPng } from "@/meta-ads/metrics/copyElementAsPng";
-import { parseYmdLocal, toYmdLocal } from "@/6-0-google-ads/lib/googleAdsDatePresets";
+import { FunnelCopyButton } from "@/6-0-meta-ads/components/funnel/FunnelCopyButton";
+import {
+  parseYmdLocal,
+  toYmdLocal,
+  type GoogleAdsDateRangeSelection,
+} from "@/6-0-google-ads/lib/googleAdsDatePresets";
+import { formatMetaAdsPickerButtonLabel } from "@/meta-ads/lib/formatMetaAdsPickerButtonLabel";
 import { MetaAdsFunnelActionFlow } from "@/6-0-meta-ads/components/funnel/MetaAdsFunnelActionFlow";
+import { MetaAdsFunnelResultCompare } from "@/6-0-meta-ads/components/funnel/MetaAdsFunnelResultCompare";
 import {
   Select,
   SelectContent,
@@ -63,6 +67,41 @@ function funnelShortLabel(key: string, fullLabel: string) {
   return FUNNEL_SHORT_LABELS[key] ?? fullLabel;
 }
 
+type FunnelCompareMode = "same-dates" | "previous-days";
+
+function funnelCompareWindows(dateStart: string, dateEnd: string) {
+  const from = parseYmdLocal(dateStart);
+  const to = parseYmdLocal(dateEnd);
+  if (!from || !to) return null;
+  const days = differenceInCalendarDays(to, from) + 1;
+  const previousTo = subDays(startOfDay(from), 1);
+  const previousFrom = subDays(previousTo, Math.max(0, days - 1));
+  let sameFrom = subMonths(startOfDay(from), 1);
+  let sameTo = subMonths(startOfDay(to), 1);
+  if (sameTo < sameFrom) {
+    const swap = sameFrom;
+    sameFrom = sameTo;
+    sameTo = swap;
+  }
+  return {
+    previousDays: { fromDate: toYmdLocal(previousFrom), toDate: toYmdLocal(previousTo) },
+    sameDates: { fromDate: toYmdLocal(sameFrom), toDate: toYmdLocal(sameTo) },
+  };
+}
+
+function formatFunnelCompareRange(fromYmd: string, toYmd: string, locale: Locale): string {
+  const from = parseYmdLocal(fromYmd);
+  const to = parseYmdLocal(toYmd);
+  if (!from || !to) return "";
+  if (from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth()) {
+    return `${format(from, "d", { locale })}–${format(to, "d MMM", { locale })}`;
+  }
+  if (from.getFullYear() === to.getFullYear()) {
+    return `${format(from, "d MMM", { locale })}–${format(to, "d MMM", { locale })}`;
+  }
+  return `${format(from, "d MMM yyyy", { locale })}–${format(to, "d MMM yyyy", { locale })}`;
+}
+
 function funnelEdgeX(width: number, verticalFraction: number) {
   const inset = (STAGE_INSET[STAGE_INSET.length - 1] / 100) * verticalFraction;
   return width * (1 - inset);
@@ -115,6 +154,7 @@ type Props = {
   adAccountId: string;
   dateStart: string;
   dateEnd: string;
+  dateSelection: GoogleAdsDateRangeSelection;
   reportTitle: string;
   enabled: boolean;
   campaignIds: readonly string[];
@@ -127,6 +167,7 @@ export function MetaAdsFunnelPanel({
   adAccountId,
   dateStart,
   dateEnd,
+  dateSelection,
   reportTitle,
   enabled,
   campaignIds,
@@ -136,19 +177,34 @@ export function MetaAdsFunnelPanel({
   const cpasPreset = META_ADS_FUNNEL_PRESETS[0];
   const [metricKeys, setMetricKeys] = useState<string[]>(() => [...cpasPreset.funnelKeys]);
   const [flowKeys, setFlowKeys] = useState<string[]>(() => [...cpasPreset.flowKeys]);
-  const [copying, setCopying] = useState(false);
+  const [compareMode, setCompareMode] = useState<FunnelCompareMode>("same-dates");
   const reportRef = useRef<HTMLDivElement>(null);
-  const { t } = useAppTranslation();
+  const { t, dateFnsLocale } = useAppTranslation();
   const level = resolveMetaAdsFunnelLevel({ campaignIds, adsetIds, adIds });
-  const previousRange = useMemo(() => {
-    const from = parseYmdLocal(dateStart);
-    const to = parseYmdLocal(dateEnd);
-    if (!from || !to) return null;
-    const days = differenceInCalendarDays(to, from) + 1;
-    const previousTo = subDays(startOfDay(from), 1);
-    const previousFrom = subDays(previousTo, Math.max(0, days - 1));
-    return { fromDate: toYmdLocal(previousFrom), toDate: toYmdLocal(previousTo), days };
-  }, [dateStart, dateEnd]);
+  const compareWindows = useMemo(
+    () => funnelCompareWindows(dateStart, dateEnd),
+    [dateStart, dateEnd],
+  );
+  const previousRange = compareWindows
+    ? compareMode === "same-dates"
+      ? compareWindows.sameDates
+      : compareWindows.previousDays
+    : null;
+  const filterLabel = useMemo(
+    () => formatMetaAdsPickerButtonLabel(dateSelection),
+    [dateSelection],
+  );
+  const sameDatesLabel = compareWindows
+    ? formatFunnelCompareRange(compareWindows.sameDates.fromDate, compareWindows.sameDates.toDate, dateFnsLocale)
+    : "";
+  const previousDaysLabel = compareWindows
+    ? formatFunnelCompareRange(
+        compareWindows.previousDays.fromDate,
+        compareWindows.previousDays.toDate,
+        dateFnsLocale,
+      )
+    : "";
+  const compareLabel = (compareMode === "same-dates" ? sameDatesLabel : previousDaysLabel) || null;
   const metricsQuery = useMetaAdsMetricsQuery({
     organizationId,
     adAccountId,
@@ -252,40 +308,13 @@ export function MetaAdsFunnelPanel({
     );
   }
 
-  const copyReportImage = () => {
-    const node = reportRef.current;
-    if (!node || copying) return;
-    setCopying(true);
-    void copyElementAsPng(node)
-      .then(() => {
-        toast.success(
-          t("digitalMarketing.metaAds.funnelCopyImageDone", "Image copied. Paste it into WhatsApp."),
-        );
-      })
-      .catch(() => {
-        toast.error(
-          t("digitalMarketing.metaAds.funnelCopyImageFailed", "Could not copy the image."),
-        );
-      })
-      .finally(() => setCopying(false));
-  };
-
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
       <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 w-full min-w-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden bg-white [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div ref={reportRef} className="relative flex h-full w-max shrink-0 flex-col bg-white">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="absolute right-3 top-1.5 z-20 h-7 gap-1.5 bg-white"
-        disabled={copying || loading}
-        onClick={copyReportImage}
-      >
-        {copying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
-        {t("digitalMarketing.metaAds.funnelCopyImage", "Copy image")}
-      </Button>
-      <p className="shrink-0 px-6 pr-36 pt-2 text-sm font-semibold leading-5 text-[#1c1e21]">
+      <div className="relative flex h-full w-max shrink-0 flex-col bg-white">
+      <FunnelCopyButton targetRef={reportRef} disabled={loading} className="absolute right-3 top-1.5 z-20" />
+      <div ref={reportRef} className="flex h-full min-h-0 w-max flex-1 flex-col bg-white">
+      <p className="shrink-0 px-6 pr-12 pt-2 text-sm font-semibold leading-5 text-[#1c1e21]">
         {reportTitle}
       </p>
       <div className="flex h-full min-h-0 w-max flex-1 items-stretch">
@@ -310,19 +339,33 @@ export function MetaAdsFunnelPanel({
       ))}
       </div>
       </div>
+      </div>
       <div className="w-px shrink-0 self-stretch bg-[#d8dbe0]" aria-hidden />
       <MetaAdsFunnelActionFlow
         summary={summary}
         previousSummary={previousQuery.data ? previousSummary : null}
         loading={loading}
-        compareDays={previousRange?.days ?? null}
+        compareLabel={compareLabel}
         dateStart={dateStart}
         dateEnd={dateEnd}
         metricKeys={flowKeys}
         onMetricKeysChange={setFlowKeys}
+      />
+      <div className="w-px shrink-0 self-stretch bg-[#d8dbe0]" aria-hidden />
+      <MetaAdsFunnelResultCompare
+        summary={summary}
+        previousSummary={previousQuery.data ? previousSummary : null}
+        loading={loading}
+        compareLabel={compareLabel}
+        compareMode={compareMode}
+        onCompareModeChange={setCompareMode}
+        filterLabel={filterLabel}
+        sameDatesLabel={sameDatesLabel}
+        previousDaysLabel={previousDaysLabel}
         presetValue={activePresetId ?? "custom"}
         onPresetChange={applyPreset}
         presetCustom={activePresetId == null}
+        flowKeys={flowKeys}
       />
       </div>
     </div>

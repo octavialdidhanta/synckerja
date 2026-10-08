@@ -35,8 +35,6 @@ const META_BAR = "hsl(262 55% 52%)";
 const TIKTOK_BAR = "hsl(350 80% 50%)";
 const COMBINED_BAR = "hsl(160 52% 36%)";
 
-const MONTHLY_CATEGORY_MIN_PX = 112;
-
 const WIDE_MONTHLY_BAR_LAYOUT = {
   barCategoryGap: "8%" as const,
   barGap: 0,
@@ -694,13 +692,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
           {mixedCurrencyBlockedCombined ? (
             <p className="mb-2 text-[11px] text-amber-700">{tooltipLabels.mixedHint}</p>
           ) : null}
-          <div className="h-[300px] w-full min-w-0 overflow-x-auto">
-            <div
-              className="h-full"
-              style={{
-                minWidth: Math.max(chartData.length * MONTHLY_CATEGORY_MIN_PX, 720),
-              }}
-            >
+          <div className="h-[300px] w-full min-w-0 overflow-hidden">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={chartDataForRender}
@@ -748,7 +740,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
                     fill={COMBINED_BAR}
                     radius={[4, 4, 0, 0]}
                     name="totalCpa"
-                    barSize={barChartSpacing.combinedBarSize}
+                    maxBarSize={barChartSpacing.combinedBarSize}
                     isAnimationActive={false}
                   >
                     <LabelList
@@ -777,7 +769,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
                     fill={GOOGLE_BAR}
                     radius={[4, 4, 0, 0]}
                     name="googleCpa"
-                    barSize={
+                    maxBarSize={
                       showMeta || showTikTok
                         ? barChartSpacing.groupedBarSize
                         : barChartSpacing.singleBarSize
@@ -796,7 +788,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
                     fill={META_BAR}
                     radius={[4, 4, 0, 0]}
                     name="metaCpa"
-                    barSize={
+                    maxBarSize={
                       showGoogle || showTikTok
                         ? barChartSpacing.groupedBarSize
                         : barChartSpacing.singleBarSize
@@ -815,7 +807,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
                     fill={TIKTOK_BAR}
                     radius={[4, 4, 0, 0]}
                     name="tiktokCpa"
-                    barSize={
+                    maxBarSize={
                       showGoogle || showMeta
                         ? barChartSpacing.groupedBarSize
                         : barChartSpacing.singleBarSize
@@ -834,7 +826,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
                     fill={GOOGLE_BAR}
                     radius={[4, 4, 0, 0]}
                     name="googleCpa"
-                    barSize={barChartSpacing.singleBarSize}
+                    maxBarSize={barChartSpacing.singleBarSize}
                     isAnimationActive={false}
                   >
                     <LabelList
@@ -849,7 +841,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
                     fill={META_BAR}
                     radius={[4, 4, 0, 0]}
                     name="metaCpa"
-                    barSize={barChartSpacing.singleBarSize}
+                    maxBarSize={barChartSpacing.singleBarSize}
                     isAnimationActive={false}
                   >
                     <LabelList
@@ -864,7 +856,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
                     fill={TIKTOK_BAR}
                     radius={[4, 4, 0, 0]}
                     name="tiktokCpa"
-                    barSize={barChartSpacing.singleBarSize}
+                    maxBarSize={barChartSpacing.singleBarSize}
                     isAnimationActive={false}
                   >
                     <LabelList
@@ -875,7 +867,6 @@ export function DigitalMarketingReportMonthlyCpaChart({
                 ) : null}
               </BarChart>
             </ResponsiveContainer>
-            </div>
           </div>
         </>
       )}

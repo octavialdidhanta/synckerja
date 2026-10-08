@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { InsightTargetsTable } from "@/6-0-social-media-report/components/InsightTargetsTable";
-import { useSocialMediaInsightPeriodActuals } from "@/6-0-social-media-performance-shared/hooks/useSocialMediaInsightPeriodActuals";
+import { savedInsightBaselineValue } from "@/6-0-social-media-performance-shared/insightTargetBaseline";
+import { actualValueForMetric } from "@/6-0-social-media-performance-shared/insightTargetPlatformActuals";
+import {
+  useInsightPreviousPeriodActuals,
+  useSocialMediaInsightPeriodActuals,
+} from "@/6-0-social-media-performance-shared/hooks/useSocialMediaInsightPeriodActuals";
 import { useSocialMediaInsightTargetAccounts } from "@/6-0-social-media-performance-shared/hooks/useSocialMediaInsightTargetAccounts";
 import { useInsightPeriodCompanyObjectives } from "@/6-0-social-media-performance-shared/hooks/useInsightPeriodCompanyObjectives";
 import { useSocialMediaInsightPeriodSettingsQuery } from "@/6-0-social-media-performance-shared/hooks/useSocialMediaInsightPeriodSettingsQuery";
@@ -11,6 +16,7 @@ import { useSocialMediaInsightTargetsMutations } from "@/6-0-social-media-perfor
 import { useSocialMediaInsightTargetsQuery } from "@/6-0-social-media-performance-shared/hooks/useSocialMediaInsightTargetsQuery";
 import { requiresCompanyObjectiveForSave } from "@/6-0-social-media-performance-shared/insightTargetSaveValidation";
 import {
+  INSIGHT_TARGET_METRICS,
   insightTargetAccountKey,
   insightTargetCellKey,
   type InsightTargetAccountAssignment,
@@ -50,6 +56,20 @@ function rowsToAssignmentsMap(
   return map;
 }
 
+function formatBaselineInput(value: number): string {
+  return String(Math.round(value * 100) / 100);
+}
+
+function rowsToBaselineMap(rows: SocialMediaInsightTargetRow[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const row of rows) {
+    const value = savedInsightBaselineValue(row);
+    if (value == null) continue;
+    map[insightTargetCellKey(row.platform, row.account_id, row.metric)] = formatBaselineInput(value);
+  }
+  return map;
+}
+
 function rowsToFormMap(rows: SocialMediaInsightTargetRow[]): Record<string, string> {
   const map: Record<string, string> = {};
   for (const row of rows) {
@@ -64,9 +84,10 @@ function rowsToFormMap(rows: SocialMediaInsightTargetRow[]): Record<string, stri
 
 type Props = {
   initialPeriod?: Partial<InsightTargetPeriodKey>;
+  headerEnd?: ReactNode;
 };
 
-export function InsightTargetsSettingsForm({ initialPeriod }: Props) {
+export function InsightTargetsSettingsForm({ initialPeriod, headerEnd }: Props) {
   const { t } = useAppTranslation();
   const { user } = useCurrentUser();
   const now = new Date();
@@ -79,6 +100,8 @@ export function InsightTargetsSettingsForm({ initialPeriod }: Props) {
   const [month, setMonth] = useState(initialPeriod?.month ?? now.getMonth() + 1);
   const [quarter, setQuarter] = useState(initialPeriod?.quarter ?? Math.floor(now.getMonth() / 3) + 1);
   const [formMap, setFormMap] = useState<Record<string, string>>({});
+  const [baselineMap, setBaselineMap] = useState<Record<string, string>>({});
+  const baselineTouchedRef = useRef(new Set<string>());
   const [assignmentsMap, setAssignmentsMap] = useState<Record<string, string>>({});
   const [companyObjectiveId, setCompanyObjectiveId] = useState<string>("");
 
@@ -108,11 +131,45 @@ export function InsightTargetsSettingsForm({ initialPeriod }: Props) {
     isLoading: actualsLoading,
     wasDateClamped,
   } = useSocialMediaInsightPeriodActuals(periodKey);
+  const previousActuals = useInsightPreviousPeriodActuals(periodKey);
+  const periodIdentity = `${periodKey.periodType}:${periodKey.year}:${periodKey.month ?? ""}:${periodKey.quarter ?? ""}`;
   const { saveTargets } = useSocialMediaInsightTargetsMutations();
 
   const actualLabel = inProgress
     ? t("digitalMarketing.socialMediaInsightTargets.currentLabel", "Current")
     : t("digitalMarketing.socialMediaInsightTargets.actualLabel", "Actual");
+
+  useEffect(() => {
+    baselineTouchedRef.current = new Set();
+  }, [periodIdentity]);
+
+  useEffect(() => {
+    if (!targetsQuery.data) return;
+    const fromRows = rowsToBaselineMap(targetsQuery.data);
+    setBaselineMap((prev) => {
+      const next = { ...fromRows };
+      for (const key of baselineTouchedRef.current) {
+        if (Object.prototype.hasOwnProperty.call(prev, key)) next[key] = prev[key];
+      }
+      if (!previousActuals.isLoading) {
+        for (const account of accounts) {
+          for (const metric of INSIGHT_TARGET_METRICS) {
+            const key = insightTargetCellKey(account.platform, account.accountId, metric);
+            if (baselineTouchedRef.current.has(key) || next[key]?.trim()) continue;
+            const value = actualValueForMetric(previousActuals.getAccountActuals(account), metric);
+            if (value == null || value <= 0) continue;
+            next[key] = formatBaselineInput(value);
+          }
+        }
+      }
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (prevKeys.length === nextKeys.length && nextKeys.every((key) => prev[key] === next[key])) {
+        return prev;
+      }
+      return next;
+    });
+  }, [targetsQuery.data, previousActuals.isLoading, previousActuals.getAccountActuals, accounts]);
 
   useEffect(() => {
     if (targetsQuery.data) {
@@ -143,6 +200,15 @@ export function InsightTargetsSettingsForm({ initialPeriod }: Props) {
     for (let y = currentYear + 1; y >= currentYear - 3; y--) years.push(y);
     return years;
   }, [currentYear]);
+
+  const setBaselineValue = useCallback(
+    (account: InsightTargetAccountRef, metric: InsightTargetMetric, raw: string) => {
+      const key = insightTargetCellKey(account.platform, account.accountId, metric);
+      baselineTouchedRef.current.add(key);
+      setBaselineMap((prev) => ({ ...prev, [key]: raw }));
+    },
+    [],
+  );
 
   const setCellValue = useCallback(
     (account: InsightTargetAccountRef, metric: InsightTargetMetric, raw: string) => {
@@ -199,11 +265,28 @@ export function InsightTargetsSettingsForm({ initialPeriod }: Props) {
           );
           return;
         }
+        const baselineKey = insightTargetCellKey(account.platform, account.accountId, metric);
+        const baselineRaw = baselineMap[baselineKey]?.trim() ?? "";
+        let baselineValue: number | null = null;
+        if (baselineTouchedRef.current.has(baselineKey) && baselineRaw) {
+          const parsedBaseline = Number(baselineRaw);
+          if (!Number.isFinite(parsedBaseline) || parsedBaseline < 0) {
+            toast.error(
+              t(
+                "digitalMarketing.socialMediaInsightTargets.invalidValue",
+                "Enter a valid non-negative number for all targets.",
+              ),
+            );
+            return;
+          }
+          baselineValue = parsedBaseline > 0 ? parsedBaseline : null;
+        }
         values.push({
           platform: account.platform,
           accountId: account.accountId,
           metric,
           targetValue: parsed,
+          baselineValue,
         });
       }
     }
@@ -296,7 +379,8 @@ export function InsightTargetsSettingsForm({ initialPeriod }: Props) {
   const targetsLoading =
     targetsQuery.isLoading || assignmentsQuery.isLoading || periodSettingsQuery.isLoading;
   const inputsDisabled = !companyObjectiveId;
-  const showActualsLoading = actualsLoading && !periodNotStarted;
+  const showActualsLoading =
+    (actualsLoading || previousActuals.isLoading) && !periodNotStarted;
 
   return (
     <div className="space-y-4">
@@ -420,6 +504,7 @@ export function InsightTargetsSettingsForm({ initialPeriod }: Props) {
             </SelectContent>
           </Select>
         </div>
+        {headerEnd ? <div className="ml-auto shrink-0">{headerEnd}</div> : null}
       </div>
 
       {!hasMatchingCycle && !companyObjectivesLoading ? (
@@ -455,7 +540,7 @@ export function InsightTargetsSettingsForm({ initialPeriod }: Props) {
             ))}
           </div>
           {Array.from({ length: 3 }, (_, i) => (
-            <Skeleton key={i} className="mx-3 my-2 h-[3.25rem] w-[calc(100%-1.5rem)]" />
+            <Skeleton key={i} className="mx-3 my-2 h-[4.75rem] w-[calc(100%-1.5rem)]" />
           ))}
         </div>
       ) : accounts.length === 0 ? (
@@ -469,6 +554,7 @@ export function InsightTargetsSettingsForm({ initialPeriod }: Props) {
         <InsightTargetsTable
           accountsByPlatform={accountsByPlatform}
           formMap={formMap}
+          baselineMap={baselineMap}
           assignmentsMap={assignmentsMap}
           getAccountActuals={getAccountActuals}
           actualLabel={actualLabel}
@@ -480,6 +566,7 @@ export function InsightTargetsSettingsForm({ initialPeriod }: Props) {
           inputsDisabled={inputsDisabled}
           onAssigneeChange={setAssignee}
           onCellChange={setCellValue}
+          onBaselineChange={setBaselineValue}
         />
       )}
 

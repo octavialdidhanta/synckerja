@@ -14,13 +14,12 @@ export function DigitalMarketingReportTargetsSettingsPageSkeleton() {
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2">
                 <div className="col-span-12">
                   <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                    <Skeleton className="h-5 w-56" />
-                    <Skeleton className="mt-1 h-3 w-full max-w-lg" />
-                    <div className="mt-4 flex flex-wrap gap-3">
+                    <div className="flex flex-wrap items-end gap-3">
                       <Skeleton className="h-9 w-32" />
                       <Skeleton className="h-9 w-20" />
                       <Skeleton className="h-9 w-32" />
                       <Skeleton className="h-9 min-w-[12rem] flex-1 max-w-md" />
+                      <Skeleton className="ml-auto h-9 w-9" />
                     </div>
                     <Skeleton className="mt-4 h-12 w-full" />
                     <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">

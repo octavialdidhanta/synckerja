@@ -19,13 +19,7 @@ export function TikTokContentPerformancePanelSkeleton() {
           </div>
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="shrink-0 border-b border-gray-200 p-4">
-            <div className="flex flex-wrap justify-end gap-2">
-              <Skeleton className="h-9 w-9 shrink-0" />
-              <Skeleton className="h-9 w-56" />
-            </div>
-          </div>
-          <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1">
+          <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-3">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
               {Array.from({ length: 5 }, (_, i) => (
                 <div
@@ -59,7 +53,14 @@ export function TikTokContentPerformancePageSkeleton() {
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex min-h-full min-w-0 w-full flex-1 flex-col">
                 <div className="mb-1 flex-shrink-0">
-                  <SocialMediaPerformanceHeaderAndTab />
+                  <SocialMediaPerformanceHeaderAndTab
+                    actions={
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-9 w-9 shrink-0 rounded-md bg-white" />
+                        <Skeleton className="h-9 w-56 shrink-0 rounded-md bg-white" />
+                      </div>
+                    }
+                  />
                 </div>
                 <TikTokContentPerformancePanelSkeleton />
               </div>

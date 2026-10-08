@@ -465,14 +465,6 @@ export function GoogleAdsReportTargetsSettingsForm({ initialPeriod }: Props) {
           onChange={setSelectedMetrics}
           disabled={inputsDisabled}
         />
-        {inputsDisabled ? (
-          <p className="text-xs text-muted-foreground">
-            {t(
-              "digitalMarketing.googleAdsReportTargets.selectCompanyObjectiveHint",
-              "Select a Company Objective to choose metrics and enter targets.",
-            )}
-          </p>
-        ) : null}
       </div>
 
       {selectedMetrics.length > 0 && accounts.length === 0 ? (

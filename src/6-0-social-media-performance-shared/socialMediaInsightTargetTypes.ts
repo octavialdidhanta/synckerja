@@ -48,6 +48,8 @@ export type SocialMediaInsightTargetRow = {
   month: number | null;
   quarter: number | null;
   target_value: number;
+  /** Override of the previous period actual. Null uses that actual live. */
+  baseline_value: number | null;
   individual_objective_id: string | null;
   created_at: string;
   updated_at: string;
@@ -101,6 +103,8 @@ export type InsightTargetProgress = {
   target: number | null;
   /** Raw target from DB before prorate. */
   targetRaw: number | null;
+  /** Previous period actual on the same scale as target, after the same prorate. */
+  baseline: number | null;
   percentage: number | null;
   showProgress: boolean;
 };
@@ -110,6 +114,8 @@ export type InsightTargetFormValue = {
   accountId: string;
   metric: InsightTargetMetric;
   targetValue: number;
+  /** Set only when the user typed an override. Null keeps the live previous actual. */
+  baselineValue: number | null;
 };
 
 export function insightTargetCellKey(

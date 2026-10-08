@@ -5,6 +5,11 @@ import { computePresetRange, toYmdLocal } from "@/6-0-google-ads/lib/googleAdsDa
 import { DM_REPORT_TARGETS_PATH } from "@/6-0-digital-marketing-shared/dmReportTargetPaths";
 import { resolveDmReportTargetPeriod } from "@/6-0-digital-marketing-shared/dmReportTargetPeriod";
 import { HeaderAndTab } from "@/6-0-traffic/container/HeaderAndTab";
+import {
+  HeaderAndTabActionsPortal,
+  HeaderAndTabActionsProvider,
+  useHeaderAndTabActionsHost,
+} from "@/6-0-traffic/container/HeaderAndTabActions";
 import { GoogleAdsDateRangePicker } from "@/6-0-google-ads/components/GoogleAdsDateRangePicker";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
 import {
@@ -242,8 +247,86 @@ function DigitalMarketingReportPageBody({
     return `${DM_REPORT_TARGETS_PATH}?${params.toString()}`;
   }, [resolvedTargetPeriod]);
 
+  const headerActions = (
+    <HeaderAndTabActionsPortal>
+      {filtersHydrated ? (
+        <>
+          <Select
+            value={reportServiceFilter || "all"}
+            onValueChange={(v) =>
+              setReportServiceFilter(v === "all" ? "" : (v as ReportServiceFilterValue))
+            }
+          >
+            <SelectTrigger
+              className="h-9 w-[14rem] shrink-0 border-gray-200 bg-white text-sm"
+              aria-label={t(
+                "digitalMarketing.report.tableServiceFilterLabel",
+                "Products or Services",
+              )}
+            >
+              <SelectValue
+                placeholder={t(
+                  "digitalMarketing.report.serviceFilterAll",
+                  "All products or services",
+                )}
+              />
+            </SelectTrigger>
+            <SelectContent className="z-50 max-h-72 bg-white">
+              {serviceFilterOptions.map((opt) => (
+                <SelectItem key={opt.value || "all"} value={opt.value || "all"}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <GoogleAdsDateRangePicker
+            value={dateSelection}
+            onChange={setDateSelection}
+            accountEarliestYmd={accountDateBounds?.earliest_date}
+            calendarYearPresetYears={calendarYearPresetYears}
+            calendarYearFilterHint={t(
+              "digitalMarketing.report.calendarYearFilterHint",
+              "Open the month header dropdown and click a year (e.g. 2023) to filter that calendar year.",
+            )}
+            allTimePopoverHint={t(
+              "digitalMarketing.report.allTimeRangeHint",
+              "All time: Google cost uses full account history from first activity. Meta cost uses the last 37 months (Meta API limit).",
+            )}
+            compareEnabled={reportChartCompareEnabled}
+            onCompareChange={setReportChartCompareEnabled}
+            compareHint={t(
+              "digitalMarketing.report.compareToggleHint",
+              "Charts (Spend, CPA, Conv. leads) show monthly data for the chart year. Table and KPIs keep the date filter above.",
+            )}
+            className="shrink-0"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 shrink-0 gap-1.5 bg-white"
+            asChild
+          >
+            <Link to={manageTargetsHref}>
+              <Target className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {t("digitalMarketing.report.manageTargets", "KPI targets")}
+              </span>
+            </Link>
+          </Button>
+        </>
+      ) : (
+        <div className="flex items-center justify-end gap-2" aria-hidden>
+          <div className="h-9 w-[14rem] shrink-0 rounded-md border border-gray-200 bg-white" />
+          <div className="h-9 min-w-[200px] w-52 shrink-0 rounded-md border border-gray-300 bg-white" />
+        </div>
+      )}
+    </HeaderAndTabActionsPortal>
+  );
+
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {headerActions}
       <div
         className={cn(
           "flex min-h-0 min-w-0 flex-1 flex-col",
@@ -253,103 +336,6 @@ function DigitalMarketingReportPageBody({
       >
         <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                       <div className="col-span-12 flex min-h-0 min-w-0 flex-col gap-2">
-                        <div className="min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                          <div className="flex min-w-0 items-start justify-between gap-3">
-                            <div className="min-w-0 shrink-0">
-                              <h2 className="text-base font-semibold text-gray-900">
-                                {t("digitalMarketing.report.title", "Report")}
-                              </h2>
-                            </div>
-                            <div className="nested-scroll-touch-chain-xy min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
-                              <div className="flex w-max min-w-full items-center justify-end gap-2">
-                              {filtersHydrated ? (
-                                <>
-                                  <Select
-                                    value={reportServiceFilter || "all"}
-                                    onValueChange={(v) =>
-                                      setReportServiceFilter(
-                                        v === "all" ? "" : (v as ReportServiceFilterValue),
-                                      )
-                                    }
-                                  >
-                                    <SelectTrigger
-                                      className="h-9 w-[14rem] shrink-0 border-gray-200 bg-gray-50 text-sm"
-                                      aria-label={t(
-                                        "digitalMarketing.report.tableServiceFilterLabel",
-                                        "Products or Services",
-                                      )}
-                                    >
-                                      <SelectValue
-                                        placeholder={t(
-                                          "digitalMarketing.report.serviceFilterAll",
-                                          "All products or services",
-                                        )}
-                                      />
-                                    </SelectTrigger>
-                                    <SelectContent className="z-50 max-h-72 bg-white">
-                                      {serviceFilterOptions.map((opt) => (
-                                        <SelectItem
-                                          key={opt.value || "all"}
-                                          value={opt.value || "all"}
-                                        >
-                                          {opt.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <GoogleAdsDateRangePicker
-                                    value={dateSelection}
-                                    onChange={setDateSelection}
-                                    accountEarliestYmd={accountDateBounds?.earliest_date}
-                                    calendarYearPresetYears={calendarYearPresetYears}
-                                    calendarYearFilterHint={t(
-                                      "digitalMarketing.report.calendarYearFilterHint",
-                                      "Open the month header dropdown and click a year (e.g. 2023) to filter that calendar year.",
-                                    )}
-                                    allTimePopoverHint={t(
-                                      "digitalMarketing.report.allTimeRangeHint",
-                                      "All time: Google cost uses full account history from first activity. Meta cost uses the last 37 months (Meta API limit).",
-                                    )}
-                                    compareEnabled={reportChartCompareEnabled}
-                                    onCompareChange={setReportChartCompareEnabled}
-                                    compareHint={t(
-                                      "digitalMarketing.report.compareToggleHint",
-                                      "Charts (Spend, CPA, Conv. leads) show monthly data for the chart year. Table and KPIs keep the date filter above.",
-                                    )}
-                                    className="shrink-0"
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-9 shrink-0 gap-1.5"
-                                    asChild
-                                  >
-                                    <Link to={manageTargetsHref}>
-                                      <Target className="h-4 w-4" />
-                                      <span className="hidden sm:inline">
-                                        {t(
-                                          "digitalMarketing.report.manageTargets",
-                                          "KPI targets",
-                                        )}
-                                      </span>
-                                    </Link>
-                                  </Button>
-                                </>
-                              ) : (
-                                <div
-                                  className="flex items-center justify-end gap-2"
-                                  aria-hidden
-                                >
-                                  <div className="h-9 w-[14rem] shrink-0 rounded-md border border-gray-200 bg-gray-50" />
-                                  <div className="h-9 min-w-[200px] w-52 shrink-0 rounded-md border border-gray-300 bg-white" />
-                                </div>
-                              )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
                         <DigitalMarketingReportSummaryBar
                           bootstrapLoading={showTableSkeletonOverlay}
                           googleServiceRows={googleServiceRows}
@@ -420,24 +406,27 @@ function DigitalMarketingReportPageBody({
 }
 
 export default function DigitalMarketingReportPage() {
+  const { host, slot } = useHeaderAndTabActionsHost();
   return (
-    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-2">
-        <div className="flex h-full min-h-0 min-w-0 flex-col">
-          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex min-h-full min-w-0 flex-col">
-              <ModuleHeaderBelowContentGate
-                pagePath="/digital-marketing/report"
-                header={<HeaderAndTab />}
-                className="flex min-h-0 min-w-0 flex-1 flex-col"
-              >
-                <DigitalMarketingReportPageWithData />
-              </ModuleHeaderBelowContentGate>
+    <HeaderAndTabActionsProvider host={host}>
+      <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-2">
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex min-h-full min-w-0 flex-col">
+                <ModuleHeaderBelowContentGate
+                  pagePath="/digital-marketing/report"
+                  header={<HeaderAndTab actions={slot} />}
+                  className="flex min-h-0 min-w-0 flex-1 flex-col"
+                >
+                  <DigitalMarketingReportPageWithData />
+                </ModuleHeaderBelowContentGate>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </HeaderAndTabActionsProvider>
   );
 }
 

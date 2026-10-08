@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
+import { useInsightPreviousPeriodActuals } from "@/6-0-social-media-performance-shared/hooks/useSocialMediaInsightPeriodActuals";
 import { useSocialMediaInsightTargetsQuery } from "@/6-0-social-media-performance-shared/hooks/useSocialMediaInsightTargetsQuery";
 import {
   computeInsightTargetProgress,
@@ -37,6 +38,7 @@ export function useSocialMediaInsightTargetProgress(args: {
     : null;
 
   const targetsQuery = useSocialMediaInsightTargetsQuery(periodKey);
+  const previousActuals = useInsightPreviousPeriodActuals(periodKey);
 
   const progressList: InsightTargetProgress[] = useMemo(
     () =>
@@ -46,6 +48,7 @@ export function useSocialMediaInsightTargetProgress(args: {
         platformFilter: args.platformFilter,
         dateSelection,
         targetRows: targetsQuery.data ?? [],
+        previousActualsByAccount: previousActuals.actualsByAccount,
       }),
     [
       args.summary,
@@ -53,6 +56,7 @@ export function useSocialMediaInsightTargetProgress(args: {
       args.platformFilter,
       dateSelection,
       targetsQuery.data,
+      previousActuals.actualsByAccount,
     ],
   );
 
@@ -64,7 +68,8 @@ export function useSocialMediaInsightTargetProgress(args: {
   return {
     progressList,
     progressByMetric,
-    targetsLoading: targetsQuery.isLoading && periodKey != null,
+    targetsLoading:
+      periodKey != null && (targetsQuery.isLoading || previousActuals.isLoading),
     periodKey,
     resolvedPeriod,
   };

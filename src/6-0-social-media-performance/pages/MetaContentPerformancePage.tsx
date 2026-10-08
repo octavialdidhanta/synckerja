@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Instagram, Facebook, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { HeaderAndTabActionsPortal } from '@/6-0-traffic/container/HeaderAndTabActions';
 import { SocialMediaPerformanceModuleShell } from '@/6-0-social-media-performance/layout/SocialMediaPerformanceModuleShell';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useModulePageOverlaySkeleton } from '@/shared/auth/page-access/useModulePageOverlaySkeleton';
@@ -182,6 +183,12 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
     metricsQuery.isLoading || (metricsQuery.isFetching && !metricsQuery.data);
 
   const showConnectCta = !configQuery.isLoading && platformAccounts.length === 0;
+  const showMetaChrome =
+    showConnectCta ||
+    Boolean(selectedAccount && !insightsScopesGranted) ||
+    showEmptyRange ||
+    showEmptyAllTime ||
+    showFacebookMetricsEmpty;
 
   const dataPending =
     orgBootstrapPending ||
@@ -194,9 +201,34 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
     SOCIAL_MEDIA_PERFORMANCE_PATH,
   );
   const showContent = useDebouncedReady(accessReady && !showFullPageSkeleton, 150);
+  const headerActions = !isSettingsView ? (
+    <HeaderAndTabActionsPortal>
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        className="h-9 w-9 shrink-0 bg-white"
+        aria-label={t('common.refresh', 'Refresh')}
+        disabled={!showMetricsView || metricsQuery.isFetching}
+        onClick={() => void handleRefresh()}
+      >
+        {metricsQuery.isFetching ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <RefreshCw className="h-4 w-4" />
+        )}
+      </Button>
+      <MetaContentDateRangePicker
+        value={dateSelection}
+        onChange={setDateSelection}
+        calendarYearPresetYears={calendarYearPresetYears}
+      />
+    </HeaderAndTabActionsPortal>
+  ) : null;
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {headerActions}
       <div
         className={cn(
           'flex min-h-0 flex-1 flex-col',
@@ -229,6 +261,7 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
                           />
                         ) : (
                           <>
+                            {showMetaChrome ? (
                             <div className="shrink-0 space-y-3 border-b border-gray-200 p-4 [@media(max-height:900px)]:space-y-2 [@media(max-height:900px)]:p-3">
                               {showConnectCta ? (
                                 <Alert>
@@ -318,41 +351,8 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
                                   </AlertDescription>
                                 </Alert>
                               ) : null}
-
-                              <div className="flex flex-wrap items-center justify-end gap-2">
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant="outline"
-                                  aria-label={t('common.refresh', 'Refresh')}
-                                  disabled={!showMetricsView || metricsQuery.isFetching}
-                                  onClick={() => void handleRefresh()}
-                                >
-                                  {metricsQuery.isFetching ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <RefreshCw className="h-4 w-4" />
-                                  )}
-                                </Button>
-                                <MetaContentDateRangePicker
-                                  value={dateSelection}
-                                  onChange={setDateSelection}
-                                  calendarYearPresetYears={calendarYearPresetYears}
-                                />
-                              </div>
-
-                              <p className="text-right text-[11px] text-muted-foreground">
-                                {postDateFilter.isAllTime
-                                  ? t(
-                                      'digitalMarketing.metaContent.metaAllTimeHint',
-                                      'All time paginates through all published posts. Per-post metrics are lifetime totals from Meta.',
-                                    )
-                                  : t(
-                                      'digitalMarketing.metaContent.metaDateHint',
-                                      'Summary and table show posts published in the selected date range. Per-post metrics are lifetime totals from Meta.',
-                                    )}
-                              </p>
                             </div>
+                            ) : null}
 
                             {showConnectCta ? (
                               <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">

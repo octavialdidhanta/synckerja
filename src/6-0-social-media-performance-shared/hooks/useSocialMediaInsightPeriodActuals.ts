@@ -9,6 +9,7 @@ import type { InsightTargetAccountRef } from "@/6-0-social-media-performance-sha
 import { useSocialMediaInsightTargetAccounts } from "@/6-0-social-media-performance-shared/hooks/useSocialMediaInsightTargetAccounts";
 import {
   periodKeyToDateRangePayload,
+  previousInsightTargetPeriod,
   resolvePeriodKeyToBounds,
 } from "@/6-0-social-media-performance-shared/insightTargetPeriod";
 import {
@@ -31,7 +32,13 @@ const EMPTY_ACCOUNT_ACTUALS: PlatformPeriodActuals = {
   hasConnectedAccount: false,
 };
 
-export function useSocialMediaInsightPeriodActuals(period: InsightTargetPeriodKey) {
+const IDLE_PERIOD: InsightTargetPeriodKey = { periodType: "monthly", year: 1970, month: 1 };
+
+export function useSocialMediaInsightPeriodActuals(
+  period: InsightTargetPeriodKey,
+  options?: { enabled?: boolean },
+) {
+  const enabled = options?.enabled !== false;
   const { organizationId } = useCurrentOrg();
   const now = new Date();
 
@@ -80,7 +87,7 @@ export function useSocialMediaInsightPeriodActuals(period: InsightTargetPeriodKe
       }
       return byAccount;
     },
-    enabled: Boolean(organizationId) && !periodNotStarted && !accountsLoading,
+    enabled: enabled && Boolean(organizationId) && !periodNotStarted && !accountsLoading,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -94,9 +101,25 @@ export function useSocialMediaInsightPeriodActuals(period: InsightTargetPeriodKe
     actualsByAccount,
     inProgress: dateRange.inProgress,
     periodNotStarted,
-    isLoading: accountsLoading || actualsQuery.isLoading,
+    isLoading: enabled && (accountsLoading || actualsQuery.isLoading),
     wasDateClamped: clampedRange.wasStartClamped,
     getAccountActuals: (account: InsightTargetAccountRef) =>
       actualsByAccount[`${account.platform}:${account.accountId}`] ?? EMPTY_ACCOUNT_ACTUALS,
+  };
+}
+
+/** Previous calendar month or quarter for the Before field and gap progress. */
+export function useInsightPreviousPeriodActuals(period: InsightTargetPeriodKey | null) {
+  const previous = useMemo(
+    () => (period ? previousInsightTargetPeriod(period) : null),
+    [period],
+  );
+  const query = useSocialMediaInsightPeriodActuals(previous ?? IDLE_PERIOD, {
+    enabled: previous != null,
+  });
+  return {
+    actualsByAccount: previous != null ? query.actualsByAccount : {},
+    isLoading: previous != null && query.isLoading,
+    getAccountActuals: query.getAccountActuals,
   };
 }

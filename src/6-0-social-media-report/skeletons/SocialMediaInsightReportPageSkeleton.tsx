@@ -1,3 +1,4 @@
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
   SOCIAL_MEDIA_PERFORMANCE_BASE_PATH,
   SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH,
@@ -8,7 +9,7 @@ import { SocialMediaInsightReportTablePhaseSkeleton } from "@/6-0-social-media-r
 
 /**
  * Layout-matched skeleton for `/digital-marketing/social-media-performance/report`.
- * Mirrors the live shell + report body (filters, 6 KPIs, 12-col table, monthly charts).
+ * Mirrors the live shell + report body (header filters, 6 KPIs, 12-col table, monthly charts).
  */
 export function SocialMediaInsightReportPageSkeleton() {
   return (
@@ -22,6 +23,14 @@ export function SocialMediaInsightReportPageSkeleton() {
                 header={
                   <SocialMediaPerformanceHeaderAndTab
                     activeReportPath={SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH}
+                    actions={
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-9 w-[11rem] shrink-0 rounded-md bg-white" />
+                        <Skeleton className="h-9 w-56 shrink-0 rounded-md bg-white" />
+                        <Skeleton className="h-9 w-[8.5rem] shrink-0 rounded-md bg-white" />
+                        <Skeleton className="h-9 w-9 shrink-0 rounded-md bg-white" />
+                      </div>
+                    }
                   />
                 }
                 className="flex min-h-0 min-w-0 flex-1 flex-col"

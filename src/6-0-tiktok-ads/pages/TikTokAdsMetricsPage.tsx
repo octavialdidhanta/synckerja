@@ -6,6 +6,11 @@ import { Columns3, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { endOfDay } from "date-fns";
 import { HeaderAndTab } from "@/6-0-traffic/container/HeaderAndTab";
+import {
+  HeaderAndTabActionsPortal,
+  HeaderAndTabActionsProvider,
+  useHeaderAndTabActionsHost,
+} from "@/6-0-traffic/container/HeaderAndTabActions";
 import { ModuleHeaderBelowContentGate } from "@/shared/layouts/ModuleHeaderBelowContentGate";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
@@ -88,21 +93,24 @@ import {
 
 export default function TikTokAdsMetricsPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
+  const { host, slot } = useHeaderAndTabActionsHost();
   if (orgBootstrapPending) return <TikTokAdsMetricsPageSkeleton />;
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <ModuleHeaderBelowContentGate
-            pagePath={TIKTOK_ADS_DIGITAL_MARKETING_BASE_PATH}
-            header={<HeaderAndTab />}
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-          >
-            <TikTokAdsMetricsPageContent />
-          </ModuleHeaderBelowContentGate>
+    <HeaderAndTabActionsProvider host={host}>
+      <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
+        <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <ModuleHeaderBelowContentGate
+              pagePath={TIKTOK_ADS_DIGITAL_MARKETING_BASE_PATH}
+              header={<HeaderAndTab actions={slot} />}
+              className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+            >
+              <TikTokAdsMetricsPageContent />
+            </ModuleHeaderBelowContentGate>
+          </div>
         </div>
       </div>
-    </div>
+    </HeaderAndTabActionsProvider>
   );
 }
 
@@ -410,13 +418,58 @@ function TikTokAdsMetricsPageContent() {
 
   const accountSelectReady = !settingsPending && navAccounts.length > 0;
   const rawPageLoadPending = gatePending || reportingPending || (canManage && settingsPending);
+  const showFilterChrome =
+    settings?.serverConfigured === false ||
+    (!reportingPending && !reportingEnabled) ||
+    (activeAccounts.length === 0 && reportingEnabled);
+
+  const headerActions = !isSettingsView ? (
+    <HeaderAndTabActionsPortal>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="h-9 w-9 shrink-0 bg-white"
+        title={t("digitalMarketing.tiktokAds.refreshData", "Refresh metrics from TikTok")}
+        disabled={!reportingEnabled || !advertiserId || metricsQuery.isFetching}
+        onClick={() => void handleRefreshMetrics()}
+      >
+        {metricsQuery.isFetching ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <RefreshCw className="h-4 w-4" />
+        )}
+      </Button>
+      <TikTokAdsDateRangePicker
+        value={dateSelection}
+        calendarYearPresetYears={calendarYearPresetYears}
+        calendarYearFilterHint={t(
+          "digitalMarketing.tiktokAds.calendarYearFilterHint",
+          "Open the month header dropdown and click a year to filter that calendar year.",
+        )}
+        onChange={setDateSelection}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-9 shrink-0 bg-white"
+        disabled={!reportingEnabled || prefsPending}
+        onClick={() => setMetricsDialogOpen(true)}
+      >
+        <Columns3 className="mr-2 h-4 w-4" />
+        {t("digitalMarketing.tiktokAds.metricsButton", "Metrics")}
+      </Button>
+    </HeaderAndTabActionsPortal>
+  ) : null;
 
   if (rawPageLoadPending) {
-    return null;
+    return headerActions;
   }
 
   return (
     <>
+    {headerActions}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="grid min-h-0 min-w-0 w-full flex-1 basis-0 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
                     <div className="col-span-12 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -473,6 +526,7 @@ function TikTokAdsMetricsPageContent() {
                               />
                             ) : (
                               <>
+                                {showFilterChrome ? (
                                 <div className="shrink-0 space-y-3 border-b border-gray-200 p-4 [@media(max-height:900px)]:space-y-2 [@media(max-height:900px)]:p-3">
                                   {settings?.serverConfigured === false ? (
                                     <Alert variant="destructive">
@@ -541,56 +595,11 @@ function TikTokAdsMetricsPageContent() {
                                     </Alert>
                                   ) : null}
 
-                                  <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-9 w-9 shrink-0"
-                                      title={t(
-                                        "digitalMarketing.tiktokAds.refreshData",
-                                        "Refresh metrics from TikTok",
-                                      )}
-                                      disabled={
-                                        !reportingEnabled ||
-                                        !advertiserId ||
-                                        metricsQuery.isFetching
-                                      }
-                                      onClick={() => void handleRefreshMetrics()}
-                                    >
-                                      {metricsQuery.isFetching ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <RefreshCw className="h-4 w-4" />
-                                      )}
-                                    </Button>
-
-                                    <TikTokAdsDateRangePicker
-                                      value={dateSelection}
-                                      calendarYearPresetYears={calendarYearPresetYears}
-                                      calendarYearFilterHint={t(
-                                        "digitalMarketing.tiktokAds.calendarYearFilterHint",
-                                        "Open the month header dropdown and click a year to filter that calendar year.",
-                                      )}
-                                      onChange={setDateSelection}
-                                    />
-
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-9 shrink-0"
-                                      disabled={!reportingEnabled || prefsPending}
-                                      onClick={() => setMetricsDialogOpen(true)}
-                                    >
-                                      <Columns3 className="mr-2 h-4 w-4" />
-                                      {t("digitalMarketing.tiktokAds.metricsButton", "Metrics")}
-                                    </Button>
-                                  </div>
                                 </div>
+                                ) : null}
 
                                 {reportingEnabled && advertiserId ? (
-                                  <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pb-2">
+                                  <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-3 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pb-2">
                                     <TikTokAdsMetricsSummaryBar
                                       entity={entity}
                                       advertiserId={advertiserId}

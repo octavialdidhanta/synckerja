@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { ProgressBar } from "@/shared/components/ProgressBar";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { formatInsightTargetRatio } from "@/6-0-social-media-performance-shared/insightTargetProgress";
 import type { InsightTargetMetric, InsightTargetProgress } from "@/6-0-social-media-performance-shared/socialMediaInsightTargetTypes";
 import type {
   SocialMediaInsightSummary,
@@ -37,19 +38,6 @@ function formatCount(n: number): string {
 function formatPercent(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return `${n.toFixed(2)}%`;
-}
-
-function formatTargetRatio(
-  metric: InsightTargetMetric,
-  progress: InsightTargetProgress | undefined,
-): string | null {
-  if (!progress?.showProgress || progress.target == null || progress.target <= 0) return null;
-  if (progress.actual == null) return null;
-
-  if (metric === "avg_engagement_rate") {
-    return `${formatPercent(progress.actual)} / ${formatPercent(progress.target)}`;
-  }
-  return `${formatCount(progress.actual)} / ${formatCount(progress.target)}`;
 }
 
 function isCompareCardKey(key: InsightTargetMetric): key is InsightReportCompareCardKey {
@@ -131,7 +119,7 @@ export function SocialMediaInsightReportSummaryBar({
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
       {cards.map((card) => {
         const progress = progressByMetric.get(card.metric);
-        const ratioText = formatTargetRatio(card.metric, progress);
+        const ratioText = formatInsightTargetRatio(progress);
         const slotCompare = isCompareCardKey(card.metric)
           ? insightReportPeriodCompareBits({
               cardKey: card.metric,
@@ -182,6 +170,7 @@ export function SocialMediaInsightReportSummaryBar({
                 <ProgressBar
                   current={progress.actual}
                   target={progress.target}
+                  percentage={progress.percentage ?? undefined}
                   color="primary"
                 />
               ) : (

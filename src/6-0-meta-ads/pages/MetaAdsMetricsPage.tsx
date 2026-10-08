@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -97,23 +107,40 @@ import {
   useMetaAdsCampaignServiceMapping,
 } from "@/meta-ads/hooks/useMetaAdsCampaignServiceMapping";
 
+const MetaAdsHeaderActionsHostContext = createContext<HTMLElement | null>(null);
+
+function MetaAdsHeaderActionsPortal({ children }: { children: ReactNode }) {
+  const host = useContext(MetaAdsHeaderActionsHostContext);
+  if (!host) return null;
+  return createPortal(children, host);
+}
+
 export default function MetaAdsMetricsPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
+  const [headerActionsHost, setHeaderActionsHost] = useState<HTMLDivElement | null>(null);
   if (orgBootstrapPending) return <MetaAdsMetricsPageSkeleton />;
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <ModuleHeaderBelowContentGate
-            pagePath="/digital-marketing/meta-ads"
-            header={<HeaderAndTab />}
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-          >
-            <MetaAdsMetricsPageContent />
-          </ModuleHeaderBelowContentGate>
+    <MetaAdsHeaderActionsHostContext.Provider value={headerActionsHost}>
+      <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
+        <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <ModuleHeaderBelowContentGate
+              pagePath="/digital-marketing/meta-ads"
+              header={
+                <HeaderAndTab
+                  actions={
+                    <div ref={setHeaderActionsHost} className="flex items-center gap-2" />
+                  }
+                />
+              }
+              className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+            >
+              <MetaAdsMetricsPageContent />
+            </ModuleHeaderBelowContentGate>
+          </div>
         </div>
       </div>
-    </div>
+    </MetaAdsHeaderActionsHostContext.Provider>
   );
 }
 
@@ -545,13 +572,68 @@ function MetaAdsMetricsPageContent() {
 
   const accountSelectReady = !settingsPending && navAccounts.length > 0;
   const rawPageLoadPending = gatePending || reportingPending || (canManage && settingsPending);
+  const showSelectionBar =
+    Boolean(reportingEnabled && adAccountId) &&
+    (parentScope.selectedCampaigns.length > 0 ||
+      parentScope.selectedAdsets.length > 0 ||
+      parentScope.selectedAds.length > 0);
+  const showFilterChrome =
+    (!reportingPending && !reportingEnabled) ||
+    (metricsReadyAccounts.length === 0 && allActiveAccounts.length > 0 && reportingEnabled) ||
+    (allActiveAccounts.length === 0 && reportingEnabled) ||
+    showSelectionBar;
+
+  const headerActions = !isSettingsView ? (
+    <MetaAdsHeaderActionsPortal>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="h-9 w-9 shrink-0 bg-white"
+        title={t("digitalMarketing.metaAds.refreshData", "Refresh metrics from Meta")}
+        disabled={
+          !reportingEnabled || !adAccountId || isRefreshingMetrics || metricsQuery.isFetching
+        }
+        onClick={() => void handleRefreshMetrics()}
+      >
+        {isRefreshingMetrics || metricsQuery.isFetching ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <RefreshCw className="h-4 w-4" />
+        )}
+      </Button>
+      <MetaAdsDateRangePicker
+        value={dateSelection}
+        calendarYearPresetYears={calendarYearPresetYears}
+        calendarYearFilterHint={t(
+          "digitalMarketing.metaAds.calendarYearFilterHint",
+          "Open the month header dropdown and click a year (e.g. 2023) to filter that calendar year.",
+        )}
+        onChange={setDateSelection}
+      />
+      {showsMetricsTable ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9 shrink-0 bg-white"
+          disabled={!reportingEnabled || prefsPending}
+          onClick={() => setMetricsDialogOpen(true)}
+        >
+          <Columns3 className="mr-2 h-4 w-4" />
+          {t("digitalMarketing.metaAds.metricsButton", "Metrics")}
+        </Button>
+      ) : null}
+    </MetaAdsHeaderActionsPortal>
+  ) : null;
 
   if (rawPageLoadPending) {
-    return null;
+    return headerActions;
   }
 
   return (
     <>
+    {headerActions}
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="grid min-h-0 min-w-0 w-full flex-1 basis-0 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
                   <div className="col-span-12 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -614,6 +696,7 @@ function MetaAdsMetricsPageContent() {
                             />
                           ) : (
                             <>
+                              {showFilterChrome ? (
                               <div className="shrink-0 space-y-3 border-b border-gray-200 p-4 [@media(max-height:900px)]:space-y-2 [@media(max-height:900px)]:p-3">
                                 {!reportingPending && !reportingEnabled ? (
                                   <Alert>
@@ -695,76 +778,26 @@ function MetaAdsMetricsPageContent() {
                                   </Alert>
                                 ) : null}
 
+                                {showSelectionBar ? (
                                 <div className="flex min-w-0 flex-nowrap items-center gap-2">
-                                  {reportingEnabled && adAccountId ? (
-                                    <MetaAdsSelectionBar
-                                      campaigns={parentScope.selectedCampaigns}
-                                      adsets={parentScope.selectedAdsets}
-                                      ads={parentScope.selectedAds}
-                                      onRemoveCampaign={parentScope.removeCampaign}
-                                      onRemoveAdset={parentScope.removeAdset}
-                                      onRemoveAd={parentScope.removeAd}
-                                      onClearCampaigns={parentScope.clearCampaigns}
-                                      onClearAdsets={parentScope.clearAdsets}
-                                      onClearAds={parentScope.clearAds}
-                                    />
-                                  ) : (
-                                    <span className="min-w-0 flex-1" aria-hidden />
-                                  )}
-                                  <div className="ml-auto flex shrink-0 items-center gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-9 w-9 shrink-0"
-                                    title={t(
-                                      "digitalMarketing.metaAds.refreshData",
-                                      "Refresh metrics from Meta",
-                                    )}
-                                    disabled={
-                                      !reportingEnabled ||
-                                      !adAccountId ||
-                                      isRefreshingMetrics ||
-                                      metricsQuery.isFetching
-                                    }
-                                    onClick={() => void handleRefreshMetrics()}
-                                  >
-                                    {isRefreshingMetrics || metricsQuery.isFetching ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <RefreshCw className="h-4 w-4" />
-                                    )}
-                                  </Button>
-
-                                  <MetaAdsDateRangePicker
-                                    value={dateSelection}
-                                    calendarYearPresetYears={calendarYearPresetYears}
-                                    calendarYearFilterHint={t(
-                                      "digitalMarketing.metaAds.calendarYearFilterHint",
-                                      "Open the month header dropdown and click a year (e.g. 2023) to filter that calendar year.",
-                                    )}
-                                    onChange={setDateSelection}
+                                  <MetaAdsSelectionBar
+                                    campaigns={parentScope.selectedCampaigns}
+                                    adsets={parentScope.selectedAdsets}
+                                    ads={parentScope.selectedAds}
+                                    onRemoveCampaign={parentScope.removeCampaign}
+                                    onRemoveAdset={parentScope.removeAdset}
+                                    onRemoveAd={parentScope.removeAd}
+                                    onClearCampaigns={parentScope.clearCampaigns}
+                                    onClearAdsets={parentScope.clearAdsets}
+                                    onClearAds={parentScope.clearAds}
                                   />
-
-                                  {showsMetricsTable ? (
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-9 shrink-0"
-                                      disabled={!reportingEnabled || prefsPending}
-                                      onClick={() => setMetricsDialogOpen(true)}
-                                    >
-                                      <Columns3 className="mr-2 h-4 w-4" />
-                                      {t("digitalMarketing.metaAds.metricsButton", "Metrics")}
-                                    </Button>
-                                  ) : null}
-                                  </div>
                                 </div>
+                                ) : null}
                               </div>
+                              ) : null}
 
                               {reportingEnabled && adAccountId && showsMetricsTable ? (
-                                <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pb-2">
+                                <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-3 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pb-2">
                                   <MetaAdsMetricsSummaryBar
                                     entity={entity}
                                     adAccountId={adAccountId}
@@ -813,6 +846,7 @@ function MetaAdsMetricsPageContent() {
                                     adAccountId={adAccountId}
                                     dateStart={dateStart}
                                     dateEnd={dateEnd}
+                                    dateSelection={dateSelection}
                                     reportTitle={formatMetaAdsFunnelReportTitle(
                                       navAccounts.find((account) => account.ad_account_id === adAccountId)?.label ||
                                         adAccountId,

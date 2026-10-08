@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
 import {
+  HeaderAndTabActionsProvider,
+  useHeaderAndTabActionsHost,
+} from "@/6-0-traffic/container/HeaderAndTabActions";
+import {
   SOCIAL_MEDIA_PERFORMANCE_BASE_PATH,
   SocialMediaPerformanceHeaderAndTab,
 } from "@/6-0-social-media-performance/container/SocialMediaPerformanceHeaderAndTab";
@@ -14,6 +18,7 @@ export function SocialMediaPerformanceModuleShell({
   children,
   activeReportPath,
 }: SocialMediaPerformanceModuleShellProps) {
+  const { host, slot } = useHeaderAndTabActionsHost();
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
@@ -23,11 +28,14 @@ export function SocialMediaPerformanceModuleShell({
               <ModuleHeaderBelowContentGate
                 pagePath={SOCIAL_MEDIA_PERFORMANCE_BASE_PATH}
                 header={
-                  <SocialMediaPerformanceHeaderAndTab activeReportPath={activeReportPath} />
+                  <SocialMediaPerformanceHeaderAndTab
+                    activeReportPath={activeReportPath}
+                    actions={slot}
+                  />
                 }
                 className="flex min-h-0 min-w-0 flex-1 flex-col"
               >
-                {children}
+                <HeaderAndTabActionsProvider host={host}>{children}</HeaderAndTabActionsProvider>
               </ModuleHeaderBelowContentGate>
             </div>
           </div>

@@ -9,7 +9,15 @@ export function TikTokAdsMetricsPageSkeleton() {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <div className="mb-1 min-w-0 shrink-0">
-                <HeaderAndTab />
+                <HeaderAndTab
+                  actions={
+                    <>
+                      <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+                      <Skeleton className="h-9 w-56 rounded-md" />
+                      <Skeleton className="h-9 w-24 rounded-md" />
+                    </>
+                  }
+                />
               </div>
               <div className="grid min-h-0 min-w-0 w-full flex-1 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -34,13 +42,7 @@ export function TikTokAdsMetricsPageSkeleton() {
                     </div>
                   </div>
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                    <div className="shrink-0 border-b border-gray-200 p-4">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Skeleton className="h-9 w-9 shrink-0" />
-                        <Skeleton className="h-9 w-56" />
-                      </div>
-                    </div>
-                    <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1">
+                    <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-3">
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                         {Array.from({ length: 4 }, (_, i) => (
                           <Skeleton key={i} className="h-16 w-full rounded-md" />

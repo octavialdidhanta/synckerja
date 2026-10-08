@@ -1,25 +1,17 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/ui/tooltip";
-import { FormInfoHint } from "@/shared/components/FormInfoHint";
 import { parseYmdLocal } from "@/6-0-google-ads/lib/googleAdsDatePresets";
 import type { MetaAdsAccountSummary } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 import {
-  META_ADS_FUNNEL_PRESET_CPAS_ID,
-  META_ADS_FUNNEL_PRESETS,
   metaAdsFunnelMetricOptions,
   readMetaAdsFunnelMetric,
 } from "@/meta-ads/metrics/metaAdsFunnel";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
+import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
+import { FunnelCopyButton } from "@/6-0-meta-ads/components/funnel/FunnelCopyButton";
 
 const SHARED_ITEM_LABELS: Record<string, { key: string; fallback: string }> = {
   content_views: {
@@ -230,8 +222,10 @@ function ActionBarTip({
   previousValue,
   cost,
   previousCost,
+  productValue,
+  productValueKey,
   currency,
-  compareDays,
+  compareLabel,
 }: {
   dateLabel: string;
   label: string;
@@ -239,8 +233,10 @@ function ActionBarTip({
   previousValue: number | null;
   cost: number | null;
   previousCost: number | null;
+  productValue: number | null;
+  productValueKey: "atc_conversion_value" | "purchase_conversion_value" | null;
   currency: string;
-  compareDays: number | null;
+  compareLabel: string | null;
 }) {
   const { t, dateLocale } = useAppTranslation();
   const countText =
@@ -265,26 +261,37 @@ function ActionBarTip({
       <p className="mt-3 text-sm font-medium leading-5 text-[#1c1e21]">
         {label}: {countText}
       </p>
-      <DeltaLine value={countDelta} compareDays={compareDays} />
+      <DeltaLine value={countDelta} compareLabel={compareLabel} />
+      {productValue != null && productValueKey ? (
+        <p className="mt-3 text-sm font-medium leading-5 text-[#1c1e21]">
+          {t(
+            productValueKey === "purchase_conversion_value"
+              ? "digitalMarketing.metaAds.purchaseConversionValue"
+              : "digitalMarketing.metaAds.atcConversionValue",
+            productValueKey === "purchase_conversion_value" ? "Purchase conversion value" : "ATC conversion value",
+          )}
+          : {formatMetaMetricValue(productValueKey, productValue, currency)}
+        </p>
+      ) : null}
       <p className="mt-3 text-sm font-medium leading-5 text-[#1c1e21]">
         {t("digitalMarketing.metaAds.funnelActionCostPer", "Cost per {{metric}}", { metric: label })}: {costText}
       </p>
-      <DeltaLine value={costDelta} compareDays={compareDays} invert />
+      <DeltaLine value={costDelta} compareLabel={compareLabel} invert />
     </div>
   );
 }
 
 function DeltaLine({
   value,
-  compareDays,
+  compareLabel,
   invert = false,
 }: {
   value: number | null;
-  compareDays: number | null;
+  compareLabel: string | null;
   invert?: boolean;
 }) {
   const { t } = useAppTranslation();
-  if (value == null || compareDays == null) return null;
+  if (value == null || !compareLabel) return null;
   const improved = invert ? value < 0 : value > 0;
   const color = value === 0 ? "text-[#65676b]" : improved ? "text-[#31a24c]" : "text-[#e41e3f]";
   return (
@@ -292,7 +299,7 @@ function DeltaLine({
       {value > 0 ? "+" : ""}
       {value.toFixed(2)}%{" "}
       <span className="font-normal text-[#65676b]">
-        {t("digitalMarketing.metaAds.funnelActionVsPrev", "vs prev {{count}} day", { count: compareDays })}
+        {t("digitalMarketing.metaAds.funnelCompareVsRange", "vs {{range}}", { range: compareLabel })}
       </span>
     </p>
   );
@@ -302,26 +309,20 @@ export function MetaAdsFunnelActionFlow({
   summary,
   previousSummary,
   loading,
-  compareDays,
+  compareLabel,
   dateStart,
   dateEnd,
   metricKeys,
   onMetricKeysChange,
-  presetValue,
-  onPresetChange,
-  presetCustom,
 }: {
   summary: MetaAdsAccountSummary | null;
   previousSummary: MetaAdsAccountSummary | null;
   loading: boolean;
-  compareDays: number | null;
+  compareLabel: string | null;
   dateStart: string;
   dateEnd: string;
   metricKeys: string[];
   onMetricKeysChange: (keys: string[]) => void;
-  presetValue: string;
-  onPresetChange: (id: string) => void;
-  presetCustom: boolean;
 }) {
   const { t, dateFnsLocale } = useAppTranslation();
   const dateLabel = useMemo(() => {
@@ -335,6 +336,7 @@ export function MetaAdsFunnelActionFlow({
     return `${format(from, "dd MMM yyyy", { locale: dateFnsLocale })} - ${format(to, "dd MMM yyyy", { locale: dateFnsLocale })}`;
   }, [dateStart, dateEnd, dateFnsLocale]);
   const currency = summary?.currency || previousSummary?.currency || "IDR";
+  const copyRef = useRef<HTMLElement>(null);
   const options = useMemo(
     () => metaAdsFunnelMetricOptions().filter((item) => item.valueKind === "count"),
     [],
@@ -349,23 +351,23 @@ export function MetaAdsFunnelActionFlow({
     key,
     label: labelFor(key),
     value: readMetaAdsFunnelMetric(summary, key),
+    productValue:
+      key === "adds_to_cart"
+        ? readMetaAdsFunnelMetric(summary, "atc_conversion_value")
+        : key === "purchases"
+          ? readMetaAdsFunnelMetric(summary, "purchase_conversion_value")
+          : null,
+    productValueKey:
+      key === "adds_to_cart"
+        ? ("atc_conversion_value" as const)
+        : key === "purchases"
+          ? ("purchase_conversion_value" as const)
+          : null,
   }));
-  const sharedOnly = metricKeys.every((key) => key in SHARED_ITEM_LABELS);
   const max = stages.reduce((peak, stage) => Math.max(peak, stage.value ?? 0), 0);
   const heights = stages.map((stage) =>
     max > 0 && stage.value != null && stage.value > 0 ? (stage.value / max) * PLOT_HEIGHT : 0,
   );
-  const first = stages[0];
-  const last = stages[stages.length - 1];
-  const conversion = stepRate(last?.value ?? null, first?.value ?? null);
-  const previousConversion = stepRate(
-    readMetaAdsFunnelMetric(previousSummary, last?.key ?? ""),
-    readMetaAdsFunnelMetric(previousSummary, first?.key ?? ""),
-  );
-  const delta =
-    conversion != null && previousConversion != null && previousConversion > 0
-      ? ((conversion - previousConversion) / previousConversion) * 100
-      : null;
 
   const setSlot = (index: number, key: string) => {
     const next = metricKeys.slice();
@@ -386,7 +388,7 @@ export function MetaAdsFunnelActionFlow({
   };
 
   return (
-    <section className="relative z-40 flex h-full min-h-0 w-max min-w-[58rem] shrink-0 flex-col bg-white px-4 py-3">
+    <section ref={copyRef} className="relative z-0 flex h-full min-h-0 w-max min-w-[58rem] shrink-0 flex-col bg-white px-4 py-3">
       <div className="flex flex-nowrap items-center gap-2">
         {stages.map((stage, index) => (
           <MetricSlotMenu
@@ -407,6 +409,7 @@ export function MetaAdsFunnelActionFlow({
             onAdd={addSlot}
           />
         ) : null}
+        <FunnelCopyButton targetRef={copyRef} disabled={loading} className="ml-auto" />
       </div>
 
       <div className="mt-4 flex min-h-0 flex-1 items-stretch gap-3">
@@ -420,9 +423,9 @@ export function MetaAdsFunnelActionFlow({
           ) : (
             <>
             <TooltipProvider delayDuration={200}>
-            <div className="relative z-10 min-h-0 flex-1">
+            <div className="relative z-0 min-h-0 flex-1">
               <svg
-                className="pointer-events-none absolute inset-0 h-full w-full"
+                className="pointer-events-none absolute inset-0 z-0 h-full w-full"
                 viewBox="0 0 100 100"
                 preserveAspectRatio="none"
                 aria-hidden
@@ -447,19 +450,19 @@ export function MetaAdsFunnelActionFlow({
                   );
                 })}
               </svg>
-              <div className="relative z-[1] flex h-full">
+              <div className="relative z-10 flex h-full">
               {stages.map((stage, index) => {
                 const height = heights[index];
                 return (
                   <div key={`${stage.key}-${index}`} className="relative h-full min-w-0 flex-1">
                     <span
-                      className="absolute left-1/2 z-[1] -translate-x-1/2 -translate-y-1 whitespace-nowrap text-sm font-semibold"
+                      className="absolute left-1/2 z-20 -translate-x-1/2 -translate-y-1 whitespace-nowrap text-sm font-semibold"
                       style={{ bottom: `${height}%`, color: BAR_COLOR }}
                     >
                       {stage.value == null ? "—" : compactCount(stage.value)}
                     </span>
                     <div
-                      className="absolute bottom-0 left-1/2 -translate-x-1/2"
+                      className="absolute bottom-0 left-1/2 z-10 -translate-x-1/2"
                       style={{
                         width: `${BAR_WIDTH}%`,
                         height: `${height}%`,
@@ -469,7 +472,7 @@ export function MetaAdsFunnelActionFlow({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div
-                          className="absolute bottom-0 left-1/2 z-[3] -translate-x-1/2 cursor-default"
+                          className="absolute bottom-0 left-1/2 z-20 -translate-x-1/2 cursor-default"
                           style={{ width: `${BAR_WIDTH}%`, height: `max(${height}%, 28px)` }}
                         />
                       </TooltipTrigger>
@@ -485,8 +488,10 @@ export function MetaAdsFunnelActionFlow({
                           previousValue={readMetaAdsFunnelMetric(previousSummary, stage.key)}
                           cost={costPerAction(summary, stage.key)}
                           previousCost={costPerAction(previousSummary, stage.key)}
+                          productValue={stage.productValue}
+                          productValueKey={stage.productValueKey}
                           currency={currency}
-                          compareDays={compareDays}
+                          compareLabel={compareLabel}
                         />
                         <span
                           className="absolute left-1/2 top-full -translate-x-1/2 border-x-8 border-t-8 border-x-transparent border-t-white"
@@ -509,7 +514,7 @@ export function MetaAdsFunnelActionFlow({
                 return (
                   <span
                     key={`${stage.key}-rate-${index}`}
-                    className="absolute z-[2] inline-flex h-[22px] -translate-x-1/2 translate-y-1/2 items-stretch"
+                    className="absolute z-30 inline-flex h-[22px] -translate-x-1/2 translate-y-1/2 items-stretch"
                     style={{ left: `${midX}%`, bottom: `${midY}%` }}
                   >
                     <span className="inline-flex items-center rounded-l-[4px] bg-[#1c1e21] pl-2 pr-1 text-[11px] font-semibold leading-none text-white">
@@ -525,100 +530,19 @@ export function MetaAdsFunnelActionFlow({
             </TooltipProvider>
             <div className="mt-2 flex shrink-0">
               {stages.map((stage, index) => (
-                <p key={`${stage.key}-label-${index}`} className="min-w-0 flex-1 truncate px-1 text-center text-[11px] text-[#65676b]">
-                  {stage.label}
-                </p>
+                <div key={`${stage.key}-label-${index}`} className="min-w-0 flex-1 px-1 text-center">
+                  <p className="truncate text-[11px] font-semibold leading-4 text-[#1c1e21]">
+                    {stage.productValue != null && stage.productValueKey
+                      ? formatMetaMetricValue(stage.productValueKey, stage.productValue, currency)
+                      : "\u00a0"}
+                  </p>
+                  <p className="truncate text-[11px] text-[#65676b]">{stage.label}</p>
+                </div>
               ))}
             </div>
             </>
           )}
         </div>
-
-        <aside className="flex w-[168px] shrink-0 flex-col rounded-xl border border-[#e5e7eb] p-3">
-          <div className="flex items-center gap-1.5">
-            <p className="text-sm font-semibold text-[#1c1e21]">
-              {t("digitalMarketing.metaAds.funnelConversion", "Conversion rate")}
-            </p>
-            <FormInfoHint
-              side="left"
-              ariaLabel={t("digitalMarketing.metaAds.funnelActionConversionInfo", "Conversion rate formula")}
-              content={
-                <div className="space-y-2">
-                  <p>
-                    {t(
-                      "digitalMarketing.metaAds.funnelActionConversionHint",
-                      "{{last}} divided by {{first}}, then multiplied by 100.",
-                      { first: first?.label ?? "", last: last?.label ?? "" },
-                    )}
-                  </p>
-                  <p className="font-medium">
-                    {t(
-                      "digitalMarketing.metaAds.funnelActionConversionFormula",
-                      "Conversion rate = last step ÷ first step × 100",
-                    )}
-                  </p>
-                  {sharedOnly ? (
-                    <p>
-                      {t(
-                        "digitalMarketing.metaAds.funnelActionConversionShared",
-                        "Both steps count shared-item actions only.",
-                      )}
-                    </p>
-                  ) : null}
-                  {compareDays != null ? (
-                    <p>
-                      {t(
-                        "digitalMarketing.metaAds.funnelActionConversionDelta",
-                        "The change compares this rate with the same steps over the previous {{count}} days.",
-                        { count: compareDays },
-                      )}
-                    </p>
-                  ) : null}
-                </div>
-              }
-            />
-          </div>
-          {sharedOnly ? (
-            <p className="mt-0.5 text-[11px] leading-4 text-[#65676b]">
-              ({t("digitalMarketing.metaAds.funnelActionShared", "Shared item only")})
-            </p>
-          ) : null}
-          <p className="mt-4 text-2xl font-semibold tracking-tight text-[#1c1e21]">
-            {conversion == null ? "—" : `${conversion.toFixed(2)}%`}
-          </p>
-          {delta != null && compareDays != null ? (
-            <p className={`mt-1 text-xs font-medium ${delta < 0 ? "text-[#e41e3f]" : "text-[#0a7a32]"}`}>
-              {delta > 0 ? "+" : ""}
-              {delta.toFixed(2)}%{" "}
-              <span className="font-normal text-[#65676b]">
-                {t("digitalMarketing.metaAds.funnelActionVsPrev", "vs prev {{count}} day", {
-                  count: compareDays,
-                })}
-              </span>
-            </p>
-          ) : null}
-          <div className="mt-auto pt-4">
-            <Select value={presetValue} onValueChange={onPresetChange}>
-              <SelectTrigger className="h-9 w-full gap-2 rounded-lg border border-[#e5e7eb] bg-white px-2.5 text-sm font-medium text-[#1c1e21] shadow-none">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="min-w-[12rem]">
-                {META_ADS_FUNNEL_PRESETS.map((preset) => (
-                  <SelectItem key={preset.id} value={preset.id}>
-                    {preset.id === META_ADS_FUNNEL_PRESET_CPAS_ID
-                      ? t("digitalMarketing.metaAds.funnelPresetCpas", preset.name)
-                      : preset.name}
-                  </SelectItem>
-                ))}
-                {presetCustom ? (
-                  <SelectItem value="custom">
-                    {t("digitalMarketing.metaAds.funnelPresetCustom", "Custom")}
-                  </SelectItem>
-                ) : null}
-              </SelectContent>
-            </Select>
-          </div>
-        </aside>
       </div>
     </section>
   );

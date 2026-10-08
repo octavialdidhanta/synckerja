@@ -419,67 +419,62 @@ export default function TrafficPage() {
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex min-h-full min-w-0 flex-col">
               <div className="mb-1 min-w-0 shrink-0">
-                <HeaderAndTab />
+                <HeaderAndTab
+                  actions={
+                    <>
+                      <TrafficWebIdSelect
+                        value={selectedWebId}
+                        options={accessibleWebIds}
+                        loading={webIdsQuery.isLoading}
+                        canDisconnect={canManageWebId}
+                        disconnectingWebId={disconnectingWebId}
+                        onValueChange={setWebId}
+                        onConnectClick={() => setConnectOpen(true)}
+                        onDisconnectClick={setDisconnectConfirmWebId}
+                      />
+                      {filtersHydrated ? (
+                        <GoogleAdsDateRangePicker
+                          value={dateSelection}
+                          onChange={setDateSelection}
+                          accountEarliestYmd={accountDateBounds?.earliest_date}
+                          calendarYearPresetYears={calendarYearPresetYears}
+                          calendarYearFilterHint={t(
+                            "digitalMarketing.report.calendarYearFilterHint",
+                            "Open the month header dropdown and click a year (e.g. 2023) to filter that calendar year.",
+                          )}
+                          allTimePopoverHint={t(
+                            "digitalMarketing.traffic.allTimeRangeHint",
+                            "All time uses the same date range as Report and Google Ads tabs.",
+                          )}
+                        />
+                      ) : (
+                        <div
+                          className="h-9 w-[12rem] shrink-0 animate-pulse rounded-md border border-gray-200 bg-white"
+                          aria-hidden
+                        />
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 shrink-0 bg-white text-xs"
+                        onClick={handleSync}
+                        disabled={syncing || !effectiveWebId}
+                      >
+                        {syncing ? "Syncing…" : "Sync data"}
+                      </Button>
+                      <Button size="sm" className="h-9 shrink-0 gap-2">
+                        <BarChart3 className="h-4 w-4" />
+                        Export
+                      </Button>
+                    </>
+                  }
+                />
               </div>
 
               <ModuleShellContentGate>
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-col gap-2">
                   <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                  <div className="shrink-0 border-b border-gray-200 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h2 className="text-base font-semibold text-gray-900">Traffic overview</h2>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <TrafficWebIdSelect
-                          value={selectedWebId}
-                          options={accessibleWebIds}
-                          loading={webIdsQuery.isLoading}
-                          canDisconnect={canManageWebId}
-                          disconnectingWebId={disconnectingWebId}
-                          onValueChange={setWebId}
-                          onConnectClick={() => setConnectOpen(true)}
-                          onDisconnectClick={setDisconnectConfirmWebId}
-                        />
-                        {filtersHydrated ? (
-                          <GoogleAdsDateRangePicker
-                            value={dateSelection}
-                            onChange={setDateSelection}
-                            accountEarliestYmd={accountDateBounds?.earliest_date}
-                            calendarYearPresetYears={calendarYearPresetYears}
-                            calendarYearFilterHint={t(
-                              "digitalMarketing.report.calendarYearFilterHint",
-                              "Open the month header dropdown and click a year (e.g. 2023) to filter that calendar year.",
-                            )}
-                            allTimePopoverHint={t(
-                              "digitalMarketing.traffic.allTimeRangeHint",
-                              "All time uses the same date range as Report and Google Ads tabs.",
-                            )}
-                          />
-                        ) : (
-                          <div
-                            className="h-9 w-[12rem] animate-pulse rounded-md bg-muted"
-                            aria-hidden
-                          />
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs"
-                          onClick={handleSync}
-                          disabled={syncing || !effectiveWebId}
-                        >
-                          {syncing ? "Syncing…" : "Sync data"}
-                        </Button>
-                        <Button size="sm" className="gap-2">
-                          <BarChart3 className="h-4 w-4" />
-                          Export
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <div className="grid grid-cols-12 gap-3">
                       {pendingApprovalWebIds.length > 0 ? (

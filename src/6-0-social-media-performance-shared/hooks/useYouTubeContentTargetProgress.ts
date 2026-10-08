@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
+import { useInsightPreviousPeriodActuals } from "@/6-0-social-media-performance-shared/hooks/useSocialMediaInsightPeriodActuals";
 import { useSocialMediaInsightTargetsQuery } from "@/6-0-social-media-performance-shared/hooks/useSocialMediaInsightTargetsQuery";
 import {
   computeInsightTargetProgress,
@@ -41,6 +42,7 @@ export function useYouTubeContentTargetProgress(args: {
       : null;
 
   const targetsQuery = useSocialMediaInsightTargetsQuery(periodKey);
+  const previousActuals = useInsightPreviousPeriodActuals(periodKey);
 
   const progressList: InsightTargetProgress[] = useMemo(() => {
     if (!enabled || !args.summary) return [];
@@ -56,6 +58,7 @@ export function useYouTubeContentTargetProgress(args: {
       platformFilter: "youtube",
       dateSelection,
       targetRows: targetsQuery.data ?? [],
+      previousActualsByAccount: previousActuals.actualsByAccount,
     });
   }, [
     enabled,
@@ -64,6 +67,7 @@ export function useYouTubeContentTargetProgress(args: {
     args.accountLabel,
     dateSelection,
     targetsQuery.data,
+    previousActuals.actualsByAccount,
   ]);
 
   const progressByMetric = useMemo(
@@ -74,7 +78,8 @@ export function useYouTubeContentTargetProgress(args: {
   return {
     progressList,
     progressByMetric,
-    targetsLoading: enabled && targetsQuery.isLoading && periodKey != null,
+    targetsLoading:
+      enabled && periodKey != null && (targetsQuery.isLoading || previousActuals.isLoading),
     periodKey,
     showProgress: resolvedPeriod != null,
   };

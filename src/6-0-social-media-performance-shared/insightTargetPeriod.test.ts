@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   countDaysInclusive,
+  previousInsightTargetPeriod,
   prorateTargetValue,
   resolveInsightTargetPeriod,
 } from "@/6-0-social-media-performance-shared/insightTargetPeriod";
@@ -107,5 +108,28 @@ describe("countDaysInclusive", () => {
   it("counts inclusive days in a month slice", () => {
     const days = countDaysInclusive(new Date(2026, 5, 1), new Date(2026, 5, 10));
     expect(days).toBe(10);
+  });
+});
+
+describe("previousInsightTargetPeriod", () => {
+  it("uses the previous month, including the year boundary", () => {
+    expect(previousInsightTargetPeriod({ periodType: "monthly", year: 2026, month: 10 })).toEqual({
+      periodType: "monthly",
+      year: 2026,
+      month: 9,
+    });
+    expect(previousInsightTargetPeriod({ periodType: "monthly", year: 2026, month: 1 })).toEqual({
+      periodType: "monthly",
+      year: 2025,
+      month: 12,
+    });
+  });
+
+  it("uses the previous quarter, including the year boundary", () => {
+    expect(previousInsightTargetPeriod({ periodType: "quarterly", year: 2026, quarter: 1 })).toEqual({
+      periodType: "quarterly",
+      year: 2025,
+      quarter: 4,
+    });
   });
 });

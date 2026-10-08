@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { endOfDay } from "date-fns";
+import { HeaderAndTabActionsPortal } from "@/6-0-traffic/container/HeaderAndTabActions";
 import { SocialMediaPerformanceModuleShell } from "@/6-0-social-media-performance/layout/SocialMediaPerformanceModuleShell";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
@@ -251,11 +252,38 @@ function YouTubeContentPerformancePageContent() {
 
   const rawPageLoadPending = gatePending || reportingPending || (canManage && settingsPending);
 
+  const headerActions = !isSettingsView ? (
+    <HeaderAndTabActionsPortal>
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        className="h-9 w-9 shrink-0 bg-white"
+        aria-label={t("digitalMarketing.youtubeContent.refresh", "Refresh")}
+        disabled={!reportingEnabled || !channelId || isRefreshing}
+        onClick={() => void handleRefresh()}
+      >
+        {isRefreshing ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <RefreshCw className="h-4 w-4" />
+        )}
+      </Button>
+      <TikTokAdsDateRangePicker
+        value={dateSelection}
+        onChange={setDateSelection}
+        calendarYearPresetYears={calendarYearPresetYears}
+      />
+    </HeaderAndTabActionsPortal>
+  ) : null;
+
   if (rawPageLoadPending) {
-    return null;
+    return headerActions;
   }
 
   return (
+    <>
+    {headerActions}
     <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                   {!canManage ? (
@@ -345,33 +373,10 @@ function YouTubeContentPerformancePageContent() {
                                 </Alert>
                               ) : null}
 
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <YouTubePerformancePanelTabs
-                                  panel={panel}
-                                  onPanelChange={handlePanelChange}
-                                />
-                                <div className="flex flex-wrap items-center justify-end gap-2">
-                                  <Button
-                                    type="button"
-                                    size="icon"
-                                    variant="outline"
-                                    aria-label={t("digitalMarketing.youtubeContent.refresh", "Refresh")}
-                                    disabled={!reportingEnabled || !channelId || isRefreshing}
-                                    onClick={() => void handleRefresh()}
-                                  >
-                                    {isRefreshing ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <RefreshCw className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                  <TikTokAdsDateRangePicker
-                                    value={dateSelection}
-                                    onChange={setDateSelection}
-                                    calendarYearPresetYears={calendarYearPresetYears}
-                                  />
-                                </div>
-                              </div>
+                              <YouTubePerformancePanelTabs
+                                panel={panel}
+                                onPanelChange={handlePanelChange}
+                              />
                             </div>
 
                             {panel === "videos" ? (
@@ -431,5 +436,6 @@ function YouTubeContentPerformancePageContent() {
                   )}
                 </div>
     </div>
+    </>
   );
 }

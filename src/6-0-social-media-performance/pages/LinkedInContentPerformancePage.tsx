@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { endOfDay } from "date-fns";
+import { HeaderAndTabActionsPortal } from "@/6-0-traffic/container/HeaderAndTabActions";
 import { SocialMediaPerformanceModuleShell } from "@/6-0-social-media-performance/layout/SocialMediaPerformanceModuleShell";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
@@ -136,12 +137,40 @@ function LinkedInContentPerformancePageContent() {
 
   const rawPageLoadPending = gatePending || reportingPending || (canManage && settingsPending);
 
+  const showLinkedInChrome =
+    settings?.serverConfigured === false || (!reportingPending && !reportingEnabled);
+  const headerActions = !isSettingsView ? (
+    <HeaderAndTabActionsPortal>
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        className="h-9 w-9 shrink-0 bg-white"
+        aria-label={t("digitalMarketing.linkedinContent.refresh", "Refresh")}
+        disabled={!reportingEnabled || !pageId || postsQuery.isFetching}
+        onClick={() => void handleRefresh()}
+      >
+        {postsQuery.isFetching ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <RefreshCw className="h-4 w-4" />
+        )}
+      </Button>
+      <TikTokAdsDateRangePicker
+        value={dateSelection}
+        onChange={setDateSelection}
+        calendarYearPresetYears={calendarYearPresetYears}
+      />
+    </HeaderAndTabActionsPortal>
+  ) : null;
+
   if (rawPageLoadPending) {
-    return null;
+    return headerActions;
   }
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {headerActions}
               <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                   {!canManage ? (
@@ -192,6 +221,7 @@ function LinkedInContentPerformancePageContent() {
                           />
                         ) : (
                           <>
+                            {showLinkedInChrome ? (
                             <div className="shrink-0 space-y-3 border-b border-gray-200 p-4 [@media(max-height:900px)]:space-y-2 [@media(max-height:900px)]:p-3">
                               {settings?.serverConfigured === false ? (
                                 <Alert variant="destructive">
@@ -208,7 +238,7 @@ function LinkedInContentPerformancePageContent() {
                                     )}
                                   </AlertDescription>
                                 </Alert>
-                              ) : !reportingPending && !reportingEnabled ? (
+                              ) : (
                                 <Alert>
                                   <AlertTitle>
                                     {t(
@@ -229,30 +259,9 @@ function LinkedInContentPerformancePageContent() {
                                     </Link>
                                   </AlertDescription>
                                 </Alert>
-                              ) : null}
-
-                              <div className="flex flex-wrap items-center justify-end gap-2">
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant="outline"
-                                  aria-label={t("digitalMarketing.linkedinContent.refresh", "Refresh")}
-                                  disabled={!reportingEnabled || !pageId || postsQuery.isFetching}
-                                  onClick={() => void handleRefresh()}
-                                >
-                                  {postsQuery.isFetching ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <RefreshCw className="h-4 w-4" />
-                                  )}
-                                </Button>
-                                <TikTokAdsDateRangePicker
-                                  value={dateSelection}
-                                  onChange={setDateSelection}
-                                  calendarYearPresetYears={calendarYearPresetYears}
-                                />
-                              </div>
+                              )}
                             </div>
+                            ) : null}
 
                             <LinkedInContentSummaryBar
                               summary={postsQuery.data?.summary}

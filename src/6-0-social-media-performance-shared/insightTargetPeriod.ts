@@ -127,6 +127,22 @@ export function effectiveTargetForMetric(
   return prorateTargetValue(rawTarget, elapsedDays, totalDays);
 }
 
+/** October uses September. Q1 uses Q4 of the previous year. */
+export function previousInsightTargetPeriod(period: InsightTargetPeriodKey): InsightTargetPeriodKey {
+  if (period.periodType === "monthly") {
+    const month = period.month ?? 1;
+    if (month <= 1) {
+      return { periodType: "monthly", year: period.year - 1, month: 12 };
+    }
+    return { periodType: "monthly", year: period.year, month: month - 1 };
+  }
+  const quarter = period.quarter ?? 1;
+  if (quarter <= 1) {
+    return { periodType: "quarterly", year: period.year - 1, quarter: 4 };
+  }
+  return { periodType: "quarterly", year: period.year, quarter: quarter - 1 };
+}
+
 export function periodKeyToQueryFilter(period: InsightTargetPeriodKey): {
   period_type: InsightTargetPeriodType;
   year: number;

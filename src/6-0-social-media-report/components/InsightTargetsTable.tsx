@@ -48,6 +48,7 @@ function platformLabelKey(platform: InsightTargetPlatform): string {
     linkedin: "digitalMarketing.socialMediaPerformance.platformLinkedIn",
     instagram: "digitalMarketing.socialMediaPerformance.platformInstagram",
     facebook: "digitalMarketing.socialMediaPerformance.platformFacebook",
+    threads: "digitalMarketing.socialMediaPerformance.platformThreads",
   };
   return map[platform];
 }
@@ -67,6 +68,7 @@ function metricLabelKey(metric: InsightTargetMetric): string {
 type Props = {
   accountsByPlatform: Record<InsightTargetPlatform, InsightTargetAccountRef[]>;
   formMap: Record<string, string>;
+  baselineMap: Record<string, string>;
   assignmentsMap: Record<string, string>;
   getAccountActuals: (account: InsightTargetAccountRef) => PlatformPeriodActuals;
   actualLabel: string;
@@ -78,6 +80,7 @@ type Props = {
   inputsDisabled?: boolean;
   onAssigneeChange: (account: InsightTargetAccountRef, employeeId: string | null) => void;
   onCellChange: (account: InsightTargetAccountRef, metric: InsightTargetMetric, raw: string) => void;
+  onBaselineChange: (account: InsightTargetAccountRef, metric: InsightTargetMetric, raw: string) => void;
 };
 
 function orderedAccounts(
@@ -90,12 +93,31 @@ function orderedAccounts(
   return list;
 }
 
+function sumNumericCells(
+  accounts: InsightTargetAccountRef[],
+  metric: InsightTargetMetric,
+  values: Record<string, string>,
+): number | null {
+  let sum = 0;
+  let hasValue = false;
+  for (const account of accounts) {
+    const raw = values[insightTargetCellKey(account.platform, account.accountId, metric)]?.trim() ?? "";
+    if (!raw) continue;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0) continue;
+    sum += parsed;
+    hasValue = true;
+  }
+  return hasValue ? sum : null;
+}
+
 function computeMetricAggregates(
   accounts: InsightTargetAccountRef[],
   getAccountActuals: (account: InsightTargetAccountRef) => PlatformPeriodActuals,
   formMap: Record<string, string>,
+  baselineMap: Record<string, string>,
   periodNotStarted: boolean,
-): Record<InsightTargetMetric, { actual: number | null; target: number | null }> {
+): Record<InsightTargetMetric, { actual: number | null; target: number | null; baseline: number | null }> {
   const accountActuals = accounts.map((account) => getAccountActuals(account));
   const actualSummary = periodNotStarted
     ? null
@@ -103,36 +125,23 @@ function computeMetricAggregates(
 
   const result = {} as Record<
     InsightTargetMetric,
-    { actual: number | null; target: number | null }
+    { actual: number | null; target: number | null; baseline: number | null }
   >;
 
   for (const metric of INSIGHT_TARGET_METRICS) {
     if (metric === "avg_engagement_rate") {
       result[metric] = {
-        actual: actualSummary
-          ? actualValueForMetric(actualSummary, metric)
-          : null,
+        actual: actualSummary ? actualValueForMetric(actualSummary, metric) : null,
         target: aggregateEngagementTargetsWeighted(accounts, getAccountActuals, formMap),
+        baseline: aggregateEngagementTargetsWeighted(accounts, getAccountActuals, baselineMap),
       };
       continue;
     }
 
-    let targetSum = 0;
-    let hasTarget = false;
-    for (const account of accounts) {
-      const rawTarget =
-        formMap[insightTargetCellKey(account.platform, account.accountId, metric)]?.trim() ??
-        "";
-      if (!rawTarget) continue;
-      const parsed = Number(rawTarget);
-      if (!Number.isFinite(parsed) || parsed < 0) continue;
-      targetSum += parsed;
-      hasTarget = true;
-    }
-
     result[metric] = {
       actual: actualSummary ? actualValueForMetric(actualSummary, metric) : null,
-      target: hasTarget ? targetSum : null,
+      target: sumNumericCells(accounts, metric, formMap),
+      baseline: sumNumericCells(accounts, metric, baselineMap),
     };
   }
 
@@ -144,12 +153,14 @@ type MetricCellProps = {
   metric: InsightTargetMetric;
   actuals: PlatformPeriodActuals;
   formMap: Record<string, string>;
+  baselineMap: Record<string, string>;
   actualLabel: string;
   periodNotStarted: boolean;
   showActualsLoading: boolean;
   targetsLoading: boolean;
   inputsDisabled: boolean;
   onCellChange: (account: InsightTargetAccountRef, metric: InsightTargetMetric, raw: string) => void;
+  onBaselineChange: (account: InsightTargetAccountRef, metric: InsightTargetMetric, raw: string) => void;
 };
 
 function MetricCell({
@@ -157,12 +168,14 @@ function MetricCell({
   metric,
   actuals,
   formMap,
+  baselineMap,
   actualLabel,
   periodNotStarted,
   showActualsLoading,
   targetsLoading,
   inputsDisabled,
   onCellChange,
+  onBaselineChange,
 }: MetricCellProps) {
   const { t } = useAppTranslation();
   const rawActual = actualValueForMetric(actuals, metric);
@@ -181,6 +194,11 @@ function MetricCell({
     rawActual != null &&
     rawActual > 0;
 
+  const beforeLabel = t("digitalMarketing.socialMediaInsightTargets.beforeLabel", "Before");
+  const beforeHint = t(
+    "digitalMarketing.socialMediaInsightTargets.beforeHint",
+    "Previous period actual. Leave it to use that actual, or type a number to override.",
+  );
   const targetLabel = t("digitalMarketing.socialMediaInsightTargets.targetLabel", "Target");
   const metricLabelClass =
     "w-14 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground";
@@ -190,9 +208,42 @@ function MetricCell({
   return (
     <div className="min-w-[5.5rem]">
       {showActualsLoading ? (
-        <Skeleton className="h-[3.25rem] w-full rounded-md" />
+        <Skeleton className="h-[4.75rem] w-full rounded-md" />
       ) : (
         <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+          <div className="flex items-center gap-1.5 border-b border-gray-100 px-2 py-0.5">
+            <span className={metricLabelClass}>{beforeLabel}</span>
+            <div className="relative min-w-0 flex-1">
+              <Input
+                type="number"
+                min={0}
+                step={metric === "avg_engagement_rate" ? 0.01 : 1}
+                className={cn(
+                  metricValueColClass,
+                  "h-7 w-full rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0",
+                  "[appearance:textfield] [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+                  metric === "avg_engagement_rate" && "pr-3",
+                  (baselineMap[cellKey] ?? "") ? "text-gray-800" : "text-muted-foreground/40",
+                )}
+                disabled={inputsDisabled || targetsLoading}
+                aria-label={beforeLabel}
+                title={beforeHint}
+                value={baselineMap[cellKey] ?? ""}
+                onChange={(e) => onBaselineChange(account, metric, e.target.value)}
+              />
+              {metric === "avg_engagement_rate" ? (
+                <span
+                  className={cn(
+                    "pointer-events-none absolute inset-y-0 right-0 flex items-center text-xs font-semibold tabular-nums",
+                    (baselineMap[cellKey] ?? "") ? "text-gray-800" : "text-muted-foreground/40",
+                  )}
+                  aria-hidden
+                >
+                  %
+                </span>
+              ) : null}
+            </div>
+          </div>
           <button
             type="button"
             className={cn(
@@ -259,6 +310,7 @@ function MetricCell({
 type MetricSummaryCellProps = {
   metric: InsightTargetMetric;
   actual: number | null;
+  baseline: number | null;
   target: number | null;
   actualLabel: string;
   periodNotStarted: boolean;
@@ -268,12 +320,14 @@ type MetricSummaryCellProps = {
 function MetricSummaryCell({
   metric,
   actual,
+  baseline,
   target,
   actualLabel,
   periodNotStarted,
   showActualsLoading,
 }: MetricSummaryCellProps) {
   const { t } = useAppTranslation();
+  const beforeLabel = t("digitalMarketing.socialMediaInsightTargets.beforeLabel", "Before");
   const targetLabel = t("digitalMarketing.socialMediaInsightTargets.targetLabel", "Target");
   const metricLabelClass =
     "w-14 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground";
@@ -283,14 +337,27 @@ function MetricSummaryCell({
   const formattedActual = periodNotStarted
     ? t("digitalMarketing.socialMediaInsightTargets.periodNotStarted", "Not started")
     : formatActualReferenceValue(metric, actual);
+  const formattedBefore = formatActualReferenceValue(metric, baseline);
   const formattedTarget = formatActualReferenceValue(metric, target);
 
   return (
     <div className="min-w-[5.5rem]">
       {showActualsLoading ? (
-        <Skeleton className="h-[3.25rem] w-full rounded-md" />
+        <Skeleton className="h-[4.75rem] w-full rounded-md" />
       ) : (
         <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+          <div className="flex items-center gap-1.5 border-b border-gray-100 px-2 py-1">
+            <span className={metricLabelClass}>{beforeLabel}</span>
+            <span
+              className={cn(
+                metricValueColClass,
+                "truncate",
+                baseline == null && "text-muted-foreground/40",
+              )}
+            >
+              {formattedBefore}
+            </span>
+          </div>
           <div className="flex items-center gap-1.5 border-b border-gray-100 bg-gray-50/90 px-2 py-1">
             <span className={metricLabelClass}>{actualLabel}</span>
             <span className={cn(metricValueColClass, "truncate")}>{formattedActual}</span>
@@ -316,6 +383,7 @@ function MetricSummaryCell({
 export function InsightTargetsTable({
   accountsByPlatform,
   formMap,
+  baselineMap,
   assignmentsMap,
   getAccountActuals,
   actualLabel,
@@ -327,13 +395,14 @@ export function InsightTargetsTable({
   inputsDisabled = false,
   onAssigneeChange,
   onCellChange,
+  onBaselineChange,
 }: Props) {
   const { t } = useAppTranslation();
   const { organizationId } = useCurrentOrg();
   const accounts = orderedAccounts(accountsByPlatform);
   const metricAggregates = useMemo(
-    () => computeMetricAggregates(accounts, getAccountActuals, formMap, periodNotStarted),
-    [accounts, getAccountActuals, formMap, periodNotStarted],
+    () => computeMetricAggregates(accounts, getAccountActuals, formMap, baselineMap, periodNotStarted),
+    [accounts, getAccountActuals, formMap, baselineMap, periodNotStarted],
   );
 
   return (
@@ -428,12 +497,14 @@ export function InsightTargetsTable({
                       metric={metric}
                       actuals={actuals}
                       formMap={formMap}
+                      baselineMap={baselineMap}
                       actualLabel={actualLabel}
                       periodNotStarted={periodNotStarted}
                       showActualsLoading={showActualsLoading}
                       targetsLoading={targetsLoading}
                       inputsDisabled={inputsDisabled}
                       onCellChange={onCellChange}
+                      onBaselineChange={onBaselineChange}
                     />
                   </TableCell>
                 ))}
@@ -452,6 +523,7 @@ export function InsightTargetsTable({
                   <MetricSummaryCell
                     metric={metric}
                     actual={metricAggregates[metric].actual}
+                    baseline={metricAggregates[metric].baseline}
                     target={metricAggregates[metric].target}
                     actualLabel={actualLabel}
                     periodNotStarted={periodNotStarted}

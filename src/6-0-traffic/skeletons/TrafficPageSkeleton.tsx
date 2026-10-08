@@ -15,22 +15,20 @@ export function TrafficPageSkeleton() {
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex min-h-full flex-col">
                 <div className="mb-1 min-w-0 shrink-0">
-                  <HeaderAndTab />
+                  <HeaderAndTab
+                    actions={
+                      <>
+                        <Skeleton className="h-9 w-40 shrink-0 rounded-md" />
+                        <Skeleton className="h-9 w-52 shrink-0 rounded-md" />
+                        <Skeleton className="h-9 w-24 shrink-0 rounded-md" />
+                        <Skeleton className="h-9 w-24 shrink-0 rounded-md" />
+                      </>
+                    }
+                  />
                 </div>
 
                 <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                   <div className="col-span-12 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <div className="shrink-0 border-b border-gray-200 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <Skeleton className="h-6 w-44" />
-                        <Skeleton className="h-9 w-28" />
-                      </div>
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        <Skeleton className="h-9 w-full" />
-                        <Skeleton className="h-9 w-full" />
-                        <Skeleton className="h-9 w-full" />
-                      </div>
-                    </div>
                     <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       <div className="grid grid-cols-12 gap-3">
                         <div className="col-span-12 lg:col-span-4">

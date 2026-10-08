@@ -1,7 +1,6 @@
-import { ArrowLeft } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { HeaderAndTab } from "@/6-0-traffic/container/HeaderAndTab";
 import { DmReportTargetsSettingsForm } from "@/6-0-report/components/DmReportTargetsSettingsForm";
 import { DigitalMarketingReportTargetsSettingsPageSkeleton } from "@/6-0-report/skeletons/DigitalMarketingReportTargetsSettingsPageSkeleton";
@@ -13,9 +12,7 @@ import type { DmReportTargetPeriodKey } from "@/6-0-digital-marketing-shared/dmR
 import { useOmnichannelSurveySettingsAdmin } from "@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin";
 import { useOrgBootstrapPending } from "@/shared/auth/hooks/useOrgBootstrapPending";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
-import { Button } from "@/shared/components/ui/button";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
-import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 export default function DigitalMarketingReportTargetsSettingsPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
@@ -55,7 +52,6 @@ function DigitalMarketingReportTargetsSettingsPageGate() {
 }
 
 function DigitalMarketingReportTargetsSettingsPageRoot() {
-  const { t } = useAppTranslation();
   const [searchParams] = useSearchParams();
 
   const initialPeriod = useMemo((): Partial<DmReportTargetPeriodKey> | undefined => {
@@ -84,28 +80,6 @@ function DigitalMarketingReportTargetsSettingsPageRoot() {
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2">
                 <div className="col-span-12">
                   <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h2 className="text-base font-semibold text-gray-900">
-                          {t(
-                            "digitalMarketing.dmReportTargets.title",
-                            "Digital Marketing KPI targets",
-                          )}
-                        </h2>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {t(
-                            "digitalMarketing.dmReportTargets.subtitle",
-                            "Set monthly or quarterly targets per paid ads account (Google, Meta, TikTok) for the Digital Marketing Report.",
-                          )}
-                        </p>
-                      </div>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link to={DIGITAL_MARKETING_REPORT_PATH}>
-                          <ArrowLeft className="mr-2 h-4 w-4" />
-                          {t("digitalMarketing.dmReportTargets.backToReport", "Back to report")}
-                        </Link>
-                      </Button>
-                    </div>
                     <DmReportTargetsSettingsForm initialPeriod={initialPeriod} />
                   </div>
                 </div>

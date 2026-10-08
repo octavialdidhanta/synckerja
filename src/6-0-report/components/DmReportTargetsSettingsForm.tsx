@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { DmReportTargetMetricPicker } from "@/6-0-report/components/DmReportTargetMetricPicker";
 import { DmReportTargetsTable } from "@/6-0-report/components/DmReportTargetsTable";
@@ -8,6 +9,7 @@ import {
   channelLabel,
   reportMetricValueKind,
 } from "@/6-0-digital-marketing-shared/dmReportTargetMetricMapping";
+import { DIGITAL_MARKETING_REPORT_PATH } from "@/6-0-digital-marketing-shared/dmReportTargetPaths";
 import { actualValueForAccount } from "@/6-0-digital-marketing-shared/dmReportTargetActuals";
 import { savedDmBaselineValue } from "@/6-0-digital-marketing-shared/dmReportTargetBaseline";
 import {
@@ -65,6 +67,18 @@ import {
 } from "@/shared/components/ui/select";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { ReportTableMetricKey } from "@/6-0-digital-marketing-shared/reportSummaryMetrics";
+
+function BackToReportButton() {
+  const { t } = useAppTranslation();
+  const label = t("digitalMarketing.dmReportTargets.backToReport", "Back to report");
+  return (
+    <Button variant="outline" size="sm" className="ml-auto h-9 w-9 shrink-0 p-0" asChild>
+      <Link to={DIGITAL_MARKETING_REPORT_PATH} aria-label={label} title={label}>
+        <ArrowLeft className="h-4 w-4" />
+      </Link>
+    </Button>
+  );
+}
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const QUARTERS = [1, 2, 3, 4] as const;
@@ -709,10 +723,11 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
   if (showPageSkeleton) {
     return (
       <div className="space-y-4">
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           {Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="h-9 w-32" />
           ))}
+          <BackToReportButton />
         </div>
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-48 w-full" />
@@ -830,16 +845,8 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
             </SelectContent>
           </Select>
         </div>
+        <BackToReportButton />
       </div>
-
-      {inputsDisabled ? (
-        <p className="text-xs text-muted-foreground">
-          {t(
-            "digitalMarketing.dmReportTargets.selectCompanyObjectiveHint",
-            "Select a Company Objective to choose metrics and enter targets.",
-          )}
-        </p>
-      ) : null}
 
       {accounts.length === 0 ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -848,14 +855,7 @@ export function DmReportTargetsSettingsForm({ initialPeriod }: Props) {
             "No active paid ads accounts found. Connect Google Ads, Meta Ads, or TikTok Ads in Digital Marketing settings first.",
           )}
         </p>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          {t(
-            "digitalMarketing.dmReportTargets.perChannelHint",
-            "Each channel has its own metrics and targets. Actual values match the Digital Marketing Report for the selected period.",
-          )}
-        </p>
-      )}
+      ) : null}
 
       <div className="space-y-6">
         {DM_REPORT_CHANNELS.map((channel) => {

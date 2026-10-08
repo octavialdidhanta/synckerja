@@ -7,6 +7,11 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Columns3, Loader2, RefreshCw } from "lucide-react";
 import type { GoogleAdsMetricsRow } from "@/google-ads/metrics/types";
 import { HeaderAndTab } from "@/6-0-traffic/container/HeaderAndTab";
+import {
+  HeaderAndTabActionsPortal,
+  HeaderAndTabActionsProvider,
+  useHeaderAndTabActionsHost,
+} from "@/6-0-traffic/container/HeaderAndTabActions";
 import { ModuleHeaderBelowContentGate } from "@/shared/layouts/ModuleHeaderBelowContentGate";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
@@ -103,23 +108,26 @@ function parseMetricsPageOffset(token: string): number {
 
 export default function GoogleAdsMetricsPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
+  const { host, slot } = useHeaderAndTabActionsHost();
   if (orgBootstrapPending) return <GoogleAdsMetricsPageSkeleton />;
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <ModuleHeaderBelowContentGate
-              pagePath="/digital-marketing/google-ads"
-              header={<HeaderAndTab />}
-              className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-            >
-              <GoogleAdsMetricsPageContent />
-            </ModuleHeaderBelowContentGate>
+    <HeaderAndTabActionsProvider host={host}>
+      <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col px-4 pb-2">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <ModuleHeaderBelowContentGate
+                pagePath="/digital-marketing/google-ads"
+                header={<HeaderAndTab actions={slot} />}
+                className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+              >
+                <GoogleAdsMetricsPageContent />
+              </ModuleHeaderBelowContentGate>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </HeaderAndTabActionsProvider>
   );
 }
 
@@ -904,8 +912,76 @@ function GoogleAdsMetricsPageContent() {
     };
   }, [rawPageLoadPending]);
 
+  const showCampaignFilters = Boolean(reportingEnabled && effectiveCustomerId);
+  const showFilterChrome =
+    (!reportingPending && !reportingEnabled) ||
+    showTokenDenied ||
+    (unsupportedBannerLabels?.length ?? 0) > 0 ||
+    showReconnectOAuth ||
+    showCampaignFilters;
+
+  const headerActions = !isSettingsView ? (
+    <HeaderAndTabActionsPortal>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="h-9 w-9 shrink-0 bg-white"
+        title={t(
+          "digitalMarketing.googleAds.refreshData",
+          "Refresh accounts and metrics from Google",
+        )}
+        disabled={
+          !reportingEnabled || isRefreshing || syncAccessibleAccounts.isPending || !metricsFilters
+        }
+        onClick={() => void handleRefresh()}
+      >
+        {isRefreshing || syncAccessibleAccounts.isPending ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <RefreshCw className="h-4 w-4" />
+        )}
+        </Button>
+      {entity === "campaign" ? (
+        <GoogleAdsTrafficWebIdSelect
+          organizationId={organizationId}
+          disabled={!reportingEnabled}
+          onChanged={() => {
+            resetPagination();
+            void metricsQuery.refetch();
+          }}
+        />
+      ) : null}
+      <GoogleAdsDateRangePicker
+        value={dateSelection}
+        accountEarliestYmd={accountDateBounds?.earliest_date}
+        calendarYearPresetYears={calendarYearPresetYears}
+        calendarYearFilterHint={t(
+          "digitalMarketing.googleAds.calendarYearFilterHint",
+          "Open the month header dropdown and click a year (e.g. 2023) to filter that calendar year.",
+        )}
+        onChange={(next) => {
+          setDateSelection(next);
+          resetPagination();
+        }}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-9 shrink-0 bg-white"
+        onClick={() => setMetricsDialogOpen(true)}
+        disabled={!reportingEnabled}
+      >
+        <Columns3 className="mr-2 h-4 w-4" />
+        {t("digitalMarketing.googleAds.metricsButton", "Metrics")}
+      </Button>
+    </HeaderAndTabActionsPortal>
+  ) : null;
+
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {headerActions}
       <div
         className={cn(
           "flex min-h-0 flex-1 flex-col",
@@ -964,6 +1040,7 @@ function GoogleAdsMetricsPageContent() {
                             />
                           ) : (
                           <>
+                          {showFilterChrome ? (
                           <div className="shrink-0 space-y-3 border-b border-gray-200 p-4 [@media(max-height:900px)]:space-y-2 [@media(max-height:900px)]:p-3">
 
                             {!reportingPending && !reportingEnabled ? (
@@ -1059,10 +1136,8 @@ function GoogleAdsMetricsPageContent() {
                               </Alert>
                             ) : null}
 
-                            <div className="flex min-w-0 flex-col gap-2">
-                              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                                {reportingEnabled && effectiveCustomerId ? (
-                                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                            {showCampaignFilters ? (
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
                                     <GoogleAdsCampaignAdGroupFilters
                                       organizationId={organizationId}
                                       customerId={effectiveCustomerId}
@@ -1082,131 +1157,13 @@ function GoogleAdsMetricsPageContent() {
                                         resetPagination();
                                       }}
                                     />
-                                  </div>
-                                ) : (
-                                  <div className="min-w-0 flex-1" aria-hidden />
-                                )}
-
-                                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-9 w-9 shrink-0"
-                                    title={t(
-                                      "digitalMarketing.googleAds.refreshData",
-                                      "Refresh accounts and metrics from Google",
-                                    )}
-                                    disabled={
-                                      !reportingEnabled ||
-                                      isRefreshing ||
-                                      syncAccessibleAccounts.isPending ||
-                                      !metricsFilters
-                                    }
-                                    onClick={() => void handleRefresh()}
-                                  >
-                                    {isRefreshing || syncAccessibleAccounts.isPending ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <RefreshCw className="h-4 w-4" />
-                                    )}
-                                  </Button>
-
-                                  {entity === "campaign" ? (
-                                    <GoogleAdsTrafficWebIdSelect
-                                      organizationId={organizationId}
-                                      disabled={!reportingEnabled}
-                                      onChanged={() => {
-                                        resetPagination();
-                                        void metricsQuery.refetch();
-                                      }}
-                                    />
-                                  ) : null}
-
-                                  <GoogleAdsDateRangePicker
-                                    value={dateSelection}
-                                    accountEarliestYmd={accountDateBounds?.earliest_date}
-                                    calendarYearPresetYears={calendarYearPresetYears}
-                                    calendarYearFilterHint={t(
-                                      "digitalMarketing.googleAds.calendarYearFilterHint",
-                                      "Open the month header dropdown and click a year (e.g. 2023) to filter that calendar year.",
-                                    )}
-                                    onChange={(next) => {
-                                      setDateSelection(next);
-                                      resetPagination();
-                                    }}
-                                  />
-
-                                  <Label className="sr-only">
-                                    {t("digitalMarketing.googleAds.sortBy", "Sort by")}
-                                  </Label>
-                                  <Select
-                                    value={sortFieldValue}
-                                    onValueChange={handleSortFieldChange}
-                                    disabled={sortColumnOptions.length === 0}
-                                  >
-                                    <SelectTrigger className="h-9 w-[min(140px,28vw)]">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {sortColumnOptions.map((o) => (
-                                        <SelectItem key={o.key} value={o.key}>
-                                          {o.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <Select
-                                    value={sort.direction}
-                                    onValueChange={(v) =>
-                                      handleSortDirectionChange(v as "asc" | "desc")
-                                    }
-                                  >
-                                    <SelectTrigger className="h-9 w-[116px]">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="desc">
-                                        {sortDirectionLabels.desc}
-                                      </SelectItem>
-                                      <SelectItem value="asc">
-                                        {sortDirectionLabels.asc}
-                                      </SelectItem>
-                                    </SelectContent>
-                                  </Select>
-
-                                  <GoogleAdsDeliveryEnabledSwitches
-                                    idPrefix="google-ads-desktop"
-                                    onlyRunning={onlyRunning}
-                                    onOnlyRunningChange={(c) => {
-                                      setOnlyRunning(c);
-                                      resetPagination();
-                                    }}
-                                    enabledOnly={enabledOnly}
-                                    onEnabledOnlyChange={(c) => {
-                                      setEnabledOnly(c);
-                                      resetPagination();
-                                    }}
-                                  />
-
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-9 shrink-0"
-                                    onClick={() => setMetricsDialogOpen(true)}
-                                    disabled={!reportingEnabled}
-                                  >
-                                    <Columns3 className="mr-2 h-4 w-4" />
-                                    {t("digitalMarketing.googleAds.metricsButton", "Metrics")}
-                                  </Button>
-                                </div>
-                              </div>
                             </div>
+                            ) : null}
                           </div>
+                          ) : null}
 
                           {reportingEnabled && effectiveCustomerId ? (
-                            <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pb-2">
+                            <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-3 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:pb-2">
                               <GoogleAdsMetricsSummaryBar
                                 customerId={effectiveCustomerId}
                                 totals={
@@ -1227,44 +1184,98 @@ function GoogleAdsMetricsPageContent() {
                           ) : null}
 
                           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-gray-100">
-                            {columnSets.length > 0 ? (
-                              <div className="flex shrink-0 items-center gap-2 px-4 py-2 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:py-1.5">
-                                <span className="shrink-0 text-xs text-muted-foreground">
-                                  {t(
-                                    "digitalMarketing.googleAds.activeColumnSet",
-                                    "Column set",
-                                  )}
-                                </span>
+                            <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 py-2 [@media(max-height:900px)]:px-3 [@media(max-height:900px)]:py-1.5">
+                              {columnSets.length > 0 ? (
+                                <>
+                                  <span className="shrink-0 text-xs text-muted-foreground">
+                                    {t(
+                                      "digitalMarketing.googleAds.activeColumnSet",
+                                      "Column set",
+                                    )}
+                                  </span>
+                                  <Select
+                                    value={matchedColumnSet?.id}
+                                    onValueChange={(id) => void handleSwitchColumnSet(id)}
+                                    disabled={saveMetrics.isPending}
+                                  >
+                                    <SelectTrigger className="h-7 w-auto min-w-[10rem] max-w-[min(20rem,100%)] border-gray-200 bg-white text-xs font-medium shadow-none">
+                                      <SelectValue
+                                        placeholder={t(
+                                          "digitalMarketing.googleAds.chooseColumnSet",
+                                          "Choose a saved set",
+                                        )}
+                                      />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {columnSets.map((set) => (
+                                        <SelectItem
+                                          key={set.id}
+                                          value={set.id}
+                                          className={cn(
+                                            "text-xs",
+                                            GOOGLE_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
+                                          )}
+                                        >
+                                          <GoogleAdsColumnSetOptionLabel set={set} />
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </>
+                              ) : null}
+                              <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+                                <Label className="sr-only">
+                                  {t("digitalMarketing.googleAds.sortBy", "Sort by")}
+                                </Label>
                                 <Select
-                                  value={matchedColumnSet?.id}
-                                  onValueChange={(id) => void handleSwitchColumnSet(id)}
-                                  disabled={saveMetrics.isPending}
+                                  value={sortFieldValue}
+                                  onValueChange={handleSortFieldChange}
+                                  disabled={sortColumnOptions.length === 0}
                                 >
-                                  <SelectTrigger className="h-7 w-auto min-w-[10rem] max-w-[min(20rem,100%)] border-gray-200 bg-white text-xs font-medium shadow-none">
-                                    <SelectValue
-                                      placeholder={t(
-                                        "digitalMarketing.googleAds.chooseColumnSet",
-                                        "Choose a saved set",
-                                      )}
-                                    />
+                                  <SelectTrigger className="h-7 w-[min(140px,28vw)] text-xs">
+                                    <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {columnSets.map((set) => (
-                                      <SelectItem
-                                        key={set.id}
-                                        value={set.id}
-                                        className={cn(
-                                          "text-xs",
-                                          GOOGLE_ADS_COLUMN_SET_SELECT_ITEM_CLASS,
-                                        )}
-                                      >
-                                        <GoogleAdsColumnSetOptionLabel set={set} />
+                                    {sortColumnOptions.map((o) => (
+                                      <SelectItem key={o.key} value={o.key}>
+                                        {o.label}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
+                                <Select
+                                  value={sort.direction}
+                                  onValueChange={(v) =>
+                                    handleSortDirectionChange(v as "asc" | "desc")
+                                  }
+                                >
+                                  <SelectTrigger className="h-7 w-[116px] text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="desc">
+                                      {sortDirectionLabels.desc}
+                                    </SelectItem>
+                                    <SelectItem value="asc">
+                                      {sortDirectionLabels.asc}
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <GoogleAdsDeliveryEnabledSwitches
+                                  idPrefix="google-ads-desktop"
+                                  onlyRunning={onlyRunning}
+                                  onOnlyRunningChange={(c) => {
+                                    setOnlyRunning(c);
+                                    resetPagination();
+                                  }}
+                                  enabledOnly={enabledOnly}
+                                  onEnabledOnlyChange={(c) => {
+                                    setEnabledOnly(c);
+                                    resetPagination();
+                                  }}
+                                />
                               </div>
-                            ) : null}
+                            </div>
 
                             {metricsQuery.isError &&
                             !showTokenDenied &&

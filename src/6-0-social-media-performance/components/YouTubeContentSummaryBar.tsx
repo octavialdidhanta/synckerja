@@ -2,6 +2,7 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { ProgressBar } from "@/shared/components/ProgressBar";
 import { useTranslation } from "react-i18next";
 import type { YouTubeContentVideosResponse } from "@/youtube-content/hooks/useYouTubeContentVideosQuery";
+import { formatInsightTargetRatio } from "@/6-0-social-media-performance-shared/insightTargetProgress";
 import type {
   InsightTargetMetric,
   InsightTargetProgress,
@@ -38,19 +39,6 @@ function formatCount(n: number): string {
 function formatPercent(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return `${n.toFixed(2)}%`;
-}
-
-function formatTargetRatio(
-  metric: InsightTargetMetric,
-  progress: InsightTargetProgress | undefined,
-): string | null {
-  if (!progress?.showProgress || progress.target == null || progress.target <= 0) return null;
-  if (progress.actual == null) return null;
-
-  if (metric === "avg_engagement_rate") {
-    return `${formatPercent(progress.actual)} / ${formatPercent(progress.target)}`;
-  }
-  return `${formatCount(progress.actual)} / ${formatCount(progress.target)}`;
 }
 
 function isCompareCardKey(key: string): key is YouTubeContentCompareCardKey {
@@ -133,7 +121,7 @@ export function YouTubeContentSummaryBar({
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {cards.map((card) => {
           const progress = card.metric ? progressByMetric.get(card.metric) : undefined;
-          const ratioText = card.metric ? formatTargetRatio(card.metric, progress) : null;
+          const ratioText = formatInsightTargetRatio(progress);
           const slotCompare = isCompareCardKey(card.key)
             ? youtubeContentPeriodCompareBits({
                 cardKey: card.key,
@@ -184,6 +172,7 @@ export function YouTubeContentSummaryBar({
                   <ProgressBar
                     current={progress.actual}
                     target={progress.target}
+                    percentage={progress.percentage ?? undefined}
                     color="primary"
                   />
                 ) : (

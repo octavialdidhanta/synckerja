@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Loader2, RefreshCw } from 'lucide-react';
+import { HeaderAndTabActionsPortal } from '@/6-0-traffic/container/HeaderAndTabActions';
 import { SocialMediaPerformanceModuleShell } from '@/6-0-social-media-performance/layout/SocialMediaPerformanceModuleShell';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { useOmnichannelSurveySettingsAdmin } from '@/features/customer-survey/hooks/useOmnichannelSurveySettingsAdmin';
@@ -66,6 +67,31 @@ function ThreadsContentPerformancePageContent() {
   const calendarYearPresetYears = useMemo(() => buildThreadsCalendarYearPresetYears(), []);
   const metricsLoading = metricsQuery.isLoading || metricsQuery.isFetching;
 
+  const headerActions = (
+    <HeaderAndTabActionsPortal>
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        className="h-9 w-9 shrink-0 bg-white"
+        aria-label={t('digitalMarketing.threadsContent.refresh', 'Refresh')}
+        disabled={!accountId || metricsQuery.isFetching}
+        onClick={() => void metricsQuery.refetch()}
+      >
+        {metricsQuery.isFetching ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <RefreshCw className="h-4 w-4" />
+        )}
+      </Button>
+      <ThreadsDateRangePicker
+        value={dateSelection}
+        onChange={setDateSelection}
+        calendarYearPresetYears={calendarYearPresetYears}
+      />
+    </HeaderAndTabActionsPortal>
+  );
+
   if (gatePending || settingsQuery.isPending || instagramAccountsLoading) {
     return null;
   }
@@ -74,6 +100,8 @@ function ThreadsContentPerformancePageContent() {
   const hasInstagramConnected = instagramAccounts.length > 0;
 
   return (
+    <>
+    {notConnected ? null : headerActions}
     <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
             <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
               {notConnected ? (
@@ -106,8 +134,8 @@ function ThreadsContentPerformancePageContent() {
                     onAccountIdChange={setAccountId}
                   />
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                    {settingsQuery.data?.serverConfigured === false ? (
                     <div className="shrink-0 space-y-3 border-b border-gray-200 p-4">
-                      {settingsQuery.data?.serverConfigured === false ? (
                         <Alert variant="destructive">
                           <AlertTitle>
                             {t('digitalMarketing.threadsContent.serverNotConfigured', 'Server not configured')}
@@ -119,29 +147,8 @@ function ThreadsContentPerformancePageContent() {
                             )}
                           </AlertDescription>
                         </Alert>
-                      ) : null}
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          aria-label={t('digitalMarketing.threadsContent.refresh', 'Refresh')}
-                          disabled={!accountId || metricsQuery.isFetching}
-                          onClick={() => void metricsQuery.refetch()}
-                        >
-                          {metricsQuery.isFetching ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <ThreadsDateRangePicker
-                          value={dateSelection}
-                          onChange={setDateSelection}
-                          calendarYearPresetYears={calendarYearPresetYears}
-                        />
-                      </div>
                     </div>
+                    ) : null}
                     <ThreadsContentSummaryBar account={metricsQuery.data?.account} isLoading={metricsLoading} />
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                       {metricsQuery.isError ? (
@@ -162,5 +169,6 @@ function ThreadsContentPerformancePageContent() {
               )}
             </div>
     </div>
+    </>
   );
 }

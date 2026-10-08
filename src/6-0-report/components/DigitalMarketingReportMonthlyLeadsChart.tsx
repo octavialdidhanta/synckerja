@@ -33,8 +33,6 @@ const META_BAR = "hsl(262 55% 52%)";
 const TIKTOK_BAR = "hsl(350 80% 50%)";
 const COMBINED_BAR = "hsl(24 75% 48%)";
 
-const MONTHLY_CATEGORY_MIN_PX = 112;
-
 const WIDE_MONTHLY_BAR_LAYOUT = {
   barCategoryGap: "8%" as const,
   barGap: 0,
@@ -433,13 +431,7 @@ export function DigitalMarketingReportMonthlyLeadsChart({
               </span>
             ) : null}
           </div>
-          <div className="h-[300px] w-full min-w-0 overflow-x-auto">
-            <div
-              className="h-full"
-              style={{
-                minWidth: Math.max(chartData.length * MONTHLY_CATEGORY_MIN_PX, 720),
-              }}
-            >
+          <div className="h-[300px] w-full min-w-0 overflow-hidden">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={chartData}
@@ -482,7 +474,7 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                     fill={COMBINED_BAR}
                     radius={[4, 4, 0, 0]}
                     name="totalLeads"
-                    barSize={barChartSpacing.combinedBarSize}
+                    maxBarSize={barChartSpacing.combinedBarSize}
                     isAnimationActive={false}
                   >
                     <LabelList content={createLeadsBarLabelRenderer("totalLeads")} />
@@ -494,7 +486,7 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                     fill={GOOGLE_BAR}
                     radius={[4, 4, 0, 0]}
                     name="googleLeads"
-                    barSize={
+                    maxBarSize={
                       showMeta || showTikTok
                         ? barChartSpacing.groupedBarSize
                         : barChartSpacing.singleBarSize
@@ -510,7 +502,7 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                     fill={META_BAR}
                     radius={[4, 4, 0, 0]}
                     name="metaLeads"
-                    barSize={
+                    maxBarSize={
                       showGoogle || showTikTok
                         ? barChartSpacing.groupedBarSize
                         : barChartSpacing.singleBarSize
@@ -526,7 +518,7 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                     fill={TIKTOK_BAR}
                     radius={[4, 4, 0, 0]}
                     name="tiktokLeads"
-                    barSize={
+                    maxBarSize={
                       showGoogle || showMeta
                         ? barChartSpacing.groupedBarSize
                         : barChartSpacing.singleBarSize
@@ -542,7 +534,7 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                     fill={GOOGLE_BAR}
                     radius={[4, 4, 0, 0]}
                     name="googleLeads"
-                    barSize={barChartSpacing.singleBarSize}
+                    maxBarSize={barChartSpacing.singleBarSize}
                     isAnimationActive={false}
                   >
                     <LabelList content={createLeadsBarLabelRenderer("googleLeads")} />
@@ -554,7 +546,7 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                     fill={META_BAR}
                     radius={[4, 4, 0, 0]}
                     name="metaLeads"
-                    barSize={barChartSpacing.singleBarSize}
+                    maxBarSize={barChartSpacing.singleBarSize}
                     isAnimationActive={false}
                   >
                     <LabelList content={createLeadsBarLabelRenderer("metaLeads")} />
@@ -566,7 +558,7 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                     fill={TIKTOK_BAR}
                     radius={[4, 4, 0, 0]}
                     name="tiktokLeads"
-                    barSize={barChartSpacing.singleBarSize}
+                    maxBarSize={barChartSpacing.singleBarSize}
                     isAnimationActive={false}
                   >
                     <LabelList content={createLeadsBarLabelRenderer("tiktokLeads")} />
@@ -574,7 +566,6 @@ export function DigitalMarketingReportMonthlyLeadsChart({
                 ) : null}
               </BarChart>
             </ResponsiveContainer>
-            </div>
           </div>
         </>
       )}

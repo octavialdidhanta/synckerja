@@ -1,9 +1,11 @@
+import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { BarChart3, FileText } from "lucide-react";
 import { ModuleTabNavItem } from "@/shared/auth/page-access/ModuleTabNavItem";
 import { GoogleAdsTabIcon } from "@/6-0-traffic/container/GoogleAdsTabIcon";
 import { MetaTabIcon } from "@/6-0-traffic/container/MetaTabIcon";
 import { TikTokTabIcon } from "@/6-0-traffic/container/TikTokTabIcon";
+import { cn } from "@/shared/lib/utils";
 
 const TRAFFIC_ROUTE = "/digital-marketing/traffic";
 const GOOGLE_ADS_ROUTE = "/digital-marketing/google-ads";
@@ -11,7 +13,12 @@ const META_ADS_ROUTE = "/digital-marketing/meta-ads";
 const TIKTOK_ADS_ROUTE = "/digital-marketing/tiktok-ads";
 const REPORT_ROUTE = "/digital-marketing/report";
 
-export function HeaderAndTab() {
+type HeaderAndTabProps = {
+  /** Right side of the title row. Tabs stay full width underneath. */
+  actions?: ReactNode;
+};
+
+export function HeaderAndTab({ actions }: HeaderAndTabProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const isTraffic = location.pathname.startsWith(TRAFFIC_ROUTE);
@@ -22,9 +29,16 @@ export function HeaderAndTab() {
 
   return (
     <div className="px-1 py-3">
-      <div className="mb-3">
-        <h1 className="mb-0.5 text-xl font-bold text-gray-900">Digital Marketing</h1>
-        <p className="text-xs text-gray-600">Monitor traffic & paid ads performance</p>
+      <div className={cn("mb-3", actions && "flex items-center justify-between gap-3")}>
+        <div className={cn("min-w-0", actions && "shrink-0")}>
+          <h1 className="mb-0.5 text-xl font-bold text-gray-900">Digital Marketing</h1>
+          <p className="text-xs text-gray-600">Monitor traffic & paid ads performance</p>
+        </div>
+        {actions ? (
+          <div className="scrollbar-hide flex min-w-0 flex-1 items-center justify-end gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {actions}
+          </div>
+        ) : null}
       </div>
 
       <div className="-mb-3">

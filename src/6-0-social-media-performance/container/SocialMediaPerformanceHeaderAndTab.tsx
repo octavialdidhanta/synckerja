@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ModuleTabNavItem } from "@/shared/auth/page-access/ModuleTabNavItem";
+import { cn } from "@/shared/lib/utils";
 import {
   SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH,
   SOCIAL_MEDIA_PERFORMANCE_TABS,
@@ -24,10 +26,13 @@ const tabInactive =
 
 type SocialMediaPerformanceHeaderAndTabProps = {
   activeReportPath?: string;
+  /** Right side of the title row. Tabs stay full width underneath. */
+  actions?: ReactNode;
 };
 
 export function SocialMediaPerformanceHeaderAndTab({
   activeReportPath = SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH,
+  actions,
 }: SocialMediaPerformanceHeaderAndTabProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -35,16 +40,23 @@ export function SocialMediaPerformanceHeaderAndTab({
 
   return (
     <div className="px-1 py-3">
-      <div className="mb-3">
-        <h1 className="mb-0.5 text-xl font-bold text-gray-900">
-          {t("sidebar.digitalMarketing.socialMediaPerformance.title", "Social Media Performance")}
-        </h1>
-        <p className="text-xs text-gray-600">
-          {t(
-            "sidebar.digitalMarketing.socialMediaPerformance.description",
-            "Monitor organic social content performance",
-          )}
-        </p>
+      <div className={cn("mb-3", actions && "flex items-center justify-between gap-3")}>
+        <div className={cn("min-w-0", actions && "shrink-0")}>
+          <h1 className="mb-0.5 text-xl font-bold text-gray-900">
+            {t("sidebar.digitalMarketing.socialMediaPerformance.title", "Social Media Performance")}
+          </h1>
+          <p className="text-xs text-gray-600">
+            {t(
+              "sidebar.digitalMarketing.socialMediaPerformance.description",
+              "Monitor organic social content performance",
+            )}
+          </p>
+        </div>
+        {actions ? (
+          <div className="scrollbar-hide flex min-w-0 flex-1 items-center justify-end gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {actions}
+          </div>
+        ) : null}
       </div>
 
       <div className="-mb-3">

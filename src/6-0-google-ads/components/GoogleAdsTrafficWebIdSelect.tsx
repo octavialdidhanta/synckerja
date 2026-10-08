@@ -60,7 +60,7 @@ export function GoogleAdsTrafficWebIdSelect({
       }}
     >
       <SelectTrigger
-        className="h-9 w-[min(11rem,30vw)] border-gray-200 bg-gray-50 text-xs"
+        className="h-9 w-[min(11rem,30vw)] border-gray-200 bg-white text-xs"
         aria-label={t("digitalMarketing.googleAds.trafficWebIdLabel", "Traffic source")}
       >
         <SelectValue

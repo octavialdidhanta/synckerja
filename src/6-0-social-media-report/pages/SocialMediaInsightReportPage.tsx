@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { endOfDay } from "date-fns";
 import { toast } from "sonner";
 import { SOCIAL_MEDIA_PERFORMANCE_REPORT_PATH } from "@/6-0-social-media-performance/container/SocialMediaPerformanceHeaderAndTab";
+import { HeaderAndTabActionsPortal } from "@/6-0-traffic/container/HeaderAndTabActions";
 import { SocialMediaPerformanceModuleShell } from "@/6-0-social-media-performance/layout/SocialMediaPerformanceModuleShell";
 import { SocialMediaInsightReportDataProvider } from "@/6-0-social-media-performance-shared/SocialMediaInsightReportDataContext";
 import { useSocialMediaInsightReportDataContext } from "@/6-0-social-media-performance-shared/SocialMediaInsightReportDataContext";
@@ -221,8 +222,93 @@ function SocialMediaInsightReportPageBody({
 
   const hasConnectedData = accounts.some((a) => a.connected && !a.isPlatformPlaceholder);
 
+  const headerActions = (
+    <HeaderAndTabActionsPortal>
+      {filtersHydrated ? (
+        <>
+          <Select
+            value={platformFilter}
+            onValueChange={(v) => setPlatformFilter(v as SocialMediaPlatformFilter)}
+          >
+            <SelectTrigger
+              className="h-9 w-[11rem] shrink-0 border-gray-200 bg-white text-sm"
+              aria-label={t(
+                "digitalMarketing.socialMediaInsightReport.platformFilterLabel",
+                "Platform",
+              )}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="z-50 bg-white">
+              <SelectItem value="all">
+                {t("digitalMarketing.socialMediaInsightReport.platformAll", "All platforms")}
+              </SelectItem>
+              <SelectItem value="tiktok">
+                {t("digitalMarketing.socialMediaPerformance.platformTikTok", "TikTok")}
+              </SelectItem>
+              <SelectItem value="youtube">
+                {t("digitalMarketing.socialMediaPerformance.platformYouTube", "YouTube")}
+              </SelectItem>
+              <SelectItem value="linkedin">
+                {t("digitalMarketing.socialMediaPerformance.platformLinkedIn", "LinkedIn")}
+              </SelectItem>
+              <SelectItem value="instagram">
+                {t("digitalMarketing.socialMediaPerformance.platformInstagram", "Instagram")}
+              </SelectItem>
+              <SelectItem value="facebook">
+                {t("digitalMarketing.socialMediaPerformance.platformFacebook", "Facebook")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <TikTokAdsDateRangePicker
+            value={dateSelection}
+            onChange={setDateSelection}
+            calendarYearPresetYears={calendarYearPresetYears}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 shrink-0 gap-1.5 bg-white"
+            asChild
+          >
+            <Link to={manageTargetsHref}>
+              <Target className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {t("digitalMarketing.socialMediaInsightReport.manageTargets", "Manage targets")}
+              </span>
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 shrink-0 bg-white"
+            disabled={refreshing || isFetching}
+            onClick={handleRefreshClick}
+            aria-label={t("digitalMarketing.socialMediaInsightReport.refresh", "Refresh")}
+          >
+            {refreshing || isFetching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+          </Button>
+        </>
+      ) : (
+        <div className="flex gap-2" aria-hidden>
+          <div className="h-9 w-[11rem] rounded-md border border-gray-200 bg-white" />
+          <div className="h-9 w-52 rounded-md border border-gray-300 bg-white" />
+          <div className="h-9 w-[8.5rem] rounded-md border border-gray-200 bg-white" />
+          <div className="h-9 w-9 rounded-md border border-gray-200 bg-white" />
+        </div>
+      )}
+    </HeaderAndTabActionsPortal>
+  );
+
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {headerActions}
       <div
         className={cn(
           "flex min-h-0 min-w-0 flex-1 flex-col",
@@ -232,127 +318,6 @@ function SocialMediaInsightReportPageBody({
       >
         <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)]">
                     <div className="col-span-12 flex min-h-0 min-w-0 flex-col gap-2">
-                      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <h2 className="text-base font-semibold text-gray-900">
-                              {t("digitalMarketing.socialMediaInsightReport.title", "Report")}
-                            </h2>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                              {t(
-                                "digitalMarketing.socialMediaInsightReport.subtitle",
-                                "Cross-account organic insights for TikTok, YouTube, and LinkedIn. The date filter is shared with other Digital Marketing pages.",
-                              )}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap items-center justify-end gap-2">
-                            {filtersHydrated ? (
-                              <>
-                                <Select
-                                  value={platformFilter}
-                                  onValueChange={(v) =>
-                                    setPlatformFilter(v as SocialMediaPlatformFilter)
-                                  }
-                                >
-                                  <SelectTrigger
-                                    className="h-9 w-[11rem] border-gray-200 bg-gray-50 text-sm"
-                                    aria-label={t(
-                                      "digitalMarketing.socialMediaInsightReport.platformFilterLabel",
-                                      "Platform",
-                                    )}
-                                  >
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent className="z-50 bg-white">
-                                    <SelectItem value="all">
-                                      {t(
-                                        "digitalMarketing.socialMediaInsightReport.platformAll",
-                                        "All platforms",
-                                      )}
-                                    </SelectItem>
-                                    <SelectItem value="tiktok">
-                                      {t(
-                                        "digitalMarketing.socialMediaPerformance.platformTikTok",
-                                        "TikTok",
-                                      )}
-                                    </SelectItem>
-                                    <SelectItem value="youtube">
-                                      {t(
-                                        "digitalMarketing.socialMediaPerformance.platformYouTube",
-                                        "YouTube",
-                                      )}
-                                    </SelectItem>
-                                    <SelectItem value="linkedin">
-                                      {t(
-                                        "digitalMarketing.socialMediaPerformance.platformLinkedIn",
-                                        "LinkedIn",
-                                      )}
-                                    </SelectItem>
-                                    <SelectItem value="instagram">
-                                      {t(
-                                        "digitalMarketing.socialMediaPerformance.platformInstagram",
-                                        "Instagram",
-                                      )}
-                                    </SelectItem>
-                                    <SelectItem value="facebook">
-                                      {t(
-                                        "digitalMarketing.socialMediaPerformance.platformFacebook",
-                                        "Facebook",
-                                      )}
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <TikTokAdsDateRangePicker
-                                  value={dateSelection}
-                                  onChange={setDateSelection}
-                                  calendarYearPresetYears={calendarYearPresetYears}
-                                />
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-9 shrink-0 gap-1.5"
-                                  asChild
-                                >
-                                  <Link to={manageTargetsHref}>
-                                    <Target className="h-4 w-4" />
-                                    <span className="hidden sm:inline">
-                                      {t(
-                                        "digitalMarketing.socialMediaInsightReport.manageTargets",
-                                        "Manage targets",
-                                      )}
-                                    </span>
-                                  </Link>
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-9 w-9 shrink-0"
-                                  disabled={refreshing || isFetching}
-                                  onClick={handleRefreshClick}
-                                  aria-label={t(
-                                    "digitalMarketing.socialMediaInsightReport.refresh",
-                                    "Refresh",
-                                  )}
-                                >
-                                  {refreshing || isFetching ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <RefreshCw className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </>
-                            ) : (
-                              <div className="flex gap-2" aria-hidden>
-                                <div className="h-9 w-[11rem] rounded-md border border-gray-200 bg-gray-50" />
-                                <div className="h-9 w-52 rounded-md border border-gray-300 bg-white" />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
                       {error ? (
                         <Alert variant="destructive">
                           <AlertTitle>
