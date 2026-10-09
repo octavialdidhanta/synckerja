@@ -5,6 +5,14 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/shared/components/ui/table";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Skeleton } from "@/shared/components/ui/skeleton";
@@ -47,8 +55,63 @@ import {
   isSharedOfflineConversionPath,
   shouldConsumeOfflineConversionOAuthResult,
 } from "@/5-3-dashboard/omnichannel-settings/lib/offlineConversionOAuthResult";
+import { useMetaAdsRoasColorThreshold } from "@/meta-ads/hooks/useMetaAdsRoasColorThreshold";
 import { useMetaAdsSettings } from "@/meta-ads/hooks/useMetaAdsSettings";
 import type { MetaAdsOAuthReturnPath } from "@/meta-ads/settings/metaAdsSettingsPaths";
+
+function ThresholdSaveField({
+  id,
+  value,
+  onChange,
+  onSave,
+  saving,
+  disabled,
+  step,
+  ariaLabel,
+  saveLabel,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  onSave: () => void;
+  saving: boolean;
+  disabled: boolean;
+  step: string;
+  ariaLabel: string;
+  saveLabel: string;
+}) {
+  return (
+    <div className="flex w-full min-w-[10.5rem]">
+      <Input
+        id={id}
+        type="number"
+        min={0}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            onSave();
+          }
+        }}
+        className="h-9 min-w-0 flex-1 rounded-r-none border-r-0 px-2.5 text-sm tabular-nums shadow-none focus-visible:z-10 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-9 w-[4.25rem] shrink-0 rounded-l-none px-0 shadow-none"
+        disabled={disabled || saving}
+        onClick={onSave}
+      >
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saveLabel}
+      </Button>
+    </div>
+  );
+}
 
 export type MetaAdsSettingsPanelProps = {
   organizationId: string | null | undefined;
@@ -82,6 +145,44 @@ export function MetaAdsSettingsPanel({
     listPixels,
     syncAccessibleAccounts,
   } = useMetaAdsSettings(organizationId, { enabled: Boolean(organizationId) && enabled });
+  const {
+    threshold: roasThreshold,
+    costPerPurchaseThreshold,
+    purchaseRoasColorEnabled,
+    costPerPurchaseColorEnabled,
+    atcToPurchaseThreshold,
+    atcToPurchaseColorEnabled,
+    aovThreshold,
+    aovColorEnabled,
+    viewToAtcThreshold,
+    viewToAtcColorEnabled,
+    ctrThreshold,
+    ctrColorEnabled,
+    cpmThreshold,
+    cpmColorEnabled,
+    saveThreshold,
+    saveCostPerPurchaseThreshold,
+    saveAtcToPurchaseThreshold,
+    saveAovThreshold,
+    saveViewToAtcThreshold,
+    saveCtrThreshold,
+    saveCpmThreshold,
+    savePurchaseRoasColorEnabled,
+    saveCostPerPurchaseColorEnabled,
+    saveAtcToPurchaseColorEnabled,
+    saveAovColorEnabled,
+    saveViewToAtcColorEnabled,
+    saveCtrColorEnabled,
+    saveCpmColorEnabled,
+    isLoading: colorSettingsLoading,
+  } = useMetaAdsRoasColorThreshold(enabled ? organizationId : null);
+  const [roasInput, setRoasInput] = useState(String(roasThreshold));
+  const [costInput, setCostInput] = useState(String(costPerPurchaseThreshold));
+  const [atcInput, setAtcInput] = useState(String(atcToPurchaseThreshold));
+  const [aovInput, setAovInput] = useState(String(aovThreshold));
+  const [viewAtcInput, setViewAtcInput] = useState(String(viewToAtcThreshold));
+  const [ctrInput, setCtrInput] = useState(String(ctrThreshold));
+  const [cpmInput, setCpmInput] = useState(String(cpmThreshold));
 
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editAccountId, setEditAccountId] = useState<string | null>(null);
@@ -94,6 +195,323 @@ export function MetaAdsSettingsPanel({
   const [pickerAccounts, setPickerAccounts] = useState<Array<{ account_id: string; name: string }>>([]);
   const [pickerPixels, setPickerPixels] = useState<Array<{ id: string; name: string }>>([]);
   const [deleteAccountId, setDeleteAccountId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRoasInput(String(roasThreshold));
+  }, [organizationId, roasThreshold]);
+
+  useEffect(() => {
+    setCostInput(String(costPerPurchaseThreshold));
+  }, [organizationId, costPerPurchaseThreshold]);
+
+  useEffect(() => {
+    setAtcInput(String(atcToPurchaseThreshold));
+  }, [organizationId, atcToPurchaseThreshold]);
+
+  useEffect(() => {
+    setAovInput(String(aovThreshold));
+  }, [organizationId, aovThreshold]);
+
+  useEffect(() => {
+    setViewAtcInput(String(viewToAtcThreshold));
+  }, [organizationId, viewToAtcThreshold]);
+
+  useEffect(() => {
+    setCtrInput(String(ctrThreshold));
+  }, [organizationId, ctrThreshold]);
+
+  useEffect(() => {
+    setCpmInput(String(cpmThreshold));
+  }, [organizationId, cpmThreshold]);
+
+  const persistRoasThreshold = () => {
+    const parsed = Number(roasInput);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast.error(
+        t("omnichannel.settings.metaAds.roasThresholdInvalid", "Enter a number greater than 0."),
+      );
+      setRoasInput(String(roasThreshold));
+      return;
+    }
+    saveThreshold.mutate(parsed, {
+      onSuccess: () => {
+        toast.success(t("omnichannel.settings.metaAds.roasThresholdSaved", "Threshold saved."));
+      },
+      onError: (error) => toast.error((error as Error).message),
+    });
+  };
+
+  const persistCostThreshold = () => {
+    const parsed = Number(costInput);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast.error(
+        t("omnichannel.settings.metaAds.roasThresholdInvalid", "Enter a number greater than 0."),
+      );
+      setCostInput(String(costPerPurchaseThreshold));
+      return;
+    }
+    saveCostPerPurchaseThreshold.mutate(parsed, {
+      onSuccess: () => {
+        toast.success(t("omnichannel.settings.metaAds.costThresholdSaved", "Threshold saved."));
+      },
+      onError: (error) => toast.error((error as Error).message),
+    });
+  };
+
+  const persistAtcThreshold = () => {
+    const parsed = Number(atcInput);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast.error(
+        t("omnichannel.settings.metaAds.roasThresholdInvalid", "Enter a number greater than 0."),
+      );
+      setAtcInput(String(atcToPurchaseThreshold));
+      return;
+    }
+    saveAtcToPurchaseThreshold.mutate(parsed, {
+      onSuccess: () => {
+        toast.success(t("omnichannel.settings.metaAds.atcThresholdSaved", "Threshold saved."));
+      },
+      onError: (error) => toast.error((error as Error).message),
+    });
+  };
+
+  const persistAovThreshold = () => {
+    const parsed = Number(aovInput);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast.error(
+        t("omnichannel.settings.metaAds.roasThresholdInvalid", "Enter a number greater than 0."),
+      );
+      setAovInput(String(aovThreshold));
+      return;
+    }
+    saveAovThreshold.mutate(parsed, {
+      onSuccess: () => {
+        toast.success(t("omnichannel.settings.metaAds.aovThresholdSaved", "Threshold saved."));
+      },
+      onError: (error) => toast.error((error as Error).message),
+    });
+  };
+
+  const persistViewAtcThreshold = () => {
+    const parsed = Number(viewAtcInput);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast.error(
+        t("omnichannel.settings.metaAds.roasThresholdInvalid", "Enter a number greater than 0."),
+      );
+      setViewAtcInput(String(viewToAtcThreshold));
+      return;
+    }
+    saveViewToAtcThreshold.mutate(parsed, {
+      onSuccess: () => {
+        toast.success(t("omnichannel.settings.metaAds.viewAtcThresholdSaved", "Threshold saved."));
+      },
+      onError: (error) => toast.error((error as Error).message),
+    });
+  };
+
+  const persistCtrThreshold = () => {
+    const parsed = Number(ctrInput);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast.error(
+        t("omnichannel.settings.metaAds.roasThresholdInvalid", "Enter a number greater than 0."),
+      );
+      setCtrInput(String(ctrThreshold));
+      return;
+    }
+    saveCtrThreshold.mutate(parsed, {
+      onSuccess: () => {
+        toast.success(t("omnichannel.settings.metaAds.ctrThresholdSaved", "Threshold saved."));
+      },
+      onError: (error) => toast.error((error as Error).message),
+    });
+  };
+
+  const persistCpmThreshold = () => {
+    const parsed = Number(cpmInput);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      toast.error(
+        t("omnichannel.settings.metaAds.roasThresholdInvalid", "Enter a number greater than 0."),
+      );
+      setCpmInput(String(cpmThreshold));
+      return;
+    }
+    saveCpmThreshold.mutate(parsed, {
+      onSuccess: () => {
+        toast.success(t("omnichannel.settings.metaAds.cpmThresholdSaved", "Threshold saved."));
+      },
+      onError: (error) => toast.error((error as Error).message),
+    });
+  };
+
+  const saveLabel = t("omnichannel.settings.metaAds.roasThresholdSave", "Save");
+  const colorRows = [
+    {
+      id: "meta-cpm-threshold",
+      name: t("omnichannel.settings.metaAds.colorMetricCpm", "CPM"),
+      hint: t(
+        "omnichannel.settings.metaAds.cpmThresholdHint",
+        "At or below this number the CPM column turns green. Above it, the column turns red. Darker means farther from this number. Use the same currency as the ad account.",
+      ),
+      ariaLabel: t("omnichannel.settings.metaAds.cpmThresholdTitle", "CPM color threshold"),
+      toggleLabel: t("omnichannel.settings.metaAds.colorToggleCpm", "Color CPM"),
+      value: cpmInput,
+      onChange: setCpmInput,
+      onSave: persistCpmThreshold,
+      saving: saveCpmThreshold.isPending,
+      step: "1",
+      enabled: cpmColorEnabled,
+      pending: saveCpmColorEnabled.isPending,
+      onToggle: (checked: boolean) => {
+        saveCpmColorEnabled.mutate(checked, {
+          onError: (error) => toast.error((error as Error).message),
+        });
+      },
+    },
+    {
+      id: "meta-ctr-threshold",
+      name: t("omnichannel.settings.metaAds.colorMetricCtr", "CTR"),
+      hint: t(
+        "omnichannel.settings.metaAds.ctrThresholdHint",
+        "Below this percent the CTR column turns red. At or above it, the column turns green. Darker means farther from this number.",
+      ),
+      ariaLabel: t("omnichannel.settings.metaAds.ctrThresholdTitle", "CTR color threshold"),
+      toggleLabel: t("omnichannel.settings.metaAds.colorToggleCtr", "Color CTR"),
+      value: ctrInput,
+      onChange: setCtrInput,
+      onSave: persistCtrThreshold,
+      saving: saveCtrThreshold.isPending,
+      step: "0.01",
+      enabled: ctrColorEnabled,
+      pending: saveCtrColorEnabled.isPending,
+      onToggle: (checked: boolean) => {
+        saveCtrColorEnabled.mutate(checked, {
+          onError: (error) => toast.error((error as Error).message),
+        });
+      },
+    },
+    {
+      id: "meta-view-atc-threshold",
+      name: t("omnichannel.settings.metaAds.colorMetricViewAtc", "% View to ATC"),
+      hint: t(
+        "omnichannel.settings.metaAds.viewAtcThresholdHint",
+        "Below this percent the % View to ATC column turns red. At or above it, the column turns green. Darker means farther from this number.",
+      ),
+      ariaLabel: t(
+        "omnichannel.settings.metaAds.viewAtcThresholdTitle",
+        "% View to ATC color threshold",
+      ),
+      toggleLabel: t("omnichannel.settings.metaAds.colorToggleViewAtc", "Color % View to ATC"),
+      value: viewAtcInput,
+      onChange: setViewAtcInput,
+      onSave: persistViewAtcThreshold,
+      saving: saveViewToAtcThreshold.isPending,
+      step: "0.01",
+      enabled: viewToAtcColorEnabled,
+      pending: saveViewToAtcColorEnabled.isPending,
+      onToggle: (checked: boolean) => {
+        saveViewToAtcColorEnabled.mutate(checked, {
+          onError: (error) => toast.error((error as Error).message),
+        });
+      },
+    },
+    {
+      id: "meta-atc-threshold",
+      name: t("omnichannel.settings.metaAds.colorMetricAtc", "% ATC to Purchase"),
+      hint: t(
+        "omnichannel.settings.metaAds.atcThresholdHint",
+        "Below this percent the % ATC to Purchase column turns red. At or above it, the column turns green. Darker means farther from this number.",
+      ),
+      ariaLabel: t(
+        "omnichannel.settings.metaAds.atcThresholdTitle",
+        "% ATC to Purchase color threshold",
+      ),
+      toggleLabel: t("omnichannel.settings.metaAds.colorToggleAtc", "Color % ATC to Purchase"),
+      value: atcInput,
+      onChange: setAtcInput,
+      onSave: persistAtcThreshold,
+      saving: saveAtcToPurchaseThreshold.isPending,
+      step: "0.01",
+      enabled: atcToPurchaseColorEnabled,
+      pending: saveAtcToPurchaseColorEnabled.isPending,
+      onToggle: (checked: boolean) => {
+        saveAtcToPurchaseColorEnabled.mutate(checked, {
+          onError: (error) => toast.error((error as Error).message),
+        });
+      },
+    },
+    {
+      id: "meta-aov-threshold",
+      name: t("omnichannel.settings.metaAds.colorMetricAov", "AOV"),
+      hint: t(
+        "omnichannel.settings.metaAds.aovThresholdHint",
+        "Below this number the AOV column turns red. At or above it, the column turns green. Darker means farther from this number. Use the same currency as the ad account.",
+      ),
+      ariaLabel: t("omnichannel.settings.metaAds.aovThresholdTitle", "AOV color threshold"),
+      toggleLabel: t("omnichannel.settings.metaAds.colorToggleAov", "Color AOV"),
+      value: aovInput,
+      onChange: setAovInput,
+      onSave: persistAovThreshold,
+      saving: saveAovThreshold.isPending,
+      step: "1",
+      enabled: aovColorEnabled,
+      pending: saveAovColorEnabled.isPending,
+      onToggle: (checked: boolean) => {
+        saveAovColorEnabled.mutate(checked, {
+          onError: (error) => toast.error((error as Error).message),
+        });
+      },
+    },
+    {
+      id: "meta-cost-threshold",
+      name: t("omnichannel.settings.metaAds.colorMetricCost", "Cost/Purchase"),
+      hint: t(
+        "omnichannel.settings.metaAds.costThresholdHint",
+        "At or below this number the Cost/Purchase column turns green. Above it, the column turns red. Darker means farther from this number. Use the same currency as the ad account.",
+      ),
+      ariaLabel: t(
+        "omnichannel.settings.metaAds.costThresholdTitle",
+        "Cost/Purchase color threshold",
+      ),
+      toggleLabel: t("omnichannel.settings.metaAds.colorToggleCost", "Color Cost/Purchase"),
+      value: costInput,
+      onChange: setCostInput,
+      onSave: persistCostThreshold,
+      saving: saveCostPerPurchaseThreshold.isPending,
+      step: "1",
+      enabled: costPerPurchaseColorEnabled,
+      pending: saveCostPerPurchaseColorEnabled.isPending,
+      onToggle: (checked: boolean) => {
+        saveCostPerPurchaseColorEnabled.mutate(checked, {
+          onError: (error) => toast.error((error as Error).message),
+        });
+      },
+    },
+    {
+      id: "meta-roas-threshold",
+      name: t("omnichannel.settings.metaAds.colorMetricRoas", "Purchase ROAS"),
+      hint: t(
+        "omnichannel.settings.metaAds.roasThresholdHint",
+        "Below this number the Purchase ROAS column turns red. At or above it, the column turns green. Darker means farther from this number.",
+      ),
+      ariaLabel: t(
+        "omnichannel.settings.metaAds.roasThresholdTitle",
+        "Purchase ROAS color threshold",
+      ),
+      toggleLabel: t("omnichannel.settings.metaAds.colorToggleRoas", "Color Purchase ROAS"),
+      value: roasInput,
+      onChange: setRoasInput,
+      onSave: persistRoasThreshold,
+      saving: saveThreshold.isPending,
+      step: "0.01",
+      enabled: purchaseRoasColorEnabled,
+      pending: savePurchaseRoasColorEnabled.isPending,
+      onToggle: (checked: boolean) => {
+        savePurchaseRoasColorEnabled.mutate(checked, {
+          onError: (error) => toast.error((error as Error).message),
+        });
+      },
+    },
+  ];
 
   const oauthConnected = data?.oauthConnected ?? false;
   const connection = data?.connection;
@@ -275,11 +693,12 @@ export function MetaAdsSettingsPanel({
     <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)}>
       <div
         className={cn(
-          "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:overflow-hidden",
           contentClassName,
         )}
       >
-        <div className="flex min-h-0 flex-1 flex-col gap-6 max-w-2xl">
+        <div className="grid min-h-0 flex-1 grid-cols-1 items-start gap-6 lg:h-full lg:grid-cols-2 lg:items-stretch lg:[grid-template-rows:minmax(0,1fr)]">
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-col gap-6 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:h-full">
         <div className="shrink-0 rounded-lg border border-slate-200 p-4 space-y-4">
           <h3 className="font-semibold text-slate-900">
             {t("omnichannel.settings.metaAds.connectionTitle", "Meta Ads connection")}
@@ -410,7 +829,7 @@ export function MetaAdsSettingsPanel({
         </div>
 
         {oauthConnected && (
-          <div className="flex min-h-[12rem] min-w-0 flex-1 flex-col rounded-lg border border-slate-200 p-4">
+          <div className="min-w-0 rounded-lg border border-slate-200 p-4">
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
               <h3 className="font-semibold text-slate-900">
                 {t("omnichannel.settings.metaAds.accountsTitle", "Meta Ads accounts")}
@@ -458,7 +877,7 @@ export function MetaAdsSettingsPanel({
                 {t("omnichannel.settings.metaAds.noAccounts", "No ad accounts configured. Sync from Meta or add manually.")}
               </p>
             ) : (
-              <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain mt-3 min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="mt-3">
                 <ul className="space-y-2 pr-1">
                   {accounts.map((acc) => (
                     <li
@@ -500,6 +919,79 @@ export function MetaAdsSettingsPanel({
             )}
           </div>
         )}
+        </div>
+
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:h-full">
+        <div className="min-w-0 overflow-hidden rounded-lg border border-slate-200">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h3 className="font-semibold text-slate-900">
+              {t("omnichannel.settings.metaAds.colorTableTitle", "Column colors")}
+            </h3>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {t(
+                "omnichannel.settings.metaAds.colorTableHint",
+                "Turn a row on to color that column. Off leaves the column plain.",
+              )}
+            </p>
+          </div>
+          <Table className="table-fixed" containerClassName="overflow-x-auto">
+            <TableHeader>
+              <TableRow className="bg-slate-50 hover:bg-slate-50">
+                <TableHead className="px-4">
+                  {t("omnichannel.settings.metaAds.colorTableMetric", "Metric")}
+                </TableHead>
+                <TableHead className="w-52 px-3">
+                  {t("omnichannel.settings.metaAds.colorTableThreshold", "Threshold")}
+                </TableHead>
+                <TableHead className="w-20 px-3 text-center">
+                  {t("omnichannel.settings.metaAds.colorTableColor", "Color")}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {colorRows.map((row, index) => (
+                <TableRow
+                  key={row.id}
+                  className={
+                    index === colorRows.length - 1
+                      ? "border-0 hover:bg-transparent"
+                      : "hover:bg-transparent"
+                  }
+                >
+                  <TableCell className="px-4 py-3.5 align-middle">
+                    <p className="font-medium text-slate-900">{row.name}</p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-500">{row.hint}</p>
+                  </TableCell>
+                  <TableCell className="px-3 py-3.5 align-middle">
+                    <ThresholdSaveField
+                      id={row.id}
+                      value={row.value}
+                      onChange={row.onChange}
+                      onSave={row.onSave}
+                      saving={row.saving}
+                      disabled={!organizationId}
+                      step={row.step}
+                      ariaLabel={row.ariaLabel}
+                      saveLabel={saveLabel}
+                    />
+                  </TableCell>
+                  <TableCell className="px-3 py-3.5 align-middle">
+                    <div className="flex justify-center">
+                      <Switch
+                        checked={row.enabled}
+                        disabled={colorSettingsLoading || row.pending || !organizationId}
+                        onCheckedChange={row.onToggle}
+                        aria-label={row.toggleLabel}
+                      />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="h-4" aria-hidden />
+        </div>
+        </div>
         </div>
       </div>
 

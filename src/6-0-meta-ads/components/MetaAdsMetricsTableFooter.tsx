@@ -1,4 +1,7 @@
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Search } from "lucide-react";
+import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
   Select,
@@ -36,6 +39,8 @@ export function MetaAdsMetricsTableFooter({
   className,
 }: Props) {
   const { t } = useTranslation();
+  const [sortQuery, setSortQuery] = useState("");
+  const sortSearchRef = useRef<HTMLInputElement>(null);
 
   const sortFieldValue = sortColumnOptions.some((o) => o.key === sort.field)
     ? sort.field
@@ -47,6 +52,14 @@ export function MetaAdsMetricsTableFooter({
     desc: t(dirKeys.descKey, dirKeys.descDefault),
     asc: t(dirKeys.ascKey, dirKeys.ascDefault),
   };
+
+  const filteredSortOptions = useMemo(() => {
+    const query = sortQuery.trim().toLowerCase();
+    if (!query) return sortColumnOptions;
+    return sortColumnOptions.filter((option) =>
+      t(option.labelKey, option.defaultLabel).toLowerCase().includes(query),
+    );
+  }, [sortColumnOptions, sortQuery, t]);
 
   const rangeFrom = totalCount === 0 ? 0 : 1;
   const rangeTo = totalCount;
@@ -88,17 +101,57 @@ export function MetaAdsMetricsTableFooter({
         <Select
           value={sortFieldValue}
           onValueChange={onSortFieldChange}
+          onOpenChange={(open) => {
+            if (!open) setSortQuery("");
+          }}
           disabled={isLoading || sortColumnOptions.length === 0}
         >
           <SelectTrigger className="h-8 w-[min(140px,32vw)]">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
-            {sortColumnOptions.map((o) => (
-              <SelectItem key={o.key} value={o.key}>
-                {t(o.labelKey, o.defaultLabel)}
+          <SelectContent
+            className="max-h-80"
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              sortSearchRef.current?.focus();
+            }}
+          >
+            <div
+              className="sticky top-0 z-10 bg-popover px-1 pb-1"
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  ref={sortSearchRef}
+                  value={sortQuery}
+                  onChange={(event) => setSortQuery(event.target.value)}
+                  onKeyDown={(event) => event.stopPropagation()}
+                  placeholder={t("digitalMarketing.metaAds.sortSearch", "Search")}
+                  aria-label={t("digitalMarketing.metaAds.sortSearch", "Search")}
+                  className="h-8 pl-7 text-sm"
+                />
+              </div>
+            </div>
+            {filteredSortOptions.length === 0 ? (
+              <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                {t("digitalMarketing.metaAds.sortSearchEmpty", "No columns found")}
+              </p>
+            ) : (
+              filteredSortOptions.map((o) => (
+                <SelectItem key={o.key} value={o.key}>
+                  {t(o.labelKey, o.defaultLabel)}
+                </SelectItem>
+              ))
+            )}
+            {sortQuery.trim() && !filteredSortOptions.some((o) => o.key === sortFieldValue) ? (
+              <SelectItem value={sortFieldValue} className="hidden">
+                {t(
+                  sortColumnOptions.find((o) => o.key === sortFieldValue)?.labelKey ?? "",
+                  sortColumnOptions.find((o) => o.key === sortFieldValue)?.defaultLabel ?? sortFieldValue,
+                )}
               </SelectItem>
-            ))}
+            ) : null}
           </SelectContent>
         </Select>
         <Select

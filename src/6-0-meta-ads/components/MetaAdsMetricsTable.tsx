@@ -24,6 +24,7 @@ import {
   MetaAdsRunningDaysInfo,
 } from "@/6-0-meta-ads/components/MetaAdsRunningDaysBadge";
 import { Switch } from "@/shared/components/ui/switch";
+import { useMetaAdsRoasColorThreshold } from "@/meta-ads/hooks/useMetaAdsRoasColorThreshold";
 import { useSetMetaAdStatus } from "@/meta-ads/hooks/useSetMetaAdStatus";
 import { metaAdIsOn, metaAdStatusLocked } from "@/meta-ads/metrics/metaAdStatus";
 import type { MetaAdCreativePreview } from "@/meta-ads/hooks/useMetaAdsAdCreatives";
@@ -499,6 +500,22 @@ export function MetaAdsMetricsTable({
     ? identityCols.slice(identityCols.findIndex((col) => col.key === "ad_toggle") + 1)
     : [];
 
+  const {
+    threshold: purchaseRoasThreshold,
+    costPerPurchaseThreshold,
+    purchaseRoasColorEnabled,
+    costPerPurchaseColorEnabled,
+    atcToPurchaseThreshold,
+    atcToPurchaseColorEnabled,
+    aovThreshold,
+    aovColorEnabled,
+    viewToAtcThreshold,
+    viewToAtcColorEnabled,
+    ctrThreshold,
+    ctrColorEnabled,
+    cpmThreshold,
+    cpmColorEnabled,
+  } = useMetaAdsRoasColorThreshold(organizationId);
   const extremeBounds = useMemo(() => metaAdsExtremeBounds(rows), [rows]);
   const selectable =
     Boolean(selection) && (entity === "campaign" || entity === "adset" || entity === "ad");
@@ -680,7 +697,24 @@ export function MetaAdsMetricsTable({
                         <td
                           key={m.key}
                           className={cn("p-2 align-middle tabular-nums shadow-[inset_-1px_0_0_hsl(var(--border))]", metricColClass)}
-                          style={metaAdsExtremeCellStyle(m.key, r[m.key], extremeBounds) ?? undefined}
+                          style={
+                            metaAdsExtremeCellStyle(m.key, r[m.key], extremeBounds, {
+                              purchaseRoasThreshold,
+                              purchaseRoasColorEnabled,
+                              costPerPurchaseThreshold,
+                              costPerPurchaseColorEnabled,
+                              atcToPurchaseThreshold,
+                              atcToPurchaseColorEnabled,
+                              aovThreshold,
+                              aovColorEnabled,
+                              viewToAtcThreshold,
+                              viewToAtcColorEnabled,
+                              ctrThreshold,
+                              ctrColorEnabled,
+                              cpmThreshold,
+                              cpmColorEnabled,
+                            }) ?? undefined
+                          }
                         >
                           {m.key === "delivery" ? (
                             <MetaAdsDeliveryBadge value={r[m.key]} />

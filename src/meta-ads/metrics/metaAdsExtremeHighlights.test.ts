@@ -11,114 +11,216 @@ function rgb(style: { backgroundColor: string } | null): [number, number, number
 }
 
 describe("metaAdsExtremeCellStyle", () => {
-  const bounds = metaAdsExtremeBounds([
-    { ctr: 0.71, cpm: 6394 },
-    { ctr: 0.67, cpm: 9706 },
-    { ctr: 0.47, cpm: 10140 },
-    { ctr: 0.17, cpm: 11445 },
-    { ctr: 2.01, cpm: 10638 },
-    { ctr: 1.04, cpm: 14871 },
-    { ctr: 1.65, cpm: 19948 },
-    { ctr: 1.99, cpm: 12825 },
-  ]);
+  it("colors CTR from a fixed percent, darker farther away", () => {
+    const empty = metaAdsExtremeBounds([]);
+    const options = { ctrThreshold: 1 };
+    expect(rgb(metaAdsExtremeCellStyle("ctr", 0, empty, options))).toEqual([220, 38, 38]);
+    expect(rgb(metaAdsExtremeCellStyle("ctr", 2, empty, options))).toEqual([22, 163, 74]);
 
-  it("uses solid green and red with white text on the extremes", () => {
-    const bestCtr = metaAdsExtremeCellStyle("ctr", 2.01, bounds);
-    const worstCtr = metaAdsExtremeCellStyle("ctr", 0.17, bounds);
-    expect(bestCtr).toEqual({ backgroundColor: "rgb(22, 163, 74)", color: "#ffffff" });
-    expect(worstCtr).toEqual({ backgroundColor: "rgb(220, 38, 38)", color: "#ffffff" });
-    expect(metaAdsExtremeCellStyle("cpm", 6394, bounds)?.backgroundColor).toBe("rgb(22, 163, 74)");
-    expect(metaAdsExtremeCellStyle("cpm", 19948, bounds)?.backgroundColor).toBe("rgb(220, 38, 38)");
+    const below = rgb(metaAdsExtremeCellStyle("ctr", 0.4, empty, options));
+    const nearCut = rgb(metaAdsExtremeCellStyle("ctr", 0.9, empty, options));
+    const atCut = rgb(metaAdsExtremeCellStyle("ctr", 1, empty, options));
+    const above = rgb(metaAdsExtremeCellStyle("ctr", 1.5, empty, options));
+
+    expect(below[1]).toBeLessThan(nearCut[1]);
+    expect(nearCut[0]).toBeGreaterThan(nearCut[1]);
+    expect(atCut[1]).toBeGreaterThan(atCut[0]);
+    expect(above[1]).toBeLessThan(atCut[1]);
+    expect(metaAdsExtremeCellStyle("ctr", null, empty, options)).toBeNull();
+    expect(
+      metaAdsExtremeCellStyle("ctr", 0.4, empty, { ctrThreshold: 1, ctrColorEnabled: false }),
+    ).toBeNull();
   });
 
-  it("gives each CTR a different shade following the number", () => {
-    const high = rgb(metaAdsExtremeCellStyle("ctr", 1.99, bounds));
-    const midHigh = rgb(metaAdsExtremeCellStyle("ctr", 1.65, bounds));
-    const low = rgb(metaAdsExtremeCellStyle("ctr", 0.71, bounds));
-    const lower = rgb(metaAdsExtremeCellStyle("ctr", 0.47, bounds));
-    const middle = rgb(metaAdsExtremeCellStyle("ctr", 1.04, bounds));
-    expect(high[0]).toBeLessThan(midHigh[0]);
-    expect(lower[1]).toBeLessThan(low[1]);
-    expect(middle[0]).toBeGreaterThan(middle[1]);
-    expect(middle[1]).toBeGreaterThan(lower[1]);
-    expect(metaAdsExtremeCellStyle("ctr", null, bounds)).toBeNull();
+  it("colors CPM from a fixed amount, greener when cheaper", () => {
+    const empty = metaAdsExtremeBounds([]);
+    const options = { cpmThreshold: 10000 };
+    expect(rgb(metaAdsExtremeCellStyle("cpm", 0, empty, options))).toEqual([22, 163, 74]);
+    expect(rgb(metaAdsExtremeCellStyle("cpm", 20000, empty, options))).toEqual([220, 38, 38]);
+
+    const cheap = rgb(metaAdsExtremeCellStyle("cpm", 4000, empty, options));
+    const nearCut = rgb(metaAdsExtremeCellStyle("cpm", 9000, empty, options));
+    const atCut = rgb(metaAdsExtremeCellStyle("cpm", 10000, empty, options));
+    const expensive = rgb(metaAdsExtremeCellStyle("cpm", 15000, empty, options));
+
+    expect(cheap[1]).toBeLessThan(nearCut[1]);
+    expect(atCut[1]).toBeGreaterThan(atCut[0]);
+    expect(expensive[0]).toBeGreaterThan(expensive[1]);
+    expect(metaAdsExtremeCellStyle("cpm", null, empty, options)).toBeNull();
+    expect(
+      metaAdsExtremeCellStyle("cpm", 15000, empty, { cpmThreshold: 10000, cpmColorEnabled: false }),
+    ).toBeNull();
   });
 
-  it("gives each CPM a different shade, greener when cheaper", () => {
-    const cheap = rgb(metaAdsExtremeCellStyle("cpm", 9706, bounds));
-    const midCheap = rgb(metaAdsExtremeCellStyle("cpm", 11445, bounds));
-    const expensive = rgb(metaAdsExtremeCellStyle("cpm", 14871, bounds));
-    const middle = rgb(metaAdsExtremeCellStyle("cpm", 12825, bounds));
-    expect(cheap[0]).toBeLessThan(midCheap[0]);
-    expect(expensive[0]).toBeGreaterThan(200);
-    expect(middle[1]).toBeGreaterThan(middle[0]);
-    expect(middle[0]).toBeGreaterThan(midCheap[0]);
-    expect(metaAdsExtremeCellStyle("cpm", "—", bounds)).toBeNull();
-  });
-
-  it("colors % View to ATC and ATC conversion value greener as they rise", () => {
+  it("colors ATC conversion value greener as it rises", () => {
     const funnel = metaAdsExtremeBounds([
-      { view_to_atc_rate: 14.27, atc_conversion_value: 608_022_172 },
-      { view_to_atc_rate: 13.68, atc_conversion_value: 182_661_122 },
-      { view_to_atc_rate: 12.14, atc_conversion_value: 29_068_968 },
+      { atc_conversion_value: 608_022_172 },
+      { atc_conversion_value: 182_661_122 },
+      { atc_conversion_value: 29_068_968 },
     ]);
-    const highRate = rgb(metaAdsExtremeCellStyle("view_to_atc_rate", 14.27, funnel));
-    const lowRate = rgb(metaAdsExtremeCellStyle("view_to_atc_rate", 12.14, funnel));
     const highValue = rgb(metaAdsExtremeCellStyle("atc_conversion_value", 608_022_172, funnel));
     const lowValue = rgb(metaAdsExtremeCellStyle("atc_conversion_value", 29_068_968, funnel));
-    expect(highRate).toEqual([22, 163, 74]);
-    expect(lowRate).toEqual([220, 38, 38]);
     expect(highValue).toEqual([22, 163, 74]);
     expect(lowValue).toEqual([220, 38, 38]);
-    const midRate = rgb(metaAdsExtremeCellStyle("view_to_atc_rate", 13.68, funnel));
     const midValue = rgb(metaAdsExtremeCellStyle("atc_conversion_value", 182_661_122, funnel));
-    expect(midRate[0]).toBeGreaterThan(highRate[0]);
-    expect(midRate[0]).toBeLessThan(lowRate[0]);
     expect(midValue[0]).toBeGreaterThan(highValue[0]);
     expect(midValue[1]).toBeGreaterThan(lowValue[1]);
   });
 
-  it("colors % ATC to Purchase and Cost/Purchase, and leaves value columns plain", () => {
+  it("colors % View to ATC from a fixed percent, darker farther away", () => {
+    const empty = metaAdsExtremeBounds([]);
+    const options = { viewToAtcThreshold: 10 };
+    expect(rgb(metaAdsExtremeCellStyle("view_to_atc_rate", 0, empty, options))).toEqual([
+      220, 38, 38,
+    ]);
+    expect(rgb(metaAdsExtremeCellStyle("view_to_atc_rate", 20, empty, options))).toEqual([
+      22, 163, 74,
+    ]);
+
+    const below = rgb(metaAdsExtremeCellStyle("view_to_atc_rate", 4, empty, options));
+    const nearCut = rgb(metaAdsExtremeCellStyle("view_to_atc_rate", 9, empty, options));
+    const atCut = rgb(metaAdsExtremeCellStyle("view_to_atc_rate", 10, empty, options));
+    const above = rgb(metaAdsExtremeCellStyle("view_to_atc_rate", 15, empty, options));
+
+    expect(below[1]).toBeLessThan(nearCut[1]);
+    expect(nearCut[0]).toBeGreaterThan(nearCut[1]);
+    expect(atCut[1]).toBeGreaterThan(atCut[0]);
+    expect(above[1]).toBeLessThan(atCut[1]);
+    expect(metaAdsExtremeCellStyle("view_to_atc_rate", null, empty, options)).toBeNull();
+    expect(
+      metaAdsExtremeCellStyle("view_to_atc_rate", 4, empty, {
+        viewToAtcThreshold: 10,
+        viewToAtcColorEnabled: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("leaves purchase conversion value uncolored", () => {
     const sales = metaAdsExtremeBounds([
-      {
-        atc_to_purchase_rate: 14.4,
-        purchase_conversion_value: 65_716_454,
-        cost_per_purchase: 6351,
-        aov: 360_019,
-      },
-      {
-        atc_to_purchase_rate: 9.43,
-        purchase_conversion_value: 22_444_321,
-        cost_per_purchase: 18_606,
-        aov: 205_911,
-      },
-      {
-        atc_to_purchase_rate: 3.3,
-        purchase_conversion_value: 1_041_075,
-        cost_per_purchase: 108_815,
-        aov: 161_555,
-      },
+      { purchase_conversion_value: 65_716_454 },
+      { purchase_conversion_value: 22_444_321 },
     ]);
-    expect(rgb(metaAdsExtremeCellStyle("atc_to_purchase_rate", 14.4, sales))).toEqual([22, 163, 74]);
-    expect(rgb(metaAdsExtremeCellStyle("atc_to_purchase_rate", 3.3, sales))).toEqual([220, 38, 38]);
-    expect(rgb(metaAdsExtremeCellStyle("cost_per_purchase", 6351, sales))).toEqual([22, 163, 74]);
-    expect(rgb(metaAdsExtremeCellStyle("cost_per_purchase", 108_815, sales))).toEqual([220, 38, 38]);
     expect(metaAdsExtremeCellStyle("purchase_conversion_value", 65_716_454, sales)).toBeNull();
-    expect(metaAdsExtremeCellStyle("aov", 360_019, sales)).toBeNull();
-    const roas = metaAdsExtremeBounds([
-      { purchase_roas: 4.2 },
-      { purchase_roas: 1.5 },
-      { purchase_roas: 0.4 },
+  });
+
+  it("colors AOV from a fixed amount, darker farther away", () => {
+    const empty = metaAdsExtremeBounds([]);
+    const options = { aovThreshold: 150000 };
+    expect(rgb(metaAdsExtremeCellStyle("aov", 0, empty, options))).toEqual([220, 38, 38]);
+    expect(rgb(metaAdsExtremeCellStyle("aov", 300000, empty, options))).toEqual([22, 163, 74]);
+
+    const below = rgb(metaAdsExtremeCellStyle("aov", 60000, empty, options));
+    const nearCut = rgb(metaAdsExtremeCellStyle("aov", 140000, empty, options));
+    const atCut = rgb(metaAdsExtremeCellStyle("aov", 150000, empty, options));
+    const above = rgb(metaAdsExtremeCellStyle("aov", 220000, empty, options));
+
+    expect(below[1]).toBeLessThan(nearCut[1]);
+    expect(nearCut[0]).toBeGreaterThan(nearCut[1]);
+    expect(atCut[1]).toBeGreaterThan(atCut[0]);
+    expect(above[1]).toBeLessThan(atCut[1]);
+    expect(metaAdsExtremeCellStyle("aov", null, empty, options)).toBeNull();
+    expect(
+      metaAdsExtremeCellStyle("aov", 60000, empty, {
+        aovThreshold: 150000,
+        aovColorEnabled: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("colors % ATC to Purchase from a fixed percent, darker farther away", () => {
+    const empty = metaAdsExtremeBounds([]);
+    const options = { atcToPurchaseThreshold: 20 };
+    expect(rgb(metaAdsExtremeCellStyle("atc_to_purchase_rate", 0, empty, options))).toEqual([
+      220, 38, 38,
     ]);
-    expect(rgb(metaAdsExtremeCellStyle("purchase_roas", 4.2, roas))).toEqual([22, 163, 74]);
-    expect(rgb(metaAdsExtremeCellStyle("purchase_roas", 0.4, roas))).toEqual([220, 38, 38]);
+    expect(rgb(metaAdsExtremeCellStyle("atc_to_purchase_rate", 40, empty, options))).toEqual([
+      22, 163, 74,
+    ]);
+
+    const below = rgb(metaAdsExtremeCellStyle("atc_to_purchase_rate", 8, empty, options));
+    const nearCut = rgb(metaAdsExtremeCellStyle("atc_to_purchase_rate", 18, empty, options));
+    const atCut = rgb(metaAdsExtremeCellStyle("atc_to_purchase_rate", 20, empty, options));
+    const above = rgb(metaAdsExtremeCellStyle("atc_to_purchase_rate", 30, empty, options));
+
+    expect(below[1]).toBeLessThan(nearCut[1]);
+    expect(nearCut[0]).toBeGreaterThan(nearCut[1]);
+    expect(atCut[1]).toBeGreaterThan(atCut[0]);
+    expect(above[1]).toBeLessThan(atCut[1]);
+    expect(metaAdsExtremeCellStyle("atc_to_purchase_rate", null, empty, options)).toBeNull();
+    expect(
+      metaAdsExtremeCellStyle("atc_to_purchase_rate", 8, empty, {
+        atcToPurchaseThreshold: 20,
+        atcToPurchaseColorEnabled: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("colors Purchase ROAS from a fixed threshold, darker farther away", () => {
+    const empty = metaAdsExtremeBounds([]);
+    const options = { purchaseRoasThreshold: 10 };
+    expect(rgb(metaAdsExtremeCellStyle("purchase_roas", 0, empty, options))).toEqual([220, 38, 38]);
+    expect(rgb(metaAdsExtremeCellStyle("purchase_roas", 20, empty, options))).toEqual([22, 163, 74]);
+
+    const below = rgb(metaAdsExtremeCellStyle("purchase_roas", 4, empty, options));
+    const nearCut = rgb(metaAdsExtremeCellStyle("purchase_roas", 9, empty, options));
+    const atCut = rgb(metaAdsExtremeCellStyle("purchase_roas", 10, empty, options));
+    const above = rgb(metaAdsExtremeCellStyle("purchase_roas", 15, empty, options));
+
+    expect(below[1]).toBeLessThan(nearCut[1]);
+    expect(nearCut[0]).toBeGreaterThan(nearCut[1]);
+    expect(atCut[1]).toBeGreaterThan(atCut[0]);
+    expect(above[1]).toBeLessThan(atCut[1]);
+    expect(metaAdsExtremeCellStyle("purchase_roas", null, empty, options)).toBeNull();
+  });
+
+  it("colors Cost/Purchase from a fixed threshold, greener when cheaper", () => {
+    const empty = metaAdsExtremeBounds([]);
+    const options = { costPerPurchaseThreshold: 40000 };
+    expect(rgb(metaAdsExtremeCellStyle("cost_per_purchase", 0, empty, options))).toEqual([
+      22, 163, 74,
+    ]);
+    expect(rgb(metaAdsExtremeCellStyle("cost_per_purchase", 80000, empty, options))).toEqual([
+      220, 38, 38,
+    ]);
+
+    const cheap = rgb(metaAdsExtremeCellStyle("cost_per_purchase", 10000, empty, options));
+    const nearCut = rgb(metaAdsExtremeCellStyle("cost_per_purchase", 35000, empty, options));
+    const atCut = rgb(metaAdsExtremeCellStyle("cost_per_purchase", 40000, empty, options));
+    const expensive = rgb(metaAdsExtremeCellStyle("cost_per_purchase", 60000, empty, options));
+
+    expect(cheap[1]).toBeLessThan(nearCut[1]);
+    expect(atCut[1]).toBeGreaterThan(atCut[0]);
+    expect(expensive[0]).toBeGreaterThan(expensive[1]);
+    expect(metaAdsExtremeCellStyle("cost_per_purchase", null, empty, options)).toBeNull();
+  });
+
+  it("leaves a metric uncolored when its color switch is off", () => {
+    const empty = metaAdsExtremeBounds([]);
+    expect(
+      metaAdsExtremeCellStyle("purchase_roas", 4, empty, {
+        purchaseRoasThreshold: 10,
+        purchaseRoasColorEnabled: false,
+      }),
+    ).toBeNull();
+    expect(
+      metaAdsExtremeCellStyle("cost_per_purchase", 80000, empty, {
+        costPerPurchaseThreshold: 40000,
+        costPerPurchaseColorEnabled: false,
+      }),
+    ).toBeNull();
+    expect(
+      metaAdsExtremeCellStyle("purchase_roas", 20, empty, {
+        purchaseRoasThreshold: 10,
+        purchaseRoasColorEnabled: true,
+      })?.backgroundColor,
+    ).toBe("rgb(22, 163, 74)");
   });
 
   it("leaves a column uncolored when every number is the same", () => {
     const flat = metaAdsExtremeBounds([
-      { ctr: 1, cpm: 10 },
-      { ctr: 1, cpm: null },
+      { atc_conversion_value: 100 },
+      { atc_conversion_value: 100 },
     ]);
-    expect(metaAdsExtremeCellStyle("ctr", 1, flat)).toBeNull();
+    expect(metaAdsExtremeCellStyle("atc_conversion_value", 100, flat)).toBeNull();
   });
 });

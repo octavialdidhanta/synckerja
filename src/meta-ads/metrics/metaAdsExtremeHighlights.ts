@@ -2,14 +2,8 @@ import { parseMetricNumber } from "@/meta-ads/metrics/formatMetaMetricValue";
 
 type Bounds = { min: number; max: number };
 
-const HIGHER_IS_BETTER = [
-  "ctr",
-  "view_to_atc_rate",
-  "atc_conversion_value",
-  "atc_to_purchase_rate",
-  "purchase_roas",
-] as const;
-const LOWER_IS_BETTER = ["cpm", "cost_per_purchase"] as const;
+const HIGHER_IS_BETTER = ["atc_conversion_value"] as const;
+const LOWER_IS_BETTER = [] as const;
 type HighlightKey = (typeof HIGHER_IS_BETTER)[number] | (typeof LOWER_IS_BETTER)[number];
 
 export type MetaAdsExtremeBounds = Record<HighlightKey, Bounds | null>;
@@ -72,16 +66,76 @@ function luminance(rgb: [number, number, number]): number {
   return (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
 }
 
+export type MetaAdsExtremeCellOptions = {
+  /** Purchase ROAS at or above this value is green. Below it is red. */
+  purchaseRoasThreshold?: number;
+  /** When false, Purchase ROAS stays uncolored. */
+  purchaseRoasColorEnabled?: boolean;
+  /** Cost per purchase at or below this value is green. Above it is red. */
+  costPerPurchaseThreshold?: number;
+  /** When false, Cost/Purchase stays uncolored. */
+  costPerPurchaseColorEnabled?: boolean;
+  /** % ATC to Purchase at or above this percent is green. Below it is red. */
+  atcToPurchaseThreshold?: number;
+  /** When false, % ATC to Purchase stays uncolored. */
+  atcToPurchaseColorEnabled?: boolean;
+  /** AOV at or above this amount is green. Below it is red. */
+  aovThreshold?: number;
+  /** When false, AOV stays uncolored. */
+  aovColorEnabled?: boolean;
+  /** % View to ATC at or above this percent is green. Below it is red. */
+  viewToAtcThreshold?: number;
+  /** When false, % View to ATC stays uncolored. */
+  viewToAtcColorEnabled?: boolean;
+  /** CTR at or above this percent is green. Below it is red. */
+  ctrThreshold?: number;
+  /** When false, CTR stays uncolored. */
+  ctrColorEnabled?: boolean;
+  /** CPM at or below this amount is green. Above it is red. */
+  cpmThreshold?: number;
+  /** When false, CPM stays uncolored. */
+  cpmColorEnabled?: boolean;
+};
+
 /**
- * CTR, % View to ATC, ATC conversion value, % ATC to Purchase, and Purchase ROAS get greener as they rise.
- * CPM and Cost/Purchase get greener as they fall.
- * Each number is tinted by its place between the lowest and highest value, including the middle.
+ * ATC conversion value gets greener as it rises, tinted by its place between the lowest and highest value.
+ * CTR, Purchase ROAS, % View to ATC, % ATC to Purchase, AOV, CPM, and Cost/Purchase use a fixed threshold.
+ * A higher CTR, ROAS, view-to-ATC rate, ATC-to-purchase rate, or AOV is better. A lower CPM or cost per purchase is better.
  */
 export function metaAdsExtremeCellStyle(
   key: string,
   value: unknown,
   bounds: MetaAdsExtremeBounds,
+  options?: MetaAdsExtremeCellOptions,
 ): MetaAdsExtremeCellStyle | null {
+  if (key === "purchase_roas") {
+    if (options?.purchaseRoasColorEnabled === false) return null;
+    return higherIsBetterThresholdStyle(value, options?.purchaseRoasThreshold, 10);
+  }
+  if (key === "ctr") {
+    if (options?.ctrColorEnabled === false) return null;
+    return higherIsBetterThresholdStyle(value, options?.ctrThreshold, 1);
+  }
+  if (key === "view_to_atc_rate") {
+    if (options?.viewToAtcColorEnabled === false) return null;
+    return higherIsBetterThresholdStyle(value, options?.viewToAtcThreshold, 10);
+  }
+  if (key === "atc_to_purchase_rate") {
+    if (options?.atcToPurchaseColorEnabled === false) return null;
+    return higherIsBetterThresholdStyle(value, options?.atcToPurchaseThreshold, 20);
+  }
+  if (key === "aov") {
+    if (options?.aovColorEnabled === false) return null;
+    return higherIsBetterThresholdStyle(value, options?.aovThreshold, 150000);
+  }
+  if (key === "cost_per_purchase") {
+    if (options?.costPerPurchaseColorEnabled === false) return null;
+    return lowerIsBetterThresholdStyle(value, options?.costPerPurchaseThreshold, 50000);
+  }
+  if (key === "cpm") {
+    if (options?.cpmColorEnabled === false) return null;
+    return lowerIsBetterThresholdStyle(value, options?.cpmThreshold, 10000);
+  }
   if (!isHighlightKey(key)) return null;
   const range = bounds[key];
   if (!range) return null;
@@ -94,9 +148,55 @@ export function metaAdsExtremeCellStyle(
   const amount = MIN_VISIBLE + (1 - MIN_VISIBLE) * distance;
 
   const rgb = mixToward(towardBest ? GREEN : RED, amount);
+  return tintedCell(rgb, towardBest);
+}
+
+function tintedCell(rgb: [number, number, number], towardBest: boolean): MetaAdsExtremeCellStyle {
   const ink = luminance(rgb) < 0.5 ? "#ffffff" : towardBest ? "#052e16" : "#450a0a";
   return {
     backgroundColor: `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`,
     color: ink,
   };
+}
+
+/** 0 is the darkest red. The threshold is the lightest green. Twice the threshold is solid green. */
+function higherIsBetterThresholdStyle(
+  value: unknown,
+  threshold: number | undefined,
+  fallback: number,
+): MetaAdsExtremeCellStyle | null {
+  const n = parseMetricNumber(value);
+  const cut = threshold != null && threshold > 0 ? threshold : fallback;
+  if (n == null) return null;
+
+  if (n >= cut) {
+    const distance = Math.min(1, (n - cut) / cut);
+    const amount = MIN_VISIBLE + (1 - MIN_VISIBLE) * distance;
+    return tintedCell(mixToward(GREEN, amount), true);
+  }
+
+  const distance = Math.min(1, Math.max(0, (cut - n) / cut));
+  const amount = MIN_VISIBLE + (1 - MIN_VISIBLE) * distance;
+  return tintedCell(mixToward(RED, amount), false);
+}
+
+/** 0 is the darkest green. The threshold is the lightest green. Twice the threshold is solid red. */
+function lowerIsBetterThresholdStyle(
+  value: unknown,
+  threshold: number | undefined,
+  fallback: number,
+): MetaAdsExtremeCellStyle | null {
+  const n = parseMetricNumber(value);
+  const cut = threshold != null && threshold > 0 ? threshold : fallback;
+  if (n == null) return null;
+
+  if (n <= cut) {
+    const distance = Math.min(1, Math.max(0, (cut - n) / cut));
+    const amount = MIN_VISIBLE + (1 - MIN_VISIBLE) * distance;
+    return tintedCell(mixToward(GREEN, amount), true);
+  }
+
+  const distance = Math.min(1, (n - cut) / cut);
+  const amount = MIN_VISIBLE + (1 - MIN_VISIBLE) * distance;
+  return tintedCell(mixToward(RED, amount), false);
 }
