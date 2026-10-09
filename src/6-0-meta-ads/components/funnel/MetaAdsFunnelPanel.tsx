@@ -93,11 +93,18 @@ function formatFunnelCompareRange(fromYmd: string, toYmd: string, locale: Locale
   const from = parseYmdLocal(fromYmd);
   const to = parseYmdLocal(toYmd);
   if (!from || !to) return "";
+  if (
+    from.getFullYear() === to.getFullYear() &&
+    from.getMonth() === to.getMonth() &&
+    from.getDate() === to.getDate()
+  ) {
+    return format(from, "d MMM yyyy", { locale });
+  }
   if (from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth()) {
-    return `${format(from, "d", { locale })}–${format(to, "d MMM", { locale })}`;
+    return `${format(from, "d", { locale })}–${format(to, "d MMM yyyy", { locale })}`;
   }
   if (from.getFullYear() === to.getFullYear()) {
-    return `${format(from, "d MMM", { locale })}–${format(to, "d MMM", { locale })}`;
+    return `${format(from, "d MMM", { locale })}–${format(to, "d MMM yyyy", { locale })}`;
   }
   return `${format(from, "d MMM yyyy", { locale })}–${format(to, "d MMM yyyy", { locale })}`;
 }
@@ -194,6 +201,7 @@ export function MetaAdsFunnelPanel({
     () => formatMetaAdsPickerButtonLabel(dateSelection),
     [dateSelection],
   );
+  const periodLabel = formatFunnelCompareRange(dateStart, dateEnd, dateFnsLocale);
   const sameDatesLabel = compareWindows
     ? formatFunnelCompareRange(compareWindows.sameDates.fromDate, compareWindows.sameDates.toDate, dateFnsLocale)
     : "";
@@ -360,6 +368,7 @@ export function MetaAdsFunnelPanel({
         compareMode={compareMode}
         onCompareModeChange={setCompareMode}
         filterLabel={filterLabel}
+        periodLabel={periodLabel}
         sameDatesLabel={sameDatesLabel}
         previousDaysLabel={previousDaysLabel}
         presetValue={activePresetId ?? "custom"}

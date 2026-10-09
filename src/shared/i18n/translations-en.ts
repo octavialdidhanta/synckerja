@@ -904,7 +904,7 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.metaAds.funnelComparePreviousDays": "Previous days",
   "digitalMarketing.metaAds.funnelActionCostPer": "Cost per {{metric}}",
   "digitalMarketing.metaAds.funnelActionConversionInfo": "Conversion rate formula",
-  "digitalMarketing.metaAds.funnelActionConversionHint": "{{last}} divided by {{first}}, then multiplied by 100.",
+  "digitalMarketing.metaAds.funnelActionConversionHint": "{{last}}/{{first}} × 100",
   "digitalMarketing.metaAds.funnelActionConversionFormula": "Conversion rate = last step ÷ first step × 100",
   "digitalMarketing.metaAds.funnelActionConversionShared": "Both steps count shared-item actions only.",
   "digitalMarketing.metaAds.funnelActionConversionDelta": "The change compares this rate with the same steps on {{range}}.",

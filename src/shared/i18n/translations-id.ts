@@ -904,7 +904,7 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.metaAds.funnelComparePreviousDays": "Hari sebelumnya",
   "digitalMarketing.metaAds.funnelActionCostPer": "Biaya per {{metric}}",
   "digitalMarketing.metaAds.funnelActionConversionInfo": "Rumus conversion rate",
-  "digitalMarketing.metaAds.funnelActionConversionHint": "{{last}} dibagi {{first}}, lalu dikali 100.",
+  "digitalMarketing.metaAds.funnelActionConversionHint": "{{last}}/{{first}} × 100",
   "digitalMarketing.metaAds.funnelActionConversionFormula": "Conversion rate = langkah terakhir ÷ langkah pertama × 100",
   "digitalMarketing.metaAds.funnelActionConversionShared": "Kedua langkah hanya menghitung aksi shared item.",
   "digitalMarketing.metaAds.funnelActionConversionDelta": "Perubahannya membandingkan angka ini dengan langkah yang sama pada {{range}}.",

@@ -14,7 +14,6 @@ import { FunnelCopyButton } from "@/6-0-meta-ads/components/funnel/FunnelCopyBut
 import {
   META_ADS_FUNNEL_PRESET_CPAS_ID,
   META_ADS_FUNNEL_PRESETS,
-  metaAdsFunnelMetricOptions,
   readMetaAdsFunnelMetric,
 } from "@/meta-ads/metrics/metaAdsFunnel";
 
@@ -118,6 +117,13 @@ const RATES: MetricSpec[] = [
   },
 ];
 
+/** Numerator and denominator behind each funnel rate, in that order. */
+const RATE_FORMULA_PARTS: Record<string, readonly [string, string]> = {
+  click_to_view_rate: ["content_views", "clicks"],
+  view_to_atc_rate: ["adds_to_cart", "content_views"],
+  atc_to_purchase_rate: ["purchases", "adds_to_cart"],
+};
+
 function changePercent(current: number | null, previous: number | null): number | null {
   if (current == null || previous == null || previous <= 0) return null;
   return ((current - previous) / previous) * 100;
@@ -162,20 +168,40 @@ function MetricFigure({
   summary,
   previousSummary,
   currency,
+  periodLabel,
   compareLabel,
 }: {
   spec: MetricSpec;
   summary: MetaAdsAccountSummary | null;
   previousSummary: MetaAdsAccountSummary | null;
   currency: string;
+  periodLabel: string;
   compareLabel: string | null;
 }) {
   const { t } = useAppTranslation();
   const current = readMetaAdsFunnelMetric(summary, spec.key);
   const previous = readMetaAdsFunnelMetric(previousSummary, spec.key);
+  const formula = metricFormulaText(spec, summary, currency, current);
+  const compareValue = previous == null ? null : displayValue(spec, previous, currency);
   return (
     <div>
-      <p className="text-[11px] font-medium leading-4 text-[#65676b]">{t(spec.labelKey, spec.fallback)}</p>
+      <div className="flex items-center gap-1.5">
+        <p className="text-[11px] font-medium leading-4 text-[#65676b]">{t(spec.labelKey, spec.fallback)}</p>
+        {formula ? (
+          <FormInfoHint
+            side="top"
+            ariaLabel={t(spec.labelKey, spec.fallback)}
+            content={
+              <RateBreakdown
+                periodLabel={periodLabel}
+                formula={formula}
+                compareLabel={compareLabel}
+                compareValue={compareValue === "—" ? null : compareValue}
+              />
+            }
+          />
+        ) : null}
+      </div>
       <p className="mt-1 text-lg font-semibold tracking-tight text-[#1c1e21]">
         {displayValue(spec, current, currency)}
       </p>
@@ -191,6 +217,7 @@ type Props = {
   previousSummary: MetaAdsAccountSummary | null;
   loading: boolean;
   filterLabel: string;
+  periodLabel: string;
   compareLabel: string | null;
   compareMode: FunnelCompareMode;
   onCompareModeChange: (mode: FunnelCompareMode) => void;
@@ -207,6 +234,7 @@ export function MetaAdsFunnelResultCompare({
   previousSummary,
   loading,
   filterLabel,
+  periodLabel,
   compareLabel,
   compareMode,
   onCompareModeChange,
@@ -320,6 +348,7 @@ export function MetaAdsFunnelResultCompare({
                     summary={summary}
                     previousSummary={previousSummary}
                     currency={currency}
+                    periodLabel={periodLabel}
                     compareLabel={compareLabel}
                   />
                 </div>
@@ -333,6 +362,7 @@ export function MetaAdsFunnelResultCompare({
                     summary={summary}
                     previousSummary={previousSummary}
                     currency={currency}
+                    periodLabel={periodLabel}
                     compareLabel={compareLabel}
                   />
                 </div>
@@ -344,6 +374,7 @@ export function MetaAdsFunnelResultCompare({
               summary={summary}
               previousSummary={previousSummary}
               currency={currency}
+              periodLabel={periodLabel}
               compareLabel={compareLabel}
             />
             <ResultGroup
@@ -352,12 +383,14 @@ export function MetaAdsFunnelResultCompare({
               summary={summary}
               previousSummary={previousSummary}
               currency={currency}
+              periodLabel={periodLabel}
               compareLabel={compareLabel}
               footer={
                 <FlowConversionRate
                   flowKeys={flowKeys}
                   summary={summary}
                   previousSummary={previousSummary}
+                  periodLabel={periodLabel}
                   compareLabel={compareLabel}
                 />
               }
@@ -400,34 +433,101 @@ function stepShare(current: number | null, previous: number | null): number | nu
   return (current / previous) * 100;
 }
 
-function flowStepLabel(key: string, t: (key: string, fallback: string) => string): string {
-  const shared = FLOW_LABELS[key];
-  if (shared) return t(shared.key, shared.fallback);
-  const option = metaAdsFunnelMetricOptions().find((item) => item.key === key);
-  return option ? t(option.labelKey, option.defaultLabel) : key;
+function formatFlowCount(value: number): string {
+  return String(Math.round(value));
+}
+
+function RateBreakdown({
+  periodLabel,
+  formula,
+  compareLabel,
+  compareValue,
+}: {
+  periodLabel: string;
+  formula: string;
+  compareLabel: string | null;
+  compareValue: string | null;
+}) {
+  return (
+    <div className="space-y-2">
+      <div>
+        {periodLabel ? <p className="font-medium">{periodLabel}</p> : null}
+        <p>{formula}</p>
+      </div>
+      {compareValue ? (
+        <div className="border-t border-border pt-2">
+          {compareLabel ? <p className="font-medium">{compareLabel}</p> : null}
+          <p>{compareValue}</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function divideLine(numerator: number, denominator: number, shown: string): string | null {
+  if (!(denominator > 0)) return null;
+  return `${formatFlowCount(numerator)}/${formatFlowCount(denominator)} = ${shown}`;
+}
+
+function metricFormulaText(
+  spec: MetricSpec,
+  summary: MetaAdsAccountSummary | null,
+  currency: string,
+  result: number | null,
+): string | null {
+  if (!summary || result == null) return null;
+  const shown = displayValue(spec, result, currency);
+  if (shown === "—") return null;
+  const purchases = summary.purchases ?? 0;
+  const purchaseValue = summary.purchase_conversion_value ?? 0;
+  if (spec.key === "spend" || spec.key === "purchases" || spec.key === "purchase_conversion_value" || spec.key === "atc_conversion_value") {
+    return shown;
+  }
+  if (spec.key === "cpm" && summary.impressions > 0) {
+    return `${formatFlowCount(summary.spend)}/${formatFlowCount(summary.impressions)} × 1000 = ${shown}`;
+  }
+  if (spec.key === "ctr" && summary.impressions > 0) {
+    return `${formatFlowCount(summary.clicks)}/${formatFlowCount(summary.impressions)} × 100 = ${shown}`;
+  }
+  if (spec.key === "purchase_roas") return divideLine(purchaseValue, summary.spend, shown);
+  if (spec.key === "cost_per_purchase") return divideLine(summary.spend, purchases, shown);
+  if (spec.key === "aov") return divideLine(purchaseValue, purchases, shown);
+  return null;
+}
+
+function rateFormulaText(
+  summary: MetaAdsAccountSummary | null,
+  numeratorKey: string,
+  denominatorKey: string,
+  result: number | null,
+): string | null {
+  const numerator = readMetaAdsFunnelMetric(summary, numeratorKey);
+  const denominator = readMetaAdsFunnelMetric(summary, denominatorKey);
+  if (numerator == null || denominator == null) return null;
+  const shown = result == null ? "—" : `${result.toFixed(2)}%`;
+  return `${formatFlowCount(numerator)}/${formatFlowCount(denominator)} × 100 = ${shown}`;
 }
 
 function FlowConversionRate({
   flowKeys,
   summary,
   previousSummary,
+  periodLabel,
   compareLabel,
 }: {
   flowKeys: string[];
   summary: MetaAdsAccountSummary | null;
   previousSummary: MetaAdsAccountSummary | null;
+  periodLabel: string;
   compareLabel: string | null;
 }) {
   const { t } = useAppTranslation();
   const firstKey = flowKeys[0];
   const lastKey = flowKeys[flowKeys.length - 1];
   if (!firstKey || !lastKey) return null;
-  const firstLabel = flowStepLabel(firstKey, t);
-  const lastLabel = flowStepLabel(lastKey, t);
-  const conversion = stepShare(
-    readMetaAdsFunnelMetric(summary, lastKey),
-    readMetaAdsFunnelMetric(summary, firstKey),
-  );
+  const lastCount = readMetaAdsFunnelMetric(summary, lastKey);
+  const firstCount = readMetaAdsFunnelMetric(summary, firstKey);
+  const conversion = stepShare(lastCount, firstCount);
   const previousConversion = stepShare(
     readMetaAdsFunnelMetric(previousSummary, lastKey),
     readMetaAdsFunnelMetric(previousSummary, firstKey),
@@ -450,38 +550,18 @@ function FlowConversionRate({
               side="top"
               ariaLabel={t("digitalMarketing.metaAds.funnelActionConversionInfo", "Conversion rate formula")}
               content={
-            <div className="space-y-2">
-              <p>
-                {t(
-                  "digitalMarketing.metaAds.funnelActionConversionHint",
-                  "{{last}} divided by {{first}}, then multiplied by 100.",
-                  { first: firstLabel, last: lastLabel },
-                )}
-              </p>
-              <p className="font-medium">
-                {t(
-                  "digitalMarketing.metaAds.funnelActionConversionFormula",
-                  "Conversion rate = last step ÷ first step × 100",
-                )}
-              </p>
-              {sharedOnly ? (
-                <p>
-                  {t(
-                    "digitalMarketing.metaAds.funnelActionConversionShared",
-                    "Both steps count shared-item actions only.",
-                  )}
-                </p>
-              ) : null}
-              {compareLabel ? (
-                <p>
-                  {t(
-                    "digitalMarketing.metaAds.funnelActionConversionDeltaRange",
-                    "The change compares this rate with the same steps on {{range}}.",
-                    { range: compareLabel },
-                  )}
-                </p>
-              ) : null}
-            </div>
+            <RateBreakdown
+              periodLabel={periodLabel}
+              formula={
+                lastCount == null || firstCount == null
+                  ? "—"
+                  : `${formatFlowCount(lastCount)}/${formatFlowCount(firstCount)} × 100 = ${
+                      conversion == null ? "—" : `${conversion.toFixed(2)}%`
+                    }`
+              }
+              compareLabel={compareLabel}
+              compareValue={previousConversion == null ? null : `${previousConversion.toFixed(2)}%`}
+            />
           }
         />
           </div>
@@ -508,6 +588,7 @@ function ResultGroup({
   summary,
   previousSummary,
   currency,
+  periodLabel,
   compareLabel,
   footer,
 }: {
@@ -516,6 +597,7 @@ function ResultGroup({
   summary: MetaAdsAccountSummary | null;
   previousSummary: MetaAdsAccountSummary | null;
   currency: string;
+  periodLabel: string;
   compareLabel: string | null;
   footer?: ReactNode;
 }) {
@@ -527,9 +609,30 @@ function ResultGroup({
         {specs.map((spec) => {
           const current = readMetaAdsFunnelMetric(summary, spec.key);
           const previous = readMetaAdsFunnelMetric(previousSummary, spec.key);
+          const formulaParts = RATE_FORMULA_PARTS[spec.key];
+          const formula = formulaParts
+            ? rateFormulaText(summary, formulaParts[0], formulaParts[1], current)
+            : metricFormulaText(spec, summary, currency, current);
+          const compareValue = previous == null ? null : displayValue(spec, previous, currency);
           return (
             <div key={spec.key} className="flex items-start justify-between gap-3 border-t border-[#eef0f3] pt-2 first:border-t-0 first:pt-0">
-              <p className="pt-0.5 text-xs text-[#65676b]">{t(spec.labelKey, spec.fallback)}</p>
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <p className="text-xs text-[#65676b]">{t(spec.labelKey, spec.fallback)}</p>
+                {formula ? (
+                  <FormInfoHint
+                    side="top"
+                    ariaLabel={t(spec.labelKey, spec.fallback)}
+                    content={
+                      <RateBreakdown
+                        periodLabel={periodLabel}
+                        formula={formula}
+                        compareLabel={compareLabel}
+                        compareValue={compareValue === "—" ? null : compareValue}
+                      />
+                    }
+                  />
+                ) : null}
+              </div>
               <div className="text-right">
                 <p className="text-sm font-semibold text-[#1c1e21]">{displayValue(spec, current, currency)}</p>
                 <ResultDelta
