@@ -52,19 +52,14 @@ describe("metaAdsExtremeCellStyle", () => {
     ).toBeNull();
   });
 
-  it("colors ATC conversion value greener as it rises", () => {
+  it("leaves ATC conversion value uncolored", () => {
     const funnel = metaAdsExtremeBounds([
       { atc_conversion_value: 608_022_172 },
       { atc_conversion_value: 182_661_122 },
       { atc_conversion_value: 29_068_968 },
     ]);
-    const highValue = rgb(metaAdsExtremeCellStyle("atc_conversion_value", 608_022_172, funnel));
-    const lowValue = rgb(metaAdsExtremeCellStyle("atc_conversion_value", 29_068_968, funnel));
-    expect(highValue).toEqual([22, 163, 74]);
-    expect(lowValue).toEqual([220, 38, 38]);
-    const midValue = rgb(metaAdsExtremeCellStyle("atc_conversion_value", 182_661_122, funnel));
-    expect(midValue[0]).toBeGreaterThan(highValue[0]);
-    expect(midValue[1]).toBeGreaterThan(lowValue[1]);
+    expect(metaAdsExtremeCellStyle("atc_conversion_value", 608_022_172, funnel)).toBeNull();
+    expect(metaAdsExtremeCellStyle("atc_conversion_value", 29_068_968, funnel)).toBeNull();
   });
 
   it("colors % View to ATC from a fixed percent, darker farther away", () => {
@@ -216,11 +211,4 @@ describe("metaAdsExtremeCellStyle", () => {
     ).toBe("rgb(22, 163, 74)");
   });
 
-  it("leaves a column uncolored when every number is the same", () => {
-    const flat = metaAdsExtremeBounds([
-      { atc_conversion_value: 100 },
-      { atc_conversion_value: 100 },
-    ]);
-    expect(metaAdsExtremeCellStyle("atc_conversion_value", 100, flat)).toBeNull();
-  });
 });

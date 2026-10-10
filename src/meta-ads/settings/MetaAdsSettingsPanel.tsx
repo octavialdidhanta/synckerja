@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, Info, Loader2, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
   Table,
@@ -17,6 +17,12 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Switch } from "@/shared/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/shared/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -348,6 +354,10 @@ export function MetaAdsSettingsPanel({
     {
       id: "meta-cpm-threshold",
       name: t("omnichannel.settings.metaAds.colorMetricCpm", "CPM"),
+      summary: t(
+        "omnichannel.settings.metaAds.cpmThresholdSummary",
+        "Green at or below this number.",
+      ),
       hint: t(
         "omnichannel.settings.metaAds.cpmThresholdHint",
         "At or below this number the CPM column turns green. Above it, the column turns red. Darker means farther from this number. Use the same currency as the ad account.",
@@ -370,6 +380,10 @@ export function MetaAdsSettingsPanel({
     {
       id: "meta-ctr-threshold",
       name: t("omnichannel.settings.metaAds.colorMetricCtr", "CTR"),
+      summary: t(
+        "omnichannel.settings.metaAds.ctrThresholdSummary",
+        "Green at or above this percent.",
+      ),
       hint: t(
         "omnichannel.settings.metaAds.ctrThresholdHint",
         "Below this percent the CTR column turns red. At or above it, the column turns green. Darker means farther from this number.",
@@ -392,6 +406,10 @@ export function MetaAdsSettingsPanel({
     {
       id: "meta-view-atc-threshold",
       name: t("omnichannel.settings.metaAds.colorMetricViewAtc", "% View to ATC"),
+      summary: t(
+        "omnichannel.settings.metaAds.viewAtcThresholdSummary",
+        "Green at or above this percent.",
+      ),
       hint: t(
         "omnichannel.settings.metaAds.viewAtcThresholdHint",
         "Below this percent the % View to ATC column turns red. At or above it, the column turns green. Darker means farther from this number.",
@@ -417,6 +435,10 @@ export function MetaAdsSettingsPanel({
     {
       id: "meta-atc-threshold",
       name: t("omnichannel.settings.metaAds.colorMetricAtc", "% ATC to Purchase"),
+      summary: t(
+        "omnichannel.settings.metaAds.atcThresholdSummary",
+        "Green at or above this percent.",
+      ),
       hint: t(
         "omnichannel.settings.metaAds.atcThresholdHint",
         "Below this percent the % ATC to Purchase column turns red. At or above it, the column turns green. Darker means farther from this number.",
@@ -442,6 +464,10 @@ export function MetaAdsSettingsPanel({
     {
       id: "meta-aov-threshold",
       name: t("omnichannel.settings.metaAds.colorMetricAov", "AOV"),
+      summary: t(
+        "omnichannel.settings.metaAds.aovThresholdSummary",
+        "Green at or above this number.",
+      ),
       hint: t(
         "omnichannel.settings.metaAds.aovThresholdHint",
         "Below this number the AOV column turns red. At or above it, the column turns green. Darker means farther from this number. Use the same currency as the ad account.",
@@ -464,6 +490,10 @@ export function MetaAdsSettingsPanel({
     {
       id: "meta-cost-threshold",
       name: t("omnichannel.settings.metaAds.colorMetricCost", "Cost/Purchase"),
+      summary: t(
+        "omnichannel.settings.metaAds.costThresholdSummary",
+        "Green at or below this number.",
+      ),
       hint: t(
         "omnichannel.settings.metaAds.costThresholdHint",
         "At or below this number the Cost/Purchase column turns green. Above it, the column turns red. Darker means farther from this number. Use the same currency as the ad account.",
@@ -489,6 +519,10 @@ export function MetaAdsSettingsPanel({
     {
       id: "meta-roas-threshold",
       name: t("omnichannel.settings.metaAds.colorMetricRoas", "Purchase ROAS"),
+      summary: t(
+        "omnichannel.settings.metaAds.roasThresholdSummary",
+        "Green at or above this number.",
+      ),
       hint: t(
         "omnichannel.settings.metaAds.roasThresholdHint",
         "Below this number the Purchase ROAS column turns red. At or above it, the column turns green. Darker means farther from this number.",
@@ -934,6 +968,7 @@ export function MetaAdsSettingsPanel({
               )}
             </p>
           </div>
+          <TooltipProvider delayDuration={200}>
           <Table className="table-fixed" containerClassName="overflow-x-auto">
             <TableHeader>
               <TableRow className="bg-slate-50 hover:bg-slate-50">
@@ -959,8 +994,24 @@ export function MetaAdsSettingsPanel({
                   }
                 >
                   <TableCell className="px-4 py-3.5 align-middle">
-                    <p className="font-medium text-slate-900">{row.name}</p>
-                    <p className="mt-0.5 text-xs leading-5 text-slate-500">{row.hint}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-medium text-slate-900">{row.name}</p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400 hover:text-slate-600"
+                            aria-label={row.hint}
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs text-xs leading-5">
+                          {row.hint}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-500">{row.summary}</p>
                   </TableCell>
                   <TableCell className="px-3 py-3.5 align-middle">
                     <ThresholdSaveField
@@ -989,6 +1040,7 @@ export function MetaAdsSettingsPanel({
               ))}
             </TableBody>
           </Table>
+          </TooltipProvider>
           <div className="h-4" aria-hidden />
         </div>
         </div>

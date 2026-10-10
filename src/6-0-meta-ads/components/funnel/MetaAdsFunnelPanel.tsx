@@ -36,12 +36,17 @@ import {
   resolveMetaAdsFunnelLevel,
 } from "@/meta-ads/metrics/metaAdsFunnel";
 
-const STAGE_COLORS = ["#1D6FEA", "#3B82F6", "#5B9BFF", "#FF6A3D"] as const;
+const STAGE_COLORS = [
+  "hsl(var(--brand-blue))",
+  "color-mix(in srgb, hsl(var(--brand-blue)) 88%, white)",
+  "color-mix(in srgb, hsl(var(--brand-blue)) 74%, white)",
+  "hsl(var(--brand-red))",
+] as const;
 const STEP_CALLOUT_TOP = ["14%", "40%", "60%"] as const;
 const STEP_CALLOUT_HEIGHT = ["22%", "16%", "22%"] as const;
 const COST_PER_PURCHASE_FRACTION = 0.91;
-const COST_COLOR = "#1D6FEA";
-const PURCHASE_COLOR = "#FF6A3D";
+const COST_COLOR = "hsl(var(--brand-blue))";
+const PURCHASE_COLOR = "hsl(var(--brand-red))";
 const FUNNEL_EDGE_GAP = 8;
 const FUNNEL_SHORT_LABELS: Record<string, string> = {
   impressions: "Impressions",
@@ -513,6 +518,7 @@ function FunnelChart({
             const vBottom = vTop + Number.parseFloat(height) / 100;
             const tipX = funnelEdgeX(funnelWidth, vBottom) + FUNNEL_EDGE_GAP;
             const spineX = funnelEdgeX(funnelWidth, vTop) + FUNNEL_EDGE_GAP + 18;
+            const destinationIndex = index + 1;
             return (
               <ElbowCallout
                 key={`${step.current}-${step.next}`}
@@ -525,7 +531,8 @@ function FunnelChart({
                       })
                 }
                 value={formatRate(step.rate)}
-                color={STAGE_COLORS[index + 1] ?? STAGE_COLORS[0]}
+                color={STAGE_COLORS[destinationIndex] ?? STAGE_COLORS[0]}
+                valueColor={destinationIndex === STAGE_COLORS.length - 1 ? PURCHASE_COLOR : COST_COLOR}
                 top={top}
                 height={height}
                 tipX={tipX}
@@ -577,6 +584,7 @@ function ElbowCallout({
   label,
   value,
   color,
+  valueColor,
   top,
   height,
   tipX,
@@ -585,6 +593,7 @@ function ElbowCallout({
   label: string;
   value: string;
   color: string;
+  valueColor: string;
   top: string;
   height: string;
   tipX: number;
@@ -624,7 +633,7 @@ function ElbowCallout({
       </svg>
       <div className="absolute top-1/2 min-w-0 -translate-y-1/2" style={{ left: spineX + 12 }}>
         <p className="whitespace-nowrap text-xs leading-none text-[#65676b]">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tabular-nums leading-none" style={{ color }}>
+        <p className="mt-1 text-2xl font-semibold tabular-nums leading-none" style={{ color: valueColor }}>
           {value}
         </p>
       </div>

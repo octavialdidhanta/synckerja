@@ -28,8 +28,8 @@ const SHARED_ITEM_LABELS: Record<string, { key: string; fallback: string }> = {
   },
 };
 const MAX_SLOTS = 4;
-const BAR_COLOR = "#8E9BFF";
-const CONNECTOR_COLOR = "#E4E9FF";
+const BAR_COLOR = "hsl(var(--brand-blue))";
+const CONNECTOR_COLOR = "hsl(var(--brand-blue-soft))";
 const BAR_WIDTH = 68;
 const PLOT_HEIGHT = 84;
 

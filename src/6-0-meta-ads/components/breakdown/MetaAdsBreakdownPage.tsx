@@ -82,7 +82,7 @@ function MetricSlotPicker({
             placeholder={t("digitalMarketing.metaAds.breakdownSearch", "Search field")}
             className="h-9"
           />
-          <CommandList>
+          <CommandList className="scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <CommandEmpty>{t("digitalMarketing.metaAds.breakdownNoMatch", "No field found")}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (

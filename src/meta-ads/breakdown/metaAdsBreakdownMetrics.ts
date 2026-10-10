@@ -83,7 +83,12 @@ export type BreakdownMetricKey = (typeof BREAKDOWN_METRIC_KEYS)[number];
 
 export type BreakdownMetricSlot = BreakdownMetricKey | "none";
 
-export const BREAKDOWN_METRIC_COLORS = ["#1877F2", "#8ECAFF", "#5B9BFF", "#B7D4F8"] as const;
+export const BREAKDOWN_METRIC_COLORS = [
+  "hsl(var(--brand-blue))",
+  "hsl(204 62% 58%)",
+  "hsl(204 48% 72%)",
+  "hsl(204 40% 84%)",
+] as const;
 
 export const BREAKDOWN_NONE_COLOR = "#B0B3B8";
 

@@ -2,7 +2,7 @@ import { parseMetricNumber } from "@/meta-ads/metrics/formatMetaMetricValue";
 
 type Bounds = { min: number; max: number };
 
-const HIGHER_IS_BETTER = ["atc_conversion_value"] as const;
+const HIGHER_IS_BETTER = [] as const;
 const LOWER_IS_BETTER = [] as const;
 type HighlightKey = (typeof HIGHER_IS_BETTER)[number] | (typeof LOWER_IS_BETTER)[number];
 
@@ -98,9 +98,9 @@ export type MetaAdsExtremeCellOptions = {
 };
 
 /**
- * ATC conversion value gets greener as it rises, tinted by its place between the lowest and highest value.
  * CTR, Purchase ROAS, % View to ATC, % ATC to Purchase, AOV, CPM, and Cost/Purchase use a fixed threshold.
  * A higher CTR, ROAS, view-to-ATC rate, ATC-to-purchase rate, or AOV is better. A lower CPM or cost per purchase is better.
+ * ATC conversion value and purchase conversion value stay uncolored.
  */
 export function metaAdsExtremeCellStyle(
   key: string,
