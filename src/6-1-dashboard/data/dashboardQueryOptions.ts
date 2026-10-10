@@ -97,7 +97,7 @@ export function getMasterDataQueryOptions(organizationId: string | undefined) {
         organizationId
           ? supabase
               .from('sub_services')
-              .select('id, name, service_id, is_active, organization_id')
+              .select('id, name, service_id, is_active, organization_id, image_path')
               .eq('organization_id', organizationId)
               .eq('is_active', true)
               .order('name')

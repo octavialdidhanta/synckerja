@@ -100,7 +100,7 @@ export const ContentPillarManager: React.FC<ContentPillarManagerProps> = React.m
     let success = false;
     
     if (modalData.mode === 'add') {
-      success = await addData(pillarData.name!, pillarData);
+      success = Boolean(await addData(pillarData.name!, pillarData));
     } else if (modalData.item) {
       success = await updateData(modalData.item.id, pillarData.name!, pillarData);
     }

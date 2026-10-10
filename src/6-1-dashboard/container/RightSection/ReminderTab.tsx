@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Badge } from '@/shared/components/ui/badge';
 import { Separator } from '@/shared/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
@@ -8,6 +8,7 @@ import { Calendar, Bell, Clock } from 'lucide-react';
 import { HolidayEvent } from '../../types/social-media';
 import { ContentPillarTracker } from './ContentPillarTracker';
 import { ContentBalanceTab } from './ContentBalanceTab';
+import { CategoryDistributionTab } from './CategoryDistributionTab';
 // import { useOptimizedNationalHolidays } from '@/hooks/useOptimizedAttendanceData'; // Commented out - not available
 import { format, differenceInDays, startOfDay } from 'date-fns';
 import { id, enUS } from 'date-fns/locale';
@@ -147,22 +148,37 @@ const ReminderTab: React.FC<ReminderTabProps> = ({ selectedMonth, serviceFilter 
     return applyVariables(t('reminderTab.daysRemaining', '{{days}} days remaining'), { days: String(days) });
   };
 
+  const tabListRef = useRef<HTMLDivElement>(null);
   const reminderTabTriggerClass =
-    'flex h-full min-h-0 w-full items-center justify-center rounded-none px-2 text-xs text-muted-foreground transition-colors hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none';
+    'inline-flex h-full min-h-0 w-auto min-w-[8.5rem] shrink-0 items-center justify-center whitespace-nowrap rounded-none px-4 text-xs text-muted-foreground transition-colors hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none';
+
+  const scrollTabIntoView = (value: string) => {
+    requestAnimationFrame(() => {
+      tabListRef.current
+        ?.querySelector<HTMLElement>(`[data-tab="${value}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    });
+  };
 
   return (
     <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[5px]">
       <CardContent className="flex h-full min-h-0 flex-col overflow-hidden p-0">
-        <Tabs defaultValue="funnel" className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+        <Tabs defaultValue="funnel" onValueChange={scrollTabIntoView} className="flex h-full min-h-0 w-full flex-col overflow-hidden">
           {/* Tabs Header - Fixed — trigger aktif full height (tanpa inset dari padding list) */}
-          <TabsList className="grid h-9 w-full flex-shrink-0 grid-cols-3 gap-0 overflow-hidden rounded-[5px] bg-muted p-0">
-            <TabsTrigger value="funnel" className={reminderTabTriggerClass}>
+          <TabsList
+            ref={tabListRef}
+            className="scrollbar-hide seamless-scroll nested-scroll-touch-chain-xy flex h-9 w-full min-w-0 flex-shrink-0 flex-nowrap items-stretch justify-start gap-0 overflow-x-auto overflow-y-hidden rounded-[5px] bg-muted p-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            <TabsTrigger value="funnel" data-tab="funnel" className={reminderTabTriggerClass}>
               Funnel
             </TabsTrigger>
-            <TabsTrigger value="content-balance" className={reminderTabTriggerClass}>
+            <TabsTrigger value="content-balance" data-tab="content-balance" className={reminderTabTriggerClass}>
               Content Balance
             </TabsTrigger>
-            <TabsTrigger value="pengingat" className={reminderTabTriggerClass}>
+            <TabsTrigger value="categories" data-tab="categories" className={reminderTabTriggerClass}>
+              Categories
+            </TabsTrigger>
+            <TabsTrigger value="pengingat" data-tab="pengingat" className={reminderTabTriggerClass}>
               {t('reminderTab.tab.pengingat', 'Reminders')}
             </TabsTrigger>
           </TabsList>
@@ -179,6 +195,13 @@ const ReminderTab: React.FC<ReminderTabProps> = ({ selectedMonth, serviceFilter 
             className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden p-0 data-[state=inactive]:hidden"
           >
             <ContentBalanceTab selectedMonth={selectedMonth} serviceFilter={serviceFilter} />
+          </TabsContent>
+
+          <TabsContent
+            value="categories"
+            className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden p-0 data-[state=inactive]:hidden"
+          >
+            <CategoryDistributionTab selectedMonth={selectedMonth} serviceFilter={serviceFilter} />
           </TabsContent>
 
           <TabsContent

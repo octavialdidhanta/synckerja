@@ -70,7 +70,7 @@ export const ContentTypeManager: React.FC<ContentTypeManagerProps> = ({ onDataCh
     let success = false;
     
     if (modalData.mode === 'add') {
-      success = await addData(name);
+      success = Boolean(await addData(name));
     } else if (modalData.item) {
       success = await updateData(modalData.item.id, name);
     }

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { devLog } from '@/shared/lib/logger';
 import { ContentPlan, ContentType, Service, SubService, ContentPillar } from '../types/social-media';
@@ -10,6 +10,7 @@ import type { DigitalMarketingEmployee } from '../hook/useDigitalMarketingEmploy
 import type { CreativeEmployee } from '../hook/useCreativeEmployees';
 import type { ApprovalAccess } from '../hook/useBatchApprovalAccess';
 import type { ScheduledPost } from '@/6-1-scheduled-posts/types/scheduled-post';
+import { signSubServicePhotos } from '../lib/subServicePhoto';
 
 interface ContentPlanTableProps {
   contentPlans: ContentPlan[];
@@ -66,6 +67,28 @@ export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
   onCarouselAllRemoved,
   onProductionResubmitForReview
 }) => {
+  const [subServicePhotoUrls, setSubServicePhotoUrls] = useState<Record<string, string>>({});
+  const subServicePhotoKey = useMemo(
+    () => subServices.map((item) => `${item.id}:${item.image_path ?? ''}`).join('|'),
+    [subServices],
+  );
+  useEffect(() => {
+    const paths = subServices.flatMap((item) => (item.image_path ? [item.image_path] : []));
+    let cancelled = false;
+    void signSubServicePhotos(paths).then((urls) => {
+      if (cancelled) return;
+      const next: Record<string, string> = {};
+      for (const item of subServices) {
+        const signed = item.image_path ? urls.get(item.image_path) : undefined;
+        if (signed) next[item.id] = signed;
+      }
+      setSubServicePhotoUrls(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [subServicePhotoKey, subServices]);
+
   const planIds = useMemo(() => contentPlans.map((p) => p.id), [contentPlans]);
   const { countsMap: carouselCountsMap, refetch: refetchCarouselCounts } = useCarouselCountsMap(planIds);
   const onCarouselChange = useCallback(() => {
@@ -271,6 +294,7 @@ export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
               contentTypes={contentTypes}
               services={services}
               subServices={subServices}
+              subServicePhotoUrls={subServicePhotoUrls}
               contentPillars={contentPillars}
               digitalEmployees={digitalEmployees}
               creativeEmployees={creativeEmployees}

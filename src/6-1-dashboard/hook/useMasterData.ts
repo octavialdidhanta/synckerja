@@ -55,14 +55,16 @@ export const useMasterData = (tableName: string) => {
         ...safeCustomData
       };
 
-      const { error } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from(tableName)
-        .insert([insertData]);
+        .insert([insertData])
+        .select('id')
+        .single();
 
       if (error) throw error;
       
       toast.success(`${name} added successfully`);
-      return true;
+      return typeof data?.id === 'string' ? data.id : false;
     } catch (error) {
       console.error(`Error adding ${tableName}:`, error);
       toast.error(`Failed to add ${name}`);

@@ -2,6 +2,7 @@ import React, { memo, useState, useRef, useEffect } from 'react';
 import { Checkbox } from '@/shared/components/ui/checkbox';
 import { Input } from '@/shared/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
 import {
   Command,
@@ -47,6 +48,7 @@ interface ContentPlanRowProps {
   contentTypes: ContentType[];
   services: Service[];
   subServices: SubService[];
+  subServicePhotoUrls?: Record<string, string>;
   contentPillars: ContentPillar[];
   selectedItems: string[];
   onSelectItem: (id: string, checked: boolean) => void;
@@ -78,6 +80,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
   contentTypes,
   services,
   subServices,
+  subServicePhotoUrls,
   contentPillars,
   selectedItems,
   onSelectItem,
@@ -673,9 +676,31 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
           if (value === 'placeholder') return;
           onFieldChange(plan.id, 'sub_service_id', value);
         }} disabled={!plan.service_id}>
-              <SelectTrigger className={selectTriggerRow}>
-                <SelectValue />
-              </SelectTrigger>
+              {plan.sub_service_id && subServicePhotoUrls?.[plan.sub_service_id] ? (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <SelectTrigger className={selectTriggerRow}>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="w-52 border-slate-200 bg-white p-1.5 shadow-lg">
+                      <img
+                        src={subServicePhotoUrls[plan.sub_service_id]}
+                        alt=""
+                        className="h-40 w-full rounded object-contain"
+                      />
+                      <p className="px-1 pb-1 pt-1.5 text-center text-xs font-medium leading-4 text-slate-900">
+                        {subServices.find((item) => item.id === plan.sub_service_id)?.name}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <SelectTrigger className={selectTriggerRow}>
+                  <SelectValue />
+                </SelectTrigger>
+              )}
               <SelectContent>
                 <SelectItem value="placeholder" disabled>Select Sub Category</SelectItem>
                 {(getFilteredSubServices ? getFilteredSubServices(plan.service_id) : subServices.filter(sub => sub.service_id === plan.service_id)).map(subService => <SelectItem key={subService.id} value={subService.id}>
