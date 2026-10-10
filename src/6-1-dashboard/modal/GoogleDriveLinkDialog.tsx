@@ -3,15 +3,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Badge } from '@/shared/components/ui/badge';
-import { ExternalLink, Check, RotateCcw, LinkIcon, Calendar, FileText, Tag, Lock, Share2, Upload, GripVertical, Trash2, ImageIcon, ChevronDown, ChevronUp, User, Briefcase, Download, Loader2 } from 'lucide-react';
+import { ExternalLink, Check, RotateCcw, LinkIcon, Lock, Share2, Upload, GripVertical, Trash2, ImageIcon, ChevronDown, ChevronUp, Download, Loader2 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/components/ui/tooltip';
+import { useProductKnowledgeFeatures } from '@/6-1-product-knowledge/hooks/useProductKnowledgeFeatures';
+import { FeatureDetailTooltipBody, featureHasTooltipDetail, featureTooltipClassName } from '../container/table/FeatureDetailTooltip';
+import { getMasterDataQueryOptions } from '../data/dashboardQueryOptions';
+import { signSubServicePhotos } from '../lib/subServicePhoto';
 import { OptimizedCommentPanel } from './OptimizedCommentPanel';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/components/ui/collapsible';
 import GoogleDriveFolderCarousel from './GoogleDriveFolderCarousel';
 import { toast } from 'sonner';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { devLog } from '@/shared/lib/logger';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { usePublicReviewToken } from '../hook/usePublicReviewToken';
@@ -34,6 +39,31 @@ import {
 
 const CAROUSEL_MAX_IMAGES = 10;
 
+function PreviewMetaItem({
+  label,
+  value,
+  empty,
+  className,
+  children,
+}: {
+  label: string;
+  value: string;
+  empty: string;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className={cn('flex min-w-0 items-center gap-1.5 border-l border-slate-200 px-2.5 first:border-l-0 first:pl-0', className)}>
+      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
+      {children ?? (
+        <span className="min-w-0 truncate text-xs font-medium text-slate-800" title={value.trim() || undefined}>
+          {value.trim() || empty}
+        </span>
+      )}
+    </div>
+  );
+}
+
 interface GoogleDriveLinkDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -50,6 +80,11 @@ interface GoogleDriveLinkDialogProps {
   postDate?: string;
   /** Service name (from joined services.name) */
   serviceName?: string | null;
+  /** Sub category name (from joined sub_services.name) */
+  subServiceName?: string | null;
+  subServiceId?: string | null;
+  /** Selected product-knowledge feature for this content plan */
+  featureId?: string | null;
   /** PIC Production display name (from joined employees.full_name) */
   picProductionName?: string | null;
   productionApproved?: boolean; // Lock input field if production is approved
@@ -84,6 +119,9 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
   contentType,
   postDate,
   serviceName,
+  subServiceName,
+  subServiceId,
+  featureId,
   picProductionName,
   productionApproved = false,
   productionStatus,
@@ -94,6 +132,11 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
   onCarouselAllRemoved
 }) => {
   const { t } = useAppTranslation();
+  const { data: planFeatures = [] } = useProductKnowledgeFeatures();
+  const selectedFeature = useMemo(
+    () => planFeatures.find((feature) => feature.id === featureId) ?? null,
+    [planFeatures, featureId],
+  );
   const isCarouselMode = isCarouselContentType(contentType);
   const [currentLink, setCurrentLink] = useState(googleDriveLink);
   const [carouselPreviewIndex, setCarouselPreviewIndex] = useState(0);
@@ -104,6 +147,25 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
   const { canShowApprovalButtons } = useProdApprovalAccess(isOpen);
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
+  const { data: masterData } = useQuery(getMasterDataQueryOptions(organizationId));
+  const subServicePhotoPath = useMemo(() => {
+    const match = masterData?.subServices?.find((item) => item.id === subServiceId);
+    return match?.image_path?.trim() || null;
+  }, [masterData?.subServices, subServiceId]);
+  const [subServicePhotoUrl, setSubServicePhotoUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!subServicePhotoPath) {
+      setSubServicePhotoUrl(null);
+      return;
+    }
+    let cancelled = false;
+    void signSubServicePhotos([subServicePhotoPath]).then((urls) => {
+      if (!cancelled) setSubServicePhotoUrl(urls.get(subServicePhotoPath) ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [subServicePhotoPath]);
   const { data: currentEmployee } = useCurrentEmployee();
   const { getOrCreate, isPending: isPublicLinkPending } = usePublicReviewToken();
   const {
@@ -731,10 +793,12 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
           <div className="flex min-w-0 min-h-0 flex-[2] flex-col basis-0">
             {/* Preview area - Always show if there's a link */}
             <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
-              <div className="p-3 border-b border-gray-100 bg-gray-50 flex-shrink-0">
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                  <div className="flex items-center gap-2 shrink-0">
-                    <h4 className="font-medium text-sm text-gray-900">Preview</h4>
+              <div className="shrink-0 border-b border-gray-100 bg-gray-50">
+                <div className="flex h-11 items-center gap-3 px-3">
+                  <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900" title={contentTitle?.trim() || undefined}>
+                    {contentTitle?.trim() || 'No title'}
+                  </h4>
+                  <div className="flex shrink-0 items-center gap-2">
                     {driveConnPending ? (
                       <span className="inline-flex h-7 items-center text-xs text-gray-500 px-1">
                         {t('googleDrivePreview.connectionLoading')}
@@ -742,7 +806,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                     ) : driveGoogleConnected ? (
                       <>
                         {driveNeedsReconnect ? (
-                          <span className="max-w-[14rem] text-xs leading-tight text-amber-700">
+                          <span className="max-w-[8rem] truncate whitespace-nowrap text-xs text-amber-700">
                             {t(
                               'googleDrivePreview.reconnectForDriveFileScope',
                               'Hubungkan ulang Google untuk izin Drive terbaru (drive.file).',
@@ -791,42 +855,90 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                       </Button>
                     )}
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs justify-end min-w-0">
-                    <div className="flex items-center gap-1">
-                      <FileText className="h-3 w-3 text-gray-600" />
-                      <span className="text-gray-700 font-medium">Title:</span>
-                      <span className="text-gray-800 truncate max-w-[200px]">{contentTitle || 'No title'}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Tag className="h-3 w-3 text-gray-600" />
-                      <span className="text-gray-700 font-medium">Type:</span>
-                      <span className="text-gray-800">{contentType || 'No type'}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3 text-gray-600" />
-                      <span className="text-gray-700 font-medium">Date:</span>
-                      <span className="text-gray-800">{postDate ? formatDisplayDate(postDate) : 'No date'}</span>
-                    </div>
-                    <div className="flex items-center gap-1 min-w-0">
-                      <Briefcase className="h-3 w-3 text-gray-600 flex-shrink-0" />
-                      <span className="text-gray-700 font-medium flex-shrink-0">{t('socialMediaDashboard.reviewModal.service', 'Category')}:</span>
-                      <span className="text-gray-800 truncate max-w-[180px]" title={serviceName?.trim() || undefined}>
-                        {serviceName?.trim()
-                          ? serviceName.trim()
-                          : t('socialMediaDashboard.reviewModal.noService', '—')}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 min-w-0">
-                      <User className="h-3 w-3 text-gray-600 flex-shrink-0" />
-                      <span className="text-gray-700 font-medium flex-shrink-0">{t('socialMediaDashboard.reviewModal.picProduction', 'PIC Production')}:</span>
-                      <span className="text-gray-800 truncate max-w-[180px]" title={picProductionName?.trim() || undefined}>
-                        {picProductionName?.trim()
-                          ? picProductionName.trim()
-                          : t('socialMediaDashboard.reviewModal.noPicProduction', '—')}
-                      </span>
-                    </div>
-                  </div>
                 </div>
+                <TooltipProvider delayDuration={200}>
+                  <div className="flex h-9 items-center overflow-hidden border-t border-slate-200/80 px-3">
+                      <PreviewMetaItem
+                        label="Type"
+                        value={contentType || ''}
+                        empty="—"
+                        className="shrink-0"
+                      />
+                      <PreviewMetaItem
+                        label="Date"
+                        value={postDate ? formatDisplayDate(postDate) : ''}
+                        empty="—"
+                        className="shrink-0"
+                      />
+                      <PreviewMetaItem
+                        label={t('socialMediaDashboard.reviewModal.service', 'Category')}
+                        value={serviceName || ''}
+                        empty={t('socialMediaDashboard.reviewModal.noService', '—')}
+                        className="max-w-[9rem] shrink"
+                      />
+                      <PreviewMetaItem
+                        label={t('socialMediaDashboard.reviewModal.subService', 'Sub Category')}
+                        value={subServiceName || ''}
+                        empty={t('socialMediaDashboard.reviewModal.noService', '—')}
+                        className="min-w-[4.5rem] flex-1"
+                      >
+                        {subServiceName?.trim() ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="min-w-0 cursor-help truncate text-xs font-medium text-slate-800">
+                                {subServiceName.trim()}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="z-[80] w-52 border-slate-200 bg-white p-1.5 shadow-lg">
+                              {subServicePhotoUrl ? (
+                                <img
+                                  src={subServicePhotoUrl}
+                                  alt=""
+                                  className="h-40 w-full rounded object-contain"
+                                />
+                              ) : null}
+                              <p className="px-1 pb-1 pt-1.5 text-center text-xs font-medium leading-4 text-slate-900">
+                                {subServiceName.trim()}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <span className="truncate text-xs font-medium text-slate-800">
+                            {t('socialMediaDashboard.reviewModal.noService', '—')}
+                          </span>
+                        )}
+                      </PreviewMetaItem>
+                      <PreviewMetaItem
+                        label={t('socialMediaDashboard.reviewModal.feature', 'Feature')}
+                        value={selectedFeature?.feature_name || ''}
+                        empty={t('socialMediaDashboard.reviewModal.noService', '—')}
+                        className="min-w-[4.5rem] flex-1"
+                      >
+                        {selectedFeature?.feature_name?.trim() && featureHasTooltipDetail(selectedFeature) ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="min-w-0 cursor-help truncate text-xs font-medium text-slate-800">
+                                {selectedFeature.feature_name.trim()}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className={featureTooltipClassName}>
+                              <FeatureDetailTooltipBody feature={selectedFeature} />
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <span className="min-w-0 truncate text-xs font-medium text-slate-800" title={selectedFeature?.feature_name?.trim() || undefined}>
+                            {selectedFeature?.feature_name?.trim() || t('socialMediaDashboard.reviewModal.noService', '—')}
+                          </span>
+                        )}
+                      </PreviewMetaItem>
+                      <PreviewMetaItem
+                        label="PIC"
+                        value={picProductionName || ''}
+                        empty={t('socialMediaDashboard.reviewModal.noPicProduction', '—')}
+                        className="max-w-[11rem] shrink"
+                      />
+                  </div>
+                </TooltipProvider>
               </div>
               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white p-2">
                 {isCarouselMode ? (
@@ -1120,7 +1232,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
             </Collapsible>
           )}
             {/* Comments panel - flexible height, no horizontal scroll */}
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <OptimizedCommentPanel 
                 socialMediaPlanId={socialMediaPlanId} 
                 linkUrl={isCarouselMode ? 'carousel' : (googleDriveLink || 'default-link')}
@@ -1136,12 +1248,6 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
             <div className="min-w-0 flex-1">
               {!isCarouselMode && (
               <div className="space-y-1">
-                {productionApproved && (
-                  <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
-                    <Lock className="h-3 w-3" />
-                    <span>Link is locked because production is approved. Set production approved to false to edit.</span>
-                  </div>
-                )}
                 <div className="flex gap-2">
                   <div className="flex-1 relative">
                     <Input 

@@ -15,7 +15,7 @@ import { removeAllBriefStoryboardImagesForPlan } from './useBriefStoryboardImage
 
 /** Allowed columns for social_media_plans table (no link_url - that column does not exist). */
 const SOCIAL_MEDIA_PLANS_UPDATE_KEYS = new Set([
-  'organization_id', 'post_date', 'content_type_id', 'pic_id', 'service_id', 'sub_service_id',
+  'organization_id', 'post_date', 'content_type_id', 'pic_id', 'service_id', 'sub_service_id', 'feature_id',
   'title', 'content_pillar_id', 'brief', 'status', 'revision_count', 'approved', 'completion_date',
   'pic_production_id', 'pic_production_source', 'google_drive_link', 'production_revision_baseline_link', 'production_status',
   'production_revision_count', 'production_completion_date', 'production_approved', 'production_approved_date',
@@ -134,6 +134,15 @@ export const useOptimizedSocialMediaMutations = () => {
             queryKey: ['social-media-plans', organizationId],
             refetchType: 'none'
           });
+
+          const distributionChanged =
+            updates.service_id !== undefined ||
+            updates.sub_service_id !== undefined ||
+            updates.feature_id !== undefined ||
+            updates.post_date !== undefined;
+          if (distributionChanged) {
+            queryClient.invalidateQueries({ queryKey: ['categoryDistribution', organizationId] });
+          }
           
           // If done status or actual_post_date changed, invalidate all-social-media-links (no forced refetch)
           const doneChanged = updates.done !== undefined && (oldPlan?.done !== updates.done);
@@ -343,6 +352,7 @@ export const useOptimizedSocialMediaMutations = () => {
         );
         
         devLog.debug('New data added to cache without reload');
+        queryClient.invalidateQueries({ queryKey: ['categoryDistribution', organizationId] });
       }
     },
   });
@@ -372,6 +382,7 @@ export const useOptimizedSocialMediaMutations = () => {
         // Force refetch immediately - invalidate alone may not refetch when refetchOnMount is false
         queryClient.refetchQueries({ queryKey: ['social-media-plans', organizationId] });
         queryClient.invalidateQueries({ queryKey: ['social-media-plans-by-date'] });
+        queryClient.invalidateQueries({ queryKey: ['categoryDistribution', organizationId] });
         devLog.debug('Data removed from cache, refetched for sync');
       }
     },

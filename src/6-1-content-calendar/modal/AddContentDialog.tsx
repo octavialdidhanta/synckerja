@@ -27,6 +27,7 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { format } from 'date-fns';
 import { ContentPlan } from '@/6-1-dashboard/types/social-media';
+import { useProductKnowledgeFeatures } from '@/6-1-product-knowledge/hooks/useProductKnowledgeFeatures';
 import { isEmployeeActive } from '@/2-1-employees/utils/employeeUtils';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
@@ -193,6 +194,7 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
   const isMobile = useIsMobile();
   const { organizationId } = useCurrentOrg();
   const { addContentPlan, updateContentPlan } = useSocialMediaMutations();
+  const { data: planFeatures = [] } = useProductKnowledgeFeatures();
   const isEditMode = !!editingPlan;
   const trackerMonth = useMemo(() => {
     if (editingPlan?.post_date) return new Date(editingPlan.post_date);
@@ -214,6 +216,7 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
     brief: '',
     service_id: '',
     sub_service_id: '',
+    feature_id: '',
     content_pillar_id: '',
     content_type_id: '',
     pic_id: '',
@@ -388,6 +391,7 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
         brief: editingPlan.brief || '',
         service_id: editingPlan.service_id || '',
         sub_service_id: editingPlan.sub_service_id || '',
+        feature_id: editingPlan.feature_id || '',
         content_pillar_id: editingPlan.content_pillar_id || '',
         content_type_id: editingPlan.content_type_id || '',
         pic_id: editingPlan.pic_id || '',
@@ -403,7 +407,7 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
       setFilteredSubServices(filtered);
     } else {
       setFilteredSubServices([]);
-      setFormData(prev => ({ ...prev, sub_service_id: '' }));
+      setFormData(prev => ({ ...prev, sub_service_id: '', feature_id: '' }));
     }
   }, [formData.service_id, subServices]);
 
@@ -415,6 +419,7 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
         brief: '',
         service_id: '',
         sub_service_id: '',
+        feature_id: '',
         content_pillar_id: '',
         content_type_id: '',
         pic_id: currentEmployee?.id || '',
@@ -498,6 +503,7 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
           brief: formData.brief.trim() || null,
           service_id: formData.service_id || null,
           sub_service_id: formData.sub_service_id || null,
+          feature_id: formData.feature_id || null,
           content_pillar_id: formData.content_pillar_id || null,
           content_type_id: formData.content_type_id || null,
           pic_id: formData.pic_id || null,
@@ -533,6 +539,7 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
           brief: formData.brief.trim() || null,
           service_id: formData.service_id || null,
           sub_service_id: formData.sub_service_id || null,
+          feature_id: formData.feature_id || null,
           content_pillar_id: formData.content_pillar_id || null,
           content_type_id: formData.content_type_id || null,
           pic_id: formData.pic_id || null,
@@ -567,6 +574,7 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
           brief: '',
           service_id: '',
           sub_service_id: '',
+          feature_id: '',
           content_pillar_id: '',
           content_type_id: '',
           pic_id: currentEmployee.id,
@@ -586,6 +594,19 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
       setLoading(false);
     }
   };
+
+  const filteredFeatures = useMemo(() => {
+    if (!formData.service_id) return [];
+    return planFeatures.filter((feature) => {
+      if ((feature.service_id ?? null) !== formData.service_id) return false;
+      if (!feature.sub_service_id) return true;
+      return feature.sub_service_id === formData.sub_service_id;
+    });
+  }, [planFeatures, formData.service_id, formData.sub_service_id]);
+
+  const filteredFeatureId = filteredFeatures.some((feature) => feature.id === formData.feature_id)
+    ? formData.feature_id
+    : '';
 
   const parsedBriefTable = useMemo(() => {
     const briefText = formData.brief.trim();
@@ -776,6 +797,7 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
                 ...prev,
                 service_id: value,
                 sub_service_id: '',
+                feature_id: '',
               }));
             }}
           />
@@ -792,7 +814,27 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
               label: subService.name,
             }))}
             onChange={(value) => {
-              setFormData((prev) => ({ ...prev, sub_service_id: value }));
+              setFormData((prev) => ({
+                ...prev,
+                sub_service_id: value,
+                feature_id: '',
+              }));
+            }}
+          />
+
+          <AddContentSelectField
+            label="Feature"
+            value={filteredFeatureId}
+            placeholder={formData.service_id ? 'Select feature' : 'Please select category first'}
+            emptyText="No features available"
+            isMobile={isMobile}
+            disabled={!formData.service_id}
+            options={filteredFeatures.map((feature) => ({
+              id: feature.id,
+              label: feature.feature_name || '-',
+            }))}
+            onChange={(value) => {
+              setFormData((prev) => ({ ...prev, feature_id: value }));
             }}
           />
 

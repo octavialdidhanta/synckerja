@@ -7,11 +7,13 @@ import { FeatureManager } from './FeatureManager';
 import { ServiceManager } from '@/6-1-dashboard/container/master-data/dropdowns/ServiceManager';
 import { SubServiceManager } from '@/6-1-dashboard/container/master-data/dropdowns/SubServiceManager';
 import type { Service } from '@/6-1-dashboard/types/social-media';
+import type { SubService } from '../hooks/useSubServices';
 
 interface ProductKnowledgeTableFooterProps {
   masterFeatures: ProductKnowledgeFeature[];
   allProductKnowledgeRows: ProductKnowledge[];
   services: Service[];
+  subServices: SubService[];
   onDataChange: () => void;
   onMasterFeatureUpdated?: (featureId: string, payload: { feature_name: string; feature_description: string | null; solution: string | null; competitive_advantage: unknown }) => void;
 }
@@ -20,6 +22,7 @@ export const ProductKnowledgeTableFooter: React.FC<ProductKnowledgeTableFooterPr
   masterFeatures,
   allProductKnowledgeRows,
   services,
+  subServices,
   onDataChange,
   onMasterFeatureUpdated,
 }) => {
@@ -48,6 +51,7 @@ export const ProductKnowledgeTableFooter: React.FC<ProductKnowledgeTableFooterPr
               masterFeatures={masterFeatures}
               allProductKnowledgeRows={allProductKnowledgeRows}
               services={services}
+              subServices={subServices}
               onDataChange={onDataChange}
               onMasterFeatureUpdated={onMasterFeatureUpdated}
             />

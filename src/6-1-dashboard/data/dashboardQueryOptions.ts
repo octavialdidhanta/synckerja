@@ -12,6 +12,7 @@ const CONTENT_PLANS_SELECT = `
   pic_id,
   service_id,
   sub_service_id,
+  feature_id,
   title,
   content_pillar_id,
   brief,

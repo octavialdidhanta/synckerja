@@ -16,6 +16,8 @@ import { Switch } from '@/shared/components/ui/switch';
 import { Button } from '@/shared/components/ui/button';
 import { ChevronDown, Lock, User } from 'lucide-react';
 import { ContentPlan, ContentType, Service, SubService, ContentPillar } from '../../types/social-media';
+import type { ProductKnowledgeFeature } from '@/6-1-product-knowledge/hooks/useProductKnowledgeFeatures';
+import { FeatureDetailTooltipBody, featureHasTooltipDetail, featureTooltipClassName } from './FeatureDetailTooltip';
 import { BriefPreview } from './BriefPreview';
 import { RevisionCounter } from './RevisionCounter';
 import { PostDateCell } from './cells/PostDateCell';
@@ -48,6 +50,7 @@ interface ContentPlanRowProps {
   contentTypes: ContentType[];
   services: Service[];
   subServices: SubService[];
+  planFeatures?: ProductKnowledgeFeature[];
   subServicePhotoUrls?: Record<string, string>;
   contentPillars: ContentPillar[];
   selectedItems: string[];
@@ -80,6 +83,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
   contentTypes,
   services,
   subServices,
+  planFeatures = [],
   subServicePhotoUrls,
   contentPillars,
   selectedItems,
@@ -710,6 +714,62 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
             </Select>
         </td>
 
+        <td style={{
+        width: '180px',
+        minWidth: '180px',
+        maxWidth: '180px'
+      }} className="px-2 py-1 border-r border-gray-200 border-b border-gray-200">
+          {(() => {
+            const matchingFeatures = planFeatures.filter((feature) => {
+              if ((feature.service_id ?? null) !== (plan.service_id ?? null)) return false;
+              if (!feature.sub_service_id) return true;
+              return feature.sub_service_id === plan.sub_service_id;
+            });
+            const featureValue = matchingFeatures.some((feature) => feature.id === plan.feature_id)
+              ? plan.feature_id!
+              : 'placeholder';
+            const selectedFeature = matchingFeatures.find((feature) => feature.id === featureValue);
+            const trigger = (
+              <SelectTrigger className={selectTriggerRow}>
+                <SelectValue placeholder={plan.service_id ? 'Select Feature' : 'Select Category First'} />
+              </SelectTrigger>
+            );
+            return (
+          <TooltipProvider delayDuration={200}>
+          <Select
+            value={featureValue}
+            onValueChange={value => {
+              if (value === 'placeholder') return;
+              onFieldChange(plan.id, 'feature_id', value);
+            }}
+            disabled={!plan.service_id}
+          >
+            {selectedFeature && featureHasTooltipDetail(selectedFeature) ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {trigger}
+                </TooltipTrigger>
+                <TooltipContent side="top" className={featureTooltipClassName}>
+                  <FeatureDetailTooltipBody feature={selectedFeature} />
+                </TooltipContent>
+              </Tooltip>
+            ) : trigger}
+            <SelectContent>
+              <SelectItem value="placeholder" disabled>
+                {plan.service_id ? 'Select Feature' : 'Select Category First'}
+              </SelectItem>
+              {matchingFeatures.map((feature) => (
+                  <SelectItem key={feature.id} value={feature.id}>
+                    {feature.feature_name || '-'}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          </TooltipProvider>
+            );
+          })()}
+        </td>
+
         {/* POINT 4: Title - No longer locked when approved */}
         <td style={{
         width: '280px',
@@ -1123,6 +1183,9 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         }
     }} socialMediaPlanId={plan.id} planTitle={plan.title} contentTitle={plan.title} contentType={contentTypeName} postDate={plan.post_date}
     serviceName={plan.service?.name ?? null}
+    subServiceName={plan.sub_service?.name ?? null}
+    subServiceId={plan.sub_service_id ?? null}
+    featureId={plan.feature_id ?? null}
     picProductionName={plan.pic_production?.full_name ?? null}
     onCarouselChange={onCarouselChange}
     onCarouselFirstUploadSuccess={onCarouselFirstUploadSuccess}

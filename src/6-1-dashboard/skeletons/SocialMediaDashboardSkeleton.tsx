@@ -101,7 +101,7 @@ function PerformanceSectionSkeleton() {
 
 /** Wide content plan table: sticky-style header + rows (scroll region like live page) */
 function ContentPlanTableSkeleton() {
-  const headerCells = 14;
+  const headerCells = 15;
   const rows = 8;
   return (
     <div className="min-w-[960px]">

@@ -24,6 +24,7 @@ import type { ProductKnowledge } from '../hooks/useProductKnowledge';
 import type { ProductKnowledgeFeature } from '../hooks/useProductKnowledgeFeatures';
 import { useProductKnowledgeFeaturesMutations } from '../hooks/useProductKnowledgeFeatures';
 import type { Service } from '../hooks/useServices';
+import type { SubService } from '../hooks/useSubServices';
 
 function formatCompetitiveAdvantage(value: any): string {
   if (!value) return '';
@@ -69,6 +70,7 @@ interface FeatureManagerProps {
   masterFeatures: ProductKnowledgeFeature[];
   allProductKnowledgeRows: ProductKnowledge[];
   services: Service[];
+  subServices?: SubService[];
   onDataChange: () => void;
   onMasterFeatureUpdated?: (featureId: string, payload: { feature_name: string; feature_description: string | null; solution: string | null; competitive_advantage: unknown }) => void;
 }
@@ -77,6 +79,7 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
   masterFeatures,
   allProductKnowledgeRows = [],
   services = [],
+  subServices = [],
   onDataChange,
   onMasterFeatureUpdated,
 }) => {
@@ -106,6 +109,7 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
     mode: 'add' | 'edit';
     item: ProductKnowledgeFeature | null;
     service_id: string | null;
+    sub_service_id: string | null;
     feature_name: string;
     feature_description: string;
     solution: string;
@@ -115,6 +119,7 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
     mode: 'add',
     item: null,
     service_id: null,
+    sub_service_id: null,
     feature_name: '',
     feature_description: '',
     solution: '',
@@ -127,6 +132,7 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
       mode: 'add',
       item: null,
       service_id: null,
+      sub_service_id: null,
       feature_name: '',
       feature_description: '',
       solution: '',
@@ -141,6 +147,7 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
       mode: 'edit',
       item,
       service_id: item.service_id ?? null,
+      sub_service_id: item.sub_service_id ?? null,
       feature_name: item.feature_name || '',
       feature_description: item.feature_description || '',
       solution: item.solution || '',
@@ -173,7 +180,11 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
   );
 
   const handleSave = useCallback(async () => {
-    const { feature_name, feature_description, solution, competitive_advantage_raw, service_id } = modalData;
+    const { feature_name, feature_description, solution, competitive_advantage_raw, service_id, sub_service_id } = modalData;
+    const subServiceBelongsToCategory = subServices.some(
+      (item) => item.id === sub_service_id && item.service_id === service_id,
+    );
+    const resolvedSubServiceId = subServiceBelongsToCategory ? sub_service_id : null;
     if (!feature_name.trim()) {
       return;
     }
@@ -188,6 +199,7 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
     if (modalData.mode === 'add') {
       await createFeature({
         service_id: service_id ?? null,
+        sub_service_id: resolvedSubServiceId,
         feature_name: feature_name.trim(),
         feature_description: normalizedFeatureDescription,
         solution: normalizedSolution,
@@ -198,6 +210,7 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
         id: modalData.item.id,
         input: {
           service_id: service_id ?? null,
+          sub_service_id: resolvedSubServiceId,
           feature_name: feature_name.trim(),
           feature_description: normalizedFeatureDescription,
           solution: normalizedSolution,
@@ -215,7 +228,7 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
     queryClient.invalidateQueries({ queryKey: ['product-knowledge-features'] });
     onDataChange();
     setModalData((prev) => ({ ...prev, open: false }));
-  }, [modalData, createFeature, updateFeature, queryClient, onDataChange, onMasterFeatureUpdated, t]);
+  }, [modalData, subServices, createFeature, updateFeature, queryClient, onDataChange, onMasterFeatureUpdated, t]);
 
   const handleCloseModal = useCallback(() => {
     setModalData((prev) => ({ ...prev, open: false }));
@@ -429,9 +442,14 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
               <>
                 <DropdownMenuSeparator />
                 <div className="px-2 py-1 text-xs font-medium text-gray-500">Features</div>
-                {filteredFeatures.map((item) => (
+                {filteredFeatures.map((item) => {
+                  const subCategoryName = subServices.find((sub) => sub.id === item.sub_service_id)?.name;
+                  return (
                   <div key={item.id} className="flex items-center justify-between px-2 py-1 hover:bg-gray-50">
-                    <span className="text-sm truncate flex-1 mr-2">{item.feature_name || '-'}</span>
+                    <span className="text-sm truncate flex-1 mr-2">
+                      {item.feature_name || '-'}
+                      {subCategoryName ? <span className="text-gray-500"> · {subCategoryName}</span> : null}
+                    </span>
                     <div className="flex gap-1">
                       <Button
                         variant="ghost"
@@ -453,7 +471,8 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </>
             )}
             {filteredFeatures.length === 0 && (
@@ -485,7 +504,11 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
                     <Select
                       value={modalData.service_id ?? 'placeholder'}
                       onValueChange={(value) =>
-                        setModalData((prev) => ({ ...prev, service_id: value === 'placeholder' ? null : value }))
+                        setModalData((prev) => ({
+                          ...prev,
+                          service_id: value === 'placeholder' ? null : value,
+                          sub_service_id: null,
+                        }))
                       }
                     >
                       <SelectTrigger className="w-full h-9 text-sm border rounded">
@@ -507,6 +530,49 @@ export const FeatureManager: React.FC<FeatureManagerProps> = ({
                     </Select>
                     <p className="text-xs text-gray-500 mt-1">
                       {t('productKnowledge.masterData.serviceFeatureHint', 'Feature hanya muncul di baris yang memilih Category ini.')}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      {t('productKnowledge.masterData.subService', 'Sub Category')}
+                    </label>
+                    <Select
+                      value={modalData.sub_service_id ?? 'all'}
+                      onValueChange={(value) =>
+                        setModalData((prev) => ({ ...prev, sub_service_id: value === 'all' ? null : value }))
+                      }
+                      disabled={!modalData.service_id}
+                    >
+                      <SelectTrigger className="w-full h-9 text-sm border rounded">
+                        <SelectValue
+                          placeholder={
+                            modalData.service_id
+                              ? t('productKnowledge.masterData.selectSubService', 'Pilih Sub Category')
+                              : t('productKnowledge.masterData.selectSubServiceFirst', 'Pilih Category terlebih dahulu')
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent
+                        position="popper"
+                        className="z-[10050] max-h-[min(16rem,calc(90vh-8rem))]"
+                      >
+                        <SelectItem value="all">
+                          {t('productKnowledge.masterData.allSubServices', 'Semua Sub Category')}
+                        </SelectItem>
+                        {subServices
+                          .filter((item) => item.service_id === modalData.service_id)
+                          .map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {t(
+                        'productKnowledge.masterData.subServiceFeatureHint',
+                        'Kosongkan agar feature muncul di semua Sub Category pada Category ini. Pilih satu agar feature hanya muncul di baris dengan Sub Category tersebut.',
+                      )}
                     </p>
                   </div>
                   <div>

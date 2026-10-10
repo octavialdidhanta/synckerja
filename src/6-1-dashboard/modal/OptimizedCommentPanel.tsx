@@ -668,7 +668,7 @@ export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React
         </div>
       </div>;
   }
-  return <div className="flex flex-col h-full bg-white">
+  return <div className="flex h-full min-h-0 flex-1 flex-col bg-white">
       {/* Image Preview Modal */}
       {previewImage && <ImagePreviewModal isOpen={!!previewImage} onClose={() => setPreviewImage(null)} imageUrl={previewImage.url} imageName={previewImage.name} createdAt={previewImage.createdAt} creatorName={previewImage.creatorName} />}
 
@@ -720,8 +720,8 @@ export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React
       </div>
 
       {/* Add Comment Form - Fixed at bottom with proper alignment */}
-      <div className="flex-shrink-0 border-t border-gray-200 bg-white p-4 shadow-lg">
-        <div className="space-y-4">
+      <div className="mt-auto flex-shrink-0 border-t border-gray-200 bg-white px-3 pb-2 pt-3">
+        <div className="space-y-2">
           <div className="space-y-2">
             
             <Textarea value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder="Tulis komentar quality control... (Ctrl+Enter untuk submit, paste gambar untuk upload)" className="min-h-[100px] text-sm resize-none" />

@@ -190,8 +190,32 @@ const ProductKnowledgeContent: React.FC = () => {
 
   // Handle field change
   const handleFieldChange = useCallback((id: string, field: string, value: any) => {
-    updateProductKnowledge(id, { [field]: value });
-  }, [updateProductKnowledge]);
+    if (field !== 'sub_service_id') {
+      updateProductKnowledge(id, { [field]: value });
+      return;
+    }
+
+    const row = productKnowledgeData.find((item) => item.id === id);
+    const serviceId = row?.service_id ?? null;
+    const nextSubServiceId = (value as string | null) ?? null;
+    const forCategory = masterFeatures.filter((feature) => (feature.service_id ?? null) === serviceId);
+    const specific = nextSubServiceId
+      ? forCategory.filter((feature) => feature.sub_service_id === nextSubServiceId)
+      : [];
+    const nextFeature = specific.find((feature) => feature.id === row?.feature_id)
+      ?? specific[0]
+      ?? forCategory.find((feature) => !feature.sub_service_id && feature.id === row?.feature_id)
+      ?? null;
+
+    updateProductKnowledge(id, {
+      sub_service_id: nextSubServiceId,
+      feature_id: nextFeature?.id ?? null,
+      feature_name: nextFeature?.feature_name ?? '',
+      feature_description: nextFeature?.feature_description ?? '',
+      solusi: nextFeature?.solution ?? null,
+      competitive_advantage: nextFeature?.competitive_advantage ?? null,
+    });
+  }, [productKnowledgeData, masterFeatures, updateProductKnowledge]);
 
   // Single update when user selects or clears a feature (pre-fill from master in product_knowledge_features)
   const handleFeatureSelect = useCallback(
@@ -398,6 +422,7 @@ const ProductKnowledgeContent: React.FC = () => {
                               masterFeatures={masterFeatures}
                               allProductKnowledgeRows={productKnowledgeData}
                               services={services}
+                              subServices={subServices}
                               onDataChange={handleMasterDataChange}
                               onMasterFeatureUpdated={handleMasterFeatureUpdated}
                             />

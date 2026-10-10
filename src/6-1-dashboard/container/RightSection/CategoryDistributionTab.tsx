@@ -8,9 +8,12 @@ import { toast } from 'sonner';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { pillarBarWidth } from '../../lib/contentPillarTracker';
 import { signSubServicePhotos } from '../../lib/subServicePhoto';
-import { useCategoryDistribution, type SubCategoryDistributionItem } from '../../hook/useCategoryDistribution';
+import { useCategoryDistribution, type SubCategoryDistributionItem, type UsedFeatureDistributionItem } from '../../hook/useCategoryDistribution';
+import { FeatureDetailTooltipBody, featureHasTooltipDetail, featureTooltipClassName } from '../table/FeatureDetailTooltip';
+import { useProductKnowledgeFeatures } from '@/6-1-product-knowledge/hooks/useProductKnowledgeFeatures';
 
 const EMPTY_SUB_CATEGORIES: SubCategoryDistributionItem[] = [];
+const EMPTY_FEATURES: UsedFeatureDistributionItem[] = [];
 
 function SubCategoryName({ name }: { name: string }) {
   const textRef = React.useRef<HTMLSpanElement>(null);
@@ -54,10 +57,13 @@ export const CategoryDistributionTab = ({ selectedMonth, serviceFilter }: Catego
   const { organizationId } = useCurrentOrg();
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useCategoryDistribution(selectedMonth, serviceFilter);
+  const { data: planFeatures = [] } = useProductKnowledgeFeatures();
 
   const categories = data?.categories ?? [];
   const subCategories = data?.subCategories ?? EMPTY_SUB_CATEGORIES;
+  const usedFeatures = data?.features ?? EMPTY_FEATURES;
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<string | null>(null);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const photoKey = useMemo(
     () => subCategories.map((item) => `${item.id}:${item.imagePath ?? ''}`).join('|'),
@@ -110,6 +116,7 @@ export const CategoryDistributionTab = ({ selectedMonth, serviceFilter }: Catego
     await queryClient.invalidateQueries({ queryKey: ['categoryDistribution', organizationId] });
     await queryClient.invalidateQueries({ queryKey: ['social-media-plans', organizationId] });
     await queryClient.invalidateQueries({ queryKey: ['social-media-master', organizationId] });
+    await queryClient.invalidateQueries({ queryKey: ['product-knowledge-features', organizationId] });
     await refetch();
     toast.success('Data refreshed');
   };
@@ -190,7 +197,10 @@ export const CategoryDistributionTab = ({ selectedMonth, serviceFilter }: Catego
               <section key={category.id} className="space-y-3">
                 <button
                   type="button"
-                  onClick={() => setSelectedCategoryId(category.id)}
+                  onClick={() => {
+                    setSelectedCategoryId(category.id);
+                    setSelectedSubCategoryId(null);
+                  }}
                   className={`flex w-full items-center justify-between gap-3 rounded-[5px] px-3 py-2 text-left transition-colors ${
                     selected
                       ? 'border border-brand-blue/30 bg-brand-blue/10 text-brand-blue'
@@ -210,15 +220,42 @@ export const CategoryDistributionTab = ({ selectedMonth, serviceFilter }: Catego
                       <div className="space-y-3">
                         {items.map((item) => {
                           const photoUrl = photoUrls[item.id];
+                          const subSelected = item.id === selectedSubCategoryId;
+                          const featureItems = usedFeatures.filter((feature) => feature.subServiceId === item.id);
                           return (
-                            <div key={item.id} className="flex items-center gap-2">
+                            <div key={item.id} className="space-y-1">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedSubCategoryId((current) => current === item.id ? null : item.id)}
+                                className={`flex w-full items-center gap-2 rounded-[5px] px-1 py-1 text-left ${
+                                  subSelected ? 'bg-brand-blue/10' : 'hover:bg-gray-50'
+                                }`}
+                              >
                               {item.imagePath ? (
                                 photoUrl ? (
-                                  <img
-                                    src={photoUrl}
-                                    alt=""
-                                    className="h-8 w-8 shrink-0 rounded border border-gray-200 object-cover"
-                                  />
+                                  <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="inline-flex shrink-0">
+                                          <img
+                                            src={photoUrl}
+                                            alt=""
+                                            className="h-8 w-8 rounded border border-gray-200 object-cover"
+                                          />
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="w-52 border-slate-200 bg-white p-1.5 shadow-lg">
+                                        <img
+                                          src={photoUrl}
+                                          alt=""
+                                          className="h-40 w-full rounded object-contain"
+                                        />
+                                        <p className="px-1 pb-1 pt-1.5 text-center text-xs font-medium leading-4 text-slate-900">
+                                          {item.name}
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 ) : (
                                   <div className="h-8 w-8 shrink-0 rounded border border-gray-200 bg-gray-100" aria-hidden />
                                 )
@@ -235,6 +272,37 @@ export const CategoryDistributionTab = ({ selectedMonth, serviceFilter }: Catego
                                   />
                                 </div>
                               </div>
+                              </button>
+                              {subSelected ? (
+                                featureItems.length === 0 ? (
+                                  <p className="py-1 pl-11 text-xs text-gray-500">No features for this sub category</p>
+                                ) : (
+                                  <div className="space-y-1 pl-11">
+                                    {featureItems.map((feature) => {
+                                      const tooltipFeature = planFeatures.find((item) => item.id === feature.id) ?? feature;
+                                      const row = (
+                                        <div className="flex items-center justify-between gap-2 rounded-[5px] bg-gray-50 px-2 py-1">
+                                          <span className="min-w-0 truncate text-xs text-gray-800">{feature.name}</span>
+                                          <span className={`shrink-0 text-xs font-medium ${feature.count > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
+                                            {feature.count}
+                                          </span>
+                                        </div>
+                                      );
+                                      if (!featureHasTooltipDetail(tooltipFeature)) {
+                                        return <div key={feature.id}>{row}</div>;
+                                      }
+                                      return (
+                                        <Tooltip key={feature.id} delayDuration={200}>
+                                          <TooltipTrigger asChild>{row}</TooltipTrigger>
+                                          <TooltipContent side="top" className={featureTooltipClassName}>
+                                            <FeatureDetailTooltipBody feature={tooltipFeature} />
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      );
+                                    })}
+                                  </div>
+                                )
+                              ) : null}
                             </div>
                           );
                         })}

@@ -31,6 +31,7 @@ import TitleDialog from '../modal/TitleDialog';
 import EditTargetDialog from '../modal/EditTargetDialog';
 import GoogleDriveLinkDialog from '../modal/GoogleDriveLinkDialog';
 import type { ContentPlan } from '../types/social-media';
+import { useProductKnowledgeFeatures } from '@/6-1-product-knowledge/hooks/useProductKnowledgeFeatures';
 import {
   getGoogleDriveLinkNonEmptyUpdates,
   getProductionResubmitAfterRevisionUpdates,
@@ -106,6 +107,7 @@ const SocialMediaContent = () => {
   
   // Batch check approval access (optimized - single check for all rows)
   const approvalAccess = useBatchApprovalAccess();
+  const { data: planFeatures = [] } = useProductKnowledgeFeatures();
 
   /** Blocks handleFieldChange for a plan while approval modal is open; cleared in onUpdate/onRollback */
   const pendingApprovalPlansRef = useRef<Set<string>>(new Set());
@@ -267,7 +269,7 @@ const SocialMediaContent = () => {
 
   // Fetch single plan when opening preview from notification (plan may not be in current table filter)
   const PLAN_SELECT = `
-    id, organization_id, post_date, content_type_id, pic_id, service_id, sub_service_id, title, content_pillar_id, brief, status, revision_count, approved, completion_date, pic_production_id, pic_production_source, google_drive_link, production_revision_baseline_link, production_status, production_revision_count, production_completion_date, production_approved, production_approved_date, post_link, post_link_created_by, done, actual_post_date, on_time_status, status_content, created_at, updated_at,
+    id, organization_id, post_date, content_type_id, pic_id, service_id, sub_service_id, feature_id, title, content_pillar_id, brief, status, revision_count, approved, completion_date, pic_production_id, pic_production_source, google_drive_link, production_revision_baseline_link, production_status, production_revision_count, production_completion_date, production_approved, production_approved_date, post_link, post_link_created_by, done, actual_post_date, on_time_status, status_content, created_at, updated_at,
     content_type:content_types(id, name), service:services(id, name), sub_service:sub_services(id, name), content_pillar:content_pillars(id, name, color), pic:employees!social_media_plans_pic_id_fkey(id, full_name), pic_production:employees!social_media_plans_pic_production_id_fkey(id, full_name), post_link_creator:employees!social_media_plans_post_link_created_by_fkey(id, full_name)
   `;
   const { data: notificationPreviewPlanFetched } = useQuery({
@@ -766,6 +768,7 @@ const SocialMediaContent = () => {
 
   // Batch updates for production_approved related fields to reduce database calls
   const pendingBatchUpdatesRef = useRef<Map<string, { updates: any; timeout: NodeJS.Timeout }>>(new Map());
+  const pendingCategoryUpdatesRef = useRef<Map<string, { updates: Record<string, unknown>; timeout: NodeJS.Timeout }>>(new Map());
 
   const handleProductionResubmitForReview = useCallback(
     (planId: string) => {
@@ -996,6 +999,27 @@ const SocialMediaContent = () => {
         } else {
           updateContentPlan(id, { approved: true });
         }
+      } else if (field === 'service_id' || field === 'sub_service_id' || field === 'feature_id') {
+        const existing = pendingCategoryUpdatesRef.current.get(id);
+        if (existing) clearTimeout(existing.timeout);
+        const pending = existing ?? { updates: {} as Record<string, unknown>, timeout: null as unknown as NodeJS.Timeout };
+        pending.updates[field] = value;
+        pending.timeout = setTimeout(() => {
+          const batch = pendingCategoryUpdatesRef.current.get(id);
+          pendingCategoryUpdatesRef.current.delete(id);
+          if (!batch) return;
+          const plan = contentPlans.find((item) => item.id === id);
+          const updates = { ...batch.updates };
+          const serviceChanged = 'service_id' in updates && updates.service_id !== plan?.service_id;
+          if (serviceChanged) {
+            updates.sub_service_id = null;
+            updates.feature_id = null;
+          } else if ('sub_service_id' in updates && !('feature_id' in updates)) {
+            updates.feature_id = null;
+          }
+          updateContentPlan(id, updates);
+        }, 30);
+        pendingCategoryUpdatesRef.current.set(id, pending);
       } else {
         // Regular field update
         updateContentPlan(id, { [field]: value });
@@ -1351,6 +1375,7 @@ const SocialMediaContent = () => {
                                       contentTypes={Array.isArray(contentTypes) ? contentTypes : []}
                                       services={Array.isArray(services) ? services : []}
                                       subServices={Array.isArray(subServices) ? subServices : []}
+                                      planFeatures={planFeatures}
                                       contentPillars={Array.isArray(contentPillars) ? contentPillars : []}
                                       linksByPlanId={linksByPlanId}
                                       scheduleByPlanId={scheduleByPlanId}
@@ -1472,6 +1497,9 @@ const SocialMediaContent = () => {
               contentType={notificationPreviewPlan.content_type?.name}
               postDate={notificationPreviewPlan.post_date ?? undefined}
               serviceName={notificationPreviewPlan.service?.name ?? null}
+              subServiceName={notificationPreviewPlan.sub_service?.name ?? null}
+              subServiceId={notificationPreviewPlan.sub_service_id ?? null}
+              featureId={notificationPreviewPlan.feature_id ?? null}
               picProductionName={notificationPreviewPlan.pic_production?.full_name ?? null}
               onApprove={() => {
                 handleFieldChange(notificationPreviewPlan.id, 'production_approved', true);

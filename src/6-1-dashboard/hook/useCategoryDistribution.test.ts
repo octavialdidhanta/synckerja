@@ -56,4 +56,62 @@ describe('countCategoryDistribution', () => {
     expect(result.total).toBe(1);
     expect(result.categories[0]).toMatchObject({ id: 'cat-b', count: 1, percentage: 100 });
   });
+
+  it('keeps sub category features visible when the selected month has no content for them', () => {
+    const result = countCategoryDistribution({
+      selectedMonth: new Date(2026, 9, 15),
+      services,
+      subServices,
+      features: [
+        {
+          id: 'feat-1',
+          feature_name: 'GaN 45W',
+          service_id: 'cat-a',
+          sub_service_id: 'sub-a1',
+          feature_description: 'Fast charge',
+          solution: 'Use GaN',
+          competitive_advantage: 'Smaller',
+        },
+        { id: 'feat-2', feature_name: 'Cable included', service_id: 'cat-b', sub_service_id: 'sub-b1' },
+        { id: 'feat-3', feature_name: 'Unused port', service_id: 'cat-a', sub_service_id: 'sub-a1' },
+      ],
+      plans: [
+        { id: '1', service_id: 'cat-a', sub_service_id: 'sub-a1', feature_id: 'feat-1', post_date: '2026-10-05T12:00:00' },
+        { id: '2', service_id: 'cat-a', sub_service_id: 'sub-a1', feature_id: 'feat-1', post_date: '2026-10-06T12:00:00' },
+        { id: '3', service_id: 'cat-a', sub_service_id: 'sub-a1', feature_id: 'feat-3', post_date: '2026-08-15T12:00:00' },
+        { id: '4', service_id: 'cat-a', sub_service_id: 'sub-a1', feature_id: null, post_date: '2026-10-07T12:00:00' },
+        { id: '5', service_id: 'cat-b', sub_service_id: 'sub-b1', feature_id: 'feat-2', post_date: '2026-10-08T12:00:00' },
+      ],
+    });
+
+    expect(result.features).toEqual([
+      {
+        id: 'feat-1',
+        name: 'GaN 45W',
+        subServiceId: 'sub-a1',
+        count: 2,
+        feature_description: 'Fast charge',
+        solution: 'Use GaN',
+        competitive_advantage: 'Smaller',
+      },
+      {
+        id: 'feat-2',
+        name: 'Cable included',
+        subServiceId: 'sub-b1',
+        count: 1,
+        feature_description: null,
+        solution: null,
+        competitive_advantage: null,
+      },
+      {
+        id: 'feat-3',
+        name: 'Unused port',
+        subServiceId: 'sub-a1',
+        count: 0,
+        feature_description: null,
+        solution: null,
+        competitive_advantage: null,
+      },
+    ]);
+  });
 });

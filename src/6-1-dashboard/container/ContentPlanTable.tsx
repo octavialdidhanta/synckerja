@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { devLog } from '@/shared/lib/logger';
 import { ContentPlan, ContentType, Service, SubService, ContentPillar } from '../types/social-media';
+import type { ProductKnowledgeFeature } from '@/6-1-product-knowledge/hooks/useProductKnowledgeFeatures';
 import { useCarouselCountsMap } from '../hook/useCarouselImages';
 import { TableHeader } from './table/TableHeader';
 import { ContentPlanRow } from './table/ContentPlanRow';
@@ -17,6 +18,7 @@ interface ContentPlanTableProps {
   contentTypes: ContentType[];
   services: Service[];
   subServices: SubService[];
+  planFeatures?: ProductKnowledgeFeature[];
   contentPillars: ContentPillar[];
   linksByPlanId?: Record<string, SocialMediaLink[]>;
   scheduleByPlanId?: Record<string, ScheduledPost>;
@@ -47,6 +49,7 @@ export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
   contentTypes,
   services,
   subServices,
+  planFeatures = [],
   contentPillars,
   linksByPlanId = {},
   scheduleByPlanId = {},
@@ -268,7 +271,7 @@ export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
           <TableHeader />
           <tbody>
             <tr>
-              <td colSpan={24} className="p-8 text-center text-gray-500">
+              <td colSpan={25} className="p-8 text-center text-gray-500">
                 {hasActiveFilters
                   ? 'No content plans match the current filters. Try changing Status, Month, or Service.'
                   : 'No content plans found. Create a new content plan to get started.'}
@@ -294,6 +297,7 @@ export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
               contentTypes={contentTypes}
               services={services}
               subServices={subServices}
+              planFeatures={planFeatures}
               subServicePhotoUrls={subServicePhotoUrls}
               contentPillars={contentPillars}
               digitalEmployees={digitalEmployees}

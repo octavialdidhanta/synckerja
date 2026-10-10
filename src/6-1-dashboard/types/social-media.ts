@@ -7,6 +7,7 @@ export interface ContentPlan {
   pic_id: string | null;
   service_id: string | null;
   sub_service_id: string | null;
+  feature_id?: string | null;
   title: string | null;
   content_pillar_id: string | null;
   brief: string | null;

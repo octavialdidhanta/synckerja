@@ -725,7 +725,11 @@ const ProductKnowledgeRow: React.FC<ProductKnowledgeRowProps> = ({
                 {t('productKnowledge.table.selectFeature', 'Select Feature')}
               </SelectItem>
               {masterFeatures
-                .filter((m) => (m.service_id ?? null) === (item.service_id ?? null))
+                .filter((m) => {
+                  if ((m.service_id ?? null) !== (item.service_id ?? null)) return false;
+                  if (!m.sub_service_id) return true;
+                  return m.sub_service_id === item.sub_service_id;
+                })
                 .map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.feature_name || '-'}

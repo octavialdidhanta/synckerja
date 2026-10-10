@@ -35,6 +35,11 @@ export const TableHeader: React.FC = () => {
           Sub Category
         </th>
 
+        {/* Feature */}
+        <th style={{ width: '180px', minWidth: '180px', maxWidth: '180px' }} className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 bg-gray-50 border-b-2 border-gray-300">
+          Feature
+        </th>
+
         {/* Title */}
         <th style={{ width: '280px', minWidth: '280px', maxWidth: '280px' }} className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 bg-gray-50 border-b-2 border-gray-300">
           Title

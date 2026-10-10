@@ -572,6 +572,9 @@ const ContentCalendarContent: React.FC = () => {
           contentType={previewPlan.content_type?.name}
           postDate={previewPlan.post_date ?? undefined}
           serviceName={previewPlan.service?.name ?? null}
+          subServiceName={previewPlan.sub_service?.name ?? null}
+          subServiceId={previewPlan.sub_service_id ?? null}
+          featureId={previewPlan.feature_id ?? null}
           picProductionName={previewPlan.pic_production?.full_name ?? null}
           onApprove={() => {
             updateContentPlan(previewPlan.id, {
