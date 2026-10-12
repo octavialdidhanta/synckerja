@@ -104,7 +104,7 @@ function identityColumnByKey(
   return {
     service: {
       key: "service",
-      label: t("digitalMarketing.googleAds.columnService", "Service"),
+      label: t("digitalMarketing.googleAds.columnService", "Category"),
       render: (r) => String(r.identity.service_name ?? "—"),
       cellClassName: "min-w-[9rem] max-w-[200px]",
       customCell: opts.canEditServiceMapping

@@ -64,7 +64,7 @@ function campaignIdentityColumns(
   return [
     {
       key: "service",
-      label: t("digitalMarketing.tiktokAds.columnService", "Service"),
+      label: t("digitalMarketing.tiktokAds.columnService", "Category"),
       cellClassName: "min-w-[9rem] max-w-[200px]",
       render: (row) => {
         const r = row as Record<string, unknown>;

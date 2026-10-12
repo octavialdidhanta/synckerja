@@ -167,7 +167,7 @@ function identityColumnByKey(
   return {
     service: {
       key: "service",
-      label: t("digitalMarketing.metaAds.columnService", "Service/products"),
+      label: t("digitalMarketing.metaAds.columnService", "Category"),
       cellClassName: "min-w-[9rem] max-w-[200px]",
       render: (row) => {
         const r = row as Record<string, unknown>;

@@ -23,7 +23,7 @@ const CAMPAIGN_SERVICE_SORT: TikTokAdsSortColumnOption[] = [
   {
     key: "service",
     labelKey: "digitalMarketing.tiktokAds.columnService",
-    defaultLabel: "Service",
+    defaultLabel: "Category",
   },
   {
     key: "service_cpl",

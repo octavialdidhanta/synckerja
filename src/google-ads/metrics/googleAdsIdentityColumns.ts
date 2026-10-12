@@ -28,7 +28,7 @@ export const GOOGLE_ADS_IDENTITY_COLUMNS: Record<
     { key: "ad_group", label: "Ad group" },
   ],
   campaign: [
-    { key: "service", label: "Service" },
+    { key: "service", label: "Category" },
     { key: "service_cpl", label: "CPA" },
     { key: "service_converted_leads", label: "Conv. leads" },
     { key: "name", label: "Campaign" },

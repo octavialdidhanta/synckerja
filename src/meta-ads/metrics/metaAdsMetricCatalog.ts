@@ -457,7 +457,7 @@ function getMetaAdsCampaignServiceColumns(): MetaAdsIdentityColumn[] {
     {
       key: "service",
       labelKey: "digitalMarketing.metaAds.columnService",
-      defaultLabel: "Service/products",
+      defaultLabel: "Category",
     },
     {
       key: "service_cpl",
