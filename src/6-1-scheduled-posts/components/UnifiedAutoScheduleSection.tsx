@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
@@ -14,7 +14,7 @@ import { useUnifiedScheduleMutations } from '../hooks/useUnifiedScheduleMutation
 import { usePlanBulkPublish } from '../hooks/usePlanBulkPublish';
 import { listAllAutoScheduleTargets } from '../lib/resolveRequiredPlatformTargets';
 import type { RequiredPlatformAutoTarget } from '../lib/resolveRequiredPlatformTargets';
-import { resolveScheduledAtUtc } from '../lib/resolveScheduledAtUtc';
+import { resolveScheduledAtUtc, scheduleTimeWibOrDefault } from '../lib/resolveScheduledAtUtc';
 import { validateGoogleDriveVideoLink } from '../lib/validateGoogleDriveVideoLink';
 import { pickAccountScheduleForModal } from '../lib/pickPlatformScheduleDisplay';
 import {
@@ -121,19 +121,27 @@ export function UnifiedAutoScheduleSection({
 
   const defaultTimeWib = defaultTime ?? '18:00';
   const [timeWibByRowId, setTimeWibByRowId] = useState<Record<string, string>>({});
+  const editedTimeRowIds = useRef(new Set<string>());
   const [privacyByRowId, setPrivacyByRowId] = useState<Record<string, string>>({});
   const [isBulkRunning, setIsBulkRunning] = useState(false);
 
   useEffect(() => {
     if (!targets.length) return;
+    const rows = schedules ?? [];
     setTimeWibByRowId((prev) => {
+      let changed = false;
       const next = { ...prev };
       for (const target of targets) {
-        if (!next[target.requiredPlatformRowId]) {
-          next[target.requiredPlatformRowId] = defaultTimeWib;
+        const rowId = target.requiredPlatformRowId;
+        if (editedTimeRowIds.current.has(rowId)) continue;
+        const schedule = pickAccountScheduleForModal(rows, target.platform, target.accountId);
+        const resolved = scheduleTimeWibOrDefault(schedule?.scheduled_at, defaultTimeWib);
+        if (next[rowId] !== resolved) {
+          next[rowId] = resolved;
+          changed = true;
         }
       }
-      return next;
+      return changed ? next : prev;
     });
     setPrivacyByRowId((prev) => {
       const next = { ...prev };
@@ -148,7 +156,7 @@ export function UnifiedAutoScheduleSection({
       }
       return next;
     });
-  }, [targets, defaultTimeWib]);
+  }, [targets, defaultTimeWib, schedules]);
 
   const postDateYmd = postDate?.slice(0, 10) ?? '';
   const driveLink = googleDriveLink?.trim() ?? '';
@@ -504,9 +512,10 @@ export function UnifiedAutoScheduleSection({
                       schedule={schedule}
                       activeSchedule={activeSchedule}
                       timeWib={getTimeWib(rowBusyId)}
-                      onTimeChange={(value) =>
-                        setTimeWibByRowId((prev) => ({ ...prev, [rowBusyId]: value }))
-                      }
+                      onTimeChange={(value) => {
+                        editedTimeRowIds.current.add(rowBusyId);
+                        setTimeWibByRowId((prev) => ({ ...prev, [rowBusyId]: value }));
+                      }}
                       privacyLevel={getPrivacyLevel(rowBusyId, target.platform)}
                       onPrivacyChange={(value) =>
                         setPrivacyByRowId((prev) => ({ ...prev, [rowBusyId]: value }))

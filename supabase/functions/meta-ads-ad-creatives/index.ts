@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchGraphObjectsByIds } from "../_shared/metaGraphObjectBatch.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -467,10 +468,14 @@ async function fetchCreatives(
 
   for (let i = 0; i < adIds.length; i += 40) {
     const slice = adIds.slice(i, i + 40);
-    const path = `?ids=${encodeURIComponent(slice.join(","))}&fields=${encodeURIComponent(`creative{${CREATIVE_FIELDS}}`)}`;
-    const body = await graphGet(graphVersion, path, accessToken);
+    const objects = await fetchGraphObjectsByIds({
+      graphVersion,
+      accessToken,
+      ids: slice,
+      fields: `creative{${CREATIVE_FIELDS}}`,
+    });
     for (const id of slice) {
-      const ad = asRecord(body[id]);
+      const ad = asRecord(objects.get(id));
       const creative = asRecord(ad?.creative);
       if (!creative) continue;
       const images = collectImages(creative);

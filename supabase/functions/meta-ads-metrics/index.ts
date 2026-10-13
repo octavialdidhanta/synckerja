@@ -45,6 +45,7 @@ import {
   type CpasCounts,
 } from "../_shared/metaAdsCpasMetrics.ts";
 import { loadMetaDemographicBreakdown } from "../_shared/metaAdsDemographicBreakdown.ts";
+import { fetchGraphObjectsByIds } from "../_shared/metaGraphObjectBatch.ts";
 
 const CACHE_TTL_MINUTES = 10;
 
@@ -558,23 +559,14 @@ async function fetchMetaObjectsByIds(
 
   for (let i = 0; i < unique.length; i += META_OBJECT_ID_CHUNK) {
     const slice = unique.slice(i, i + META_OBJECT_ID_CHUNK);
-    const path =
-      `?ids=${encodeURIComponent(slice.join(","))}&fields=${encodeURIComponent(fields)}`;
-    const url =
-      `https://graph.facebook.com/${graphVersion}/${path}&access_token=${encodeURIComponent(accessToken)}`;
     try {
-      const res = await fetch(url);
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json || typeof json !== "object" || Array.isArray(json)) {
-        const msg = (json as { error?: { message?: string } })?.error?.message ?? `HTTP ${res.status}`;
-        console.warn("fetchMetaObjectsByIds:", msg);
-        continue;
-      }
-      for (const [id, value] of Object.entries(json as Record<string, unknown>)) {
-        if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-        if ("error" in value) continue;
-        map.set(id, value as Record<string, unknown>);
-      }
+      const chunk = await fetchGraphObjectsByIds({
+        graphVersion,
+        accessToken,
+        ids: slice,
+        fields,
+      });
+      for (const [id, value] of chunk) map.set(id, value);
     } catch (e) {
       console.warn("fetchMetaObjectsByIds:", e);
     }
