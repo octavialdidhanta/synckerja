@@ -42,7 +42,7 @@ import {
   TIKTOK_SCHEDULE_PRIVACY_LEVELS,
 } from '../lib/tiktokSchedulePrivacy';
 
-const QUICK_TIMES = ['12:00', '15:00', '18:00', '20:00'];
+const QUICK_TIMES = ['09:00', '12:00', '15:00', '18:00', '20:00'];
 
 type Props = {
   target: RequiredPlatformAutoTarget;

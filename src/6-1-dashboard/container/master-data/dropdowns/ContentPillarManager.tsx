@@ -174,7 +174,7 @@ export const ContentPillarManager: React.FC<ContentPillarManagerProps> = React.m
           </div>
           
           {/* Scrollable Content */}
-          <div className="overflow-y-auto seamless-scroll max-h-[calc(20rem-82px)]">
+          <div className="scrollbar-hide max-h-[calc(20rem-82px)] overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {(defaultContentPillars.length > 0 || customContentPillars.length > 0) && (
             <>
               <DropdownMenuSeparator />

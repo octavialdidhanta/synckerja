@@ -109,9 +109,7 @@ export function getMasterDataQueryOptions(organizationId: string | undefined) {
           .select('id, name, is_active, organization_id, is_default, funnel_stage, description, category')
           .or(organizationId ? `is_default.eq.true,organization_id.eq.${organizationId}` : 'is_default.eq.true')
           .eq('is_active', true)
-          .order('is_default', { ascending: false })
-          .order('name')
-          .limit(50),
+          .order('name'),
       ]);
       if (contentTypesResult.error) throw contentTypesResult.error;
       if (servicesResult.error) throw servicesResult.error;

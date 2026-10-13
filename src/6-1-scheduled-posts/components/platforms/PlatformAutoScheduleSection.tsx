@@ -25,7 +25,7 @@ import {
   type PlatformPublishFunction,
 } from '../../hooks/usePlatformScheduleMutations';
 
-const QUICK_TIMES = ['12:00', '15:00', '18:00', '20:00'];
+const QUICK_TIMES = ['09:00', '12:00', '15:00', '18:00', '20:00'];
 
 export type PlatformScheduleAccount = {
   id: string;

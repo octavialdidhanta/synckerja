@@ -13,7 +13,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import { formatDate } from "@/shared/utils/dateFormatter";
 
-const QUICK_TIMES = ["12:00", "15:00", "18:00", "20:00"] as const;
+const QUICK_TIMES = ["09:00", "12:00", "15:00", "18:00", "20:00"] as const;
 
 const TIME_HHMM = /^\d{2}:\d{2}$/;
 

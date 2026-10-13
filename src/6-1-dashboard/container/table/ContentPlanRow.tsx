@@ -820,7 +820,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
             <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
               <Command>
                 <CommandInput placeholder="Search pillar..." className="h-8 text-xs" />
-                <CommandList>
+                <CommandList className="scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <CommandEmpty>No pillar found.</CommandEmpty>
                   <CommandGroup>
                     {contentPillars.map((pillar) => (
