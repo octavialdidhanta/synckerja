@@ -832,7 +832,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                       collapsible
                       value={accordionOpen}
                       onValueChange={(v) => setAccordionOpen(v ?? '')}
-                      className="w-full flex-1 flex flex-col min-h-0 gap-1 overflow-y-auto overflow-x-hidden seamless-scroll"
+                      className="scrollbar-hide seamless-scroll w-full flex-1 flex flex-col min-h-0 gap-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                     >
                       <AccordionItem value="brief" className="border border-gray-200 rounded-lg px-4 bg-white flex flex-col flex-shrink-0 data-[state=open]:flex-1 data-[state=open]:min-h-[calc(100dvh-10rem)]">
                         <AccordionTrigger className="flex-shrink-0 py-3 text-sm font-medium text-gray-800 hover:no-underline [&>svg]:ml-2">
@@ -855,7 +855,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                           className="flex-1 min-h-0 overflow-hidden flex flex-col pb-4 pt-0 data-[state=open]:flex data-[state=open]:min-h-0 data-[state=open]:flex-1"
                         >
                           <div
-                            className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain max-h-[calc(100dvh-12rem)]"
+                            className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 max-h-[calc(100dvh-12rem)] overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                             style={{ overflowAnchor: 'none' } as React.CSSProperties}
                           >
                             {parsedTable ? (
