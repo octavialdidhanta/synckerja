@@ -105,46 +105,28 @@ export const EmployeeActionsDropdown = ({
       }
 
       logger.info('Starting resign process for employee:', employee.full_name);
-      
-      // Call the edge function to deactivate organization access and update employee status
-      const { data: result, error } = await supabase.functions.invoke('revoke-user-sessions', {
-        body: {
-          userId: employee.user_id,
-          employeeId: employee.id,
-          reason: 'Manual resign by admin/owner'
-        }
+
+      const { data: result, error } = await supabase.rpc('resign_employee', {
+        p_employee_id: employee.id,
       });
 
       if (error) {
-        logger.error('Error calling revoke-user-sessions function:', error);
-        
-        // Provide more specific error messages
-        let errorMessage = 'Failed to resign employee. Please try again.';
-        
-        if (error.message?.includes('Permission denied')) {
-          errorMessage = 'You do not have permission to resign this employee.';
-        } else if (error.message?.includes('not found')) {
-          errorMessage = 'Employee not found or not in your organization.';
-        } else if (error.message?.includes('owner')) {
-          errorMessage = 'Organization owners cannot be resigned. Transfer ownership first.';
-        } else if (error.message?.includes('configuration')) {
-          errorMessage = 'Server configuration error. Please contact support.';
-        }
-        
-        throw new Error(errorMessage);
+        logger.error('Error calling resign_employee:', error);
+        throw new Error(error.message || 'Failed to resign employee. Please try again.');
       }
 
-      if (!result?.success) {
-        const errorMsg = result?.error || 'Unknown error occurred during resignation';
+      const payload = result as { success?: boolean; message?: string; error?: string } | null;
+      if (!payload?.success) {
+        const errorMsg = payload?.error || 'Unknown error occurred during resignation';
         logger.error('Resignation failed:', errorMsg);
         throw new Error(errorMsg);
       }
 
-      logger.info('Employee resigned successfully:', result);
+      logger.info('Employee resigned successfully:', payload);
 
       toast({
         title: "Employee Resigned",
-        description: result.message || `${employee.full_name} has been resigned from this organization`,
+        description: payload.message || `${employee.full_name} has been resigned from this organization`,
       });
       
       onRefresh?.();
