@@ -29,6 +29,7 @@ type SyncCode =
   | "NO_IG_ACCOUNT"
   | "TOKEN_INVALID"
   | "COMPETITOR_NOT_FOUND"
+  | "COMMENTS_UNAVAILABLE"
   | "META_ERROR"
   | "RATE_LIMIT";
 
@@ -53,6 +54,9 @@ function mapMetaError(error: { code?: number; message?: string; type?: string })
   }
   if (code === 4 || code === 17 || code === 32 || code === 613 || msg.includes("rate limit")) {
     return "RATE_LIMIT";
+  }
+  if (code === 100 && msg.includes("supported fields")) {
+    return "COMMENTS_UNAVAILABLE";
   }
   if (
     code === 110 ||
@@ -189,42 +193,63 @@ Deno.serve(async (req: Request) => {
     }
 
     const version = metaGraphVersion();
-    const fields =
-      `business_discovery.username(${competitor}){media.limit(12){id,permalink,timestamp,caption,like_count,comments_count,comments.limit(25){id,text,username,timestamp}}}`;
-    const url =
-      `https://graph.facebook.com/${version}/${encodeURIComponent(igId)}` +
-      `?fields=${encodeURIComponent(fields)}` +
-      `&access_token=${encodeURIComponent(pageToken)}`;
+    const { data: ownedRows } = await admin
+      .from("organization_instagram_accounts")
+      .select("instagram_business_account_id, instagram_username, page_access_token")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true);
+    const owned = ((ownedRows ?? []) as {
+      instagram_business_account_id?: string | null;
+      instagram_username?: string | null;
+      page_access_token?: string | null;
+    }[]).find((row) => normalizeInstagramUsername(String(row.instagram_username ?? "")) === competitor);
 
-    let json: {
-      business_discovery?: { media?: { data?: RawOutreachMedia[] } };
-      error?: { message?: string; code?: number; type?: string };
-    };
+    let media: RawOutreachMedia[] = [];
+    if (!owned) {
+      await markSyncError(admin, campaign.id, organizationId, "COMMENTS_UNAVAILABLE");
+      return metaContentJson({ ok: false, code: "COMMENTS_UNAVAILABLE" }, 200);
+    }
+
+    const ownedId = String(owned.instagram_business_account_id ?? "").trim();
+    const ownedToken = String(owned.page_access_token ?? "").trim();
+    if (!ownedId || !ownedToken) {
+      await markSyncError(admin, campaign.id, organizationId, "NO_IG_ACCOUNT");
+      return metaContentJson({ ok: false, code: "NO_IG_ACCOUNT" }, 200);
+    }
+
+    const fields =
+      "id,permalink,timestamp,caption,like_count,comments_count,comments.limit(25){id,text,username,timestamp}";
+    const url =
+      `https://graph.facebook.com/${version}/${encodeURIComponent(ownedId)}/media` +
+      `?fields=${encodeURIComponent(fields)}` +
+      `&limit=12` +
+      `&access_token=${encodeURIComponent(ownedToken)}`;
+
     try {
       const res = await fetch(url);
-      json = await res.json().catch(() => ({})) as typeof json;
+      const json = await res.json().catch(() => ({})) as {
+        data?: RawOutreachMedia[];
+        error?: { message?: string; code?: number; type?: string };
+      };
       if (!res.ok || json.error) {
         const mapped = mapMetaError(json.error ?? { message: `HTTP ${res.status}` });
-        await markSyncError(admin, campaign.id, organizationId, mapped, json.error?.message);
+        const detail = mapped === "COMMENTS_UNAVAILABLE" ? undefined : json.error?.message;
+        await markSyncError(admin, campaign.id, organizationId, mapped, detail);
         return metaContentJson({
           ok: false,
           code: mapped,
-          detail: json.error?.message ? sanitizeMetaMessage(json.error.message) : null,
+          detail: detail ? sanitizeMetaMessage(detail) : null,
         }, 200);
       }
+      media = json.data ?? [];
     } catch (err) {
       const message = err instanceof Error ? err.message : "Network error";
       await markSyncError(admin, campaign.id, organizationId, "META_ERROR", message);
       return metaContentJson({ ok: false, code: "META_ERROR" }, 200);
     }
 
-    if (!json.business_discovery) {
-      await markSyncError(admin, campaign.id, organizationId, "COMPETITOR_NOT_FOUND");
-      return metaContentJson({ ok: false, code: "COMPETITOR_NOT_FOUND" }, 200);
-    }
-
     const collected = collectDiscoveredComments({
-      media: json.business_discovery.media?.data ?? [],
+      media,
       competitorUsername: competitor,
       maxComments: OUTREACH_DISCOVER_COMMENT_CAP,
     });

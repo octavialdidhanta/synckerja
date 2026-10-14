@@ -5246,6 +5246,7 @@ export const idTranslations: TranslationDictionary = {
   "instagramOutreach.sync.TOKEN_INVALID": "Token Instagram tidak berlaku. Sambungkan ulang dari Integrasi.",
   "instagramOutreach.sync.COMPETITOR_NOT_FOUND": "Username tidak ditemukan, atau akun itu bukan akun profesional publik.",
   "instagramOutreach.sync.RATE_LIMIT": "Meta membatasi permintaan. Coba lagi beberapa menit lagi.",
+  "instagramOutreach.sync.COMMENTS_UNAVAILABLE": "Meta tidak memberikan daftar orang yang komentar di akun orang lain. Tombol ini hanya bisa menarik komentar dari akun Instagram yang sudah terhubung di Integrasi. Untuk akun lain, tempel username secara manual.",
   "instagramOutreach.sync.META_ERROR": "Meta tidak mengembalikan komentar.",
   "instagramOutreach.sync.CAMPAIGN_NOT_FOUND": "Kampanye tidak ditemukan.",
   "instagramOutreach.sync.OWNER_REQUIRED": "Hanya pemilik organisasi yang dapat menarik komentar.",

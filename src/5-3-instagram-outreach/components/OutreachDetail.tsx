@@ -55,6 +55,7 @@ function syncMessage(raw: string, t: (key: string, fallback: string) => string):
     TOKEN_INVALID: "Token Instagram tidak berlaku. Sambungkan ulang dari Integrasi.",
     COMPETITOR_NOT_FOUND: "Username tidak ditemukan, atau akun itu bukan akun profesional publik.",
     RATE_LIMIT: "Meta membatasi permintaan. Coba lagi beberapa menit lagi.",
+    COMMENTS_UNAVAILABLE: "Meta tidak memberikan daftar orang yang komentar di akun orang lain. Tombol ini hanya bisa menarik komentar dari akun Instagram yang sudah terhubung di Integrasi. Untuk akun lain, tempel username secara manual.",
     META_ERROR: "Meta tidak mengembalikan komentar.",
     CAMPAIGN_NOT_FOUND: "Kampanye tidak ditemukan.",
     OWNER_REQUIRED: "Hanya pemilik organisasi yang dapat menarik komentar.",

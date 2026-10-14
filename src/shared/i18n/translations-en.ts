@@ -5246,6 +5246,7 @@ export const enTranslations: TranslationDictionary = {
   "instagramOutreach.sync.TOKEN_INVALID": "The Instagram token is no longer valid. Reconnect it from Integrations.",
   "instagramOutreach.sync.COMPETITOR_NOT_FOUND": "Username was not found, or that account is not a public professional account.",
   "instagramOutreach.sync.RATE_LIMIT": "Meta is limiting requests. Try again in a few minutes.",
+  "instagramOutreach.sync.COMMENTS_UNAVAILABLE": "Meta does not share who commented on someone else's account. This button can only pull comments from an Instagram account already connected in Integrations. For any other account, paste the usernames manually.",
   "instagramOutreach.sync.META_ERROR": "Meta did not return comments.",
   "instagramOutreach.sync.CAMPAIGN_NOT_FOUND": "Campaign was not found.",
   "instagramOutreach.sync.OWNER_REQUIRED": "Only the organization owner can pull comments.",
