@@ -98,7 +98,8 @@ export async function fetchUserOrganizations(
     supabase
       .from("user_organizations")
       .select("organization_id, organizations(company_name)")
-      .eq("user_id", userId),
+      .eq("user_id", userId)
+      .or("is_active.is.null,is_active.eq.true"),
     supabase.from("user_roles").select("organization_id, role").eq("user_id", userId),
   ]);
 
