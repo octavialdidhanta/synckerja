@@ -131,7 +131,6 @@ import {
   WhatsAppConnectPageSkeleton,
   WhatsAppTemplatePageSkeleton,
   WhatsAppCampaignPageSkeleton,
-  InstagramOutreachPageSkeleton,
   OmnichannelContactPageSkeleton,
   WhatsAppTemplateFollowupsPageSkeleton,
 } from "@/appRouteSkeletonLoaders";
@@ -466,11 +465,6 @@ const WhatsAppRecipientListDetailPage = lazy(() =>
 const WhatsAppCampaignPage = lazy(() =>
   import("@/5-3-whatsapp-template/pages/WhatsAppCampaignPage").then((m) => ({
     default: m.WhatsAppCampaignPage,
-  })),
-);
-const InstagramOutreachPage = lazy(() =>
-  import("@/5-3-instagram-outreach/pages/InstagramOutreachPage").then((m) => ({
-    default: m.InstagramOutreachPage,
   })),
 );
 const OmnichannelContactPage = lazy(() =>
@@ -2314,20 +2308,6 @@ function AppRoutes() {
                 }
               />
               <Route
-                path="/omnichannel/campaign/instagram"
-                element={
-                  <PageAccessGuard
-                    pagePath="/omnichannel/campaign/instagram"
-                    loadingShell={<InstagramOutreachPageSkeleton />}
-                    loadingShellWrapperClassName="bg-gray-100"
-                  >
-                    <InstagramOutreachSuspense>
-                      <InstagramOutreachPage />
-                    </InstagramOutreachSuspense>
-                  </PageAccessGuard>
-                }
-              />
-              <Route
                 path="/operations/consultant/whatsapp/templates"
                 element={<Navigate to="/omnichannel/campaign/templates" replace />}
               />
@@ -2525,22 +2505,6 @@ const WhatsAppCampaignSuspense = ({ children }: { children: ReactNode }) => (
         aria-label="Loading WhatsApp campaign"
       >
         <WhatsAppCampaignPageSkeleton />
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
-
-const InstagramOutreachSuspense = ({ children }: { children: ReactNode }) => (
-  <Suspense
-    fallback={
-      <div
-        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100"
-        aria-busy
-        aria-label="Loading Instagram outreach"
-      >
-        <InstagramOutreachPageSkeleton />
       </div>
     }
   >
@@ -5366,20 +5330,6 @@ const App = () => (
                               <WhatsAppCampaignSuspense>
                                 <WhatsAppCampaignPage />
                               </WhatsAppCampaignSuspense>
-                            </PageAccessGuard>
-                          }
-                        />
-                        <Route
-                          path="/omnichannel/campaign/instagram"
-                          element={
-                            <PageAccessGuard
-                              pagePath="/omnichannel/campaign/instagram"
-                              loadingShell={<InstagramOutreachPageSkeleton />}
-                              loadingShellWrapperClassName="bg-gray-100"
-                            >
-                              <InstagramOutreachSuspense>
-                                <InstagramOutreachPage />
-                              </InstagramOutreachSuspense>
                             </PageAccessGuard>
                           }
                         />
