@@ -274,7 +274,8 @@
     "userMenu": {
       "notificationsAria": "Notifikasi",
       "help": "Bantuan",
-      "transferOwnership": "Alihkan kepemilikan"
+      "transferOwnership": "Alihkan kepemilikan",
+      "acceptOwnership": "Terima kepemilikan"
     },
     "a11y": {
       "mobileNavTitle": "Navigasi utama",
@@ -422,6 +423,17 @@
       "title": "Permintaan alih kepemilikan tertunda",
       "cancel": "Batalkan",
       "sent": "Dikirim:"
+    },
+    "incoming": {
+      "title": "Terima kepemilikan",
+      "subtitle": "Permintaan ini menjadikan Anda pemilik organisasi.",
+      "emptyTitle": "Belum ada permintaan",
+      "emptyBody": "Pemilik harus mengirim transfer dari akunnya. Setelah terkirim, permintaan muncul di halaman ini.",
+      "from": "Dari",
+      "accept": "Terima kepemilikan",
+      "accepting": "Menerima…",
+      "confirmYes": "Ya, saya terima",
+      "warning": "Setelah diterima, Anda menjadi pemilik dan pemilik lama menjadi Admin."
     },
     "toast": {
       "success": {

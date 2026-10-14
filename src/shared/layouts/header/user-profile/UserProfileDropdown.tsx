@@ -144,13 +144,21 @@ export function UserProfileDropdown() {
               {t("layout.userMenu.help", "Help")}
             </Link>
           </DropdownMenuItem>
-          {isOwner && (
+          {isOwner ? (
             <DropdownMenuItem
               className="cursor-pointer rounded-lg px-3 py-2.5 text-sm text-amber-800 focus:bg-amber-500/10 focus:text-amber-900 dark:text-amber-400 dark:focus:text-amber-300"
               onClick={onTransferOwnership}
             >
               <Crown className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500" />
               {t("layout.userMenu.transferOwnership")}
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              className="cursor-pointer rounded-lg px-3 py-2.5 text-sm text-amber-800 focus:bg-amber-500/10 focus:text-amber-900 dark:text-amber-400 dark:focus:text-amber-300"
+              onClick={onTransferOwnership}
+            >
+              <Crown className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500" />
+              {t("layout.userMenu.acceptOwnership")}
             </DropdownMenuItem>
           )}
         </div>

@@ -274,7 +274,8 @@
     "userMenu": {
       "notificationsAria": "Notifications",
       "help": "Help",
-      "transferOwnership": "Transfer ownership"
+      "transferOwnership": "Transfer ownership",
+      "acceptOwnership": "Accept ownership"
     },
     "a11y": {
       "mobileNavTitle": "Main navigation",
@@ -422,6 +423,17 @@
       "title": "Pending transfer requests",
       "cancel": "Cancel",
       "sent": "Sent:"
+    },
+    "incoming": {
+      "title": "Accept ownership",
+      "subtitle": "This request makes you the owner of the organization.",
+      "emptyTitle": "No request yet",
+      "emptyBody": "The owner has to send the transfer from their account. Once it is sent, the request shows up on this page.",
+      "from": "From",
+      "accept": "Accept ownership",
+      "accepting": "Accepting…",
+      "confirmYes": "Yes, I accept",
+      "warning": "After you accept, you become the owner and the previous owner becomes an Admin."
     },
     "toast": {
       "success": {

@@ -34,6 +34,17 @@ async function getSessionUserId(): Promise<string | null> {
   return user?.id ?? null;
 }
 
+async function loadMemberDirectory(organizationId: string): Promise<OrganizationMember[]> {
+  const { data, error } = await supabase.rpc("get_organization_members", {
+    _organization_id: organizationId,
+  });
+  if (error) {
+    console.error("Error loading member directory:", error);
+    return [];
+  }
+  return (data as OrganizationMember[]) ?? [];
+}
+
 export function useTransferOwnership(organizationId?: string | null) {
   const { t } = useTranslation();
   const [userId, setUserId] = useState<string | null>(null);
@@ -41,6 +52,7 @@ export function useTransferOwnership(organizationId?: string | null) {
   const [pendingTransfers, setPendingTransfers] = useState<OwnershipTransfer[]>([]);
   const [organizationMembers, setOrganizationMembers] = useState<OrganizationMember[]>([]);
   const [loading, setLoading] = useState(false);
+  const [incomingReady, setIncomingReady] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [membersLoading, setMembersLoading] = useState(false);
   const { invalidateOwnershipData, forceRefreshAllData } = useInvalidateOwnershipCache();
@@ -84,34 +96,39 @@ export function useTransferOwnership(organizationId?: string | null) {
         return;
       }
 
-      const enrichedTransfers = await Promise.all(
-        transfersData.map(async (transfer) => {
-          const { data: fromUserData } = await supabase
-            .from("profiles")
-            .select("full_name, email")
-            .eq("user_id", transfer.from_user_id)
-            .single();
-
-          const { data: orgData } = await supabase
-            .from("organizations")
-            .select("company_name")
-            .eq("id", transfer.organization_id)
-            .single();
-
-          return {
-            ...transfer,
-            from_user_name: fromUserData?.full_name || t("transferOwnership.fallback.unknownUser"),
-            from_user_email: fromUserData?.email || "",
-            organization_name: orgData?.company_name || t("transferOwnership.fallback.unknownOrganization"),
-          };
+      const orgIds = [...new Set(transfersData.map((transfer) => transfer.organization_id))];
+      const directories = new Map<string, OrganizationMember[]>();
+      const orgNames = new Map<string, string>();
+      await Promise.all(
+        orgIds.map(async (orgId) => {
+          const [members, orgResult] = await Promise.all([
+            loadMemberDirectory(orgId),
+            supabase.from("organizations").select("company_name").eq("id", orgId).maybeSingle(),
+          ]);
+          directories.set(orgId, members);
+          if (orgResult.data?.company_name) orgNames.set(orgId, orgResult.data.company_name);
         }),
       );
 
-      setTransfers(enrichedTransfers);
+      setTransfers(
+        transfersData.map((transfer) => {
+          const sender = directories
+            .get(transfer.organization_id)
+            ?.find((member) => member.user_id === transfer.from_user_id);
+          return {
+            ...transfer,
+            from_user_name: sender?.full_name || t("transferOwnership.fallback.unknownUser"),
+            from_user_email: sender?.email || "",
+            organization_name:
+              orgNames.get(transfer.organization_id) || t("transferOwnership.fallback.unknownOrganization"),
+          };
+        }),
+      );
     } catch (error) {
       console.error("Error in fetchTransfers:", error);
     } finally {
       setLoading(false);
+      setIncomingReady(true);
     }
   }, [t]);
 
@@ -139,23 +156,17 @@ export function useTransferOwnership(organizationId?: string | null) {
         return;
       }
 
-      const enrichedTransfers = await Promise.all(
-        transfersData.map(async (transfer) => {
-          const { data: toUserData } = await supabase
-            .from("profiles")
-            .select("full_name, email")
-            .eq("user_id", transfer.to_user_id)
-            .single();
-
-          return {
-            ...transfer,
-            to_user: {
-              full_name: toUserData?.full_name || t("transferOwnership.fallback.unknownUser"),
-              email: toUserData?.email || "",
-            },
-          };
-        }),
-      );
+      const members = await loadMemberDirectory(organizationId);
+      const enrichedTransfers = transfersData.map((transfer) => {
+        const recipient = members.find((member) => member.user_id === transfer.to_user_id);
+        return {
+          ...transfer,
+          to_user: {
+            full_name: recipient?.full_name || t("transferOwnership.fallback.unknownUser"),
+            email: recipient?.email || "",
+          },
+        };
+      });
 
       setPendingTransfers(enrichedTransfers);
     } catch (error) {
@@ -313,6 +324,7 @@ export function useTransferOwnership(organizationId?: string | null) {
     pendingTransfers,
     organizationMembers,
     loading,
+    incomingReady,
     accepting,
     membersLoading,
     fetchTransfers,
