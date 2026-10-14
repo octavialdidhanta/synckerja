@@ -39,16 +39,33 @@ export const EmployeeActionsDropdown = ({
   const { t } = useAppTranslation();
 
   const countDirectReports = useCallback(async (): Promise<number> => {
-    const { count, error } = await supabase
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .select('user_id')
+      .eq('id', employee.organization_id)
+      .maybeSingle();
+    if (orgError) {
+      logger.error('countDirectReports org', orgError);
+    }
+
+    let query = supabase
       .from('employees')
       .select('id', { count: 'exact', head: true })
+      .eq('organization_id', employee.organization_id)
       .eq('manager_id', employee.id);
+
+    // The owner row has no manager dropdown, so that leftover link must not block resign.
+    if (org?.user_id) {
+      query = query.or(`user_id.is.null,user_id.neq.${org.user_id}`);
+    }
+
+    const { count, error } = await query;
     if (error) {
       logger.error('countDirectReports', error);
       return 0;
     }
     return count ?? 0;
-  }, [employee.id]);
+  }, [employee.id, employee.organization_id]);
 
   // Get centralized permissions
   const permissions = useEmployeePermissions({
