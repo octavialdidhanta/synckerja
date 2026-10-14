@@ -371,6 +371,12 @@ export const WhatsAppCampaignPageSkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const InstagramOutreachPageSkeleton = createDeferredSkeleton(() =>
+  import("@/5-3-instagram-outreach/skeletons/InstagramOutreachPageSkeleton").then((m) => ({
+    default: m.InstagramOutreachPageSkeleton,
+  })),
+);
+
 export const KolManagementRouteLoadingShell = createDeferredSkeleton(() =>
   import("@/6-2-1-dashboard/kol-management/components/KolManagementRouteLoadingShell").then((m) => ({
     default: m.KolManagementRouteLoadingShell,

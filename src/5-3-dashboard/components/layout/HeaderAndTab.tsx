@@ -113,6 +113,14 @@ const tabs: CrmHeaderTab[] = [
     icon: ListChecks,
   },
   {
+    key: "instagram-outreach",
+    path: "/omnichannel/campaign/instagram",
+    accessPath: "/omnichannel/campaign/instagram",
+    title: "Instagram Outreach",
+    titleKey: "instagramOutreach.tabTitle",
+    icon: Instagram,
+  },
+  {
     key: "omnichannel-settings",
     path: OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO,
     accessPath: "/omnichannel/settings",
@@ -144,7 +152,9 @@ export const HeaderAndTab = () => {
     location.pathname === "/omnichannel/campaign/templates" ||
     location.pathname.startsWith("/omnichannel/campaign/templates/") ||
     location.pathname === "/omnichannel/campaign/recipient-lists" ||
-    location.pathname.startsWith("/omnichannel/campaign/recipient-lists/");
+    location.pathname.startsWith("/omnichannel/campaign/recipient-lists/") ||
+    location.pathname === "/omnichannel/campaign/instagram" ||
+    location.pathname.startsWith("/omnichannel/campaign/instagram/");
 
   const isIntegrationsSection =
     location.pathname.startsWith("/omnichannel/integrations/whatsapp") ||
@@ -177,6 +187,7 @@ export const HeaderAndTab = () => {
     "whatsapp-campaign",
     "whatsapp-templates",
     "whatsapp-recipient-lists",
+    "instagram-outreach",
   ]);
 
   const displayedTabs = isLiveChatSection
@@ -210,6 +221,12 @@ export const HeaderAndTab = () => {
       return "whatsapp-recipient-lists";
     }
     if (location.pathname.startsWith("/omnichannel/campaign/templates")) return "whatsapp-templates";
+    if (
+      location.pathname === "/omnichannel/campaign/instagram" ||
+      location.pathname.startsWith("/omnichannel/campaign/instagram/")
+    ) {
+      return "instagram-outreach";
+    }
     if (
       location.pathname === "/omnichannel/campaign/whatsapp" ||
       location.pathname.startsWith("/omnichannel/campaign/whatsapp/")

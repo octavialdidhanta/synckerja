@@ -232,6 +232,7 @@ export const mainNavItems: MainNavItem[] = [
           "/omnichannel/campaign/whatsapp",
           "/omnichannel/campaign/templates",
           "/omnichannel/campaign/recipient-lists",
+          "/omnichannel/campaign/instagram",
         ],
       },
       {

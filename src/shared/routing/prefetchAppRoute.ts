@@ -166,6 +166,13 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
       })),
   },
   {
+    prefix: "/omnichannel/campaign/instagram",
+    prefetch: () =>
+      import("@/5-3-instagram-outreach/pages/InstagramOutreachPage").then((m) => ({
+        default: m.InstagramOutreachPage,
+      })),
+  },
+  {
     prefix: "/omnichannel/settings",
     prefetch: () =>
       import("@/5-3-dashboard/pages/OmnichannelSettingsPage").then((m) => ({
