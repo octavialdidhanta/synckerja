@@ -12,6 +12,7 @@ import { runWithConcurrency } from "./process/runWithConcurrency.ts";
 import { clearOrgRateLimitCache } from "./rateLimit/acquirePublishSlot.ts";
 import { runScheduledPostJob } from "./runScheduledPostJob.ts";
 import type { RunScheduledPostJobResult } from "./runScheduledPostJob.ts";
+import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import { instagramPublishShouldFollowPeers } from "./sharedPublishContext.ts";
 import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
 
@@ -113,6 +114,39 @@ async function processClaimedRows(
   return [...peerResults, ...instagramResults];
 }
 
+/** Plans published before completion sync ran after status=published stay done=false. */
+async function reconcileStuckPublishedPlans(admin: SupabaseClient): Promise<void> {
+  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: rows, error } = await admin
+    .from("social_media_scheduled_posts")
+    .select("social_media_plan_id")
+    .eq("status", "published")
+    .gte("published_at", since)
+    .order("published_at", { ascending: false })
+    .limit(80);
+  if (error || !rows?.length) return;
+
+  const planIds = [
+    ...new Set(
+      rows
+        .map((row) => String(row.social_media_plan_id ?? "").trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (!planIds.length) return;
+
+  const { data: plans } = await admin
+    .from("social_media_plans")
+    .select("id")
+    .in("id", planIds)
+    .eq("done", false)
+    .limit(15);
+
+  for (const plan of plans ?? []) {
+    await syncPlanCompletionStateForPlan(admin, String(plan.id));
+  }
+}
+
 export async function handleSchedulerTick(
   admin: SupabaseClient,
 ): Promise<SchedulerTickResult> {
@@ -122,6 +156,7 @@ export async function handleSchedulerTick(
   const dryRunEnv = isSchedulerDryRunEnvEnabled();
 
   clearOrgRateLimitCache();
+  await reconcileStuckPublishedPlans(admin);
 
   const recoveredStale = await recoverStalePublishingRows(admin);
   const claimedResume = await claimResumePublishingPosts(admin, config.resume_batch_size);

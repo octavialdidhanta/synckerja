@@ -19,6 +19,7 @@ import {
 } from "./scheduledPostRetry.ts";
 import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
 import type { SharedPublishContext } from "./sharedPublishContext.ts";
+import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 
 export type RunScheduledPostJobResult = {
   id: string;
@@ -220,6 +221,9 @@ export async function runScheduledPostJob(
         updated_at: new Date().toISOString(),
       })
       .eq("id", scheduleId);
+
+    // Link upsert syncs while this row is still "publishing", which does not count as done.
+    await syncPlanCompletionStateForPlan(admin, row.social_media_plan_id);
 
     return {
       id: scheduleId,
