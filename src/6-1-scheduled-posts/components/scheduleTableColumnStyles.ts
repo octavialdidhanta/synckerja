@@ -18,7 +18,7 @@ export const SCHEDULE_TABLE_VISIBILITY_CELL_CLASS =
   'flex w-[128px] min-w-[128px] shrink-0 flex-col justify-center rounded-none bg-card p-2 group-hover:bg-muted';
 
 export const SCHEDULE_TABLE_TIME_CELL_CLASS =
-  'flex w-[340px] min-w-[220px] shrink-0 flex-col justify-center rounded-none bg-card p-2 group-hover:bg-muted';
+  'flex w-[24rem] min-w-[24rem] shrink-0 flex-col justify-center rounded-none bg-card p-2 group-hover:bg-muted';
 
 export const SCHEDULE_TABLE_MIDDLE_HEAD_CLASS =
   'rounded-none bg-muted px-2 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70';

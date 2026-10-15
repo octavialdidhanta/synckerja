@@ -730,39 +730,17 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
               <DialogDescription className="mt-1 truncate text-sm text-muted-foreground">
                 Schedule TikTok posts and manage social media links for this content.
               </DialogDescription>
-              {planTitle && (
-                <p className="mt-1 truncate text-xs text-muted-foreground">
-                  Content: {planTitle}
-                  {formattedPostDate ? ` · ${formattedPostDate}` : ''}
-                </p>
-              )}
-              <p className="sr-only">Plan ID: {socialMediaPlanId}</p>
+              <p className="sr-only">
+                Plan ID: {socialMediaPlanId}
+                {planTitle ? `. ${planTitle}` : ''}
+                {formattedPostDate ? `. ${formattedPostDate}` : ''}
+              </p>
             </div>
           </div>
         </DialogHeader>
 
         <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-6 pb-4 pt-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="shrink-0 min-w-0 space-y-4">
-            {reelEligible && (
-              <div className="flex flex-wrap gap-2 text-xs">
-                {[
-                  ['Post date', Boolean(planData?.post_date)],
-                  ['Reel', contentTypeName === 'Reel'],
-                  ['Approved', planData?.approved],
-                  ['Drive link', Boolean(planData?.google_drive_link?.trim())],
-                  ['Prod approved', planData?.production_approved],
-                ].map(([label, ok]) => (
-                  <span
-                    key={label}
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${ok ? 'bg-green-100 text-green-800' : 'bg-muted text-muted-foreground'}`}
-                  >
-                    {ok && <Check className="h-3 w-3" />}
-                    {label}
-                  </span>
-                ))}
-              </div>
-            )}
-
             {organizationId && (
               <AutoScheduleSection
                 organizationId={organizationId}
@@ -776,6 +754,35 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
                 reelEligible={reelEligible}
                 serviceId={planData?.service_id ?? null}
                 requiredPlatforms={requiredPlatforms}
+                headerTitle={
+                  planTitle ? (
+                    <p className="truncate text-xs text-muted-foreground">
+                      {planTitle}
+                      {formattedPostDate ? ` · ${formattedPostDate}` : ''}
+                    </p>
+                  ) : null
+                }
+                headerExtra={
+                  reelEligible ? (
+                    <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
+                      {[
+                        ['Post date', Boolean(planData?.post_date)],
+                        ['Reel', contentTypeName === 'Reel'],
+                        ['Approved', planData?.approved],
+                        ['Drive link', Boolean(planData?.google_drive_link?.trim())],
+                        ['Prod approved', planData?.production_approved],
+                      ].map(([label, ok]) => (
+                        <span
+                          key={String(label)}
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${ok ? 'bg-green-100 text-green-800' : 'bg-muted text-muted-foreground'}`}
+                        >
+                          {ok && <Check className="h-3 w-3" />}
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null
+                }
               />
             )}
 

@@ -14,6 +14,8 @@ type Props = {
   reelEligible: boolean;
   serviceId?: string | null;
   requiredPlatforms: ServiceRequiredPlatform[];
+  headerTitle?: React.ReactNode;
+  headerExtra?: React.ReactNode;
 };
 
 export function AutoScheduleSection({ reelEligible, ...rest }: Props) {

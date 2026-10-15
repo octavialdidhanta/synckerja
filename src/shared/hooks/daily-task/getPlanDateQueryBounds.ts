@@ -52,6 +52,7 @@ export function buildDailyTaskCacheKey(
   userId: string,
   planDateRange?: TaskFilters['planDateRange'] | null,
   customPlanMonth?: string | null,
+  scope: 'org' | 'assigned' = 'assigned',
 ): string {
-  return `tasks_${organizationId}_${userId}_${planDateRange || 'all'}_${customPlanMonth || ''}`;
+  return `tasks_${organizationId}_${userId}_${planDateRange || 'all'}_${customPlanMonth || ''}_${scope}`;
 }

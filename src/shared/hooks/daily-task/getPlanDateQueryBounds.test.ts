@@ -38,8 +38,11 @@ describe('getPlanDateQueryBounds', () => {
 describe('buildDailyTaskCacheKey', () => {
   it('namespaces cache by plan filter so this-month and all-dates stay separate', () => {
     expect(buildDailyTaskCacheKey('org', 'user', 'this_month_plan')).toBe(
-      'tasks_org_user_this_month_plan_',
+      'tasks_org_user_this_month_plan__assigned',
     );
-    expect(buildDailyTaskCacheKey('org', 'user')).toBe('tasks_org_user_all_');
+    expect(buildDailyTaskCacheKey('org', 'user')).toBe('tasks_org_user_all__assigned');
+    expect(buildDailyTaskCacheKey('org', 'user', 'this_month_plan', null, 'org')).toBe(
+      'tasks_org_user_this_month_plan__org',
+    );
   });
 });

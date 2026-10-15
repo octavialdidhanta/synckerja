@@ -89,8 +89,9 @@ export function RequiredPlatformScheduleRow({
   const { platform, accountLabel } = target;
   const controlsLocked = Boolean(activeSchedule);
   const publishScopesOk = target.publishScopesOk !== false && target.oauthConnected;
-  const isBusy =
-    isSchedulePending || isPostNowPending || isCancelPending || isDeletePending || bulkRunning;
+  const rowActionPending =
+    isSchedulePending || isPostNowPending || isCancelPending || isDeletePending;
+  const isBusy = rowActionPending || bulkRunning;
   const settingsPath = getPlatformSettingsPath(platform);
 
   const lockedPrivacyLevel = activeSchedule?.privacy_level
@@ -284,7 +285,7 @@ export function RequiredPlatformScheduleRow({
               disabled={isBusy && !isSchedulePending && !isPostNowPending && !isCancelPending}
               aria-label={t('digitalMarketing.scheduledPosts.rowActions', 'Row actions')}
             >
-              {isBusy ? (
+              {rowActionPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <MoreHorizontal className="h-4 w-4" />

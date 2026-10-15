@@ -56,6 +56,8 @@ type Props = {
   eligible: boolean;
   serviceId?: string | null;
   requiredPlatforms: ServiceRequiredPlatform[];
+  headerTitle?: React.ReactNode;
+  headerExtra?: React.ReactNode;
 };
 
 type PublishResult = { ok: true } | { ok: false; error: string };
@@ -89,6 +91,8 @@ export function UnifiedAutoScheduleSection({
   eligible,
   serviceId,
   requiredPlatforms,
+  headerTitle,
+  headerExtra,
 }: Props) {
   const { t } = useTranslation();
   const { data: defaultTime } = useOrgDefaultPostTime();
@@ -123,7 +127,8 @@ export function UnifiedAutoScheduleSection({
   const [timeWibByRowId, setTimeWibByRowId] = useState<Record<string, string>>({});
   const editedTimeRowIds = useRef(new Set<string>());
   const [privacyByRowId, setPrivacyByRowId] = useState<Record<string, string>>({});
-  const [isBulkRunning, setIsBulkRunning] = useState(false);
+  const [bulkAction, setBulkAction] = useState<'schedule' | 'post_now' | null>(null);
+  const isBulkRunning = bulkAction !== null;
 
   useEffect(() => {
     if (!targets.length) return;
@@ -290,7 +295,7 @@ export function UnifiedAutoScheduleSection({
         return;
       }
 
-      setIsBulkRunning(true);
+      setBulkAction(action);
       let succeeded = 0;
       let failed = 0;
       let processing = 0;
@@ -364,7 +369,7 @@ export function UnifiedAutoScheduleSection({
           toast.error(t('digitalMarketing.scheduledPosts.bulkAllFailed'));
         }
       } finally {
-        setIsBulkRunning(false);
+        setBulkAction(null);
       }
     },
     [
@@ -417,10 +422,21 @@ export function UnifiedAutoScheduleSection({
   if (!eligible) return null;
   if (!serviceId) return null;
 
+  const sectionHeader = (
+    <header className="flex min-w-0 items-center gap-3 border-b border-border/60 bg-muted/30 px-3 py-2">
+      <h3 className="shrink-0 text-sm font-semibold leading-none text-foreground">
+        {t('digitalMarketing.scheduledPosts.unifiedAutoPost', 'Auto-post')}
+      </h3>
+      <div className="min-w-0 flex-1">{headerTitle}</div>
+      {headerExtra ? <div className="shrink-0">{headerExtra}</div> : null}
+    </header>
+  );
+
   if (accountsLoading) {
     return (
-      <section className="overflow-hidden rounded-xl border border-border/80 bg-card p-4 shadow-sm">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <section className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
+        {sectionHeader}
+        <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           {t('digitalMarketing.scheduledPosts.loadingAccounts', 'Loading connected accounts...')}
         </div>
@@ -430,19 +446,16 @@ export function UnifiedAutoScheduleSection({
 
   if (!targets.length) {
     return (
-      <section className="overflow-hidden rounded-xl border border-border/80 bg-card p-3 text-sm text-muted-foreground shadow-sm">
-        {t('digitalMarketing.scheduledPosts.noRequiredPlatforms')}
+      <section className="overflow-hidden rounded-xl border border-border/80 bg-card text-sm text-muted-foreground shadow-sm">
+        {sectionHeader}
+        <p className="p-3">{t('digitalMarketing.scheduledPosts.noRequiredPlatforms')}</p>
       </section>
     );
   }
 
   return (
     <section className="rounded-xl border border-border/80 bg-card shadow-sm">
-      <header className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/30 px-3 py-2">
-        <h3 className="text-sm font-semibold text-foreground">
-          {t('digitalMarketing.scheduledPosts.unifiedAutoPost', 'Auto-post')}
-        </h3>
-      </header>
+      {sectionHeader}
 
       <div className="flex flex-col md:flex-row md:items-stretch">
         <div className="flex min-w-0 flex-1 flex-col gap-3 border-b border-border/60 p-3 md:w-1/2 md:shrink-0 md:border-b-0 md:border-r">
@@ -485,16 +498,18 @@ export function UnifiedAutoScheduleSection({
 
                   const rowBusyId = target.requiredPlatformRowId;
                   const isSchedulePending =
+                    !isBulkRunning &&
                     scheduleMutation.isPending &&
                     scheduleMutation.variables?.accountId === target.accountId &&
                     scheduleMutation.variables?.platform === target.platform;
                   const isPostNowPending =
+                    !isBulkRunning &&
                     postNowMutation.isPending &&
                     postNowMutation.variables?.accountId === target.accountId &&
                     postNowMutation.variables?.platform === target.platform;
                   const isCancelPending =
                     cancelMutation.isPending &&
-                    cancelMutation.variables?.platform === target.platform;
+                    cancelMutation.variables?.scheduleId === activeSchedule?.id;
                   const isDeletePending =
                     deletePublishedMutation.isPending &&
                     deleteTarget?.accountId === target.accountId &&
@@ -563,7 +578,9 @@ export function UnifiedAutoScheduleSection({
                   void runBulkPublishHandler('schedule');
                 }}
               >
-                {isBulkRunning ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                {bulkAction === 'schedule' ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : null}
                 {t('digitalMarketing.scheduledPosts.scheduleAll', {
                   count: bulkEligible.length,
                   defaultValue: `Schedule all (${bulkEligible.length})`,
@@ -579,7 +596,9 @@ export function UnifiedAutoScheduleSection({
                   void runBulkPublishHandler('post_now');
                 }}
               >
-                {isBulkRunning ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                {bulkAction === 'post_now' ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : null}
                 {t('digitalMarketing.scheduledPosts.postNowToAll', {
                   count: bulkEligible.length,
                   defaultValue: `Post now to all (${bulkEligible.length})`,

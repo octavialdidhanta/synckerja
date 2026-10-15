@@ -292,7 +292,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
   const { organizationId } = useCurrentOrg();
   const { user } = useCurrentUser();
   const { data: currentEmployee } = useCurrentEmployee();
-  const { isOwner } = useCentralizedUserData();
+  const { isOwner, isAdmin, loading: userDataLoading } = useCentralizedUserData();
   const [departmentMap, setDepartmentMap] = useState<Record<string, { id: string; name: string }>>({});
   const [rejectedReasonsByTaskId, setRejectedReasonsByTaskId] = useState<Record<string, string>>({});
   const [rejectedReasonsByStepId, setRejectedReasonsByStepId] = useState<Record<string, string>>({});
@@ -441,11 +441,13 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
 
       // Check cache first (60 seconds cache - INCREASED to save IO)
       // Cache key includes user ID + plan month so this-month vs all-dates stay separate
+      const seesAllOrgTasks = isOwner || isAdmin;
       const cacheKey = buildDailyTaskCacheKey(
         organizationId,
         user.id,
         filters.planDateRange,
         filters.customPlanMonth,
+        seesAllOrgTasks ? 'org' : 'assigned',
       );
       if (!force) {
         const cached = getCached<any[]>(cacheKey, 60000); // 60s instead of 30s
@@ -595,13 +597,13 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
         }
       }
 
-      // OPTIMIZATION: Fetch only tasks relevant to user when they have assignments (faster load, especially on mobile).
-      // When user has no assignments we still fetch org tasks so owners/admins see the full list.
+      // Employees only load tasks they created or are assigned to.
+      // Owners and admins load the organization list, even when they also have their own tasks.
       const MAX_ASSIGNED_TASK_IDS = 500; // Cap to avoid URL/query size limits
       const taskIdsToFetch =
-        allAssignedTaskIds.length > 0
-          ? allAssignedTaskIds.slice(0, MAX_ASSIGNED_TASK_IDS)
-          : null;
+        seesAllOrgTasks || allAssignedTaskIds.length === 0
+          ? null
+          : allAssignedTaskIds.slice(0, MAX_ASSIGNED_TASK_IDS);
 
       const planBounds = getPlanDateQueryBounds(filters.planDateRange, filters.customPlanMonth);
 
@@ -2898,9 +2900,10 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
     recentlyUpdatedTasksRef,
   });
 
-  // Initial data fetch - optimized for fast page load
+  // Initial data fetch - optimized for fast page load.
+  // Wait until the role is known so an owner does not cache the employee-only list first.
   useEffect(() => {
-    if (!organizationId) return;
+    if (!organizationId || userDataLoading) return;
 
     let cancelled = false;
 
@@ -2920,6 +2923,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
               user.id,
               filters.planDateRange,
               filters.customPlanMonth,
+              isOwner || isAdmin ? 'org' : 'assigned',
             );
             const cached = getCached<any[]>(cacheKey, 60000);
             if (cached !== undefined && cached !== null && !cancelled) {
@@ -2959,7 +2963,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId, filters.planDateRange, filters.customPlanMonth]);
+  }, [organizationId, filters.planDateRange, filters.customPlanMonth, userDataLoading, isOwner, isAdmin]);
 
   // Apply filters when recentStepFilters or recentStepUpdates change
   useEffect(() => {
