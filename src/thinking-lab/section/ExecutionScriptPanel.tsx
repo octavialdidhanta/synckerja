@@ -11,6 +11,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import {
   allPromptsCopy,
+  lineMasterPrompt,
   narrationDurationSeconds,
   scriptDurationSeconds,
   scriptLineRepairReady,
@@ -255,8 +256,8 @@ function AssetList({
   );
 }
 
-const SCENE_COLUMN_WIDTHS = ["18rem", "11rem", "9rem", "16rem", "26rem"] as const;
-const SCENE_COLUMN_SHARES = ["22.5%", "13.75%", "11.25%", "20%", "32.5%"] as const;
+const SCENE_COLUMN_WIDTHS = ["16rem", "10rem", "8rem", "14rem", "20rem", "28rem"] as const;
+const SCENE_COLUMN_SHARES = ["16%", "10%", "8%", "14%", "22%", "30%"] as const;
 
 function SceneTables({ script, failing, fill = false }: { script: VoiceOverScript; failing: Set<string>; fill?: boolean }) {
   const { t } = useAppTranslation();
@@ -289,11 +290,13 @@ function SceneTables({ script, failing, fill = false }: { script: VoiceOverScrip
                   <th className="px-3 py-2 font-medium">{t("thinkingLab.execution.angle", "Angle")}</th>
                   <th className="px-3 py-2 font-medium">{t("thinkingLab.execution.visual", "Visual function")}</th>
                   <th className="px-3 py-2 font-medium">{t("thinkingLab.execution.prompt", "Veo 3 prompt")}</th>
+                  <th className="px-3 py-2 font-medium">{t("thinkingLab.execution.masterPrompt", "Master prompt")}</th>
                 </tr>
               </thead>
               <tbody>
                 {scene.lines.flatMap((line) => {
                   const shots = line.shots.length > 0 ? line.shots : [null];
+                  const master = lineMasterPrompt(line);
                   return shots.map((shot, index) => (
                     <tr key={shot?.id ?? `${line.id}-empty`} className="border-t border-border align-top">
                       {index === 0 ? (
@@ -327,6 +330,26 @@ function SceneTables({ script, failing, fill = false }: { script: VoiceOverScrip
                           </div>
                         ) : null}
                       </td>
+                      {index === 0 ? (
+                        <td className="px-3 py-2" rowSpan={shots.length}>
+                          {master ? (
+                            <div className="flex items-start gap-2 rounded-md bg-muted px-2 py-1.5">
+                              <p className="min-w-0 flex-1 whitespace-pre-wrap font-mono text-xs">{master}</p>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 shrink-0 p-0"
+                                aria-label={t("thinkingLab.execution.copyMasterPrompt", "Copy master prompt")}
+                                title={t("thinkingLab.execution.copyMasterPrompt", "Copy master prompt")}
+                                onClick={() => void copyPrompt(master)}
+                              >
+                                <Copy className="h-3.5 w-3.5" aria-hidden />
+                              </Button>
+                            </div>
+                          ) : null}
+                        </td>
+                      ) : null}
                     </tr>
                   ));
                 })}

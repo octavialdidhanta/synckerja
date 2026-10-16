@@ -50,6 +50,8 @@ interface BriefDialogProps {
   contentTypeName?: string;
   /** Opens Select Daily Task when conditions match; registers pending approval in parent. Returns true if modal opened. */
   tryStartApprovalFromBrief?: (planId: string) => boolean;
+  /** Already resolved on the dashboard. Avoids a fresh auth/role/approval round trip on every open. */
+  canApprove?: boolean;
 }
 
 const BriefDialog: React.FC<BriefDialogProps> = ({
@@ -65,6 +67,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   contentPlans,
   contentTypeName = "",
   tryStartApprovalFromBrief,
+  canApprove = false,
 }) => {
   const { t } = useAppTranslation();
   const { organizationId } = useCurrentOrg();
@@ -76,7 +79,6 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   const [showPreview, setShowPreview] = useState(false);
   const [accordionOpen, setAccordionOpen] = useState<string>('brief');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [showApprovalButtons, setShowApprovalButtons] = useState(false);
   const [createTableOpen, setCreateTableOpen] = useState(false);
   const [isStoryboardTableEditing, setIsStoryboardTableEditing] = useState(false);
   const [expandedSection, setExpandedSection] = useState<'brief' | 'concept' | null>(null);
@@ -89,7 +91,24 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   const isPersistingRef = useRef(false);
   /** When true, next onOpenChange(false) must not run performSave (Save / Request Revision / Approved already persisted). */
   const skipFlushOnNextCloseRef = useRef(false);
-  const prevOpenedRef = useRef<{ isOpen: boolean; socialMediaPlanId?: string }>({ isOpen: false });
+  const appliedOpenKeyRef = useRef<string | null>(null);
+  const openKey = isOpen && socialMediaPlanId ? socialMediaPlanId : null;
+  if (openKey && appliedOpenKeyRef.current !== openKey) {
+    appliedOpenKeyRef.current = openKey;
+    skipNextAutoSaveRef.current = true;
+    const nextBrief = stripBriefIntroductorySentence(brief || '');
+    if (briefText !== nextBrief) setBriefText(nextBrief);
+    setNewComment('');
+    setShowPreview(false);
+    setAccordionOpen('brief');
+    setCreateTableOpen(false);
+    setIsStoryboardTableEditing(false);
+    setExpandedSection(null);
+    if (targetAudienceProp !== undefined) setTargetAudienceText(targetAudienceProp ?? '');
+    if (captionProp !== undefined) setCaptionText(captionProp ?? '');
+    if (linkReferenceProp !== undefined) setLinkReferenceText(linkReferenceProp ?? '');
+  }
+  if (!isOpen) appliedOpenKeyRef.current = null;
 
   const {
     targetAudience: targetAudienceFetched,
@@ -115,39 +134,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
     uploadingRowIndex,
     deletingImageId,
     isWorking: isStoryboardImagesBusy,
-  } = useBriefStoryboardImages(isOpen ? socialMediaPlanId : undefined);
-
-  // Sync form from props only when dialog first opens or when switching to another plan.
-  // Do not overwrite while modal is open for the same plan (avoids refetch/realtime wiping user edits).
-  useEffect(() => {
-    if (!isOpen) {
-      setBriefText('');
-      setTargetAudienceText('');
-      setCaptionText('');
-      setLinkReferenceText('');
-      setNewComment('');
-      setShowPreview(false);
-      setAccordionOpen('brief');
-      setCreateTableOpen(false);
-      setIsStoryboardTableEditing(false);
-      setExpandedSection(null);
-      prevOpenedRef.current = { isOpen: false };
-      return;
-    }
-    const justOpened = !prevOpenedRef.current.isOpen;
-    const planChanged = prevOpenedRef.current.socialMediaPlanId !== socialMediaPlanId;
-    if (justOpened || planChanged) {
-      setBriefText(stripBriefIntroductorySentence(brief || ''));
-      setNewComment('');
-      setShowPreview(false);
-      setAccordionOpen('brief');
-      setTargetAudienceText(targetAudienceProp !== undefined ? (targetAudienceProp ?? '') : '');
-      setCaptionText(captionProp !== undefined ? (captionProp ?? '') : '');
-      setLinkReferenceText(linkReferenceProp !== undefined ? (linkReferenceProp ?? '') : '');
-      skipNextAutoSaveRef.current = true;
-    }
-    prevOpenedRef.current = { isOpen: true, socialMediaPlanId };
-  }, [isOpen, socialMediaPlanId, brief, targetAudienceProp, captionProp, linkReferenceProp]);
+  } = useBriefStoryboardImages(socialMediaPlanId || undefined);
 
   // When extended data finishes loading, populate target audience and caption (if not controlled by props)
   useEffect(() => {
@@ -170,89 +157,6 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
       skipFlushOnNextCloseRef.current = false;
       isClosingRef.current = false;
     }
-  }, [isOpen]);
-
-  // Check approval access on dialog open
-  useEffect(() => {
-    const checkApprovalAccess = async () => {
-      if (!isOpen) return;
-      
-      try {
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          setShowApprovalButtons(false);
-          return;
-        }
-
-        // Get user's active organization
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('active_organization_id')
-          .eq('user_id', user.id)
-          .single();
-
-        if (profileError || !profile?.active_organization_id) {
-          setShowApprovalButtons(false);
-          return;
-        }
-
-        // Get user's role in the organization
-        const { data: userRole, error: roleError } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .eq('organization_id', profile.active_organization_id)
-          .single();
-
-        if (roleError || !userRole) {
-          setShowApprovalButtons(false);
-          return;
-        }
-
-        // Get user's employee record to check exceptions
-        const { data: employee, error: employeeError } = await supabase
-          .from('employees')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('organization_id', profile.active_organization_id)
-          .single();
-
-        if (employeeError || !employee) {
-          setShowApprovalButtons(false);
-          return;
-        }
-
-        // Get approval configuration for 'approved' column type
-        const { data: config, error: configError } = await supabase
-          .from('approval_access_configurations')
-          .select('*')
-          .eq('organization_id', profile.active_organization_id)
-          .eq('column_type', 'approved')
-          .eq('is_active', true)
-          .maybeSingle();
-
-        if (configError || !config) {
-          // If no configuration found, fall back to admin-only access
-          const hasAdminAccess = userRole.role === 'owner' || userRole.role === 'admin';
-          setShowApprovalButtons(hasAdminAccess);
-          return;
-        }
-
-        // Check if user's role is in the allowed roles
-        const hasRoleAccess = config.allowed_roles?.includes(userRole.role);
-        
-        // Check if user is in the exceptions list
-        const isException = config.exceptions?.includes(employee.id);
-
-        setShowApprovalButtons(hasRoleAccess || isException);
-      } catch (error) {
-        devLog.error('Error checking approval access in BriefDialog:', error);
-        setShowApprovalButtons(false);
-      }
-    };
-
-    checkApprovalAccess();
   }, [isOpen]);
 
   const performSave = async (options: { closeAfter?: boolean; source?: string } = {}) => {
@@ -740,7 +644,8 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
       <DialogContent
         hideCloseButton
         fullscreenAnimation
-        className="fixed left-0 right-0 top-0 z-50 flex h-dvh max-h-none min-h-0 w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-none sm:rounded-none"
+        overlayClassName="data-[state=open]:!animate-none data-[state=closed]:!animate-none"
+        className="fixed left-0 right-0 top-0 z-50 flex h-dvh max-h-none min-h-0 w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-none data-[state=open]:!animate-none data-[state=closed]:!animate-none sm:rounded-none"
       >
         <DialogTitle className="sr-only absolute">Content Brief</DialogTitle>
         <DialogDescription className="sr-only absolute">Edit content brief and manage comments</DialogDescription>
@@ -932,8 +837,8 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                           </div>
                         </AccordionTrigger>
                         <AccordionContent
-                          primitiveClassName={briefExpanded ? 'flex min-h-0 flex-1 flex-col overflow-hidden !h-auto data-[state=open]:!animate-none' : 'data-[state=open]:!flex-1 data-[state=open]:!min-h-0'}
-                          className={`flex-1 min-h-0 overflow-hidden flex flex-col pt-0 data-[state=open]:flex data-[state=open]:min-h-0 data-[state=open]:flex-1 ${briefExpanded ? 'h-full pb-0' : 'pb-4'}`}
+                          primitiveClassName={briefExpanded ? 'flex min-h-0 flex-1 flex-col overflow-hidden !h-auto data-[state=open]:!animate-none data-[state=closed]:!animate-none' : 'data-[state=open]:!flex-1 data-[state=open]:!min-h-0 data-[state=open]:!animate-none data-[state=closed]:!animate-none'}
+                          className={`flex-1 min-h-0 overflow-hidden flex flex-col pt-0 data-[state=open]:flex data-[state=open]:min-h-0 data-[state=open]:flex-1 ${briefExpanded ? 'h-full pb-0' : 'pb-3'}`}
                         >
                           <div
                             className={`scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${briefExpanded ? 'flex h-full flex-col overflow-hidden' : 'max-h-[calc(100dvh-12rem)] overflow-y-auto'}`}
@@ -970,7 +875,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                     </ReactMarkdown>
                                   </div>
                                 ) : null}
-                                <div className={`flex min-h-0 flex-1 flex-col ${briefExpanded ? 'h-full' : 'flex-shrink-0'}`}>
+                                <div className={`flex min-h-0 flex-col ${briefExpanded ? 'h-full min-h-0 flex-1' : 'flex-shrink-0'}`}>
                                 <EditableBriefTable
                                   tableData={parsedTable.table}
                                   onSave={handleTableSave}
@@ -997,7 +902,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                   mediaBusy={isStoryboardImagesBusy}
                                   uploadingRowIndex={uploadingRowIndex}
                                   deletingImageId={deletingImageId}
-                                  className={briefExpanded ? '!my-0 h-full min-h-0 flex-1' : '!my-1'}
+                                  className={briefExpanded ? '!my-0 h-full min-h-0 flex-1' : '!mt-1 !mb-2'}
                                 />
                                 </div>
                                 {briefProseAfterTable && !briefExpanded ? (
@@ -1074,7 +979,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                           </span>
                         </AccordionTrigger>
                         <AccordionContent
-                          primitiveClassName={conceptExpanded ? 'flex min-h-0 flex-1 flex-col overflow-hidden !h-auto data-[state=open]:!animate-none' : 'data-[state=open]:!h-full'}
+                          primitiveClassName={conceptExpanded ? 'flex min-h-0 flex-1 flex-col overflow-hidden !h-auto data-[state=open]:!animate-none data-[state=closed]:!animate-none' : 'data-[state=open]:!h-full data-[state=open]:!animate-none data-[state=closed]:!animate-none'}
                           className={`flex-1 min-h-0 overflow-hidden flex flex-col pt-0 ${conceptExpanded ? 'h-full pb-0' : 'min-h-[280px] h-full pb-4'}`}
                         >
                           {conceptExpanded ? (
@@ -1127,7 +1032,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                           </span>
                         </AccordionTrigger>
                         <AccordionContent
-                          primitiveClassName="data-[state=open]:!h-full"
+                          primitiveClassName="data-[state=open]:!h-full data-[state=open]:!animate-none data-[state=closed]:!animate-none"
                           className="flex-1 min-h-0 overflow-hidden flex flex-col pb-4 pt-0 min-h-[280px] h-full"
                         >
                           <div className="min-h-[260px] flex-1 flex flex-col overflow-hidden h-full">
@@ -1152,7 +1057,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                           </span>
                         </AccordionTrigger>
                         <AccordionContent
-                          primitiveClassName="data-[state=open]:!h-full"
+                          primitiveClassName="data-[state=open]:!h-full data-[state=open]:!animate-none data-[state=closed]:!animate-none"
                           className="flex-1 min-h-0 overflow-hidden flex flex-col pb-4 pt-0 min-h-[280px] h-full"
                         >
                           <div className="flex flex-col flex-1 min-h-0 overflow-hidden h-full">
@@ -1193,7 +1098,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
           <div className={`px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 bg-gray-50 ${workAreaExpanded ? 'hidden' : ''}`}>
             {/* Left side - Action buttons */}
             <div className="flex gap-2">
-              {socialMediaPlanId && showApprovalButtons && (
+              {socialMediaPlanId && canApprove && (
                 <>
                   <Button
                     variant="outline"

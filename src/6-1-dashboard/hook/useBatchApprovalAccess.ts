@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { devLog } from '@/shared/lib/logger';
@@ -121,9 +122,13 @@ export const useBatchApprovalAccess = (): ApprovalAccess => {
 
   const data = query.data ?? EMPTY_ACCESS;
   const contextPending = centralLoading || !centralProfileHydrated;
+  const loading = contextPending || query.isPending;
 
-  return {
-    ...data,
-    loading: contextPending || query.isPending,
-  };
+  return useMemo(
+    () => ({
+      ...data,
+      loading,
+    }),
+    [data, loading],
+  );
 };

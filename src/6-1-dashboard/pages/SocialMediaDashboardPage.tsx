@@ -1163,11 +1163,7 @@ const SocialMediaContent = () => {
   }, []);
 
   const closeBriefDialog = useCallback(() => {
-    setBriefDialog({
-      isOpen: false,
-      id: "",
-      brief: null
-    });
+    setBriefDialog((current) => ({ ...current, isOpen: false }));
   }, []);
 
   /** Same approval entry as table toggle / status → Approved: open Select Daily Task when shouldShowModal applies */
@@ -1465,6 +1461,7 @@ const SocialMediaContent = () => {
                 ?? "";
             })()}
             tryStartApprovalFromBrief={tryStartApprovalFromBrief}
+            canApprove={approvalAccess.approved}
           />
 
           <TitleDialog 

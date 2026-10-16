@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseBriefSequencesFromMarkdown } from "@/6-1-dashboard/modal/briefSequences";
+import { parseMarkdownTable } from "@/6-1-dashboard/utils/markdownTableUtils";
 import { parseBriefConcept } from "@/6-1-dashboard/modal/briefConceptAssets";
 import { parseAIScriptOutput } from "@/6-1-script-generator/utils/parseAIScriptOutput";
 import { groupContentPillars } from "@/thinking-lab/execution/pillars";
@@ -8,6 +9,7 @@ import {
   buildPlanBriefMarkdown,
   buildPlanScript,
   flattenVoiceOver,
+  lineMasterPrompt,
   mergeRepairedLines,
   narrationDurationSeconds,
   parseLineIssues,
@@ -104,7 +106,11 @@ describe("voice-over script", () => {
       ],
     }) as VoiceOverScript;
     const brief = buildPlanBriefMarkdown(script);
-    expect(brief).toContain("| Timing | Visual | VO (Voice Over) | Shot | Angle | Visual function | Veo 3 prompt |");
+    expect(brief).toContain("| Timing | Visual | VO (Voice Over) | Shot | Angle | Visual function | Veo 3 prompt | Master prompt |");
+    const table = parseMarkdownTable(brief)?.table ?? [];
+    expect(table[1]?.at(-1)).toBe(lineMasterPrompt(script.scenes[0].lines[0]));
+    expect(table[2]?.at(-1)).toBe("");
+    expect(table[3]?.at(-1)).toBe(lineMasterPrompt(script.scenes[1].lines[0]));
     expect(brief).toContain("|  |  | Lo bilang, nabung. | Shot 1 — Main Shot | Wide | buka | wide room |");
     expect(brief).toContain("|  |  |  | Shot 2 — Supporting Shot | Close-up | detail | hands |");
     expect(brief).toContain("|  |  | Sekarang dia hitung. | Shot 1 — Main Shot | Medium | hitung | calculator |");
@@ -143,6 +149,63 @@ describe("voice-over script", () => {
     expect(concept?.characters[0]?.portraitPath).toContain("portrait.jpg");
     expect(concept?.characters[0]?.bodyPath).toContain("body.png");
     expect(concept?.properties[0]?.description).toBe("A glass");
+  });
+
+  it("builds a master prompt from only that sentence's shots", () => {
+    const script = parseVoiceOverScript({
+      title: "Warisan kecil",
+      caption: "Budi baru mulai.",
+      assets: {
+        locations: [{ handle: "@location_apartment_living_room", description: "A small apartment living room" }],
+        characters: [{ handle: "@character_budi_young", description: "Budi at age 20" }],
+        properties: [
+          { handle: "@property_bank_statement", description: "A bank statement" },
+          { handle: "@property_laptop", description: "A laptop" },
+        ],
+      },
+      scenes: [
+        {
+          title: "SCENE 1 — HOOK",
+          lines: [
+            {
+              narration: "Budi dapat warisan kecil di usia 20, niatnya mau investasi.",
+              shots: [
+                {
+                  role: "Shot 1 — Main Shot",
+                  angle: "Medium shot",
+                  visualFunction: "Introduce young Budi and his initial situation.",
+                  prompt: "Medium shot of @character_budi_young looking at a @property_bank_statement with a thoughtful expression in @location_apartment_living_room.",
+                },
+                {
+                  role: "Shot 2 — Supporting Shot",
+                  angle: "Close-up",
+                  visualFunction: "Show the complexity he perceives.",
+                  prompt: "Close-up of a @property_laptop screen displaying complex investment charts and graphs.",
+                },
+              ],
+            },
+            {
+              narration: "Kalimat lain.",
+              shots: [{ role: "Shot 1 — Main Shot", angle: "Wide", visualFunction: "Lain", prompt: "Wide room" }],
+            },
+          ],
+        },
+      ],
+    }) as VoiceOverScript;
+    const line = script.scenes[0]?.lines[0] as VoiceOverScript["scenes"][0]["lines"][0];
+    const prompt = lineMasterPrompt(line);
+    expect(prompt.startsWith("Shot : Shot 1 — Main Shot\nAngle : Medium shot\nVisual function : Introduce young Budi and his initial situation.")).toBe(true);
+    expect(prompt).not.toContain("Title:");
+    expect(prompt).not.toContain("Caption:");
+    expect(prompt).not.toContain("Scene:");
+    expect(prompt).not.toContain("Narration:");
+    expect(prompt).not.toContain("Characters:");
+    expect(prompt).not.toContain("Locations:");
+    expect(prompt).not.toContain("Properties:");
+    expect(prompt).toContain("Shot : Shot 2 — Supporting Shot\nAngle : Close-up\nVisual function : Show the complexity he perceives.");
+    expect(prompt).toContain("Close-up of a @property_laptop screen displaying complex investment charts and graphs.");
+    expect(prompt).not.toContain("Kalimat lain.");
+    expect(prompt).not.toContain("Wide room");
   });
 
   it("rejects a script that has no narration", () => {

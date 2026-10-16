@@ -12,6 +12,7 @@ const PLAN_TABLE_HEADERS = [
   "Angle",
   "Visual function",
   "Veo 3 prompt",
+  "Master prompt",
 ] as const;
 
 function planCell(value: string): string {
@@ -276,12 +277,24 @@ export function allPromptsCopy(script: VoiceOverScript): string {
     .join("\n\n");
 }
 
+function shotPromptBlock(shot: ScriptShot): string {
+  const head = [`Shot : ${shot.role}`, `Angle : ${shot.angle}`, `Visual function : ${shot.visualFunction}`].join("\n");
+  const prompt = shot.prompt.trim();
+  return prompt ? `${head}\n\n${prompt}` : head;
+}
+
+/** One narration line: only the shots that belong to that sentence. */
+export function lineMasterPrompt(line: ScriptLine): string {
+  return line.shots.map(shotPromptBlock).join("\n\n");
+}
+
 export function buildPlanBriefMarkdown(script: VoiceOverScript): string {
   const rows: string[][] = [[...PLAN_TABLE_HEADERS]];
   const sequences = script.scenes.flatMap((scene) => {
     let rowCount = 0;
     for (const line of scene.lines) {
       const shots = line.shots.length > 0 ? line.shots : [null];
+      const master = lineMasterPrompt(line);
       shots.forEach((shot, index) => {
         rowCount += 1;
         rows.push([
@@ -292,6 +305,7 @@ export function buildPlanBriefMarkdown(script: VoiceOverScript): string {
           planCell(shot?.angle ?? ""),
           planCell(shot?.visualFunction ?? ""),
           planCell(shot?.prompt ?? ""),
+          index === 0 ? planCell(master) : "",
         ]);
       });
     }

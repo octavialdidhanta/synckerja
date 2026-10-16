@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
-import { MoreVertical, Plus, Trash2, X } from 'lucide-react';
+import { Check, Copy, MoreVertical, Plus, Trash2 } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 import { BriefStoryboardImageCell } from './BriefStoryboardImageCell';
 import { BriefSceneGenerateButton } from './BriefSceneGenerateButton';
+import { BriefMentionField, BriefMentionText } from './BriefMentionField';
 import type { BriefStoryboardImageWithUrl } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
 import type { StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
+import type { BriefConceptDocument } from '@/6-1-dashboard/modal/briefConceptAssets';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,58 +16,41 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/components/ui/select';
-import {
-  useDigitalAssetCharactersListQuery,
-  useDigitalAssetCharacterPoseCountQuery,
-} from '@/6-1-social-media-settings/hooks/useDigitalAssetsListQueries';
-
-function AutoResizeTextarea({
-  value,
-  onChange,
-  className,
-  minRows = 2,
-  ...props
-}: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { minRows?: number }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.max(minRows * 24, el.scrollHeight)}px`;
-  }, [value, minRows]);
-  return (
-    <textarea
-      ref={ref}
-      value={value}
-      onChange={onChange}
-      className={className}
-      rows={minRows}
-      {...props}
-    />
-  );
-}
 
 function StoryBoardFieldValue({
   value,
   label,
   viewFullLabel,
+  concept,
 }: {
   value: string;
   label: string;
   viewFullLabel: string;
+  concept?: BriefConceptDocument | null;
 }) {
   const [open, setOpen] = useState(false);
   const trimmed = value.trim();
 
   if (!trimmed) {
     return <span className="min-w-0 flex-1 text-sm text-gray-400">—</span>;
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        title={viewFullLabel}
+        aria-label={`${label}: ${trimmed}. ${viewFullLabel}`}
+        className={cn(
+          'min-w-0 flex-1 overflow-x-auto text-left text-sm text-gray-700',
+          'whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          'cursor-pointer rounded px-0.5 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400',
+        )}
+        onClick={() => setOpen(true)}
+      >
+        <BriefMentionText value={value.replace(/\n/g, ' ')} concept={concept} />
+      </button>
+    );
   }
 
   return (
@@ -81,7 +66,7 @@ function StoryBoardFieldValue({
             'cursor-pointer rounded px-0.5 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400',
           )}
         >
-          {value.replace(/\n/g, ' ')}
+          <BriefMentionText value={value.replace(/\n/g, ' ')} concept={concept} />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -90,7 +75,7 @@ function StoryBoardFieldValue({
         className="max-w-[min(320px,90vw)] whitespace-pre-wrap break-words p-3 text-sm leading-relaxed"
         style={{ zIndex: 999999 }}
       >
-        {value}
+        <BriefMentionText value={value} concept={concept} />
       </PopoverContent>
     </Popover>
   );
@@ -140,7 +125,6 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
   planId,
   film,
   characterIds = [],
-  onCharacterIdsChange,
   onUpdateCell,
   onUploadImages,
   onDeleteImage,
@@ -155,41 +139,29 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
 }) => {
   const { t } = useAppTranslation();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [addSelectKey, setAddSelectKey] = useState(0);
-  const { data: characters = [] } = useDigitalAssetCharactersListQuery();
-  const { data: poseCount = 0 } = useDigitalAssetCharacterPoseCountQuery(characterIds);
-
-  const selectedCharacters = useMemo(
-    () =>
-      characterIds
-        .map((id) => characters.find((c) => c.id === id))
-        .filter((c): c is NonNullable<typeof c> => Boolean(c)),
-    [characterIds, characters],
-  );
-
-  const availableToAdd = useMemo(
-    () => characters.filter((c) => !characterIds.includes(c.id)),
-    [characters, characterIds],
-  );
-
+  const [masterPromptCopied, setMasterPromptCopied] = useState(false);
+  const copiedTimer = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (copiedTimer.current) window.clearTimeout(copiedTimer.current);
+    };
+  }, []);
+  const isMasterPromptHeader = (header: string) => header.trim().toLowerCase() === 'master prompt';
+  const masterPromptColumnIndex = headers.findIndex(isMasterPromptHeader);
+  const masterPrompt = masterPromptColumnIndex >= 0 ? (row[masterPromptColumnIndex] ?? '') : '';
   const textColumns = headers
     .map((header, colIdx) => ({ header, colIdx }))
-    .filter(({ colIdx }) => colIdx !== imageColumnIndex);
-
-  const fallbackPoseCount =
-    poseCount > 0 ? poseCount : characterIds.length > 0 ? characterIds.length : 0;
-
-  const handleAddCharacter = (id: string) => {
-    if (!id || characterIds.includes(id)) return;
-    onCharacterIdsChange?.(rowIndex, [...characterIds, id]);
-    setAddSelectKey((k) => k + 1);
-  };
-
-  const handleRemoveCharacter = (id: string) => {
-    onCharacterIdsChange?.(
-      rowIndex,
-      characterIds.filter((cid) => cid !== id),
-    );
+    .filter(({ header, colIdx }) => colIdx !== imageColumnIndex && !isMasterPromptHeader(header));
+  const copyMasterPrompt = async () => {
+    if (!masterPrompt.trim()) return;
+    try {
+      await navigator.clipboard.writeText(masterPrompt);
+    } catch {
+      return;
+    }
+    setMasterPromptCopied(true);
+    if (copiedTimer.current) window.clearTimeout(copiedTimer.current);
+    copiedTimer.current = window.setTimeout(() => setMasterPromptCopied(false), 1600);
   };
 
   return (
@@ -304,16 +276,18 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
                   {header}:
                 </span>
                 {isEditing ? (
-                  <AutoResizeTextarea
+                  <BriefMentionField
                     value={value}
                     minRows={1}
-                    onChange={(e) => onUpdateCell(rowIndex, colIdx, e.target.value)}
-                    className="min-w-0 w-full resize-none rounded border border-gray-200 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
+                    concept={film?.concept}
+                    onChange={(next) => onUpdateCell(rowIndex, colIdx, next)}
+                    className="min-w-0 w-full rounded border border-gray-200 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
                   />
                 ) : (
                   <StoryBoardFieldValue
                     value={value}
                     label={header}
+                    concept={film?.concept}
                     viewFullLabel={t('briefDialog.layout.viewFull', 'View full')}
                   />
                 )}
@@ -321,62 +295,49 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
             );
           })}
 
-          <span className="whitespace-nowrap pt-0.5 text-[11px] font-semibold text-gray-500">
-            {t('briefDialog.layout.character', 'Character')}:
-          </span>
-          <div className="min-w-0 space-y-1.5">
-            {selectedCharacters.length === 0 ? (
-              <span className="text-sm text-gray-400">—</span>
-            ) : (
-              <div className="flex min-w-0 flex-nowrap gap-1 overflow-x-auto overflow-y-hidden scrollbar-hide [touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {selectedCharacters.map((c) => (
-                  <span
-                    key={c.id}
-                    className="inline-flex shrink-0 items-center gap-0.5 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-xs text-gray-800"
-                  >
-                    <span className="truncate">{c.name || c.id.slice(0, 8)}</span>
-                    {isEditing && onCharacterIdsChange ? (
-                      <button
-                        type="button"
-                        className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700"
-                        onClick={() => handleRemoveCharacter(c.id)}
-                        aria-label={t('briefDialog.layout.removeCharacter', 'Remove character')}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    ) : null}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {isEditing && onCharacterIdsChange && availableToAdd.length > 0 ? (
-              <Select key={addSelectKey} onValueChange={handleAddCharacter}>
-                <SelectTrigger className="h-7 text-xs border-gray-300 bg-white">
-                  <SelectValue
-                    placeholder={t('briefDialog.layout.addCharacter', 'Add character…')}
+          {masterPromptColumnIndex >= 0 && (isEditing || masterPrompt.trim()) ? (
+            <>
+              <span className="whitespace-nowrap pt-0.5 text-[11px] font-semibold text-gray-500">
+                {headers[masterPromptColumnIndex]}:
+              </span>
+              <div className={cn('min-w-0', isEditing && 'relative')}>
+                {isEditing ? (
+                  <BriefMentionField
+                    value={masterPrompt}
+                    minRows={2}
+                    concept={film?.concept}
+                    onChange={(next) => onUpdateCell(rowIndex, masterPromptColumnIndex, next)}
+                    className="min-w-0 w-full rounded border border-gray-200 bg-white py-0.5 pl-1.5 pr-8 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
                   />
-                </SelectTrigger>
-                <SelectContent style={{ zIndex: 999999 }}>
-                  {availableToAdd.map((c) => (
-                    <SelectItem key={c.id} value={c.id} className="text-xs">
-                      {c.name || c.id.slice(0, 8)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
-
-            {density !== 'mobile-2col' && characterIds.length > 0 ? (
-              <p className="text-[10px] text-blue-700">
-                {t(
-                  'briefDialog.layout.allPosesWillBeSent',
-                  '{{count}} pose(s) will be sent for consistency.',
-                  { count: fallbackPoseCount },
-                )}
-              </p>
-            ) : null}
-          </div>
+                ) : null}
+                {masterPrompt.trim() ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className={cn('h-7 w-7 shrink-0 p-0', isEditing && 'absolute right-0.5 top-0.5 bg-white')}
+                    aria-label={
+                      masterPromptCopied
+                        ? t('briefDialog.masterPromptCopied', 'Copied')
+                        : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
+                    }
+                    title={
+                      masterPromptCopied
+                        ? t('briefDialog.masterPromptCopied', 'Copied')
+                        : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
+                    }
+                    onClick={() => void copyMasterPrompt()}
+                  >
+                    {masterPromptCopied ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" aria-hidden />
+                    )}
+                  </Button>
+                ) : null}
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
     </article>

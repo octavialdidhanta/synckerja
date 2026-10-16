@@ -49,6 +49,37 @@ export function useHideOnScrollDown(
   return hidden;
 }
 
+function SceneSlot({
+  eager,
+  widthClassName,
+  children,
+}: {
+  eager: boolean;
+  widthClassName: string;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(eager);
+
+  useEffect(() => {
+    if (shown) return;
+    const node = ref.current;
+    if (!node) return;
+    const root = node.closest('[data-scene-scroll]');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) setShown(true);
+      },
+      { root: root instanceof Element ? root : null, rootMargin: '180px' },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [shown]);
+
+  if (shown) return <>{children}</>;
+  return <div ref={ref} className={cn('shrink-0', widthClassName)} aria-hidden />;
+}
+
 export interface BriefStoryBoardViewProps {
   headers: string[];
   bodyRows: string[][];
@@ -77,6 +108,7 @@ export interface BriefStoryBoardViewProps {
   onMoveToPreviousSequence?: (rowIndex: number) => void;
   onMoveToNextSequence?: (rowIndex: number) => void;
   density?: 'desktop' | 'mobile-2col';
+  workAreaExpanded?: boolean;
   className?: string;
 }
 
@@ -108,6 +140,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
   onMoveToPreviousSequence,
   onMoveToNextSequence,
   density = 'desktop',
+  workAreaExpanded = false,
   className,
 }) => {
   const { t } = useAppTranslation();
@@ -115,6 +148,9 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
   const canManageSequences = Boolean(showRowActions && onRenameSequence);
   const isMobile = density === 'mobile-2col';
   const scrollRef = useRef<HTMLDivElement>(null);
+  const eagerCount =
+    typeof window === 'undefined' ? 4 : Math.ceil(Math.max(360, window.innerWidth - 420) / 340) + 1;
+  let eagerLeft = eagerCount;
   const hideAddSequence = useHideOnScrollDown(
     scrollRef,
     isMobile && canManageSequences,
@@ -132,10 +168,10 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
       <div
         ref={scrollRef}
         className={cn(
-          'flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto',
+          'flex min-h-0 min-w-0 flex-1 flex-col justify-start gap-3 overflow-x-hidden overflow-y-auto pb-1',
           'scrollbar-hide seamless-scroll nested-scroll-touch-chain',
           '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-          isMobile ? 'gap-2 pb-14' : '',
+          isMobile ? 'gap-4 pb-14' : '',
         )}
         style={{ overflowAnchor: 'none' } as React.CSSProperties}
       >
@@ -149,8 +185,8 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
             className={cn(
               '@container/seq min-w-0 w-full shrink-0 border-dashed border-blue-200 bg-blue-50/20',
               isMobile
-                ? 'rounded-none border-x-0 border-y px-2 py-2'
-                : 'rounded-lg border p-2',
+                ? 'rounded-none border-x-0 border-y px-2 py-3'
+                : 'rounded-lg border p-3',
             )}
           >
             <BriefSequenceHeader
@@ -168,12 +204,13 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
             />
             <div
               className={cn(
-                'flex min-w-0 w-full flex-nowrap gap-3 overflow-x-auto overflow-y-hidden pb-1',
+                'flex min-w-0 w-full flex-nowrap gap-3 overflow-x-auto overflow-y-hidden pb-2',
                 'scrollbar-hide [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y]',
                 '[overscroll-behavior-x:contain] [overscroll-behavior-y:auto]',
                 '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
               )}
               data-horizontal-scroll-zone
+              data-scene-scroll
               data-vaul-no-drag
             >
               {rows.length === 0 ? (
@@ -190,9 +227,15 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
                   const isLastInSequence = localIdx === rows.length - 1;
                   const seqIndex = ranges.findIndex((item) => item.sequence.id === sequence.id);
 
+                  const eager = eagerLeft > 0;
+                  if (eager) eagerLeft -= 1;
+                  const slotClassName = isMobile
+                    ? 'min-h-[280px] w-[calc((100cqw-0.75rem)/1.25)] min-w-[calc((100cqw-0.75rem)/1.25)]'
+                    : 'min-h-[420px] w-[360px]';
+
                   return (
+                    <SceneSlot key={rowIdx} eager={eager} widthClassName={slotClassName}>
                     <BriefStoryBoardSceneCard
-                      key={rowIdx}
                       rowIndex={rowIdx}
                       headers={headers}
                       row={row}
@@ -226,6 +269,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
                       onMoveToPreviousSequence={onMoveToPreviousSequence}
                       onMoveToNextSequence={onMoveToNextSequence}
                     />
+                    </SceneSlot>
                   );
                 })
               )}
@@ -248,9 +292,23 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
           </section>
         );
       })}
+      {!isMobile && canManageSequences ? (
+        <div className="relative mt-1 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1 text-xs"
+            onClick={onAddSequenceBelow}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t('briefDialog.layout.addSequenceBelow', 'Add Sequence below')}
+          </Button>
+        </div>
+      ) : null}
       </div>
 
-      {canManageSequences ? (
+      {isMobile && canManageSequences ? (
         <div
           className={cn(
             'z-10 flex border-t border-border bg-background transition-[transform,opacity] duration-200 ease-out',
@@ -259,7 +317,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
                   'absolute inset-x-0 bottom-0 px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]',
                   hideAddSequence && 'pointer-events-none translate-y-full opacity-0',
                 )
-              : 'relative shrink-0 pt-2',
+              : 'relative shrink-0 px-1 pb-1 pt-4',
           )}
         >
           <Button

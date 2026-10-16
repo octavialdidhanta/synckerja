@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/shared/components/ui/button';
-import { Pencil, Check, X, MoreVertical, Trash2, Plus, Columns3, ArrowLeft } from 'lucide-react';
+import { Pencil, Check, X, MoreVertical, Trash2, Plus, Columns3, ArrowLeft, Copy } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 import { toast } from 'sonner';
@@ -53,6 +53,8 @@ import {
   TooltipTrigger,
 } from '@/shared/components/ui/tooltip';
 import { findBriefImageColumnIndex } from './briefStoryboardConstants';
+import { masterPromptRowSpans } from './masterPromptRows';
+import { BriefMentionField, BriefMentionText } from './BriefMentionField';
 import type { StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
 
 /** Fixed storyboard column widths (px). */
@@ -110,33 +112,6 @@ const briefTableCellClass =
 
 const briefTableHeaderClass =
   'sticky top-0 z-30 border-b-2 border-r border-gray-300 bg-gray-100 px-3 py-3 text-left font-semibold text-gray-900 min-w-0 overflow-hidden last:border-r-0 [box-shadow:0_-2px_0_0_theme(colors.gray.100)]';
-
-/** Auto-resize textarea to fit content height */
-function AutoResizeTextarea({
-  value,
-  onChange,
-  className,
-  minRows = 2,
-  ...props
-}: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { minRows?: number }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.max(minRows * 30, el.scrollHeight)}px`;
-  }, [value, minRows]);
-  return (
-    <textarea
-      ref={ref}
-      value={value}
-      onChange={onChange}
-      className={className}
-      rows={minRows}
-      {...props}
-    />
-  );
-}
 
 interface EditableBriefTableProps {
   tableData: string[][];
@@ -284,6 +259,13 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   const [sceneMeta, setSceneMeta] = useState<BriefSceneMeta[]>(() =>
     parseBriefSceneMetaFromMarkdown(sequencesSource ?? ''),
   );
+  const [copiedMasterPromptRow, setCopiedMasterPromptRow] = useState<number | null>(null);
+  const copiedMasterPromptTimer = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (copiedMasterPromptTimer.current) window.clearTimeout(copiedMasterPromptTimer.current);
+    };
+  }, []);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sequencesRef = useRef(sequences);
   sequencesRef.current = sequences;
@@ -967,6 +949,37 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     normalizedSequences.length,
   );
   const tableColSpan = headerRow.length + (showRowActionsColumn ? 1 : 0);
+  const masterPromptColumnIndex = headerRow.findIndex(
+    (header) => header.trim().toLowerCase() === 'master prompt',
+  );
+  const voiceColumnIndex = headerRow.findIndex((header) => {
+    const name = header.trim().toLowerCase();
+    return name === 'vo' || name.includes('voice') || name.includes('narasi');
+  });
+  const masterPromptSpans = masterPromptRowSpans({
+    rows: bodyRows,
+    masterColumn: masterPromptColumnIndex,
+    voiceColumn: voiceColumnIndex,
+    ranges: storyboardToolbar
+      ? sequenceRanges.map(({ startRow, endRow }) => ({ startRow, endRow }))
+      : [{ startRow: 0, endRow: bodyRows.length }],
+  });
+  const masterPromptSpanByRow = new Map(masterPromptSpans.map((item) => [item.row, item.span]));
+  const masterPromptSkipRows = new Set<number>();
+  for (const item of masterPromptSpans) {
+    for (let offset = 1; offset < item.span; offset += 1) masterPromptSkipRows.add(item.row + offset);
+  }
+  const copyMasterPrompt = async (rowIdx: number, value: string) => {
+    if (!value.trim()) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      return;
+    }
+    setCopiedMasterPromptRow(rowIdx);
+    if (copiedMasterPromptTimer.current) window.clearTimeout(copiedMasterPromptTimer.current);
+    copiedMasterPromptTimer.current = window.setTimeout(() => setCopiedMasterPromptRow(null), 1600);
+  };
 
   const getCurrentTableForPersist = (): string[][] => {
     const tableColCount = Math.max(...tableData.map((r) => r.length), 1);
@@ -1142,38 +1155,85 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
 
     return (
       <tr key={rowIdx} className="hover:bg-gray-50/80 transition-colors">
-        {displayRow.map((cell, cellIdx) => (
-          <td key={cellIdx} className={briefTableCellClass}>
-            {cellIdx === imageColumnIndex ? (
-              <StoryLineVisualCell
-                rowIndex={rowIdx}
-                headers={headerRow}
-                row={displayRow}
-                imageColumnIndex={imageColumnIndex}
-                images={rowImages}
-                editable={Boolean((isEditing || alwaysEditable) && planId && !readOnly)}
-                disabled={!planId || isStructureBusy || isRowUploading || isRowDeleting}
-                isUploading={isRowUploading}
-                isDeleting={isRowDeleting}
-                planId={planId}
-                film={film}
-                characterIds={getSceneCharacterIds(sceneMeta, rowIdx)}
-                mediaBusy={isStructureBusy}
-                onUploadImages={onUploadImages}
-                onDeleteImage={onDeleteImage}
-              />
-            ) : (isEditing || alwaysEditable) ? (
-              <AutoResizeTextarea
-                value={cell}
-                onChange={(e) => updateCell(rowIdx, cellIdx, e.target.value)}
-                className="box-border w-full max-w-full min-h-[60px] resize-none overflow-hidden rounded border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 [overflow-wrap:anywhere] [word-break:break-word]"
-                minRows={2}
-              />
-            ) : (
-              <span className="block whitespace-pre-wrap">{cell}</span>
-            )}
-          </td>
-        ))}
+        {displayRow.map((cell, cellIdx) => {
+          if (cellIdx === masterPromptColumnIndex && masterPromptSkipRows.has(rowIdx)) return null;
+          const isMasterPrompt = cellIdx === masterPromptColumnIndex;
+          const masterSpan = isMasterPrompt ? masterPromptSpanByRow.get(rowIdx) : undefined;
+          const masterText = isMasterPrompt ? cell.trim() : '';
+          return (
+            <td
+              key={cellIdx}
+              rowSpan={masterSpan}
+              className={cn(briefTableCellClass, isMasterPrompt && 'overflow-visible')}
+            >
+              {cellIdx === imageColumnIndex ? (
+                <StoryLineVisualCell
+                  rowIndex={rowIdx}
+                  headers={headerRow}
+                  row={displayRow}
+                  imageColumnIndex={imageColumnIndex}
+                  images={rowImages}
+                  editable={Boolean((isEditing || alwaysEditable) && planId && !readOnly)}
+                  disabled={!planId || isStructureBusy || isRowUploading || isRowDeleting}
+                  isUploading={isRowUploading}
+                  isDeleting={isRowDeleting}
+                  planId={planId}
+                  film={film}
+                  characterIds={getSceneCharacterIds(sceneMeta, rowIdx)}
+                  mediaBusy={isStructureBusy}
+                  onUploadImages={onUploadImages}
+                  onDeleteImage={onDeleteImage}
+                />
+              ) : (
+                <div className={cn(masterText && 'relative min-w-0')}>
+                  {(isEditing || alwaysEditable) ? (
+                    <BriefMentionField
+                      value={cell}
+                      concept={film?.concept}
+                      onChange={(next) => updateCell(rowIdx, cellIdx, next)}
+                      className={cn(
+                        'box-border w-full min-w-0 max-w-full min-h-[60px] flex-1 rounded border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 [overflow-wrap:anywhere] [word-break:break-word]',
+                        masterText && 'pr-8',
+                      )}
+                      minRows={2}
+                    />
+                  ) : (
+                    <BriefMentionText
+                      value={cell}
+                      concept={film?.concept}
+                      className="block min-w-0 flex-1 whitespace-pre-wrap pr-8"
+                    />
+                  )}
+                  {masterText ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="absolute right-1 top-1 h-7 w-7 shrink-0 bg-white p-0"
+                      aria-label={
+                        copiedMasterPromptRow === rowIdx
+                          ? t('briefDialog.masterPromptCopied', 'Copied')
+                          : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
+                      }
+                      title={
+                        copiedMasterPromptRow === rowIdx
+                          ? t('briefDialog.masterPromptCopied', 'Copied')
+                          : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
+                      }
+                      onClick={() => void copyMasterPrompt(rowIdx, cell)}
+                    >
+                      {copiedMasterPromptRow === rowIdx ? (
+                        <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" aria-hidden />
+                      )}
+                    </Button>
+                  ) : null}
+                </div>
+              )}
+            </td>
+          );
+        })}
         {showRowActionsColumn && (
           <td
             className={cn(
@@ -1242,13 +1302,13 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   const addSequenceBelowButton = canManageSequences ? (
     <div
       className={cn(
-        'z-10 flex border-t border-border bg-background transition-[transform,opacity] duration-200 ease-out',
+        'z-10 flex bg-background transition-[transform,opacity] duration-200 ease-out',
         isMobile2Col
           ? cn(
-              'absolute inset-x-0 bottom-0 px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]',
+              'absolute inset-x-0 bottom-0 border-t border-border px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]',
               hideAddSequence && 'pointer-events-none translate-y-full opacity-0',
             )
-          : 'relative shrink-0 px-2 pb-2 pt-2',
+          : 'relative mt-1 shrink-0',
       )}
     >
       <Button
@@ -1268,7 +1328,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     <div
       className={cn(
         'relative flex min-h-0 flex-col overflow-hidden',
-        storyboardToolbar && 'flex-1',
+        storyboardToolbar && workAreaExpanded && 'flex-1',
         className,
       )}
     >
@@ -1276,7 +1336,8 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       <div
         ref={scrollContainerRef}
         className={cn(
-          'min-h-0 flex-1 scrollbar-hide seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          'min-h-0 scrollbar-hide seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          workAreaExpanded || useStoryBoardLayout ? 'flex-1' : 'flex-none',
           isMobile2Col
             ? cn(
                 '@container/brief my-0 w-full min-w-0 rounded-none border-x-0 border-y border-border',
@@ -1286,14 +1347,15 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                   : 'overflow-x-auto overflow-y-auto pb-14 [overscroll-behavior:contain]',
               )
             : cn(
-                'overflow-x-auto overflow-y-auto nested-scroll-touch-chain my-1 rounded-lg border-2 border-gray-300',
+                'overflow-x-auto overflow-y-auto nested-scroll-touch-chain mt-1 rounded-lg border-2 border-gray-300',
+                workAreaExpanded ? 'mb-0' : 'mb-2',
                 storyboardToolbar
                   ? workAreaExpanded
                     ? 'max-h-none min-h-0 flex-1'
                     : 'max-h-[calc(100dvh-16rem)]'
                   : 'max-h-[min(720px,78vh)]',
               ),
-          useStoryBoardLayout && !isMobile2Col && 'flex min-h-0 flex-col overflow-hidden',
+          useStoryBoardLayout && !isMobile2Col && 'flex min-h-0 flex-col overflow-y-auto overflow-x-hidden',
         )}
         style={{ overflowAnchor: 'none' } as React.CSSProperties}
       >
@@ -1326,11 +1388,13 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             onAddRowInSequence={(sequenceId) => void handleAddRowInSequence(sequenceId)}
             onMoveToPreviousSequence={handleMoveToPreviousSequence}
             onMoveToNextSequence={handleMoveToNextSequence}
+            workAreaExpanded={workAreaExpanded}
           />
         ) : (
           <div
             className={cn(
-              storyboardToolbar && 'flex flex-col gap-2',
+              storyboardToolbar && 'flex flex-col gap-3',
+              storyboardToolbar && !isMobile2Col && 'p-2',
               useHorizontalScrollLayout && 'w-max min-w-full',
             )}
           >
@@ -1460,10 +1524,11 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                 </tbody>
               )}
             </table>
+            {!isMobile2Col ? addSequenceBelowButton : null}
           </div>
         )}
       </div>
-      {!useStoryBoardLayout ? addSequenceBelowButton : null}
+      {isMobile2Col && !useStoryBoardLayout ? addSequenceBelowButton : null}
     </div>
   );
 };

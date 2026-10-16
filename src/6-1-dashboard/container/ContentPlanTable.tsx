@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { devLog } from '@/shared/lib/logger';
 import { ContentPlan, ContentType, Service, SubService, ContentPillar } from '../types/social-media';
@@ -44,7 +44,9 @@ interface ContentPlanTableProps {
   onProductionResubmitForReview?: (planId: string) => void | Promise<void>;
 }
 
-export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
+const NO_PLAN_LINKS: never[] = [];
+
+export const ContentPlanTable = memo(function ContentPlanTable({
   contentPlans,
   contentTypes,
   services,
@@ -69,7 +71,7 @@ export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
   onCarouselFirstUploadSuccess,
   onCarouselAllRemoved,
   onProductionResubmitForReview
-}) => {
+}: ContentPlanTableProps) {
   const [subServicePhotoUrls, setSubServicePhotoUrls] = useState<Record<string, string>>({});
   const subServicePhotoKey = useMemo(
     () => subServices.map((item) => `${item.id}:${item.image_path ?? ''}`).join('|'),
@@ -292,7 +294,7 @@ export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
             <ContentPlanRow
               key={plan.id}
               plan={plan}
-              planLinks={linksByPlanId[plan.id] ?? []}
+              planLinks={linksByPlanId[plan.id] ?? NO_PLAN_LINKS}
               tiktokSchedule={scheduleByPlanId[plan.id] ?? null}
               contentTypes={contentTypes}
               services={services}
@@ -328,5 +330,5 @@ export const ContentPlanTable: React.FC<ContentPlanTableProps> = ({
       </table>
     </div>
   );
-};
+});
 
