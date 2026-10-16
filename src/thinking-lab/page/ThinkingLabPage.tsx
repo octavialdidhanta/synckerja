@@ -161,16 +161,26 @@ import {
   buildLineRepairPrompt,
   buildMasterSellsPrompt,
   buildPlanScript,
+  buildSpeechRepairPrompt,
   flattenVoiceOver,
+  keepCharacterVisuals,
   mergeRepairedLines,
+  mergeSpeechRepairs,
   parseLineIssues,
   parseLineReplacements,
   parseMasterSells,
+  parseSpeechRepairs,
   parseVoiceOverScript,
   scriptLineRepairReady,
+  speechNeedsRepair,
   withCharacterVisuals,
+  withSpeech,
   withoutCharacterVisual,
   type CharacterVisualKind,
+  type ScriptAudio,
+  type ScriptLook,
+  type ScriptSpeech,
+  type VoiceOverScript,
 } from "@/thinking-lab/execution/script";
 import { useLabExecutions } from "@/thinking-lab/execution/useExecutions";
 import { canGenerateTerritory } from "@/thinking-lab/territory/eligibility";
@@ -2070,10 +2080,17 @@ export function ThinkingLabPage() {
     })();
   };
 
-  const onGenerateExecutions = (chosen: LabContentPillar[]) => {
+  const onGenerateExecutions = (
+    chosen: LabContentPillar[],
+    audio: ScriptAudio,
+    look?: ScriptLook,
+    speech?: ScriptSpeech,
+    previousScript?: VoiceOverScript | null,
+  ) => {
     if (!focus || (focus.kind !== "idea" && focus.kind !== "execution") || !focusedIdea || focusedIdea.status !== "locked") return;
     const origin = focus;
     const idea = focusedIdea;
+    const resolvedAudio: ScriptAudio = speech === "mix" || speech === "dialog" ? { ...audio, sound: true } : audio;
     const token = executionCancel.current;
     setPillarPickerOpen(false);
     void run(async () => {
@@ -2089,14 +2106,34 @@ export function ThinkingLabPage() {
             ideaStatement: idea.statement,
             pillar: pillar.name,
             ancestors,
+            speech,
           }),
           0.2,
         );
         if (executionCancel.current !== token) return;
         const parsed = parseVoiceOverScript(raw ? parseModelJson(raw) : null);
         if (!parsed) continue;
+        let current = speech
+          ? withSpeech({ ...parsed, audio: resolvedAudio, ...(look ? { look } : {}) }, speech)
+          : { ...parsed, audio: resolvedAudio, ...(look ? { look } : {}) };
+        if (speechNeedsRepair(current, speech)) {
+          const repairSpeech = speech === "mix" || speech === "dialog" || speech === "silent" ? speech : "vo";
+          setExecutionProgress({ phase: "repair", pillarName: pillar.name });
+          const repairRaw = await askThinkingLab(
+            buildSpeechRepairPrompt({
+              ideaStatement: idea.statement,
+              pillarName: pillar.name,
+              speech: repairSpeech,
+              script: current,
+            }),
+            0.2,
+          );
+          if (executionCancel.current !== token) return;
+          const repaired = mergeSpeechRepairs(current, parseSpeechRepairs(repairRaw ? parseModelJson(repairRaw) : null));
+          current = speech ? withSpeech(repaired, speech) : repaired;
+        }
         setExecutionProgress({ phase: "audit", pillarName: pillar.name });
-        const statement = flattenVoiceOver(parsed);
+        const statement = flattenVoiceOver(current);
         if (!statement) continue;
         const facts = await judgeAndSealExecution({
           masterStatement,
@@ -2111,12 +2148,15 @@ export function ThinkingLabPage() {
         const lineRaw = await askThinkingLab(
           buildLineAuditPrompt({
             ideaStatement: idea.statement,
-            lines: parsed.scenes.flatMap((scene) => scene.lines.map((line) => ({ id: line.id, narration: line.narration }))),
+            lines: current.scenes.flatMap((scene) => scene.lines.map((line) => ({ id: line.id, narration: line.narration }))),
           }),
           0,
         );
         if (executionCancel.current !== token) return;
-        const script = { ...parsed, lineIssues: parseLineIssues(lineRaw ? parseModelJson(lineRaw) : null, parsed) };
+        const script = keepCharacterVisuals(
+          { ...current, lineIssues: parseLineIssues(lineRaw ? parseModelJson(lineRaw) : null, current) },
+          previousScript ?? null,
+        );
         const saved = await labExecutions.save.mutateAsync({
           ideaId: idea.id,
           pillar: pillar.id,
@@ -2145,6 +2185,29 @@ export function ThinkingLabPage() {
     }, "execution").finally(() => {
       if (executionCancel.current === token) setExecutionProgress(null);
     });
+  };
+
+  const onRewriteExecution = () => {
+    if (focus?.kind !== "execution") return;
+    const execution = (labExecutions.data ?? []).find((row) => row.id === focus.executionId);
+    if (!execution) return;
+    const match = (contentPillars.data ?? []).find(
+      (pillar) => pillar.id === execution.contentPillarId || pillar.id === execution.pillar || pillar.name === execution.pillarName,
+    );
+    const pillar: LabContentPillar = match ?? {
+      id: execution.contentPillarId ?? execution.pillar,
+      name: execution.pillarName,
+      funnel: "top",
+      category: null,
+      isDefault: false,
+    };
+    onGenerateExecutions(
+      [pillar],
+      execution.script?.audio ?? { sound: false, music: false },
+      execution.script?.look,
+      execution.script?.speech,
+      execution.script,
+    );
   };
 
   const onRepairExecution = () => {
@@ -3636,6 +3699,8 @@ export function ThinkingLabPage() {
                                 pending={busy}
                                 onStop={onStopExecution}
                                 onRepair={() => void onRepairExecution()}
+                                onRewrite={onRewriteExecution}
+                                onChangePillar={onOpenPillarPicker}
                                 onViewTable={focusedExecution.script ? () => setScriptTableOpen(true) : undefined}
                                 onGenerateCharacter={onGenerateCharacter}
                                 onStoreCharacterVisual={onStoreCharacterVisual}
@@ -4152,7 +4217,7 @@ export function ThinkingLabPage() {
         masterSells={masterSells}
         pending={busy}
         onOpenChange={setPillarPickerOpen}
-        onConfirm={(pillars) => void onGenerateExecutions(pillars)}
+        onConfirm={(pillars, audio, look, speech) => void onGenerateExecutions(pillars, audio, look, speech)}
       />
       <SaveToPlanModal
         isOpen={planSaveOpen && Boolean(focusedExecution?.script)}

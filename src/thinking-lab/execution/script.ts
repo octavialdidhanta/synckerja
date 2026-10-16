@@ -46,10 +46,13 @@ export type ScriptShot = {
   prompt: string;
 };
 
+export type ScriptDelivery = "vo" | "dialogue" | "silent";
+
 export type ScriptLine = {
   id: string;
   narration: string;
   shots: ScriptShot[];
+  delivery?: ScriptDelivery;
 };
 
 export type ScriptScene = {
@@ -57,6 +60,15 @@ export type ScriptScene = {
   title: string;
   lines: ScriptLine[];
 };
+
+export type ScriptAudio = {
+  sound: boolean;
+  music: boolean;
+};
+
+export type ScriptLook = "ugc" | "commercial" | "cinematic";
+
+export type ScriptSpeech = "vo" | "mix" | "dialog" | "silent";
 
 export type VoiceOverScript = {
   title: string;
@@ -68,6 +80,9 @@ export type VoiceOverScript = {
   };
   scenes: ScriptScene[];
   lineIssues: Array<{ lineId: string; reason: string }>;
+  audio: ScriptAudio;
+  look?: ScriptLook;
+  speech?: ScriptSpeech;
 };
 
 export type ScriptLineReplacement = {
@@ -133,6 +148,28 @@ function readAssets(value: unknown, prefix: string, visuals = false): ScriptAsse
   });
 }
 
+export function keepCharacterVisuals(next: VoiceOverScript, previous: VoiceOverScript | null): VoiceOverScript {
+  if (!previous) return next;
+  const saved = new Map(previous.assets.characters.map((item) => [item.handle, item]));
+  return {
+    ...next,
+    assets: {
+      ...next.assets,
+      characters: next.assets.characters.map((item) => {
+        const prior = saved.get(item.handle);
+        if (!prior) return item;
+        return {
+          ...item,
+          ...(prior.portraitPath ? { portraitPath: prior.portraitPath } : {}),
+          ...(prior.sheetPath ? { sheetPath: prior.sheetPath } : {}),
+          ...(prior.bodyPath ? { bodyPath: prior.bodyPath } : {}),
+          ...(prior.visualRevision ? { visualRevision: prior.visualRevision } : {}),
+        };
+      }),
+    },
+  };
+}
+
 export function withCharacterVisuals(
   script: VoiceOverScript,
   handle: string,
@@ -192,11 +229,24 @@ function readShot(value: unknown, lineId: string, index: number): ScriptShot | n
   };
 }
 
-function readLine(value: unknown, sceneId: string, index: number): ScriptLine | null {
+function readStoredDelivery(raw: unknown): ScriptDelivery | undefined {
+  return raw === "vo" || raw === "dialogue" || raw === "silent" ? raw : undefined;
+}
+
+export function deliveryForSpeech(speech: ScriptSpeech, raw?: unknown): ScriptDelivery {
+  if (speech === "dialog") return "dialogue";
+  if (speech === "silent") return "silent";
+  if (speech === "vo") return "vo";
+  return readStoredDelivery(raw) === "dialogue" ? "dialogue" : "vo";
+}
+
+function readLine(value: unknown, sceneId: string, index: number, speech?: ScriptSpeech): ScriptLine | null {
   const id = `${sceneId}-l${index + 1}`;
   if (typeof value === "string") {
     const narration = value.trim();
-    return narration ? { id, narration, shots: [] } : null;
+    if (!narration) return null;
+    const delivery = speech ? deliveryForSpeech(speech) : undefined;
+    return { id, narration, shots: [], ...(delivery ? { delivery } : {}) };
   }
   const row = asRecord(value);
   if (!row) return null;
@@ -206,12 +256,34 @@ function readLine(value: unknown, sceneId: string, index: number): ScriptLine | 
     return parsed ? [parsed] : [];
   });
   if (!narration && shots.length === 0) return null;
-  return { id, narration, shots };
+  const stored = readStoredDelivery(row.delivery);
+  const delivery = speech ? deliveryForSpeech(speech, stored) : stored;
+  return { id, narration, shots, ...(delivery ? { delivery } : {}) };
+}
+
+export function withSpeech(script: VoiceOverScript, speech: ScriptSpeech): VoiceOverScript {
+  return {
+    ...script,
+    speech,
+    scenes: script.scenes.map((scene) => ({
+      ...scene,
+        lines: scene.lines.map((line) => {
+          const delivery = deliveryForSpeech(speech, line.delivery);
+          const next = { ...line, delivery };
+          if (delivery !== "dialogue") return next;
+          return {
+            ...next,
+            shots: next.shots.map((shot, index) => (index === 0 ? shot : { ...shot, prompt: stripSaid(shot.prompt) })),
+          };
+        }),
+    })),
+  };
 }
 
 export function parseVoiceOverScript(raw: unknown): VoiceOverScript | null {
   const row = scriptRoot(raw);
   if (!row) return null;
+  const speech = readScriptSpeech(row.speech);
   const scenes = asList(row.scenes).flatMap((scene, sceneIndex) => {
     const sceneRow = asRecord(scene);
     if (!sceneRow && typeof scene !== "string") return [];
@@ -219,7 +291,7 @@ export function parseVoiceOverScript(raw: unknown): VoiceOverScript | null {
     const title = sceneRow ? asText(sceneRow.title ?? sceneRow.name) : "";
     const source = sceneRow ? asList(sceneRow.lines ?? sceneRow.rows ?? sceneRow.narrations) : [scene];
     const lines = source.flatMap((line, lineIndex) => {
-      const parsed = readLine(line, id, lineIndex);
+      const parsed = readLine(line, id, lineIndex, speech);
       return parsed ? [parsed] : [];
     });
     if (lines.length === 0 || lines.every((line) => !line.narration.trim())) return [];
@@ -236,6 +308,7 @@ export function parseVoiceOverScript(raw: unknown): VoiceOverScript | null {
     if (!known.has(lineId) || !reason) return [];
     return [{ lineId, reason }];
   });
+  const look = readScriptLook(row.look);
   return {
     title: asText(row.title ?? row.postTitle ?? row.headline ?? row.judul),
     caption: asText(row.caption ?? row.postCaption),
@@ -246,7 +319,63 @@ export function parseVoiceOverScript(raw: unknown): VoiceOverScript | null {
     },
     scenes,
     lineIssues,
+    audio: readScriptAudio(row.audio),
+    ...(look ? { look } : {}),
+    ...(speech ? { speech } : {}),
   };
+}
+
+export function readScriptAudio(raw: unknown): ScriptAudio {
+  const row = asRecord(raw);
+  return { sound: row?.sound === true, music: row?.music === true };
+}
+
+export function lineAudio(script: Pick<VoiceOverScript, "audio" | "speech">, line: ScriptLine): ScriptAudio {
+  const music = script.audio?.music === true;
+  const dialogue = line.delivery === "dialogue" || shotHasSaid(line.shots[0]?.prompt ?? "");
+  if (script.speech === "mix" || script.speech === "dialog") return { sound: dialogue, music };
+  return { sound: script.audio?.sound === true, music };
+}
+
+export function audioMasterLine(audio?: ScriptAudio | null): string {
+  const sound = audio?.sound === true;
+  const music = audio?.music === true;
+  if (sound && music) return "Audio : sound and music";
+  if (sound) return "Audio : sound, no music";
+  if (music) return "Audio : music, no sound";
+  return "Audio : no sound, no music";
+}
+
+export function readScriptLook(raw: unknown): ScriptLook | undefined {
+  return raw === "ugc" || raw === "commercial" || raw === "cinematic" ? raw : undefined;
+}
+
+export function lookMasterLine(look?: ScriptLook | null): string {
+  if (look === "ugc") return "Look : UGC, handheld iPhone, natural light, no bokeh, no cinematic grade";
+  if (look === "commercial") return "Look : commercial ad, stable camera, clean even lighting, sharp product focus, polished but not a movie";
+  if (look === "cinematic") return "Look : cinematic film, motivated lighting, shallow depth of field, camera on tripod or dolly, filmic color";
+  return "";
+}
+
+export function readScriptSpeech(raw: unknown): ScriptSpeech | undefined {
+  return raw === "vo" || raw === "mix" || raw === "dialog" || raw === "silent" ? raw : undefined;
+}
+
+const SAID_CLAUSE = /\s*@[A-Za-z0-9_.]+\s+said\s*:\s*"(?:[^"\\]|\\.)*"\s*/gi;
+
+export function shotHasSaid(prompt: string): boolean {
+  return /\bsaid\s*:/i.test(prompt);
+}
+
+export function stripSaid(prompt: string): string {
+  return prompt.replace(SAID_CLAUSE, " ").replace(/\s{2,}/g, " ").trim();
+}
+
+/** The spoken line stays on the main shot. Later shots of the same sentence keep only the picture. */
+export function visibleShotPrompt(line: ScriptLine, index: number): string {
+  const prompt = line.shots[index]?.prompt ?? "";
+  if (line.delivery !== "dialogue" || index === 0) return prompt;
+  return stripSaid(prompt);
 }
 
 export function flattenVoiceOver(script: VoiceOverScript): string {
@@ -273,7 +402,9 @@ export function voiceOverCopy(script: VoiceOverScript): string {
 
 export function allPromptsCopy(script: VoiceOverScript): string {
   return script.scenes
-    .flatMap((scene) => scene.lines.flatMap((line) => line.shots.map((shot) => shot.prompt.trim()).filter(Boolean)))
+    .flatMap((scene) =>
+      scene.lines.flatMap((line) => line.shots.map((_, index) => visibleShotPrompt(line, index).trim()).filter(Boolean)),
+    )
     .join("\n\n");
 }
 
@@ -283,9 +414,11 @@ function shotPromptBlock(shot: ScriptShot): string {
   return prompt ? `${head}\n\n${prompt}` : head;
 }
 
-/** One narration line: only the shots that belong to that sentence. */
-export function lineMasterPrompt(line: ScriptLine): string {
-  return line.shots.map(shotPromptBlock).join("\n\n");
+/** One narration line: audio, then look when one was chosen, then only that sentence's shots. */
+export function lineMasterPrompt(line: ScriptLine, audio?: ScriptAudio | null, look?: ScriptLook | null): string {
+  const shots = line.shots.map((shot, index) => shotPromptBlock({ ...shot, prompt: visibleShotPrompt(line, index) })).join("\n\n");
+  const head = [audioMasterLine(audio), lookMasterLine(look)].filter(Boolean).join("\n");
+  return shots ? `${head}\n\n${shots}` : head;
 }
 
 export function buildPlanBriefMarkdown(script: VoiceOverScript): string {
@@ -294,7 +427,7 @@ export function buildPlanBriefMarkdown(script: VoiceOverScript): string {
     let rowCount = 0;
     for (const line of scene.lines) {
       const shots = line.shots.length > 0 ? line.shots : [null];
-      const master = lineMasterPrompt(line);
+      const master = lineMasterPrompt(line, lineAudio(script, line), script.look);
       shots.forEach((shot, index) => {
         rowCount += 1;
         rows.push([
@@ -394,6 +527,176 @@ export function parseLineReplacements(raw: unknown): ScriptLineReplacement[] {
   });
 }
 
+function scriptLines(script: VoiceOverScript): ScriptLine[] {
+  return script.scenes.flatMap((scene) => scene.lines);
+}
+
+function isSaidDialogue(line: ScriptLine): boolean {
+  return line.delivery === "dialogue" && shotHasSaid(line.shots[0]?.prompt ?? "");
+}
+
+function isVoiceOverLine(line: ScriptLine): boolean {
+  return line.delivery !== "dialogue" && line.delivery !== "silent" && line.shots.every((shot) => !shotHasSaid(shot.prompt));
+}
+
+function dialogueNeedsShots(line: ScriptLine): boolean {
+  return line.delivery === "dialogue" && line.shots.length < 3;
+}
+
+function promptWordCount(prompt: string): number {
+  return prompt.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function visualLineIsThin(line: ScriptLine): boolean {
+  return line.shots.length < 3 || line.shots.some((shot) => promptWordCount(shot.prompt) < 25);
+}
+
+const CHARACTER_TOKEN = /@character_[A-Za-z0-9_]+/i;
+const LOCATION_TOKEN = /@location_[A-Za-z0-9_]+/i;
+
+/** A Veo prompt that names a character must name a place in the same prompt. */
+export function promptMissingLocation(prompt: string): boolean {
+  return CHARACTER_TOKEN.test(prompt) && !LOCATION_TOKEN.test(prompt);
+}
+
+function lineMissingLocation(line: ScriptLine): boolean {
+  return line.shots.some((_, index) => promptMissingLocation(visibleShotPrompt(line, index)));
+}
+
+export function speechNeedsRepair(script: VoiceOverScript, speech?: ScriptSpeech | null): boolean {
+  const lines = scriptLines(script);
+  const missingPlace = lines.some(lineMissingLocation);
+  if (speech === "mix") return !lines.some(isSaidDialogue) || !lines.some(isVoiceOverLine) || lines.some(dialogueNeedsShots) || missingPlace;
+  if (speech === "dialog") return lines.some((line) => !shotHasSaid(line.shots[0]?.prompt ?? "") || line.shots.length < 3) || missingPlace;
+  if (speech === "silent") return lines.some(visualLineIsThin) || missingPlace;
+  return missingPlace;
+}
+
+export type SpeechRepairLine = {
+  lineId: string;
+  narration: string;
+  delivery: ScriptDelivery;
+  shots: Array<Omit<ScriptShot, "id">>;
+};
+
+export function parseSpeechRepairs(raw: unknown): SpeechRepairLine[] {
+  const row = asRecord(raw);
+  const list = row ? asList(row.lines ?? row.replacements) : asList(raw);
+  return list.flatMap((item) => {
+    const line = asRecord(item);
+    if (!line) return [];
+    const lineId = asText(line.lineId ?? line.id);
+    const narration = asText(line.narration ?? line.vo ?? line.text);
+    const delivery = readStoredDelivery(line.delivery);
+    if (!lineId || !narration || !delivery) return [];
+    const shots = asList(line.shots).flatMap((shot) => {
+      const parsed = readReplacementShot(shot);
+      return parsed ? [parsed] : [];
+    });
+    return [{ lineId, narration, delivery, shots }];
+  });
+}
+
+export function mergeSpeechRepairs(script: VoiceOverScript, repairs: SpeechRepairLine[]): VoiceOverScript {
+  const known = new Set(scriptLines(script).map((line) => line.id));
+  const byId = new Map(repairs.filter((line) => known.has(line.lineId)).map((line) => [line.lineId, line]));
+  return {
+    ...script,
+    scenes: script.scenes.map((scene) => ({
+      ...scene,
+      lines: scene.lines.map((line) => {
+        const next = byId.get(line.id);
+        if (!next) return line;
+        return {
+          ...line,
+          narration: next.narration.trim(),
+          delivery: next.delivery,
+          shots:
+            next.shots.length > 0
+              ? next.shots.map((shot, index) => ({ ...shot, id: `${line.id}-h${index + 1}` }))
+              : line.shots,
+        };
+      }),
+    })),
+  };
+}
+
+export function buildSpeechRepairPrompt(input: {
+  ideaStatement: string;
+  pillarName: string;
+  speech: "mix" | "dialog" | "silent" | "vo";
+  script: VoiceOverScript;
+}): string {
+  const lines = scriptLines(input.script);
+  const saidShape = '@character said: "the narration sentence, unchanged"';
+  const missingDialogue = !lines.some(isSaidDialogue);
+  const missingVoiceOver = !lines.some(isVoiceOverLine);
+  const shortDialogue = lines.some(dialogueNeedsShots);
+  const missingPlace = lines.some(lineMissingLocation);
+  const placeGap =
+    "A shot that names a @character token is missing a @location token in that same prompt. Add a location from assets to those shots. Reuse the location already used with that character in the scene when the shot stays in that place. Leave a prompt with no @character unchanged. Return only the lines you change.";
+  const shapeGap =
+    input.speech === "silent"
+      ? "There is no voice-over. Each sentence needs at least three shots. Each shot prompt is several sentences: who is present, where they are, the action, the object that shows the point, and the change a viewer can see. Together the shots make the unspoken narration understandable without anyone speaking it. Do not write said: or a voice-over. Return only the lines whose prompts are too short or that have fewer than three shots."
+      : input.speech === "dialog"
+      ? "Each line is dialogue and has at least three shots. The main shot includes the spoken line. Supporting shots do not repeat it. Return only the lines whose main shot lacks the spoken line or that have fewer than three shots."
+      : input.speech === "vo"
+        ? "Return only the lines that still do not match."
+        : missingDialogue
+          ? "The script has no complete on-screen dialogue yet. A dialogue line has at least three shots. Put the spoken line only on the main shot. Supporting shots do not repeat it. Leave at least one voice-over line. Return only the lines you change."
+          : missingVoiceOver
+            ? "The script has no voice-over line yet. Change only enough dialogue lines into voice-over, and leave at least one dialogue line with three shots. Return only the lines you change."
+            : shortDialogue
+              ? "A dialogue line needs at least three shots: the main shot with the spoken line, plus two supporting shots that do not repeat said:. Return only those short dialogue lines."
+              : "Return only the lines that still do not match.";
+  const speechShapeBroken =
+    input.speech === "silent"
+      ? lines.some(visualLineIsThin)
+      : input.speech === "dialog"
+        ? lines.some((line) => !shotHasSaid(line.shots[0]?.prompt ?? "") || line.shots.length < 3)
+        : input.speech === "mix"
+          ? missingDialogue || missingVoiceOver || shortDialogue
+          : false;
+  const gap = !speechShapeBroken && missingPlace ? placeGap : shapeGap;
+  return [
+    "Fix only the narration lines that do not match the speech mode.",
+    gap,
+    "When a shot prompt names a @character token, that same prompt also names a @location token.",
+    "Reuse a location from assets. Prefer the location already used with that character in the scene when the shot stays in that place.",
+    "A prompt with no @character does not need a location.",
+    "Do not return a line that already matches.",
+    `Only the main shot of a dialogue line includes this exact shape: ${saidShape}.`,
+    "Supporting shots of that same line do not repeat said:.",
+    "The quotation is that line's narration, unchanged, in the Idea's language. Do not translate it.",
+    "The token is the speaking character's handle from assets.",
+    "A voice-over shot prompt does not contain said:.",
+    "Narration stays in the Idea's language. The rest of the shot prompt stays in English.",
+    `Pillar: ${input.pillarName}.`,
+    "Return JSON only: {\"lines\":[{\"lineId\":\"...\",\"narration\":\"...\",\"delivery\":\"vo\"|\"dialogue\",\"shots\":[{\"role\":\"...\",\"angle\":\"...\",\"visualFunction\":\"...\",\"prompt\":\"...\"}]}]}",
+    "",
+    "Idea:",
+    input.ideaStatement.trim(),
+    "",
+    "Script:",
+    JSON.stringify({
+      scenes: input.script.scenes.map((scene) => ({
+        title: scene.title,
+        lines: scene.lines.map((line) => ({
+          lineId: line.id,
+          narration: line.narration,
+          delivery: line.delivery ?? "vo",
+          shots: line.shots.map((shot) => ({
+            role: shot.role,
+            angle: shot.angle,
+            visualFunction: shot.visualFunction,
+            prompt: shot.prompt,
+          })),
+        })),
+      })),
+    }),
+  ].join("\n");
+}
+
 export function mergeRepairedLines(script: VoiceOverScript, replacements: ScriptLineReplacement[]): VoiceOverScript {
   const byId = new Map(replacements.map((line) => [line.lineId, line]));
   return {
@@ -464,6 +767,7 @@ export function buildLineRepairPrompt(input: { ideaStatement: string; pillarName
     "The path already climbs to the Master Thought. Do not change that path.",
     "Return replacements only for the failing line ids. Do not return the other lines.",
     "Each replacement keeps more than one shot for that sentence, each with its own angle and its own English prompt.",
+    "When a shot prompt names a @character token, that same prompt also names a @location token.",
     "Shots of every other line stay as they are.",
     "Narration stays in the Idea's language. Shot prompts stay in English.",
     "Do not add a claim the Idea does not already carry.",

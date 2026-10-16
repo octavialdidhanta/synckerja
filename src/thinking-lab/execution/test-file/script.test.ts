@@ -5,10 +5,17 @@ import { parseBriefConcept } from "@/6-1-dashboard/modal/briefConceptAssets";
 import { parseAIScriptOutput } from "@/6-1-script-generator/utils/parseAIScriptOutput";
 import { groupContentPillars } from "@/thinking-lab/execution/pillars";
 import {
+  audioMasterLine,
   buildLineRepairPrompt,
+  buildSpeechRepairPrompt,
+  lookMasterLine,
+  mergeSpeechRepairs,
+  parseSpeechRepairs,
+  speechNeedsRepair,
   buildPlanBriefMarkdown,
   buildPlanScript,
   flattenVoiceOver,
+  lineAudio,
   lineMasterPrompt,
   mergeRepairedLines,
   narrationDurationSeconds,
@@ -72,6 +79,35 @@ describe("voice-over script", () => {
     expect(flattenVoiceOver(script as VoiceOverScript)).toContain("SCENE 1 — HOOK");
     expect(script?.title).toBe("");
     expect(script?.caption).toBe("");
+    expect(script?.audio).toEqual({ sound: false, music: false });
+    expect(parseVoiceOverScript({ ...sample, audio: { sound: true, music: false } })?.audio).toEqual({
+      sound: true,
+      music: false,
+    });
+    expect(script?.look).toBeUndefined();
+    expect(parseVoiceOverScript({ ...sample, look: "ugc" })?.look).toBe("ugc");
+    expect(parseVoiceOverScript({ ...sample, look: "movie" })?.look).toBeUndefined();
+    expect(script?.speech).toBeUndefined();
+    expect(parseVoiceOverScript({ ...sample, speech: "vo" })?.speech).toBe("vo");
+    expect(parseVoiceOverScript({ ...sample, speech: "vo" })?.scenes[0]?.lines[0]?.delivery).toBe("vo");
+    expect(parseVoiceOverScript({ ...sample, speech: "talk" })?.speech).toBeUndefined();
+    const mixed = parseVoiceOverScript({
+      ...sample,
+      speech: "mix",
+      scenes: [
+        {
+          title: "SCENE 1 — HOOK",
+          lines: [
+            { narration: "Narasi.", delivery: "vo", shots: [{ role: "Shot 1", angle: "wide", visualFunction: "buka", prompt: "room" }] },
+            { narration: "Ucapan.", delivery: "dialogue", shots: [{ role: "Shot 1", angle: "close", visualFunction: "bicara", prompt: "face" }] },
+          ],
+        },
+      ],
+    });
+    expect(mixed?.scenes[0]?.lines[0]?.delivery).toBe("vo");
+    expect(mixed?.scenes[0]?.lines[1]?.delivery).toBe("dialogue");
+    expect(parseVoiceOverScript({ ...sample, speech: "dialog" })?.scenes[0]?.lines[0]?.delivery).toBe("dialogue");
+    expect(parseVoiceOverScript({ ...sample, speech: "silent" })?.scenes[0]?.lines[0]?.delivery).toBe("silent");
     const packed = parseVoiceOverScript({ ...sample, title: "Uang yang diam", caption: "Budi menunda, dan waktunya jalan." });
     expect(packed?.title).toBe("Uang yang diam");
     expect(packed?.caption).toBe("Budi menunda, dan waktunya jalan.");
@@ -194,7 +230,7 @@ describe("voice-over script", () => {
     }) as VoiceOverScript;
     const line = script.scenes[0]?.lines[0] as VoiceOverScript["scenes"][0]["lines"][0];
     const prompt = lineMasterPrompt(line);
-    expect(prompt.startsWith("Shot : Shot 1 — Main Shot\nAngle : Medium shot\nVisual function : Introduce young Budi and his initial situation.")).toBe(true);
+    expect(prompt.startsWith("Audio : no sound, no music\n\nShot : Shot 1 — Main Shot\nAngle : Medium shot\nVisual function : Introduce young Budi and his initial situation.")).toBe(true);
     expect(prompt).not.toContain("Title:");
     expect(prompt).not.toContain("Caption:");
     expect(prompt).not.toContain("Scene:");
@@ -205,7 +241,29 @@ describe("voice-over script", () => {
     expect(prompt).toContain("Shot : Shot 2 — Supporting Shot\nAngle : Close-up\nVisual function : Show the complexity he perceives.");
     expect(prompt).toContain("Close-up of a @property_laptop screen displaying complex investment charts and graphs.");
     expect(prompt).not.toContain("Kalimat lain.");
+    expect(prompt).not.toContain("Look :");
+    expect(prompt).not.toContain("Speech :");
+    expect(prompt).not.toContain("Delivery :");
     expect(prompt).not.toContain("Wide room");
+    expect(lookMasterLine("ugc")).toBe("Look : UGC, handheld iPhone, natural light, no bokeh, no cinematic grade");
+    expect(lookMasterLine("commercial")).toBe(
+      "Look : commercial ad, stable camera, clean even lighting, sharp product focus, polished but not a movie",
+    );
+    expect(lookMasterLine("cinematic")).toBe(
+      "Look : cinematic film, motivated lighting, shallow depth of field, camera on tripod or dolly, filmic color",
+    );
+    expect(lineMasterPrompt(line, { sound: false, music: false }, "ugc")).toBe(
+      `Audio : no sound, no music\n${lookMasterLine("ugc")}\n\n${prompt.slice("Audio : no sound, no music\n\n".length)}`,
+    );
+    const mixed = lineMasterPrompt({ ...line, delivery: "dialogue" }, { sound: false, music: false });
+    expect(mixed.startsWith("Audio : no sound, no music\n\nShot : Shot 1 — Main Shot")).toBe(true);
+    expect(mixed).not.toContain("Speech :");
+    expect(mixed).not.toContain("Delivery :");
+    expect(audioMasterLine({ sound: true, music: false })).toBe("Audio : sound, no music");
+    expect(audioMasterLine({ sound: false, music: true })).toBe("Audio : music, no sound");
+    expect(audioMasterLine({ sound: true, music: true })).toBe("Audio : sound and music");
+    expect(audioMasterLine({ sound: false, music: false })).toBe("Audio : no sound, no music");
+    expect(lineMasterPrompt(line, { sound: true, music: true }).startsWith("Audio : sound and music\n\nShot : Shot 1 — Main Shot")).toBe(true);
   });
 
   it("rejects a script that has no narration", () => {
@@ -244,6 +302,165 @@ describe("voice-over script", () => {
     expect(parseLineIssues({ lines: [{ lineId: "s1-l2", reason: "masih meleset" }, { lineId: "missing", reason: "no" }] }, script)).toEqual([
       { lineId: "s1-l2", reason: "masih meleset" },
     ]);
+  });
+
+  it("repairs a mix script once when dialogue has no said line", () => {
+    const script = parseVoiceOverScript({
+      speech: "mix",
+      scenes: [
+        {
+          title: "SCENE 1",
+          lines: [
+            { narration: "Narasi.", delivery: "vo", shots: [{ role: "Shot 1", angle: "wide", visualFunction: "lihat", prompt: "A quiet room." }] },
+            { narration: "Ucapan.", delivery: "dialogue", shots: [{ role: "Shot 1", angle: "close", visualFunction: "bicara", prompt: "A face." }] },
+          ],
+        },
+      ],
+    }) as VoiceOverScript;
+    expect(speechNeedsRepair(script, "mix")).toBe(true);
+    expect(speechNeedsRepair(script, "vo")).toBe(false);
+    expect(speechNeedsRepair({ ...script, speech: "silent" }, "silent")).toBe(true);
+    const merged = mergeSpeechRepairs(
+      script,
+      parseSpeechRepairs({
+        lines: [
+          {
+            lineId: "s1-l2",
+            narration: "Ucapan.",
+            delivery: "dialogue",
+            shots: [
+              { role: "Shot 1", angle: "close", visualFunction: "bicara", prompt: '@Budi_muda said: "Ucapan."' },
+              { role: "Shot 2", angle: "wide", visualFunction: "ruang", prompt: "A quiet room." },
+              { role: "Shot 3", angle: "insert", visualFunction: "tangan", prompt: "Hands on the table." },
+            ],
+          },
+          { lineId: "missing", narration: "Tidak", delivery: "dialogue", shots: [] },
+        ],
+      }),
+    );
+    expect(merged.scenes[0]?.lines[0]?.shots[0]?.prompt).toBe("A quiet room.");
+    expect(merged.scenes[0]?.lines[1]?.shots[0]?.prompt).toBe('@Budi_muda said: "Ucapan."');
+    expect(speechNeedsRepair(merged, "mix")).toBe(false);
+    expect(lineMasterPrompt(merged.scenes[0]?.lines[1] as VoiceOverScript["scenes"][0]["lines"][0])).toContain('said:');
+    expect(lineMasterPrompt(merged.scenes[0]?.lines[1] as VoiceOverScript["scenes"][0]["lines"][0])).not.toContain("Speech :");
+    const repeated = lineMasterPrompt({
+      id: "s1-l1",
+      narration: "Ucapan.",
+      delivery: "dialogue",
+      shots: [
+        { id: "a", role: "Shot 1 — Main Shot", angle: "wide", visualFunction: "bicara", prompt: 'Wide shot. @Budi_muda said: "Ucapan."' },
+        { id: "b", role: "Shot 2 — Supporting Shot", angle: "close", visualFunction: "wajah", prompt: 'Close-up of the face. @Budi_muda said: "Ucapan."' },
+      ],
+    });
+    expect(repeated.match(/said:/gi)?.length).toBe(1);
+    expect(repeated).toContain("Close-up of the face.");
+    const dialog = parseVoiceOverScript({
+      speech: "dialog",
+      scenes: [
+        {
+          title: "SCENE 1",
+          lines: [{ narration: "Halo.", delivery: "dialogue", shots: [{ role: "Shot 1", angle: "medium", visualFunction: "bicara", prompt: "A person." }] }],
+        },
+      ],
+    }) as VoiceOverScript;
+    expect(speechNeedsRepair(dialog, "dialog")).toBe(true);
+    const repair = buildSpeechRepairPrompt({
+      ideaStatement: "Budi menunda investasi.",
+      pillarName: "B-Roll Storytelling",
+      speech: "dialog",
+      script: dialog,
+    });
+    expect(repair).toContain('said: "the narration sentence, unchanged"');
+    expect(repair).toContain("at least three shots");
+    expect(repair).toContain("also names a @location token");
+    const dialogueLine = {
+      id: "s1-l1",
+      narration: "Ucapan.",
+      delivery: "dialogue" as const,
+      shots: [
+        { id: "a", role: "Shot 1", angle: "close", visualFunction: "bicara", prompt: '@Budi_muda said: "Ucapan."' },
+        { id: "b", role: "Shot 2", angle: "wide", visualFunction: "ruang", prompt: "A room." },
+      ],
+    };
+    const voiceLine = {
+      id: "s1-l2",
+      narration: "Narasi.",
+      delivery: "vo" as const,
+      shots: [{ id: "c", role: "Shot 1", angle: "wide", visualFunction: "lihat", prompt: "A street." }],
+    };
+    const mixAudio = { audio: { sound: false, music: true }, speech: "mix" as const };
+    expect(lineAudio(mixAudio, dialogueLine)).toEqual({ sound: true, music: true });
+    expect(lineAudio(mixAudio, voiceLine)).toEqual({ sound: false, music: true });
+    expect(lineMasterPrompt(dialogueLine, lineAudio({ audio: { sound: false, music: false }, speech: "mix" }, dialogueLine))).toContain(
+      "Audio : sound, no music",
+    );
+    expect(lineMasterPrompt(dialogueLine, lineAudio({ audio: { sound: false, music: false }, speech: "mix" }, dialogueLine))).not.toContain(
+      "no sound",
+    );
+    expect(
+      speechNeedsRepair(
+        {
+          ...dialog,
+          scenes: [{ ...dialog.scenes[0], lines: [dialogueLine] }],
+        },
+        "dialog",
+      ),
+    ).toBe(true);
+  });
+
+  it("requires a location in any shot that names a character", () => {
+    const placed = (prompt: string) =>
+      parseVoiceOverScript({
+        speech: "vo",
+        scenes: [{ title: "SCENE 1", lines: [{ narration: "Narasi.", delivery: "vo", shots: [{ role: "Shot 1", angle: "close", visualFunction: "lihat", prompt }] }] }],
+      }) as VoiceOverScript;
+    const hands = placed("Close-up on @character_budi's hands holding @property_old_photo.");
+    expect(speechNeedsRepair(hands, "vo")).toBe(true);
+    expect(speechNeedsRepair(placed("Close-up on @character_budi's hands holding @property_old_photo in @location_home_office."), "vo")).toBe(false);
+    expect(speechNeedsRepair(placed("Extreme close-up on the cover of @property_bank_book."), "vo")).toBe(false);
+    const long = "Budi sits at the desk and turns the old photograph over while the bank book stays closed beside his hand so the viewer can see the choice he keeps delaying.";
+    const dialog = parseVoiceOverScript({
+      speech: "dialog",
+      scenes: [
+        {
+          title: "SCENE 1",
+          lines: [
+            {
+              narration: "Halo.",
+              delivery: "dialogue",
+              shots: [
+                { role: "Shot 1", angle: "medium", visualFunction: "bicara", prompt: `${long} @character_budi at @location_home_office said: "Halo."` },
+                { role: "Shot 2", angle: "insert", visualFunction: "tangan", prompt: `${long} Close-up on @character_budi's hands holding @property_old_photo.` },
+                { role: "Shot 3", angle: "close", visualFunction: "buku", prompt: `${long} Extreme close-up on the cover of @property_bank_book.` },
+              ],
+            },
+          ],
+        },
+      ],
+    }) as VoiceOverScript;
+    expect(speechNeedsRepair(dialog, "dialog")).toBe(true);
+    expect(speechNeedsRepair({ ...dialog, speech: "silent" }, "silent")).toBe(true);
+    const mix = parseVoiceOverScript({
+      speech: "mix",
+      scenes: [
+        {
+          title: "SCENE 1",
+          lines: [
+            { narration: "Narasi.", delivery: "vo", shots: [{ role: "Shot 1", angle: "wide", visualFunction: "lihat", prompt: "A quiet street." }, { role: "Shot 2", angle: "close", visualFunction: "detail", prompt: "The envelope on the table." }] },
+            ...dialog.scenes[0].lines,
+          ],
+        },
+      ],
+    }) as VoiceOverScript;
+    expect(speechNeedsRepair(mix, "mix")).toBe(true);
+    const repair = buildSpeechRepairPrompt({
+      ideaStatement: "Budi menunda investasi.",
+      pillarName: "B-Roll Storytelling",
+      speech: "vo",
+      script: hands,
+    });
+    expect(repair).toContain("missing a @location token");
+    expect(repair).toContain("@character_budi");
   });
 
   it("asks the repair to return only the failing lines", () => {

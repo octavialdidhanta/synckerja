@@ -11,7 +11,9 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import {
   allPromptsCopy,
+  lineAudio,
   lineMasterPrompt,
+  visibleShotPrompt,
   narrationDurationSeconds,
   scriptDurationSeconds,
   scriptLineRepairReady,
@@ -296,8 +298,10 @@ function SceneTables({ script, failing, fill = false }: { script: VoiceOverScrip
               <tbody>
                 {scene.lines.flatMap((line) => {
                   const shots = line.shots.length > 0 ? line.shots : [null];
-                  const master = lineMasterPrompt(line);
-                  return shots.map((shot, index) => (
+                  const master = lineMasterPrompt(line, lineAudio(script, line), script.look);
+                  return shots.map((shot, index) => {
+                    const prompt = visibleShotPrompt(line, index);
+                    return (
                     <tr key={shot?.id ?? `${line.id}-empty`} className="border-t border-border align-top">
                       {index === 0 ? (
                         <td className={cn("px-3 py-2 break-words", failing.has(line.id) && "bg-rose-50")} rowSpan={shots.length}>
@@ -313,9 +317,9 @@ function SceneTables({ script, failing, fill = false }: { script: VoiceOverScrip
                       <td className="break-words px-3 py-2">{shot?.angle}</td>
                       <td className="break-words px-3 py-2">{shot?.visualFunction}</td>
                       <td className="px-3 py-2">
-                        {shot?.prompt ? (
+                        {prompt ? (
                           <div className="flex items-start gap-2 rounded-md bg-muted px-2 py-1.5">
-                            <p className="min-w-0 flex-1 whitespace-pre-wrap font-mono text-xs">{shot.prompt}</p>
+                            <p className="min-w-0 flex-1 whitespace-pre-wrap font-mono text-xs">{prompt}</p>
                             <Button
                               type="button"
                               size="sm"
@@ -323,7 +327,7 @@ function SceneTables({ script, failing, fill = false }: { script: VoiceOverScrip
                               className="h-7 w-7 shrink-0 p-0"
                               aria-label={t("thinkingLab.execution.copyPrompt", "Copy prompt")}
                               title={t("thinkingLab.execution.copyPrompt", "Copy prompt")}
-                              onClick={() => void copyPrompt(shot.prompt)}
+                              onClick={() => void copyPrompt(prompt)}
                             >
                               <Copy className="h-3.5 w-3.5" aria-hidden />
                             </Button>
@@ -351,7 +355,8 @@ function SceneTables({ script, failing, fill = false }: { script: VoiceOverScrip
                         </td>
                       ) : null}
                     </tr>
-                  ));
+                    );
+                  });
                 })}
               </tbody>
             </table>
@@ -372,6 +377,8 @@ export function ExecutionScriptPanel({
   pending = false,
   onStop,
   onRepair,
+  onRewrite,
+  onChangePillar,
   onViewTable,
   onDelete,
   onGenerateCharacter,
@@ -390,6 +397,8 @@ export function ExecutionScriptPanel({
   pending?: boolean;
   onStop?: () => void;
   onRepair?: () => void;
+  onRewrite?: () => void;
+  onChangePillar?: () => void;
   onViewTable?: () => void;
   onDelete?: () => void;
   onGenerateCharacter?: (handle: string) => void;
@@ -402,10 +411,15 @@ export function ExecutionScriptPanel({
   const { t } = useAppTranslation();
   const [tab, setTab] = useState<"script" | "execution">("script");
   const [assetsOpen, setAssetsOpen] = useState(false);
+  const [reasonOpen, setReasonOpen] = useState(false);
   const duration = script ? scriptDurationSeconds(script) : narrationDurationSeconds(statement);
   const failing = new Set(script?.lineIssues.map((issue) => issue.lineId) ?? []);
   const passed = admission === "GENERATE_VALID" && failing.size === 0;
   const repairReady = scriptLineRepairReady(facts, script);
+  const needsAnotherPillar =
+    facts.relationToParent === "MESSAGE_ADDED" ||
+    facts.relationToParent === "PILLAR_OUTSIDE" ||
+    facts.relationToParent === "PILLAR_NOT_SELLING";
   const scriptWarning = failing.size > 0;
   const executionWarning = !passed;
 
@@ -449,7 +463,7 @@ export function ExecutionScriptPanel({
             {executionWarning ? " !" : ""}
           </button>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", passed ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800")}>
             {passed ? t("thinkingLab.execution.passed", "Passed") : t("thinkingLab.execution.failed", "Not passed")}
           </span>
@@ -458,7 +472,26 @@ export function ExecutionScriptPanel({
               {t("thinkingLab.execution.seconds", "{{count}} seconds", { count: duration })}
             </span>
           ) : null}
+          {!passed ? (
+            <button
+              type="button"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+              aria-expanded={reasonOpen}
+              aria-label={t("thinkingLab.execution.whyFailed", "Why not passed")}
+              onClick={() => setReasonOpen((open) => !open)}
+            >
+              <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", reasonOpen && "rotate-90")} aria-hidden />
+            </button>
+          ) : null}
         </div>
+        {!passed && reasonOpen ? (
+          <div className="space-y-1 text-xs leading-relaxed text-muted-foreground">
+            <p>{t(`thinkingLab.execution.relation.${facts.relationToParent}`, RELATION_COPY[facts.relationToParent])}</p>
+            {(script?.lineIssues ?? []).map((issue) => (
+              <p key={issue.lineId}>{issue.reason}</p>
+            ))}
+          </div>
+        ) : null}
       </header>
       {progress ? (
         <div className="space-y-3 rounded-lg border border-border bg-muted/40 px-3 py-3">
@@ -476,6 +509,24 @@ export function ExecutionScriptPanel({
             </Button>
           ) : null}
         </div>
+      ) : null}
+      {!progress && !passed && !repairReady ? (
+        needsAnotherPillar ? (
+          onChangePillar ? (
+            <div>
+              <Button type="button" size="sm" onClick={onChangePillar} disabled={pending}>
+                {t("thinkingLab.execution.changePillar", "Choose another pillar")}
+              </Button>
+            </div>
+          ) : null
+        ) : onRewrite ? (
+          <div>
+            <Button type="button" size="sm" onClick={onRewrite} disabled={pending}>
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+              {t("thinkingLab.execution.rewrite", "Rewrite this execution")}
+            </Button>
+          </div>
+        ) : null
       ) : null}
       {tab === "script" ? (
         <div className="space-y-4">

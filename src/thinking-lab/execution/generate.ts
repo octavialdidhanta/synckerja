@@ -1,6 +1,56 @@
 import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { judgeExecution } from "@/thinking-lab/execution/semantic";
+import type { ScriptSpeech } from "@/thinking-lab/execution/script";
 import { executionPillarLabel, type ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
+
+const SAID_SHAPE = '@character_example said: "the narration sentence, unchanged"';
+
+function speechGenerateRules(speech?: ScriptSpeech): string[] {
+  if (speech === "vo") {
+    return [
+      "Speech mode is voice-over only.",
+      "Every narration line is voice-over. Set delivery to \"vo\".",
+      "Characters do not mouth the words.",
+      "Do not write said: in any shot prompt.",
+    ];
+  }
+  if (speech === "mix") {
+    return [
+      "Speech mode mixes voice-over and on-screen dialogue. The script must contain both kinds. Do not use only one.",
+      "A voice-over line has delivery \"vo\". The narrator speaks the narration. The character does not mouth the words. Do not write said: in those shot prompts.",
+      "A dialogue line has delivery \"dialogue\". A character speaks the narration on screen.",
+      `Only the main shot of a dialogue line includes this exact shape: ${SAID_SHAPE}.`,
+      "Supporting shots of that same sentence do not repeat said:.",
+      "The quotation is the narration sentence, unchanged, in the Idea's language. Do not translate it.",
+      "The token is the speaking character's handle from assets.",
+    ];
+  }
+  if (speech === "dialog") {
+    return [
+      "Speech mode is on-screen dialogue only. There is no voice-over.",
+      "Every narration line is spoken on screen. Set delivery to \"dialogue\".",
+      "Decide from the pillar and the Idea whether one person speaks to the camera or a second person answers.",
+      "Story, podcast, and interview pillars get a counterpart. Other pillars are one person speaking to the camera.",
+      "When a counterpart is present, both people are @character assets.",
+      `Only the main shot of each sentence includes this exact shape: ${SAID_SHAPE}.`,
+      "Supporting shots of that same sentence do not repeat said:.",
+      "The quotation is the narration sentence, unchanged, in the Idea's language. Do not translate it.",
+      "The token is the speaking character's handle from assets.",
+    ];
+  }
+  if (speech === "silent") {
+    return [
+      "Speech mode has no voice-over and no dialogue.",
+      "Each narration line is an unspoken beat: one short sentence in the Idea's language that states what the viewer should understand from the picture. It is not spoken.",
+      "Set delivery to \"silent\".",
+      "There is no narration to explain the picture, so each shot prompt must carry the context by itself.",
+      "Write several sentences for every shot: who is present, where they are, what they do, which object shows the point, and what changes.",
+      "A viewer who never hears the unspoken beat must still understand it from the shots together.",
+      "Do not write a one-line caption. Do not write said: and do not write a voice-over.",
+    ];
+  }
+  return [];
+}
 
 export function buildExecutionGeneratePrompt(input: {
   masterStatement: string;
@@ -8,6 +58,7 @@ export function buildExecutionGeneratePrompt(input: {
   ideaStatement: string;
   pillar: string;
   ancestors?: AncestorStake[];
+  speech?: ScriptSpeech;
 }): string {
   const pillarLabel = executionPillarLabel(input.pillar);
   return [
@@ -33,10 +84,28 @@ export function buildExecutionGeneratePrompt(input: {
     "Title, points, and hashtags use the same language as the Idea.",
     "Do not add a claim or a fake number.",
     "Shot prompts use English and may name @location, @character, and @property tokens.",
+    "When a shot prompt names a @character token, that same prompt also names a @location token, so the place stays consistent from shot to shot.",
+    "Reuse a location already listed in assets. Prefer the location already used with that character in the scene when the shot stays in that place.",
+    "A prompt with no @character does not need a location.",
     "Every token you use in a prompt must appear once in assets with a short description.",
-    "Each scene has a title and narration lines. One narration line is one spoken sentence, not a paragraph.",
+    input.speech === "silent" || input.speech === "dialog"
+      ? "Each scene has a title and narration lines. One narration line is one sentence, not a paragraph."
+      : "Each scene has a title and narration lines. One narration line is one spoken sentence, not a paragraph.",
+    ...speechGenerateRules(input.speech),
     "Every sentence needs more than one shot and more than one prompt, so the angles stay rich.",
-    "Give each sentence a main shot plus at least one supporting shot. Add a third shot when the sentence shows a face, an object, a comparison, or a change.",
+    ...(input.speech === "mix" || input.speech === "dialog"
+      ? [
+          "A dialogue sentence has at least three shots: the main shot carries the spoken line, plus two supporting shots with different angles and no said:.",
+          input.speech === "mix"
+            ? "A voice-over sentence keeps a main shot plus one supporting shot."
+            : "Every sentence is dialogue, so every sentence has at least three shots.",
+        ]
+      : input.speech === "silent"
+        ? [
+            "A silent sentence has at least three shots, because the picture alone carries the meaning.",
+            "Each shot prompt is several sentences long. Name who is present, where they are, the action, the object that shows the point, and the change a viewer can see.",
+          ]
+        : ["Give each sentence a main shot plus at least one supporting shot. Add a third shot when the sentence shows a face, an object, a comparison, or a change."]),
     "Each shot has its own angle and its own English prompt. Do not reuse the same angle or the same prompt inside that sentence.",
     "Vary the angles across wide, medium, close-up, insert, over-the-shoulder, and graphic overlay.",
     "Do not cover several sentences with only one or two shots.",
@@ -57,9 +126,18 @@ export function buildExecutionGeneratePrompt(input: {
           lines: [
             {
               narration: "",
+              ...(input.speech ? { delivery: input.speech === "mix" || input.speech === "vo" ? "vo" : input.speech === "dialog" ? "dialogue" : "silent" } : {}),
               shots: [
-                { role: "Shot 1 — Main Shot", angle: "", visualFunction: "", prompt: "" },
+                {
+                  role: "Shot 1 — Main Shot",
+                  angle: "",
+                  visualFunction: "",
+                  prompt: input.speech === "dialog" ? `@character_example at @location_example. ${SAID_SHAPE}` : "",
+                },
                 { role: "Shot 2 — Supporting Shot", angle: "", visualFunction: "", prompt: "" },
+                ...(input.speech === "dialog" || input.speech === "silent"
+                  ? [{ role: "Shot 3 — Supporting Shot", angle: "", visualFunction: "", prompt: "" }]
+                  : []),
               ],
             },
           ],

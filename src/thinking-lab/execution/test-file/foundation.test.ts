@@ -113,5 +113,35 @@ describe("execution relations", () => {
     expect(generate).toContain("click-through");
     expect(generate).toContain("does not retell");
     expect(generate).toContain("hashtags");
+    expect(generate).not.toContain("Speech mode");
+    expect(generate).toContain("also names a @location token");
+    const dialog = buildExecutionGeneratePrompt({
+      masterStatement: "People should believe this.",
+      ideaStatement: "Ask the courier, so the kindness is visible.",
+      pillar: "B_ROLL_STORYTELLING",
+      speech: "dialog",
+    });
+    expect(dialog).toContain("on-screen dialogue only");
+    expect(dialog).toContain("counterpart");
+    expect(dialog).toContain('@character_example said: "the narration sentence, unchanged"');
+    expect(dialog).toContain("at least three shots");
+    const mix = buildExecutionGeneratePrompt({
+      masterStatement: "People should believe this.",
+      ideaStatement: "Ask the courier, so the kindness is visible.",
+      pillar: "B_ROLL_STORYTELLING",
+      speech: "mix",
+    });
+    expect(mix).toContain("must contain both kinds");
+    expect(mix).toContain("said:");
+    const silent = buildExecutionGeneratePrompt({
+      masterStatement: "People should believe this.",
+      ideaStatement: "Ask the courier, so the kindness is visible.",
+      pillar: "B_ROLL_STORYTELLING",
+      speech: "silent",
+    });
+    expect(silent).toContain("unspoken beat");
+    expect(silent).toContain("at least three shots");
+    expect(silent).toContain("several sentences");
+    expect(silent).not.toContain("one spoken sentence");
   });
 });

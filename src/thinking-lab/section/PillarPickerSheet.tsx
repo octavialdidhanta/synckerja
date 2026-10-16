@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/shared/components/ui/sheet";
+import { Switch } from "@/shared/components/ui/switch";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
 import { groupContentPillars, type ContentPillarFunnel, type LabContentPillar } from "@/thinking-lab/execution/pillars";
-import { pillarLessSuitable } from "@/thinking-lab/execution/script";
+import { pillarLessSuitable, type ScriptAudio, type ScriptLook, type ScriptSpeech } from "@/thinking-lab/execution/script";
 
 const FUNNEL_LABEL: Record<ContentPillarFunnel, string> = {
   top: "Awareness",
@@ -25,15 +28,37 @@ export function PillarPickerSheet({
   masterSells: true | false | "unresolved" | "unknown";
   pending?: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (pillars: LabContentPillar[]) => void;
+  onConfirm: (pillars: LabContentPillar[], audio: ScriptAudio, look: ScriptLook, speech: ScriptSpeech) => void;
 }) {
   const { t } = useAppTranslation();
   const [selected, setSelected] = useState<string[]>([]);
+  const [audioOpen, setAudioOpen] = useState(false);
+  const [sound, setSound] = useState(false);
+  const [music, setMusic] = useState(false);
+  const [look, setLook] = useState<ScriptLook>("ugc");
+  const [speech, setSpeech] = useState<ScriptSpeech>("vo");
+  const looks: Array<{ id: ScriptLook; label: string }> = [
+    { id: "ugc", label: t("thinkingLab.execution.lookUgc", "UGC") },
+    { id: "commercial", label: t("thinkingLab.execution.lookCommercial", "Commercial") },
+    { id: "cinematic", label: t("thinkingLab.execution.lookCinematic", "Cinematic film") },
+  ];
+  const speeches: Array<{ id: ScriptSpeech; label: string }> = [
+    { id: "vo", label: t("thinkingLab.execution.speechVo", "VO") },
+    { id: "mix", label: t("thinkingLab.execution.speechMix", "Mix") },
+    { id: "dialog", label: t("thinkingLab.execution.speechDialog", "Dialog") },
+    { id: "silent", label: t("thinkingLab.execution.speechSilent", "Visual") },
+  ];
   const groups = groupContentPillars(pillars);
   const chosen = pillars.filter((pillar) => selected.includes(pillar.id));
 
   useEffect(() => {
-    if (open) setSelected([]);
+    if (!open) return;
+    setSelected([]);
+    setAudioOpen(false);
+    setSound(false);
+    setMusic(false);
+    setLook("ugc");
+    setSpeech("vo");
   }, [open]);
 
   const toggle = (id: string, checked: boolean) => {
@@ -49,7 +74,7 @@ export function PillarPickerSheet({
             {t("thinkingLab.execution.chooseHint", "Every selected pillar becomes its own Execution and writes a Script VO.")}
           </SheetDescription>
         </SheetHeader>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {groups.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {t("thinkingLab.execution.noPillars", "This organization has no active content pillars yet.")}
@@ -93,13 +118,121 @@ export function PillarPickerSheet({
           )}
         </div>
         <div className="flex flex-col gap-2">
-          <Button type="button" disabled={pending || chosen.length === 0} onClick={() => onConfirm(chosen)}>
+          <Button
+            type="button"
+            disabled={pending || chosen.length === 0}
+            onClick={() => {
+              setSound(false);
+              setMusic(false);
+              setLook("ugc");
+              setSpeech("vo");
+              setAudioOpen(true);
+            }}
+          >
             {t("thinkingLab.execution.create", "Create Execution for {{count}} pillar", { count: chosen.length })}
           </Button>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("thinkingLab.execution.cancel", "Cancel")}
           </Button>
         </div>
+        <Dialog open={audioOpen} onOpenChange={setAudioOpen}>
+          <DialogContent className="gap-4 p-5 sm:max-w-sm">
+            <DialogHeader className="space-y-1">
+              <DialogTitle className="text-base">{t("thinkingLab.execution.settingsTitle", "Video settings")}</DialogTitle>
+            </DialogHeader>
+            <section className="space-y-1.5">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("thinkingLab.execution.audio", "Audio")}
+              </h3>
+              <div className="grid grid-cols-2 divide-x rounded-md border border-border">
+                <label className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="text-sm">{t("thinkingLab.execution.sound", "Sound")}</span>
+                  <Switch
+                    checked={speech === "mix" || speech === "dialog" || sound}
+                    disabled={pending || speech === "mix" || speech === "dialog"}
+                    onCheckedChange={setSound}
+                    aria-label={t("thinkingLab.execution.sound", "Sound")}
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="text-sm">{t("thinkingLab.execution.music", "Music")}</span>
+                  <Switch checked={music} disabled={pending} onCheckedChange={setMusic} aria-label={t("thinkingLab.execution.music", "Music")} />
+                </label>
+              </div>
+            </section>
+            <section className="space-y-1.5">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("thinkingLab.execution.look", "Look")}
+              </h3>
+              <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1" role="radiogroup" aria-label={t("thinkingLab.execution.look", "Look")}>
+                {looks.map((item) => {
+                  const selected = look === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={pending}
+                      className={cn(
+                        "h-8 rounded px-1 text-xs font-medium",
+                        selected ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={() => setLook(item.id)}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+            <section className="space-y-1.5">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("thinkingLab.execution.speech", "Speech")}
+              </h3>
+              <div className="grid grid-cols-4 gap-1 rounded-md bg-muted p-1" role="radiogroup" aria-label={t("thinkingLab.execution.speech", "Speech")}>
+                {speeches.map((item) => {
+                  const selected = speech === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={pending}
+                      className={cn(
+                        "h-8 rounded px-1 text-[11px] font-medium",
+                        selected ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                      )}
+                      onClick={() => {
+                        setSpeech(item.id);
+                        setSound(item.id === "mix" || item.id === "dialog");
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+            <DialogFooter className="gap-2 sm:justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={() => setAudioOpen(false)}>
+                {t("thinkingLab.execution.cancel", "Cancel")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={pending || chosen.length === 0}
+                onClick={() => {
+                  setAudioOpen(false);
+                  onConfirm(chosen, { sound: speech === "mix" || speech === "dialog" || sound, music }, look, speech);
+                }}
+              >
+                {t("thinkingLab.execution.create", "Create Execution for {{count}} pillar", { count: chosen.length })}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </SheetContent>
     </Sheet>
   );
