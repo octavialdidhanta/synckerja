@@ -1308,7 +1308,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
               'absolute inset-x-0 bottom-0 border-t border-border px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]',
               hideAddSequence && 'pointer-events-none translate-y-full opacity-0',
             )
-          : 'relative mt-1 shrink-0',
+          : 'relative mx-2 mb-2 mt-2 shrink-0',
       )}
     >
       <Button
@@ -1347,7 +1347,8 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                   : 'overflow-x-auto overflow-y-auto pb-14 [overscroll-behavior:contain]',
               )
             : cn(
-                'overflow-x-auto overflow-y-auto nested-scroll-touch-chain mt-1 rounded-lg border-2 border-gray-300',
+                'overflow-x-auto overflow-y-auto nested-scroll-touch-chain rounded-lg border-2 border-gray-300',
+                useStoryBoardLayout && 'mt-1',
                 workAreaExpanded ? 'mb-0' : 'mb-2',
                 storyboardToolbar
                   ? workAreaExpanded
@@ -1393,8 +1394,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
         ) : (
           <div
             className={cn(
-              storyboardToolbar && 'flex flex-col gap-3',
-              storyboardToolbar && !isMobile2Col && 'p-2',
+              storyboardToolbar && 'flex flex-col',
               useHorizontalScrollLayout && 'w-max min-w-full',
             )}
           >
