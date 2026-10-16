@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  acceptChosenBelief,
   assessMasterThought,
   buildMasterThoughtJudgePrompt,
+  buildMasterChoicePrompt,
+  masterRecovery,
+  masterRecoveryQuestionKey,
+  parseMasterChoices,
   confirmedFingerprint,
   confirmedParentReady,
   judgeMasterThought,
@@ -186,6 +191,7 @@ describe("master thought understand boundary", () => {
       "A topic only, a concept only, a question, an instruction, a request, an execution request, or a fragment with no actual claim does not itself contain a parent belief.",
       "Several materially independent beliefs with no single parent root are not one coherent parent belief and are not ORIGINAL_READY.",
       "When no parent belief is present, return UNRESOLVED.",
+      "Do not return UNRESOLVED while a belief is present.",
       "Do not invent a parent belief.",
       "Do not synthesize an umbrella belief.",
       "Do not use PROPOSAL_RECOMMENDED to create a belief the user never stated.",
@@ -488,6 +494,33 @@ describe("master thought comparison", () => {
     const facts = await judgeMasterThought("Sama.", ask, undefined, { priorBelief: "  Sama. " });
     expect(facts.unresolvedReasons).toContain("SAME_BELIEF");
     expect(ask).not.toHaveBeenCalled();
+    expect(masterRecovery(facts, "Sama.", "Sama.")).toBe("edit");
+    expect(masterRecovery({ ...facts, unresolvedReasons: ["COMPARISON_UNRESOLVED"] }, planted, prior)).toBe("clarify");
+    expect(masterRecoveryQuestionKey("COMPARISON_UNRESOLVED")).toBe("thinkingLab.master.recover.comparison");
+    expect(masterRecovery({ ...facts, unresolvedReasons: ["JUDGE_UNPARSEABLE"] }, planted, prior)).toBe("retry");
+    expect(masterRecovery(null, planted, prior)).toBeNull();
+    const chosen = acceptChosenBelief("Penjualan tidak bergantung pada iklan");
+    expect(chosen.outcome).toBe("ORIGINAL_READY");
+    expect(chosen.subject).toBe("Penjualan tidak bergantung pada iklan");
+    expect(assessMasterThought(chosen, true)).toBe("USABLE");
+    const kept = normalizeMasterThoughtFacts(chosen, chosen.subject ?? "");
+    expect(kept.outcome).toBe("ORIGINAL_READY");
+    expect(kept.accepted).toBe(true);
+    expect(assessMasterThought(kept, true)).toBe("USABLE");
+    const choicePrompt = buildMasterChoicePrompt({
+      originalInput: planted,
+      priorBelief: prior,
+      question: "What is the short claim?",
+    });
+    expect(choicePrompt).toContain("different readings");
+    expect(choicePrompt).toContain(planted);
+    expect(choicePrompt).toContain("Do not invent a claim");
+    expect(
+      parseMasterChoices(
+        { choices: ["Produk bisa laku tanpa iklan", "karena iklan", "Produk bisa laku tanpa iklan", prior, ""] },
+        { priorBelief: prior },
+      ),
+    ).toEqual(["Produk bisa laku tanpa iklan"]);
     expect(
       confirmedParentReady({
         confirmationSource: "original",

@@ -1,6 +1,6 @@
 import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { judgeExecution } from "@/thinking-lab/execution/semantic";
-import type { ScriptSpeech } from "@/thinking-lab/execution/script";
+import { durationWordBudget, type ScriptSpeech } from "@/thinking-lab/execution/script";
 import { executionPillarLabel, type ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
 
 const SAID_SHAPE = '@character_example said: "the narration sentence, unchanged"';
@@ -55,10 +55,12 @@ function speechGenerateRules(speech?: ScriptSpeech): string[] {
 export function buildExecutionGeneratePrompt(input: {
   masterStatement: string;
   masterSubject?: string;
+  priorBelief?: string;
   ideaStatement: string;
   pillar: string;
   ancestors?: AncestorStake[];
   speech?: ScriptSpeech;
+  durationSeconds?: number | null;
 }): string {
   const pillarLabel = executionPillarLabel(input.pillar);
   return [
@@ -68,6 +70,19 @@ export function buildExecutionGeneratePrompt(input: {
     "The default deliverable is the Script VO: scenes, spoken narration, shots, and prompts.",
     "Do not add a claim the Idea does not already carry.",
     "A viewer must be able to see the Idea's mechanism and climb to the named Master Thought subject.",
+    "The viewer must see the Big Thought's stake happen, then see that stake, not an advertisement, move the outcome named by the Master Thought.",
+    "End every script with its own conclusion scene, after the scene that shows the mechanism.",
+    "The conclusion is one or two sentences. A viewer who hears only those sentences must be able to say the Master Thought.",
+    "Say the Master Thought as what just happened in this situation, and leave the old belief behind.",
+    "Do not stop at the mechanism. The mechanism scene comes before the conclusion.",
+    "Do not title that scene Conclusion, Kesimpulan, or THE REAL REASON.",
+    "Do not explain a new theory. Do not paste the Master Thought unchanged as a slogan, and do not hide it.",
+    ...(input.durationSeconds && input.durationSeconds > 0
+      ? [
+          `Fit the narration to about ${Math.round(input.durationSeconds)} seconds, about ${durationWordBudget(input.durationSeconds)} words.`,
+          "Do not make the script much shorter or much longer than that.",
+        ]
+      : []),
     `Master Thought subject: ${input.masterSubject?.trim() || "(not sealed)"}`,
     "Do not force a message outside the Idea.",
     "Use a selling format only when the Master Thought is actually selling something. Otherwise do not invent a sale.",
@@ -147,6 +162,7 @@ export function buildExecutionGeneratePrompt(input: {
     "",
     "Master Thought:",
     input.masterStatement.trim(),
+    ...(input.priorBelief?.trim() ? ["", "Old belief to leave behind:", input.priorBelief.trim()] : []),
     ...ancestorStakeBlock(input.ancestors),
     "",
     "Idea:",

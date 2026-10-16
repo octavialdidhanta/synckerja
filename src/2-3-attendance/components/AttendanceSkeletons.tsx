@@ -221,10 +221,10 @@ function RecordsCalendarMainSkeleton() {
 /** Mirrors `EnhancedAttendanceSidebar` “Live Analytics” card + scroll area. */
 function RecordsSidebarSkeleton() {
   return (
-    <div className="h-full min-h-0 px-4 py-4 sm:px-6">
-      <div className="space-y-2">
-        <div className="rounded-lg border border-border bg-card shadow-sm">
-          <div className="border-b border-border px-3 pb-2 pt-3">
+    <div className="h-full min-h-0">
+      <div>
+        <div>
+          <div className="px-3 pb-2 pt-3">
             <div className="flex items-center gap-2">
               <Skeleton className="h-4 w-4 rounded-sm" />
               <Skeleton className="h-4 w-28" />
@@ -257,7 +257,7 @@ function RecordsSidebarSkeleton() {
             </div>
           </div>
         </div>
-        <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
+        <div className="border-t border-border p-3">
           <Skeleton className="mb-2 h-4 w-36" />
           <div className="flex gap-2">
             <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
@@ -295,7 +295,7 @@ function RecordsBody() {
         </div>
         <div className="col-span-12 flex min-h-0 flex-col xl:col-span-3">
           <div className={ATTENDANCE_TABLE_SECTION}>
-            <div className="bg-card flex h-full min-h-0 flex-col rounded-lg border border-border shadow-sm">
+            <div className="bg-card flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border shadow-sm">
               <div className="min-h-0 flex-1 overflow-hidden">
                 <RecordsSidebarSkeleton />
               </div>

@@ -240,6 +240,21 @@ export async function deleteLabTerritory(input: {
   if (error) throw error;
 }
 
+export async function saveTerritoryGloss(input: {
+  organizationId: string;
+  bigThoughtId: string;
+  id: string;
+  facts: TerritorySemanticFacts;
+}): Promise<void> {
+  const { error } = await supabase
+    .from("thinking_lab_territories")
+    .update({ canonical_semantic: { ...input.facts, code: input.facts.code } })
+    .eq("id", input.id)
+    .eq("organization_id", input.organizationId)
+    .eq("big_thought_id", input.bigThoughtId);
+  if (error) throw error;
+}
+
 export async function replaceLabTerritory(input: {
   organizationId: string;
   bigThoughtId: string;

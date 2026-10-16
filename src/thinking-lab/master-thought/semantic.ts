@@ -80,7 +80,8 @@ export function buildMasterThoughtJudgePrompt(
     "PROPOSAL_RECOMMENDED only when one intended parent belief is already understood and the wording materially interferes with its role as the parent, while a reformulation preserves exactly that same belief without narrowing, expanding, changing it, adding reasoning, adding a WHY, adding assumptions, introducing a new claim, or synthesizing independent beliefs. Return proposedRootBelief and a brief formulationNote for the formulation problem the proposal resolves.",
     "Do not recommend a proposal because the wording is informal, could sound more professional, shorter, more elegant, more strategic, or more specific, or because another wording is preferred. Preservation is preferred over rewriting. If the original already works as the parent belief, return ORIGINAL_READY.",
     "CLARIFICATION_REQUIRED only when an actual belief is already present, WHAT that belief means is materially ambiguous, and that ambiguity would change which Big Thoughts should be generated. The Original Input cannot resolve it. Return one clarificationQuestion. clarificationOptions may be null or a list of answers. Do not return a proposed root belief.",
-    "UNRESOLVED when no parent belief is present or you cannot safely choose one of the above. Fail closed.",
+    "When a belief is present but you cannot safely choose ORIGINAL_READY or PROPOSAL_RECOMMENDED, return CLARIFICATION_REQUIRED with one question about WHAT that belief means. Do not return UNRESOLVED while a belief is present.",
+    "UNRESOLVED only when no parent belief is present. Fail closed.",
     "Do not copy the Original Input into proposedRootBelief merely to fill the field.",
     "Mark resolution RESOLVED only when every required field for the chosen outcome is decided.",
     "Otherwise mark UNRESOLVED and list unresolvedReasons.",
@@ -286,6 +287,23 @@ export function normalizeMasterThoughtFacts(
     return applyComparisonForm(facts, row, original, priorBelief);
   };
 
+  if (row.accepted === true && outcome === "ORIGINAL_READY") {
+    const subject = asText(row.subject);
+    if (subject) {
+      return {
+        outcome: "ORIGINAL_READY",
+        subject,
+        proposedRootBelief: null,
+        formulationNote: null,
+        clarificationQuestion: null,
+        clarificationOptions: null,
+        resolution: "RESOLVED",
+        unresolvedReasons: [],
+        accepted: true,
+      };
+    }
+  }
+
   if (outcome === "ORIGINAL_READY") {
     const subject = namedSubject(row.subject, [original]);
     if (!subject) return unresolvedMasterThought("SUBJECT_UNNAMED");
@@ -457,6 +475,102 @@ export function confirmedParentReady(input: {
     input.semanticFingerprint,
     confirmedFingerprint(input.statement, input.rootBelief || input.statement),
   );
+}
+
+/** The user already chose what the new belief means, so that sentence is the parent. */
+export function acceptChosenBelief(choice: string): MasterThoughtFacts {
+  const statement = choice.replace(/\s+/g, " ").trim();
+  return {
+    outcome: "ORIGINAL_READY",
+    subject: statement,
+    proposedRootBelief: null,
+    formulationNote: null,
+    clarificationQuestion: null,
+    clarificationOptions: null,
+    resolution: "RESOLVED",
+    unresolvedReasons: [],
+    accepted: true,
+  };
+}
+
+export type MasterRecovery = "clarify" | "retry" | "edit";
+
+/** What the user can do when Understand stopped without a parent belief. */
+export function masterRecovery(
+  facts: MasterThoughtFacts | null,
+  originalInput: string,
+  priorBelief: string,
+): MasterRecovery | null {
+  if (!facts || facts.outcome !== "UNRESOLVED") return null;
+  if (!originalInput.trim()) return null;
+  const reason = facts.unresolvedReasons[0] ?? "UNRESOLVED";
+  if (reason === "EMPTY_INPUT") return null;
+  if (reason === "SAME_BELIEF" || beliefsMatch(originalInput, priorBelief)) return "edit";
+  if (reason === "JUDGE_UNAVAILABLE" || reason === "JUDGE_UNPARSEABLE") return "retry";
+  return "clarify";
+}
+
+export function buildMasterChoicePrompt(input: {
+  originalInput: string;
+  priorBelief?: string;
+  audience?: string;
+  question: string;
+}): string {
+  const priorBelief = input.priorBelief?.trim() ?? "";
+  const audience = input.audience?.trim() ?? "";
+  return [
+    "Offer choices for one belief that could not be named yet.",
+    "Return three different short claims the user might mean.",
+    "Each claim is one grammatical clause in the same language as the new belief.",
+    "Each claim could stand immediately before karena or because.",
+    "The claims are different readings of the new belief, not the same sentence rewritten.",
+    "Do not add a WHY. Do not start a claim with karena or because.",
+    "Do not copy the old belief. Do not invent a claim the new belief does not carry.",
+    "Return JSON only: {\"choices\":[\"\",\"\",\"\"]}",
+    "Do not use examples from any specific industry, belief system, or brand.",
+    "",
+    "Question:",
+    input.question.trim(),
+    "",
+    "New belief:",
+    input.originalInput.trim(),
+    ...(priorBelief ? ["", "Old belief:", priorBelief] : []),
+    ...(audience
+      ? ["", "The audience is only who is addressed. Do not replace the claim with the audience.", "Audience:", audience]
+      : []),
+  ].join("\n");
+}
+
+export function parseMasterChoices(raw: unknown, context?: { priorBelief?: string }): string[] {
+  const list = Array.isArray(raw) ? raw : asRecordChoices(raw);
+  const prior = context?.priorBelief?.trim() ?? "";
+  const seen = new Set<string>();
+  const choices: string[] = [];
+  for (const item of list) {
+    const choice = typeof item === "string" ? item.replace(/\s+/g, " ").trim() : "";
+    if (!choice || startsWithBecause(choice)) continue;
+    if (prior && beliefsMatch(choice, prior)) continue;
+    const key = choice.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    choices.push(choice);
+    if (choices.length === 4) break;
+  }
+  return choices;
+}
+
+function asRecordChoices(raw: unknown): unknown[] {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const choices = (raw as { choices?: unknown }).choices;
+  return Array.isArray(choices) ? choices : [];
+}
+
+export function masterRecoveryQuestionKey(reason: string): string {
+  if (reason === "COMPARISON_UNRESOLVED" || reason === "COMPARISON_MISSING") return "thinkingLab.master.recover.comparison";
+  if (reason === "SUBJECT_UNNAMED" || reason === "SUBJECT_IS_FRAGMENT") return "thinkingLab.master.recover.subject";
+  if (reason === "PROPOSAL_IS_BECAUSE") return "thinkingLab.master.recover.because";
+  if (reason === "PROPOSAL_IS_PRIOR") return "thinkingLab.master.recover.prior";
+  return "thinkingLab.master.recover.clarify";
 }
 
 export function understandPersistMode(input: {

@@ -529,6 +529,53 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
   });
 
+  it("puts a Fix button on each failed Territory card", () => {
+    const onFixTerritory = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="bigThought"
+        code="BT01"
+        statement="Kenaikan penjualan tidak hanya disebabkan oleh iklan."
+        territories={[
+          { id: "t1", code: "TR01", statement: "Dorongan dari dalam diri", verdict: "AUDIT_FAIL" },
+          { id: "t3", code: "TR03", statement: "Daftar keinginan tersembunyi", verdict: "AUDIT_FAIL" },
+          { id: "t2", code: "TR02", statement: "Ruang yang sudah lolos", verdict: "AUDIT_PASS" },
+        ]}
+        onFixTerritory={onFixTerritory}
+      />,
+    );
+    expect(screen.getAllByRole("button", { name: /More actions TR0/ })).toHaveLength(2);
+    openActionMenu(/More actions TR01/);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    expect(onFixTerritory).toHaveBeenCalledWith("TR01");
+  });
+
+  it("keeps the other Territory Fix buttons clickable while one fix is running", () => {
+    const onFixTerritory = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="bigThought"
+        statement="Kenaikan penjualan tidak hanya disebabkan oleh iklan."
+        territories={[
+          { id: "t1", code: "TR01", statement: "Dorongan dari dalam diri", verdict: "AUDIT_FAIL" },
+          { id: "t3", code: "TR03", statement: "Daftar keinginan tersembunyi", verdict: "AUDIT_FAIL" },
+        ]}
+        onFixTerritory={onFixTerritory}
+        fixingTerritoryCodes={["TR03"]}
+        pendingAction="fix-territory:TR03"
+      />,
+    );
+    const menus = screen.getAllByRole("button", { name: /More actions TR0/ });
+    const running = menus.find((button) => button.getAttribute("aria-busy") === "true");
+    const waiting = menus.find((button) => button.getAttribute("aria-busy") !== "true");
+    expect(running).toBeTruthy();
+    expect((running as HTMLButtonElement).disabled).toBe(true);
+    expect((waiting as HTMLButtonElement).disabled).toBe(false);
+    openActionMenu(/More actions TR01/);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    expect(onFixTerritory).toHaveBeenCalledWith("TR01");
+  });
+
   it("puts a Fix button on each failed Idea card", () => {
     const onFixIdea = vi.fn();
     render(

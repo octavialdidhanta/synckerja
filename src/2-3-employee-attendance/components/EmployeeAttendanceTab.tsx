@@ -71,11 +71,9 @@ const EmployeeAttendanceTab = () => {
 
         <div className="col-span-12 flex min-h-0 flex-col xl:col-span-3">
           <div className={ATTENDANCE_TABLE_SECTION}>
-            <div className="bg-card flex h-full min-h-0 flex-col rounded-lg border border-border shadow-sm">
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <div className="h-full min-h-0 px-6 py-4">
-                  <EnhancedAttendanceSidebar selectedRows={[]} />
-                </div>
+            <div className="bg-card flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border shadow-sm">
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <EnhancedAttendanceSidebar selectedRows={[]} />
               </div>
               <AttendancePanelFooter count={employees.length} />
             </div>

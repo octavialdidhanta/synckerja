@@ -21,6 +21,8 @@ export type MasterThoughtFacts = {
   resolution: Resolution;
   unresolvedReasons: string[];
   confidence?: number;
+  /** The user picked this sentence. Keep it even when the subject is the whole belief. */
+  accepted?: boolean;
 };
 
 export type MasterBeliefInput = {

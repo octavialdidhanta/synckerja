@@ -6,6 +6,7 @@ import { parseAIScriptOutput } from "@/6-1-script-generator/utils/parseAIScriptO
 import { groupContentPillars } from "@/thinking-lab/execution/pillars";
 import {
   audioMasterLine,
+  buildLineAuditPrompt,
   buildLineRepairPrompt,
   buildSpeechRepairPrompt,
   lookMasterLine,
@@ -18,6 +19,7 @@ import {
   lineAudio,
   lineMasterPrompt,
   mergeRepairedLines,
+  durationWordBudget,
   narrationDurationSeconds,
   parseLineIssues,
   parseLineReplacements,
@@ -273,6 +275,9 @@ describe("voice-over script", () => {
 
   it("rounds narration length to the nearest five seconds", () => {
     expect(narrationDurationSeconds("satu dua tiga empat lima enam tujuh delapan sembilan sepuluh sebelas")).toBe(5);
+    expect(durationWordBudget(30)).toBe(66);
+    expect(parseVoiceOverScript({ ...sample, durationSeconds: 45 })?.durationSeconds).toBe(45);
+    expect(parseVoiceOverScript({ ...sample, durationSeconds: 0 })?.durationSeconds).toBeUndefined();
     expect(scriptDurationSeconds(parseVoiceOverScript(sample) as VoiceOverScript)).toBe(5);
   });
 
@@ -291,7 +296,9 @@ describe("voice-over script", () => {
       lineIssues: [{ lineId: "s1-l1", reason: "pesan Idea hilang" }],
     }) as VoiceOverScript;
     expect(scriptLineRepairReady(facts(), script)).toBe(true);
-    expect(scriptLineRepairReady(facts({ viewerClimb: "OTHER", relationToParent: "CLIMB_MISSED" }), script)).toBe(false);
+    expect(scriptLineRepairReady(facts(), { ...script, lineIssues: [] })).toBe(false);
+    expect(scriptLineRepairReady(facts({ viewerClimb: "OTHER", relationToParent: "CLIMB_MISSED" }), script)).toBe(true);
+    expect(scriptLineRepairReady(facts({ mechanismVisible: false, relationToParent: "MECHANISM_HIDDEN" }), script)).toBe(false);
     const merged = mergeRepairedLines(script, parseLineReplacements({
       lines: [{ lineId: "s1-l1", narration: "Nabungnya keliatan dari obrolan itu.", shots: [{ role: "Shot 1 — Main Shot", angle: "close", visualFunction: "uang", prompt: "coins" }] }],
     }));
@@ -467,13 +474,42 @@ describe("voice-over script", () => {
     const script = parseVoiceOverScript(sample) as VoiceOverScript;
     const prompt = buildLineRepairPrompt({
       ideaStatement: "Reuni geng motor membuka obrolan uang sekolah.",
+      masterStatement: "Kenaikan penjualan tidak hanya disebabkan oleh iklan.",
+      ancestors: [{ label: "Big Thought", statement: "Kemudahan memperoleh mengalahkan keinginan memiliki." }],
       pillarName: "Handling Objections",
       script: { ...script, lineIssues: [{ lineId: "s1-l1", reason: "pesan Idea" }] },
     });
     expect(prompt).toContain("only the narration lines that failed");
+    expect(prompt).toContain("not an advertisement");
+    expect(prompt).toContain("can say the Master Thought");
+    expect(prompt).toContain("Do not stop at the mechanism");
+    expect(prompt).toContain("Do not install another cause");
+    expect(prompt).toContain("Kenaikan penjualan tidak hanya disebabkan oleh iklan.");
+    expect(prompt).toContain("Big Thought: Kemudahan memperoleh mengalahkan keinginan memiliki.");
     expect(prompt).toContain("more than one shot");
     expect(prompt).toContain("s1-l1");
     expect(prompt).not.toContain("industry");
+  });
+
+  it("fails a closing line that installs a cause outside the belief chain", () => {
+    const prompt = buildLineAuditPrompt({
+      ideaStatement: "Satu barang kecil ditambahkan di kasir.",
+      masterStatement: "Kenaikan penjualan tidak hanya disebabkan oleh iklan.",
+      ancestors: [{ label: "Big Thought", statement: "Kemudahan memperoleh mengalahkan keinginan memiliki." }],
+      lines: [
+        { id: "s5-l1", narration: "Ini bukan tentang harga atau kebutuhan, tapi tentang angka yang pas." },
+        { id: "s3-l1", narration: "Mata tertuju pada sesuatu yang kecil dan mudah dijangkau." },
+      ],
+    });
+    expect(prompt).toContain("not an advertisement");
+    expect(prompt).toContain("conclusion scene");
+    expect(prompt).toContain("must be able to say the Master Thought");
+    expect(prompt).toContain("fitting number");
+    expect(prompt).toContain("only shows the Idea's mechanism does not fail");
+    expect(prompt).toContain("Kenaikan penjualan tidak hanya disebabkan oleh iklan.");
+    expect(prompt).toContain("Big Thought: Kemudahan memperoleh mengalahkan keinginan memiliki.");
+    expect(prompt).toContain("s5-l1: Ini bukan tentang harga atau kebutuhan");
+    expect(prompt).toContain("s3-l1: Mata tertuju pada sesuatu yang kecil");
   });
 
   it("keeps a character portrait and sheet path on the script", () => {

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { beliefsMatch } from "@/thinking-lab/master-thought/semantic";
+import { beliefsMatch, masterRecovery, masterRecoveryQuestionKey } from "@/thinking-lab/master-thought/semantic";
 import type { MasterAdmission, MasterThoughtFacts } from "@/thinking-lab/master-thought/types";
 
 type MasterThoughtSectionProps = {
@@ -22,7 +22,8 @@ type MasterThoughtSectionProps = {
   onProposalChange: (value: string) => void;
   onUnderstand: () => void;
   judgmentCurrent?: boolean;
-  onClarify: (answer: string) => void;
+  onClarify: (answer: string, question?: string) => void;
+  onOpenChoices: (question: string) => Promise<string[]>;
   onConfirmOriginal: () => void;
   onConfirmProposal: () => void;
   onConfirmEdit: () => void;
@@ -45,12 +46,12 @@ export function MasterThoughtSection({
   onUnderstand,
   judgmentCurrent = false,
   onClarify,
+  onOpenChoices,
   onConfirmOriginal,
   onConfirmProposal,
   onConfirmEdit,
 }: MasterThoughtSectionProps) {
   const { t } = useAppTranslation();
-  const [clarificationAnswer, setClarificationAnswer] = useState("");
   const outcome = facts?.outcome ?? null;
   const proposalChanged = Boolean(
     facts?.proposedRootBelief && proposalDraft.trim() !== facts.proposedRootBelief.trim(),
@@ -70,6 +71,12 @@ export function MasterThoughtSection({
   const plantedLabel = t("thinkingLab.master.planted", "New belief (belief shift)");
   const audienceLabel = t("thinkingLab.master.audience", "Target audience (optional)");
   const sameBelief = beliefsMatch(priorDraft, originalDraft);
+  const recovery = judgmentCurrent ? masterRecovery(facts, originalDraft, priorDraft) : null;
+  const recoverReason = facts?.unresolvedReasons[0] ?? "UNRESOLVED";
+  const recoverQuestion = t(
+    masterRecoveryQuestionKey(recoverReason),
+    "Write what this new belief means in one sentence.",
+  );
 
   return (
     <div className="space-y-3">
@@ -152,40 +159,19 @@ export function MasterThoughtSection({
       ) : null}
       {outcome === "CLARIFICATION_REQUIRED" && facts?.clarificationQuestion ? (
         <div className="space-y-2">
-          <p className="text-sm font-medium text-foreground">
-            {t("thinkingLab.master.clarification", "Clarification needed")}
-          </p>
           <p className="text-sm text-foreground">{facts.clarificationQuestion}</p>
-          {facts.clarificationOptions?.map((option) => (
-            <Button
-              key={option}
-              type="button"
-              size="sm"
-              variant={clarificationAnswer === option ? "default" : "outline"}
-              disabled={busy || locked}
-              onClick={() => setClarificationAnswer(option)}
-            >
-              {option}
-            </Button>
-          ))}
-          <Textarea
-            aria-label={t("thinkingLab.master.clarificationAnswer", "Clarification answer")}
-            value={clarificationAnswer}
-            onChange={(event) => setClarificationAnswer(event.target.value)}
-            disabled={locked || busy}
-            rows={3}
+          <BeliefChoices
+            key={`${facts.clarificationQuestion}\n${originalDraft}\n${priorDraft}`}
+            question={facts.clarificationQuestion}
+            preset={facts.clarificationOptions ?? []}
+            locked={locked}
+            busy={busy}
+            onUse={(choice) => onClarify(choice)}
+            onOpenChoices={onOpenChoices}
           />
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => onClarify(clarificationAnswer)}
-            disabled={locked || busy || !clarificationAnswer.trim()}
-          >
-            {t("thinkingLab.action.understandAgain", "Understand again")}
-          </Button>
         </div>
       ) : null}
-      {facts && facts.unresolvedReasons.length > 0 ? (
+      {facts && facts.unresolvedReasons.length > 0 && !recovery ? (
         <p className="text-sm text-muted-foreground">
           {facts.unresolvedReasons
             .map((reason) =>
@@ -196,6 +182,35 @@ export function MasterThoughtSection({
             )
             .filter((line, index, lines) => lines.indexOf(line) === index)
             .join(" ")}
+        </p>
+      ) : null}
+      {recovery === "clarify" ? (
+        <BeliefChoices
+          key={recoverQuestion}
+          question={recoverQuestion}
+          preset={[]}
+          locked={locked}
+          busy={busy}
+          onUse={(choice) => onClarify(choice, recoverQuestion)}
+          onOpenChoices={onOpenChoices}
+        />
+      ) : null}
+      {recovery === "retry" ? (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            {t("thinkingLab.master.recover.retry", "The reading did not come back. Try again.")}
+          </p>
+          <Button type="button" size="sm" onClick={onUnderstand} disabled={locked || busy}>
+            {t("thinkingLab.action.tryAgain", "Try again")}
+          </Button>
+        </div>
+      ) : null}
+      {recovery === "edit" ? (
+        <p className="text-sm text-muted-foreground">
+          {t(
+            "thinkingLab.master.recover.same",
+            "The old belief and the new belief say the same thing. Change the new belief, then understand it again.",
+          )}
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
@@ -229,6 +244,93 @@ export function MasterThoughtSection({
           <span className="font-medium">{t("thinkingLab.master.parent", "Parent belief")}: </span>
           {confirmedStatement}
         </p>
+      ) : null}
+    </div>
+  );
+}
+
+function BeliefChoices({
+  question,
+  preset,
+  locked,
+  busy,
+  onUse,
+  onOpenChoices,
+}: {
+  question: string;
+  preset: string[];
+  locked: boolean;
+  busy: boolean;
+  onUse: (choice: string) => void;
+  onOpenChoices: (question: string) => Promise<string[]>;
+}) {
+  const { t } = useAppTranslation();
+  const [opened, setOpened] = useState<string[]>([]);
+  const [asked, setAsked] = useState(false);
+  const [opening, setOpening] = useState(preset.length === 0);
+  const openRef = useRef(onOpenChoices);
+  openRef.current = onOpenChoices;
+  const choices = [...preset, ...opened].filter((choice, index, all) => all.indexOf(choice) === index);
+
+  const load = () => {
+    setOpening(true);
+    void openRef
+      .current(question)
+      .then((next) => {
+        setOpened(next);
+        setAsked(true);
+      })
+      .finally(() => setOpening(false));
+  };
+
+  useEffect(() => {
+    if (preset.length > 0) return;
+    let cancelled = false;
+    setOpening(true);
+    void openRef
+      .current(question)
+      .then((next) => {
+        if (cancelled) return;
+        setOpened(next);
+        setAsked(true);
+      })
+      .finally(() => {
+        if (!cancelled) setOpening(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [question, preset.length]);
+
+  return (
+    <div className="space-y-2">
+      {opening ? (
+        <p className="text-sm text-muted-foreground">{t("thinkingLab.action.openChoices", "Open choices")}…</p>
+      ) : null}
+      <div className="flex flex-col items-start gap-2">
+        {choices.map((option) => (
+          <Button
+            key={option}
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-auto whitespace-normal text-left"
+            disabled={busy || locked || opening}
+            onClick={() => onUse(option)}
+          >
+            {option}
+          </Button>
+        ))}
+      </div>
+      {!opening && asked && choices.length === 0 ? (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            {t("thinkingLab.master.recover.noChoices", "No distinct choices came back. Write the sentence yourself.")}
+          </p>
+          <Button type="button" size="sm" variant="outline" disabled={locked || busy} onClick={load}>
+            {t("thinkingLab.action.openChoices", "Open choices")}
+          </Button>
+        </div>
       ) : null}
     </div>
   );

@@ -9,6 +9,7 @@ import {
   loadTerritorySet,
   lockLabTerritories,
   replaceLabTerritory,
+  saveTerritoryGloss,
   saveTerritorySet,
 } from "@/thinking-lab/territory/repository";
 import type { TerritorySetRecord } from "@/thinking-lab/territory/setAudit";
@@ -75,7 +76,18 @@ export function useLabTerritories(bigThoughtIds: string[]) {
     },
   });
 
-  return { ...query, organizationId, insert, remove, replace };
+  const saveGloss = useMutation({
+    mutationFn: (input: { bigThoughtId: string; id: string; facts: TerritorySemanticFacts }) =>
+      saveTerritoryGloss({
+        organizationId: organizationId as string,
+        ...input,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-territories", organizationId] });
+    },
+  });
+
+  return { ...query, organizationId, insert, remove, replace, saveGloss };
 }
 
 export function useTerritorySet(bigThoughtId: string | null) {

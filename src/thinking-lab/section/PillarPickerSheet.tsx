@@ -28,7 +28,13 @@ export function PillarPickerSheet({
   masterSells: true | false | "unresolved" | "unknown";
   pending?: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (pillars: LabContentPillar[], audio: ScriptAudio, look: ScriptLook, speech: ScriptSpeech) => void;
+  onConfirm: (
+    pillars: LabContentPillar[],
+    audio: ScriptAudio,
+    look: ScriptLook,
+    speech: ScriptSpeech,
+    durationSeconds: number | null,
+  ) => void;
 }) {
   const { t } = useAppTranslation();
   const [selected, setSelected] = useState<string[]>([]);
@@ -37,6 +43,8 @@ export function PillarPickerSheet({
   const [music, setMusic] = useState(false);
   const [look, setLook] = useState<ScriptLook>("ugc");
   const [speech, setSpeech] = useState<ScriptSpeech>("vo");
+  const [durationAmount, setDurationAmount] = useState("");
+  const [durationUnit, setDurationUnit] = useState<"seconds" | "minutes">("seconds");
   const looks: Array<{ id: ScriptLook; label: string }> = [
     { id: "ugc", label: t("thinkingLab.execution.lookUgc", "UGC") },
     { id: "commercial", label: t("thinkingLab.execution.lookCommercial", "Commercial") },
@@ -59,6 +67,8 @@ export function PillarPickerSheet({
     setMusic(false);
     setLook("ugc");
     setSpeech("vo");
+    setDurationAmount("");
+    setDurationUnit("seconds");
   }, [open]);
 
   const toggle = (id: string, checked: boolean) => {
@@ -126,6 +136,8 @@ export function PillarPickerSheet({
               setMusic(false);
               setLook("ugc");
               setSpeech("vo");
+              setDurationAmount("");
+              setDurationUnit("seconds");
               setAudioOpen(true);
             }}
           >
@@ -215,6 +227,35 @@ export function PillarPickerSheet({
                 })}
               </div>
             </section>
+            <section className="space-y-1.5">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("thinkingLab.execution.duration", "Duration")}
+              </h3>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={durationAmount}
+                  disabled={pending}
+                  aria-label={t("thinkingLab.execution.duration", "Duration")}
+                  className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onChange={(event) => {
+                    const next = event.target.value.trim();
+                    if (next === "" || /^\d+$/.test(next)) setDurationAmount(next.replace(/^0+(?=\d)/, ""));
+                  }}
+                />
+                <select
+                  value={durationUnit}
+                  disabled={pending}
+                  aria-label={t("thinkingLab.execution.durationUnit", "Duration unit")}
+                  className="h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onChange={(event) => setDurationUnit(event.target.value === "minutes" ? "minutes" : "seconds")}
+                >
+                  <option value="seconds">{t("thinkingLab.execution.durationSeconds", "Seconds")}</option>
+                  <option value="minutes">{t("thinkingLab.execution.durationMinutes", "Minutes")}</option>
+                </select>
+              </div>
+            </section>
             <DialogFooter className="gap-2 sm:justify-end">
               <Button type="button" variant="outline" size="sm" onClick={() => setAudioOpen(false)}>
                 {t("thinkingLab.execution.cancel", "Cancel")}
@@ -225,7 +266,9 @@ export function PillarPickerSheet({
                 disabled={pending || chosen.length === 0}
                 onClick={() => {
                   setAudioOpen(false);
-                  onConfirm(chosen, { sound: speech === "mix" || speech === "dialog" || sound, music }, look, speech);
+                  const amount = Number(durationAmount);
+                  const durationSeconds = durationAmount && amount > 0 ? (durationUnit === "minutes" ? amount * 60 : amount) : null;
+                  onConfirm(chosen, { sound: speech === "mix" || speech === "dialog" || sound, music }, look, speech, durationSeconds);
                 }}
               >
                 {t("thinkingLab.execution.create", "Create Execution for {{count}} pillar", { count: chosen.length })}

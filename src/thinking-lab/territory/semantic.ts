@@ -308,7 +308,7 @@ export function buildTerritoryJudgePrompt(input: {
       : "livedQuestion is true when the question answered by the Big Thought actually shows up in that area of real life. false when the area does not host that question. unresolved when that cannot be decided.",
     "Judge whether the candidate names a claim-free audience area that still carries the direct parent's stake.",
     "confidence is optional debug metadata. It does not decide any fact.",
-    "Write whatItSays in the same language as the Big Thought.",
+    "whatItSays is one sentence, in the same language as the Big Thought, that says what people are in the middle of inside this area. Make it specific to this Territory so a different Territory could not reuse it. Do not quote or paraphrase the Big Thought. Do not answer with only the Territory name. Do not start with Di or In plus the Territory name.",
     "Use unresolvedReasons only when a required fact cannot be decided. Do not explain a clear rejection there.",
     "Return JSON only:",
     JSON.stringify({

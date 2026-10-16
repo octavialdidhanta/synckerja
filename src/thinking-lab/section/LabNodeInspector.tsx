@@ -76,6 +76,8 @@ type LabNodeInspectorProps = {
   territories?: InspectorTerritory[];
   territoryStage?: "fix" | "generate" | "audit" | "challenger" | "lock" | null;
   onTerritoryStage?: () => void;
+  onFixTerritory?: (code: string) => void;
+  fixingTerritoryCodes?: readonly string[];
   onLockTerritories?: () => void;
   onGenerateTerritory?: () => void;
   onAcceptGap?: () => void;
@@ -363,6 +365,8 @@ export function LabNodeInspector({
   territories,
   territoryStage,
   onTerritoryStage,
+  onFixTerritory,
+  fixingTerritoryCodes,
   onLockTerritories,
   onGenerateTerritory,
   onAcceptGap,
@@ -428,7 +432,8 @@ export function LabNodeInspector({
       territoryStage &&
       territoryStage !== "lock" &&
       onTerritoryStage &&
-      !(territoryStage === "generate" && manualRunning),
+      !(territoryStage === "generate" && manualRunning) &&
+      !(territoryStage === "fix" && onFixTerritory),
   );
   const showEmptyTerritoryGenerate = Boolean(
     kind === "bigThought" && (territories?.length ?? 0) === 0 && onGenerateTerritory,
@@ -679,7 +684,8 @@ export function LabNodeInspector({
         <div className="space-y-2">
           {territoryArea?.body ? (
             <p className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm leading-relaxed text-foreground">
-              <span className="font-semibold">{territoryArea.lead}</span> {territoryArea.body}
+              {territoryArea.lead ? <span className="font-semibold">{territoryArea.lead} </span> : null}
+              {territoryArea.body}
             </p>
           ) : null}
           {territoryPass?.body ? (
@@ -1137,13 +1143,21 @@ export function LabNodeInspector({
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("thinkingLab.territory.list", "Territories")}</p>
           <ul className="space-y-2">
-            {territories.map((territory) => (
+            {territories.map((territory) => {
+              const territoryFixing =
+                (fixingTerritoryCodes ?? []).some((code) => code.toUpperCase() === territory.code.toUpperCase()) ||
+                pendingAction === `fix-territory:${territory.code}`;
+              const otherWorkRunning = Boolean(pendingAction) && !pendingAction.startsWith("fix-territory:");
+              const showTerritoryCardMenu =
+                Boolean(territory.editable && onEditTerritory) ||
+                (territory.verdict === "AUDIT_PASS" && Boolean(onGenerateAngle)) ||
+                (territory.verdict === "AUDIT_FAIL" && Boolean(onFixTerritory));
+              return (
               <li key={territory.id} className="rounded-lg border border-border bg-background px-3 py-2">
                 <div className="mb-1 flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold tracking-wide text-muted-foreground">{territory.code}</span>
                   {territory.verdict ? <VerdictChip verdict={territory.verdict} /> : null}
-                  {Boolean(territory.editable && onEditTerritory) ||
-                  (territory.verdict === "AUDIT_PASS" && onGenerateAngle) ? (
+                  {showTerritoryCardMenu ? (
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -1152,16 +1166,21 @@ export function LabNodeInspector({
                           variant="ghost"
                           className="ml-auto h-6 w-6 shrink-0 text-muted-foreground"
                           aria-label={`${t("thinkingLab.action.more", "More actions")} ${territory.code}`}
-                          disabled={Boolean(pendingAction)}
+                          aria-busy={territoryFixing || undefined}
+                          disabled={territoryFixing || otherWorkRunning}
                         >
-                          <MoreVertical className="h-3.5 w-3.5" />
+                          {territoryFixing ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                          ) : (
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          )}
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="min-w-[11rem]">
                         {territory.editable && onEditTerritory ? (
                           <DropdownMenuItem
                             className="cursor-pointer gap-2"
-                            disabled={Boolean(pendingAction)}
+                            disabled={territoryFixing || otherWorkRunning}
                             onSelect={() =>
                               setTerritoryEditToken((current) => ({
                                 ...current,
@@ -1171,6 +1190,16 @@ export function LabNodeInspector({
                           >
                             <Pencil className="h-3.5 w-3.5" />
                             {t("thinkingLab.manual.edit", "Edit")}
+                          </DropdownMenuItem>
+                        ) : null}
+                        {territory.verdict === "AUDIT_FAIL" && onFixTerritory ? (
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            disabled={territoryFixing || otherWorkRunning}
+                            aria-busy={territoryFixing}
+                            onSelect={() => onFixTerritory(territory.code)}
+                          >
+                            {t("thinkingLab.action.fix", "Fix")}
                           </DropdownMenuItem>
                         ) : null}
                         {territory.verdict === "AUDIT_PASS" && onGenerateAngle ? (
@@ -1221,7 +1250,8 @@ export function LabNodeInspector({
                       ))
                   : null}
               </li>
-            ))}
+              );
+            })}
           </ul>
           {territoryNotes && territoryNotes.length > 0 ? (
             <TerritoryAuditNotes

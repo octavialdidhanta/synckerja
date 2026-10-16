@@ -39,17 +39,25 @@ import {
   territorySetFingerprint,
 } from "@/thinking-lab/shared/fingerprint";
 import {
+  acceptChosenBelief,
   assessMasterThought,
   beliefsMatch,
+  buildMasterChoicePrompt,
   confirmedFingerprint,
   confirmedParentReady,
   factsMatchStoredFingerprint,
   judgeMasterThought,
+  parseMasterChoices,
   resolveConfirmation,
   understandFingerprint,
 } from "@/thinking-lab/master-thought/semantic";
 import { masterBeliefDescription } from "@/thinking-lab/master-thought/description";
-import { territoryDescriptions } from "@/thinking-lab/territory/description";
+import {
+  buildTerritoryLivedPrompt,
+  parseTerritoryLived,
+  territoryDescriptions,
+  territorySceneIsSpecific,
+} from "@/thinking-lab/territory/description";
 import type { ConfirmationSource, LabMasterThought } from "@/thinking-lab/master-thought/types";
 import { useMasterThought } from "@/thinking-lab/master-thought/useMasterThought";
 import {
@@ -270,6 +278,8 @@ export function ThinkingLabPage() {
   const [fixingIdeaCodes, setFixingIdeaCodes] = useState<ReadonlySet<string>>(() => new Set());
   const fixingAngleCodesRef = useRef(new Set<string>());
   const [fixingAngleCodes, setFixingAngleCodes] = useState<ReadonlySet<string>>(() => new Set());
+  const fixingTerritoryCodesRef = useRef(new Set<string>());
+  const [fixingTerritoryCodes, setFixingTerritoryCodes] = useState<ReadonlySet<string>>(() => new Set());
   const fixingBigThoughtCodesRef = useRef(new Set<string>());
   const [fixingBigThoughtCodes, setFixingBigThoughtCodes] = useState<ReadonlySet<string>>(() => new Set());
   const [notice, setNotice] = useState<string | null>(null);
@@ -493,8 +503,50 @@ export function ThinkingLabPage() {
       ? ((labTerritories.data ?? []).find((row) => row.id === focus.territoryId) ?? null)
       : null;
   const territoryCopy = focusedTerritory
-    ? territoryDescriptions(focusedTerritory.statement, focusedThought?.statement ?? "")
+    ? territoryDescriptions(
+        focusedTerritory.statement,
+        focusedTerritory.canonicalSemantic.whatItSays,
+        focusedThought?.statement ?? "",
+      )
     : null;
+  const territoryLivedInflight = useRef(new Set<string>());
+  const saveTerritoryGlossRef = useRef(labTerritories.saveGloss.mutateAsync);
+  saveTerritoryGlossRef.current = labTerritories.saveGloss.mutateAsync;
+  useEffect(() => {
+    if (!focusedTerritory || !focusedThought || !masters.organizationId) return;
+    const name = focusedTerritory.statement.trim();
+    const parent = focusedThought.statement.trim();
+    const gloss = focusedTerritory.canonicalSemantic.whatItSays;
+    if (territorySceneIsSpecific(name, gloss, parent)) return;
+    const id = focusedTerritory.id;
+    if (territoryLivedInflight.current.has(id)) return;
+    territoryLivedInflight.current.add(id);
+    const facts = focusedTerritory.canonicalSemantic;
+    const bigThoughtId = focusedTerritory.bigThoughtId;
+    const audience = selected?.audience;
+    void (async () => {
+      try {
+        const script = await askThinkingLab(
+          buildTerritoryLivedPrompt({ territory: name, parentStatement: parent, audience }),
+          0.2,
+        );
+        const lived = parseTerritoryLived(script, { territory: name, parentStatement: parent });
+        if (!lived) return;
+        await saveTerritoryGlossRef.current({
+          bigThoughtId,
+          id,
+          facts: { ...facts, whatItSays: lived },
+        });
+      } catch {
+        territoryLivedInflight.current.delete(id);
+      }
+    })();
+  }, [
+    focusedTerritory,
+    focusedThought,
+    masters.organizationId,
+    selected?.audience,
+  ]);
   const angleSet = useAngleSet(focusedTerritory?.id ?? null);
   const masterStatement = (selected?.statement || selected?.originalInput || "").trim();
   const becauseParent = (masterSubject || masterStatement).trim();
@@ -1024,9 +1076,27 @@ export function ThinkingLabPage() {
   const onUnderstand = (clarification?: { question: string; answer: string }) =>
     run(async () => {
       if (!selected) return;
-      const text = originalDraft.trim();
       const prior = priorDraft.trim();
       const audience = audienceDraft.trim();
+      const chosen = clarification?.answer.trim() ?? "";
+      if (chosen) {
+        if (beliefsMatch(chosen, prior)) throw new Error("SAME_BELIEF");
+        setOriginalDraft(chosen);
+        await masters.saveOriginal.mutateAsync({
+          id: selected.id,
+          planted: chosen,
+          priorBelief: prior,
+          audience,
+        });
+        const facts = acceptChosenBelief(chosen);
+        await masters.saveJudge.mutateAsync({
+          id: selected.id,
+          facts,
+          fingerprint: understandFingerprint(chosen, null),
+        });
+        return;
+      }
+      const text = originalDraft.trim();
       if (
         text !== selected.originalInput.trim() ||
         prior !== selected.priorBelief.trim() ||
@@ -2086,11 +2156,13 @@ export function ThinkingLabPage() {
     look?: ScriptLook,
     speech?: ScriptSpeech,
     previousScript?: VoiceOverScript | null,
+    durationSeconds?: number | null,
   ) => {
     if (!focus || (focus.kind !== "idea" && focus.kind !== "execution") || !focusedIdea || focusedIdea.status !== "locked") return;
     const origin = focus;
     const idea = focusedIdea;
     const resolvedAudio: ScriptAudio = speech === "mix" || speech === "dialog" ? { ...audio, sound: true } : audio;
+    const targetSeconds = durationSeconds ?? previousScript?.durationSeconds ?? null;
     const token = executionCancel.current;
     setPillarPickerOpen(false);
     void run(async () => {
@@ -2103,10 +2175,12 @@ export function ThinkingLabPage() {
           buildExecutionGeneratePrompt({
             masterStatement,
             masterSubject,
+            priorBelief: selected?.priorBelief,
             ideaStatement: idea.statement,
             pillar: pillar.name,
             ancestors,
             speech,
+            durationSeconds: targetSeconds,
           }),
           0.2,
         );
@@ -2132,6 +2206,7 @@ export function ThinkingLabPage() {
           const repaired = mergeSpeechRepairs(current, parseSpeechRepairs(repairRaw ? parseModelJson(repairRaw) : null));
           current = speech ? withSpeech(repaired, speech) : repaired;
         }
+        if (targetSeconds) current = { ...current, durationSeconds: targetSeconds };
         setExecutionProgress({ phase: "audit", pillarName: pillar.name });
         const statement = flattenVoiceOver(current);
         if (!statement) continue;
@@ -2148,6 +2223,9 @@ export function ThinkingLabPage() {
         const lineRaw = await askThinkingLab(
           buildLineAuditPrompt({
             ideaStatement: idea.statement,
+            masterStatement,
+            priorBelief: selected?.priorBelief,
+            ancestors,
             lines: current.scenes.flatMap((scene) => scene.lines.map((line) => ({ id: line.id, narration: line.narration }))),
           }),
           0,
@@ -2207,6 +2285,7 @@ export function ThinkingLabPage() {
       execution.script?.look,
       execution.script?.speech,
       execution.script,
+      execution.script?.durationSeconds,
     );
   };
 
@@ -2219,17 +2298,59 @@ export function ThinkingLabPage() {
     const token = executionCancel.current;
     void run(async () => {
       const { ancestors } = ideaParentFor(idea.angleId);
+      const scriptNow = current.script as NonNullable<typeof current.script>;
+      const lines = scriptNow.scenes.flatMap((scene) => scene.lines.map((line) => ({ id: line.id, narration: line.narration })));
+      setExecutionProgress({ phase: "audit", pillarName: current.pillarName });
+      const firstRaw = await askThinkingLab(
+        buildLineAuditPrompt({
+          ideaStatement: idea.statement,
+          masterStatement,
+          priorBelief: selected?.priorBelief,
+          ancestors,
+          lines,
+        }),
+        0,
+      );
+      if (executionCancel.current !== token) return;
+      const issues = parseLineIssues(firstRaw ? parseModelJson(firstRaw) : null, scriptNow);
+      if (issues.length === 0) {
+        const statement = flattenVoiceOver(scriptNow);
+        if (!statement) return;
+        const facts = await judgeAndSealExecution({
+          masterStatement,
+          masterSubject,
+          ideaStatement: idea.statement,
+          pillar: current.pillarName,
+          ancestors,
+          statement,
+          ask: (prompt) => askThinkingLab(prompt, 0),
+        });
+        if (executionCancel.current !== token) return;
+        await labExecutions.save.mutateAsync({
+          ideaId: idea.id,
+          pillar: current.contentPillarId ?? current.pillar,
+          contentPillarId: current.contentPillarId,
+          pillarName: current.pillarName,
+          statement,
+          script: { ...scriptNow, lineIssues: [] },
+          facts,
+        });
+        return;
+      }
       setExecutionProgress({ phase: "repair", pillarName: current.pillarName });
       const raw = await askThinkingLab(
         buildLineRepairPrompt({
           ideaStatement: idea.statement,
+          masterStatement,
+          priorBelief: selected?.priorBelief,
+          ancestors,
           pillarName: current.pillarName,
-          script: current.script as NonNullable<typeof current.script>,
+          script: { ...scriptNow, lineIssues: issues },
         }),
         0.2,
       );
-      if (executionCancel.current !== token || !current.script) return;
-      const merged = mergeRepairedLines(current.script, parseLineReplacements(raw ? parseModelJson(raw) : null));
+      if (executionCancel.current !== token) return;
+      const merged = mergeRepairedLines(scriptNow, parseLineReplacements(raw ? parseModelJson(raw) : null));
       const statement = flattenVoiceOver(merged);
       if (!statement) return;
       setExecutionProgress({ phase: "audit", pillarName: current.pillarName });
@@ -2246,6 +2367,9 @@ export function ThinkingLabPage() {
       const lineRaw = await askThinkingLab(
         buildLineAuditPrompt({
           ideaStatement: idea.statement,
+          masterStatement,
+          priorBelief: selected?.priorBelief,
+          ancestors,
           lines: merged.scenes.flatMap((scene) => scene.lines.map((line) => ({ id: line.id, narration: line.narration }))),
         }),
         0,
@@ -2596,6 +2720,132 @@ export function ThinkingLabPage() {
       });
     }, "skip-gap");
 
+  const repairFailedTerritories = async (onlyCode?: string) => {
+    if (!focusedThought || !masters.organizationId || !parentFp || admittedTerritories.length === 0) return;
+    const failed = admittedTerritories.filter((row, index) => {
+      if (territoryVerdicts[index] !== "AUDIT_FAIL") return false;
+      return !onlyCode || row.code.toUpperCase() === onlyCode.toUpperCase();
+    });
+    if (failed.length === 0) return;
+    const keepers = admittedTerritories.filter((_, index) => territoryVerdicts[index] === "AUDIT_PASS");
+    const conflicts = territoryNotes.map((note) =>
+      note.kind === "overlap"
+        ? `${note.a} · ${note.b}: ${note.explanation}`
+        : note.kind === "containment"
+          ? `${note.container} · ${note.contained}: ${note.explanation}`
+          : note.text,
+    );
+    const offers: Array<{ thoughtId: string; failedCode: string; statement: string; facts: TerritorySemanticFacts }> = [];
+    for (const row of failed) {
+      const script = await askThinkingLab(
+        buildTerritoryFixOptionsPrompt({
+          parentStatement: focusedThought.statement,
+          ancestors: territoryAncestors,
+          audience: selected?.audience,
+          failed: { code: row.code, statement: row.statement },
+          keepers: keepers.map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
+          conflicts,
+        }),
+        0.2,
+      );
+      const statements = parseTerritoryFixOptionsScript(script).filter((statement) => statement !== row.statement.trim());
+      for (const statement of statements) {
+        if (offers.some((offer) => offer.failedCode === row.code && offer.statement === statement)) continue;
+        const facts = await judgeAndSealTerritory({
+          parentStatement: focusedThought.statement,
+          ancestors: territoryAncestors,
+          audience: selected?.audience,
+          code: row.code,
+          statement,
+          ask: (prompt) => askThinkingLab(prompt, 0),
+        });
+        if (admitTerritory(facts) !== "GENERATE_VALID") continue;
+        const rows = admittedTerritories.map((item) => ({
+          code: item.code,
+          statement: item.code.toUpperCase() === row.code.toUpperCase() ? statement : item.statement,
+        }));
+        const fingerprint = territorySetFingerprint({
+          bigThoughtFingerprint: focusedBigThoughtFingerprint,
+          territoryFingerprints: rows.map((item) =>
+            territoryFingerprint({ statement: item.statement, bigThoughtFingerprint: focusedBigThoughtFingerprint }),
+          ),
+        });
+        const siblingScript = await askThinkingLab(
+          buildTerritorySiblingPrompt({ parentStatement: focusedThought.statement, rows }),
+          0,
+        );
+        const siblingSet = parseTerritorySet(siblingScript, fingerprint);
+        if (!territoryReplacementPasses(siblingSet, row.code)) continue;
+        offers.push({ thoughtId: focusedThought.id, failedCode: row.code, statement, facts });
+      }
+    }
+    const replaced = new Set(failed.map((row) => row.code.toUpperCase()));
+    setTerritoryFixOffers((current) => [
+      ...current.filter((offer) => offer.thoughtId !== focusedThought.id || !replaced.has(offer.failedCode.toUpperCase())),
+      ...offers,
+    ]);
+    const remaining = admittedTerritories.filter((_, index) => territoryVerdicts[index] === "AUDIT_FAIL").length;
+    if (failed.length >= remaining) {
+      const held = admittedTerritories.flatMap((row, index) => {
+        const verdict = territoryVerdicts[index];
+        if (verdict !== "AUDIT_PASS" && verdict !== "AUDIT_FAIL") return [];
+        return [
+          {
+            code: row.code,
+            verdict,
+            statementFingerprint: territoryFingerprint({
+              statement: row.statement,
+              bigThoughtFingerprint: focusedBigThoughtFingerprint,
+            }),
+          },
+        ];
+      });
+      await territorySet.save.mutateAsync({
+        schema: "thinking-lab/territory-set/v1",
+        repairCount: (territorySet.data?.repairCount ?? 0) + 1,
+        siblingSet: null,
+        audit: held.length > 0 ? { fingerprint: "", items: held } : null,
+        challenger: null,
+        auditLessons: mergeTerritoryAuditLessons(
+          territorySet.data?.auditLessons ?? [],
+          territoryFailureLessons({
+            rows: failed.map((row) => ({ code: row.code, statement: row.statement })),
+            items: failed.map((row) => ({ code: row.code, verdict: "AUDIT_FAIL" })),
+            siblingSet: storedTerritorySet,
+          }),
+        ),
+      });
+    }
+    const covered = new Set(offers.map((offer) => offer.failedCode.toUpperCase()));
+    if (covered.size < failed.length) {
+      setNotice(
+        t("thinkingLab.territory.noSafeReplacement", "NO_SAFE_REPLACEMENT {{count}}/{{failed}}", {
+          count: covered.size,
+          failed: failed.length,
+        }),
+      );
+    } else {
+      setNotice(null);
+    }
+  };
+
+  const onFixTerritory = (code: string) => {
+    const key = code.trim().toUpperCase();
+    if (!key || fixingTerritoryCodesRef.current.has(key)) return;
+    fixingTerritoryCodesRef.current.add(key);
+    setFixingTerritoryCodes(new Set(fixingTerritoryCodesRef.current));
+    void (async () => {
+      try {
+        await repairFailedTerritories(code);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));
+      } finally {
+        fixingTerritoryCodesRef.current.delete(key);
+        setFixingTerritoryCodes(new Set(fixingTerritoryCodesRef.current));
+      }
+    })();
+  };
+
   const onTerritoryStage = () => {
     if (territoryStage === "generate" && focusedThought) {
       onGenerateTerritory(focusedThought.id);
@@ -2604,100 +2854,7 @@ export function ThinkingLabPage() {
     return run(async () => {
       if (!focusedThought || !masters.organizationId || !parentFp || admittedTerritories.length === 0) return;
       if (territoryStage === "fix") {
-        const failed = admittedTerritories.filter((_, index) => territoryVerdicts[index] === "AUDIT_FAIL");
-        const keepers = admittedTerritories.filter((_, index) => territoryVerdicts[index] === "AUDIT_PASS");
-        const conflicts = territoryNotes.map((note) =>
-          note.kind === "overlap"
-            ? `${note.a} · ${note.b}: ${note.explanation}`
-            : note.kind === "containment"
-              ? `${note.container} · ${note.contained}: ${note.explanation}`
-              : note.text,
-        );
-        const offers: Array<{ thoughtId: string; failedCode: string; statement: string; facts: TerritorySemanticFacts }> = [];
-        for (const row of failed) {
-        const script = await askThinkingLab(
-            buildTerritoryFixOptionsPrompt({
-            parentStatement: focusedThought.statement,
-              ancestors: territoryAncestors,
-              audience: selected?.audience,
-              failed: { code: row.code, statement: row.statement },
-              keepers: keepers.map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
-              conflicts,
-            }),
-            0.2,
-          );
-          const statements = parseTerritoryFixOptionsScript(script).filter((statement) => statement !== row.statement.trim());
-          for (const statement of statements) {
-            if (offers.some((offer) => offer.failedCode === row.code && offer.statement === statement)) continue;
-          const facts = await judgeAndSealTerritory({
-            parentStatement: focusedThought.statement,
-              ancestors: territoryAncestors,
-              audience: selected?.audience,
-            code: row.code,
-              statement,
-            ask: (prompt) => askThinkingLab(prompt, 0),
-          });
-            if (admitTerritory(facts) !== "GENERATE_VALID") continue;
-            const rows = admittedTerritories.map((item) => ({
-              code: item.code,
-              statement: item.code.toUpperCase() === row.code.toUpperCase() ? statement : item.statement,
-            }));
-            const fingerprint = territorySetFingerprint({
-              bigThoughtFingerprint: focusedBigThoughtFingerprint,
-              territoryFingerprints: rows.map((item) =>
-                territoryFingerprint({ statement: item.statement, bigThoughtFingerprint: focusedBigThoughtFingerprint }),
-              ),
-            });
-            const siblingScript = await askThinkingLab(
-              buildTerritorySiblingPrompt({ parentStatement: focusedThought.statement, rows }),
-              0,
-            );
-            const siblingSet = parseTerritorySet(siblingScript, fingerprint);
-            if (!territoryReplacementPasses(siblingSet, row.code)) continue;
-            offers.push({ thoughtId: focusedThought.id, failedCode: row.code, statement, facts });
-          }
-        }
-        setTerritoryFixOffers(offers);
-        const held = admittedTerritories.flatMap((row, index) => {
-          const verdict = territoryVerdicts[index];
-          if (verdict !== "AUDIT_PASS" && verdict !== "AUDIT_FAIL") return [];
-          return [
-            {
-              code: row.code,
-              verdict,
-              statementFingerprint: territoryFingerprint({
-                statement: row.statement,
-                bigThoughtFingerprint: focusedBigThoughtFingerprint,
-              }),
-            },
-          ];
-        });
-        await territorySet.save.mutateAsync({
-          schema: "thinking-lab/territory-set/v1",
-          repairCount: (territorySet.data?.repairCount ?? 0) + 1,
-          siblingSet: null,
-          audit: held.length > 0 ? { fingerprint: "", items: held } : null,
-          challenger: null,
-          auditLessons: mergeTerritoryAuditLessons(
-            territorySet.data?.auditLessons ?? [],
-            territoryFailureLessons({
-              rows: failed.map((row) => ({ code: row.code, statement: row.statement })),
-              items: failed.map((row) => ({ code: row.code, verdict: "AUDIT_FAIL" })),
-              siblingSet: storedTerritorySet,
-            }),
-          ),
-        });
-        const covered = new Set(offers.map((offer) => offer.failedCode.toUpperCase()));
-        if (covered.size < failed.length) {
-          setNotice(
-            t("thinkingLab.territory.noSafeReplacement", "NO_SAFE_REPLACEMENT {{count}}/{{failed}}", {
-              count: covered.size,
-              failed: failed.length,
-            }),
-          );
-        } else {
-          setNotice(null);
-        }
+        await repairFailedTerritories();
         return;
       }
       if (territoryStage === "audit") {
@@ -3976,6 +4133,18 @@ export function ThinkingLabPage() {
                                 }
                                 territoryStage={focus.kind === "bigThought" && !territoriesPanelClosed ? territoryStage : null}
                                 onTerritoryStage={() => void onTerritoryStage()}
+                                onFixTerritory={
+                                  focus.kind === "bigThought" &&
+                                  !territoriesPanelClosed &&
+                                  territoryVerdicts.some((verdict) => verdict === "AUDIT_FAIL")
+                                    ? onFixTerritory
+                                    : undefined
+                                }
+                                fixingTerritoryCodes={
+                                  focus.kind === "bigThought" && !territoriesPanelClosed
+                                    ? [...fixingTerritoryCodes]
+                                    : undefined
+                                }
                                 onLockTerritories={
                                   focus.kind === "bigThought" &&
                                   !territoriesPanelClosed &&
@@ -4145,10 +4314,26 @@ export function ThinkingLabPage() {
                                   onProposalChange={setProposalDraft}
                                   onUnderstand={() => void onUnderstand()}
                                   judgmentCurrent={judgmentCurrent}
-                                  onClarify={(answer) => {
-                                    const question = selected.canonicalSemantic?.clarificationQuestion;
-                                    if (!question) return;
-                                    void onUnderstand({ question, answer });
+                                  onClarify={(answer, question) => {
+                                    const asked = question?.trim() || selected.canonicalSemantic?.clarificationQuestion;
+                                    if (!asked) return;
+                                    void onUnderstand({ question: asked, answer });
+                                  }}
+                                  onOpenChoices={async (question) => {
+                                    let choices: string[] = [];
+                                    await run(async () => {
+                                      const raw = await askThinkingLab(
+                                        buildMasterChoicePrompt({
+                                          originalInput: originalDraft,
+                                          priorBelief: priorDraft,
+                                          audience: audienceDraft,
+                                          question,
+                                        }),
+                                        0.2,
+                                      );
+                                      choices = parseMasterChoices(raw ? parseModelJson(raw) : null, { priorBelief: priorDraft });
+                                    });
+                                    return choices;
                                   }}
                                   onConfirmOriginal={onConfirmOriginal}
                                   onConfirmProposal={onConfirmProposal}
@@ -4217,7 +4402,9 @@ export function ThinkingLabPage() {
         masterSells={masterSells}
         pending={busy}
         onOpenChange={setPillarPickerOpen}
-        onConfirm={(pillars, audio, look, speech) => void onGenerateExecutions(pillars, audio, look, speech)}
+        onConfirm={(pillars, audio, look, speech, durationSeconds) =>
+          void onGenerateExecutions(pillars, audio, look, speech, null, durationSeconds)
+        }
       />
       <SaveToPlanModal
         isOpen={planSaveOpen && Boolean(focusedExecution?.script)}

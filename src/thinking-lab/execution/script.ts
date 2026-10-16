@@ -3,6 +3,7 @@ import { createBriefSequence, upsertBriefSequencesInMarkdown } from "@/6-1-dashb
 import { serializeBriefConcept } from "@/6-1-dashboard/modal/briefConceptAssets";
 import type { ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
 import { isFlashSalePillar } from "@/thinking-lab/execution/types";
+import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 
 const PLAN_TABLE_HEADERS = [
   "Timing",
@@ -83,6 +84,7 @@ export type VoiceOverScript = {
   audio: ScriptAudio;
   look?: ScriptLook;
   speech?: ScriptSpeech;
+  durationSeconds?: number;
 };
 
 export type ScriptLineReplacement = {
@@ -322,7 +324,14 @@ export function parseVoiceOverScript(raw: unknown): VoiceOverScript | null {
     audio: readScriptAudio(row.audio),
     ...(look ? { look } : {}),
     ...(speech ? { speech } : {}),
+    ...(readDurationSeconds(row.durationSeconds) ? { durationSeconds: readDurationSeconds(row.durationSeconds) } : {}),
   };
+}
+
+function readDurationSeconds(value: unknown): number | null {
+  const amount = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return Math.round(amount);
 }
 
 export function readScriptAudio(raw: unknown): ScriptAudio {
@@ -384,6 +393,11 @@ export function flattenVoiceOver(script: VoiceOverScript): string {
     .filter(Boolean)
     .join("\n\n")
     .trim();
+}
+
+export function durationWordBudget(seconds: number): number {
+  if (!Number.isFinite(seconds) || seconds <= 0) return 0;
+  return Math.max(1, Math.round(seconds * WORDS_PER_SECOND));
 }
 
 export function narrationDurationSeconds(narration: string): number {
@@ -473,13 +487,11 @@ export function pillarLessSuitable(name: string, masterSells: true | false | "un
 }
 
 export function scriptLineRepairReady(facts: ExecutionSemanticFacts, script: VoiceOverScript | null): boolean {
-  if (!script || script.lineIssues.length === 0) return false;
-  if (facts.viewerClimb !== "CLIMBS" || facts.subjectMatch !== "MATCH") return false;
+  const hasNarration = Boolean(script?.scenes.some((scene) => scene.lines.some((line) => line.narration.trim())));
+  if (!script || !hasNarration || script.lineIssues.length === 0) return false;
   if (facts.mechanismVisible === false || facts.pillarOutside === true) return false;
   if (isFlashSalePillar(facts.pillar) && facts.masterSells !== true) return false;
   if (
-    facts.relationToParent === "CLIMB_MISSED" ||
-    facts.relationToParent === "SUBJECT_MISMATCH" ||
     facts.relationToParent === "PILLAR_OUTSIDE" ||
     facts.relationToParent === "PILLAR_NOT_SELLING" ||
     facts.relationToParent === "MECHANISM_HIDDEN"
@@ -743,14 +755,31 @@ export function parseMasterSells(raw: unknown): true | false | "unresolved" {
   return "unresolved";
 }
 
-export function buildLineAuditPrompt(input: { ideaStatement: string; lines: Array<{ id: string; narration: string }> }): string {
+export function buildLineAuditPrompt(input: {
+  ideaStatement: string;
+  masterStatement: string;
+  priorBelief?: string;
+  ancestors?: AncestorStake[];
+  lines: Array<{ id: string; narration: string }>;
+}): string {
   return [
     "Read each narration line of a voice-over script.",
-    "A line fails only when it adds a claim the Idea does not already carry, or drops the Idea's message.",
-    "A short line, a question, or a line that only shows the Idea does not fail.",
+    "A line fails when it adds a claim the Idea does not already carry, or drops the Idea's message.",
+    "A line also fails when it installs a cause that is not this chain: the Big Thought's stake happens, and that stake, not an advertisement, moves the Master Thought's outcome.",
+    "Do not require the line to quote those beliefs.",
+    "The last narration lines are the conclusion scene. A viewer who hears only those lines must be able to say the Master Thought.",
+    "Those closing lines fail when they only restate the mechanism, hide the Master Thought, or announce another cause.",
+    "Saying the Master Thought in the situation's words passes. Pasting it unchanged as a slogan is not required.",
+    "A closing line that announces another cause fails. Example: this is not about price or need, it is about a fitting number.",
+    "A short line, a question, or a line that only shows the Idea's mechanism does not fail when it comes before the conclusion.",
     "Return JSON only: {\"lines\":[{\"lineId\":\"...\",\"reason\":\"...\"}]}.",
-    "Include only the failing lines. Return {\"lines\":[]} when every line carries the Idea.",
+    "Include only the failing lines. Return {\"lines\":[]} when every line carries the chain.",
     "Write each reason in the same language as the Idea.",
+    "",
+    "Master Thought:",
+    input.masterStatement.trim(),
+    ...(input.priorBelief?.trim() ? ["", "Old belief to leave behind:", input.priorBelief.trim()] : []),
+    ...ancestorStakeBlock(input.ancestors),
     "",
     "Idea:",
     input.ideaStatement.trim(),
@@ -760,11 +789,21 @@ export function buildLineAuditPrompt(input: { ideaStatement: string; lines: Arra
   ].join("\n");
 }
 
-export function buildLineRepairPrompt(input: { ideaStatement: string; pillarName: string; script: VoiceOverScript }): string {
+export function buildLineRepairPrompt(input: {
+  ideaStatement: string;
+  masterStatement: string;
+  priorBelief?: string;
+  ancestors?: AncestorStake[];
+  pillarName: string;
+  script: VoiceOverScript;
+}): string {
   const failing = new Set(input.script.lineIssues.map((issue) => issue.lineId));
   return [
-    "Rewrite only the narration lines that failed the Idea message.",
-    "The path already climbs to the Master Thought. Do not change that path.",
+    "Rewrite only the narration lines that failed.",
+    "Keep the picture on the chain: the Big Thought's stake happens, and that stake, not an advertisement, moves the Master Thought's outcome.",
+    "If a failing line is in the conclusion, rewrite it so a viewer who hears only that line can say the Master Thought.",
+    "Say it as what just happened in this situation. Leave the old belief behind. Do not stop at the mechanism.",
+    "Do not install another cause. Do not title the scene Conclusion or Kesimpulan.",
     "Return replacements only for the failing line ids. Do not return the other lines.",
     "Each replacement keeps more than one shot for that sentence, each with its own angle and its own English prompt.",
     "When a shot prompt names a @character token, that same prompt also names a @location token.",
@@ -773,6 +812,11 @@ export function buildLineRepairPrompt(input: { ideaStatement: string; pillarName
     "Do not add a claim the Idea does not already carry.",
     `Pillar: ${input.pillarName}.`,
     "Return JSON only: {\"lines\":[{\"lineId\":\"...\",\"narration\":\"...\",\"shots\":[{\"role\":\"...\",\"angle\":\"...\",\"visualFunction\":\"...\",\"prompt\":\"...\"}]}]}",
+    "",
+    "Master Thought:",
+    input.masterStatement.trim(),
+    ...(input.priorBelief?.trim() ? ["", "Old belief to leave behind:", input.priorBelief.trim()] : []),
+    ...ancestorStakeBlock(input.ancestors),
     "",
     "Idea:",
     input.ideaStatement.trim(),

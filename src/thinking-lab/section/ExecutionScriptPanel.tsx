@@ -536,7 +536,7 @@ export function ExecutionScriptPanel({
               <p className="text-sm leading-relaxed text-foreground">
                 {t(
                   "thinkingLab.execution.repairReady",
-                  "The script is close: the path already climbs to the Master Thought, and the only failures are specific lines of the Idea message. Repair changes those lines and leaves the rest.",
+                  "Repair checks the belief chain and rewrites only the lines that install another cause. The other lines and their shots stay.",
                 )}
               </p>
               {onRepair ? (

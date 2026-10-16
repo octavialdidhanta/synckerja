@@ -1,9 +1,7 @@
 
-import { useState, useEffect } from 'react';
-import { User, TrendingUp, AlertTriangle, Plus, CheckCircle, Clock, Users, Keyboard, Eye, BarChart3, Calendar } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { User, TrendingUp, AlertTriangle, Plus, CheckCircle, Users, Keyboard, Eye, BarChart3, Calendar } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/shared/components/ui/avatar';
 import { Badge } from '@/shared/components/ui/badge';
 import { Progress } from '@/shared/components/ui/progress';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
@@ -17,9 +15,8 @@ interface EnhancedAttendanceSidebarProps {
   onKeyboardShortcutsToggle?: () => void;
 }
 
-export const EnhancedAttendanceSidebar = ({ 
-  selectedRows, 
-  onKeyboardShortcutsToggle 
+export const EnhancedAttendanceSidebar = ({
+  selectedRows,
 }: EnhancedAttendanceSidebarProps) => {
   const { organizationId, loading: orgLoading } = useCurrentOrg();
   const { data: attendanceData, isPending, error } = useAttendanceAnalytics();
@@ -89,17 +86,14 @@ export const EnhancedAttendanceSidebar = ({
   }
 
   return (
-    <div className="w-full space-y-2">
-      {/* Live Analytics Dashboard */}
-      <Card>
-        <CardHeader className="pb-1 pt-3 px-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Live Analytics
-            <div className="bg-success h-2 w-2 animate-pulse rounded-full" title="Live updates" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-3 pb-3 space-y-2">
+    <div className="w-full">
+      <section className="px-3 py-3">
+        <h3 className="mb-2 flex items-center gap-2 text-sm font-medium">
+          <TrendingUp className="h-4 w-4" />
+          Live Analytics
+          <div className="bg-success h-2 w-2 animate-pulse rounded-full" title="Live updates" />
+        </h3>
+        <div className="space-y-2">
           <div className="grid grid-cols-2 gap-1.5">
             <div className="bg-success-muted relative rounded p-1.5 text-center">
               <div className="text-success text-lg font-bold">{analytics.totalPresent}</div>
@@ -145,19 +139,15 @@ export const EnhancedAttendanceSidebar = ({
               <Progress value={(analytics.flaggedRecords / 20) * 100} className="bg-warning-muted h-1.5" />
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      {/* Employee Spotlight with Enhanced Info */}
       {spotlight && (
-        <Card>
-          <CardHeader className="pb-1 pt-3 px-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Employee Spotlight
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 pb-3 space-y-1.5">
+        <section className="space-y-1.5 border-t border-border px-3 py-3">
+          <h3 className="flex items-center gap-2 text-sm font-medium">
+            <User className="h-4 w-4" />
+            Employee Spotlight
+          </h3>
             <div className="bg-accent flex items-center space-x-2 rounded border border-primary/20 p-1.5">
               <Avatar className="h-7 w-7 ring-1 ring-primary/25">
                 <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">
@@ -200,21 +190,16 @@ export const EnhancedAttendanceSidebar = ({
                 </Badge>
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </section>
       )}
 
-      {/* Real-time Alerts & Notifications */}
       {alerts.length > 0 && (
-        <Card>
-          <CardHeader className="pb-1 pt-3 px-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Live Alerts
-              <Badge className="bg-destructive/15 text-destructive px-1 py-0 text-xs">{alerts.filter(a => a.severity === 'high').length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 pb-3">
+        <section className="border-t border-border px-3 py-3">
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-medium">
+            <AlertTriangle className="h-4 w-4" />
+            Live Alerts
+            <Badge className="bg-destructive/15 text-destructive px-1 py-0 text-xs">{alerts.filter(a => a.severity === 'high').length}</Badge>
+          </h3>
             <ScrollArea className="h-24">
               <div className="space-y-1.5">
                 {alerts.map((alert) => (
@@ -236,23 +221,19 @@ export const EnhancedAttendanceSidebar = ({
                 ))}
               </div>
             </ScrollArea>
-          </CardContent>
-        </Card>
+        </section>
       )}
 
-      {/* Enhanced Quick Actions */}
-      <Card>
-        <CardHeader className="pb-1 pt-3 px-3">
-          <CardTitle className="text-sm font-medium flex items-center justify-between">
-            Quick Actions
-            {selectedRows.length > 0 && (
-              <Badge className="bg-primary px-1 py-0 text-xs text-primary-foreground">
-                {selectedRows.length} selected
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-3 pb-3 space-y-0.5">
+      <section className="border-t border-border px-3 py-3">
+        <h3 className="mb-1 flex items-center justify-between text-sm font-medium">
+          Quick Actions
+          {selectedRows.length > 0 && (
+            <Badge className="bg-primary px-1 py-0 text-xs text-primary-foreground">
+              {selectedRows.length} selected
+            </Badge>
+          )}
+        </h3>
+        <div className="space-y-0.5">
           {quickActions.map((action, index) => (
             <Button
               key={index}
@@ -269,15 +250,11 @@ export const EnhancedAttendanceSidebar = ({
               )}
             </Button>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      {/* Keyboard Shortcuts Helper */}
-      <Card>
-        <CardHeader className="pb-1 pt-3 px-3">
-          <CardTitle className="text-sm font-medium">Keyboard Shortcuts</CardTitle>
-        </CardHeader>
-        <CardContent className="px-3 pb-3">
+      <section className="border-t border-border px-3 py-3">
+        <h3 className="mb-2 text-sm font-medium">Keyboard Shortcuts</h3>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="w-full text-xs h-7 px-2">
@@ -299,18 +276,13 @@ export const EnhancedAttendanceSidebar = ({
               </div>
             </PopoverContent>
           </Popover>
-        </CardContent>
-      </Card>
+      </section>
 
-      {/* System Status */}
-      <Card>
-        <CardHeader className="pb-1 pt-3 px-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Eye className="h-4 w-4" />
-            System Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-3 pb-3 space-y-0.5">
+      <section className="space-y-0.5 border-t border-border px-3 py-3">
+        <h3 className="mb-2 flex items-center gap-2 text-sm font-medium">
+          <Eye className="h-4 w-4" />
+          System Status
+        </h3>
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Real-time Updates</span>
             <div className="flex items-center gap-1">
@@ -328,8 +300,7 @@ export const EnhancedAttendanceSidebar = ({
               {error ? 'Error' : 'Fresh'}
             </Badge>
           </div>
-        </CardContent>
-      </Card>
+      </section>
     </div>
   );
 };

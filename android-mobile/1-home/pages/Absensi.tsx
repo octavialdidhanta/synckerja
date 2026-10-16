@@ -1046,6 +1046,7 @@ const Absensi = () => {
           isOpen={cameraModal.isOpen}
           onClose={handleCameraClose}
           onCapture={handleCameraCapture}
+          faceGuide
           title={
             cameraModal.type === "clockin"
               ? t("mobileHome.cameraClockInTitle", "Foto Clock In")

@@ -104,6 +104,13 @@ describe("execution relations", () => {
     });
     expect(generate).toContain("B-Roll Storytelling");
     expect(generate).toContain("Do not add a claim");
+    expect(generate).toContain("Big Thought's stake happen");
+    expect(generate).toContain("not an advertisement");
+    expect(generate).toContain("own conclusion scene");
+    expect(generate).toContain("one or two sentences");
+    expect(generate).toContain("must be able to say the Master Thought");
+    expect(generate).toContain("do not hide it");
+    expect(generate).toContain("Do not stop at the mechanism");
     expect(generate).toContain("voice-over script");
     expect(generate).toContain("scenes");
     expect(generate).toContain("more than one shot");
@@ -114,6 +121,7 @@ describe("execution relations", () => {
     expect(generate).toContain("does not retell");
     expect(generate).toContain("hashtags");
     expect(generate).not.toContain("Speech mode");
+    expect(generate).not.toContain("Fit the narration");
     expect(generate).toContain("also names a @location token");
     const dialog = buildExecutionGeneratePrompt({
       masterStatement: "People should believe this.",
@@ -143,5 +151,16 @@ describe("execution relations", () => {
     expect(silent).toContain("at least three shots");
     expect(silent).toContain("several sentences");
     expect(silent).not.toContain("one spoken sentence");
+  });
+
+  it("fits the narration to a set duration", () => {
+    const generate = buildExecutionGeneratePrompt({
+      masterStatement: "People should believe this.",
+      ideaStatement: "Ask the courier, so the kindness is visible.",
+      pillar: "B_ROLL_STORYTELLING",
+      durationSeconds: 30,
+    });
+    expect(generate).toContain("Fit the narration to about 30 seconds, about 66 words.");
+    expect(generate).toContain("Do not make the script much shorter or much longer than that.");
   });
 });

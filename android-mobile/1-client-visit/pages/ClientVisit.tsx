@@ -1224,6 +1224,7 @@ export default function ClientVisit() {
           isOpen={cameraModal.isOpen}
           onClose={handleCameraClose}
           onCapture={handleCameraCapture}
+          faceGuide
           title={cameraModal.type === "start" ? t("clientVisit.photoStart", "Foto Mulai Kunjungan") : t("clientVisit.photoEnd", "Foto Selesai Kunjungan")}
         />
 

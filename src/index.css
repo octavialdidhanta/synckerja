@@ -356,6 +356,29 @@ All colors MUST be HSL.
     );
   }
 
+  /**
+   * Footer kamera fullscreen: tombol harus di atas bilah navigasi sistem.
+   * WebView edge-to-edge menggambar konten di bawah bilah; inset plugin + jarak 0.75rem
+   * mengangkat bar aksi. Lantai 3.75rem dipakai bila plugin sempat mengembalikan 0.
+   */
+  .camera-footer-safe {
+    padding-bottom: max(
+      0.75rem,
+      calc(0.75rem + var(--footer-bottom-inset, 0px)),
+      calc(0.75rem + var(--safe-area-inset-bottom, 0px)),
+      calc(0.75rem + env(safe-area-inset-bottom, 0px))
+    ) !important;
+  }
+
+  html[data-synckerja-android-native] .camera-footer-safe {
+    padding-bottom: max(
+      3.75rem,
+      calc(0.75rem + var(--footer-bottom-inset, 0px)),
+      calc(0.75rem + var(--safe-area-inset-bottom, 0px)),
+      calc(0.75rem + env(safe-area-inset-bottom, 0px))
+    ) !important;
+  }
+
   /** Padding bawah untuk konten yang full-tinggi (bukan offset `bottom`); gunakan jika perlu teks di atas area nav */
   .safe-area-bottom {
     padding-bottom: max(
