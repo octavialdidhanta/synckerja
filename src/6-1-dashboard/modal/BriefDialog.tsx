@@ -646,6 +646,18 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
         fullscreenAnimation
         overlayClassName="data-[state=open]:!animate-none data-[state=closed]:!animate-none"
         className="fixed left-0 right-0 top-0 z-50 flex h-dvh max-h-none min-h-0 w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-none data-[state=open]:!animate-none data-[state=closed]:!animate-none sm:rounded-none"
+        onPointerDownOutside={(event) => {
+          const target = event.target as HTMLElement | null;
+          if (target?.closest?.("[data-brief-mention-menu]")) event.preventDefault();
+        }}
+        onFocusOutside={(event) => {
+          const target = event.target as HTMLElement | null;
+          if (target?.closest?.("[data-brief-mention-menu]")) event.preventDefault();
+        }}
+        onInteractOutside={(event) => {
+          const target = event.target as HTMLElement | null;
+          if (target?.closest?.("[data-brief-mention-menu]")) event.preventDefault();
+        }}
       >
         <DialogTitle className="sr-only absolute">Content Brief</DialogTitle>
         <DialogDescription className="sr-only absolute">Edit content brief and manage comments</DialogDescription>

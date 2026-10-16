@@ -9,6 +9,7 @@ import {
   expandToMentions,
   filterMentions,
   insertMention,
+  mentionMenuBox,
   mentionQueryAt,
   mentionRanges,
   type ConceptMention,
@@ -18,6 +19,59 @@ import {
 } from "@/6-1-dashboard/modal/briefMentions";
 
 const KIND_ORDER: MentionKind[] = ["character", "location", "property"];
+
+function caretViewportPoint(field: HTMLTextAreaElement): { top: number; left: number; line: number } {
+  const style = window.getComputedStyle(field);
+  const mirror = document.createElement("div");
+  mirror.style.position = "fixed";
+  mirror.style.left = "0";
+  mirror.style.top = "0";
+  mirror.style.visibility = "hidden";
+  mirror.style.pointerEvents = "none";
+  mirror.style.height = "auto";
+  mirror.style.overflow = "hidden";
+  mirror.style.whiteSpace = "pre-wrap";
+  const copied = [
+    "boxSizing",
+    "borderTopWidth",
+    "borderRightWidth",
+    "borderBottomWidth",
+    "borderLeftWidth",
+    "paddingTop",
+    "paddingRight",
+    "paddingBottom",
+    "paddingLeft",
+    "fontFamily",
+    "fontSize",
+    "fontWeight",
+    "fontStyle",
+    "letterSpacing",
+    "lineHeight",
+    "textTransform",
+    "wordSpacing",
+    "textIndent",
+    "wordBreak",
+    "overflowWrap",
+  ] as const;
+  for (const key of copied) mirror.style[key] = style[key];
+  mirror.style.width = `${field.offsetWidth}px`;
+  const caret = field.selectionStart ?? field.value.length;
+  mirror.textContent = field.value.slice(0, caret);
+  const marker = document.createElement("span");
+  marker.textContent = field.value.slice(caret, caret + 1) || ".";
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+  const fieldRect = field.getBoundingClientRect();
+  const mirrorRect = mirror.getBoundingClientRect();
+  const markerRect = marker.getBoundingClientRect();
+  const point = {
+    top: fieldRect.top + (markerRect.top - mirrorRect.top) - field.scrollTop,
+    left: fieldRect.left + (markerRect.left - mirrorRect.left) - field.scrollLeft,
+    line: markerRect.height || Number.parseFloat(style.lineHeight) || 20,
+  };
+  mirror.remove();
+  return point;
+}
 
 function renderMentionNodes(value: string, ranges: MentionRange[], keepTrailingLine = false) {
   const nodes: ReactNode[] = [];
@@ -88,6 +142,7 @@ export function BriefMentionField({
     if (!el || pendingCaret.current == null) return;
     const caret = pendingCaret.current;
     pendingCaret.current = null;
+    if (document.activeElement !== el) return;
     el.setSelectionRange(caret, caret);
   }, [value]);
 
@@ -101,15 +156,17 @@ export function BriefMentionField({
       const field = fieldRef.current;
       if (!field) return;
       const rect = field.getBoundingClientRect();
-      const host = field.closest("[role='dialog']");
-      const origin = host?.getBoundingClientRect();
-      const width = Math.min(Math.max(rect.width, 240), window.innerWidth - 16);
-      const viewportLeft = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
-      setBox({
-        top: rect.bottom + 4 - (origin?.top ?? 0),
-        left: viewportLeft - (origin?.left ?? 0),
-        width,
-      });
+      const caret = caretViewportPoint(field);
+      setBox(
+        mentionMenuBox({
+          caretTop: caret.top,
+          caretLeft: caret.left,
+          line: caret.line,
+          fieldWidth: rect.width,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+        }),
+      );
     };
     place();
     window.addEventListener("scroll", place, true);
@@ -238,8 +295,10 @@ export function BriefMentionField({
         }}
         onChange={(event) => {
           const next = event.target.value;
+          const caret = event.target.selectionStart ?? next.length;
+          pendingCaret.current = caret;
           onChange(next);
-          refreshQuery(next, event.target.selectionStart ?? next.length);
+          refreshQuery(next, caret);
         }}
         />
       </div>
@@ -292,7 +351,7 @@ export function BriefMentionField({
                 })
               )}
             </div>,
-            fieldRef.current?.closest("[role='dialog']") ?? document.body,
+            document.body,
           )
         : null}
     </>

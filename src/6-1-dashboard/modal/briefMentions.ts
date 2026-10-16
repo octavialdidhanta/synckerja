@@ -67,6 +67,29 @@ export function filterMentions(mentions: ConceptMention[], query: string): Conce
   });
 }
 
+export function mentionMenuBox(input: {
+  caretTop: number;
+  caretLeft: number;
+  line: number;
+  fieldWidth: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  menuHeight?: number;
+}): { top: number; left: number; width: number } {
+  const menuHeight = input.menuHeight ?? 240;
+  const width = Math.min(Math.max(input.fieldWidth, 240), Math.max(160, input.viewportWidth - 16));
+  const left = Math.min(Math.max(8, input.caretLeft), Math.max(8, input.viewportWidth - width - 8));
+  const below = input.caretTop + Math.max(input.line, 16) + 4;
+  const above = input.caretTop - menuHeight - 4;
+  const top =
+    below + menuHeight > input.viewportHeight - 8
+      ? above >= 8
+        ? above
+        : Math.max(8, input.viewportHeight - menuHeight - 8)
+      : below;
+  return { top, left, width };
+}
+
 export function insertMention(text: string, query: MentionQuery, handle: string): { text: string; caret: number } {
   const token = handle.startsWith("@") ? handle : `@${handle}`;
   const nextChar = text[query.end] ?? "";

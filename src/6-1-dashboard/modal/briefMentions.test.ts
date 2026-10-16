@@ -6,6 +6,7 @@ import {
   expandToMentions,
   filterMentions,
   insertMention,
+  mentionMenuBox,
   mentionQueryAt,
   mentionRanges,
 } from "@/6-1-dashboard/modal/briefMentions";
@@ -48,6 +49,29 @@ describe("brief mentions", () => {
       text: "at @location_home desk",
       caret: 17,
     });
+  });
+
+  it("places the mention menu beside the caret and flips it above the viewport edge", () => {
+    expect(
+      mentionMenuBox({
+        caretTop: 180,
+        caretLeft: 420,
+        line: 20,
+        fieldWidth: 360,
+        viewportWidth: 1280,
+        viewportHeight: 800,
+      }),
+    ).toEqual({ top: 204, left: 420, width: 360 });
+    expect(
+      mentionMenuBox({
+        caretTop: 760,
+        caretLeft: 20,
+        line: 20,
+        fieldWidth: 500,
+        viewportWidth: 1000,
+        viewportHeight: 800,
+      }).top,
+    ).toBe(516);
   });
 
   it("deletes a mention as one unit and expands a partial selection", () => {
