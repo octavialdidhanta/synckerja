@@ -1,15 +1,13 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import {
-  EXECUTION_PILLARS,
-  isExecutionPillar,
-  type ExecutionPillar,
+  executionPillarLabel,
+  isFlashSalePillar,
   type ExecutionRelation,
   type ExecutionSemanticFacts,
   type ExecutionTriState,
 } from "@/thinking-lab/execution/types";
 
-const PILLARS = [...EXECUTION_PILLARS.map((pillar) => pillar.id), "UNRESOLVED"] as const;
 const CLIMBS = ["CLIMBS", "OTHER", "NEGATIVE", "UNRESOLVED"] as const;
 const MATCHES = ["MATCH", "OTHER", "UNRESOLVED"] as const;
 
@@ -48,15 +46,19 @@ function readTriState(value: unknown): { value: ExecutionTriState; contradictory
   return { value: unique[0] ?? "unresolved", contradictory: false };
 }
 
-function readPillar(value: unknown): { value: ExecutionPillar | "UNRESOLVED"; contradictory: boolean } {
+function readPillar(value: unknown): { value: string; contradictory: boolean } {
   if (value == null || value === "") return { value: "UNRESOLVED", contradictory: false };
   const tokens = tokensOf(value).map((token) => (typeof token === "string" ? token.trim() : ""));
-  const recognized = tokens.filter((token): token is ExecutionPillar | "UNRESOLVED" =>
-    PILLARS.some((item) => item === token),
-  );
+  const recognized = tokens.filter((token) => token.length > 0);
   const unique = [...new Set(recognized)];
   if (unique.length > 1) return { value: "UNRESOLVED", contradictory: true };
-  return { value: unique[0] ?? "UNRESOLVED", contradictory: false };
+  const pillar = unique[0] ?? "UNRESOLVED";
+  if (pillar.toUpperCase() === "UNRESOLVED") return { value: "UNRESOLVED", contradictory: false };
+  return { value: pillar, contradictory: false };
+}
+
+function pillarReady(pillar: string): boolean {
+  return pillar.trim() !== "" && pillar !== "UNRESOLVED";
 }
 
 function readToken<T extends string>(value: unknown, allowed: readonly T[]): { value: T; contradictory: boolean } {
@@ -69,7 +71,7 @@ function readToken<T extends string>(value: unknown, allowed: readonly T[]): { v
   return { value: unique[0] ?? fallback, contradictory: false };
 }
 
-function unresolvedExecution(reason: string, pillar: ExecutionPillar | "UNRESOLVED" = "UNRESOLVED"): ExecutionSemanticFacts {
+function unresolvedExecution(reason: string, pillar = "UNRESOLVED"): ExecutionSemanticFacts {
   return {
     pillar,
     whatItSays: "",
@@ -86,15 +88,15 @@ function unresolvedExecution(reason: string, pillar: ExecutionPillar | "UNRESOLV
 }
 
 export function deriveExecutionRelation(facts: CanonicalInput): ExecutionRelation {
-  if (!isExecutionPillar(facts.pillar)) return "UNRESOLVED";
+  if (!pillarReady(facts.pillar)) return "UNRESOLVED";
   if (facts.pillarOutside === true) return "PILLAR_OUTSIDE";
   if (facts.messageAdded === true) return "MESSAGE_ADDED";
   if (facts.mechanismVisible === false) return "MECHANISM_HIDDEN";
-  if (facts.pillar === "FLASH_SALE_HOOK" && facts.masterSells === false) return "PILLAR_NOT_SELLING";
+  if (isFlashSalePillar(facts.pillar) && facts.masterSells === false) return "PILLAR_NOT_SELLING";
   if (facts.messageAdded !== false) return "UNRESOLVED";
   if (facts.mechanismVisible !== true) return "UNRESOLVED";
   if (facts.pillarOutside !== false) return "UNRESOLVED";
-  if (facts.pillar === "FLASH_SALE_HOOK" && facts.masterSells !== true) return "UNRESOLVED";
+  if (isFlashSalePillar(facts.pillar) && facts.masterSells !== true) return "UNRESOLVED";
   if (facts.viewerClimb === "OTHER" || facts.viewerClimb === "NEGATIVE") return "CLIMB_MISSED";
   if (facts.subjectMatch === "OTHER") return "SUBJECT_MISMATCH";
   if (facts.viewerClimb !== "CLIMBS" || facts.subjectMatch !== "MATCH") return "UNRESOLVED";
@@ -103,17 +105,17 @@ export function deriveExecutionRelation(facts: CanonicalInput): ExecutionRelatio
 
 function unresolvedFactReasons(facts: CanonicalInput): string[] {
   const reasons: string[] = [];
-  if (!isExecutionPillar(facts.pillar)) reasons.push("PILLAR_UNRESOLVED");
+  if (!pillarReady(facts.pillar)) reasons.push("PILLAR_UNRESOLVED");
   if (facts.messageAdded === "unresolved") reasons.push("MESSAGE_ADDED_UNRESOLVED");
   if (facts.mechanismVisible === "unresolved") reasons.push("MECHANISM_VISIBLE_UNRESOLVED");
   if (facts.pillarOutside === "unresolved") reasons.push("PILLAR_OUTSIDE_UNRESOLVED");
-  if (facts.pillar === "FLASH_SALE_HOOK" && facts.masterSells === "unresolved") reasons.push("MASTER_SELLS_UNRESOLVED");
+  if (isFlashSalePillar(facts.pillar) && facts.masterSells === "unresolved") reasons.push("MASTER_SELLS_UNRESOLVED");
   if (facts.viewerClimb === "UNRESOLVED") reasons.push("VIEWER_CLIMB_UNRESOLVED");
   if (facts.subjectMatch === "UNRESOLVED") reasons.push("SUBJECT_MATCH_UNRESOLVED");
   return reasons;
 }
 
-export function normalizeExecutionFacts(raw: unknown, fallbackPillar: ExecutionPillar | "UNRESOLVED" = "UNRESOLVED"): ExecutionSemanticFacts {
+export function normalizeExecutionFacts(raw: unknown, fallbackPillar = "UNRESOLVED"): ExecutionSemanticFacts {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return unresolvedExecution("JUDGE_UNPARSEABLE", fallbackPillar);
   const row = raw as Record<string, unknown>;
   const pillar = readPillar(row.pillar ?? fallbackPillar);
@@ -155,7 +157,7 @@ export function normalizeExecutionFacts(raw: unknown, fallbackPillar: ExecutionP
   };
 }
 
-export function parseExecutionJudge(script: string | null, pillar: ExecutionPillar, subjectSealed = true): ExecutionSemanticFacts {
+export function parseExecutionJudge(script: string | null, pillar: string, subjectSealed = true): ExecutionSemanticFacts {
   if (!script?.trim()) return unresolvedExecution("JUDGE_UNAVAILABLE", pillar);
   const parsed = parseModelJson(script);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return unresolvedExecution("JUDGE_UNPARSEABLE", pillar);
@@ -167,11 +169,11 @@ export function buildExecutionJudgePrompt(input: {
   masterStatement: string;
   masterSubject?: string;
   ideaStatement: string;
-  pillar: ExecutionPillar;
+  pillar: string;
   ancestors?: AncestorStake[];
   candidate: string;
 }): string {
-  const pillarLabel = EXECUTION_PILLARS.find((item) => item.id === input.pillar)?.label ?? input.pillar;
+  const pillarLabel = executionPillarLabel(input.pillar);
   const subject = input.masterSubject?.trim() || "(not sealed)";
   return [
     "You are the canonical semantic judge for one Execution.",
@@ -227,7 +229,7 @@ export async function judgeExecution(
     masterStatement: string;
     masterSubject?: string;
     ideaStatement: string;
-    pillar: ExecutionPillar;
+    pillar: string;
     ancestors?: AncestorStake[];
     candidate: string;
   },

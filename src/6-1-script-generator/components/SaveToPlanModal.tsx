@@ -51,6 +51,11 @@ interface SaveToPlanModalProps {
   script: string;
   formDataForPlan?: FormDataForPlan | null;
   onSuccess?: () => void;
+  lockedTitle?: string;
+  lockedPillarId?: string | null;
+  hideConcept?: boolean;
+  preserveTableColumns?: boolean;
+  syncPlanIdentity?: boolean;
 }
 
 interface Employee {
@@ -68,6 +73,11 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
   script,
   formDataForPlan,
   onSuccess,
+  lockedTitle,
+  lockedPillarId,
+  hideConcept = false,
+  preserveTableColumns = false,
+  syncPlanIdentity = false,
 }) => {
   const { t } = useAppTranslation();
   const isMobile = useIsMobile();
@@ -154,7 +164,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
       setSelectedPlan(null);
       setSaveBrief(true);
       setSaveCaption(true);
-      setSaveConcept(true);
+      setSaveConcept(!hideConcept);
       const { title, contentTypeName, contentPillarName } = parseAIScriptMetadata(
         script,
         contentTypes.map((ct: { name: string }) => ct.name),
@@ -166,11 +176,12 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
         || '';
       const serviceId = formDataForPlan?.service_id || '';
       const subServiceId = formDataForPlan?.sub_service_id || '';
-      const contentPillarId = formDataForPlan?.content_pillar_id
+      const contentPillarId = lockedPillarId
+        || formDataForPlan?.content_pillar_id
         || (contentPillarName ? contentPillars.find((cp: { name: string }) => cp.name.toLowerCase() === contentPillarName.toLowerCase())?.id : '')
         || '';
       setNewPlanForm({
-        title: title || '',
+        title: lockedTitle ?? title ?? '',
         pic_id: (currentEmployee as unknown as Employee | null)?.id ?? '',
         content_type_id: contentTypeId,
         service_id: serviceId,
@@ -178,7 +189,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
         content_pillar_id: contentPillarId,
       });
     }
-  }, [isOpen, script, formDataForPlan, contentTypes, contentPillars, (currentEmployee as unknown as Employee | null)?.id]);
+  }, [isOpen, script, formDataForPlan, contentTypes, contentPillars, (currentEmployee as unknown as Employee | null)?.id, lockedTitle, lockedPillarId, hideConcept]);
 
   useEffect(() => {
     if (isOpen && planMode === 'new' && organizationId) {
@@ -209,7 +220,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
 
   // Content pillar auto-fill from AI script (only when content_pillar_id is empty)
   useEffect(() => {
-    if (!isOpen || planMode !== 'new' || contentPillars.length === 0 || !script?.trim()) return;
+    if (!isOpen || planMode !== 'new' || contentPillars.length === 0 || !script?.trim() || lockedPillarId) return;
     const { contentPillarName } = parseAIScriptMetadata(
       script,
       contentTypes.map((ct: { name: string }) => ct.name),
@@ -220,7 +231,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
     if (matched) {
       setNewPlanForm((prev) => (prev.content_pillar_id ? prev : { ...prev, content_pillar_id: matched.id }));
     }
-  }, [isOpen, planMode, contentTypes, contentPillars, script]);
+  }, [isOpen, planMode, contentTypes, contentPillars, script, lockedPillarId]);
 
   const filteredSubServices = subServices.filter((s) => s.service_id === newPlanForm.service_id);
 
@@ -271,6 +282,10 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
         saveBrief,
         saveCaption,
         saveConcept,
+        preserveTableColumns,
+        identity: syncPlanIdentity
+          ? { title: lockedTitle ?? '', contentPillarId: lockedPillarId ?? null }
+          : undefined,
       });
       if (success) {
         onSuccess?.();
@@ -297,6 +312,10 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
       saveCaption,
       saveConcept,
       newPlanData,
+      preserveTableColumns,
+      identity: syncPlanIdentity
+        ? { title: newPlanData.title, contentPillarId: newPlanData.content_pillar_id }
+        : undefined,
     });
 
     if (success) {
@@ -542,6 +561,8 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                             onChange={(e) => setNewPlanForm((p) => ({ ...p, title: e.target.value }))}
                             placeholder={t('scriptGenerator.saveToPlanModal.titleField', 'Title')}
                             required
+                            readOnly={lockedTitle !== undefined}
+                            disabled={lockedTitle !== undefined}
                           />
                         </div>
                         <div className="space-y-2">
@@ -554,11 +575,11 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                             onSelect: (v) => setNewPlanForm((p) => ({ ...p, pic_id: v })),
                             desktop: (
                               <Select
-                                value={newPlanForm.pic_id}
+                                value={newPlanForm.pic_id || undefined}
                                 onValueChange={(v) => setNewPlanForm((p) => ({ ...p, pic_id: v }))}
                               >
                                 <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.pic', 'PIC')} /></SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="z-[1000000]">
                                   {employees.map((e) => (
                                     <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>
                                   ))}
@@ -577,11 +598,11 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                             onSelect: (v) => setNewPlanForm((p) => ({ ...p, content_type_id: v })),
                             desktop: (
                               <Select
-                                value={newPlanForm.content_type_id}
+                                value={newPlanForm.content_type_id || undefined}
                                 onValueChange={(v) => setNewPlanForm((p) => ({ ...p, content_type_id: v }))}
                               >
                                 <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.contentType', 'Content Type')} /></SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="z-[1000000]">
                                   {contentTypes.map((ct) => (
                                     <SelectItem key={ct.id} value={ct.id}>{ct.name}</SelectItem>
                                   ))}
@@ -600,11 +621,11 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                             onSelect: (v) => setNewPlanForm((p) => ({ ...p, service_id: v, sub_service_id: '' })),
                             desktop: (
                               <Select
-                                value={newPlanForm.service_id}
+                                value={newPlanForm.service_id || undefined}
                                 onValueChange={(v) => setNewPlanForm((p) => ({ ...p, service_id: v, sub_service_id: '' }))}
                               >
                                 <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.service', 'Category')} /></SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="z-[1000000]">
                                   {services.map((s) => (
                                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                                   ))}
@@ -626,14 +647,14 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                             disabled: !newPlanForm.service_id,
                             desktop: (
                               <Select
-                                value={newPlanForm.sub_service_id}
+                                value={newPlanForm.sub_service_id || undefined}
                                 onValueChange={(v) => setNewPlanForm((p) => ({ ...p, sub_service_id: v }))}
                                 disabled={!newPlanForm.service_id}
                               >
                                 <SelectTrigger>
                                   <SelectValue placeholder={newPlanForm.service_id ? t('scriptGenerator.saveToPlanModal.subService', 'Sub Category') : t('scriptGenerator.saveToPlanModal.selectServiceFirst', 'Select category first')} />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="z-[1000000]">
                                   {filteredSubServices.map((s) => (
                                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                                   ))}
@@ -650,13 +671,15 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                             placeholder: t('scriptGenerator.saveToPlanModal.contentPillar', 'Content Pillar'),
                             options: contentPillars.map((cp) => ({ value: cp.id, label: cp.name })),
                             onSelect: (v) => setNewPlanForm((p) => ({ ...p, content_pillar_id: v })),
+                            disabled: Boolean(lockedPillarId),
                             desktop: (
                               <Select
-                                value={newPlanForm.content_pillar_id}
+                                value={newPlanForm.content_pillar_id || undefined}
                                 onValueChange={(v) => setNewPlanForm((p) => ({ ...p, content_pillar_id: v }))}
+                                disabled={Boolean(lockedPillarId)}
                               >
                                 <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.contentPillar', 'Content Pillar')} /></SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="z-[1000000]">
                                   {contentPillars.map((cp) => (
                                     <SelectItem key={cp.id} value={cp.id}>
                                       <div className="flex items-center gap-2">
@@ -705,6 +728,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                       <InfoTooltip content={t('scriptGenerator.saveToPlanModal.tooltipCaption', 'Save Caption to plan')} />
                     </Label>
                   </div>
+                  {hideConcept ? null : (
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="save-concept"
@@ -716,6 +740,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                       <InfoTooltip content={t('scriptGenerator.saveToPlanModal.tooltipConcept', 'Save Concept to dashboard section Concept')} />
                     </Label>
                   </div>
+                  )}
                 </div>
               </div>
 

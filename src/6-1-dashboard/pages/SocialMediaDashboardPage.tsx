@@ -1458,6 +1458,12 @@ const SocialMediaContent = () => {
             socialMediaPlanId={briefDialog.id}
             onStatusUpdate={handleBriefStatusUpdate}
             contentPlans={contentPlans}
+            contentTypeName={(() => {
+              const plan = contentPlans.find((item) => item.id === briefDialog.id);
+              return contentTypes.find((type) => type.id === plan?.content_type_id)?.name
+                ?? plan?.content_type?.name
+                ?? "";
+            })()}
             tryStartApprovalFromBrief={tryStartApprovalFromBrief}
           />
 

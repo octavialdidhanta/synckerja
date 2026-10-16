@@ -42,8 +42,16 @@ describe("execution relations", () => {
 
   it("allows Flash Sale Hook only when the Master Thought is selling", () => {
     expect(deriveExecutionRelation(facts({ pillar: "FLASH_SALE_HOOK", masterSells: false }))).toBe("PILLAR_NOT_SELLING");
+    expect(deriveExecutionRelation(facts({ pillar: "Flash Sale Hook", masterSells: false }))).toBe("PILLAR_NOT_SELLING");
     expect(deriveExecutionRelation(facts({ pillar: "FLASH_SALE_HOOK", masterSells: true }))).toBe("VALID_EXECUTION");
     expect(deriveExecutionRelation(facts({ pillar: "FLASH_SALE_HOOK", masterSells: "unresolved" }))).toBe("UNRESOLVED");
+  });
+
+  it("accepts an organization pillar outside the old four formats", () => {
+    const row = normalizeExecutionFacts(facts({ pillar: "Handling Objections" }));
+    expect(row.pillar).toBe("Handling Objections");
+    expect(row.relationToParent).toBe("VALID_EXECUTION");
+    expect(admitExecution(row)).toBe("GENERATE_VALID");
   });
 
   it("rejects a content whose viewer does not reach the named subject", () => {
@@ -96,5 +104,14 @@ describe("execution relations", () => {
     });
     expect(generate).toContain("B-Roll Storytelling");
     expect(generate).toContain("Do not add a claim");
+    expect(generate).toContain("voice-over script");
+    expect(generate).toContain("scenes");
+    expect(generate).toContain("more than one shot");
+    expect(generate).toContain("one spoken sentence");
+    expect(generate).toContain("best post title");
+    expect(generate).toContain("feel spoken");
+    expect(generate).toContain("click-through");
+    expect(generate).toContain("does not retell");
+    expect(generate).toContain("hashtags");
   });
 });

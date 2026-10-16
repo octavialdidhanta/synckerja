@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sameIdeaConcept } from "@/thinking-lab/idea/conceptIdentity";
 import { canShowGenerateIdea, evaluateIdeaParent } from "@/thinking-lab/idea/eligibility";
-import { planIdeaGenerate, runIdeaGenerate } from "@/thinking-lab/idea/generate";
+import { buildIdeaGeneratePrompt, countAdmittedIdeas, planIdeaGenerate, runIdeaGenerate } from "@/thinking-lab/idea/generate";
 import { admitIdea, visibleIdeas } from "@/thinking-lab/idea/policy";
 import { buildIdeaJudgePrompt, deriveIdeaRelation, holdCauseUntilSubject, normalizeIdeaFacts } from "@/thinking-lab/idea/semantic";
 import type { IdeaSemanticFacts } from "@/thinking-lab/idea/types";
@@ -230,6 +230,45 @@ describe("idea persistence helpers", () => {
     expect(stored[0]?.admission).toBe("GENERATE_REJECT");
     expect(result.outcome).toBe("INSUFFICIENT_VALID_IDEAS");
     expect(planIdeaGenerate({ activeCount: 10, generateValidCount: 1, round: 1 }).stop).toBe("CAP");
+  });
+
+  it("reads locked ideas when generating the next wave and skips the same meaning", async () => {
+    const locked = {
+      code: "ID01",
+      statement: "Compare an overloaded control panel with a simplified one.",
+      admission: "GENERATE_VALID" as const,
+      angleId: "an",
+      locked: true,
+    };
+    expect(countAdmittedIdeas([locked])).toBe(0);
+    const prompt = buildIdeaGeneratePrompt({
+      parentStatement: APPLE_ANGLE,
+      incumbents: [locked, { code: "ID02", statement: "A rejected observation.", locked: false }],
+      needed: 1,
+    });
+    expect(prompt).toContain("Locked Ideas already sealed:");
+    expect(prompt).toContain(locked.statement);
+    expect(prompt).toContain("Do not reuse its meaning.");
+    expect(prompt).toContain("A rejected observation.");
+    const stored: string[] = [];
+    const seen: string[][] = [];
+    const result = await runIdeaGenerate({
+      loadParent: async () => ({ ok: true, parent: { id: "an", code: "AN01", statement: APPLE_ANGLE, angleFingerprint: "fp" } }),
+      incumbents: [locked],
+      propose: async (_plan, _parent, incumbents) => {
+        seen.push(incumbents.filter((row) => row.locked).map((row) => row.statement));
+        return [locked.statement, "Remove one control and watch the task finish."];
+      },
+      judge: async () => sealed({ creativeMechanism: "EXPERIMENT" }),
+      persist: async (row) => {
+        stored.push(row.statement);
+        return { code: row.code, statement: row.statement, admission: row.admission, angleId: "an", locked: false };
+      },
+    });
+    expect(seen[0]).toEqual([locked.statement]);
+    expect(stored).not.toContain(locked.statement);
+    expect(stored).toContain("Remove one control and watch the task finish.");
+    expect(result.generateValid).toBeGreaterThan(0);
   });
 });
 

@@ -1,3 +1,4 @@
+import { sameIdeaConcept } from "@/thinking-lab/idea/conceptIdentity";
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
@@ -30,8 +31,8 @@ export function planIdeaGenerate(input: {
   return { needed: Math.min(missing, room), stop: null };
 }
 
-export function countAdmittedIdeas(rows: Array<{ admission: IndividualAdmission }>): number {
-  return rows.filter((row) => row.admission === "GENERATE_VALID").length;
+export function countAdmittedIdeas(rows: Array<{ admission: IndividualAdmission; locked?: boolean }>): number {
+  return rows.filter((row) => row.admission === "GENERATE_VALID" && row.locked !== true).length;
 }
 
 export function nextIdeaCode(existingCodes: string[]): string {
@@ -48,13 +49,13 @@ export function buildIdeaGeneratePrompt(input: {
   parentStatement: string;
   masterSubject?: string;
   ancestors?: AncestorStake[];
-  incumbents: Array<{ code: string; statement: string }>;
+  incumbents: Array<{ code: string; statement: string; locked?: boolean }>;
   needed: number;
 }): string {
-  const kept =
-    input.incumbents.length === 0
-      ? "(none)"
-      : input.incumbents.map((row) => `${row.code}: ${row.statement}`).join("\n");
+  const open = input.incumbents.filter((row) => row.locked !== true);
+  const sealed = input.incumbents.filter((row) => row.locked === true);
+  const kept = open.length === 0 ? "(none)" : open.map((row) => `${row.code}: ${row.statement}`).join("\n");
+  const locked = sealed.length === 0 ? "(none)" : sealed.map((row) => `${row.code}: ${row.statement}`).join("\n");
   return [
     "Write Idea candidates under one direct Angle.",
     "An Idea creates a situation in which the Angle happens or can be proved. Test it as 'we make, invite, show, or create … so that …'. Do not require that prefix.",
@@ -64,6 +65,7 @@ export function buildIdeaGeneratePrompt(input: {
     "Each candidate must say what actually happens in the situation.",
     ...ANCESTOR_STAKE_RULES,
     "Do not repeat an incumbent by changing only the title, caption, platform, duration, or a similar prop.",
+    "Read every locked Idea. Do not reuse its meaning. A new wording of the same situation, comparison, or lesson is still a repeat.",
     "Write in the same language as the Angle.",
     "Do not use examples from any specific industry, belief system, or brand.",
     `Return at most ${input.needed} candidate(s).`,
@@ -75,6 +77,9 @@ export function buildIdeaGeneratePrompt(input: {
     "",
     "Incumbent Ideas, including ones already rejected:",
     kept,
+    "",
+    "Locked Ideas already sealed:",
+    locked,
   ].join("\n");
 }
 
@@ -122,7 +127,7 @@ export async function judgeAndSealIdea(input: {
 }
 
 export async function runIdeaGenerate<
-  T extends { code: string; statement: string; admission: IndividualAdmission; angleId: string },
+  T extends { code: string; statement: string; admission: IndividualAdmission; angleId: string; locked?: boolean },
 >(input: {
   loadParent: () => Promise<{ ok: true; parent: IdeaGenerateParent } | { ok: false; reason: IdeaParentDenial }>;
   incumbents: T[];
@@ -155,6 +160,7 @@ export async function runIdeaGenerate<
     const statements = (await input.propose(plan, gate.parent, incumbents)).slice(0, plan.needed);
     for (const statement of statements) {
       if (activeCount >= IDEA_ACTIVE_CAP) break;
+      if (incumbents.some((row) => sameIdeaConcept(row.statement, statement))) continue;
       const code = nextIdeaCode(incumbents.map((row) => row.code));
       const facts = await input.judge(gate.parent, code, statement);
       const admission = admitIdea(facts);
@@ -176,14 +182,16 @@ export async function runIdeaGenerate<
 
 export async function proposeIdeaStatements(input: {
   parentStatement: string;
+  masterSubject?: string;
   ancestors?: AncestorStake[];
-  incumbents: Array<{ code: string; statement: string }>;
+  incumbents: Array<{ code: string; statement: string; locked?: boolean }>;
   needed: number;
   ask: (prompt: string) => Promise<string | null>;
 }): Promise<string[]> {
   const script = await input.ask(
     buildIdeaGeneratePrompt({
       parentStatement: input.parentStatement,
+      masterSubject: input.masterSubject,
       ancestors: input.ancestors,
       incumbents: input.incumbents,
       needed: input.needed,

@@ -116,7 +116,7 @@ export function MasterThoughtSection({
           )}
         />
       </div>
-      {outcome ? <Badge variant="secondary">{outcome}</Badge> : null}
+      {outcome && outcome !== "UNRESOLVED" ? <Badge variant="secondary">{outcome}</Badge> : null}
       {facts?.subject ? (
         <p className="text-sm text-foreground">
           <span className="font-medium">{t("thinkingLab.master.subject", "Subject")}: </span>
@@ -186,7 +186,17 @@ export function MasterThoughtSection({
         </div>
       ) : null}
       {facts && facts.unresolvedReasons.length > 0 ? (
-        <p className="text-sm text-muted-foreground">{facts.unresolvedReasons.join(", ")}</p>
+        <p className="text-sm text-muted-foreground">
+          {facts.unresolvedReasons
+            .map((reason) =>
+              t(
+                `thinkingLab.master.reason.${reason}`,
+                t("thinkingLab.master.reason.fallback", "This belief could not be understood yet."),
+              ),
+            )
+            .filter((line, index, lines) => lines.indexOf(line) === index)
+            .join(" ")}
+        </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
         {outcome === "CLARIFICATION_REQUIRED" || judgmentCurrent ? null : (
@@ -194,7 +204,7 @@ export function MasterThoughtSection({
             {t("thinkingLab.action.understand", "Understand")}
           </Button>
         )}
-        {admission ? <Badge variant="secondary">{admission}</Badge> : null}
+        {admission && admission !== "UNRESOLVED" ? <Badge variant="secondary">{admission}</Badge> : null}
         {confirmedStatement ? <Badge>{t("thinkingLab.master.confirmed", "Confirmed")}</Badge> : null}
         {facts && outcome !== "CLARIFICATION_REQUIRED" && outcome !== "UNRESOLVED" ? (
           <div className="ml-auto flex flex-wrap items-center gap-2">

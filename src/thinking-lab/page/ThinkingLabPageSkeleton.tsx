@@ -23,16 +23,29 @@ export function ThinkingLabPageSkeleton() {
       <span className="sr-only">{aria}</span>
       <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
         <div className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-muted/40">
-              <div className="mb-1 shrink-0 space-y-2 py-2">
-                <Skeleton className="h-6 w-40" />
-                <Skeleton className="h-4 w-72" />
+              <div className="mb-1 flex shrink-0 items-start justify-between gap-3 py-2">
+                <div className="space-y-2">
+                  <Skeleton className="h-6 w-40" />
+                  <Skeleton className="h-4 w-72" />
+                </div>
+                <Skeleton className="h-8 w-40 shrink-0" />
               </div>
               <div className={LAB_MAIN_GRID}>
                 <div className={LAB_LEFT_COL}>
                   <div className={LAB_LEFT_SECTION}>
                     <div className={LAB_MT_CARD}>
-                      <div className="flex h-full min-h-0 flex-col gap-3 p-4">
-                        <Skeleton className="h-4 w-40 shrink-0" />
+                      <div className="grid h-[4.75rem] shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1.15fr)] items-center gap-x-5 border-b border-white/15 bg-brand-blue px-5">
+                        <div className="space-y-2">
+                          <Skeleton className="h-3 w-40" />
+                          <Skeleton className="h-4 w-full" />
+                        </div>
+                        <Skeleton className="h-4 w-4" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-3 w-28" />
+                          <Skeleton className="h-4 w-full" />
+                        </div>
+                      </div>
+                      <div className="flex h-full min-h-0 flex-col p-4">
                         <Skeleton className="min-h-0 w-full flex-1" />
                       </div>
                     </div>

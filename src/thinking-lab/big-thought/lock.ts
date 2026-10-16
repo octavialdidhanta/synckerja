@@ -27,12 +27,6 @@ export function evaluateLock(input: {
   if (input.anyStale) return { ok: false, reason: "STALE" };
   if (input.anyUnresolved) return { ok: false, reason: "UNRESOLVED" };
   if (!input.siblingCurrent) return { ok: false, reason: "SIBLING" };
-  if (!input.challengerCurrent || !input.challenger || input.challenger.status !== "COMPLETE") {
-    return { ok: false, reason: "CHALLENGER" };
-  }
-  if (input.challenger.resolution !== "RESOLVED" || input.challenger.unresolvedReasons.length > 0) {
-    return { ok: false, reason: "CHALLENGER" };
-  }
   return { ok: true };
 }
 
@@ -56,7 +50,6 @@ export function selectStageAction(input: {
     input.generateValidCount < TARGET_GENERATE_VALID ||
     (input.missingWhy && input.activeCount < ACTIVE_SET_CAP);
   if (needsGenerate) return "generate";
-  if (!input.challengerComplete) return "challenger";
   if (input.lockOk) return "lock";
   return null;
 }

@@ -19,14 +19,6 @@ export function evaluateAngleLock(input: {
   if (input.verdicts.some((verdict) => verdict === "STALE")) return { ok: false, reason: "STALE" };
   if (input.verdicts.some((verdict) => verdict === "UNRESOLVED")) return { ok: false, reason: "UNRESOLVED" };
   if (!input.verdicts.every((verdict) => verdict === "AUDIT_PASS")) return { ok: false, reason: "NEED_AUDIT_PASS" };
-  if (
-    !input.challengerCurrent ||
-    !input.challenger ||
-    input.challenger.status !== "COMPLETE" ||
-    input.challenger.unresolvedReasons.length > 0
-  ) {
-    return { ok: false, reason: "CHALLENGER" };
-  }
   return { ok: true };
 }
 
@@ -47,7 +39,6 @@ export function selectAngleStage(input: {
   if (input.verdicts.some((verdict) => verdict === "AUDIT_FAIL")) return input.repairsUsed ? null : "fix";
   if (input.admittedCount < TARGET_GENERATE_VALID) return null;
   if (input.materialGap && input.canAdd) return "generate";
-  if (!input.challengerComplete) return "challenger";
   if (input.lockOk) return "lock";
   return null;
 }

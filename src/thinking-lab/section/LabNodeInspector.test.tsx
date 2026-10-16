@@ -15,6 +15,11 @@ vi.mock("@/shared/i18n/useAppTranslation", () => ({
   }),
 }));
 
+function openActionMenu(name: string | RegExp = "More actions") {
+  const trigger = screen.getByRole("button", { name });
+  fireEvent.keyDown(trigger, { key: "Enter" });
+}
+
 describe("LabNodeInspector territory entry", () => {
   it("keeps the Big Thought definition behind an Indonesian info mark", () => {
     render(<LabNodeInspector kind="bigThought" code="BT01" statement="Dana perpuluhan adalah sumbangan sukarela." />);
@@ -23,6 +28,21 @@ describe("LabNodeInspector territory entry", () => {
     fireEvent.click(screen.getByRole("button", { name: "Definisi Big Thought" }));
     expect(screen.getByText(/Master Thought benar karena alasan ini/i)).toBeTruthy();
     expect(screen.getByText(/kehilangan satu alasan untuk dipercaya/i)).toBeTruthy();
+  });
+
+  it("offers Generate Territory on an empty Big Thought that can start one", () => {
+    const onGenerateTerritory = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="bigThought"
+        code="BT04"
+        statement="Uang di usia muda lebih berharga ditabung, karena kebiasaan mengelola uang."
+        onGenerateTerritory={onGenerateTerritory}
+      />,
+    );
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Generate Territory" }));
+    expect(onGenerateTerritory).toHaveBeenCalledOnce();
   });
 
   it("keeps Write a Territory and Generate Territory off an empty Big Thought inspector", () => {
@@ -49,7 +69,8 @@ describe("LabNodeInspector territory entry", () => {
         onTerritoryStage={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Audit" })).toBeTruthy();
+    openActionMenu();
+    expect(screen.getByRole("menuitem", { name: "Audit" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Buat ulang Angle" })).toBeNull();
   });
 
@@ -78,7 +99,8 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.getByText("Both host the same functional angle.")).toBeTruthy();
     expect(screen.getByText("One space covers another")).toBeTruthy();
     expect(screen.getByText("TR02 already includes TR01.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Fix" })).toBeTruthy();
+    openActionMenu();
+    expect(screen.getByRole("menuitem", { name: "Fix" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Remove TR02" })).toBeNull();
   });
 
@@ -153,7 +175,8 @@ describe("LabNodeInspector territory entry", () => {
         onTerritoryStage={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Challenger" })).toBeTruthy();
+    openActionMenu();
+    expect(screen.getByRole("menuitem", { name: "Challenger" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Lock" })).toBeNull();
   });
 
@@ -183,7 +206,7 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.queryByText("Fix already ran once. This set stays open until an audit passes.")).toBeNull();
   });
 
-  it("hides Audit while Generate Territory is running", () => {
+  it("keeps Audit visible while Generate Territory is still running", () => {
     render(
       <LabNodeInspector
         kind="bigThought"
@@ -195,7 +218,8 @@ describe("LabNodeInspector territory entry", () => {
         pendingAction="generate-territory"
       />,
     );
-    expect(screen.queryByRole("button", { name: "Audit" })).toBeNull();
+    openActionMenu();
+    expect(screen.getByRole("menuitem", { name: "Audit" }).getAttribute("aria-busy")).toBe("true");
   });
 
   it("keeps Generate Territory off the Master Thought inspector", () => {
@@ -221,8 +245,7 @@ describe("LabNodeInspector territory entry", () => {
     );
     expect(screen.getByRole("heading", { name: "Uang butuh waktu untuk tumbuh" })).toBeTruthy();
     expect(screen.getByText(/karena uang yang ditabung paling awal/)).toBeTruthy();
-    expect(screen.getByText("Big Thought")).toBeTruthy();
-    expect(screen.queryByText(/BT02/)).toBeNull();
+    expect(screen.getByText("Big Thought - BT02")).toBeTruthy();
   });
 
   it("shows the sealed subject and the unlock note when a locked parent has none", () => {
@@ -302,6 +325,29 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.queryByRole("button", { name: "Generate Idea" })).toBeNull();
   });
 
+  it("offers an Angle branch from one passing Territory", () => {
+    const onGenerateAngle = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="bigThought"
+        code="BT03"
+        statement="A locked big thought"
+        onGenerateAngle={onGenerateAngle}
+        territories={[
+          {
+            id: "t1",
+            code: "TR03",
+            statement: "Pensiun dini",
+            verdict: "AUDIT_PASS",
+          },
+        ]}
+      />,
+    );
+    openActionMenu(/More actions TR03/);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Generate Angle" }));
+    expect(onGenerateAngle).toHaveBeenCalledWith("t1");
+  });
+
   it("shows the selected Territory and Generate Angle on its own inspector", () => {
     render(
       <LabNodeInspector
@@ -324,7 +370,9 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.getByRole("heading", { name: "Kerangka Etika dan Nilai Organisasi" })).toBeTruthy();
     expect(screen.getByText(/Di area ini:/)).toBeTruthy();
     expect(screen.getByText(/Lolos pemeriksaan\./)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Buat ulang Angle" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Buat ulang Angle" })).toBeNull();
+    openActionMenu();
+    expect(screen.getByRole("menuitem", { name: "Buat ulang Angle" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Generate Territory" })).toBeNull();
   });
 
@@ -344,7 +392,8 @@ describe("LabNodeInspector territory entry", () => {
         onAngleStage={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Buat ulang Angle" }).getAttribute("aria-busy")).toBe("true");
+    openActionMenu();
+    expect(screen.getByRole("menuitem", { name: "Buat ulang Angle" }).getAttribute("aria-busy")).toBe("true");
     expect(screen.queryByRole("button", { name: "Audit" })).toBeNull();
     rerender(
       <LabNodeInspector
@@ -394,7 +443,9 @@ describe("LabNodeInspector territory entry", () => {
     );
     expect(screen.queryByLabelText("Write an Angle")).toBeNull();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Buat ulang Angle" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Buat ulang Angle" })).toBeNull();
+    openActionMenu();
+    expect(screen.getByRole("menuitem", { name: "Buat ulang Angle" })).toBeTruthy();
     rerender(
       <LabNodeInspector
         kind="territory"
@@ -406,7 +457,7 @@ describe("LabNodeInspector territory entry", () => {
         onGenerateAngle={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Buat ulang Angle" }).getAttribute("aria-busy")).toBe("true");
+    expect(screen.getByRole("button", { name: "More actions" }).getAttribute("aria-busy")).toBe("true");
   });
 
   it("shows the selected Angle and Generate Idea on its own inspector", () => {
@@ -421,8 +472,224 @@ describe("LabNodeInspector territory entry", () => {
       />,
     );
     expect(screen.getByRole("heading", { name: "Etika adalah pendorong perilaku." })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Generate Idea" })).toBeTruthy();
+    expect(screen.getByText("Angle - AN01")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Generate Idea" })).toBeNull();
+    openActionMenu();
+    expect(screen.getByRole("menuitem", { name: "Generate Idea" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Buat ulang Angle" })).toBeNull();
+  });
+
+  it("puts Lock in the Angle menu", () => {
+    const onLockIdeas = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="angle"
+        code="AN01"
+        statement="Akumulasi kekayaan dini seringkali"
+        onLockIdeas={onLockIdeas}
+      />,
+    );
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Lock" }));
+    expect(onLockIdeas).toHaveBeenCalledOnce();
+  });
+
+  it("puts Lock in the Big Thought menu", () => {
+    const onLockTerritories = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="bigThought"
+        code="BT05"
+        statement="Beban Finansial"
+        onLockTerritories={onLockTerritories}
+      />,
+    );
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Lock" }));
+    expect(onLockTerritories).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Write an Idea behind the Angle menu until it is chosen", () => {
+    render(
+      <LabNodeInspector
+        kind="angle"
+        code="AN01"
+        statement="Bukan hanya tentang keuntungan"
+        angleId="a1"
+        ideaReady
+        onGenerateIdea={vi.fn()}
+        manualAdd={{ label: "Write an Idea", onSubmit: vi.fn(async () => null) }}
+      />,
+    );
+    expect(screen.queryByText("Write an Idea")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Write an Idea" }));
+    expect(screen.getByText("Write an Idea")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
+  });
+
+  it("puts a Fix button on each failed Idea card", () => {
+    const onFixIdea = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="angle"
+        code="AN01"
+        statement="Waktu kerja bunga"
+        ideas={[
+          { id: "i2", code: "ID02", statement: "Mengundang pensiunan menjadi mentor", verdict: "AUDIT_FAIL" },
+          { id: "i3", code: "ID03", statement: "Membangun kebun komunitas", verdict: "AUDIT_FAIL" },
+          { id: "i4", code: "ID04", statement: "Mantan profesional menulis buku", verdict: "AUDIT_PASS" },
+        ]}
+        ideaStage="fix"
+        onIdeaStage={vi.fn()}
+        onFixIdea={onFixIdea}
+      />,
+    );
+    expect(screen.getAllByRole("button", { name: /More actions ID0/ })).toHaveLength(2);
+    openActionMenu(/More actions ID02/);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    expect(onFixIdea).toHaveBeenCalledWith("ID02");
+  });
+
+  it("keeps the other Fix buttons clickable while one Idea fix is running", () => {
+    const onFixIdea = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="angle"
+        statement="Waktu kerja bunga"
+        ideas={[
+          { id: "i2", code: "ID02", statement: "Mengundang pensiunan menjadi mentor", verdict: "AUDIT_FAIL" },
+          { id: "i5", code: "ID05", statement: "Mahasiswa menolak berinvestasi", verdict: "AUDIT_FAIL" },
+        ]}
+        ideaStage="fix"
+        onFixIdea={onFixIdea}
+        fixingIdeaCodes={["ID05"]}
+        pendingAction="fix-idea:ID05"
+      />,
+    );
+    const menus = screen.getAllByRole("button", { name: /More actions ID0/ });
+    const running = menus.find((button) => button.getAttribute("aria-busy") === "true");
+    const waiting = menus.find((button) => button.getAttribute("aria-busy") !== "true");
+    expect(running).toBeTruthy();
+    expect((running as HTMLButtonElement).disabled).toBe(true);
+    expect((waiting as HTMLButtonElement).disabled).toBe(false);
+    openActionMenu(/More actions ID02/);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    expect(onFixIdea).toHaveBeenCalledWith("ID02");
+  });
+
+  it("keeps each idea note on its card until the arrow expands it", () => {
+    render(
+      <LabNodeInspector
+        kind="angle"
+        statement="Waktu kerja bunga"
+        ideas={[
+          { id: "i1", code: "ID01", statement: "Pengembangan keterampilan analisis" },
+          { id: "i2", code: "ID02", statement: "Pemahaman pasar investasi dini" },
+        ]}
+        ideaNotes={[
+          "ID01: Big Thought: kekuatan bunga majemuk memiliki lebih banyak waktu untuk bekerja.",
+          "ID02: Big Thought: ide ini mengunci penjelasan lain.",
+          "Fix already ran once. This set stays open until the ideas pass.",
+        ]}
+      />,
+    );
+    expect(screen.queryByText(/kekuatan bunga majemuk/)).toBeNull();
+    expect(screen.queryByText(/mengunci penjelasan lain/)).toBeNull();
+    expect(screen.getByText("Fix already ran once. This set stays open until the ideas pass.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Note ID01" }));
+    expect(screen.getByText(/kekuatan bunga majemuk/)).toBeTruthy();
+    expect(screen.queryByText(/mengunci penjelasan lain/)).toBeNull();
+  });
+
+  it("puts a Fix button on each failed Angle card", () => {
+    const onFixAngle = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="territory"
+        statement="Investasi jangka panjang"
+        angles={[
+          { id: "a1", code: "AN01", statement: "Pemula mencari hasil cepat", verdict: "AUDIT_FAIL" },
+          { id: "a2", code: "AN02", statement: "Strategi sederhana terasa rumit", verdict: "AUDIT_PASS" },
+          { id: "a3", code: "AN03", statement: "Pendekatan pasif tetap butuh intervensi", verdict: "AUDIT_FAIL" },
+        ]}
+        angleStage="fix"
+        onAngleStage={vi.fn()}
+        onFixAngle={onFixAngle}
+      />,
+    );
+    expect(screen.getAllByRole("button", { name: /More actions AN0/ })).toHaveLength(2);
+    openActionMenu(/More actions AN03/);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    expect(onFixAngle).toHaveBeenCalledWith("AN03");
+  });
+
+  it("keeps the other Angle Fix buttons clickable while one fix is running", () => {
+    const onFixAngle = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="territory"
+        statement="Investasi jangka panjang"
+        angles={[
+          { id: "a1", code: "AN01", statement: "Pemula mencari hasil cepat", verdict: "AUDIT_FAIL" },
+          { id: "a3", code: "AN03", statement: "Pendekatan pasif tetap butuh intervensi", verdict: "AUDIT_FAIL" },
+        ]}
+        angleStage="fix"
+        onFixAngle={onFixAngle}
+        fixingAngleCodes={["AN01"]}
+        pendingAction="fix-angle:AN01"
+      />,
+    );
+    const menus = screen.getAllByRole("button", { name: /More actions AN0/ });
+    const running = menus.find((button) => button.getAttribute("aria-busy") === "true");
+    const waiting = menus.find((button) => button.getAttribute("aria-busy") !== "true");
+    expect(running).toBeTruthy();
+    expect((running as HTMLButtonElement).disabled).toBe(true);
+    expect((waiting as HTMLButtonElement).disabled).toBe(false);
+    openActionMenu(/More actions AN03/);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    expect(onFixAngle).toHaveBeenCalledWith("AN03");
+  });
+
+  it("keeps each angle explanation on its card until the arrow expands it", () => {
+    render(
+      <LabNodeInspector
+        kind="territory"
+        statement="Investasi jangka panjang"
+        angles={[
+          { id: "a1", code: "AN01", statement: "Pemula mencari hasil cepat", verdict: "AUDIT_FAIL" },
+          { id: "a2", code: "AN02", statement: "Strategi sederhana terasa rumit", verdict: "AUDIT_PASS" },
+          { id: "a3", code: "AN03", statement: "Pendekatan pasif tetap butuh intervensi", verdict: "AUDIT_FAIL" },
+        ]}
+        angleNotes={[
+          "AN01 · AN03: Poin pandang tentang kesabaran mencakup pendekatan pasif.",
+          "Fix already ran once. This set stays open until an audit passes.",
+        ]}
+      />,
+    );
+    expect(screen.queryByText(/pendekatan pasif/)).toBeNull();
+    expect(screen.queryByText("Fix already ran once. This set stays open until an audit passes.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Note AN02" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Note AN01" }));
+    expect(screen.getByText(/pendekatan pasif/)).toBeTruthy();
+    expect(screen.getByText("Fix already ran once. This set stays open until an audit passes.")).toBeTruthy();
+  });
+
+  it("offers an Idea branch from one passing Angle", () => {
+    const onGenerateIdea = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="territory"
+        code="TR03"
+        statement="Pensiun dini"
+        onGenerateIdea={onGenerateIdea}
+        angles={[{ id: "a1", code: "AN01", statement: "Waktu kerja bunga", verdict: "AUDIT_PASS" }]}
+      />,
+    );
+    openActionMenu(/More actions AN01/);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Generate Idea" }));
+    expect(onGenerateIdea).toHaveBeenCalledWith("a1");
   });
 
   it("offers Lock beside Generate Angle while a passing set is still open", () => {
@@ -497,7 +764,9 @@ describe("LabNodeInspector territory entry", () => {
         ]}
       />,
     );
-    expect(screen.getByRole("button", { name: "Delete Big Thought" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "More actions" }).getAttribute("aria-busy")).not.toBe("true");
+    openActionMenu();
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Delete Territory" })).toBeNull();
   });
 });

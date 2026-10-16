@@ -1,5 +1,8 @@
 import { supabase } from '@/shared/lib/supabaseClient';
 import { loadPoseReferencesForCharacters } from '@/6-1-social-media-settings/lib/loadCharacterPoseReferences';
+import type { BriefConceptDocument } from '@/6-1-dashboard/modal/briefConceptAssets';
+import { locationFrameForContentType } from '@/6-1-dashboard/modal/briefConceptAssets';
+import { loadLinkedIdeaStatement, readStoredCharacterVisual } from '@/thinking-lab/execution/generateCharacterVisual';
 
 export type BriefSceneGenerateT = (
   key: string,
@@ -93,6 +96,89 @@ export function hasBriefSceneTextContent(
   });
 }
 
+export type StoryboardFilmContext = {
+  title?: string;
+  caption?: string;
+  storyboard?: string;
+  contentTypeName?: string;
+  postAspect?: '4:5' | '1:1';
+  concept?: BriefConceptDocument | null;
+  organizationId?: string;
+};
+
+function findCell(headers: string[], row: string[], match: (header: string) => boolean): string {
+  const index = headers.findIndex((header) => match(header.toLowerCase()));
+  return index >= 0 ? String(row[index] ?? '').trim() : '';
+}
+
+export function mentionedHandles(text: string): string[] {
+  return [...new Set((text.match(/@[a-z0-9_]+/gi) ?? []).map((handle) => handle.toLowerCase()))];
+}
+
+export function storyboardShotAspect(context?: StoryboardFilmContext): '1:1' | '4:5' | '9:16' | '16:9' {
+  const frame = locationFrameForContentType(context?.contentTypeName ?? '', context?.postAspect);
+  if (frame) return frame;
+  const shape = (context?.contentTypeName ?? '').trim().toLowerCase();
+  if (shape === 'post' || shape === 'carousel') return '4:5';
+  return '16:9';
+}
+
+export function buildStoryboardShotPrompt(input: {
+  headers: string[];
+  row: string[];
+  imageColumnIndex: number;
+  context?: StoryboardFilmContext;
+  hasPortrait?: boolean;
+}): string {
+  const angle = findCell(input.headers, input.row, (header) => header === 'angle' || header.startsWith('angle'));
+  const visualFunction = findCell(input.headers, input.row, (header) => header.includes('visual function'));
+  const veo = findCell(
+    input.headers,
+    input.row,
+    (header) => header.includes('veo') || (header.includes('prompt') && !header.includes('visual function')),
+  );
+  const voice = findCell(input.headers, input.row, (header) => header.includes('voice') || header.includes('narasi'));
+  const concept = input.context?.concept;
+  const handles = mentionedHandles(veo);
+  const characters = (concept?.characters ?? []).filter((item) => handles.includes(item.handle.toLowerCase()));
+  const locations = (concept?.locations ?? []).filter((item) => handles.includes(item.handle.toLowerCase()));
+  const properties = (concept?.properties ?? []).filter((item) => handles.includes(item.handle.toLowerCase()));
+  const lines = [
+    'Create ONE photographic storyboard frame for this exact shot.',
+    'ONE FRAME ONLY: a single continuous photograph. No split screen, no stacked photos, no diptych, no collage.',
+    'NO WRITING: the picture is the photograph only. Do not add a headline, banner, subtitle, caption, lower third, sticker, or any letters on the top or bottom.',
+    'Follow the angle, the visual function, and the Veo prompt. They outrank every other note.',
+    `ANGLE: ${angle || '(not set)'}`,
+    `VISUAL FUNCTION: ${visualFunction || '(not set)'}`,
+    `VEO PROMPT: ${veo || '(not set)'}`,
+    voice ? `VOICE-OVER, mood only, never draw these words: ${voice}` : '',
+    '',
+    'STORY CONTEXT (meaning only — never draw this text):',
+    input.context?.title ? `Title, do not render: ${input.context.title}` : '',
+    input.context?.caption ? `Caption, do not render: ${input.context.caption}` : '',
+    '',
+    'CHARACTERS NAMED WITH @ IN THE VEO PROMPT:',
+    characters.length > 0
+      ? characters.map((item) => `${item.handle}: ${item.description || 'No description.'}`).join('\n')
+      : '(none named)',
+    input.hasPortrait
+      ? 'A reference portrait is attached. The named character must be that exact person: same face, hair, age, and clothes. Do not cast someone else.'
+      : 'No portrait is attached. Use the character description if one is named.',
+    '',
+    'LOCATIONS NAMED WITH @:',
+    locations.length > 0
+      ? locations.map((item) => `${item.handle}: ${item.description || 'No description.'}`).join('\n')
+      : '(none named)',
+    'PROPERTIES NAMED WITH @:',
+    properties.length > 0
+      ? properties.map((item) => `${item.handle}: ${item.description || 'No description.'}`).join('\n')
+      : '(none named)',
+    'Do not invent a different person for an @character token.',
+    'The finished image has no text anywhere: no title bar, no caption block, no subtitles, no logos, no watermark, no border.',
+  ];
+  return lines.filter((line) => line !== '').join('\n');
+}
+
 export function buildBriefScenePrompt(
   headers: string[],
   row: string[],
@@ -116,7 +202,7 @@ export function buildBriefScenePrompt(
   }
   if (fields.onScreenText.length > 0) {
     sections.push(
-      `ON-SCREEN TEXT (render these words as text in the frame, spelled exactly):\n${fields.onScreenText.join('\n')}`,
+      `STORY NOTES (meaning only — do NOT draw these words, captions, or banners):\n${fields.onScreenText.join('\n')}`,
     );
   }
   if (fields.other.length > 0) {
@@ -142,7 +228,7 @@ export function buildBriefScenePrompt(
     withRefs
       ? 'Keep any people consistent with the attached character pose references.'
       : 'No reference photos are attached; invent suitable subjects that fit the scene.',
-    'STRICT RULES: Do NOT render voice-over/narration text, hashtags, timing, or field labels as text inside the image. Only render text listed under ON-SCREEN TEXT (if any). No watermarks, no UI chrome, no decorative borders, no collage of multiple panels — a single cohesive photographic frame at 16:9.',
+    'STRICT RULES: The image is a pure photograph. Do NOT render titles, captions, voice-over, hashtags, subtitles, banners, or labels anywhere in the frame, including the top and the bottom. No watermarks, no UI chrome, no decorative borders, no collage, no split screen — one single photographic frame.',
   ].join(' ');
 
   return [intro, sections.join('\n\n')].filter(Boolean).join('\n\n');
@@ -160,13 +246,14 @@ export async function generateBriefSceneImageFile(params: {
   row: string[];
   imageColumnIndex: number;
   t: BriefSceneGenerateT;
+  film?: StoryboardFilmContext;
 }): Promise<{
   file: File;
   truncated: boolean;
   included: number;
   totalAvailable: number;
 }> {
-  const { characterIds, characterNamesById, headers, row, imageColumnIndex, t } = params;
+  const { characterIds, characterNamesById, headers, row, imageColumnIndex, t, film } = params;
   const ids = [...new Set(characterIds.filter(Boolean))];
   const hasSceneText = hasBriefSceneTextContent(headers, row, imageColumnIndex);
 
@@ -209,9 +296,34 @@ export async function generateBriefSceneImageFile(params: {
     );
   }
 
-  const prompt = buildBriefScenePrompt(headers, row, imageColumnIndex, {
-    hasCharacterReferences: characterPoseReferences.length > 0,
+  const veo = findCell(
+    headers,
+    row,
+    (header) => header.includes('veo') || (header.includes('prompt') && !header.includes('visual function')),
+  );
+  const namedCharacters = (film?.concept?.characters ?? []).filter((item) =>
+    mentionedHandles(veo).includes(item.handle.toLowerCase()),
+  );
+  const portrait = namedCharacters.find((item) => item.portraitPath);
+  const portraitImage = portrait?.portraitPath ? await readStoredCharacterVisual(portrait.portraitPath) : null;
+  let idea = '';
+  if (film?.organizationId) {
+    try {
+      idea = await loadLinkedIdeaStatement(film.organizationId, film.title ?? '', namedCharacters[0]?.handle ?? '');
+    } catch {
+      idea = '';
+    }
+  }
+  const shotPrompt = buildStoryboardShotPrompt({
+    headers,
+    row,
+    imageColumnIndex,
+    hasPortrait: Boolean(portraitImage),
+    context: { ...film, title: [film?.title, idea].filter(Boolean).join('\n') },
   });
+  const prompt = [shotPrompt, buildBriefScenePrompt(headers, row, imageColumnIndex, {
+    hasCharacterReferences: characterPoseReferences.length > 0 || Boolean(portraitImage),
+  })].join('\n\n');
 
   const { data: refreshed } = await supabase.auth.refreshSession();
   const session =
@@ -220,14 +332,24 @@ export async function generateBriefSceneImageFile(params: {
     throw new Error(t('briefDialog.layout.generateAuthError', 'Please sign in again to generate.'));
   }
 
-  const body: {
-    prompt: string;
-    aspectRatio: string;
-    characterPoseReferences?: typeof characterPoseReferences;
-  } = {
+  const body: Record<string, unknown> = {
     prompt,
-    aspectRatio: '16:9',
+    aspectRatio: storyboardShotAspect(film),
   };
+  if (portraitImage) {
+    body.identitySheet = true;
+    body.referenceImageBase64 = portraitImage.base64;
+    body.referenceImageMimeType = portraitImage.mimeType;
+    body.characterStructuredReferences = [
+      {
+        head: {
+          imageBase64: portraitImage.base64,
+          mimeType: portraitImage.mimeType,
+          description: 'Copy this exact photographed person. Same face, hair, age, skin, and clothes.',
+        },
+      },
+    ];
+  }
   if (characterPoseReferences.length > 0) {
     body.characterPoseReferences = characterPoseReferences;
   }

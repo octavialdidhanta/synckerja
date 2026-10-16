@@ -15,6 +15,7 @@ import {
   replaceTableInMarkdown,
   stringifyMarkdownTable,
 } from '@/6-1-dashboard/utils/markdownTableUtils';
+import { mergeBriefConceptVisuals } from '@/6-1-dashboard/modal/briefConceptAssets';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { toast } from 'sonner';
 
@@ -35,6 +36,8 @@ export interface SaveToPlanParams {
   saveCaption: boolean;
   saveConcept?: boolean;
   newPlanData?: NewPlanData;
+  preserveTableColumns?: boolean;
+  identity?: { title: string; contentPillarId: string | null };
 }
 
 function isNewPlanDataComplete(data: NewPlanData | undefined): data is NewPlanData {
@@ -68,7 +71,7 @@ export function useSaveToPlan() {
 
   const saveToPlan = useCallback(
     async (params: SaveToPlanParams): Promise<boolean> => {
-      const { script, planId, postDate, saveBrief, saveCaption, saveConcept = false, newPlanData } = params;
+      const { script, planId, postDate, saveBrief, saveCaption, saveConcept = false, newPlanData, preserveTableColumns = false, identity } = params;
 
       if (!organizationId) {
         toast.error(t('scriptGenerator.saveToPlanModal.errorOrgNotFound', 'Organization not found'));
@@ -90,7 +93,7 @@ export function useSaveToPlan() {
         brief = stripScriptKontenDigitalMarketing(stripBreakdownScriptLabel(script.trim()));
       }
 
-      if (saveBrief && brief.trim()) {
+      if (saveBrief && brief.trim() && !preserveTableColumns) {
         brief = normalizeBriefMarkdownForSave(brief);
       }
 
@@ -171,17 +174,25 @@ export function useSaveToPlan() {
           targetPlanId = planRow.id;
         } else {
           targetPlanId = planId;
-
+          const patch: {
+            brief?: string;
+            completion_date?: string;
+            status?: string;
+            title?: string;
+            content_pillar_id?: string;
+          } = {};
           if (saveBrief) {
+            patch.brief = brief.trim();
+            patch.completion_date = new Date().toISOString();
+            patch.status = 'Need Review';
+          }
+          if (identity?.title.trim()) patch.title = identity.title.trim();
+          if (identity?.contentPillarId) patch.content_pillar_id = identity.contentPillarId;
+          if (Object.keys(patch).length > 0) {
             const { error: updateError } = await supabase
               .from('social_media_plans')
-              .update({
-                brief: brief.trim(),
-                completion_date: new Date().toISOString(),
-                status: 'Need Review',
-              })
+              .update(patch)
               .eq('id', targetPlanId);
-
             if (updateError) throw updateError;
           }
         }
@@ -200,10 +211,19 @@ export function useSaveToPlan() {
         }
 
         if (saveConcept) {
+          const { data: existingConcept } = await supabase
+            .from('brief_target_audiences')
+            .select('description')
+            .eq('social_media_plan_id', targetPlanId)
+            .maybeSingle();
+          const description = mergeBriefConceptVisuals(
+            (existingConcept as { description?: string | null } | null)?.description,
+            concept.trim(),
+          );
           const { error: conceptError } = await supabase.from('brief_target_audiences').upsert(
             {
               social_media_plan_id: targetPlanId,
-              description: concept.trim() || null,
+              description: description || null,
               updated_at: new Date().toISOString(),
             },
             { onConflict: 'social_media_plan_id' }

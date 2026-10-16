@@ -10,6 +10,7 @@ import type { BriefSequence } from './briefSequences';
 import { getSequenceRowRanges } from './briefSequences';
 import type { BriefSceneMeta } from './briefSceneMeta';
 import { getSceneCharacterIds } from './briefSceneMeta';
+import type { StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
 
 /** Show the bottom bar only after the last sequence/card is reached. */
 export function useHideOnScrollDown(
@@ -58,6 +59,7 @@ export interface BriefStoryBoardViewProps {
   isEditing: boolean;
   showRowActions: boolean;
   planId?: string;
+  film?: StoryboardFilmContext;
   mediaBusy?: boolean;
   uploadingRowIndex?: number | null;
   deletingImageId?: string | null;
@@ -88,6 +90,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
   isEditing,
   showRowActions,
   planId,
+  film,
   mediaBusy = false,
   uploadingRowIndex = null,
   deletingImageId = null,
@@ -201,6 +204,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
                       isUploading={isRowUploading}
                       isDeleting={isRowDeleting}
                       planId={planId}
+                      film={film}
                       density={density}
                       characterIds={getSceneCharacterIds(sceneMeta, rowIdx)}
                       onCharacterIdsChange={onSceneCharacterIdsChange}

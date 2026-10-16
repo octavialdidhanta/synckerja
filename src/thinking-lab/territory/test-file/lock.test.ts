@@ -13,13 +13,13 @@ describe("territory challenger and lock", () => {
     expect(coverageFromChallenger(gap)).toBe("MATERIAL_GAP");
   });
 
-  it("locks only after three passing audits and a complete challenger", () => {
-    const denied = evaluateTerritoryLock({
+  it("locks after three passing audits without a challenger", () => {
+    const allowedWithoutChallenger = evaluateTerritoryLock({
       verdicts: ["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS"],
       challenger: null,
       challengerCurrent: false,
     });
-    expect(denied.ok).toBe(false);
+    expect(allowedWithoutChallenger.ok).toBe(true);
     const allowed = evaluateTerritoryLock({
       verdicts: ["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS"],
       challenger: { status: "COMPLETE", unresolvedReasons: [] },

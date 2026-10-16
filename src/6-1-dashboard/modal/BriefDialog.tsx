@@ -4,8 +4,8 @@ import remarkGfm from 'remark-gfm';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Textarea } from '@/shared/components/ui/textarea';
-import { MessageCircle, Send, Trash2, FileText, Globe, RotateCcw, CheckCircle, ExternalLink, CircleCheck } from 'lucide-react';
-import { parseMarkdownTable, stringifyMarkdownTable, replaceTableInMarkdown } from '../utils/markdownTableUtils';
+import { MessageCircle, Send, Trash2, FileText, Globe, RotateCcw, CheckCircle, ExternalLink, CircleCheck, Maximize2, ArrowLeft } from 'lucide-react';
+import { parseAllMarkdownTables, parseMarkdownTable, stringifyMarkdownTable, replaceTableInMarkdown } from '../utils/markdownTableUtils';
 import { upsertBriefSequencesInMarkdown, stripBriefSequencesComment, type BriefSequence } from './briefSequences';
 import {
   upsertBriefSceneMetaInMarkdown,
@@ -26,9 +26,13 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { toast } from 'sonner';
 import { devLog } from '@/shared/lib/logger';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
+import { THINKING_LAB_BRIEF_MARK, isThinkingLabBrief } from '@/shared/utils/thinkingLabBrief';
 import { validateRequiredFields } from '../container/table/cells/ValidationHelper';
 import type { ContentPlan } from '../types/social-media';
 import { useBriefStoryboardImages } from '../hook/useBriefStoryboardImages';
+import { BriefConceptEditor } from './BriefConceptEditor';
+import { briefConceptHasContent, parseBriefConcept, serializeBriefConcept } from './briefConceptAssets';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 
 interface BriefDialogProps {
   isOpen: boolean;
@@ -42,6 +46,8 @@ interface BriefDialogProps {
   linkReference?: string | null;
   /** Plans list for approval validation + daily-task picker (same flow as table Approve / status Approved) */
   contentPlans?: ContentPlan[];
+  /** Current plan content type name, resolved from the dashboard list so a fresh dropdown change is used. */
+  contentTypeName?: string;
   /** Opens Select Daily Task when conditions match; registers pending approval in parent. Returns true if modal opened. */
   tryStartApprovalFromBrief?: (planId: string) => boolean;
 }
@@ -57,9 +63,11 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   caption: captionProp,
   linkReference: linkReferenceProp,
   contentPlans,
+  contentTypeName = "",
   tryStartApprovalFromBrief,
 }) => {
   const { t } = useAppTranslation();
+  const { organizationId } = useCurrentOrg();
   const [briefText, setBriefText] = useState('');
   const [targetAudienceText, setTargetAudienceText] = useState('');
   const [captionText, setCaptionText] = useState('');
@@ -71,6 +79,10 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   const [showApprovalButtons, setShowApprovalButtons] = useState(false);
   const [createTableOpen, setCreateTableOpen] = useState(false);
   const [isStoryboardTableEditing, setIsStoryboardTableEditing] = useState(false);
+  const [expandedSection, setExpandedSection] = useState<'brief' | 'concept' | null>(null);
+  const workAreaExpanded = expandedSection !== null;
+  const briefExpanded = expandedSection === 'brief';
+  const conceptExpanded = expandedSection === 'concept';
   const skipNextAutoSaveRef = useRef(false);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isClosingRef = useRef(false);
@@ -118,6 +130,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
       setAccordionOpen('brief');
       setCreateTableOpen(false);
       setIsStoryboardTableEditing(false);
+      setExpandedSection(null);
       prevOpenedRef.current = { isOpen: false };
       return;
     }
@@ -550,11 +563,27 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   const parsedTable = useMemo(() => {
     const parsed = parseMarkdownTable(briefText);
     if (!parsed?.table?.length) return parsed;
-    if (isBriefStoryboardTableCanonical(parsed.table)) return parsed;
+    if (isThinkingLabBrief(briefText) || isBriefStoryboardTableCanonical(parsed.table)) return parsed;
     return {
       ...parsed,
       table: normalizeBriefStoryboardTable(parsed.table),
     };
+  }, [briefText]);
+  const thinkingLabParts = useMemo(() => {
+    if (!isThinkingLabBrief(briefText)) return [];
+    const tables = parseAllMarkdownTables(briefText);
+    const parts: Array<{ kind: "prose"; text: string } | { kind: "table"; index: number; table: string[][] }> = [];
+    let cursor = 0;
+    const visible = (value: string) => value.split(THINKING_LAB_BRIEF_MARK).join("").trim();
+    tables.forEach((item, index) => {
+      const prose = visible(briefText.slice(cursor, item.startIndex));
+      if (prose) parts.push({ kind: "prose", text: prose });
+      parts.push({ kind: "table", index, table: item.table });
+      cursor = item.endIndex;
+    });
+    const tail = visible(briefText.slice(cursor));
+    if (tail) parts.push({ kind: "prose", text: tail });
+    return parts;
   }, [briefText]);
   const briefTitle = useMemo(
     () =>
@@ -640,6 +669,20 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
     });
   };
 
+  const handleLabTableSave = (index: number, newTableData: string[][]) => {
+    setBriefText((prev) => {
+      const tables = parseAllMarkdownTables(prev);
+      const target = tables[index];
+      if (!target) return prev;
+      return replaceTableInMarkdown(
+        prev,
+        stringifyMarkdownTable(newTableData, { trimTrailingEmptyBodyRows: false }),
+        target.startIndex,
+        target.endIndex,
+      );
+    });
+  };
+
   const handleCreateStoryboardTable = (tableData: string[][]) => {
     setBriefText((prev) => applyTableToBrief(prev, tableData, null));
     setCreateTableOpen(false);
@@ -704,7 +747,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <div className="flex flex-1 min-h-0 overflow-hidden">
             {/* Left Section - Comments (Fixed width agar tidak berubah saat klik Approved/checklist) */}
-            <div className="w-96 flex-shrink-0 max-lg:hidden border-r border-gray-200 flex flex-col min-h-0">
+            <div className={`w-96 flex-shrink-0 max-lg:hidden border-r border-gray-200 flex flex-col min-h-0 ${workAreaExpanded ? 'hidden' : ''}`}>
               <div className="flex h-12 shrink-0 items-center border-b border-gray-100 bg-gray-50 px-4">
                 <div className="flex items-center gap-2">
                   <MessageCircle className="h-4 w-4 text-gray-600" />
@@ -784,7 +827,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
 
             {/* Right Section - Brief Content & Preview: full height dengan batas max-h, table punya batas tinggi dan bisa di-scroll */}
             <div className="flex-1 min-w-0 max-lg:w-full flex flex-col min-h-0 overflow-hidden">
-              <div className="flex h-12 shrink-0 items-center justify-between border-b border-gray-100 bg-gray-50 px-4">
+              <div className={`flex h-12 shrink-0 items-center justify-between border-b border-gray-100 bg-gray-50 px-4 ${workAreaExpanded ? 'hidden' : ''}`}>
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <FileText className="h-4 w-4 shrink-0 text-gray-600" />
                   <span className="shrink-0 font-medium text-sm text-gray-800">
@@ -826,16 +869,54 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                 {showPreview && hasGoogleDocsLink ? (
                   <LinkPreviewPanel brief={briefText} />
                 ) : (
-                  <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-3 py-2">
+                  <div className={`flex-1 min-h-0 flex flex-col overflow-hidden ${workAreaExpanded ? 'px-3 py-2' : 'px-3 py-2'}`}>
+                    {briefExpanded && (thinkingLabParts.some((part) => part.kind === 'table') || !parsedTable) ? (
+                      <div className="mb-2 flex shrink-0">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 text-xs"
+                          onClick={() => setExpandedSection(null)}
+                        >
+                          <ArrowLeft className="h-3.5 w-3.5" />
+                          {t('briefDialog.workArea.back', 'Back')}
+                        </Button>
+                      </div>
+                    ) : null}
                     <Accordion
                       type="single"
-                      collapsible
-                      value={accordionOpen}
-                      onValueChange={(v) => setAccordionOpen(v ?? '')}
-                      className="scrollbar-hide seamless-scroll w-full flex-1 flex flex-col min-h-0 gap-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                      collapsible={!workAreaExpanded}
+                      value={conceptExpanded ? 'targetAudience' : briefExpanded ? 'brief' : accordionOpen}
+                      onValueChange={(v) => {
+                        if (workAreaExpanded) return;
+                        setAccordionOpen(v ?? '');
+                      }}
+                      className={`scrollbar-hide seamless-scroll w-full flex-1 flex flex-col min-h-0 gap-1 overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${workAreaExpanded ? 'overflow-hidden' : 'overflow-y-auto'}`}
                     >
-                      <AccordionItem value="brief" className="border border-gray-200 rounded-lg px-4 bg-white flex flex-col flex-shrink-0 data-[state=open]:flex-1 data-[state=open]:min-h-[calc(100dvh-10rem)]">
-                        <AccordionTrigger className="flex-shrink-0 py-3 text-sm font-medium text-gray-800 hover:no-underline [&>svg]:ml-2">
+                      <AccordionItem value="brief" className={`bg-white flex flex-col data-[state=open]:flex-1 ${conceptExpanded ? 'hidden' : briefExpanded ? 'min-h-0 flex-1 shrink border-0 border-b-0 px-0 data-[state=open]:min-h-0' : 'flex-shrink-0 border border-gray-200 rounded-lg px-4 data-[state=open]:min-h-[calc(100dvh-10rem)]'}`}>
+                        <AccordionTrigger
+                          headerClassName={briefExpanded ? 'hidden' : undefined}
+                          className="flex-shrink-0 py-3 text-sm font-medium text-gray-800 hover:no-underline [&>svg]:ml-2"
+                          headerAccessory={
+                            briefExpanded || conceptExpanded ? null : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="ml-2 h-8 w-8 shrink-0 p-0"
+                                title={t('briefDialog.workArea.expand', 'Expand work area')}
+                                aria-label={t('briefDialog.workArea.expand', 'Expand work area')}
+                                onClick={() => {
+                                  setAccordionOpen('brief');
+                                  setExpandedSection('brief');
+                                }}
+                              >
+                                <Maximize2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )
+                          }
+                        >
                           <div className="flex min-w-0 flex-1 items-center gap-2 pr-1">
                             {briefText.trim() ? (
                               <CircleCheck className="h-4 w-4 shrink-0 text-green-600" aria-hidden />
@@ -851,16 +932,35 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                           </div>
                         </AccordionTrigger>
                         <AccordionContent
-                          primitiveClassName="data-[state=open]:!flex-1 data-[state=open]:!min-h-0"
-                          className="flex-1 min-h-0 overflow-hidden flex flex-col pb-4 pt-0 data-[state=open]:flex data-[state=open]:min-h-0 data-[state=open]:flex-1"
+                          primitiveClassName={briefExpanded ? 'flex min-h-0 flex-1 flex-col overflow-hidden !h-auto data-[state=open]:!animate-none' : 'data-[state=open]:!flex-1 data-[state=open]:!min-h-0'}
+                          className={`flex-1 min-h-0 overflow-hidden flex flex-col pt-0 data-[state=open]:flex data-[state=open]:min-h-0 data-[state=open]:flex-1 ${briefExpanded ? 'h-full pb-0' : 'pb-4'}`}
                         >
                           <div
-                            className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 max-h-[calc(100dvh-12rem)] overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            className={`scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${briefExpanded ? 'flex h-full flex-col overflow-hidden' : 'max-h-[calc(100dvh-12rem)] overflow-y-auto'}`}
                             style={{ overflowAnchor: 'none' } as React.CSSProperties}
                           >
-                            {parsedTable ? (
+                            {thinkingLabParts.some((part) => part.kind === "table") ? (
+                              <div className="space-y-3">
+                                {thinkingLabParts.map((part, index) =>
+                                  part.kind === "prose" ? (
+                                    <div key={`lab-prose-${index}`} className="prose prose-sm max-w-none prose-p:my-0.5 prose-headings:mt-1 prose-headings:mb-0.5">
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={briefMarkdownComponents}>
+                                        {part.text}
+                                      </ReactMarkdown>
+                                    </div>
+                                  ) : (
+                                    <EditableBriefTable
+                                      key={`lab-table-${index}`}
+                                      tableData={part.table}
+                                      onSave={(data) => handleLabTableSave(part.index, data)}
+                                      className="!my-1"
+                                    />
+                                  ),
+                                )}
+                              </div>
+                            ) : parsedTable ? (
                               <>
-                                {briefProseBeforeTable ? (
+                                {briefProseBeforeTable && !briefExpanded ? (
                                   <div className="prose prose-sm max-w-none mb-1 prose-p:my-0.5 prose-headings:mt-1 prose-headings:mb-0.5 prose-ul:my-0.5 prose-ol:my-0.5 flex-shrink-0">
                                     <ReactMarkdown
                                       remarkPlugins={[remarkGfm]}
@@ -870,14 +970,25 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                     </ReactMarkdown>
                                   </div>
                                 ) : null}
-                                <div className="flex min-h-0 flex-1 flex-shrink-0 flex-col">
+                                <div className={`flex min-h-0 flex-1 flex-col ${briefExpanded ? 'h-full' : 'flex-shrink-0'}`}>
                                 <EditableBriefTable
                                   tableData={parsedTable.table}
                                   onSave={handleTableSave}
                                   storyboardToolbar
+                                  workAreaExpanded={briefExpanded}
+                                  onToggleWorkArea={() => setExpandedSection((current) => (current === 'brief' ? null : 'brief'))}
                                   sequencesSource={briefText}
                                   onEditingChange={setIsStoryboardTableEditing}
                                   planId={socialMediaPlanId}
+                                  film={{
+                                    title: contentPlans?.find((plan) => plan.id === socialMediaPlanId)?.title ?? '',
+                                    caption: captionText,
+                                    storyboard: briefText,
+                                    contentTypeName,
+                                    postAspect: parseBriefConcept(targetAudienceText)?.postAspect,
+                                    concept: parseBriefConcept(targetAudienceText),
+                                    organizationId: organizationId ?? undefined,
+                                  }}
                                   rowImagesMap={rowImagesMap}
                                   onUploadImages={uploadMany}
                                   onDeleteImage={remove}
@@ -886,10 +997,10 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                   mediaBusy={isStoryboardImagesBusy}
                                   uploadingRowIndex={uploadingRowIndex}
                                   deletingImageId={deletingImageId}
-                                  className="!my-1"
+                                  className={briefExpanded ? '!my-0 h-full min-h-0 flex-1' : '!my-1'}
                                 />
                                 </div>
-                                {briefProseAfterTable ? (
+                                {briefProseAfterTable && !briefExpanded ? (
                                   <div className="prose prose-sm max-w-none mt-1 flex-shrink-0 prose-p:my-0.5 prose-headings:mt-1 prose-headings:mb-0.5">
                                     <ReactMarkdown
                                       remarkPlugins={[remarkGfm]}
@@ -926,31 +1037,84 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                           </div>
                         </AccordionContent>
                       </AccordionItem>
-                      <AccordionItem value="targetAudience" className="border border-gray-200 rounded-lg px-4 bg-white flex flex-col data-[state=open]:flex-1 data-[state=open]:min-h-0">
-                        <AccordionTrigger className="text-sm font-medium text-gray-800 hover:no-underline py-3 flex-shrink-0">
+                      <AccordionItem value="targetAudience" className={`bg-white flex flex-col ${briefExpanded ? 'hidden' : conceptExpanded ? 'min-h-0 flex-1 shrink border-0 border-b-0 px-0' : 'border border-gray-200 rounded-lg px-4 data-[state=open]:flex-1 data-[state=open]:min-h-0'}`}>
+                        <AccordionTrigger
+                          headerClassName={conceptExpanded ? 'hidden' : undefined}
+                          className="flex-shrink-0 py-3 text-sm font-medium text-gray-800 hover:no-underline [&>svg]:ml-2"
+                          headerAccessory={
+                            conceptExpanded || briefExpanded ? null : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="ml-2 h-8 w-8 shrink-0 p-0"
+                                title={t('briefDialog.workArea.expand', 'Expand work area')}
+                                aria-label={t('briefDialog.workArea.expand', 'Expand work area')}
+                                onClick={() => {
+                                  setAccordionOpen('targetAudience');
+                                  setExpandedSection('concept');
+                                }}
+                              >
+                                <Maximize2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )
+                          }
+                        >
                           <span className="flex items-center gap-2">
-                            {targetAudienceText.trim() ? (
+                            {(() => {
+                              const concept = parseBriefConcept(targetAudienceText);
+                              const filled = concept ? briefConceptHasContent(concept) : Boolean(targetAudienceText.trim());
+                              return filled ? (
                               <CircleCheck className="h-4 w-4 text-green-600 shrink-0" aria-hidden />
                             ) : (
                               <span className="w-4 h-4 shrink-0 rounded-full border-2 border-gray-300" aria-hidden />
-                            )}
+                            );
+                            })()}
                             {t('briefDialog.sectionTargetAudience', 'Concept')}
                           </span>
                         </AccordionTrigger>
                         <AccordionContent
-                          primitiveClassName="data-[state=open]:!h-full"
-                          className="flex-1 min-h-0 overflow-hidden flex flex-col pb-4 pt-0 min-h-[280px] h-full"
+                          primitiveClassName={conceptExpanded ? 'flex min-h-0 flex-1 flex-col overflow-hidden !h-auto data-[state=open]:!animate-none' : 'data-[state=open]:!h-full'}
+                          className={`flex-1 min-h-0 overflow-hidden flex flex-col pt-0 ${conceptExpanded ? 'h-full pb-0' : 'min-h-[280px] h-full pb-4'}`}
                         >
-                          <div className="min-h-[260px] flex-1 flex flex-col overflow-hidden h-full">
+                          {conceptExpanded ? (
+                            <div className="mb-2 flex shrink-0">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1 text-xs"
+                                onClick={() => setExpandedSection(null)}
+                              >
+                                <ArrowLeft className="h-3.5 w-3.5" />
+                                {t('briefDialog.workArea.back', 'Back')}
+                              </Button>
+                            </div>
+                          ) : null}
+                          <div className={`flex-1 flex flex-col overflow-hidden ${conceptExpanded ? 'min-h-0 h-full' : 'min-h-[260px] h-full'}`}>
+                            {parseBriefConcept(targetAudienceText) ? (
+                              <BriefConceptEditor
+                                planId={socialMediaPlanId}
+                                planTitle={contentPlans?.find((plan) => plan.id === socialMediaPlanId)?.title ?? ""}
+                                briefText={briefText}
+                                captionText={captionText}
+                                contentTypeName={contentTypeName}
+                                document={parseBriefConcept(targetAudienceText) ?? { locations: [], characters: [], properties: [] }}
+                                onChange={(next) => setTargetAudienceText(serializeBriefConcept(next))}
+                              />
+                            ) : (
                             <Textarea
                               value={targetAudienceText}
                               onChange={(e) => setTargetAudienceText(e.target.value)}
                               placeholder={t('briefDialog.placeholderTargetAudience', 'Target audience description (free-form)...')}
                               className="w-full h-full min-h-[240px] resize-none border-gray-200 text-sm"
                             />
+                            )}
                           </div>
                         </AccordionContent>
                       </AccordionItem>
+                      {!workAreaExpanded ? (
+                      <div className="contents">
                       <AccordionItem value="caption" className="border border-gray-200 rounded-lg px-4 bg-white flex flex-col data-[state=open]:flex-1 data-[state=open]:min-h-0">
                         <AccordionTrigger className="text-sm font-medium text-gray-800 hover:no-underline py-3 flex-shrink-0">
                           <span className="flex items-center gap-2">
@@ -1016,6 +1180,8 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                           </div>
                         </AccordionContent>
                       </AccordionItem>
+                      </div>
+                      ) : null}
                     </Accordion>
                   </div>
                 )}
@@ -1024,7 +1190,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 bg-gray-50">
+          <div className={`px-6 py-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0 bg-gray-50 ${workAreaExpanded ? 'hidden' : ''}`}>
             {/* Left side - Action buttons */}
             <div className="flex gap-2">
               {socialMediaPlanId && showApprovalButtons && (

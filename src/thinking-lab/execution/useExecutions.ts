@@ -1,7 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
-import { listLabExecutions, saveLabExecution } from "@/thinking-lab/execution/repository";
-import type { ExecutionPillar, ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
+import {
+  deleteLabExecution,
+  listLabExecutions,
+  saveLabExecution,
+  updateLabExecutionScript,
+  type LabExecution,
+} from "@/thinking-lab/execution/repository";
+import type { VoiceOverScript } from "@/thinking-lab/execution/script";
+import type { ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
 
 export function useLabExecutions(ideaId: string | null) {
   const { organizationId } = useCurrentOrg();
@@ -14,11 +21,34 @@ export function useLabExecutions(ideaId: string | null) {
     refetchOnWindowFocus: false,
   });
   const save = useMutation({
-    mutationFn: (input: { ideaId: string; pillar: ExecutionPillar; statement: string; facts: ExecutionSemanticFacts }) =>
-      saveLabExecution({ organizationId: organizationId as string, ...input }),
+    mutationFn: (input: {
+      ideaId: string;
+      pillar: string;
+      contentPillarId?: string | null;
+      pillarName: string;
+      statement: string;
+      script?: VoiceOverScript | null;
+      facts: ExecutionSemanticFacts;
+    }) => saveLabExecution({ organizationId: organizationId as string, ...input }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["thinking-lab-executions", organizationId, ideaId] });
     },
   });
-  return { ...query, organizationId, save };
+  const patchScript = useMutation({
+    mutationFn: (input: { id: string; script: VoiceOverScript }) =>
+      updateLabExecutionScript(organizationId as string, input.id, input.script),
+    onSuccess: (saved) => {
+      queryClient.setQueryData<LabExecution[] | undefined>(
+        ["thinking-lab-executions", organizationId, ideaId],
+        (current) => (current ?? []).map((row) => (row.id === saved.id ? saved : row)),
+      );
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteLabExecution(organizationId as string, id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-executions", organizationId, ideaId] });
+    },
+  });
+  return { ...query, organizationId, save, patchScript, remove };
 }

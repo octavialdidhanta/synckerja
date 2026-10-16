@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { MasterThoughtMapTree, settleCurves, type MasterMapChild } from "@/thinking-lab/section/MasterThoughtMapTree";
+import { MasterThoughtMapTree, panToCenter, settleCurves, type MasterMapChild } from "@/thinking-lab/section/MasterThoughtMapTree";
 import type { LabMasterThought, MasterThoughtFacts } from "@/thinking-lab/master-thought/types";
 
 vi.mock("@/shared/i18n/useAppTranslation", () => ({
@@ -135,6 +135,134 @@ describe("MasterThoughtMapTree pills", () => {
     fireEvent.click(screen.getByRole("button", { name: /Motor kebanggaan kini nganggur/ }));
     expect(screen.getByRole("button", { name: /Buka Terpal/ }).querySelector("[aria-label='Recommended to start']")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Foto Dulu/ }).querySelector("[aria-label='Recommended to start']")).toBeNull();
+  });
+
+  it("shows an Idea as a short summary and keeps the full sentence on hover", () => {
+    const statement =
+      "Kita menunjukkan seorang mantan profesional yang pensiun dini dan kini menghabiskan waktunya untuk menulis buku-buku inspiratif atau menciptakan karya seni yang mendidik.";
+    renderMap(
+      [
+        {
+          id: "bt1",
+          code: "BT01",
+          label: "Keinginan",
+          statement: "Alasan",
+          childCount: 1,
+          territories: [
+            {
+              id: "t1",
+              code: "TR01",
+              statement: "Pensiun dini",
+              childCount: 1,
+              angles: [
+                {
+                  id: "a1",
+                  code: "AN01",
+                  statement: "Waktu kerja bunga",
+                  childCount: 1,
+                  ideas: [
+                    { id: "i1", code: "ID04", statement },
+                    { id: "i2", code: "ID01", statement: "Buka Terpal" },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      { thoughtId: "bt1", territoryId: "t1", angleId: "a1" },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Keinginan/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Pensiun dini/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Waktu kerja bunga/ }));
+    const idea = screen.getByRole("button", { name: "Mantan profesional menulis buku-buku inspiratif" });
+    const short = screen.getByRole("button", { name: "Buka Terpal" });
+    expect(idea.getAttribute("title")).toBe(statement);
+    expect(idea.className).toContain("w-full");
+    expect(short.className).toContain("w-full");
+    expect(idea.parentElement?.parentElement?.parentElement).toBe(short.parentElement?.parentElement?.parentElement);
+    expect(screen.queryByRole("button", { name: statement })).toBeNull();
+    expect(screen.getByRole("button", { name: /Keinginan/ }).textContent).toContain("BT01");
+    expect(screen.getByRole("button", { name: /Pensiun dini/ }).textContent).toContain("TR01");
+    expect(screen.getByRole("button", { name: /Waktu kerja bunga/ }).textContent).toContain("AN01");
+    expect(idea.textContent).toContain("ID04");
+    expect(short.textContent).toContain("ID01");
+    expect(screen.getByRole("button", { name: /Pensiun dini/ }).textContent).toContain("Territory");
+    expect(screen.getByRole("button", { name: /Waktu kerja bunga/ }).textContent).toContain("Angle");
+    expect(idea.textContent).toContain("Idea");
+    expect(short.textContent).toContain("Idea");
+    expect(screen.getAllByText("Master Thought").some((node) => node.closest("button"))).toBe(true);
+  });
+
+  it("stretches Big Thought, Territory, and Angle nodes to the longest sibling", () => {
+    renderMap(
+      [
+        {
+          id: "bt1",
+          code: "BT01",
+          label: "Bunga",
+          statement: "Alasan pendek",
+          childCount: 2,
+          territories: [
+            {
+              id: "t1",
+              code: "TR01",
+              statement: "Pensiun",
+              childCount: 2,
+              angles: [
+                {
+                  id: "a1",
+                  code: "AN01",
+                  statement: "Waktu singkat",
+                  childCount: 0,
+                },
+                {
+                  id: "a2",
+                  code: "AN02",
+                  statement: "Kebebasan finansial yang datang dari menabung sejak muda",
+                  childCount: 0,
+                },
+              ],
+            },
+            {
+              id: "t2",
+              code: "TR02",
+              statement: "Pensiun dini bersama komunitas",
+              childCount: 0,
+            },
+          ],
+        },
+        {
+          id: "bt2",
+          code: "BT02",
+          label: "Bunga majemuk jangka panjang",
+          statement: "Alasan yang lebih panjang dari label",
+          childCount: 0,
+        },
+      ],
+      { thoughtId: "bt1", territoryId: "t1" },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Bunga" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pensiun" }));
+    const thought = screen.getByRole("button", { name: "Bunga" });
+    const thoughtSibling = screen.getByRole("button", { name: "Bunga majemuk jangka panjang" });
+    const territory = screen.getByRole("button", { name: "Pensiun" });
+    const territorySibling = screen.getByRole("button", { name: "Pensiun dini bersama komunitas" });
+    const angle = screen.getByRole("button", { name: "Waktu singkat" });
+    const angleSibling = screen.getByRole("button", { name: "Kebebasan finansial yang datang" });
+    for (const node of [thought, thoughtSibling, territory, territorySibling, angle, angleSibling]) {
+      expect(node.className).toContain("w-full");
+    }
+    expect(thought.parentElement?.parentElement?.parentElement).toBe(
+      thoughtSibling.parentElement?.parentElement?.parentElement,
+    );
+    expect(territory.parentElement?.parentElement?.parentElement).toBe(
+      territorySibling.parentElement?.parentElement?.parentElement,
+    );
+    expect(angle.parentElement?.parentElement?.parentElement).toBe(
+      angleSibling.parentElement?.parentElement?.parentElement,
+    );
+    expect(thoughtSibling.getAttribute("title")).toBe("Alasan yang lebih panjang dari label");
   });
 
   it("shows a node's details on the first click, then hides and opens its children", () => {
@@ -298,9 +426,25 @@ describe("MasterThoughtMapTree pills", () => {
     );
     expect(container.querySelectorAll("svg path")).toHaveLength(2);
     spy.mockImplementation(() => box(0, 0, 0, 0));
-    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    const viewport = container.querySelector("[data-map-canvas]")?.parentElement;
+    if (viewport) fireEvent.wheel(viewport, { deltaY: -100, clientX: 10, clientY: 10 });
     expect(container.querySelectorAll("svg path")).toHaveLength(2);
     spy.mockRestore();
+  });
+
+  it("pans a clicked node to the viewport center", () => {
+    expect(
+      panToCenter({
+        viewport: { left: 0, top: 0, width: 800, height: 400 },
+        node: { left: 600, top: 40, width: 120, height: 40 },
+      }),
+    ).toEqual({ x: -260, y: 140 });
+    expect(
+      panToCenter({
+        viewport: { left: 10, top: 20, width: 200, height: 100 },
+        node: { left: 90, top: 50, width: 40, height: 40 },
+      }),
+    ).toBeNull();
   });
 
   it("offers Generate Territory only beside the selected empty Big Thought", () => {
@@ -345,6 +489,7 @@ describe("MasterThoughtMapTree pills", () => {
     );
     const generate = screen.getAllByRole("button", { name: "Generate Territory" });
     expect(generate).toHaveLength(1);
+    expect(generate[0].closest("[data-map-node='bt:bt1']")).toBeTruthy();
     fireEvent.click(generate[0]);
     expect(onGenerateTerritory).toHaveBeenCalledWith("bt1");
     expect(onSelectChild).not.toHaveBeenCalled();

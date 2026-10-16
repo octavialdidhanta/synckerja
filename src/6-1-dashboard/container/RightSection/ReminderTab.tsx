@@ -150,7 +150,7 @@ const ReminderTab: React.FC<ReminderTabProps> = ({ selectedMonth, serviceFilter 
 
   const tabListRef = useRef<HTMLDivElement>(null);
   const reminderTabTriggerClass =
-    'inline-flex h-full min-h-0 w-auto min-w-[8.5rem] shrink-0 items-center justify-center whitespace-nowrap rounded-none px-4 text-xs text-muted-foreground transition-colors hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none';
+    'inline-flex h-full min-h-0 min-w-[8.5rem] flex-1 basis-0 items-center justify-center whitespace-nowrap rounded-none px-4 text-xs text-muted-foreground transition-colors hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none';
 
   const scrollTabIntoView = (value: string) => {
     requestAnimationFrame(() => {

@@ -31,12 +31,12 @@ describe("lock decision", () => {
     expect(evaluateLock({ ...ready(), auditPassCount: 2 }).ok).toBe(false);
   });
 
-  it("refuses stale, unresolved, sibling, failure, and challenger gates", () => {
+  it("refuses stale, unresolved, sibling, and failure gates", () => {
     expect(evaluateLock({ ...ready(), anyStale: true })).toMatchObject({ reason: "STALE" });
     expect(evaluateLock({ ...ready(), anyUnresolved: true })).toMatchObject({ reason: "UNRESOLVED" });
     expect(evaluateLock({ ...ready(), siblingCurrent: false })).toMatchObject({ reason: "SIBLING" });
     expect(evaluateLock({ ...ready(), anyFail: true })).toMatchObject({ reason: "AUDIT_FAIL" });
-    expect(evaluateLock({ ...ready(), challenger: null })).toMatchObject({ reason: "CHALLENGER" });
+    expect(evaluateLock({ ...ready(), challenger: null }).ok).toBe(true);
   });
 
   it("allows lock when every gate is current", () => {
@@ -69,9 +69,9 @@ describe("stage action priority", () => {
     expect(selectStageAction({ ...base, generateValidCount: 2, activeCount: 2, auditPassCount: 2 })).toBe("generate");
     expect(selectStageAction({ ...base, generateValidCount: 0, activeCount: 0, auditPassCount: 0 })).toBe("generate");
     expect(selectStageAction({ ...base, missingWhy: true, activeCount: 3 })).toBe("generate");
-    expect(selectStageAction({ ...base, missingWhy: true, activeCount: 6, auditPassCount: 6 })).toBe("challenger");
+    expect(selectStageAction({ ...base, missingWhy: true, activeCount: 6, auditPassCount: 6, lockOk: true })).toBe("lock");
     expect(selectStageAction({ ...base, auditPassCount: 2 })).toBe("audit");
-    expect(selectStageAction(base)).toBe("challenger");
-    expect(selectStageAction({ ...base, challengerComplete: true, lockOk: true })).toBe("lock");
+    expect(selectStageAction(base)).toBeNull();
+    expect(selectStageAction({ ...base, challengerComplete: false, lockOk: true })).toBe("lock");
   });
 });

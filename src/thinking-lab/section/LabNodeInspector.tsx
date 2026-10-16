@@ -1,5 +1,12 @@
-import { Loader2, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronRight, Loader2, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
@@ -51,6 +58,9 @@ type LabNodeInspectorProps = {
   ideas?: Array<{ id: string; code: string; statement: string; editable?: boolean; verdict?: string | null }>;
   ideaStage?: "fix" | "audit" | "downtop" | "lock" | null;
   onIdeaStage?: () => void;
+  onLockIdeas?: () => void;
+  onFixIdea?: (code: string) => void;
+  fixingIdeaCodes?: readonly string[];
   ideaNotes?: string[];
   ideaFixOffers?: Array<{ failedCode: string; statement: string }>;
   onPickIdeaFixOffer?: (failedCode: string, statement: string) => void;
@@ -58,12 +68,16 @@ type LabNodeInspectorProps = {
   angleStage?: "fix" | "generate" | "audit" | "challenger" | "lock" | null;
   onAngleStage?: () => void;
   onLockAngles?: () => void;
+  onFixAngle?: (code: string) => void;
+  fixingAngleCodes?: readonly string[];
   angleNotes?: string[];
   angleFixOffers?: Array<{ failedCode: string; statement: string }>;
   onPickAngleFixOffer?: (failedCode: string, statement: string) => void;
   territories?: InspectorTerritory[];
   territoryStage?: "fix" | "generate" | "audit" | "challenger" | "lock" | null;
   onTerritoryStage?: () => void;
+  onLockTerritories?: () => void;
+  onGenerateTerritory?: () => void;
   onAcceptGap?: () => void;
   onSkipGap?: () => void;
   onRemoveCoveringTerritory?: (code: string) => void;
@@ -85,8 +99,9 @@ type LabNodeInspectorProps = {
   onEditIdea?: (id: string, statement: string) => Promise<string | null>;
   executionReady?: boolean;
   executions?: Array<{ id: string; pillar: string; label: string; statement: string; admission: string }>;
-  pillars?: Array<{ id: string; label: string }>;
-  onGenerateExecution?: (pillar: string) => void;
+  onChoosePillar?: () => void;
+  executionProgress?: { phase: "write" | "audit" | "repair"; pillarName: string } | null;
+  onStopExecution?: () => void;
 };
 
 const NODE_DEFINITIONS = {
@@ -275,8 +290,47 @@ function TerritoryAuditNotes({
   );
 }
 
+function ideaNotesForCode(notes: string[], code: string): string[] {
+  const token = code.trim().toUpperCase();
+  return notes.flatMap((note) => {
+    const pair = note.match(/^([A-Za-z0-9]+)\s·\s([A-Za-z0-9]+):\s*([\s\S]+)$/);
+    if (pair) {
+      const left = pair[1].toUpperCase();
+      const right = pair[2].toUpperCase();
+      if (left !== token && right !== token) return [];
+      const other = left === token ? pair[2] : pair[1];
+      return [`${other}: ${pair[3]}`];
+    }
+    const single = note.match(/^([A-Za-z0-9]+):\s*([\s\S]+)$/);
+    if (single && single[1].toUpperCase() === token) return [single[2]];
+    return [];
+  });
+}
+
+function uncodedNotes(notes: string[]): string[] {
+  return notes.filter((note) => !/^([A-Za-z0-9]+)(\s·\s[A-Za-z0-9]+)?:/.test(note));
+}
+
+function angleNotesLeftOutside(notes: string[], angles: Array<{ code: string; verdict?: string | null }>): string[] {
+  const failCodes = angles.filter((angle) => angle.verdict === "AUDIT_FAIL").map((angle) => angle.code);
+  const kept = failCodes.length > 0 ? notes.filter((note) => !uncodedNotes([note]).includes(note)) : notes;
+  return ideaNotesWithoutCard(kept, failCodes);
+}
+
+function ideaNotesWithoutCard(notes: string[], codes: string[]): string[] {
+  const known = new Set(codes.map((code) => code.trim().toUpperCase()));
+  return notes.filter((note) => {
+    const pair = note.match(/^([A-Za-z0-9]+)\s·\s([A-Za-z0-9]+):/);
+    if (pair) return !known.has(pair[1].toUpperCase()) && !known.has(pair[2].toUpperCase());
+    const single = note.match(/^([A-Za-z0-9]+):/);
+    if (single) return !known.has(single[1].toUpperCase());
+    return true;
+  });
+}
+
 export function LabNodeInspector({
   kind,
+  code,
   title,
   statement,
   onUnlock,
@@ -291,6 +345,9 @@ export function LabNodeInspector({
   ideas,
   ideaStage = null,
   onIdeaStage,
+  onLockIdeas,
+  onFixIdea,
+  fixingIdeaCodes,
   ideaNotes,
   ideaFixOffers,
   onPickIdeaFixOffer,
@@ -298,12 +355,16 @@ export function LabNodeInspector({
   angleStage = null,
   onAngleStage,
   onLockAngles,
+  onFixAngle,
+  fixingAngleCodes,
   angleNotes,
   angleFixOffers,
   onPickAngleFixOffer,
   territories,
   territoryStage,
   onTerritoryStage,
+  onLockTerritories,
+  onGenerateTerritory,
   onAcceptGap,
   onSkipGap,
   onRemoveCoveringTerritory,
@@ -325,8 +386,9 @@ export function LabNodeInspector({
   onEditIdea,
   executionReady = false,
   executions,
-  pillars,
-  onGenerateExecution,
+  onChoosePillar,
+  executionProgress = null,
+  onStopExecution,
 }: LabNodeInspectorProps) {
   const { t } = useAppTranslation();
   const childGenerateRunning =
@@ -335,6 +397,55 @@ export function LabNodeInspector({
     pendingAction === "generate-angle" ||
     pendingAction === "generate-idea";
   const manualRunning = pendingAction?.startsWith("manual-") ?? false;
+  const [territoryEditToken, setTerritoryEditToken] = useState<Record<string, number>>({});
+  const [angleEditToken, setAngleEditToken] = useState<Record<string, number>>({});
+  const [ideaEditToken, setIdeaEditToken] = useState<Record<string, number>>({});
+  const [openIdeaNotes, setOpenIdeaNotes] = useState<Record<string, boolean>>({});
+  const [openAngleNotes, setOpenAngleNotes] = useState<Record<string, boolean>>({});
+  const [showWriteIdea, setShowWriteIdea] = useState(false);
+  const [statementEditToken, setStatementEditToken] = useState(0);
+  useEffect(() => {
+    setShowWriteIdea(false);
+    setStatementEditToken(0);
+  }, [angleId, territoryId, kind]);
+  const showWriteIdeaAction = Boolean(kind === "angle" && manualAdd && !childGenerateRunning);
+  const showGenerateIdeaAction = Boolean(kind === "angle" && ideaReady && onGenerateIdea && angleId && !manualRunning);
+  const showIdeaStageAction = Boolean(
+    kind === "angle" && ideaStage && ideaStage !== "lock" && onIdeaStage && !(ideaStage === "fix" && onFixIdea),
+  );
+  const ideaActionLabel =
+    ideaStage === "audit"
+      ? t("thinkingLab.action.audit", "Audit")
+      : ideaStage === "downtop"
+        ? t("thinkingLab.idea.downTop", "Down-top")
+        : ideaStage === "fix"
+          ? t("thinkingLab.action.fix", "Fix")
+          : t("thinkingLab.action.lock", "Lock");
+  const showAngleMenu = showWriteIdeaAction || showGenerateIdeaAction || Boolean(kind === "angle" && onLockIdeas);
+  const showTerritoryStageAction = Boolean(
+    kind === "bigThought" &&
+      (territories?.length ?? 0) > 0 &&
+      territoryStage &&
+      territoryStage !== "lock" &&
+      onTerritoryStage &&
+      !(territoryStage === "generate" && manualRunning),
+  );
+  const showEmptyTerritoryGenerate = Boolean(
+    kind === "bigThought" && (territories?.length ?? 0) === 0 && onGenerateTerritory,
+  );
+  const territoryActionLabel =
+    territoryStage === "audit"
+      ? t("thinkingLab.action.audit", "Audit")
+      : territoryStage === "challenger"
+        ? t("thinkingLab.action.challenger", "Challenger")
+        : territoryStage === "fix"
+          ? t("thinkingLab.action.fix", "Fix")
+          : territoryStage === "generate"
+            ? t("thinkingLab.territory.generate", "Generate Territory")
+            : t("thinkingLab.action.lock", "Lock");
+  const showThoughtMenu = Boolean(
+    kind === "bigThought" && (showTerritoryStageAction || showEmptyTerritoryGenerate || onLockTerritories || onDelete),
+  );
   const label =
     kind === "master"
       ? t("thinkingLab.tree.masterThought", "Master Thought")
@@ -356,6 +467,7 @@ export function LabNodeInspector({
       pendingAction !== "audit" &&
       !(angleStage === "audit" && pendingAction !== "generate-angle"),
   );
+  const showTerritoryMenu = Boolean(kind === "territory" && (showTerritoryGenerate || onEditStatement || onDelete));
   const pathBlock =
     pathUp && pathUp.length > 0 ? (
       <div className="space-y-1">
@@ -377,7 +489,7 @@ export function LabNodeInspector({
         <header className="min-w-0 flex-1 space-y-3">
           <p className="flex items-center gap-2 text-sm font-semibold text-[#1e4a86]">
             <span className="h-3.5 w-3.5 shrink-0 rounded-[4px] bg-[#1e4a86]" aria-hidden />
-            <span>{label}</span>
+            <span>{code?.trim() ? `${label} - ${code.trim()}` : label}</span>
             <NodeDefinitionInfo kind={kind} />
           </p>
           {onEditStatement && !title && kind !== "territory" ? (
@@ -387,21 +499,180 @@ export function LabNodeInspector({
           )}
           {kind !== "territory" && detail ? <p className="text-[15px] leading-relaxed text-slate-600">{detail}</p> : null}
           {onEditStatement && title ? (
-            <EditableStatement statement={statement} enabled pending={Boolean(pendingAction)} onSave={onEditStatement} />
+            <EditableStatement
+              buttonOnly={Boolean(detail)}
+              statement={statement}
+              enabled
+              pending={Boolean(pendingAction)}
+              onSave={onEditStatement}
+            />
           ) : null}
           {kind === "master" && subjectNotice ? <p className="text-sm text-muted-foreground">{subjectNotice}</p> : null}
         </header>
-        {kind === "bigThought" && onDelete ? (
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
-            aria-label={t("thinkingLab.action.deleteBigThought", "Delete Big Thought")}
-            onClick={onDelete}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+        {showThoughtMenu ? (
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 shrink-0"
+                aria-label={t("thinkingLab.action.more", "More actions")}
+                aria-busy={
+                  pendingAction === "generate-territory" ||
+                  (Boolean(pendingAction) && pendingAction === territoryStage)
+                    ? true
+                    : undefined
+                }
+              >
+                {pendingAction === "generate-territory" ||
+                (Boolean(pendingAction) && pendingAction === territoryStage) ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <MoreVertical className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[11rem]">
+              {showEmptyTerritoryGenerate ? (
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  disabled={Boolean(pendingAction)}
+                  aria-busy={pendingAction === "generate-territory"}
+                  onSelect={() => onGenerateTerritory?.()}
+                >
+                  {t("thinkingLab.territory.generate", "Generate Territory")}
+                </DropdownMenuItem>
+              ) : null}
+              {showTerritoryStageAction ? (
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  disabled={Boolean(pendingAction)}
+                  aria-busy={pendingAction === territoryStage || pendingAction === "generate-territory"}
+                  onSelect={() => onTerritoryStage?.()}
+                >
+                  {territoryActionLabel}
+                </DropdownMenuItem>
+              ) : null}
+              {onLockTerritories ? (
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  disabled={Boolean(pendingAction)}
+                  aria-busy={pendingAction === "lock"}
+                  onSelect={() => onLockTerritories()}
+                >
+                  {t("thinkingLab.action.lock", "Lock")}
+                </DropdownMenuItem>
+              ) : null}
+              {onDelete ? (
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                  disabled={Boolean(pendingAction)}
+                  onSelect={() => onDelete()}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {t("thinkingLab.action.delete", "Delete")}
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : showAngleMenu ? (
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 shrink-0"
+                aria-label={t("thinkingLab.action.more", "More actions")}
+                aria-busy={pendingAction === "generate-idea" ? true : undefined}
+              >
+                {pendingAction === "generate-idea" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <MoreVertical className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[11rem]">
+              {showWriteIdeaAction && manualAdd ? (
+                <DropdownMenuItem className="cursor-pointer" onSelect={() => setShowWriteIdea(true)}>
+                  {manualAdd.label}
+                </DropdownMenuItem>
+              ) : null}
+              {showGenerateIdeaAction && onGenerateIdea && angleId ? (
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  disabled={Boolean(pendingAction)}
+                  aria-busy={pendingAction === "generate-idea"}
+                  onSelect={() => onGenerateIdea(angleId)}
+                >
+                  {t("thinkingLab.idea.generate", "Generate Idea")}
+                </DropdownMenuItem>
+              ) : null}
+              {onLockIdeas ? (
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  disabled={Boolean(pendingAction)}
+                  aria-busy={pendingAction === "lock"}
+                  onSelect={() => onLockIdeas()}
+                >
+                  {t("thinkingLab.action.lock", "Lock")}
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : showTerritoryMenu ? (
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 shrink-0"
+                aria-label={t("thinkingLab.action.more", "More actions")}
+                aria-busy={pendingAction === "generate-angle" ? true : undefined}
+              >
+                {pendingAction === "generate-angle" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <MoreVertical className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[11rem]">
+              {showTerritoryGenerate && onGenerateAngle && territoryId ? (
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  disabled={Boolean(pendingAction)}
+                  aria-busy={pendingAction === "generate-angle"}
+                  onSelect={() => onGenerateAngle(territoryId)}
+                >
+                  {t("thinkingLab.angle.generate", "Buat ulang Angle")}
+                </DropdownMenuItem>
+              ) : null}
+              {onEditStatement ? (
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2"
+                  disabled={Boolean(pendingAction)}
+                  onSelect={() => setStatementEditToken((current) => current + 1)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  {t("thinkingLab.manual.edit", "Edit")}
+                </DropdownMenuItem>
+              ) : null}
+              {onDelete ? (
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                  disabled={Boolean(pendingAction)}
+                  onSelect={() => onDelete()}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {t("thinkingLab.action.delete", "Hapus")}
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : null}
       </div>
       {kind === "territory" && (territoryArea?.body || territoryPass?.body) ? (
@@ -418,43 +689,15 @@ export function LabNodeInspector({
           ) : null}
         </div>
       ) : null}
-      {kind === "territory" && (showTerritoryGenerate || onEditStatement || onDelete) ? (
-        <div className="flex flex-wrap items-center gap-2">
-          {showTerritoryGenerate && onGenerateAngle && territoryId ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onGenerateAngle(territoryId)}
-              disabled={Boolean(pendingAction)}
-              aria-busy={pendingAction === "generate-angle"}
-            >
-              {pendingAction === "generate-angle" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-              {t("thinkingLab.angle.generate", "Buat ulang Angle")}
-            </Button>
-          ) : null}
-          {onEditStatement ? (
-            <EditableStatement
-              buttonOnly
-              statement={statement}
-              enabled
-              pending={Boolean(pendingAction)}
-              onSave={onEditStatement}
-            />
-          ) : null}
-          {onDelete ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="text-destructive hover:text-destructive"
-              aria-label={t("thinkingLab.action.deleteTerritory", "Delete Territory")}
-              onClick={onDelete}
-            >
-              {t("thinkingLab.action.delete", "Hapus")}
-            </Button>
-          ) : null}
-        </div>
+      {kind === "territory" && onEditStatement && statementEditToken > 0 ? (
+        <EditableStatement
+          statement={statement}
+          enabled
+          showButton={false}
+          editToken={statementEditToken}
+          pending={Boolean(pendingAction)}
+          onSave={onEditStatement}
+        />
       ) : null}
       {kind === "territory" ? null : pathBlock}
       {onUnlock ? (
@@ -463,83 +706,174 @@ export function LabNodeInspector({
           {t("thinkingLab.action.unlock", "Unlock")}
         </Button>
       ) : null}
-      {kind === "idea" && executionReady && pillars && onGenerateExecution ? (
-        <div className="space-y-2">
-          <p className="text-sm font-medium">{t("thinkingLab.execution.pillars", "Pillar")}</p>
-          <p className="text-xs text-muted-foreground">
-            {t(
-              "thinkingLab.execution.flashSale",
-              "Flash Sale Hook is valid only when the Master Thought is actually selling something.",
-            )}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {pillars.map((pillar) => (
-              <Button
-                key={pillar.id}
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={Boolean(pendingAction)}
-                onClick={() => onGenerateExecution(pillar.id)}
-              >
-                {pendingAction === `execution-${pillar.id}` ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                {pillar.label}
+      {kind === "idea" && executionReady && onChoosePillar ? (
+        <div className="space-y-3 rounded-lg border border-border bg-muted/40 px-3 py-3">
+          {executionProgress ? (
+            <>
+              <p className="flex items-center gap-2 text-sm text-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                {executionProgress.phase === "write"
+                  ? t("thinkingLab.execution.writing", "Writing the voice-over script for {{pillar}}...", {
+                      pillar: executionProgress.pillarName,
+                    })
+                  : executionProgress.phase === "repair"
+                    ? t("thinkingLab.execution.repairing", "Repairing only the failing lines...")
+                    : t("thinkingLab.execution.auditing", "Tracing the script path up to the Master Thought...")}
+              </p>
+              {onStopExecution ? (
+                <Button type="button" size="sm" variant="outline" onClick={onStopExecution}>
+                  {t("thinkingLab.execution.stop", "Stop")}
+                </Button>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium">{t("thinkingLab.execution.next", "Next step")}</p>
+              <p className="text-sm leading-relaxed text-foreground">
+                {(executions?.length ?? 0) > 0
+                  ? t(
+                      "thinkingLab.execution.addMore",
+                      "This Idea already has an Execution. Add another pillar when you need one.",
+                    )
+                  : t("thinkingLab.execution.pickFirst", "Choose a content pillar to write the Script VO.")}
+              </p>
+              <Button type="button" size="sm" onClick={onChoosePillar} disabled={Boolean(pendingAction)}>
+                {(executions?.length ?? 0) > 0
+                  ? t("thinkingLab.execution.addPillar", "Add pillar")
+                  : t("thinkingLab.execution.choosePillar", "Choose pillar")}
               </Button>
-            ))}
-          </div>
-          {executions && executions.length > 0 ? (
-            <ul className="space-y-2 pt-1">
-              {executions.map((row) => (
-                <li key={row.id} className="text-sm text-foreground">
-                  <p className="font-medium">
-                    {row.label}
-                    <span className="ml-2 text-xs text-muted-foreground">{row.admission}</span>
-                  </p>
-                  <p className="mt-1 leading-relaxed">{row.statement}</p>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+            </>
+          )}
         </div>
       ) : null}
-      {kind === "angle" && manualAdd && !childGenerateRunning ? (
+      {kind === "angle" && showWriteIdea && manualAdd && !childGenerateRunning ? (
         <ManualStatementForm
           label={manualAdd.label}
           submitLabel={t("thinkingLab.manual.save", "Save")}
           pending={manualRunning}
-          onSubmit={manualAdd.onSubmit}
+          onSubmit={async (statement) => {
+            const reason = await manualAdd.onSubmit(statement);
+            if (!reason) setShowWriteIdea(false);
+            return reason;
+          }}
         />
-      ) : null}
-      {kind === "angle" && ideaReady && onGenerateIdea && angleId && !manualRunning ? (
-        <Button
-          type="button"
-          variant="outline"
-          className="h-10 w-full"
-          onClick={() => onGenerateIdea(angleId)}
-          disabled={Boolean(pendingAction)}
-          aria-busy={pendingAction === "generate-idea"}
-        >
-          {pendingAction === "generate-idea" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-          {t("thinkingLab.idea.generate", "Generate Idea")}
-        </Button>
       ) : null}
       {kind === "angle" && ideas && ideas.length > 0 ? (
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("thinkingLab.idea.list", "Ideas")}</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("thinkingLab.idea.list", "Ideas")}</p>
+            {showIdeaStageAction ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={onIdeaStage}
+                disabled={Boolean(pendingAction)}
+                aria-busy={pendingAction === ideaStage}
+              >
+                {pendingAction === ideaStage ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                {ideaActionLabel}
+              </Button>
+            ) : null}
+          </div>
           <ul className="space-y-2">
-            {ideas.map((idea) => (
+            {ideas.map((idea) => {
+              const ideaFixing =
+                (fixingIdeaCodes ?? []).some((code) => code.toUpperCase() === idea.code.toUpperCase()) ||
+                pendingAction === `fix-idea:${idea.code}`;
+              const otherWorkRunning = Boolean(pendingAction) && !pendingAction.startsWith("fix-idea:");
+              const ideaNeedsFix = idea.verdict?.includes("FAIL") || idea.verdict === "UNRESOLVED";
+              const showIdeaMenu = Boolean(idea.editable && onEditIdea) || (ideaNeedsFix && Boolean(onFixIdea));
+              return (
               <li key={idea.id} className="rounded-lg border border-border bg-background px-3 py-2">
                 <div className="mb-1 flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold tracking-wide text-muted-foreground">{idea.code}</span>
                   {idea.verdict ? <VerdictChip verdict={idea.verdict} /> : null}
+                  {showIdeaMenu ? (
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="ml-auto h-6 w-6 shrink-0 text-muted-foreground"
+                          aria-label={`${t("thinkingLab.action.more", "More actions")} ${idea.code}`}
+                          aria-busy={ideaFixing || undefined}
+                          disabled={ideaFixing || otherWorkRunning}
+                        >
+                          {ideaFixing ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                          ) : (
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-[11rem]">
+                        {idea.editable && onEditIdea ? (
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2"
+                            disabled={ideaFixing || otherWorkRunning}
+                            onSelect={() =>
+                              setIdeaEditToken((current) => ({
+                                ...current,
+                                [idea.id]: (current[idea.id] ?? 0) + 1,
+                              }))
+                            }
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            {t("thinkingLab.manual.edit", "Edit")}
+                          </DropdownMenuItem>
+                        ) : null}
+                        {ideaNeedsFix && onFixIdea ? (
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            disabled={ideaFixing || otherWorkRunning}
+                            aria-busy={ideaFixing}
+                            onSelect={() => onFixIdea(idea.code)}
+                          >
+                            {t("thinkingLab.action.fix", "Fix")}
+                          </DropdownMenuItem>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
                 </div>
                 <EditableStatement
                   compact
+                  showButton={false}
+                  editToken={ideaEditToken[idea.id] ?? 0}
                   statement={idea.statement}
                   enabled={Boolean(idea.editable && onEditIdea)}
                   pending={Boolean(pendingAction)}
                   onSave={(next) => onEditIdea?.(idea.id, next) ?? Promise.resolve(null)}
                 />
+                {ideaNotesForCode(ideaNotes ?? [], idea.code).length > 0 ? (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground"
+                      aria-expanded={Boolean(openIdeaNotes[idea.id])}
+                      aria-label={`${t("thinkingLab.idea.note", "Note")} ${idea.code}`}
+                      onClick={() =>
+                        setOpenIdeaNotes((current) => ({ ...current, [idea.id]: !current[idea.id] }))
+                      }
+                    >
+                      <ChevronRight
+                        className={cn("h-3.5 w-3.5 transition-transform", openIdeaNotes[idea.id] && "rotate-90")}
+                        aria-hidden
+                      />
+                      {t("thinkingLab.idea.note", "Note")}
+                    </button>
+                    {openIdeaNotes[idea.id] ? (
+                      <div className="mt-1 space-y-1 pl-5">
+                        {ideaNotesForCode(ideaNotes ?? [], idea.code).map((note) => (
+                          <p key={note} className="text-sm leading-relaxed text-muted-foreground">
+                            {note}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {onPickIdeaFixOffer
                   ? (ideaFixOffers ?? [])
                       .filter((offer) => offer.failedCode.toUpperCase() === idea.code.toUpperCase())
@@ -565,35 +899,17 @@ export function LabNodeInspector({
                       ))
                   : null}
               </li>
-            ))}
+              );
+            })}
           </ul>
-          {ideaNotes && ideaNotes.length > 0 ? (
+          {ideaNotesWithoutCard(ideaNotes ?? [], (ideas ?? []).map((idea) => idea.code)).length > 0 ? (
             <ul className="space-y-1 pt-2">
-              {ideaNotes.map((note) => (
+              {ideaNotesWithoutCard(ideaNotes ?? [], (ideas ?? []).map((idea) => idea.code)).map((note) => (
                 <li key={note} className="text-sm text-muted-foreground">
                   {note}
                 </li>
               ))}
             </ul>
-          ) : null}
-          {ideaStage && onIdeaStage ? (
-            <Button
-              type="button"
-              size="sm"
-              className="mt-3"
-              onClick={onIdeaStage}
-              disabled={Boolean(pendingAction)}
-              aria-busy={pendingAction === ideaStage}
-            >
-              {pendingAction === ideaStage ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-              {ideaStage === "audit"
-                ? t("thinkingLab.action.audit", "Audit")
-                : ideaStage === "downtop"
-                  ? t("thinkingLab.idea.downTop", "Down-top")
-                  : ideaStage === "fix"
-                    ? t("thinkingLab.action.fix", "Fix")
-                    : t("thinkingLab.action.lock", "Lock")}
-            </Button>
           ) : null}
         </div>
       ) : null}
@@ -601,19 +917,117 @@ export function LabNodeInspector({
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("thinkingLab.angle.list", "Angles")}</p>
           <ul className="space-y-2">
-            {angles.map((angle) => (
+            {angles.map((angle) => {
+              const angleFixing =
+                (fixingAngleCodes ?? []).some((code) => code.toUpperCase() === angle.code.toUpperCase()) ||
+                pendingAction === `fix-angle:${angle.code}`;
+              const otherWorkRunning = Boolean(pendingAction) && !pendingAction.startsWith("fix-angle:");
+              const showAngleMenu =
+                Boolean(angle.editable && onEditAngle) ||
+                (angle.verdict === "AUDIT_FAIL" && Boolean(onFixAngle)) ||
+                (angle.verdict === "AUDIT_PASS" && Boolean(onGenerateIdea));
+              return (
               <li key={angle.id} className="rounded-lg border border-border bg-background px-3 py-2">
                 <div className="mb-1 flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold tracking-wide text-muted-foreground">{angle.code}</span>
                   {angle.verdict ? <VerdictChip verdict={angle.verdict} /> : null}
+                  {showAngleMenu ? (
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="ml-auto h-6 w-6 shrink-0 text-muted-foreground"
+                          aria-label={`${t("thinkingLab.action.more", "More actions")} ${angle.code}`}
+                          aria-busy={angleFixing || undefined}
+                          disabled={angleFixing || otherWorkRunning}
+                        >
+                          {angleFixing ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                          ) : (
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-[11rem]">
+                        {angle.editable && onEditAngle ? (
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2"
+                            disabled={angleFixing || otherWorkRunning}
+                            onSelect={() =>
+                              setAngleEditToken((current) => ({
+                                ...current,
+                                [angle.id]: (current[angle.id] ?? 0) + 1,
+                              }))
+                            }
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            {t("thinkingLab.manual.edit", "Edit")}
+                          </DropdownMenuItem>
+                        ) : null}
+                        {angle.verdict === "AUDIT_FAIL" && onFixAngle ? (
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            disabled={angleFixing || otherWorkRunning}
+                            aria-busy={angleFixing}
+                            onSelect={() => onFixAngle(angle.code)}
+                          >
+                            {t("thinkingLab.action.fix", "Fix")}
+                          </DropdownMenuItem>
+                        ) : null}
+                        {angle.verdict === "AUDIT_PASS" && onGenerateIdea ? (
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            disabled={Boolean(pendingAction)}
+                            aria-busy={pendingAction === "generate-idea"}
+                            onSelect={() => onGenerateIdea(angle.id)}
+                          >
+                            {t("thinkingLab.idea.generate", "Generate Idea")}
+                          </DropdownMenuItem>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
                 </div>
                 <EditableStatement
                   compact
+                  showButton={false}
+                  editToken={angleEditToken[angle.id] ?? 0}
                   statement={angle.statement}
                   enabled={Boolean(angle.editable && onEditAngle)}
                   pending={Boolean(pendingAction)}
                   onSave={(next) => onEditAngle?.(angle.id, next) ?? Promise.resolve(null)}
                 />
+                {angle.verdict === "AUDIT_FAIL" &&
+                [...ideaNotesForCode(angleNotes ?? [], angle.code), ...uncodedNotes(angleNotes ?? [])].length > 0 ? (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground"
+                      aria-expanded={Boolean(openAngleNotes[angle.id])}
+                      aria-label={`${t("thinkingLab.angle.note", "Note")} ${angle.code}`}
+                      onClick={() =>
+                        setOpenAngleNotes((current) => ({ ...current, [angle.id]: !current[angle.id] }))
+                      }
+                    >
+                      <ChevronRight
+                        className={cn("h-3.5 w-3.5 transition-transform", openAngleNotes[angle.id] && "rotate-90")}
+                        aria-hidden
+                      />
+                      {t("thinkingLab.angle.note", "Note")}
+                    </button>
+                    {openAngleNotes[angle.id] ? (
+                      <div className="mt-1 space-y-1 pl-5">
+                        {[...ideaNotesForCode(angleNotes ?? [], angle.code), ...uncodedNotes(angleNotes ?? [])].map((note) => (
+                          <p key={note} className="text-sm leading-relaxed text-muted-foreground">
+                            {note}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {onPickAngleFixOffer
                   ? (angleFixOffers ?? [])
                       .filter((offer) => offer.failedCode.toUpperCase() === angle.code.toUpperCase())
@@ -639,11 +1053,12 @@ export function LabNodeInspector({
                       ))
                   : null}
               </li>
-            ))}
+              );
+            })}
           </ul>
-          {angleNotes && angleNotes.length > 0 ? (
+          {angleNotesLeftOutside(angleNotes ?? [], angles ?? []).length > 0 ? (
             <ul className="space-y-1 pt-2">
-              {angleNotes.map((note) => (
+              {angleNotesLeftOutside(angleNotes ?? [], angles ?? []).map((note) => (
                 <li key={note} className="text-sm text-muted-foreground">
                   {note}
                 </li>
@@ -653,13 +1068,15 @@ export function LabNodeInspector({
           {(angleStage &&
             onAngleStage &&
             pendingAction !== "generate-angle" &&
-            !(angleStage === "generate" && manualRunning)) ||
+            !(angleStage === "generate" && manualRunning) &&
+            !(angleStage === "fix" && onFixAngle)) ||
           (onLockAngles && angleStage !== "lock" && angleStage !== "challenger") ? (
             <div className="mt-3 flex flex-wrap items-center gap-3">
               {angleStage &&
               onAngleStage &&
               pendingAction !== "generate-angle" &&
-              !(angleStage === "generate" && manualRunning) ? (
+              !(angleStage === "generate" && manualRunning) &&
+              !(angleStage === "fix" && onFixAngle) ? (
                 <Button
                   type="button"
                   size="sm"
@@ -725,9 +1142,55 @@ export function LabNodeInspector({
                 <div className="mb-1 flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold tracking-wide text-muted-foreground">{territory.code}</span>
                   {territory.verdict ? <VerdictChip verdict={territory.verdict} /> : null}
+                  {Boolean(territory.editable && onEditTerritory) ||
+                  (territory.verdict === "AUDIT_PASS" && onGenerateAngle) ? (
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="ml-auto h-6 w-6 shrink-0 text-muted-foreground"
+                          aria-label={`${t("thinkingLab.action.more", "More actions")} ${territory.code}`}
+                          disabled={Boolean(pendingAction)}
+                        >
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-[11rem]">
+                        {territory.editable && onEditTerritory ? (
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2"
+                            disabled={Boolean(pendingAction)}
+                            onSelect={() =>
+                              setTerritoryEditToken((current) => ({
+                                ...current,
+                                [territory.id]: (current[territory.id] ?? 0) + 1,
+                              }))
+                            }
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            {t("thinkingLab.manual.edit", "Edit")}
+                          </DropdownMenuItem>
+                        ) : null}
+                        {territory.verdict === "AUDIT_PASS" && onGenerateAngle ? (
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            disabled={Boolean(pendingAction)}
+                            aria-busy={pendingAction === "generate-angle"}
+                            onSelect={() => onGenerateAngle(territory.id)}
+                          >
+                            {t("thinkingLab.angle.generateBranch", "Generate Angle")}
+                          </DropdownMenuItem>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
                 </div>
                 <EditableStatement
                   compact
+                  showButton={false}
+                  editToken={territoryEditToken[territory.id] ?? 0}
                   statement={territory.statement}
                   enabled={Boolean(territory.editable && onEditTerritory)}
                   pending={Boolean(pendingAction)}
@@ -770,30 +1233,6 @@ export function LabNodeInspector({
               }
               onRemoveCoveringTerritory={onRemoveCoveringTerritory}
             />
-          ) : null}
-          {territoryStage &&
-          onTerritoryStage &&
-          pendingAction !== "generate-territory" &&
-          !(territoryStage === "generate" && manualRunning) ? (
-            <Button
-              type="button"
-              size="sm"
-              className="mt-3"
-              onClick={onTerritoryStage}
-              disabled={Boolean(pendingAction)}
-              aria-busy={pendingAction === territoryStage}
-            >
-              {pendingAction === territoryStage ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-              {territoryStage === "audit"
-                ? t("thinkingLab.action.audit", "Audit")
-                : territoryStage === "challenger"
-                  ? t("thinkingLab.action.challenger", "Challenger")
-                  : territoryStage === "fix"
-                    ? t("thinkingLab.action.fix", "Fix")
-                    : territoryStage === "generate"
-                      ? t("thinkingLab.territory.generate", "Generate Territory")
-                      : t("thinkingLab.action.lock", "Lock")}
-            </Button>
           ) : null}
           {onAcceptGap || onSkipGap ? (
             <div className="mt-3 flex flex-wrap items-center gap-3">

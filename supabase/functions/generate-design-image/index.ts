@@ -146,6 +146,7 @@ Deno.serve(async (req: Request) => {
       body.referenceImageMimeType != null && String(body.referenceImageMimeType).trim() !== ""
         ? String(body.referenceImageMimeType).trim()
         : "image/jpeg";
+    const identitySheet = body.identitySheet === true && referenceImageBase64 !== "";
     const characterReferencesRaw = body.characterReferences;
     const characterReferences: { imageBase64: string; mimeType: string }[] = [];
     if (Array.isArray(characterReferencesRaw) && characterReferencesRaw.length > 0) {
@@ -691,6 +692,25 @@ Deno.serve(async (req: Request) => {
     });
     parts.unshift({ text: outputFormatFirstPart });
 
+    if (identitySheet) {
+      parts.length = 0;
+      parts.push({
+        text:
+          "IDENTITY LOCK. The next image is a photograph of one real person. That photograph is the only human allowed in the output. Copy their face, hair, skin tone, age, and clothing exactly. Do not cast a different model. Do not change the shirt, haircut, or face. Stay photographic. Do not draw a cartoon, illustration, or 3D character.\n",
+      });
+      parts.push({
+        inlineData: {
+          mimeType: referenceImageMimeType,
+          data: referenceImageBase64,
+        },
+      });
+      parts.push({
+        text:
+          prompt +
+          "\n\nOUTPUT: one landscape 16:9 sheet. Every person in every panel is the photographed person above, in the same clothes. White background may reach the edges.",
+      });
+    }
+
     // Enforce aspect ratio via API when supported (gemini-2.5-flash-image, gemini-3.x image models use generationConfig.imageConfig.aspectRatio).
     const geminiAspectRatioValue =
       aspectRatio === "custom" && customSize
@@ -701,7 +721,9 @@ Deno.serve(async (req: Request) => {
     };
 
     // Try fallback first to avoid 503 from primary when under high demand.
-    const modelsToTry = [IMAGE_MODEL_FALLBACK, IMAGE_MODEL_PRIMARY];
+    const modelsToTry = identitySheet
+      ? [IMAGE_MODEL_PRIMARY, IMAGE_MODEL_FALLBACK]
+      : [IMAGE_MODEL_FALLBACK, IMAGE_MODEL_PRIMARY];
     let lastErrorMsg = "Image generation failed";
     let geminiRes: Response | null = null;
 
@@ -716,6 +738,17 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({
           contents: [{ parts }],
           generationConfig: configToUse,
+          ...(identitySheet
+            ? {
+                systemInstruction: {
+                  parts: [
+                    {
+                      text: "You photograph one real person. The attached photo is that person. Never replace them with a different face, age, or outfit. Never draw a cartoon.",
+                    },
+                  ],
+                },
+              }
+            : {}),
         }),
       });
       if (geminiRes.ok) break;
@@ -745,6 +778,17 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({
             contents: [{ parts }],
             generationConfig: configToUse,
+            ...(identitySheet
+              ? {
+                  systemInstruction: {
+                    parts: [
+                      {
+                        text: "You photograph one real person. The attached photo is that person. Never replace them with a different face, age, or outfit. Never draw a cartoon.",
+                      },
+                    ],
+                  },
+                }
+              : {}),
           }),
         });
         if (geminiRes.ok) break;

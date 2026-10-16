@@ -162,10 +162,10 @@ function SidebarSkeleton() {
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[5px] border border-gray-200 bg-white shadow-sm">
         <div className="scrollbar-hide flex h-9 w-full shrink-0 flex-nowrap gap-0 overflow-x-auto overflow-y-hidden rounded-t-[5px] bg-muted p-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <Skeleton className="h-9 w-[8.5rem] shrink-0 rounded-none rounded-tl-[4px]" />
-          <Skeleton className="h-9 w-[8.5rem] shrink-0 rounded-none" />
-          <Skeleton className="h-9 w-[8.5rem] shrink-0 rounded-none" />
-          <Skeleton className="h-9 w-[8.5rem] shrink-0 rounded-none rounded-tr-[4px]" />
+          <Skeleton className="h-9 min-w-[8.5rem] flex-1 rounded-none rounded-tl-[4px]" />
+          <Skeleton className="h-9 min-w-[8.5rem] flex-1 rounded-none" />
+          <Skeleton className="h-9 min-w-[8.5rem] flex-1 rounded-none" />
+          <Skeleton className="h-9 min-w-[8.5rem] flex-1 rounded-none rounded-tr-[4px]" />
         </div>
         <div className="scrollbar-hide min-h-0 flex-1 space-y-3 overflow-y-auto p-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Skeleton className="h-4 w-36 rounded-md" />

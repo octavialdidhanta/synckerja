@@ -207,8 +207,10 @@ export function ideaSetIsCurrent(stored: IdeaSetFacts | null, fingerprint: strin
 export function buildIdeaSiblingPrompt(input: {
   parentStatement: string;
   rows: Array<{ code: string; statement: string }>;
+  sealed?: Array<{ code: string; statement: string }>;
 }): string {
   const lines = input.rows.map((row) => `${row.code}: ${row.statement}`).join("\n");
+  const sealed = (input.sealed ?? []).filter((row) => row.statement.trim());
   return [
     "You are the canonical sibling judge for one Idea set under a direct Angle.",
     "Each Idea was already admitted. Do not reclassify whether an individual Idea is valid.",
@@ -239,6 +241,13 @@ export function buildIdeaSiblingPrompt(input: {
     "",
     "Admitted Ideas:",
     lines,
+    ...(sealed.length > 0
+      ? [
+          "",
+          "Locked Ideas already sealed. An admitted Idea that creates the same situation as a locked Idea is a material overlap. Pair the admitted code with the locked code. Do not pair two locked Ideas.",
+          sealed.map((row) => `${row.code}: ${row.statement}`).join("\n"),
+        ]
+      : []),
   ].join("\n");
 }
 

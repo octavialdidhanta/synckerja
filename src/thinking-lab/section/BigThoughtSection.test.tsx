@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { BigThoughtSection, type BigThoughtRowView } from "@/thinking-lab/section/BigThoughtSection";
 
@@ -43,6 +43,7 @@ describe("BigThoughtSection territory entry", () => {
       />,
     );
     expect(screen.getByText("BT01 — Karakter Bahan")).toBeTruthy();
+    expect(screen.queryByText("GENERATE_VALID")).toBeNull();
     expect(screen.getByText(/Key Belief:/)).toBeTruthy();
     expect(screen.getByText(/Bahan yang berbeda punya karakter alami yang berbeda/)).toBeTruthy();
   });
@@ -126,5 +127,48 @@ describe("BigThoughtSection territory entry", () => {
     expect(second?.textContent).toContain("AN09");
     expect(second?.textContent).not.toContain("AN01");
     expect(screen.queryByRole("button", { name: "Generate Idea" })).toBeNull();
+  });
+
+  it("shows a spinner below while Big Thoughts are generating", () => {
+    render(
+      <BigThoughtSection
+        rows={[]}
+        missingWhy={null}
+        notice={null}
+        auditProgress={null}
+        fixResponses={[]}
+        generating
+      />,
+    );
+    expect(screen.getByRole("status").textContent).toContain("Generating Big Thoughts");
+    expect(screen.queryByText("No Big Thoughts yet.")).toBeNull();
+  });
+
+  it("puts Fix in each failed card menu and leaves the other card clickable", () => {
+    const onFixBigThought = vi.fn();
+    render(
+      <BigThoughtSection
+        rows={[
+          row({ id: "a", code: "BT03", label: "Bunga Majemuk", audit: "AUDIT_FAIL" }),
+          row({ id: "b", code: "BT04", label: "Potensi Pertumbuhan", audit: "AUDIT_FAIL" }),
+          row({ id: "c", code: "BT05", label: "Beban Finansial", audit: "AUDIT_PASS" }),
+        ]}
+        missingWhy={null}
+        notice={null}
+        auditProgress={null}
+        fixResponses={[]}
+        onDeleteBigThought={vi.fn()}
+        onFixBigThought={onFixBigThought}
+        fixingCodes={["BT03"]}
+      />,
+    );
+    const menus = screen.getAllByRole("button", { name: "More actions" });
+    expect(menus[0]?.getAttribute("aria-busy")).toBe("true");
+    expect(menus[1]?.getAttribute("aria-busy")).not.toBe("true");
+    fireEvent.keyDown(menus[2], { key: "Enter" });
+    expect(screen.queryByRole("menuitem", { name: "Fix" })).toBeNull();
+    fireEvent.keyDown(menus[1], { key: "Enter" });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    expect(onFixBigThought).toHaveBeenCalledWith("BT04");
   });
 });

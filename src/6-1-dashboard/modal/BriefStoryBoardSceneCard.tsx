@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
-import { Loader2, MoreVertical, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { MoreVertical, Plus, Trash2, X } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
-import { toast } from 'sonner';
 import { BriefStoryboardImageCell } from './BriefStoryboardImageCell';
+import { BriefSceneGenerateButton } from './BriefSceneGenerateButton';
 import type { BriefStoryboardImageWithUrl } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
-import { generateBriefSceneImageFile } from '@/6-1-dashboard/lib/generateBriefSceneImage';
+import type { StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -110,6 +110,7 @@ export interface BriefStoryBoardSceneCardProps {
   isUploading?: boolean;
   isDeleting?: boolean;
   planId?: string;
+  film?: StoryboardFilmContext;
   characterIds?: string[];
   onCharacterIdsChange?: (rowIndex: number, characterIds: string[]) => void;
   onUpdateCell: (rowIndex: number, cellIdx: number, value: string) => void;
@@ -137,6 +138,7 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
   isUploading = false,
   isDeleting = false,
   planId,
+  film,
   characterIds = [],
   onCharacterIdsChange,
   onUpdateCell,
@@ -156,14 +158,6 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
   const [addSelectKey, setAddSelectKey] = useState(0);
   const { data: characters = [] } = useDigitalAssetCharactersListQuery();
   const { data: poseCount = 0 } = useDigitalAssetCharacterPoseCountQuery(characterIds);
-
-  const characterNamesById = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const c of characters) {
-      map[c.id] = c.name || c.id.slice(0, 8);
-    }
-    return map;
-  }, [characters]);
 
   const selectedCharacters = useMemo(
     () =>
@@ -197,53 +191,6 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
       characterIds.filter((cid) => cid !== id),
     );
   };
-
-  const handleGenerate = async () => {
-    if (!onUploadImages || !planId || isGenerating) return;
-    setIsGenerating(true);
-    try {
-      const result = await generateBriefSceneImageFile({
-        characterIds,
-        characterNamesById,
-        headers,
-        row,
-        imageColumnIndex,
-        t,
-      });
-      if (result.truncated) {
-        toast.message(
-          t(
-            'briefDialog.layout.poseRefsTruncated',
-            'Sent {{included}} of {{total}} pose photos (payload limit).',
-            { included: result.included, total: result.totalAvailable },
-          ),
-        );
-      }
-      await onUploadImages(rowIndex, [result.file]);
-      toast.success(t('briefDialog.layout.generateSuccess', 'Scene image generated.'));
-    } catch (err) {
-      console.error(err);
-      const msg =
-        err instanceof Error
-          ? err.message
-          : t('briefDialog.layout.generateFailed', 'Image generation failed.');
-      toast.error(msg);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const hasSceneText = textColumns.some(({ colIdx }) =>
-    String(row[colIdx] ?? '').trim(),
-  );
-
-  const canGenerate =
-    Boolean(isEditing && planId && onUploadImages) &&
-    hasSceneText &&
-    !mediaBusy &&
-    !isUploading &&
-    !isDeleting &&
-    !isGenerating;
 
   return (
     <article
@@ -333,25 +280,20 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
           uploadButtonLabel={t('briefDialog.layout.upload', 'Upload')}
         />
 
-        {isEditing && planId && onUploadImages ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 w-full gap-1.5 border-gray-300 text-xs"
-            disabled={!canGenerate}
-            onClick={() => void handleGenerate()}
-          >
-            {isGenerating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="h-3.5 w-3.5" />
-            )}
-            {isGenerating
-              ? t('briefDialog.layout.generating', 'Generating…')
-              : t('briefDialog.layout.generateImage', 'Generate image')}
-          </Button>
-        ) : null}
+        <BriefSceneGenerateButton
+          rowIndex={rowIndex}
+          headers={headers}
+          row={row}
+          imageColumnIndex={imageColumnIndex}
+          planId={planId}
+          film={film}
+          characterIds={characterIds}
+          onUploadImages={onUploadImages}
+          mediaBusy={mediaBusy}
+          isUploading={isUploading}
+          isDeleting={isDeleting}
+          onGeneratingChange={setIsGenerating}
+        />
 
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-1.5">
           {textColumns.map(({ header, colIdx }) => {

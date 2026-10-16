@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/shared/components/ui/button';
-import { Pencil, Check, X, MoreVertical, Trash2, Plus, Columns3 } from 'lucide-react';
+import { Pencil, Check, X, MoreVertical, Trash2, Plus, Columns3, ArrowLeft } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 import { toast } from 'sonner';
 import { BriefStoryboardImageCell } from './BriefStoryboardImageCell';
+import { BriefSceneGenerateButton } from './BriefSceneGenerateButton';
 import { BriefStoryBoardView, useHideOnScrollDown } from './BriefStoryBoardView';
 import { BriefSequenceHeader } from './BriefSequenceHeader';
 import {
@@ -25,6 +26,7 @@ import {
 import {
   adjustSceneMetaForDeleteRow,
   adjustSceneMetaForInsertRow,
+  getSceneCharacterIds,
   parseBriefSceneMetaFromMarkdown,
   setSceneCharacterIds,
   type BriefSceneMeta,
@@ -51,6 +53,7 @@ import {
   TooltipTrigger,
 } from '@/shared/components/ui/tooltip';
 import { findBriefImageColumnIndex } from './briefStoryboardConstants';
+import type { StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
 
 /** Fixed storyboard column widths (px). */
 const BRIEF_COLUMN_WIDTH_PX = {
@@ -157,6 +160,10 @@ interface EditableBriefTableProps {
   /** Notified when inline edit mode toggles (e.g. disable dialog footer actions) */
   onEditingChange?: (isEditing: boolean) => void;
   planId?: string;
+  film?: StoryboardFilmContext;
+  /** Brief dialog focus mode: the table fills the dialog without comments, header, or footer. */
+  workAreaExpanded?: boolean;
+  onToggleWorkArea?: () => void;
   imageColumnIndex?: number;
   rowImagesMap?: Record<number, BriefStoryboardImageWithUrl[]>;
   onUploadImages?: (rowIndex: number, files: File[]) => Promise<unknown>;
@@ -167,6 +174,71 @@ interface EditableBriefTableProps {
   uploadingRowIndex?: number | null;
   deletingImageId?: string | null;
   className?: string;
+}
+
+function StoryLineVisualCell({
+  rowIndex,
+  headers,
+  row,
+  imageColumnIndex,
+  images,
+  editable,
+  disabled,
+  isUploading,
+  isDeleting,
+  planId,
+  film,
+  characterIds,
+  mediaBusy,
+  onUploadImages,
+  onDeleteImage,
+}: {
+  rowIndex: number;
+  headers: string[];
+  row: string[];
+  imageColumnIndex: number;
+  images: BriefStoryboardImageWithUrl[];
+  editable: boolean;
+  disabled: boolean;
+  isUploading: boolean;
+  isDeleting: boolean;
+  planId?: string;
+  film?: StoryboardFilmContext;
+  characterIds: string[];
+  mediaBusy: boolean;
+  onUploadImages?: (rowIndex: number, files: File[]) => Promise<unknown>;
+  onDeleteImage?: (imageId: string) => Promise<unknown>;
+}) {
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <BriefStoryboardImageCell
+        rowIndex={rowIndex}
+        images={images}
+        editable={editable}
+        disabled={disabled || isGenerating}
+        isUploading={isUploading || isGenerating}
+        isDeleting={isDeleting}
+        onUploadFiles={onUploadImages}
+        onDeleteImage={onDeleteImage}
+      />
+      <BriefSceneGenerateButton
+        rowIndex={rowIndex}
+        headers={headers}
+        row={row}
+        imageColumnIndex={imageColumnIndex}
+        planId={planId}
+        film={film}
+        characterIds={characterIds}
+        onUploadImages={onUploadImages}
+        mediaBusy={mediaBusy}
+        isUploading={isUploading}
+        isDeleting={isDeleting}
+        onGeneratingChange={setIsGenerating}
+      />
+    </div>
+  );
 }
 
 export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
@@ -181,6 +253,9 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   sequencesSource,
   onEditingChange,
   planId,
+  film,
+  workAreaExpanded = false,
+  onToggleWorkArea,
   imageColumnIndex: imageColumnIndexProp,
   rowImagesMap = {},
   onUploadImages,
@@ -621,6 +696,21 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       </Button>
     );
 
+    const workAreaButton = onToggleWorkArea && workAreaExpanded ? (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={cn(toolbarBtnClass, 'gap-1')}
+        onClick={onToggleWorkArea}
+        title={t('briefDialog.workArea.back', 'Back')}
+        aria-label={t('briefDialog.workArea.back', 'Back')}
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        {t('briefDialog.workArea.back', 'Back')}
+      </Button>
+    ) : null;
+
     return (
       <div
         className={cn(
@@ -846,9 +936,19 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
               </DropdownMenu>
             );
           })()}
-          {isMobile2Col ? editActions : null}
+          {isMobile2Col ? (
+            <>
+              {editActions}
+              {workAreaButton}
+            </>
+          ) : null}
         </div>
-        {isMobile2Col ? null : <div className="flex items-center gap-1">{editActions}</div>}
+        {isMobile2Col ? null : (
+          <div className="flex items-center gap-1">
+            {editActions}
+            {workAreaButton}
+          </div>
+        )}
       </div>
     );
   };
@@ -1045,14 +1145,21 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
         {displayRow.map((cell, cellIdx) => (
           <td key={cellIdx} className={briefTableCellClass}>
             {cellIdx === imageColumnIndex ? (
-              <BriefStoryboardImageCell
+              <StoryLineVisualCell
                 rowIndex={rowIdx}
+                headers={headerRow}
+                row={displayRow}
+                imageColumnIndex={imageColumnIndex}
                 images={rowImages}
                 editable={Boolean((isEditing || alwaysEditable) && planId && !readOnly)}
                 disabled={!planId || isStructureBusy || isRowUploading || isRowDeleting}
                 isUploading={isRowUploading}
                 isDeleting={isRowDeleting}
-                onUploadFiles={onUploadImages}
+                planId={planId}
+                film={film}
+                characterIds={getSceneCharacterIds(sceneMeta, rowIdx)}
+                mediaBusy={isStructureBusy}
+                onUploadImages={onUploadImages}
                 onDeleteImage={onDeleteImage}
               />
             ) : (isEditing || alwaysEditable) ? (
@@ -1180,7 +1287,11 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
               )
             : cn(
                 'overflow-x-auto overflow-y-auto nested-scroll-touch-chain my-1 rounded-lg border-2 border-gray-300',
-                storyboardToolbar ? 'max-h-[calc(100dvh-16rem)]' : 'max-h-[min(720px,78vh)]',
+                storyboardToolbar
+                  ? workAreaExpanded
+                    ? 'max-h-none min-h-0 flex-1'
+                    : 'max-h-[calc(100dvh-16rem)]'
+                  : 'max-h-[min(720px,78vh)]',
               ),
           useStoryBoardLayout && !isMobile2Col && 'flex min-h-0 flex-col overflow-hidden',
         )}
@@ -1197,6 +1308,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             isEditing={isEditing || alwaysEditable}
             showRowActions={Boolean(showRowActionsColumn && onSave)}
             planId={planId}
+            film={film}
             density={density}
             mediaBusy={mediaBusy}
             uploadingRowIndex={uploadingRowIndex}

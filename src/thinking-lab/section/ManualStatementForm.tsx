@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Pencil } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -81,6 +81,8 @@ type EditableStatementProps = {
   pending?: boolean;
   compact?: boolean;
   buttonOnly?: boolean;
+  showButton?: boolean;
+  editToken?: number;
   onSave: (statement: string) => Promise<string | null>;
 };
 
@@ -91,10 +93,15 @@ export function EditableStatement({
   pending = false,
   compact = false,
   buttonOnly = false,
+  showButton = true,
+  editToken = 0,
   onSave,
 }: EditableStatementProps) {
   const { t } = useAppTranslation();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(editToken > 0);
+  useEffect(() => {
+    if (editToken > 0) setEditing(true);
+  }, [editToken]);
   const body = (
     <p className="text-sm leading-snug text-foreground">
       {lead ? <span className="font-medium">{lead} </span> : null}
@@ -114,20 +121,23 @@ export function EditableStatement({
       return (
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">{body}</div>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6 shrink-0 text-muted-foreground"
-            aria-label={t("thinkingLab.manual.edit", "Edit")}
-            onClick={() => setEditing(true)}
-            disabled={pending}
-          >
-            <Pencil className="h-3 w-3" />
-          </Button>
+          {showButton ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6 shrink-0 text-muted-foreground"
+              aria-label={t("thinkingLab.manual.edit", "Edit")}
+              onClick={() => setEditing(true)}
+              disabled={pending}
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          ) : null}
         </div>
       );
     }
+    if (!showButton) return body;
     return (
       <div className="space-y-2">
         {body}

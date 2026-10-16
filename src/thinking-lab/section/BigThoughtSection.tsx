@@ -1,6 +1,13 @@
-import { Loader2, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Loader2, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { becauseSentence } from "@/thinking-lab/big-thought/because";
 import { bigThoughtHeading } from "@/thinking-lab/big-thought/label";
@@ -184,9 +191,12 @@ type BigThoughtSectionProps = {
   fixOffers?: Array<{ failedCode: string; statement: string }>;
   onPickFixOffer?: (failedCode: string, statement: string) => void;
   generateBusy?: boolean;
+  generating?: boolean;
   onGenerateTerritory?: (bigThoughtId: string) => void;
   onEditBigThought?: (id: string, statement: string) => Promise<string | null>;
   onDeleteBigThought?: (bigThoughtId: string) => void;
+  onFixBigThought?: (code: string) => void;
+  fixingCodes?: readonly string[];
 };
 
 export function BigThoughtSection({
@@ -199,12 +209,16 @@ export function BigThoughtSection({
   fixOffers = [],
   onPickFixOffer,
   generateBusy = false,
+  generating = false,
   onGenerateTerritory,
   onEditBigThought,
   onDeleteBigThought,
+  onFixBigThought,
+  fixingCodes,
 }: BigThoughtSectionProps) {
   const { t } = useAppTranslation();
   const showProgress = Boolean(auditProgress && (auditProgress.done > 0 || auditProgress.current));
+  const [editToken, setEditToken] = useState<Record<string, number>>({});
 
   return (
     <div className="space-y-3">
@@ -240,11 +254,24 @@ export function BigThoughtSection({
           </p>
         </div>
       ) : null}
+      {generating ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status" aria-live="polite">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          <span>{t("thinkingLab.bt.generating", "Generating Big Thoughts…")}</span>
+        </div>
+      ) : null}
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("thinkingLab.bt.empty", "No Big Thoughts yet.")}</p>
+        generating ? null : (
+          <p className="text-sm text-muted-foreground">{t("thinkingLab.bt.empty", "No Big Thoughts yet.")}</p>
+        )
       ) : (
         <ul className="space-y-2">
-          {rows.map((row) => (
+          {rows.map((row) => {
+            const canEdit = row.status === "candidate" && Boolean(onEditBigThought);
+            const canDelete = Boolean(onDeleteBigThought);
+            const canFix = row.audit === "AUDIT_FAIL" && Boolean(onFixBigThought);
+            const fixing = (fixingCodes ?? []).some((code) => code.toUpperCase() === row.code.toUpperCase());
+            return (
             <li key={row.id} className="rounded-md border border-border p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
@@ -253,7 +280,7 @@ export function BigThoughtSection({
                       <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" aria-hidden />
                     ) : null}
                     <span className="text-sm font-medium">{bigThoughtHeading(row.code, row.label ?? "")}</span>
-                    <Badge variant="secondary">{row.admission}</Badge>
+                    {row.admission !== "GENERATE_VALID" ? <Badge variant="secondary">{row.admission}</Badge> : null}
                     {row.audit ? (
                       <Badge variant={row.audit === "AUDIT_FAIL" ? "destructive" : "default"}>{row.audit}</Badge>
                     ) : null}
@@ -261,23 +288,71 @@ export function BigThoughtSection({
                   <EditableStatement
                     lead={parentStatement ? undefined : `${t("thinkingLab.bt.keyBelief", "Key Belief")}:`}
                     statement={parentStatement ? becauseSentence(parentStatement, row.statement) : row.statement}
-                    enabled={row.status === "candidate" && Boolean(onEditBigThought)}
+                    enabled={canEdit}
+                    showButton={false}
+                    editToken={editToken[row.id] ?? 0}
                     pending={generateBusy}
                     onSave={(statement) => onEditBigThought?.(row.id, statement) ?? Promise.resolve(null)}
                   />
                 </div>
-                {onDeleteBigThought ? (
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
-                    aria-label={t("thinkingLab.action.deleteBigThought", "Delete Big Thought")}
-                    disabled={generateBusy}
-                    onClick={() => onDeleteBigThought(row.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                {canEdit || canDelete || canFix ? (
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 shrink-0"
+                        disabled={generateBusy}
+                        aria-busy={fixing ? true : undefined}
+                        aria-label={t("thinkingLab.action.more", "More actions")}
+                      >
+                        {fixing ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                        ) : (
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[9rem]">
+                      {canFix ? (
+                        <DropdownMenuItem
+                          className="cursor-pointer"
+                          disabled={generateBusy || fixing}
+                          aria-busy={fixing}
+                          onSelect={() => onFixBigThought?.(row.code)}
+                        >
+                          {t("thinkingLab.action.fix", "Fix")}
+                        </DropdownMenuItem>
+                      ) : null}
+                      {canEdit ? (
+                        <DropdownMenuItem
+                          className="cursor-pointer gap-2"
+                          disabled={generateBusy}
+                          onSelect={() => {
+                            window.setTimeout(() => {
+                              setEditToken((current) => ({ ...current, [row.id]: (current[row.id] ?? 0) + 1 }));
+                            }, 0);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          {t("thinkingLab.manual.edit", "Edit")}
+                        </DropdownMenuItem>
+                      ) : null}
+                      {canDelete ? (
+                        <DropdownMenuItem
+                          className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                          disabled={generateBusy}
+                          onSelect={() => {
+                            window.setTimeout(() => onDeleteBigThought?.(row.id), 0);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          {t("thinkingLab.action.delete", "Delete")}
+                        </DropdownMenuItem>
+                      ) : null}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 ) : null}
               </div>
               {row.canGenerateTerritory && onGenerateTerritory ? (
@@ -341,7 +416,8 @@ export function BigThoughtSection({
                 : null}
               <AuditDetails row={row} />
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

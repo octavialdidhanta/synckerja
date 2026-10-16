@@ -94,6 +94,27 @@ export function parseMarkdownTable(
   };
 }
 
+export function parseAllMarkdownTables(
+  markdown: string,
+): Array<{ table: string[][]; startIndex: number; endIndex: number }> {
+  const found: Array<{ table: string[][]; startIndex: number; endIndex: number }> = [];
+  let offset = 0;
+  let rest = markdown;
+  while (rest.trim()) {
+    const parsed = parseMarkdownTable(rest);
+    if (!parsed) break;
+    found.push({
+      table: parsed.table,
+      startIndex: offset + parsed.startIndex,
+      endIndex: offset + parsed.endIndex,
+    });
+    if (parsed.endIndex >= rest.length) break;
+    offset += parsed.endIndex;
+    rest = rest.slice(parsed.endIndex);
+  }
+  return found;
+}
+
 /**
  * Convert 2D array to markdown table string.
  * Trims trailing fully-empty rows so save does not duplicate bottom rows (unless disabled).
