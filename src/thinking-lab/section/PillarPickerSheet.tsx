@@ -1,19 +1,17 @@
 import { useEffect, useState } from "react";
+import { Shield } from "lucide-react";
+import { pillarBarWidth } from "@/6-1-dashboard/lib/contentPillarTracker";
+import { useContentPillarData } from "@/6-1-dashboard/hook/useContentPillarData";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/shared/components/ui/sheet";
 import { Switch } from "@/shared/components/ui/switch";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
-import { groupContentPillars, type ContentPillarFunnel, type LabContentPillar } from "@/thinking-lab/execution/pillars";
+import { monthFunnelStats, pillarsInFunnel } from "@/thinking-lab/execution/pillarUsage";
+import type { ContentPillarFunnel, LabContentPillar } from "@/thinking-lab/execution/pillars";
 import { pillarLessSuitable, type ScriptAudio, type ScriptLook, type ScriptSpeech } from "@/thinking-lab/execution/script";
-
-const FUNNEL_LABEL: Record<ContentPillarFunnel, string> = {
-  top: "Awareness",
-  middle: "Consideration",
-  bottom: "Conversion",
-};
 
 export function PillarPickerSheet({
   open,
@@ -34,10 +32,13 @@ export function PillarPickerSheet({
     look: ScriptLook,
     speech: ScriptSpeech,
     durationSeconds: number | null,
+    brandName: string | null,
+    cta: string | null,
   ) => void;
 }) {
-  const { t } = useAppTranslation();
-  const [selected, setSelected] = useState<string[]>([]);
+  const { t, dateLocale } = useAppTranslation();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [funnel, setFunnel] = useState<ContentPillarFunnel>("top");
   const [audioOpen, setAudioOpen] = useState(false);
   const [sound, setSound] = useState(false);
   const [music, setMusic] = useState(false);
@@ -45,6 +46,21 @@ export function PillarPickerSheet({
   const [speech, setSpeech] = useState<ScriptSpeech>("vo");
   const [durationAmount, setDurationAmount] = useState("");
   const [durationUnit, setDurationUnit] = useState<"seconds" | "minutes">("seconds");
+  const [mentionBrand, setMentionBrand] = useState(false);
+  const [brandName, setBrandName] = useState("");
+  const [cta, setCta] = useState("");
+  const ctas = [
+    { id: "link_bio", label: t("thinkingLab.execution.ctaLinkBio", "Klik Link di Bio") },
+    { id: "link_below", label: t("thinkingLab.execution.ctaLinkBelow", "Klik Link di Bawah") },
+    { id: "shop_now", label: t("thinkingLab.execution.ctaShopNow", "Belanja Sekarang") },
+    { id: "order_now", label: t("thinkingLab.execution.ctaOrderNow", "Pesan Sekarang") },
+    { id: "like_comment", label: t("thinkingLab.execution.ctaLikeComment", "Like & Comment") },
+    { id: "save_post", label: t("thinkingLab.execution.ctaSavePost", "Save Postingan Ini") },
+    { id: "share_friend", label: t("thinkingLab.execution.ctaShareFriend", "Share ke Teman") },
+    { id: "follow", label: t("thinkingLab.execution.ctaFollow", "Follow Akun Ini") },
+    { id: "dm_whatsapp", label: t("thinkingLab.execution.ctaWhatsapp", "DM / Chat WhatsApp") },
+    { id: "check_location", label: t("thinkingLab.execution.ctaLocation", "Cek Lokasi") },
+  ];
   const looks: Array<{ id: ScriptLook; label: string }> = [
     { id: "ugc", label: t("thinkingLab.execution.lookUgc", "UGC") },
     { id: "commercial", label: t("thinkingLab.execution.lookCommercial", "Commercial") },
@@ -56,12 +72,23 @@ export function PillarPickerSheet({
     { id: "dialog", label: t("thinkingLab.execution.speechDialog", "Dialog") },
     { id: "silent", label: t("thinkingLab.execution.speechSilent", "Visual") },
   ];
-  const groups = groupContentPillars(pillars);
-  const chosen = pillars.filter((pillar) => selected.includes(pillar.id));
+  const usageQuery = useContentPillarData(undefined, "all");
+  const usage = usageQuery.data ?? [];
+  const usageReady = usageQuery.isSuccess;
+  const stats = monthFunnelStats(usage);
+  const visible = pillarsInFunnel(pillars, usageReady ? usage : [], funnel);
+  const chosen = pillars.filter((pillar) => pillar.id === selectedId);
+  const monthLabel = new Date().toLocaleDateString(dateLocale, { month: "short", year: "numeric" });
+  const funnelCards: Array<{ id: ContentPillarFunnel; label: string; stat: { count: number; percentage: number } }> = [
+    { id: "top", label: t("thinkingLab.execution.funnelAwareness", "Awareness"), stat: stats.top },
+    { id: "middle", label: t("thinkingLab.execution.funnelConsideration", "Consideration"), stat: stats.middle },
+    { id: "bottom", label: t("thinkingLab.execution.funnelConversion", "Conversion"), stat: stats.bottom },
+  ];
 
   useEffect(() => {
     if (!open) return;
-    setSelected([]);
+    setSelectedId(null);
+    setFunnel("top");
     setAudioOpen(false);
     setSound(false);
     setMusic(false);
@@ -69,11 +96,10 @@ export function PillarPickerSheet({
     setSpeech("vo");
     setDurationAmount("");
     setDurationUnit("seconds");
+    setMentionBrand(false);
+    setBrandName("");
+    setCta("");
   }, [open]);
-
-  const toggle = (id: string, checked: boolean) => {
-    setSelected((current) => (checked ? [...current, id] : current.filter((item) => item !== id)));
-  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -84,48 +110,108 @@ export function PillarPickerSheet({
             {t("thinkingLab.execution.chooseHint", "Every selected pillar becomes its own Execution and writes a Script VO.")}
           </SheetDescription>
         </SheetHeader>
-        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {groups.length === 0 ? (
+        {pillars.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t("thinkingLab.execution.noPillars", "This organization has no active content pillars yet.")}
+          </p>
+        ) : (
+          <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
-              {t("thinkingLab.execution.noPillars", "This organization has no active content pillars yet.")}
+              {usageReady
+                ? t("thinkingLab.execution.monthUsage", "{{month}} · {{count}} content", { month: monthLabel, count: stats.total })
+                : monthLabel}
             </p>
-          ) : (
-            groups.map((group) => (
-              <section key={group.funnel} className="space-y-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{FUNNEL_LABEL[group.funnel]}</h3>
-                <ul className="space-y-2">
-                  {group.items.map((pillar) => {
-                    const checked = selected.includes(pillar.id);
-                    const unsuitable = pillarLessSuitable(pillar.name, masterSells);
-                    return (
-                      <li key={pillar.id}>
-                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-background px-3 py-2">
-                          <Checkbox
-                            checked={checked}
-                            disabled={pending}
-                            onCheckedChange={(value) => toggle(pillar.id, value === true)}
-                            aria-label={pillar.name}
-                          />
-                          <span className="min-w-0">
-                            <span className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-medium text-foreground">{pillar.name}</span>
-                              <span className="text-xs text-muted-foreground">{FUNNEL_LABEL[pillar.funnel]}</span>
-                            </span>
-                            {pillar.category ? <span className="mt-0.5 block text-xs text-muted-foreground">{pillar.category}</span> : null}
-                            {unsuitable ? (
-                              <span className="mt-1 block text-xs text-amber-700">
-                                {t("thinkingLab.execution.lessSuitable", "Marked as a weak fit for this Idea.")}
+            <div className="grid grid-cols-3 gap-1">
+              {funnelCards.map((card) => {
+                const active = funnel === card.id;
+                const tone =
+                  card.id === "top"
+                    ? { active: "border border-green-200 bg-green-100 text-green-800", figure: "text-green-600" }
+                    : card.id === "middle"
+                      ? { active: "border border-yellow-200 bg-yellow-100 text-yellow-800", figure: "text-yellow-600" }
+                      : { active: "border border-red-200 bg-red-100 text-red-800", figure: "text-red-600" };
+                return (
+                  <button
+                    key={card.id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setFunnel(card.id)}
+                    className={cn(
+                      "flex flex-col items-center rounded-md px-1 py-2 text-xs font-medium",
+                      active ? tone.active : "bg-muted/40 text-muted-foreground",
+                    )}
+                  >
+                    <span className={cn("mb-1 text-sm font-semibold", active ? tone.figure : undefined)}>
+                      {usageReady ? `${card.stat.percentage}% (${card.stat.count})` : "—"}
+                    </span>
+                    <span className="text-center leading-tight">{card.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 space-y-2 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {pillars.length > 0 && visible.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("thinkingLab.execution.noFunnelPillars", "No pillars in this funnel.")}</p>
+          ) : null}
+          <RadioGroup
+            value={selectedId ?? ""}
+            disabled={pending}
+            className="space-y-2"
+            onValueChange={setSelectedId}
+          >
+            {visible.map((pillar) => {
+              const checked = pillar.id === selectedId;
+              const unsuitable = pillarLessSuitable(pillar.name, masterSells);
+              return (
+                <label
+                  key={pillar.id}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-lg border bg-background px-3 py-2",
+                    checked ? "border-primary" : "border-border",
+                  )}
+                >
+                    <RadioGroupItem value={pillar.id} className="mt-0.5" aria-label={pillar.name} />
+                    <span className="min-w-0 flex-1 space-y-1">
+                      <span className="block truncate text-sm font-medium text-foreground">{pillar.name}</span>
+                      <span className="flex items-end justify-between gap-2">
+                        <span className="min-w-0 flex-1 truncate text-xs leading-tight text-muted-foreground">
+                          {pillar.category ?? ""}
+                        </span>
+                        <span className="flex shrink-0 items-end gap-2 leading-none">
+                          {pillar.isDefault ? (
+                            <span className="flex items-center">
+                              <Shield className="h-3 w-3 text-blue-500" aria-hidden />
+                              <span className="ml-1 text-xs leading-tight text-blue-600">
+                                {t("thinkingLab.execution.pillarDefault", "Default")}
                               </span>
-                            ) : null}
-                          </span>
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ))
-          )}
+                            </span>
+                          ) : null}
+                          {usageReady ? <span className="text-sm font-medium text-foreground">{pillar.count}</span> : null}
+                        </span>
+                      </span>
+                      {usageReady ? (
+                        <span className="mt-1 block h-2 overflow-hidden rounded-full bg-muted">
+                          <span
+                            className={cn(
+                              "block h-full rounded-full",
+                              funnel === "top" ? "bg-green-500" : funnel === "middle" ? "bg-yellow-500" : "bg-red-500",
+                            )}
+                            style={{ width: `${pillarBarWidth(pillar.count)}%` }}
+                          />
+                        </span>
+                      ) : null}
+                      {unsuitable ? (
+                        <span className="mt-1 block text-xs text-amber-700">
+                          {t("thinkingLab.execution.lessSuitable", "Marked as a weak fit for this Idea.")}
+                        </span>
+                      ) : null}
+                    </span>
+                </label>
+              );
+            })}
+          </RadioGroup>
         </div>
         <div className="flex flex-col gap-2">
           <Button
@@ -138,6 +224,9 @@ export function PillarPickerSheet({
               setSpeech("vo");
               setDurationAmount("");
               setDurationUnit("seconds");
+              setMentionBrand(false);
+              setBrandName("");
+              setCta("");
               setAudioOpen(true);
             }}
           >
@@ -228,6 +317,52 @@ export function PillarPickerSheet({
               </div>
             </section>
             <section className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t("thinkingLab.execution.brand", "Brand")}
+                </h3>
+                <label className="flex items-center gap-2 text-sm">
+                  <span>{t("thinkingLab.execution.mentionBrand", "Mention the brand")}</span>
+                  <Switch
+                    checked={mentionBrand}
+                    disabled={pending}
+                    onCheckedChange={setMentionBrand}
+                    aria-label={t("thinkingLab.execution.mentionBrand", "Mention the brand")}
+                  />
+                </label>
+              </div>
+              {mentionBrand ? (
+                <input
+                  type="text"
+                  value={brandName}
+                  disabled={pending}
+                  placeholder={t("thinkingLab.execution.brandPlaceholder", "Your Brand")}
+                  aria-label={t("thinkingLab.execution.brandName", "Brand name")}
+                  className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onChange={(event) => setBrandName(event.target.value)}
+                />
+              ) : null}
+            </section>
+            <section className="space-y-1.5">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("thinkingLab.execution.cta", "CTA")}
+              </h3>
+              <select
+                value={cta}
+                disabled={pending}
+                aria-label={t("thinkingLab.execution.cta", "CTA")}
+                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onChange={(event) => setCta(event.target.value)}
+              >
+                <option value="">{t("thinkingLab.execution.ctaNone", "None")}</option>
+                {ctas.map((item) => (
+                  <option key={item.id} value={item.label}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </section>
+            <section className="space-y-1.5">
               <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("thinkingLab.execution.duration", "Duration")}
               </h3>
@@ -263,12 +398,20 @@ export function PillarPickerSheet({
               <Button
                 type="button"
                 size="sm"
-                disabled={pending || chosen.length === 0}
+                disabled={pending || chosen.length === 0 || (mentionBrand && !brandName.trim())}
                 onClick={() => {
                   setAudioOpen(false);
                   const amount = Number(durationAmount);
                   const durationSeconds = durationAmount && amount > 0 ? (durationUnit === "minutes" ? amount * 60 : amount) : null;
-                  onConfirm(chosen, { sound: speech === "mix" || speech === "dialog" || sound, music }, look, speech, durationSeconds);
+                  onConfirm(
+                    chosen,
+                    { sound: speech === "mix" || speech === "dialog" || sound, music },
+                    look,
+                    speech,
+                    durationSeconds,
+                    mentionBrand ? brandName.trim() : null,
+                    cta || null,
+                  );
                 }}
               >
                 {t("thinkingLab.execution.create", "Create Execution for {{count}} pillar", { count: chosen.length })}

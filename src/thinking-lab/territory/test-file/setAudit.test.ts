@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   holdPassingTerritoryVerdicts,
+  territoryCodesHeldPass,
   mergeTerritoryAuditLessons,
   normalizeTerritorySet,
   readTerritorySetRecord,
   scoreTerritoryAudit,
   territoryFailureLessons,
+  usableTerritoryFixLessons,
 } from "@/thinking-lab/territory/setAudit";
 
 const fingerprint = "set-fp";
@@ -105,6 +107,31 @@ describe("territory sibling audit", () => {
     ]);
   });
 
+  it("keeps a locked Territory passed when a new sibling overlaps it", () => {
+    const scored = scoreTerritoryAudit({
+      codes: ["TR01", "TR04"],
+      siblingSet: normalizeTerritorySet(
+        {
+          coreDistinct: false,
+          materialOverlapPairs: [{ territoryCodeA: "TR01", territoryCodeB: "TR04", explanation: "Same space" }],
+          containmentPairs: [],
+          resolution: "RESOLVED",
+          unresolvedReasons: [],
+        },
+        fingerprint,
+      ),
+      siblingSetCurrent: true,
+    });
+    const held = territoryCodesHeldPass(
+      [
+        { code: "TR01", status: "locked" },
+        { code: "TR04", status: "candidate" },
+      ],
+      [null, null],
+    );
+    expect(holdPassingTerritoryVerdicts(scored, held).map((item) => item.verdict)).toEqual(["AUDIT_PASS", "AUDIT_FAIL"]);
+  });
+
   it("keeps a failed Territory as a lesson for the next generate", () => {
     const set = normalizeTerritorySet(
       {
@@ -139,5 +166,23 @@ describe("territory sibling audit", () => {
       auditLessons: mergeTerritoryAuditLessons([], lessons),
     });
     expect(stored.auditLessons).toEqual(lessons);
+  });
+
+  it("keeps the explained failure and drops the generic note for the same name", () => {
+    const lessons = usableTerritoryFixLessons(
+      [
+        {
+          code: "TR04",
+          statement: "Kepuasan pelanggan",
+          reason: "TR03 · TR04: Kedua wilayah ini mengumpulkan masukan pelanggan.",
+        },
+        { code: "TR04", statement: "Kepuasan pelanggan", reason: "Sibling audit failed this Territory." },
+        { code: "TR04", statement: "Uji coba produk", reason: "Sibling audit failed this Territory." },
+        { code: "TR05", statement: "Penggunaan produk", reason: "TR06 covers TR05: penggunaan duduk di dalam perilaku." },
+      ],
+      "TR04",
+    );
+    expect(lessons.map((lesson) => lesson.statement)).toEqual(["Kepuasan pelanggan", "Uji coba produk"]);
+    expect(lessons[0]?.reason).toContain("TR03 · TR04");
   });
 });

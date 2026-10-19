@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MoreVertical } from "lucide-react";
+import { ClipboardCheck, Loader2, MoreVertical, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -38,26 +38,35 @@ import {
   territoryFingerprint,
   territorySetFingerprint,
 } from "@/thinking-lab/shared/fingerprint";
+import { fixAttemptCap, nextFixScope, scopeFromHistory, type FixScope } from "@/thinking-lab/shared/fixScope";
 import {
   acceptChosenBelief,
+  acceptPlantedBelief,
   assessMasterThought,
+  beliefClaim,
   beliefsMatch,
   buildMasterChoicePrompt,
+  collectBeliefOptions,
   confirmedFingerprint,
   confirmedParentReady,
   factsMatchStoredFingerprint,
   judgeMasterThought,
-  parseMasterChoices,
+  parseMasterChoiceSet,
+  type MasterChoiceSet,
   resolveConfirmation,
   understandFingerprint,
 } from "@/thinking-lab/master-thought/semantic";
 import { masterBeliefDescription } from "@/thinking-lab/master-thought/description";
+import { territoryDescriptions, writeTerritoryAreaSentence } from "@/thinking-lab/territory/description";
 import {
-  buildTerritoryLivedPrompt,
-  parseTerritoryLived,
-  territoryDescriptions,
-  territorySceneIsSpecific,
-} from "@/thinking-lab/territory/description";
+  beginSiblingCheck,
+  emptyPassChecklist,
+  finishSiblingCheck,
+  runTerritoryIndividualChecks,
+  runTerritoryOpenChecks,
+  type TerritoryPassCheck,
+} from "@/thinking-lab/territory/passChecklist";
+import { ANSWERED_QUESTION_VERSION, resolveAnsweredQuestion } from "@/thinking-lab/big-thought/answeredQuestion";
 import type { ConfirmationSource, LabMasterThought } from "@/thinking-lab/master-thought/types";
 import { useMasterThought } from "@/thinking-lab/master-thought/useMasterThought";
 import {
@@ -95,6 +104,8 @@ import {
 } from "@/thinking-lab/big-thought/generate";
 import { asBecauseClause, becauseSentence } from "@/thinking-lab/big-thought/because";
 import {
+  bigThoughtLabelIsOpen,
+  bigThoughtLabelRestates,
   buildBigThoughtLabelPrompt,
   buildKeyBeliefFromLabelPrompt,
   parseBigThoughtLabels,
@@ -119,55 +130,121 @@ import { canShowGenerateAngle } from "@/thinking-lab/angle/eligibility";
 import { angleChallengerCanRun, buildAngleChallengerPrompt, coverageFromAngleChallenger, parseAngleChallenger } from "@/thinking-lab/angle/challenger";
 import {
   angleReplacementPasses,
+  buildAngleExamplePrompt,
   buildAngleFixOptionsPrompt,
+  buildAngleSubjectPrompt,
+  parseAngleExampleScript,
   parseAngleFixOptionsScript,
+  parseAngleSubjectScript,
 } from "@/thinking-lab/angle/fix";
+import {
+  beginAngleSiblingCheck,
+  emptyAnglePassChecklist,
+  finishAngleSiblingCheck,
+  runAngleIndividualChecks,
+  runAngleOpenChecks,
+  type AnglePassCheck,
+} from "@/thinking-lab/angle/passChecklist";
 import {
   buildAngleGapPrompt,
   judgeAndSealAngle,
   nextAngleCode,
-  parseGeneratedAngleStatements,
+  parseGeneratedAngleDrafts,
   proposeAngleStatements,
   runAngleGenerate,
+  shownAngleFacts,
 } from "@/thinking-lab/angle/generate";
 import { evaluateAngleLock, selectAngleStage } from "@/thinking-lab/angle/lock";
 import { admitAngle, visibleAngles } from "@/thinking-lab/angle/policy";
-import { angleNodeSubject } from "@/thinking-lab/angle/subject";
-import { loadAngleParentGate, saveAngleSet } from "@/thinking-lab/angle/repository";
+import { angleExampleProblem, normalizeAngleExample } from "@/thinking-lab/angle/example";
+import { angleListSubject, angleSubjectProblem } from "@/thinking-lab/angle/subject";
+import { loadAngleParentGate, loadAngleSet, saveAngleSet } from "@/thinking-lab/angle/repository";
 import {
-  angleConflictFailures,
+  angleFailureLessons,
   angleSetIsCurrent,
   applyAngleChallengerCoverage,
+  angleCodesHeldPass,
   buildAngleSiblingPrompt,
   emptyAngleSetRecord,
+  holdPassingAngleVerdicts,
+  mergeAngleAuditLessons,
   parseAngleSet,
   scoreAngleAudit,
+  usableAngleFixLessons,
 } from "@/thinking-lab/angle/setAudit";
 import { useAngleSet, useLabAngles } from "@/thinking-lab/angle/useAngles";
 import { canShowGenerateIdea } from "@/thinking-lab/idea/eligibility";
-import { ideaNodeSummary } from "@/thinking-lab/idea/subject";
-import { buildIdeaDownTopPrompt, parseIdeaDownTop } from "@/thinking-lab/idea/downTop";
-import { buildIdeaFixOptionsPrompt, ideaReplacementPasses, parseIdeaFixOptionsScript } from "@/thinking-lab/idea/fix";
+import { ideaLabel } from "@/thinking-lab/idea/subject";
+import { buildIdeaFixOptionsPrompt, ideaReplacementPasses, parseIdeaFixDraftScript } from "@/thinking-lab/idea/fix";
 import { sameIdeaConcept } from "@/thinking-lab/idea/conceptIdentity";
-import { IDEA_ACTIVE_CAP, judgeAndSealIdea, nextIdeaCode, proposeIdeaStatements, runIdeaGenerate } from "@/thinking-lab/idea/generate";
+import {
+  IDEA_ACTIVE_CAP,
+  judgeAndSealIdea,
+  nextIdeaCode,
+  proposeIdeaStatements,
+  runIdeaGenerate,
+  shownIdeaFacts,
+} from "@/thinking-lab/idea/generate";
 import { evaluateIdeaLock, selectIdeaStage } from "@/thinking-lab/idea/lock";
-import { loadIdeaParentGate, saveIdeaSet } from "@/thinking-lab/idea/repository";
+import { loadIdeaParentGate, loadIdeaSet, saveIdeaSet } from "@/thinking-lab/idea/repository";
 import { admitIdea, visibleIdeas } from "@/thinking-lab/idea/policy";
+import {
+  beginIdeaSiblingCheck,
+  emptyIdeaPassChecklist,
+  finishIdeaSiblingCheck,
+  ideaChecklistPassed,
+  ideaVerdictForStage,
+  runIdeaIndividualChecks,
+  runIdeaOpenChecks,
+  type IdeaPassCheck,
+} from "@/thinking-lab/idea/passChecklist";
 import {
   buildIdeaSiblingPrompt,
   emptyIdeaSetRecord,
+  holdPassingIdeaVerdicts,
+  ideaCodesHeldPass,
+  ideaFailureLessons,
   ideaSetIsCurrent,
+  mergeIdeaAuditLessons,
   parseIdeaSet,
   scoreIdeaAudit,
+  usableIdeaFixLessons,
 } from "@/thinking-lab/idea/setAudit";
 import type { IdeaSemanticFacts } from "@/thinking-lab/idea/types";
 import { useIdeaSet, useLabIdeas } from "@/thinking-lab/idea/useIdeas";
 import { buildExecutionGeneratePrompt, judgeAndSealExecution } from "@/thinking-lab/execution/generate";
-import { useOrgContentPillars, type LabContentPillar } from "@/thinking-lab/execution/pillars";
 import {
+  buildExecutionMeaningRepairPrompt,
+  executionChecklistPassed,
+  executionChecksFromAudit,
+  executionFactsFromChecks,
+  executionFailureMoved,
+  lessonFromMeaningAudit,
+  meaningLineRepairReady,
+  mergeExecutionAuditLessons,
+  parseExecutionNarrationReplacements,
+  runExecutionMeaningChecks,
+  runExecutionOpenChecks,
+  EXECUTION_LINE_REPAIR_IDS,
+  type ExecutionPassCheck,
+} from "@/thinking-lab/execution/passChecklist";
+import {
+  buildExecutionConfirmPrompt,
+  parseDiscoveredQuestions,
+  type ExecutionConfirmQuestion,
+  type ScriptDecision,
+} from "@/thinking-lab/execution/confirm";
+import { useOrgContentPillars, type LabContentPillar } from "@/thinking-lab/execution/pillars";
+import { buildPillarRecommendationPrompt, parsePillarRecommendation, pillarNeedsRecommendation, pillarWasRecommended } from "@/thinking-lab/execution/recommend";
+import { isFailedMeaningAudit, type ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
+import {
+  buildContinuityAuditPrompt,
   buildLineAuditPrompt,
+  buildViewpointAuditPrompt,
   buildLineRepairPrompt,
   buildMasterSellsPrompt,
+  buildProductionRepairPrompt,
+  mergeNarrationRepairs,
   buildPlanScript,
   buildSpeechRepairPrompt,
   flattenVoiceOver,
@@ -178,8 +255,18 @@ import {
   parseLineReplacements,
   parseMasterSells,
   parseSpeechRepairs,
+  ensureBrandMention,
+  chainNarrationLines,
+  linesForProductionRecheck,
+  storyVoiceOver,
+  detachCallToAction,
+  callToActionSceneReady,
+  attachCtaScene,
+  parseCtaScene,
+  buildCtaScenePrompt,
   parseVoiceOverScript,
   scriptLineRepairReady,
+  scriptMentionsBrand,
   speechNeedsRepair,
   withCharacterVisuals,
   withSpeech,
@@ -203,6 +290,11 @@ import {
   nextTerritoryCode,
   proposeTerritoryStatements,
   runTerritoryGenerate,
+  shownTerritoryFacts,
+  TERRITORY_ACTIVITY_REASON,
+  TERRITORY_NAME_LENGTH_REASON,
+  territoryNameIsActivity,
+  territoryNameTooLong,
 } from "@/thinking-lab/territory/generate";
 import { admitTerritory } from "@/thinking-lab/territory/policy";
 import { loadTerritoryParentGate, loadTerritorySet, saveTerritorySet } from "@/thinking-lab/territory/repository";
@@ -214,10 +306,12 @@ import {
   emptyTerritorySetRecord,
   parseTerritorySet,
   holdPassingTerritoryVerdicts,
+  territoryCodesHeldPass,
   mergeTerritoryAuditLessons,
   scoreTerritoryAudit,
   territoryFailureLessons,
   territorySetIsCurrent,
+  usableTerritoryFixLessons,
 } from "@/thinking-lab/territory/setAudit";
 import type { AngleSemanticFacts } from "@/thinking-lab/angle/types";
 import type { TerritorySemanticFacts } from "@/thinking-lab/territory/types";
@@ -234,15 +328,18 @@ import {
 } from "@/thinking-lab/page/thinkingLabLayout";
 import { BigThoughtSection, type AuditProgress } from "@/thinking-lab/section/BigThoughtSection";
 import { buildLockedMapChildren } from "@/thinking-lab/section/lockedMapChildren";
-import { LabNodeInspector } from "@/thinking-lab/section/LabNodeInspector";
+import { LabNodeInspector, NodeDefinitionInfo } from "@/thinking-lab/section/LabNodeInspector";
 import { ExecutionScriptPanel, ExecutionScriptTable, type CharacterGenerateState } from "@/thinking-lab/section/ExecutionScriptPanel";
 import type { CharacterStudioTab } from "@/thinking-lab/section/CharacterVisualStudio";
 import { CharacterSheetError, copyStoredCharacterVisual, generateCharacterVisuals, removeCharacterVisual, storeCharacterVisual } from "@/thinking-lab/execution/generateCharacterVisual";
+import { invalidateContentPillarQueries } from "@/6-1-dashboard/lib/contentPillarTracker";
 import { SaveToPlanModal } from "@/6-1-script-generator/components/SaveToPlanModal";
 import { PillarPickerSheet } from "@/thinking-lab/section/PillarPickerSheet";
+import { ExecutionConfirmDialog } from "@/thinking-lab/section/ExecutionConfirmDialog";
 import { MasterThoughtMapTree } from "@/thinking-lab/section/MasterThoughtMapTree";
 import { SavedMasterThoughtList } from "@/thinking-lab/section/SavedMasterThoughtList";
 import { MasterThoughtSection } from "@/thinking-lab/section/MasterThoughtSection";
+import { ProductBeliefSource } from "@/thinking-lab/section/ProductBeliefSource";
 
 function parentFingerprint(master: LabMasterThought): string | null {
   if (!master.confirmationSource) return null;
@@ -280,6 +377,34 @@ export function ThinkingLabPage() {
   const [fixingAngleCodes, setFixingAngleCodes] = useState<ReadonlySet<string>>(() => new Set());
   const fixingTerritoryCodesRef = useRef(new Set<string>());
   const [fixingTerritoryCodes, setFixingTerritoryCodes] = useState<ReadonlySet<string>>(() => new Set());
+  const [territoryChecklists, setTerritoryChecklists] = useState<
+    Record<string, { checks: TerritoryPassCheck[]; note?: string }>
+  >({});
+  const publishTerritoryChecklist = (code: string, checks: TerritoryPassCheck[], note?: string) => {
+    const key = code.trim().toUpperCase();
+    setTerritoryChecklists((current) => ({
+      ...current,
+      [key]: note ? { checks, note } : { checks },
+    }));
+  };
+  const [angleChecklists, setAngleChecklists] = useState<
+    Record<string, { checks: AnglePassCheck[]; note?: string }>
+  >({});
+  const publishAngleChecklist = (code: string, checks: AnglePassCheck[], note?: string) => {
+    const key = code.trim().toUpperCase();
+    setAngleChecklists((current) => ({
+      ...current,
+      [key]: note ? { checks, note } : { checks },
+    }));
+  };
+  const [ideaChecklists, setIdeaChecklists] = useState<Record<string, { checks: IdeaPassCheck[]; note?: string }>>({});
+  const publishIdeaChecklist = (code: string, checks: IdeaPassCheck[], note?: string) => {
+    const key = code.trim().toUpperCase();
+    setIdeaChecklists((current) => ({
+      ...current,
+      [key]: note ? { checks, note } : { checks },
+    }));
+  };
   const fixingBigThoughtCodesRef = useRef(new Set<string>());
   const [fixingBigThoughtCodes, setFixingBigThoughtCodes] = useState<ReadonlySet<string>>(() => new Set());
   const [notice, setNotice] = useState<string | null>(null);
@@ -299,6 +424,8 @@ export function ThinkingLabPage() {
     | { kind: "master"; id: string }
     | { kind: "bigThought"; id: string }
     | { kind: "territory"; id: string; bigThoughtId: string }
+    | { kind: "angle"; id: string; territoryId: string }
+    | { kind: "idea"; id: string; angleId: string }
     | { kind: "execution"; id: string }
     | null
   >(null);
@@ -367,7 +494,10 @@ export function ThinkingLabPage() {
   useEffect(() => {
     if (labelFlight.current || busy || !selected || !thoughts.organizationId) return;
     const missing = (thoughts.data ?? []).filter(
-      (row) => row.status !== "rejected" && !row.label.trim() && !labeledAttempt.current.has(row.id),
+      (row) =>
+        row.status !== "rejected" &&
+        !labeledAttempt.current.has(row.id) &&
+        (!row.label.trim() || bigThoughtLabelIsOpen(row.label) || bigThoughtLabelRestates(row.label, row.statement)),
     );
     if (missing.length === 0) return;
     labelFlight.current = true;
@@ -381,7 +511,8 @@ export function ThinkingLabPage() {
         const parsed = parseBigThoughtLabels(script ? parseModelJson(script) : null);
         const labels = missing.flatMap((row) => {
           const label = parsed.get(row.code.toUpperCase());
-          return label ? [{ id: row.id, label }] : [];
+          if (!label || bigThoughtLabelIsOpen(label) || bigThoughtLabelRestates(label, row.statement)) return [];
+          return [{ id: row.id, label }];
         });
         if (labels.length > 0) await thoughts.saveLabels.mutateAsync(labels);
       } catch {
@@ -393,7 +524,54 @@ export function ThinkingLabPage() {
     })();
   }, [busy, selected, thoughts.data, thoughts.organizationId, thoughts.saveLabels]);
   const territoryParentIds = useMemo(() => active.map((row) => row.id), [active]);
+  const descriptionFlight = useRef(new Set<string>());
   const labTerritories = useLabTerritories(territoryParentIds);
+
+  useEffect(() => {
+    if (!thoughts.organizationId) return;
+    const parents = new Map((thoughts.data ?? []).map((row) => [row.id, row]));
+    const missing = (labTerritories.data ?? []).filter((row) => {
+      if (row.admission !== "GENERATE_VALID" || descriptionFlight.current.has(row.id)) return false;
+      const parent = parents.get(row.bigThoughtId);
+      const area = territoryDescriptions(row.statement, row.canonicalSemantic.whatItSays, parent?.statement ?? "").area;
+      return !area || !row.canonicalSemantic.areaQuestion?.trim();
+    });
+    if (missing.length === 0) return;
+    for (const row of missing) descriptionFlight.current.add(row.id);
+    void Promise.all(
+      missing.map(async (row) => {
+        const parent = parents.get(row.bigThoughtId);
+        if (!parent) return;
+        const stored = parent.canonicalSemantic;
+        const question =
+          stored?.answeredQuestionVersion === ANSWERED_QUESTION_VERSION ? stored.answeredQuestion?.trim() ?? "" : "";
+        try {
+          const written = await writeTerritoryAreaSentence({
+            territory: row.statement,
+            parentStatement: parent.statement,
+            masterStatement: selected?.statement,
+            audience: selected?.audience,
+            answeredQuestion: question,
+            siblings: (labTerritories.data ?? [])
+              .filter(
+                (item) =>
+                  item.id !== row.id && item.bigThoughtId === row.bigThoughtId && item.admission === "GENERATE_VALID",
+              )
+              .map((item) => item.statement),
+            ask: (prompt) => askThinkingLab(prompt, 0.2),
+          });
+          if (!written.sentence || !written.question) return;
+          await labTerritories.saveGloss.mutateAsync({
+            bigThoughtId: row.bigThoughtId,
+            id: row.id,
+            facts: { ...row.canonicalSemantic, whatItSays: written.sentence, areaQuestion: written.question },
+          });
+        } catch {
+          descriptionFlight.current.delete(row.id);
+        }
+      }),
+    );
+  }, [labTerritories.data, labTerritories.saveGloss, selected?.audience, selected?.statement, thoughts.data, thoughts.organizationId]);
   const angleParentIds = useMemo(() => (labTerritories.data ?? []).map((row) => row.id), [labTerritories.data]);
   const labAngles = useLabAngles(angleParentIds);
   const ideaParentIds = useMemo(() => (labAngles.data ?? []).map((row) => row.id), [labAngles.data]);
@@ -470,6 +648,8 @@ export function ThinkingLabPage() {
               id: item.id,
               code: item.code,
               statement: item.statement,
+              detail: territoryDescriptions(item.statement, item.canonicalSemantic.whatItSays, row.statement).area,
+              question: item.canonicalSemantic.areaQuestion?.trim() || undefined,
               status: item.status,
               canGenerateAngle: canShowGenerateAngle(
                 {
@@ -485,6 +665,7 @@ export function ThinkingLabPage() {
                   id: angle.id,
                   code: angle.code,
                   statement: angle.statement,
+                  subject: angle.canonicalSemantic.subject,
                   relation: angle.canonicalSemantic.relationToParent,
                 })),
             };
@@ -509,47 +690,14 @@ export function ThinkingLabPage() {
         focusedThought?.statement ?? "",
       )
     : null;
-  const territoryLivedInflight = useRef(new Set<string>());
-  const saveTerritoryGlossRef = useRef(labTerritories.saveGloss.mutateAsync);
-  saveTerritoryGlossRef.current = labTerritories.saveGloss.mutateAsync;
-  useEffect(() => {
-    if (!focusedTerritory || !focusedThought || !masters.organizationId) return;
-    const name = focusedTerritory.statement.trim();
-    const parent = focusedThought.statement.trim();
-    const gloss = focusedTerritory.canonicalSemantic.whatItSays;
-    if (territorySceneIsSpecific(name, gloss, parent)) return;
-    const id = focusedTerritory.id;
-    if (territoryLivedInflight.current.has(id)) return;
-    territoryLivedInflight.current.add(id);
-    const facts = focusedTerritory.canonicalSemantic;
-    const bigThoughtId = focusedTerritory.bigThoughtId;
-    const audience = selected?.audience;
-    void (async () => {
-      try {
-        const script = await askThinkingLab(
-          buildTerritoryLivedPrompt({ territory: name, parentStatement: parent, audience }),
-          0.2,
-        );
-        const lived = parseTerritoryLived(script, { territory: name, parentStatement: parent });
-        if (!lived) return;
-        await saveTerritoryGlossRef.current({
-          bigThoughtId,
-          id,
-          facts: { ...facts, whatItSays: lived },
-        });
-      } catch {
-        territoryLivedInflight.current.delete(id);
-      }
-    })();
-  }, [
-    focusedTerritory,
-    focusedThought,
-    masters.organizationId,
-    selected?.audience,
-  ]);
   const angleSet = useAngleSet(focusedTerritory?.id ?? null);
   const masterStatement = (selected?.statement || selected?.originalInput || "").trim();
   const becauseParent = (masterSubject || masterStatement).trim();
+  const answeredQuestion = (
+    focusedThought?.facts?.answeredQuestionVersion === ANSWERED_QUESTION_VERSION
+      ? focusedThought.facts.answeredQuestion?.trim() ?? ""
+      : ""
+  ).trim();
   const judgmentCurrent = Boolean(
     selected?.canonicalSemantic &&
     originalDraft.trim() === selected.originalInput.trim() &&
@@ -597,13 +745,11 @@ export function ThinkingLabPage() {
       ? territoryFingerprint({ statement: row.statement, bigThoughtFingerprint: focusedBigThoughtFingerprint })
       : "";
     const stored = territorySet.data?.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-    if (stored?.verdict === "AUDIT_PASS" && stored.statementFingerprint === statementFingerprint) return "AUDIT_PASS";
     if (
-      !rescoredTerritoryAudit &&
-      stored?.verdict === "AUDIT_FAIL" &&
-      stored.statementFingerprint === statementFingerprint
+      stored?.statementFingerprint === statementFingerprint &&
+      (stored.verdict === "AUDIT_PASS" || stored.verdict === "AUDIT_FAIL")
     ) {
-      return "AUDIT_FAIL";
+      return stored.verdict;
     }
     return rescoredTerritoryAudit?.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict ?? null;
   });
@@ -712,17 +858,16 @@ export function ThinkingLabPage() {
         })
       : null;
   const angleVerdicts = admittedAngles.map((row) => {
+    if (row.status === "locked") return "AUDIT_PASS" as const;
     const statementFingerprint = parentTerritoryFingerprint
       ? angleFingerprint({ statement: row.statement, territoryFingerprint: parentTerritoryFingerprint })
       : "";
     const stored = angleSet.data?.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-    if (stored?.verdict === "AUDIT_PASS" && stored.statementFingerprint === statementFingerprint) return "AUDIT_PASS";
     if (
-      !rescoredAngleAudit &&
-      stored?.verdict === "AUDIT_FAIL" &&
-      stored.statementFingerprint === statementFingerprint
+      stored?.statementFingerprint === statementFingerprint &&
+      (stored.verdict === "AUDIT_PASS" || stored.verdict === "AUDIT_FAIL")
     ) {
-      return "AUDIT_FAIL";
+      return stored.verdict;
     }
     return rescoredAngleAudit?.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict ?? null;
   });
@@ -736,6 +881,61 @@ export function ThinkingLabPage() {
   const angleMaterialGap = Boolean(
     angleChallenger?.status === "MATERIAL_GAP" && angleChallenger.materialGapDescription?.trim(),
   );
+  const angleExampleOpen = admittedAngles.some((row) =>
+    Boolean(angleExampleProblem(row.canonicalSemantic.example ?? "", row.statement)),
+  );
+  const angleCardView = (row: (typeof admittedAngles)[number], index: number) => {
+    const territoryName = focusedTerritory?.statement ?? "";
+    const storedSubject = row.canonicalSemantic.subject ?? "";
+    const storedExample = row.canonicalSemantic.example ?? "";
+    const subjectProblem = angleSubjectProblem(storedSubject, territoryName);
+    const exampleProblem = angleExampleProblem(storedExample, row.statement);
+    const liveChecks = angleChecklists[row.code.toUpperCase()]?.checks;
+    const liveSettled = (id: string) =>
+      (liveChecks ?? []).some((check) => check.id === id && check.state !== "pending");
+    const passedSeed = (ids: readonly string[]) => ids.map((id) => ({ id, state: "pass" as const }));
+    let checklist: typeof liveChecks = liveChecks;
+    if (subjectProblem && !liveSettled("ownSubject")) {
+      checklist = [
+        ...(liveChecks && liveChecks.some((check) => check.state !== "pending")
+          ? liveChecks.filter((check) => check.id !== "ownSubject")
+          : angleVerdicts[index] === "AUDIT_PASS"
+            ? passedSeed([
+                "stakeHolds",
+                "observationShape",
+                "severalIdeas",
+                "clearBoundary",
+                "observationJob",
+                "siblingsDistinct",
+              ])
+            : []),
+        { id: "ownSubject", state: "fail" as const, reason: subjectProblem },
+      ];
+    } else if (exampleProblem && !liveSettled("livedExample")) {
+      checklist = [
+        ...(liveChecks && liveChecks.some((check) => check.state !== "pending")
+          ? liveChecks.filter((check) => check.id !== "livedExample")
+          : angleVerdicts[index] === "AUDIT_PASS"
+            ? passedSeed([
+                "stakeHolds",
+                "observationShape",
+                "severalIdeas",
+                "clearBoundary",
+                "observationJob",
+                "ownSubject",
+                "siblingsDistinct",
+              ])
+            : []),
+        { id: "livedExample", state: "fail" as const, reason: exampleProblem },
+      ];
+    }
+    const liveOwn = (liveChecks ?? []).find((check) => check.id === "ownSubject");
+    return {
+      checklist,
+      subject: liveOwn?.state === "fail" ? "" : angleListSubject(storedSubject, territoryName),
+      example: normalizeAngleExample(storedExample),
+    };
+  };
   const angleStage = selectAngleStage({
     admittedCount: admittedAngles.length,
     verdicts: angleVerdicts,
@@ -745,7 +945,7 @@ export function ThinkingLabPage() {
     materialGap: angleMaterialGap,
     canAdd: admittedAngles.length < ACTIVE_SET_CAP,
     repairsUsed: (angleSet.data?.repairCount ?? 0) > 0,
-    lockOk: angleLock.ok,
+    lockOk: angleLock.ok && !angleExampleOpen,
   });
   const angleNotes = [
     ...(storedAngleSet && angleSetIsCurrent(storedAngleSet, angleFingerprintNow)
@@ -761,7 +961,7 @@ export function ThinkingLabPage() {
       ? [t("thinkingLab.angle.repairStopped", "Fix already ran once. This set stays open until an audit passes.")]
       : []),
   ];
-  const angleSetLocked = admittedAngles.length >= 3 && admittedAngles.every((row) => row.status === "locked");
+  const angleSetLocked = admittedAngles.length > 0 && admittedAngles.every((row) => row.status === "locked");
   const territoryAlreadySealed = canShowGenerateAngle(focusedTerritory, focusedBigThoughtFingerprint || null);
   const showGenerateAngle = Boolean(
     focusedTerritory?.admission === "GENERATE_VALID" &&
@@ -808,28 +1008,24 @@ export function ThinkingLabPage() {
       ? ideaFingerprint({ statement: row.statement, angleFingerprint: parentAngleFingerprint })
       : "";
     const stored = ideaSet.data?.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-    if (stored?.verdict === "AUDIT_PASS" && stored.statementFingerprint === statementFingerprint) return "AUDIT_PASS" as const;
-    if (!rescoredIdeaAudit && stored?.verdict === "AUDIT_FAIL" && stored.statementFingerprint === statementFingerprint) {
-      return "AUDIT_FAIL" as const;
+    if (
+      stored?.statementFingerprint === statementFingerprint &&
+      (stored.verdict === "AUDIT_PASS" || stored.verdict === "AUDIT_FAIL")
+    ) {
+      return stored.verdict;
     }
     return rescoredIdeaAudit?.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict ?? null;
   });
-  const ideaDownTopCurrent = fingerprintsMatch(ideaSet.data?.downTop?.fingerprint, ideaFingerprintNow);
-  const ideaDownTop = openIdeas.map((row) => {
-    if (!ideaDownTopCurrent) return null;
-    return ideaSet.data?.downTop?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict ?? null;
-  });
+  const shownIdeaVerdicts = openIdeas.map((row, index) =>
+    ideaVerdictForStage(ideaVerdicts[index] ?? null, ideaChecklists[row.code.toUpperCase()]?.checks),
+  );
   const ideaLock = evaluateIdeaLock({
     admittedCount: openIdeas.length,
-    verdicts: ideaVerdicts,
-    downTop: ideaDownTop,
-    downTopCurrent: ideaDownTopCurrent,
+    verdicts: shownIdeaVerdicts,
   });
   const ideaStage = selectIdeaStage({
     admittedCount: openIdeas.length,
-    verdicts: ideaVerdicts,
-    downTop: ideaDownTop,
-    downTopCurrent: ideaDownTopCurrent,
+    verdicts: shownIdeaVerdicts,
     repairsUsed: (ideaSet.data?.repairCount ?? 0) > 0,
     lockOk: ideaLock.ok,
   });
@@ -842,28 +1038,12 @@ export function ThinkingLabPage() {
           ),
         ]
       : []),
-    ...(ideaDownTopCurrent
-      ? (ideaSet.data?.downTop?.items ?? [])
-          .filter((item) => item.proofCanAppear === false && item.bigThoughtNote)
-          .map((item) => `${item.code}: ${item.bigThoughtNote}`)
-      : []),
-    ...((ideaVerdicts.some((verdict) => verdict === "AUDIT_FAIL") || ideaDownTop.some((verdict) => verdict === "FAIL")) &&
+    ...(ideaVerdicts.some((verdict) => verdict === "AUDIT_FAIL") &&
     (ideaSet.data?.repairCount ?? 0) > 0
       ? [t("thinkingLab.idea.repairStopped", "Fix already ran once. This set stays open until the ideas pass.")]
       : []),
   ];
   const ideaSetLocked = admittedIdeas.length > 0 && admittedIdeas.every((row) => row.status === "locked");
-  const bigThoughtQuestionNotes = (labAngles.data ?? [])
-    .filter((angle) =>
-      (labTerritories.data ?? []).some(
-        (territory) => territory.id === angle.territoryId && territory.bigThoughtId === focusedThought?.id,
-      ),
-    )
-    .flatMap((angle) =>
-      (angle.ideaSet.downTop?.items ?? [])
-        .filter((item) => item.proofCanAppear === false && item.bigThoughtNote.trim())
-        .map((item) => `${angle.code} · ${item.code}: ${item.bigThoughtNote}`),
-    );
   const focusedIdea =
     focus?.kind === "idea" || focus?.kind === "execution"
       ? ((labIdeas.data ?? []).find((row) => row.id === focus.ideaId) ?? null)
@@ -871,16 +1051,39 @@ export function ThinkingLabPage() {
   const labExecutions = useLabExecutions(focusedIdea?.status === "locked" ? focusedIdea.id : null);
   const contentPillars = useOrgContentPillars(masters.organizationId, locked);
   const [pillarPickerOpen, setPillarPickerOpen] = useState(false);
+  const [scriptConfirm, setScriptConfirm] = useState<{
+    pillars: LabContentPillar[];
+    audio: ScriptAudio;
+    look: ScriptLook;
+    speech: ScriptSpeech;
+    durationSeconds: number | null;
+    brandName: string | null;
+    cta: string | null;
+    questions: ExecutionConfirmQuestion[] | null;
+    loading: boolean;
+    failed: boolean;
+  } | null>(null);
   const [masterSells, setMasterSells] = useState<true | false | "unresolved" | "unknown">("unknown");
-  const [executionProgress, setExecutionProgress] = useState<{ phase: "write" | "audit" | "repair"; pillarName: string } | null>(
-    null,
-  );
+  const [executionChecklists, setExecutionChecklists] = useState<Record<string, ExecutionPassCheck[]>>({});
+  const [executionLineOffer, setExecutionLineOffer] = useState<{
+    executionId: string;
+    script: VoiceOverScript;
+    facts: ExecutionSemanticFacts;
+  } | null>(null);
+  const [executionRepairNote, setExecutionRepairNote] = useState<string | null>(null);
+  const [executionProgress, setExecutionProgress] = useState<{
+    phase: "write" | "audit" | "repair" | "recommend";
+    pillarName: string;
+  } | null>(null);
+  const [fixingLineId, setFixingLineId] = useState<string | null>(null);
   const [scriptTableOpen, setScriptTableOpen] = useState(false);
   const [planSaveOpen, setPlanSaveOpen] = useState(false);
   const [characterGenerate, setCharacterGenerate] = useState<CharacterGenerateState>(null);
   const [characterVisualDelete, setCharacterVisualDelete] = useState<{ handle: string; kind: CharacterVisualKind } | null>(null);
   const [characterVisualSave, setCharacterVisualSave] = useState<{ handle: string; kind: CharacterStudioTab } | null>(null);
   const executionCancel = useRef(0);
+  const confirmToken = useRef(0);
+  const recommendationAttempt = useRef(new Set<string>());
   useEffect(() => {
     setMasterSells("unknown");
   }, [selected?.id]);
@@ -890,6 +1093,7 @@ export function ThinkingLabPage() {
     setCharacterGenerate(null);
     setCharacterVisualDelete(null);
     setCharacterVisualSave(null);
+    setFixingLineId(null);
   }, [focus?.kind === "execution" ? focus.executionId : null]);
 
   const generateValidCount = countGenerateValid(rowViews);
@@ -940,9 +1144,14 @@ export function ThinkingLabPage() {
     auditPassCount,
     anyStale,
     anyUnresolved,
+    siblingCurrent,
     challengerComplete,
     lockOk: lockDecision.ok,
   });
+  const showGenerateBigThought = Boolean(
+    ready && masterSubject && !locked && rowViews.length < ACTIVE_SET_CAP && stageAction !== "generate",
+  );
+  const masterMenuStage = stageAction === "fix" ? null : stageAction;
   const admission = selected
     ? assessMasterThought(
         selected.canonicalSemantic,
@@ -994,11 +1203,11 @@ export function ThinkingLabPage() {
       const priorBelief = newPrior.trim();
       const audience = newAudience.trim();
       const created = await masters.create.mutateAsync({ planted, priorBelief, audience });
-      const facts = await judgeMasterThought(planted, askThinkingLab, undefined, { priorBelief, audience });
+      const facts = await collectBeliefOptions({ planted, priorBelief, audience }, (prompt) => askThinkingLab(prompt, 0.2));
       await masters.saveJudge.mutateAsync({
         id: created.id,
         facts,
-        fingerprint: understandFingerprint(planted, facts.proposedRootBelief),
+        fingerprint: understandFingerprint(planted, null),
       });
       setNewPrior("");
       setNewPlanted("");
@@ -1006,7 +1215,7 @@ export function ThinkingLabPage() {
       setComposerOpen(false);
       skipAutoSelect.current = false;
       setSelectedId(created.id);
-    });
+    }, "formulate");
 
   const closeComposer = () => {
     setComposerOpen(false);
@@ -1063,6 +1272,39 @@ export function ThinkingLabPage() {
       });
       return;
     }
+    if (target.kind === "angle") {
+      void run(async () => {
+        await labAngles.remove.mutateAsync({ territoryId: target.territoryId, id: target.id });
+        setFocus((current) =>
+          current && "angleId" in current && current.angleId === target.id
+            ? {
+                kind: "territory",
+                masterId: current.masterId,
+                thoughtId: current.thoughtId,
+                territoryId: current.territoryId,
+              }
+            : current,
+        );
+      });
+      return;
+    }
+    if (target.kind === "idea") {
+      void run(async () => {
+        await labIdeas.remove.mutateAsync({ angleId: target.angleId, id: target.id });
+        setFocus((current) =>
+          current && "ideaId" in current && current.ideaId === target.id
+            ? {
+                kind: "angle",
+                masterId: current.masterId,
+                thoughtId: current.thoughtId,
+                territoryId: current.territoryId,
+                angleId: current.angleId,
+              }
+            : current,
+        );
+      });
+      return;
+    }
     void run(async () => {
       await labTerritories.remove.mutateAsync({ bigThoughtId: target.bigThoughtId, id: target.id });
       setFocus((current) =>
@@ -1081,18 +1323,12 @@ export function ThinkingLabPage() {
       const chosen = clarification?.answer.trim() ?? "";
       if (chosen) {
         if (beliefsMatch(chosen, prior)) throw new Error("SAME_BELIEF");
-        setOriginalDraft(chosen);
-        await masters.saveOriginal.mutateAsync({
-          id: selected.id,
-          planted: chosen,
-          priorBelief: prior,
-          audience,
-        });
+        const planted = originalDraft.trim() || selected.originalInput.trim();
         const facts = acceptChosenBelief(chosen);
         await masters.saveJudge.mutateAsync({
           id: selected.id,
           facts,
-          fingerprint: understandFingerprint(chosen, null),
+          fingerprint: understandFingerprint(planted, null),
         });
         return;
       }
@@ -1109,16 +1345,13 @@ export function ThinkingLabPage() {
           audience,
         });
       }
-      const facts = await judgeMasterThought(text, askThinkingLab, clarification, {
-        priorBelief: prior,
-        audience,
-      });
+      const facts = await collectBeliefOptions({ planted: text, priorBelief: prior, audience }, (prompt) => askThinkingLab(prompt, 0.2));
       await masters.saveJudge.mutateAsync({
         id: selected.id,
         facts,
-        fingerprint: understandFingerprint(text, facts.proposedRootBelief),
+        fingerprint: understandFingerprint(text, null),
       });
-    });
+    }, "understand");
 
   const confirmWith = (source: ConfirmationSource, statement: string, facts: NonNullable<LabMasterThought["canonicalSemantic"]>) =>
     run(async () => {
@@ -1238,16 +1471,22 @@ export function ThinkingLabPage() {
       let record = parseLabSetRecord(selected.lastAudit);
       await runGenerateRounds({
         parentStatement: becauseParent,
-        incumbents: rowViews.map((row) => ({ code: row.code, statement: row.statement, admission: row.admission })),
+        incumbents: rowViews.map((row) => ({
+          code: row.code,
+          statement: row.statement,
+          label: row.label,
+          admission: row.admission,
+        })),
         activeCount: rowViews.length,
         missingWhy,
+        topUp: true,
         propose: async (plan, incumbents) => {
           const script = await askThinkingLab(
             buildGeneratePrompt({
               parentStatement: becauseParent,
               incumbents: incumbents
                 .filter((row) => row.admission === "GENERATE_VALID")
-                .map((row) => ({ code: row.code, statement: row.statement })),
+                .map((row) => ({ code: row.code, statement: row.statement, label: row.label })),
               needed: plan.needed,
               missingWhy: plan.missingWhy,
             }),
@@ -1270,7 +1509,10 @@ export function ThinkingLabPage() {
           const saved = await thoughts.insert.mutateAsync({
             code,
             statement: candidate.statement,
-            label: candidate.label,
+            label:
+              bigThoughtLabelIsOpen(candidate.label) || bigThoughtLabelRestates(candidate.label, candidate.statement)
+                ? ""
+                : candidate.label,
             sortOrder: sort,
             facts: { ...facts, code },
             masterFingerprint: parentFp,
@@ -1280,6 +1522,7 @@ export function ThinkingLabPage() {
           return {
             code: saved.code,
             statement: saved.statement,
+            label: saved.label,
             admission: individualAdmission({ facts: { ...facts, code }, factsCurrent: true }),
           };
         },
@@ -1295,6 +1538,12 @@ export function ThinkingLabPage() {
       const auditLessons = storedSet?.auditLessons ?? [];
       const known = (labTerritories.data ?? []).filter((row) => row.bigThoughtId === bigThoughtId);
       let sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0);
+      const source = (thoughts.data ?? []).find((row) => row.id === bigThoughtId);
+      const storedFacts = source?.canonicalSemantic;
+      const question =
+        storedFacts?.answeredQuestionVersion === ANSWERED_QUESTION_VERSION
+          ? storedFacts.answeredQuestion?.trim() ?? ""
+          : "";
       const result = await runTerritoryGenerate({
         loadParent: () =>
           loadTerritoryParentGate({
@@ -1307,13 +1556,21 @@ export function ThinkingLabPage() {
           statement: row.statement,
           admission: row.admission,
           bigThoughtId: row.bigThoughtId,
+          relationToParent: row.canonicalSemantic.relationToParent,
         })),
+        topUp: true,
         propose: (plan, parent, incumbents) =>
           proposeTerritoryStatements({
             parentStatement: parent.statement,
             ancestors: parent.ancestors,
             audience: parent.audience || selected?.audience,
-            incumbents: incumbents.map((row) => ({ code: row.code, statement: row.statement })),
+            answeredQuestion: question,
+            incumbents: incumbents.map((row) => ({
+              code: row.code,
+              statement: row.statement,
+              admission: row.admission,
+              relationToParent: row.relationToParent,
+            })),
             lessons: auditLessons,
             needed: plan.needed,
             ask: async (prompt) => {
@@ -1322,15 +1579,7 @@ export function ThinkingLabPage() {
               return script;
             },
           }),
-        judge: (parent, code, statement) =>
-          judgeAndSealTerritory({
-            parentStatement: parent.statement,
-            ancestors: parent.ancestors,
-            audience: parent.audience || selected?.audience,
-            code,
-            statement,
-            ask: (prompt) => askThinkingLab(prompt, 0),
-          }),
+        judge: (_parent, code, statement) => Promise.resolve(shownTerritoryFacts(code, statement)),
         persist: async ({ parent, code, statement, facts, admission }) => {
           sort += 1;
           const saved = await labTerritories.insert.mutateAsync({
@@ -1347,6 +1596,7 @@ export function ThinkingLabPage() {
             statement: saved.statement,
             admission: saved.admission,
             bigThoughtId: saved.bigThoughtId,
+            relationToParent: facts.relationToParent,
           };
         },
       });
@@ -1363,7 +1613,11 @@ export function ThinkingLabPage() {
         await saveTerritorySet({
           organizationId: masters.organizationId,
           bigThoughtId,
-          record: { ...emptyTerritorySetRecord(), auditLessons },
+          record: {
+            ...emptyTerritorySetRecord(),
+            audit: storedSet?.audit ?? null,
+            auditLessons,
+          },
         });
         await queryClient.invalidateQueries({
           queryKey: ["thinking-lab-territory-set", masters.organizationId, bigThoughtId],
@@ -1420,6 +1674,7 @@ export function ThinkingLabPage() {
           admission: row.admission,
           territoryId: row.territoryId,
         })),
+        topUp: true,
         propose: (plan, parent, incumbents) =>
           proposeAngleStatements({
             parentStatement: parent.statement,
@@ -1428,14 +1683,7 @@ export function ThinkingLabPage() {
             needed: plan.needed,
             ask: (prompt) => askThinkingLab(prompt, 0.2),
           }),
-        judge: (parent, code, statement) =>
-          judgeAndSealAngle({
-            parentStatement: parent.statement,
-            ancestors: parent.ancestors,
-            code,
-            statement,
-            ask: (prompt) => askThinkingLab(prompt, 0),
-          }),
+        judge: (_parent, code, statement) => Promise.resolve(shownAngleFacts(code, statement)),
         persist: async ({ parent, code, statement, facts, admission }) => {
           sort += 1;
           const saved = await labAngles.insert.mutateAsync({
@@ -1468,13 +1716,23 @@ export function ThinkingLabPage() {
           }),
         );
       }
+      const keptAngleAudit = angleSet.data?.audit ?? null;
       if (territoryId === focusedTerritory?.id) {
-        await angleSet.save.mutateAsync(emptyAngleSetRecord());
+        await angleSet.save.mutateAsync({
+          ...emptyAngleSetRecord(),
+          audit: keptAngleAudit,
+          auditLessons: angleSet.data?.auditLessons ?? [],
+        });
       } else {
+        const storedAngleRecord = await loadAngleSet(masters.organizationId, territoryId);
         await saveAngleSet({
           organizationId: masters.organizationId,
           territoryId,
-          record: emptyAngleSetRecord(),
+          record: {
+            ...emptyAngleSetRecord(),
+            audit: storedAngleRecord?.audit ?? null,
+            auditLessons: storedAngleRecord?.auditLessons ?? [],
+          },
         });
         await queryClient.invalidateQueries({
           queryKey: ["thinking-lab-angle-set", masters.organizationId, territoryId],
@@ -1535,15 +1793,8 @@ export function ThinkingLabPage() {
             needed: plan.needed,
             ask: (prompt) => askThinkingLab(prompt, 0.2),
           }),
-        judge: (parent, code, statement) =>
-          judgeAndSealIdea({
-            parentStatement: parent.statement,
-            masterSubject,
-            ancestors: ancestorsWithMaster(parent.ancestors ?? []),
-            code,
-            statement,
-            ask: (prompt) => askThinkingLab(prompt, 0),
-          }),
+        judge: (_parent, code, statement, mechanismKeys) =>
+          Promise.resolve(shownIdeaFacts(code, statement, mechanismKeys)),
         persist: async ({ parent, code, statement, facts, admission }) => {
           sort += 1;
           const saved = await labIdeas.insert.mutateAsync({
@@ -1578,12 +1829,23 @@ export function ThinkingLabPage() {
         );
       }
       if (angleId === focusedAngle?.id) {
-        await ideaSet.save.mutateAsync(emptyIdeaSetRecord());
+        await ideaSet.save.mutateAsync({
+          ...emptyIdeaSetRecord(),
+          audit: ideaSet.data?.audit ?? null,
+          downTop: ideaSet.data?.downTop ?? null,
+          auditLessons: ideaSet.data?.auditLessons ?? [],
+        });
       } else {
+        const storedIdeaRecord = await loadIdeaSet(masters.organizationId, angleId);
         await saveIdeaSet({
           organizationId: masters.organizationId,
           angleId,
-          record: emptyIdeaSetRecord(),
+          record: {
+            ...emptyIdeaSetRecord(),
+            audit: storedIdeaRecord.audit,
+            downTop: storedIdeaRecord.downTop,
+            auditLessons: storedIdeaRecord.auditLessons,
+          },
         });
         await queryClient.invalidateQueries({
           queryKey: ["thinking-lab-idea-set", masters.organizationId, angleId],
@@ -1597,46 +1859,97 @@ export function ThinkingLabPage() {
       ...(focusedTerritory?.statement.trim() ? [{ label: "Territory", statement: focusedTerritory.statement.trim() }] : []),
       ...angleAncestors,
     ];
-    const failedAt = (index: number) =>
-      ideaVerdicts[index] === "AUDIT_FAIL" || ideaDownTop[index] === "FAIL" || ideaDownTop[index] === "UNRESOLVED";
+    const failedAt = (index: number, code: string) =>
+      ideaVerdicts[index] === "AUDIT_FAIL" ||
+      (ideaChecklists[code.toUpperCase()]?.checks ?? []).some((check) => check.state === "fail");
     const failed = openIdeas.filter((row, index) => {
-      if (!failedAt(index)) return false;
+      if (!failedAt(index, row.code)) return false;
       return !onlyCode || row.code.toUpperCase() === onlyCode.toUpperCase();
     });
     if (failed.length === 0) return;
     const keepers = [
       ...lockedIdeas,
-      ...openIdeas.filter((_, index) => ideaVerdicts[index] === "AUDIT_PASS" && ideaDownTop[index] !== "FAIL"),
+      ...openIdeas.filter((_, index) => ideaVerdicts[index] === "AUDIT_PASS"),
     ];
-    const offers: Array<{ angleId: string; failedCode: string; statement: string; facts: IdeaSemanticFacts }> = [];
+    const applied = new Map<string, string>();
+    const learnedDuringFix: Array<{ code: string; statement: string; reason: string }> = [];
     for (const row of failed) {
-      const script = await askThinkingLab(
-        buildIdeaFixOptionsPrompt({
+      const learned = [...usableIdeaFixLessons(ideaSet.data?.auditLessons ?? [], row.code)];
+      const refused = new Set(learned.map((lesson) => lesson.statement.trim().toLowerCase()));
+      refused.add(row.statement.trim().toLowerCase());
+      let shown = ideaChecklists[row.code.toUpperCase()]?.checks ?? [];
+      let scope: FixScope = scopeFromHistory(shown, learned);
+      let offered = false;
+      for (let attempt = 0; attempt < fixAttemptCap() && !offered; attempt += 1) {
+        const script = await askThinkingLab(
+          buildIdeaFixOptionsPrompt({
+            parentStatement: focusedAngle.statement,
+            masterSubject,
+            ancestors,
+            failed: { code: row.code, statement: row.statement },
+            keepers: keepers.map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
+            conflicts: ideaNotes,
+            lessons: learned,
+            scope,
+          }),
+          0.2,
+        );
+        const drafts = parseIdeaFixDraftScript(script);
+        const draft = drafts.find(
+          (candidate) =>
+            !refused.has(candidate.statement.trim().toLowerCase()) &&
+            !keepers.some((keeper) => sameIdeaConcept(keeper.statement, candidate.statement)),
+        );
+        if (!draft) {
+          const repeated = drafts.map((candidate) => candidate.statement.trim()).filter(Boolean);
+          if (repeated.length === 0) {
+            const reason = "No replacement came back.";
+            const lesson = { code: row.code, statement: row.statement, reason };
+            learned.push(lesson);
+            learnedDuringFix.push(lesson);
+          } else {
+            for (const candidate of repeated) {
+              const reason = "This sentence was offered again after it already failed.";
+              const lesson = { code: row.code, statement: candidate, reason };
+              learned.push(lesson);
+              learnedDuringFix.push(lesson);
+              refused.add(candidate.toLowerCase());
+            }
+          }
+          continue;
+        }
+        const keepKeys = scope.preserve.includes("causeLock") && row.canonicalSemantic.mechanismKeys.length > 0;
+        const mechanismKeys = keepKeys
+          ? row.canonicalSemantic.mechanismKeys
+          : draft.mechanismKeys.length > 0
+            ? draft.mechanismKeys
+            : row.canonicalSemantic.mechanismKeys;
+        const subject = draft.subject.trim() || row.canonicalSemantic.subject;
+        const checked = await runIdeaOpenChecks({
+          statement: draft.statement,
           parentStatement: focusedAngle.statement,
-          masterSubject,
           ancestors,
-          failed: { code: row.code, statement: row.statement },
-          keepers: keepers.map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
-          conflicts: ideaNotes,
-        }),
-        0.2,
-      );
-      const statements = parseIdeaFixOptionsScript(script).filter((statement) => statement !== row.statement.trim());
-      for (const statement of statements) {
-        if (offers.some((offer) => offer.failedCode === row.code && offer.statement === statement)) continue;
-        if (keepers.some((keeper) => sameIdeaConcept(keeper.statement, statement))) continue;
-        const facts = await judgeAndSealIdea({
-          parentStatement: focusedAngle.statement,
           masterSubject,
-          ancestors,
-          code: row.code,
-          statement,
+          mechanismKeys,
+          prior: shown,
           ask: (prompt) => askThinkingLab(prompt, 0),
+          onStep: (checks) => publishIdeaChecklist(row.code, checks),
         });
-        if (admitIdea(facts) !== "GENERATE_VALID") continue;
+        if (!checked.passed) {
+          const failedCheck = checked.checks.find((check) => check.state === "fail");
+          const reason = failedCheck ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim() : "This check could not be decided.";
+          const lesson = { code: row.code, statement: draft.statement, reason };
+          learned.push(lesson);
+          learnedDuringFix.push(lesson);
+          refused.add(draft.statement.trim().toLowerCase());
+          shown = checked.checks;
+          scope = nextFixScope(scope, checked.checks);
+          continue;
+        }
+        publishIdeaChecklist(row.code, beginIdeaSiblingCheck(checked.checks));
         const rows = openIdeas.map((item) => ({
           code: item.code,
-          statement: item.code.toUpperCase() === row.code.toUpperCase() ? statement : item.statement,
+          statement: item.code.toUpperCase() === row.code.toUpperCase() ? draft.statement : item.statement,
         }));
         const fingerprint = ideaSetFingerprint({
           angleFingerprint: parentAngleFingerprint,
@@ -1656,26 +1969,70 @@ export function ThinkingLabPage() {
           0,
         );
         const siblingSet = parseIdeaSet(siblingScript, fingerprint);
-        if (!ideaReplacementPasses(siblingSet, row.code)) continue;
-        offers.push({ angleId: focusedAngle.id, failedCode: row.code, statement, facts });
+        if (!ideaReplacementPasses(siblingSet, row.code)) {
+          const reason =
+            ideaFailureLessons({
+              rows: [{ code: row.code, statement: draft.statement }],
+              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+              siblingSet,
+            })[0]?.reason ?? "Sibling audit failed this Idea.";
+          const lesson = { code: row.code, statement: draft.statement, reason: `siblingsDistinct: ${reason}` };
+          learned.push(lesson);
+          learnedDuringFix.push(lesson);
+          refused.add(draft.statement.trim().toLowerCase());
+          const failedSibling = finishIdeaSiblingCheck(checked.checks, false, reason);
+          shown = failedSibling;
+          publishIdeaChecklist(row.code, failedSibling);
+          scope = nextFixScope(scope, failedSibling);
+          continue;
+        }
+        const passedChecks = finishIdeaSiblingCheck(checked.checks, true, "");
+        publishIdeaChecklist(row.code, passedChecks);
+        await labIdeas.replace.mutateAsync({
+          angleId: focusedAngle.id,
+          id: row.id,
+          statement: draft.statement,
+          facts: {
+            ...row.canonicalSemantic,
+            ...shownIdeaFacts(row.code, draft.statement, mechanismKeys, subject),
+          },
+          admission: "GENERATE_VALID",
+        });
+        applied.set(row.code.toUpperCase(), draft.statement);
+        offered = true;
       }
     }
     const replaced = new Set(failed.map((row) => row.code.toUpperCase()));
-    setIdeaFixOffers((current) => [
-      ...current.filter((offer) => offer.angleId !== focusedAngle.id || !replaced.has(offer.failedCode.toUpperCase())),
-      ...offers,
-    ]);
-    const remaining = openIdeas.filter((_, index) => failedAt(index)).length;
-    if (failed.length >= remaining) {
-      const held = openIdeas.flatMap((row, index) => {
-        const verdict = ideaVerdicts[index];
+    setIdeaFixOffers((current) =>
+      current.filter((offer) => offer.angleId !== focusedAngle.id || !replaced.has(offer.failedCode.toUpperCase())),
+    );
+    const covered = applied.size;
+    if (covered === 0) {
+      if (learnedDuringFix.length > 0) {
+        await ideaSet.save.mutateAsync({
+          schema: "thinking-lab/idea-set/v1",
+          repairCount: ideaSet.data?.repairCount ?? 0,
+          siblingSet: storedIdeaSet,
+          audit: ideaSet.data?.audit ?? null,
+          downTop: ideaSet.data?.downTop ?? null,
+          auditLessons: mergeIdeaAuditLessons(ideaSet.data?.auditLessons ?? [], learnedDuringFix),
+        });
+      }
+    } else {
+      const items = openIdeas.flatMap((row, index) => {
+        const code = row.code.toUpperCase();
+        const statement = applied.get(code) ?? row.statement;
+        const verdict =
+          applied.has(code) || ideaChecklistPassed(ideaChecklists[code]?.checks)
+            ? ("AUDIT_PASS" as const)
+            : ideaVerdicts[index];
         if (verdict !== "AUDIT_PASS" && verdict !== "AUDIT_FAIL") return [];
         return [
           {
             code: row.code,
             verdict,
             statementFingerprint: ideaFingerprint({
-              statement: row.statement,
+              statement,
               angleFingerprint: parentAngleFingerprint,
             }),
           },
@@ -1685,15 +2042,15 @@ export function ThinkingLabPage() {
         schema: "thinking-lab/idea-set/v1",
         repairCount: (ideaSet.data?.repairCount ?? 0) + 1,
         siblingSet: null,
-        audit: held.length > 0 ? { fingerprint: "", items: held } : null,
+        audit: items.length > 0 ? { fingerprint: "", items } : null,
         downTop: null,
+        auditLessons: mergeIdeaAuditLessons(ideaSet.data?.auditLessons ?? [], learnedDuringFix),
       });
     }
-    const covered = new Set(offers.map((offer) => offer.failedCode.toUpperCase()));
-    if (covered.size < failed.length) {
+    if (covered < failed.length) {
       setNotice(
         t("thinkingLab.idea.noSafeReplacement", "NO_SAFE_REPLACEMENT {{count}}/{{failed}}", {
-          count: covered.size,
+          count: covered,
           failed: failed.length,
         }),
       );
@@ -1719,6 +2076,30 @@ export function ThinkingLabPage() {
     })();
   };
 
+  const savePassedIdeaAudit = async () => {
+    if (!parentAngleFingerprint || openIdeas.length === 0) return;
+    if (!shownIdeaVerdicts.every((verdict) => verdict === "AUDIT_PASS")) return;
+    if (ideaVerdicts.every((verdict) => verdict === "AUDIT_PASS")) return;
+    await ideaSet.save.mutateAsync({
+      schema: "thinking-lab/idea-set/v1",
+      repairCount: ideaSet.data?.repairCount ?? 0,
+      siblingSet: storedIdeaSet,
+      audit: {
+        fingerprint: ideaFingerprintNow,
+        items: openIdeas.map((row) => ({
+          code: row.code,
+          verdict: "AUDIT_PASS" as const,
+          statementFingerprint: ideaFingerprint({
+            statement: row.statement,
+            angleFingerprint: parentAngleFingerprint,
+          }),
+        })),
+      },
+      downTop: ideaSet.data?.downTop ?? null,
+      auditLessons: ideaSet.data?.auditLessons ?? [],
+    });
+  };
+
   const onIdeaStage = () =>
     run(async () => {
       if (!focusedAngle || !focusedThought || !masters.organizationId || !parentFp || openIdeas.length === 0) return;
@@ -1727,61 +2108,118 @@ export function ThinkingLabPage() {
         return;
       }
       if (ideaStage === "audit") {
-        const script = await askThinkingLab(
-          buildIdeaSiblingPrompt({
+        const ancestors: AncestorStake[] = [
+          ...(focusedTerritory?.statement.trim() ? [{ label: "Territory", statement: focusedTerritory.statement.trim() }] : []),
+          ...angleAncestors,
+        ];
+        const heldPass = new Set(ideaCodesHeldPass(openIdeas, shownIdeaVerdicts).map((code) => code.toUpperCase()));
+        const eligible: typeof openIdeas = [];
+        const checked = new Map<string, IdeaPassCheck[]>();
+        const individualFailures: Array<{ code: string; statement: string; reason: string }> = [];
+        for (const row of openIdeas) {
+          if (heldPass.has(row.code.toUpperCase())) {
+            eligible.push(row);
+            continue;
+          }
+          const run = await runIdeaIndividualChecks({
+            statement: row.statement,
             parentStatement: focusedAngle.statement,
-            rows: openIdeas.map((row) => ({ code: row.code, statement: row.statement })),
-            sealed: lockedIdeas.map((row) => ({ code: row.code, statement: row.statement })),
+            ancestors,
+            masterSubject,
+            mechanismKeys: row.canonicalSemantic.mechanismKeys,
+            ask: (prompt) => askThinkingLab(prompt, 0),
+            onStep: (checks) => publishIdeaChecklist(row.code, checks),
+          });
+          if (!run.passed) {
+            const failedCheck = run.checks.find((check) => check.state === "fail");
+            individualFailures.push({
+              code: row.code,
+              statement: row.statement,
+              reason: failedCheck
+                ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim()
+                : "This check could not be decided.",
+            });
+            continue;
+          }
+          checked.set(row.code.toUpperCase(), run.checks);
+          eligible.push(row);
+          publishIdeaChecklist(row.code, beginIdeaSiblingCheck(run.checks));
+        }
+        const siblingRows = eligible.map((row) => ({ code: row.code, statement: row.statement }));
+        const sealed = lockedIdeas.map((row) => ({ code: row.code, statement: row.statement }));
+        const siblingScript =
+          siblingRows.length === 0
+            ? null
+            : await askThinkingLab(
+                buildIdeaSiblingPrompt({ parentStatement: focusedAngle.statement, rows: siblingRows, sealed }),
+                0,
+              );
+        const siblingSet = siblingScript ? parseIdeaSet(siblingScript, ideaFingerprintNow) : storedIdeaSet;
+        const siblingScores =
+          siblingRows.length === 0 || !siblingSet
+            ? []
+            : scoreIdeaAudit({
+                codes: siblingRows.map((row) => row.code),
+                siblingSet,
+                siblingSetCurrent: true,
+              });
+        for (const row of eligible) {
+          const prior = checked.get(row.code.toUpperCase());
+          if (!prior) continue;
+          const verdict = siblingScores.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict;
+          const reason =
+            ideaFailureLessons({
+              rows: [{ code: row.code, statement: row.statement }],
+              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+              siblingSet,
+            })[0]?.reason ?? "Sibling audit failed this Idea.";
+          publishIdeaChecklist(
+            row.code,
+            finishIdeaSiblingCheck(
+              prior,
+              verdict === "AUDIT_PASS",
+              verdict === "AUDIT_PASS" ? "" : reason || "This check could not be decided.",
+            ),
+          );
+        }
+        const items = holdPassingIdeaVerdicts(
+          openIdeas.map((row) => {
+            const statementFingerprint = ideaFingerprint({
+              statement: row.statement,
+              angleFingerprint: parentAngleFingerprint,
+            });
+            if (individualFailures.some((failure) => failure.code.toUpperCase() === row.code.toUpperCase())) {
+              return { code: row.code, verdict: "AUDIT_FAIL" as const, statementFingerprint };
+            }
+            const scored = siblingScores.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
+            return {
+              code: row.code,
+              verdict: scored?.verdict === "AUDIT_PASS" ? ("AUDIT_PASS" as const) : ("AUDIT_FAIL" as const),
+              statementFingerprint,
+            };
           }),
-          0,
+          [...heldPass],
         );
-        const siblingSet = parseIdeaSet(script, ideaFingerprintNow);
-        const items = scoreIdeaAudit({
-          codes: openIdeas.map((row) => row.code),
+        const siblingLessons = ideaFailureLessons({
+          rows: siblingRows,
+          items,
           siblingSet,
-          siblingSetCurrent: true,
-        }).map((item) => ({
-          ...item,
-          statementFingerprint: ideaFingerprint({
-            statement: openIdeas.find((row) => row.code.toUpperCase() === item.code.toUpperCase())?.statement ?? "",
-            angleFingerprint: parentAngleFingerprint,
-          }),
-        }));
+        }).filter((lesson) => !individualFailures.some((failure) => failure.code.toUpperCase() === lesson.code.toUpperCase()));
         await ideaSet.save.mutateAsync({
           schema: "thinking-lab/idea-set/v1",
           repairCount: items.some((item) => item.verdict === "AUDIT_FAIL") ? (ideaSet.data?.repairCount ?? 0) : 0,
           siblingSet,
           audit: { fingerprint: ideaFingerprintNow, items },
           downTop: null,
-        });
-        return;
-      }
-      if (ideaStage === "downtop") {
-        const script = await askThinkingLab(
-          buildIdeaDownTopPrompt({
-            masterStatement,
-            masterSubject,
-            bigThoughtStatement: focusedThought.statement,
-            angleStatement: focusedAngle.statement,
-            rows: openIdeas.map((row) => ({ code: row.code, statement: row.statement })),
-          }),
-          0,
-        );
-        const items = parseIdeaDownTop(
-          script,
-          openIdeas.map((row) => row.code),
-          Boolean(masterSubject),
-        );
-        await ideaSet.save.mutateAsync({
-          schema: "thinking-lab/idea-set/v1",
-          repairCount: ideaSet.data?.repairCount ?? 0,
-          siblingSet: ideaSet.data?.siblingSet ?? null,
-          audit: ideaSet.data?.audit ?? null,
-          downTop: { fingerprint: ideaFingerprintNow, items },
+          auditLessons: mergeIdeaAuditLessons(ideaSet.data?.auditLessons ?? [], [
+            ...individualFailures,
+            ...siblingLessons,
+          ]),
         });
         return;
       }
       if (ideaStage === "lock" && ideaLock.ok) {
+        await savePassedIdeaAudit();
         await ideaSet.lock.mutateAsync({
           angleFingerprint: parentAngleFingerprint,
           ids: openIdeas.map((row) => row.id),
@@ -1791,8 +2229,9 @@ export function ThinkingLabPage() {
 
   const onLockIdeas = () =>
     run(async () => {
-      if (!focusedAngle || !parentAngleFingerprint || openIdeas.length === 0) return;
-      if (!ideaVerdicts.every((verdict) => verdict === "AUDIT_PASS")) return;
+      if (!focusedAngle || !parentAngleFingerprint || openIdeas.length === 0 || !ideaLock.ok) return;
+      if (!shownIdeaVerdicts.every((verdict) => verdict === "AUDIT_PASS")) return;
+      await savePassedIdeaAudit();
       await ideaSet.lock.mutateAsync({
         angleFingerprint: parentAngleFingerprint,
         ids: openIdeas.map((row) => row.id),
@@ -1834,7 +2273,8 @@ export function ThinkingLabPage() {
         repairCount: ideaSet.data?.repairCount ?? 0,
         siblingSet: null,
         audit: { fingerprint: "", items },
-        downTop: null,
+        downTop: ideaSet.data?.downTop ?? null,
+        auditLessons: ideaSet.data?.auditLessons ?? [],
       });
       setIdeaFixOffers((current) =>
         current.filter(
@@ -1864,8 +2304,8 @@ export function ThinkingLabPage() {
       }
       if (active.length >= ACTIVE_SET_CAP) return t("thinkingLab.manual.cap", "This set is full.");
       const read = readBigThoughtLabel(raw);
-      if (!read.ok) {
-        return read.reason === "TOO_LONG" ? t("thinkingLab.manual.labelTooLong", "A label is at most 3 words.") : null;
+      if (read.ok === false) {
+        return read.reason === "TOO_LONG" ? t("thinkingLab.manual.labelTooLong", "A label stays within 12 words.") : null;
       }
       const known = thoughts.data ?? [];
       const code = nextBigThoughtCode(known.map((row) => row.code));
@@ -1985,6 +2425,7 @@ export function ThinkingLabPage() {
             parentStatement: focusedThought.statement,
         ancestors: territoryAncestors,
         audience: selected?.audience,
+        answeredQuestion,
         code: row.code,
         statement,
         ask: (prompt) => askThinkingLab(prompt, 0),
@@ -2036,7 +2477,10 @@ export function ThinkingLabPage() {
         facts,
         admission,
       });
-      await angleSet.save.mutateAsync(emptyAngleSetRecord());
+      await angleSet.save.mutateAsync({
+        ...emptyAngleSetRecord(),
+        auditLessons: angleSet.data?.auditLessons ?? [],
+      });
       return null;
     });
 
@@ -2090,7 +2534,11 @@ export function ThinkingLabPage() {
         facts,
         admission,
       });
-      await ideaSet.save.mutateAsync(emptyIdeaSetRecord());
+      await ideaSet.save.mutateAsync({
+        ...emptyIdeaSetRecord(),
+        downTop: ideaSet.data?.downTop ?? null,
+        auditLessons: ideaSet.data?.auditLessons ?? [],
+      });
       return null;
     });
 
@@ -2131,7 +2579,12 @@ export function ThinkingLabPage() {
         admission,
       });
       if (idea.angleId === focusedAngle?.id) {
-        await ideaSet.save.mutateAsync(emptyIdeaSetRecord());
+        await ideaSet.save.mutateAsync({
+          ...emptyIdeaSetRecord(),
+          downTop: ideaSet.data?.downTop ?? null,
+          auditLessons: ideaSet.data?.auditLessons ?? [],
+        });
+        setIdeaChecklists({});
       }
       return null;
     });
@@ -2139,6 +2592,7 @@ export function ThinkingLabPage() {
   const onStopExecution = () => {
     executionCancel.current += 1;
     setExecutionProgress(null);
+    setFixingLineId(null);
   };
 
   const onOpenPillarPicker = () => {
@@ -2150,6 +2604,138 @@ export function ThinkingLabPage() {
     })();
   };
 
+  const loadScriptConfirm = (settings: {
+    pillars: LabContentPillar[];
+    audio: ScriptAudio;
+    look: ScriptLook;
+    speech: ScriptSpeech;
+    durationSeconds: number | null;
+    brandName: string | null;
+    cta: string | null;
+  }) => {
+    if (!focusedIdea || focusedIdea.status !== "locked") return;
+    const idea = focusedIdea;
+    const token = ++confirmToken.current;
+    setPillarPickerOpen(false);
+    setScriptConfirm({ ...settings, questions: null, loading: true, failed: false });
+    if (!masters.organizationId) {
+      setScriptConfirm({ ...settings, questions: null, loading: false, failed: true });
+      return;
+    }
+    let writeNow = false;
+    void run(async () => {
+      try {
+        const { ancestors, angle } = ideaParentFor(idea.angleId);
+        const raw = await askThinkingLab(
+          buildExecutionConfirmPrompt({
+            masterStatement,
+            masterSubject,
+            priorBelief: selected?.priorBelief,
+            angleStatement: angle?.statement,
+            ideaStatement: idea.statement,
+            pillars: settings.pillars.map((pillar) => ({
+              name: pillar.name,
+              funnel: pillar.funnel,
+              category: pillar.category,
+            })),
+            ancestors,
+            speech: settings.speech,
+            look: settings.look,
+            durationSeconds: settings.durationSeconds,
+            brandName: settings.brandName,
+            cta: settings.cta,
+          }),
+          0.2,
+        );
+        if (confirmToken.current !== token) return;
+        const discovered = parseDiscoveredQuestions(raw ? parseModelJson(raw) : null);
+        if (!discovered.ok) {
+          setScriptConfirm((current) => {
+            if (!current || confirmToken.current !== token) return current;
+            return { ...current, loading: false, questions: null, failed: true };
+          });
+          return;
+        }
+        if (discovered.questions.length === 0) {
+          writeNow = true;
+          setScriptConfirm(null);
+          return;
+        }
+        setScriptConfirm((current) => {
+          if (!current || confirmToken.current !== token) return current;
+          return { ...current, loading: false, questions: discovered.questions, failed: false };
+        });
+      } catch {
+        if (confirmToken.current !== token) return;
+        setScriptConfirm((current) => {
+          if (!current || confirmToken.current !== token) return current;
+          return { ...current, loading: false, questions: null, failed: true };
+        });
+      }
+    }, "execution-confirm").then(() => {
+      if (!writeNow || confirmToken.current !== token) return;
+      onGenerateExecutions(
+        settings.pillars,
+        settings.audio,
+        settings.look,
+        settings.speech,
+        null,
+        settings.durationSeconds,
+        settings.brandName,
+        settings.cta,
+        null,
+        [],
+      );
+    });
+  };
+
+  const withPillarRecommendation = async (
+    facts: ExecutionSemanticFacts,
+    failedPillar: string,
+    ideaStatement: string,
+    ancestors: AncestorStake[],
+    token: number,
+  ): Promise<ExecutionSemanticFacts> => {
+    if (!pillarNeedsRecommendation(facts.relationToParent)) return facts;
+    const options = (contentPillars.data ?? []).filter(
+      (pillar) => pillar.name.trim().toLowerCase() !== failedPillar.trim().toLowerCase(),
+    );
+    if (options.length === 0) return facts;
+    setExecutionProgress({ phase: "recommend", pillarName: failedPillar });
+    const raw = await askThinkingLab(
+      buildPillarRecommendationPrompt({
+        masterStatement,
+        ideaStatement,
+        failedPillar,
+        explanation: facts.whatItSays,
+        ancestors,
+        pillars: options.map((pillar) => ({
+          name: pillar.name,
+          funnel: pillar.funnel === "middle" ? "Consideration" : pillar.funnel === "bottom" ? "Conversion" : "Awareness",
+          category: pillar.category,
+          description: pillar.description,
+        })),
+      }),
+      0.2,
+    );
+    if (executionCancel.current !== token) return facts;
+    const recommendation = parsePillarRecommendation(
+      raw ? parseModelJson(raw) : null,
+      options.map((pillar) => pillar.name),
+      failedPillar,
+    );
+    return recommendation ? { ...facts, recommendation } : facts;
+  };
+
+  const pillarHopStopped = (pillarName: string, script?: { followedRecommendation?: boolean } | null, exceptId?: string) =>
+    Boolean(script?.followedRecommendation) ||
+    pillarWasRecommended(
+      pillarName,
+      (labExecutions.data ?? [])
+        .filter((row) => row.id !== exceptId)
+        .map((row) => row.canonicalSemantic.recommendation?.pillarName),
+    );
+
   const onGenerateExecutions = (
     chosen: LabContentPillar[],
     audio: ScriptAudio,
@@ -2157,12 +2743,24 @@ export function ThinkingLabPage() {
     speech?: ScriptSpeech,
     previousScript?: VoiceOverScript | null,
     durationSeconds?: number | null,
+    brandName?: string | null,
+    cta?: string | null,
+    pointOfView?: string | null,
+    decisions?: ScriptDecision[] | null,
+    fromRecommendation = false,
   ) => {
     if (!focus || (focus.kind !== "idea" && focus.kind !== "execution") || !focusedIdea || focusedIdea.status !== "locked") return;
     const origin = focus;
     const idea = focusedIdea;
     const resolvedAudio: ScriptAudio = speech === "mix" || speech === "dialog" ? { ...audio, sound: true } : audio;
     const targetSeconds = durationSeconds ?? previousScript?.durationSeconds ?? null;
+    const lockedDecisions = (decisions ?? previousScript?.decisions ?? []).filter((row) => row.answer.trim());
+    const lockedView = (
+      pointOfView ??
+      lockedDecisions.find((row) => row.binds === "viewpoint")?.answer ??
+      previousScript?.pointOfView ??
+      ""
+    ).trim();
     const token = executionCancel.current;
     setPillarPickerOpen(false);
     void run(async () => {
@@ -2181,16 +2779,33 @@ export function ThinkingLabPage() {
             ancestors,
             speech,
             durationSeconds: targetSeconds,
+            brandName: brandName ?? previousScript?.brandName ?? null,
+            cta: cta ?? previousScript?.cta ?? null,
+            pointOfView: lockedView || null,
+            decisions: lockedDecisions,
           }),
           0.2,
         );
         if (executionCancel.current !== token) return;
         const parsed = parseVoiceOverScript(raw ? parseModelJson(raw) : null);
         if (!parsed) continue;
-        let current = speech
-          ? withSpeech({ ...parsed, audio: resolvedAudio, ...(look ? { look } : {}) }, speech)
-          : { ...parsed, audio: resolvedAudio, ...(look ? { look } : {}) };
-        if (speechNeedsRepair(current, speech)) {
+        const namedBrand = (brandName ?? previousScript?.brandName ?? "").trim();
+        const chosenCta = (cta ?? previousScript?.cta ?? "").trim();
+        const stamped = {
+          ...parsed,
+          audio: resolvedAudio,
+          ...(look ? { look } : {}),
+          ...(namedBrand ? { brandName: namedBrand } : {}),
+          ...(chosenCta ? { cta: chosenCta } : {}),
+          ...(lockedView ? { pointOfView: lockedView } : {}),
+          ...(lockedDecisions.length > 0 ? { decisions: lockedDecisions } : {}),
+          ...(fromRecommendation ? { followedRecommendation: true } : {}),
+        };
+        let current = speech ? withSpeech(stamped, speech) : stamped;
+        if (
+          speechNeedsRepair(current, speech) ||
+          (namedBrand && !scriptMentionsBrand(current, namedBrand))
+        ) {
           const repairSpeech = speech === "mix" || speech === "dialog" || speech === "silent" ? speech : "vo";
           setExecutionProgress({ phase: "repair", pillarName: pillar.name });
           const repairRaw = await askThinkingLab(
@@ -2206,35 +2821,139 @@ export function ThinkingLabPage() {
           const repaired = mergeSpeechRepairs(current, parseSpeechRepairs(repairRaw ? parseModelJson(repairRaw) : null));
           current = speech ? withSpeech(repaired, speech) : repaired;
         }
+        if (namedBrand) current = ensureBrandMention(current, namedBrand);
+        if (chosenCta) {
+          current = detachCallToAction(current, chosenCta);
+          if (!callToActionSceneReady(current, chosenCta)) {
+            setExecutionProgress({ phase: "write", pillarName: pillar.name });
+            const ctaRaw = await askThinkingLab(
+              buildCtaScenePrompt({
+                ideaStatement: idea.statement,
+                masterStatement,
+                pointOfView: lockedView || null,
+                decisions: lockedDecisions,
+                action: chosenCta,
+                speech,
+                brandName: namedBrand || null,
+              }),
+              0.2,
+            );
+            if (executionCancel.current !== token) return;
+            const ctaScene = parseCtaScene(ctaRaw ? parseModelJson(ctaRaw) : null, speech);
+            if (ctaScene && callToActionSceneReady({ ...current, scenes: [...current.scenes, ctaScene] }, chosenCta)) {
+              current = attachCtaScene(current, ctaScene);
+            }
+          }
+        }
         if (targetSeconds) current = { ...current, durationSeconds: targetSeconds };
+        const narrationLines = () =>
+          current.scenes.flatMap((scene) => scene.lines.map((line) => ({ id: line.id, narration: line.narration })));
+        let viewpointIssues: Array<{ lineId: string; reason: string }> = [];
+        if (lockedView) {
+          setExecutionProgress({ phase: "audit", pillarName: pillar.name });
+          const viewpointRaw = await askThinkingLab(
+            buildViewpointAuditPrompt({
+              ideaStatement: idea.statement,
+              pointOfView: lockedView,
+              lines: narrationLines(),
+            }),
+            0,
+          );
+          if (executionCancel.current !== token) return;
+          viewpointIssues = parseLineIssues(viewpointRaw ? parseModelJson(viewpointRaw) : null, current);
+          if (viewpointIssues.length > 0) {
+            setExecutionProgress({ phase: "repair", pillarName: pillar.name });
+            const repairRaw = await askThinkingLab(
+              buildLineRepairPrompt({
+                ideaStatement: idea.statement,
+                masterStatement,
+                priorBelief: selected?.priorBelief,
+                ancestors,
+                pillarName: pillar.name,
+                script: { ...current, lineIssues: viewpointIssues },
+              }),
+              0.2,
+            );
+            if (executionCancel.current !== token) return;
+            const repaired = mergeRepairedLines(current, parseLineReplacements(repairRaw ? parseModelJson(repairRaw) : null));
+            const named = namedBrand ? ensureBrandMention(repaired, namedBrand) : repaired;
+            const voiced = chosenCta ? detachCallToAction(named, chosenCta) : named;
+            current = speech ? withSpeech({ ...voiced, pointOfView: lockedView }, speech) : { ...voiced, pointOfView: lockedView };
+            const recheckRaw = await askThinkingLab(
+              buildViewpointAuditPrompt({
+                ideaStatement: idea.statement,
+                pointOfView: lockedView,
+                lines: narrationLines(),
+              }),
+              0,
+            );
+            if (executionCancel.current !== token) return;
+            viewpointIssues = parseLineIssues(recheckRaw ? parseModelJson(recheckRaw) : null, current);
+          }
+        }
         setExecutionProgress({ phase: "audit", pillarName: pillar.name });
-        const statement = flattenVoiceOver(current);
-        if (!statement) continue;
-        const facts = await judgeAndSealExecution({
-          masterStatement,
-          masterSubject,
-          ideaStatement: idea.statement,
-          pillar: pillar.name,
-          ancestors,
-          statement,
-          ask: (prompt) => askThinkingLab(prompt, 0),
-        });
-        if (executionCancel.current !== token) return;
-        const lineRaw = await askThinkingLab(
-          buildLineAuditPrompt({
+        const continuityRaw = await askThinkingLab(
+          buildContinuityAuditPrompt({
             ideaStatement: idea.statement,
-            masterStatement,
-            priorBelief: selected?.priorBelief,
-            ancestors,
-            lines: current.scenes.flatMap((scene) => scene.lines.map((line) => ({ id: line.id, narration: line.narration }))),
+            lines: chainNarrationLines(current),
           }),
           0,
         );
         if (executionCancel.current !== token) return;
-        const script = keepCharacterVisuals(
-          { ...current, lineIssues: parseLineIssues(lineRaw ? parseModelJson(lineRaw) : null, current) },
-          previousScript ?? null,
-        );
+        const seen = new Set(viewpointIssues.map((issue) => issue.lineId));
+        const productionIssues = [
+          ...viewpointIssues.map((issue) => ({ ...issue, kind: "viewpoint" as const })),
+          ...parseLineIssues(continuityRaw ? parseModelJson(continuityRaw) : null, current)
+            .filter((issue) => !seen.has(issue.lineId))
+            .map((issue) => ({ ...issue, kind: "continuity" as const })),
+        ];
+        const { productionIssues: _droppedProduction, ...withoutProduction } = current;
+        current = {
+          ...withoutProduction,
+          lineIssues: [],
+          ...(productionIssues.length > 0 ? { productionIssues } : {}),
+        };
+        const statement = storyVoiceOver(current);
+        if (!statement) continue;
+        const trackedId =
+          (labExecutions.data ?? []).find((row) => {
+            if (row.ideaId !== idea.id) return false;
+            if (pillar.id && (row.contentPillarId === pillar.id || row.pillar === pillar.id)) return true;
+            return row.pillarName.trim().toLowerCase() === pillar.name.trim().toLowerCase();
+          })?.id ?? null;
+        let liveChecks: ExecutionPassCheck[] = [];
+        const checked = await runExecutionMeaningChecks({
+          pillar: pillar.name,
+          masterStatement,
+          masterSubject,
+          ideaStatement: idea.statement,
+          ancestors,
+          script: current,
+          masterSells,
+          ask: (prompt) => askThinkingLab(prompt, 0),
+          resolveSelling: async () => {
+            const raw = await askThinkingLab(buildMasterSellsPrompt(masterStatement), 0);
+            const value = parseMasterSells(raw ? parseModelJson(raw) : null);
+            setMasterSells(value);
+            return value;
+          },
+          onStep: (checks) => {
+            liveChecks = checks;
+            if (!trackedId) return;
+            setExecutionChecklists((lists) => ({ ...lists, [trackedId]: checks }));
+          },
+        });
+        if (executionCancel.current !== token) return;
+        const lesson = lessonFromMeaningAudit(checked.facts, current);
+        const withLesson = lesson
+          ? { ...checked.facts, auditLessons: mergeExecutionAuditLessons(checked.facts.auditLessons ?? [], [lesson]) }
+          : checked.facts;
+        const recommended =
+          fromRecommendation || pillarHopStopped(pillar.name, current)
+            ? withLesson
+            : await withPillarRecommendation(withLesson, pillar.name, idea.statement, ancestors, token);
+        if (executionCancel.current !== token) return;
+        const script = keepCharacterVisuals(current, previousScript ?? null);
         const saved = await labExecutions.save.mutateAsync({
           ideaId: idea.id,
           pillar: pillar.id,
@@ -2242,8 +2961,11 @@ export function ThinkingLabPage() {
           pillarName: pillar.name,
           statement: flattenVoiceOver(script),
           script,
-          facts,
+          facts: recommended,
         });
+        setExecutionChecklists((currentLists) => ({ ...currentLists, [saved.id]: liveChecks }));
+        setExecutionLineOffer(null);
+        setExecutionRepairNote(null);
         lastId = saved.id;
       }
       if (executionCancel.current !== token) return;
@@ -2286,20 +3008,420 @@ export function ThinkingLabPage() {
       execution.script?.speech,
       execution.script,
       execution.script?.durationSeconds,
+      execution.script?.brandName,
+      execution.script?.cta,
     );
+  };
+
+  const onUseRecommendation = () => {
+    if (focus?.kind !== "execution") return;
+    const execution = (labExecutions.data ?? []).find((row) => row.id === focus.executionId);
+    const name = execution?.canonicalSemantic.recommendation?.pillarName.trim();
+    if (!execution || !name) return;
+    const match = (contentPillars.data ?? []).find((pillar) => pillar.name.trim().toLowerCase() === name.toLowerCase());
+    if (!match) return;
+    onGenerateExecutions(
+      [match],
+      execution.script?.audio ?? { sound: false, music: false },
+      execution.script?.look,
+      execution.script?.speech,
+      execution.script,
+      execution.script?.durationSeconds,
+      execution.script?.brandName,
+      execution.script?.cta,
+      execution.script?.pointOfView,
+      execution.script?.decisions,
+      true,
+    );
+  };
+
+  const onFixLine = (lineId: string) => {
+    if (focus?.kind !== "execution" || !focusedIdea) return;
+    const execution = (labExecutions.data ?? []).find((row) => row.id === focus.executionId);
+    const production = execution?.script?.productionIssues?.find((row) => row.lineId === lineId);
+    const issue = production ?? (execution?.canonicalSemantic.meaningAudit ? undefined : execution?.script?.lineIssues.find((row) => row.lineId === lineId));
+    if (!execution?.script || !issue) return;
+    const idea = focusedIdea;
+    const current = execution;
+    const scriptNow = current.script as NonNullable<typeof current.script>;
+    const token = executionCancel.current;
+    void run(async () => {
+      setFixingLineId(lineId);
+      try {
+      if (production) {
+        const line = scriptNow.scenes.flatMap((scene) => scene.lines).find((row) => row.id === lineId);
+        if (!line) return;
+        setExecutionProgress({ phase: "repair", pillarName: current.pillarName });
+        const raw = await askThinkingLab(
+          buildProductionRepairPrompt({
+            ideaStatement: idea.statement,
+            pointOfView: scriptNow.pointOfView,
+            lineId,
+            narration: line.narration,
+            reason: production.reason,
+            kind: production.kind,
+          }),
+          0.2,
+        );
+        if (executionCancel.current !== token) return;
+        const replacement = parseExecutionNarrationReplacements(raw ? parseModelJson(raw) : null).find((row) => row.lineId === lineId);
+        if (!replacement) return;
+        const merged = mergeNarrationRepairs(scriptNow, [replacement]);
+        const narration = merged.scenes.flatMap((scene) => scene.lines.map((row) => ({ id: row.id, narration: row.narration })));
+        const useViewpoint = production.kind === "viewpoint" && Boolean(merged.pointOfView?.trim());
+        const recheckRaw = await askThinkingLab(
+          useViewpoint
+            ? buildViewpointAuditPrompt({
+                ideaStatement: idea.statement,
+                pointOfView: merged.pointOfView ?? "",
+                lines: linesForProductionRecheck(narration, lineId, "viewpoint"),
+              })
+            : buildContinuityAuditPrompt({
+                ideaStatement: idea.statement,
+                lines: linesForProductionRecheck(chainNarrationLines(merged), lineId, "continuity"),
+              }),
+          0,
+        );
+        if (executionCancel.current !== token) return;
+        const nextIssue = parseLineIssues(recheckRaw ? parseModelJson(recheckRaw) : null, merged).find((row) => row.lineId === lineId) ?? null;
+        const productionIssues = [
+          ...(scriptNow.productionIssues ?? []).filter((row) => row.lineId !== lineId),
+          ...(nextIssue ? [{ ...nextIssue, kind: production.kind }] : []),
+        ];
+        await labExecutions.save.mutateAsync({
+          ideaId: idea.id,
+          pillar: current.contentPillarId ?? current.pillar,
+          contentPillarId: current.contentPillarId,
+          pillarName: current.pillarName,
+          statement: flattenVoiceOver(merged),
+          script: { ...merged, ...(productionIssues.length > 0 ? { productionIssues } : { productionIssues: undefined }) },
+          facts: current.canonicalSemantic,
+        });
+        return;
+      }
+      const { ancestors } = ideaParentFor(idea.angleId);
+      setExecutionProgress({ phase: "repair", pillarName: current.pillarName });
+      const raw = await askThinkingLab(
+        buildLineRepairPrompt({
+          ideaStatement: idea.statement,
+          masterStatement,
+          priorBelief: selected?.priorBelief,
+          ancestors,
+          pillarName: current.pillarName,
+          script: { ...scriptNow, lineIssues: [issue] },
+        }),
+        0.2,
+      );
+      if (executionCancel.current !== token) return;
+      const replacements = parseLineReplacements(raw ? parseModelJson(raw) : null).filter((row) => row.lineId === lineId);
+      if (replacements.length === 0) return;
+      const merged = detachCallToAction(
+        ensureBrandMention(mergeRepairedLines(scriptNow, replacements), scriptNow.brandName ?? ""),
+        scriptNow.cta ?? "",
+      );
+      const narration = merged.scenes.flatMap((scene) => scene.lines.map((line) => ({ id: line.id, narration: line.narration })));
+      let nextIssue: { lineId: string; reason: string } | null = null;
+      if (merged.pointOfView?.trim()) {
+        const viewpointRaw = await askThinkingLab(
+          buildViewpointAuditPrompt({
+            ideaStatement: idea.statement,
+            pointOfView: merged.pointOfView,
+            lines: linesForProductionRecheck(narration, lineId, "viewpoint"),
+          }),
+          0,
+        );
+        if (executionCancel.current !== token) return;
+        nextIssue = parseLineIssues(viewpointRaw ? parseModelJson(viewpointRaw) : null, merged).find((row) => row.lineId === lineId) ?? null;
+      }
+      if (!nextIssue) {
+        const lineRaw = await askThinkingLab(
+          buildLineAuditPrompt({
+            ideaStatement: idea.statement,
+            masterStatement,
+            priorBelief: selected?.priorBelief,
+            ancestors,
+            lines: chainNarrationLines(merged),
+          }),
+          0,
+        );
+        if (executionCancel.current !== token) return;
+        nextIssue = parseLineIssues(lineRaw ? parseModelJson(lineRaw) : null, merged).find((row) => row.lineId === lineId) ?? null;
+      }
+      const script = {
+        ...merged,
+        lineIssues: [...scriptNow.lineIssues.filter((row) => row.lineId !== lineId), ...(nextIssue ? [nextIssue] : [])],
+      };
+      await labExecutions.save.mutateAsync({
+        ideaId: idea.id,
+        pillar: current.contentPillarId ?? current.pillar,
+        contentPillarId: current.contentPillarId,
+        pillarName: current.pillarName,
+        statement: flattenVoiceOver(script),
+        script,
+        facts: current.canonicalSemantic,
+      });
+      } finally {
+        setFixingLineId((currentId) => (currentId === lineId ? null : currentId));
+        if (executionCancel.current === token) setExecutionProgress(null);
+      }
+    }, "execution-fix-line");
+  };
+
+  const onUseExecutionOffer = () => {
+    if (focus?.kind !== "execution" || !executionLineOffer || executionLineOffer.executionId !== focus.executionId) return;
+    const execution = (labExecutions.data ?? []).find((row) => row.id === focus.executionId);
+    const offer = executionLineOffer;
+    if (!execution) return;
+    void run(async () => {
+      await labExecutions.save.mutateAsync({
+        ideaId: execution.ideaId,
+        pillar: execution.contentPillarId ?? execution.pillar,
+        contentPillarId: execution.contentPillarId,
+        pillarName: execution.pillarName,
+        statement: flattenVoiceOver(offer.script),
+        script: offer.script,
+        facts: offer.facts,
+      });
+      setExecutionLineOffer(null);
+      setExecutionRepairNote(null);
+    }, "execution-offer");
+  };
+
+  const onRetrySelling = () => {
+    if (focus?.kind !== "execution" || !focusedIdea || !masterStatement) return;
+    const execution = (labExecutions.data ?? []).find((row) => row.id === focus.executionId);
+    if (!execution?.script) return;
+    const idea = focusedIdea;
+    const current = execution;
+    const token = executionCancel.current;
+    void run(async () => {
+      const { ancestors } = ideaParentFor(idea.angleId);
+      setExecutionProgress({ phase: "audit", pillarName: current.pillarName });
+      const raw = await askThinkingLab(buildMasterSellsPrompt(masterStatement), 0);
+      if (executionCancel.current !== token) return;
+      const selling = parseMasterSells(raw ? parseModelJson(raw) : null);
+      setMasterSells(selling);
+      const scriptNow = current.script as NonNullable<typeof current.script>;
+      let liveChecks: ExecutionPassCheck[] = [];
+      const checked = await runExecutionMeaningChecks({
+        pillar: current.pillarName,
+        masterStatement,
+        masterSubject,
+        ideaStatement: idea.statement,
+        ancestors,
+        script: scriptNow,
+        masterSells: selling,
+        auditLessons: current.canonicalSemantic.auditLessons,
+        ask: (prompt) => askThinkingLab(prompt, 0),
+        onStep: (checks) => {
+          liveChecks = checks;
+        },
+      });
+      if (executionCancel.current !== token) return;
+      const lesson = lessonFromMeaningAudit(checked.facts, scriptNow);
+      const withLesson = lesson
+        ? { ...checked.facts, auditLessons: mergeExecutionAuditLessons(checked.facts.auditLessons ?? [], [lesson]) }
+        : checked.facts;
+      const recommended = pillarHopStopped(current.pillarName, scriptNow, current.id)
+        ? withLesson
+        : await withPillarRecommendation(withLesson, current.pillarName, idea.statement, ancestors, token);
+      if (executionCancel.current !== token) return;
+      await labExecutions.save.mutateAsync({
+        ideaId: idea.id,
+        pillar: current.contentPillarId ?? current.pillar,
+        contentPillarId: current.contentPillarId,
+        pillarName: current.pillarName,
+        statement: flattenVoiceOver(scriptNow),
+        script: scriptNow,
+        facts: recommended,
+      });
+      setExecutionChecklists((lists) => ({ ...lists, [current.id]: liveChecks }));
+    }, "execution-selling").finally(() => {
+      if (executionCancel.current === token) setExecutionProgress(null);
+    });
   };
 
   const onRepairExecution = () => {
     if (focus?.kind !== "execution" || !focusedIdea) return;
     const execution = (labExecutions.data ?? []).find((row) => row.id === focus.executionId);
-    if (!execution?.script || !scriptLineRepairReady(execution.canonicalSemantic, execution.script)) return;
+    if (!execution?.script) return;
+    if (meaningLineRepairReady(execution.canonicalSemantic)) {
+      const idea = focusedIdea;
+      const current = execution;
+      const audit = current.canonicalSemantic.meaningAudit;
+      if (!isFailedMeaningAudit(audit)) return;
+      const token = executionCancel.current;
+      void run(async () => {
+        const { ancestors } = ideaParentFor(idea.angleId);
+        const scriptNow = current.script as NonNullable<typeof current.script>;
+        setExecutionRepairNote(null);
+        setExecutionLineOffer(null);
+        const storedChecks = executionChecklists[current.id];
+        const startingChecks =
+          storedChecks?.some((check) => check.state === "pass" || check.state === "fail")
+            ? storedChecks
+            : executionChecksFromAudit(audit);
+        let script = scriptNow;
+        let shown = startingChecks;
+        const learned = [...(current.canonicalSemantic.auditLessons ?? [])];
+        const learnedDuring: typeof learned = [];
+        const refused = new Set(learned.flatMap((lesson) => lesson.lines.map((line) => line.trim().toLowerCase())));
+        let passed = false;
+        let latestChecks = startingChecks;
+        let latestScript = scriptNow;
+        for (let attempt = 0; attempt < fixAttemptCap() && !passed; attempt += 1) {
+          const failedCheck = shown.find((check) => check.state === "fail");
+          const lineIds = failedCheck?.lineIds ?? [];
+          if (!failedCheck || !EXECUTION_LINE_REPAIR_IDS.some((id) => id === failedCheck.id) || lineIds.length === 0) break;
+          const failingLines = script.scenes
+            .flatMap((scene) => scene.lines)
+            .filter((line) => lineIds.includes(line.id));
+          for (const line of failingLines) refused.add(line.narration.trim().toLowerCase());
+          const scope: FixScope = {
+            preserve: shown.filter((check) => check.state === "pass").map((check) => check.id),
+            repair: [{ id: failedCheck.id, reason: failedCheck.reason }],
+          };
+          setExecutionProgress({ phase: "repair", pillarName: current.pillarName });
+          const raw = await askThinkingLab(
+            buildExecutionMeaningRepairPrompt({
+              ideaStatement: idea.statement,
+              masterStatement,
+              masterSubject,
+              ancestors,
+              pillarName: current.pillarName,
+              checkId: failedCheck.id,
+              reason: failedCheck.reason ?? "",
+              script,
+              lineIds,
+              lessons: learned.filter((lesson) => !scope.preserve.includes(lesson.checkId)),
+              scope,
+            }),
+            0.2,
+          );
+          if (executionCancel.current !== token) return;
+          const replacements = parseExecutionNarrationReplacements(raw ? parseModelJson(raw) : null).filter((row) =>
+            lineIds.includes(row.lineId),
+          );
+          const fresh = replacements.filter((row) => !refused.has(row.narration.trim().toLowerCase()));
+          if (fresh.length === 0 || fresh.length !== replacements.length) {
+            const lesson = {
+              checkId: failedCheck.id,
+              reason: replacements.length === 0 ? "No replacement came back." : "This narration was offered again after it already failed.",
+              lines: replacements.map((row) => row.narration.trim()).filter(Boolean),
+            };
+            learned.push(lesson);
+            learnedDuring.push(lesson);
+            continue;
+          }
+          const merged = mergeNarrationRepairs(script, fresh);
+          setExecutionProgress({ phase: "audit", pillarName: current.pillarName });
+          let liveChecks: ExecutionPassCheck[] = [];
+          const checked = await runExecutionOpenChecks({
+            pillar: current.pillarName,
+            masterStatement,
+            masterSubject,
+            ideaStatement: idea.statement,
+            ancestors,
+            script: merged,
+            masterSells,
+            auditLessons: learned,
+            prior: shown,
+            ask: (prompt) => askThinkingLab(prompt, 0),
+            resolveSelling: async () => {
+              const sellingRaw = await askThinkingLab(buildMasterSellsPrompt(masterStatement), 0);
+              const value = parseMasterSells(sellingRaw ? parseModelJson(sellingRaw) : null);
+              setMasterSells(value);
+              return value;
+            },
+            onStep: (checks) => {
+              liveChecks = checks;
+              setExecutionChecklists((lists) => ({ ...lists, [current.id]: checks }));
+            },
+          });
+          if (executionCancel.current !== token) return;
+          latestChecks = liveChecks.length > 0 ? liveChecks : checked.checks;
+          latestScript = merged;
+          if (!checked.passed) {
+            const lesson = lessonFromMeaningAudit(checked.facts, merged);
+            if (lesson) {
+              learned.push(lesson);
+              learnedDuring.push(lesson);
+              for (const line of lesson.lines) refused.add(line.trim().toLowerCase());
+            }
+            shown = checked.checks;
+            script = merged;
+            continue;
+          }
+          await labExecutions.save.mutateAsync({
+            ideaId: idea.id,
+            pillar: current.contentPillarId ?? current.pillar,
+            contentPillarId: current.contentPillarId,
+            pillarName: current.pillarName,
+            statement: flattenVoiceOver(merged),
+            script: merged,
+            facts: {
+              ...current.canonicalSemantic,
+              ...checked.facts,
+              recommendation: current.canonicalSemantic.recommendation,
+              auditLessons: mergeExecutionAuditLessons(learned, learnedDuring),
+            },
+          });
+          setExecutionChecklists((lists) => ({ ...lists, [current.id]: checked.checks }));
+          setExecutionLineOffer(null);
+          passed = true;
+        }
+        if (passed || executionCancel.current !== token) return;
+        const moved = latestScript !== scriptNow && executionFailureMoved(audit.id, latestChecks);
+        const lessons = mergeExecutionAuditLessons(current.canonicalSemantic.auditLessons ?? [], learnedDuring);
+        if (moved) {
+          const carriedFacts = executionFactsFromChecks({
+            pillar: current.pillarName,
+            checks: latestChecks,
+            masterSells: current.canonicalSemantic.masterSells,
+            auditLessons: lessons,
+          });
+          await labExecutions.save.mutateAsync({
+            ideaId: idea.id,
+            pillar: current.contentPillarId ?? current.pillar,
+            contentPillarId: current.contentPillarId,
+            pillarName: current.pillarName,
+            statement: flattenVoiceOver(latestScript),
+            script: latestScript,
+            facts: {
+              ...current.canonicalSemantic,
+              ...carriedFacts,
+              recommendation: current.canonicalSemantic.recommendation,
+            },
+          });
+          setExecutionChecklists((lists) => ({ ...lists, [current.id]: latestChecks }));
+          return;
+        }
+        await labExecutions.save.mutateAsync({
+          ideaId: idea.id,
+          pillar: current.contentPillarId ?? current.pillar,
+          contentPillarId: current.contentPillarId,
+          pillarName: current.pillarName,
+          statement: flattenVoiceOver(scriptNow),
+          script: scriptNow,
+          facts: {
+            ...current.canonicalSemantic,
+            auditLessons: lessons,
+          },
+        });
+        setExecutionChecklists((lists) => ({ ...lists, [current.id]: startingChecks }));
+      }, "execution-repair").finally(() => {
+        if (executionCancel.current === token) setExecutionProgress(null);
+      });
+      return;
+    }
+    if (!scriptLineRepairReady(execution.canonicalSemantic, execution.script)) return;
     const idea = focusedIdea;
     const current = execution;
     const token = executionCancel.current;
     void run(async () => {
       const { ancestors } = ideaParentFor(idea.angleId);
       const scriptNow = current.script as NonNullable<typeof current.script>;
-      const lines = scriptNow.scenes.flatMap((scene) => scene.lines.map((line) => ({ id: line.id, narration: line.narration })));
+      const lines = chainNarrationLines(scriptNow);
       setExecutionProgress({ phase: "audit", pillarName: current.pillarName });
       const firstRaw = await askThinkingLab(
         buildLineAuditPrompt({
@@ -2314,7 +3436,7 @@ export function ThinkingLabPage() {
       if (executionCancel.current !== token) return;
       const issues = parseLineIssues(firstRaw ? parseModelJson(firstRaw) : null, scriptNow);
       if (issues.length === 0) {
-        const statement = flattenVoiceOver(scriptNow);
+        const statement = storyVoiceOver(scriptNow);
         if (!statement) return;
         const facts = await judgeAndSealExecution({
           masterStatement,
@@ -2326,6 +3448,10 @@ export function ThinkingLabPage() {
           ask: (prompt) => askThinkingLab(prompt, 0),
         });
         if (executionCancel.current !== token) return;
+        const recommended = pillarHopStopped(current.pillarName, scriptNow, current.id)
+          ? facts
+          : await withPillarRecommendation(facts, current.pillarName, idea.statement, ancestors, token);
+        if (executionCancel.current !== token) return;
         await labExecutions.save.mutateAsync({
           ideaId: idea.id,
           pillar: current.contentPillarId ?? current.pillar,
@@ -2333,7 +3459,7 @@ export function ThinkingLabPage() {
           pillarName: current.pillarName,
           statement,
           script: { ...scriptNow, lineIssues: [] },
-          facts,
+          facts: recommended,
         });
         return;
       }
@@ -2350,8 +3476,14 @@ export function ThinkingLabPage() {
         0.2,
       );
       if (executionCancel.current !== token) return;
-      const merged = mergeRepairedLines(scriptNow, parseLineReplacements(raw ? parseModelJson(raw) : null));
-      const statement = flattenVoiceOver(merged);
+      const merged = detachCallToAction(
+        ensureBrandMention(
+          mergeRepairedLines(scriptNow, parseLineReplacements(raw ? parseModelJson(raw) : null)),
+          scriptNow.brandName ?? "",
+        ),
+        scriptNow.cta ?? "",
+      );
+      const statement = storyVoiceOver(merged);
       if (!statement) return;
       setExecutionProgress({ phase: "audit", pillarName: current.pillarName });
       const facts = await judgeAndSealExecution({
@@ -2370,10 +3502,14 @@ export function ThinkingLabPage() {
           masterStatement,
           priorBelief: selected?.priorBelief,
           ancestors,
-          lines: merged.scenes.flatMap((scene) => scene.lines.map((line) => ({ id: line.id, narration: line.narration }))),
+          lines: chainNarrationLines(merged),
         }),
         0,
       );
+      if (executionCancel.current !== token) return;
+      const recommended = pillarHopStopped(current.pillarName, merged, current.id)
+        ? facts
+        : await withPillarRecommendation(facts, current.pillarName, idea.statement, ancestors, token);
       if (executionCancel.current !== token) return;
       const script = { ...merged, lineIssues: parseLineIssues(lineRaw ? parseModelJson(lineRaw) : null, merged) };
       await labExecutions.save.mutateAsync({
@@ -2383,7 +3519,7 @@ export function ThinkingLabPage() {
         pillarName: current.pillarName,
         statement: flattenVoiceOver(script),
         script,
-        facts,
+        facts: recommended,
       });
     }, "execution-repair").finally(() => {
       if (executionCancel.current === token) setExecutionProgress(null);
@@ -2392,35 +3528,362 @@ export function ThinkingLabPage() {
 
   const repairFailedAngles = async (onlyCode?: string) => {
     if (!focusedTerritory || !masters.organizationId || !parentFp || admittedAngles.length === 0) return;
+    const subjectOpen = (row: (typeof admittedAngles)[number]) =>
+      Boolean(angleSubjectProblem(row.canonicalSemantic.subject ?? "", focusedTerritory.statement));
+    const exampleOpen = (row: (typeof admittedAngles)[number]) =>
+      Boolean(angleExampleProblem(row.canonicalSemantic.example ?? "", row.statement));
     const failed = admittedAngles.filter((row, index) => {
-      if (angleVerdicts[index] !== "AUDIT_FAIL") return false;
+      const checklistFailed = (angleChecklists[row.code.toUpperCase()]?.checks ?? []).some(
+        (check) => check.state === "fail",
+      );
+      if (angleVerdicts[index] !== "AUDIT_FAIL" && !checklistFailed && !subjectOpen(row) && !exampleOpen(row)) return false;
       return !onlyCode || row.code.toUpperCase() === onlyCode.toUpperCase();
     });
     if (failed.length === 0) return;
-    const keepers = admittedAngles.filter((_, index) => angleVerdicts[index] === "AUDIT_PASS");
-    const offers: Array<{ territoryId: string; failedCode: string; statement: string; facts: AngleSemanticFacts }> = [];
+    const keepers = admittedAngles.filter(
+      (row, index) => angleVerdicts[index] === "AUDIT_PASS" && !subjectOpen(row) && !exampleOpen(row),
+    );
+    const applied = new Map<string, string>();
+    const learnedDuringFix: Array<{ code: string; statement: string; reason: string }> = [];
     for (const row of failed) {
-      const script = await askThinkingLab(
-        buildAngleFixOptionsPrompt({
-          parentStatement: focusedTerritory.statement,
-          ancestors: angleAncestors,
-          failed: { code: row.code, statement: row.statement },
-          keepers: keepers.map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
-          conflicts: angleNotes,
-        }),
-        0.2,
-      );
-      const statements = parseAngleFixOptionsScript(script).filter((statement) => statement !== row.statement.trim());
-      for (const statement of statements) {
-        if (offers.some((offer) => offer.failedCode === row.code && offer.statement === statement)) continue;
-        const facts = await judgeAndSealAngle({
-          parentStatement: focusedTerritory.statement,
-          ancestors: angleAncestors,
-          code: row.code,
+      const learned = [...usableAngleFixLessons(angleSet.data?.auditLessons ?? [], row.code)];
+      const refused = new Set(learned.map((lesson) => lesson.statement.trim().toLowerCase()));
+      refused.add(row.statement.trim().toLowerCase());
+      let shown = angleChecklists[row.code.toUpperCase()]?.checks ?? [];
+      let scope: FixScope = scopeFromHistory(shown, learned);
+      const subjectProblem = angleSubjectProblem(row.canonicalSemantic.subject ?? "", focusedTerritory.statement);
+      const exampleProblem = angleExampleProblem(row.canonicalSemantic.example ?? "", row.statement);
+      const otherFail = shown.some((check) => check.state === "fail" && check.id !== "ownSubject");
+      const storedPass = angleVerdicts[admittedAngles.findIndex((item) => item.id === row.id)] === "AUDIT_PASS";
+      if (subjectProblem && !otherFail) {
+        const livePassed = shown.filter((check) => check.state === "pass").map((check) => check.id);
+        const passed =
+          livePassed.length > 0
+            ? livePassed
+            : storedPass
+              ? ["stakeHolds", "observationShape", "severalIdeas", "clearBoundary", "observationJob", "siblingsDistinct"]
+              : [];
+        scope = {
+          preserve: [...new Set([...scope.preserve, ...passed])],
+          repair: [{ id: "ownSubject", reason: subjectProblem }],
+        };
+      } else if (exampleProblem && !shown.some((check) => check.state === "fail" && check.id !== "livedExample")) {
+        const livePassed = shown.filter((check) => check.state === "pass").map((check) => check.id);
+        const passed =
+          livePassed.length > 0
+            ? livePassed
+            : storedPass
+              ? [
+                  "stakeHolds",
+                  "observationShape",
+                  "severalIdeas",
+                  "clearBoundary",
+                  "observationJob",
+                  "ownSubject",
+                  "siblingsDistinct",
+                ]
+              : [];
+        scope = {
+          preserve: [...new Set([...scope.preserve, ...passed])],
+          repair: [{ id: "livedExample", reason: exampleProblem }],
+        };
+      }
+      let currentStatement = row.statement;
+      let currentSubject = row.canonicalSemantic.subject ?? "";
+      let currentExample = row.canonicalSemantic.example ?? "";
+      let offered = false;
+      for (let attempt = 0; attempt < fixAttemptCap() && !offered; attempt += 1) {
+        if (scope.repair.length === 1 && scope.repair[0]?.id === "ownSubject") {
+          const subjectScript = await askThinkingLab(
+            buildAngleSubjectPrompt({ territory: focusedTerritory.statement, statement: currentStatement }),
+            0.2,
+          );
+          const subject = parseAngleSubjectScript(subjectScript);
+          const problem = angleSubjectProblem(subject, focusedTerritory.statement);
+          if (!subject || problem) {
+            const reason = problem || "No subject came back.";
+            const lesson = { code: row.code, statement: subject || currentStatement, reason: `ownSubject: ${reason}` };
+            learned.push(lesson);
+            learnedDuringFix.push(lesson);
+            if (subject) refused.add(subject.trim().toLowerCase());
+            continue;
+          }
+          currentSubject = subject;
+          const prior =
+            shown.length > 0
+              ? shown
+              : scope.preserve.map((id) => ({ id, state: "pass" as const }));
+          const checked = await runAngleOpenChecks({
+            statement: currentStatement,
+            parentStatement: focusedTerritory.statement,
+            ancestors: angleAncestors,
+            subject,
+            example: currentExample,
+            prior,
+            ask: (prompt) => askThinkingLab(prompt, 0),
+            onStep: (checks) => publishAngleChecklist(row.code, checks),
+          });
+          if (!checked.passed) {
+            const failedCheck = checked.checks.find((check) => check.state === "fail");
+            const reason = failedCheck
+              ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim()
+              : "This check could not be decided.";
+            const lesson = { code: row.code, statement: currentStatement, reason };
+            learned.push(lesson);
+            learnedDuringFix.push(lesson);
+            shown = checked.checks;
+            scope = nextFixScope(scope, checked.checks);
+            continue;
+          }
+          const siblingPassed = scope.preserve.includes("siblingsDistinct");
+          if (siblingPassed) {
+            const passedChecks = checked.checks.map((check) =>
+              check.id === "siblingsDistinct" ? { id: check.id, state: "pass" as const } : check,
+            );
+            publishAngleChecklist(row.code, passedChecks);
+            await labAngles.replace.mutateAsync({
+              territoryId: focusedTerritory.id,
+              id: row.id,
+              statement: currentStatement,
+              facts: {
+                ...row.canonicalSemantic,
+                ...shownAngleFacts(row.code, currentStatement, subject, currentExample),
+                code: row.code,
+              },
+              admission: "GENERATE_VALID",
+            });
+            applied.set(row.code.toUpperCase(), currentStatement);
+            offered = true;
+            continue;
+          }
+          publishAngleChecklist(row.code, beginAngleSiblingCheck(checked.checks));
+          const siblingRows = admittedAngles.map((item) => ({
+            code: item.code,
+            statement: item.code.toUpperCase() === row.code.toUpperCase() ? currentStatement : item.statement,
+          }));
+          const siblingFingerprint = angleSetFingerprint({
+            territoryFingerprint: parentTerritoryFingerprint,
+            angleFingerprints: siblingRows.map((item) =>
+              angleFingerprint({ statement: item.statement, territoryFingerprint: parentTerritoryFingerprint }),
+            ),
+          });
+          const siblingScript = await askThinkingLab(
+            buildAngleSiblingPrompt({ parentStatement: focusedTerritory.statement, rows: siblingRows }),
+            0,
+          );
+          const siblingSet = parseAngleSet(siblingScript, siblingFingerprint);
+          if (!angleReplacementPasses(siblingSet, row.code)) {
+            const reason =
+              angleFailureLessons({
+                rows: [{ code: row.code, statement: currentStatement }],
+                items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+                siblingSet,
+              })[0]?.reason ?? "Sibling audit failed this Angle.";
+            const lesson = { code: row.code, statement: currentStatement, reason: `siblingsDistinct: ${reason}` };
+            learned.push(lesson);
+            learnedDuringFix.push(lesson);
+            const failedSibling = finishAngleSiblingCheck(checked.checks, false, reason);
+            shown = failedSibling;
+            publishAngleChecklist(row.code, failedSibling);
+            scope = nextFixScope(scope, failedSibling);
+            continue;
+          }
+          publishAngleChecklist(row.code, finishAngleSiblingCheck(checked.checks, true, ""));
+          await labAngles.replace.mutateAsync({
+            territoryId: focusedTerritory.id,
+            id: row.id,
+            statement: currentStatement,
+            facts: {
+              ...row.canonicalSemantic,
+              ...shownAngleFacts(row.code, currentStatement, subject, currentExample),
+              code: row.code,
+            },
+            admission: "GENERATE_VALID",
+          });
+          applied.set(row.code.toUpperCase(), currentStatement);
+          offered = true;
+          continue;
+        }
+        if (scope.repair.length === 1 && scope.repair[0]?.id === "livedExample") {
+          const exampleScript = await askThinkingLab(
+            buildAngleExamplePrompt({
+              territory: focusedTerritory.statement,
+              statement: currentStatement,
+              refused: [...refused],
+            }),
+            0.2,
+          );
+          const example = parseAngleExampleScript(exampleScript);
+          const problem = angleExampleProblem(example, currentStatement);
+          if (!example || problem || refused.has(example.trim().toLowerCase())) {
+            const reason = problem || "No example came back.";
+            const lesson = { code: row.code, statement: example || currentStatement, reason: `livedExample: ${reason}` };
+            learned.push(lesson);
+            learnedDuringFix.push(lesson);
+            if (example) refused.add(example.trim().toLowerCase());
+            continue;
+          }
+          currentExample = example;
+          const prior =
+            shown.length > 0
+              ? shown
+              : scope.preserve.map((id) => ({ id, state: "pass" as const }));
+          const checked = await runAngleOpenChecks({
+            statement: currentStatement,
+            parentStatement: focusedTerritory.statement,
+            ancestors: angleAncestors,
+            subject: currentSubject,
+            example,
+            prior,
+            ask: (prompt) => askThinkingLab(prompt, 0),
+            onStep: (checks) => publishAngleChecklist(row.code, checks),
+          });
+          if (!checked.passed) {
+            const failedCheck = checked.checks.find((check) => check.state === "fail");
+            const reason = failedCheck
+              ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim()
+              : "This check could not be decided.";
+            const lesson = { code: row.code, statement: currentStatement, reason };
+            learned.push(lesson);
+            learnedDuringFix.push(lesson);
+            refused.add(example.trim().toLowerCase());
+            shown = checked.checks;
+            scope = nextFixScope(scope, checked.checks);
+            continue;
+          }
+          const siblingPassed = scope.preserve.includes("siblingsDistinct");
+          if (siblingPassed) {
+            const passedChecks = checked.checks.map((check) =>
+              check.id === "siblingsDistinct" ? { id: check.id, state: "pass" as const } : check,
+            );
+            publishAngleChecklist(row.code, passedChecks);
+            await labAngles.replace.mutateAsync({
+              territoryId: focusedTerritory.id,
+              id: row.id,
+              statement: currentStatement,
+              facts: {
+                ...row.canonicalSemantic,
+                ...shownAngleFacts(row.code, currentStatement, currentSubject, example),
+                code: row.code,
+              },
+              admission: "GENERATE_VALID",
+            });
+            applied.set(row.code.toUpperCase(), currentStatement);
+            offered = true;
+            continue;
+          }
+          publishAngleChecklist(row.code, beginAngleSiblingCheck(checked.checks));
+          const siblingRows = admittedAngles.map((item) => ({
+            code: item.code,
+            statement: item.code.toUpperCase() === row.code.toUpperCase() ? currentStatement : item.statement,
+          }));
+          const siblingFingerprint = angleSetFingerprint({
+            territoryFingerprint: parentTerritoryFingerprint,
+            angleFingerprints: siblingRows.map((item) =>
+              angleFingerprint({ statement: item.statement, territoryFingerprint: parentTerritoryFingerprint }),
+            ),
+          });
+          const siblingScript = await askThinkingLab(
+            buildAngleSiblingPrompt({ parentStatement: focusedTerritory.statement, rows: siblingRows }),
+            0,
+          );
+          const siblingSet = parseAngleSet(siblingScript, siblingFingerprint);
+          if (!angleReplacementPasses(siblingSet, row.code)) {
+            const reason =
+              angleFailureLessons({
+                rows: [{ code: row.code, statement: currentStatement }],
+                items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+                siblingSet,
+              })[0]?.reason ?? "Sibling audit failed this Angle.";
+            const lesson = { code: row.code, statement: currentStatement, reason: `siblingsDistinct: ${reason}` };
+            learned.push(lesson);
+            learnedDuringFix.push(lesson);
+            refused.add(example.trim().toLowerCase());
+            const failedSibling = finishAngleSiblingCheck(checked.checks, false, reason);
+            shown = failedSibling;
+            publishAngleChecklist(row.code, failedSibling);
+            scope = nextFixScope(scope, failedSibling);
+            continue;
+          }
+          publishAngleChecklist(row.code, finishAngleSiblingCheck(checked.checks, true, ""));
+          await labAngles.replace.mutateAsync({
+            territoryId: focusedTerritory.id,
+            id: row.id,
+            statement: currentStatement,
+            facts: {
+              ...row.canonicalSemantic,
+              ...shownAngleFacts(row.code, currentStatement, currentSubject, example),
+              code: row.code,
+            },
+            admission: "GENERATE_VALID",
+          });
+          applied.set(row.code.toUpperCase(), currentStatement);
+          offered = true;
+          continue;
+        }
+        const script = await askThinkingLab(
+          buildAngleFixOptionsPrompt({
+            parentStatement: focusedTerritory.statement,
+            ancestors: angleAncestors,
+            failed: { code: row.code, statement: currentStatement },
+            keepers: keepers.map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
+            conflicts: angleNotes,
+            lessons: learned,
+            scope,
+          }),
+          0.2,
+        );
+        const candidates = parseAngleFixOptionsScript(script);
+        const namedSubject = parseAngleSubjectScript(script);
+        const namedExample = parseAngleExampleScript(script);
+        const subjectForCheck = namedSubject || currentSubject;
+        const exampleForCheck = scope.preserve.includes("livedExample") ? currentExample : namedExample;
+        const statement = candidates.find((candidate) => !refused.has(candidate.trim().toLowerCase()));
+        if (!statement) {
+          if (candidates.length === 0) {
+            const reason = "No replacement came back.";
+            const lesson = { code: row.code, statement: row.statement, reason };
+            learned.push(lesson);
+            learnedDuringFix.push(lesson);
+          } else {
+            for (const candidate of candidates) {
+              const reason = "This sentence was offered again after it already failed.";
+              const lesson = { code: row.code, statement: candidate, reason };
+              learned.push(lesson);
+              learnedDuringFix.push(lesson);
+              refused.add(candidate.trim().toLowerCase());
+            }
+          }
+          continue;
+        }
+        const checked = await runAngleOpenChecks({
           statement,
+          parentStatement: focusedTerritory.statement,
+          ancestors: angleAncestors,
+          subject: subjectForCheck,
+          example: exampleForCheck,
+          prior: shown,
           ask: (prompt) => askThinkingLab(prompt, 0),
+          onStep: (checks) => publishAngleChecklist(row.code, checks),
         });
-        if (admitAngle(facts) !== "GENERATE_VALID") continue;
+        if (!checked.passed) {
+          const failedCheck = checked.checks.find((check) => check.state === "fail");
+          const reason = failedCheck ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim() : "This check could not be decided.";
+          const lesson = { code: row.code, statement, reason };
+          learned.push(lesson);
+          learnedDuringFix.push(lesson);
+          refused.add(statement.trim().toLowerCase());
+          if (exampleForCheck) refused.add(exampleForCheck.trim().toLowerCase());
+          if (failedCheck?.id === "ownSubject" || failedCheck?.id === "livedExample") {
+            currentStatement = statement;
+            if (subjectForCheck) currentSubject = subjectForCheck;
+            if (exampleForCheck) currentExample = exampleForCheck;
+          }
+          shown = checked.checks;
+          scope = nextFixScope(scope, checked.checks);
+          continue;
+        }
+        publishAngleChecklist(row.code, beginAngleSiblingCheck(checked.checks));
         const rows = admittedAngles.map((item) => ({
           code: item.code,
           statement: item.code.toUpperCase() === row.code.toUpperCase() ? statement : item.statement,
@@ -2436,28 +3899,70 @@ export function ThinkingLabPage() {
           0,
         );
         const siblingSet = parseAngleSet(siblingScript, fingerprint);
-        if (!angleReplacementPasses(siblingSet, row.code)) continue;
-        offers.push({ territoryId: focusedTerritory.id, failedCode: row.code, statement, facts });
+        if (!angleReplacementPasses(siblingSet, row.code)) {
+          const reason =
+            angleFailureLessons({
+              rows: [{ code: row.code, statement }],
+              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+              siblingSet,
+            })[0]?.reason ?? "Sibling audit failed this Angle.";
+          const lesson = { code: row.code, statement, reason: `siblingsDistinct: ${reason}` };
+          learned.push(lesson);
+          learnedDuringFix.push(lesson);
+          refused.add(statement.trim().toLowerCase());
+          const failedSibling = finishAngleSiblingCheck(checked.checks, false, reason);
+          shown = failedSibling;
+          publishAngleChecklist(row.code, failedSibling);
+          scope = nextFixScope(scope, failedSibling);
+          continue;
+        }
+        const passedChecks = finishAngleSiblingCheck(checked.checks, true, "");
+        publishAngleChecklist(row.code, passedChecks);
+        await labAngles.replace.mutateAsync({
+          territoryId: focusedTerritory.id,
+          id: row.id,
+          statement,
+          facts: {
+            ...row.canonicalSemantic,
+            ...shownAngleFacts(row.code, statement, subjectForCheck, exampleForCheck),
+            code: row.code,
+          },
+          admission: "GENERATE_VALID",
+        });
+        applied.set(row.code.toUpperCase(), statement);
+        offered = true;
       }
     }
     const replaced = new Set(failed.map((row) => row.code.toUpperCase()));
-    setAngleFixOffers((current) => [
-      ...current.filter(
+    setAngleFixOffers((current) =>
+      current.filter(
         (offer) => offer.territoryId !== focusedTerritory.id || !replaced.has(offer.failedCode.toUpperCase()),
       ),
-      ...offers,
-    ]);
-    const remaining = admittedAngles.filter((_, index) => angleVerdicts[index] === "AUDIT_FAIL").length;
-    if (failed.length >= remaining) {
-      const held = admittedAngles.flatMap((row, index) => {
-        const verdict = angleVerdicts[index];
+    );
+    const covered = applied.size;
+    if (covered === 0) {
+      if (learnedDuringFix.length > 0) {
+        await angleSet.save.mutateAsync({
+          schema: "thinking-lab/angle-set/v1",
+          repairCount: angleSet.data?.repairCount ?? 0,
+          siblingSet: storedAngleSet,
+          audit: angleSet.data?.audit ?? null,
+          challenger: angleSet.data?.challenger ?? null,
+          auditLessons: mergeAngleAuditLessons(angleSet.data?.auditLessons ?? [], learnedDuringFix),
+        });
+      }
+    } else {
+      const items = admittedAngles.flatMap((row, index) => {
+        const code = row.code.toUpperCase();
+        const statement = applied.get(code) ?? row.statement;
+        const verdict = applied.has(code) ? ("AUDIT_PASS" as const) : angleVerdicts[index];
         if (verdict !== "AUDIT_PASS" && verdict !== "AUDIT_FAIL") return [];
         return [
           {
             code: row.code,
             verdict,
             statementFingerprint: angleFingerprint({
-              statement: row.statement,
+              statement,
               territoryFingerprint: parentTerritoryFingerprint,
             }),
           },
@@ -2466,16 +3971,16 @@ export function ThinkingLabPage() {
       await angleSet.save.mutateAsync({
         schema: "thinking-lab/angle-set/v1",
         repairCount: (angleSet.data?.repairCount ?? 0) + 1,
-        siblingSet: storedAngleSet,
-        audit: held.length > 0 ? { fingerprint: "", items: held } : null,
+        siblingSet: null,
+        audit: items.length > 0 ? { fingerprint: "", items } : null,
         challenger: null,
+        auditLessons: mergeAngleAuditLessons(angleSet.data?.auditLessons ?? [], learnedDuringFix),
       });
     }
-    const covered = new Set(offers.map((offer) => offer.failedCode.toUpperCase()));
-    if (covered.size < failed.length) {
+    if (covered < failed.length) {
       setNotice(
         t("thinkingLab.angle.noSafeReplacement", "NO_SAFE_REPLACEMENT {{count}}/{{failed}}", {
-          count: covered.size,
+          count: covered,
           failed: failed.length,
         }),
       );
@@ -2516,51 +4021,26 @@ export function ThinkingLabPage() {
           }),
           0.2,
         );
-        const statement = parseGeneratedAngleStatements(parseModelJson(script))[0];
-        if (!statement) return;
+        const draft = parseGeneratedAngleDrafts(parseModelJson(script))[0];
+        if (!draft?.statement) return;
         const code = nextAngleCode(known.map((row) => row.code));
-        const facts = await judgeAndSealAngle({
-          parentStatement: focusedTerritory.statement,
-          ancestors: angleAncestors,
-          code,
-          statement,
-          ask: (prompt) => askThinkingLab(prompt, 0),
-        });
-        let admission = admitAngle(facts);
-        if (admission === "GENERATE_VALID" && admittedAngles.length > 0) {
-          const precheckScript = await askThinkingLab(
-            buildAngleSiblingPrompt({
-              parentStatement: focusedTerritory.statement,
-              rows: [...admittedAngles.map((row) => ({ code: row.code, statement: row.statement })), { code, statement }],
-            }),
-            0,
-          );
-          const precheck = parseAngleSet(precheckScript, "gap-precheck");
-          if (precheck.resolution !== "RESOLVED" || angleConflictFailures(precheck).has(code.toUpperCase())) {
-            admission = "GENERATE_REJECT";
-          }
-        }
+        const facts = shownAngleFacts(code, draft.statement, draft.subject, draft.example);
         const sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0) + 1;
         await labAngles.insert.mutateAsync({
           territoryId: focusedTerritory.id,
           expectedBigThoughtId: focusedTerritory.bigThoughtId,
           masterThoughtFingerprint: parentFp,
           code,
-          statement,
+          statement: draft.statement,
           sortOrder: sort,
           facts,
-          admission,
+          admission: admitAngle(facts),
         });
-        if (admission === "GENERATE_VALID") {
-          await angleSet.save.mutateAsync(emptyAngleSetRecord());
-        } else {
-          setNotice(
-            t(
-              "thinkingLab.angle.gapRejected",
-              "The gap candidate collided with a passing Angle and was not admitted. Generate Angle can try again.",
-            ),
-          );
-        }
+        await angleSet.save.mutateAsync({
+          ...emptyAngleSetRecord(),
+          audit: angleSet.data?.audit ?? null,
+          auditLessons: angleSet.data?.auditLessons ?? [],
+        });
         return;
       }
       if (angleStage === "fix") {
@@ -2568,25 +4048,110 @@ export function ThinkingLabPage() {
         return;
       }
       if (angleStage === "audit") {
-        const script = await askThinkingLab(
-          buildAngleSiblingPrompt({
-            parentStatement: focusedTerritory.statement,
-            rows: admittedAngles.map((row) => ({ code: row.code, statement: row.statement })),
-          }),
-          0,
+        const heldPass = new Set(
+          angleCodesHeldPass(admittedAngles, angleVerdicts).map((code) => code.toUpperCase()),
         );
-        const siblingSet = parseAngleSet(script, angleFingerprintNow);
-        const items = scoreAngleAudit({
-          codes: admittedAngles.map((row) => row.code),
+        const eligible: typeof admittedAngles = [];
+        const checked = new Map<string, AnglePassCheck[]>();
+        const individualFailures: Array<{ code: string; statement: string; reason: string }> = [];
+        for (const row of admittedAngles) {
+          if (heldPass.has(row.code.toUpperCase())) {
+            eligible.push(row);
+            continue;
+          }
+          const run = await runAngleIndividualChecks({
+            statement: row.statement,
+            parentStatement: focusedTerritory.statement,
+            ancestors: angleAncestors,
+            subject: row.canonicalSemantic.subject,
+            example: row.canonicalSemantic.example,
+            ask: (prompt) => askThinkingLab(prompt, 0),
+            onStep: (checks) => publishAngleChecklist(row.code, checks),
+          });
+          if (!run.passed) {
+            const failedCheck = run.checks.find((check) => check.state === "fail");
+            individualFailures.push({
+              code: row.code,
+              statement: row.statement,
+              reason: failedCheck
+                ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim()
+                : "This check could not be decided.",
+            });
+            continue;
+          }
+          checked.set(row.code.toUpperCase(), run.checks);
+          eligible.push(row);
+          publishAngleChecklist(row.code, beginAngleSiblingCheck(run.checks));
+        }
+        const siblingRows = eligible.map((row) => ({ code: row.code, statement: row.statement }));
+        const siblingScript =
+          siblingRows.length === 0
+            ? null
+            : await askThinkingLab(
+                buildAngleSiblingPrompt({ parentStatement: focusedTerritory.statement, rows: siblingRows }),
+                0,
+              );
+        const siblingSet = siblingScript ? parseAngleSet(siblingScript, angleFingerprintNow) : storedAngleSet;
+        const siblingScores =
+          siblingRows.length === 0 || !siblingSet
+            ? []
+            : scoreAngleAudit({
+                codes: siblingRows.map((row) => row.code),
+                siblingSet,
+                siblingSetCurrent: true,
+              });
+        for (const row of eligible) {
+          const prior = checked.get(row.code.toUpperCase());
+          if (!prior) continue;
+          const verdict = siblingScores.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict;
+          const reason =
+            angleFailureLessons({
+              rows: [{ code: row.code, statement: row.statement }],
+              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+              siblingSet,
+            })[0]?.reason ?? "Sibling audit failed this Angle.";
+          publishAngleChecklist(
+            row.code,
+            finishAngleSiblingCheck(
+              prior,
+              verdict === "AUDIT_PASS",
+              verdict === "AUDIT_PASS" ? "" : reason || "This check could not be decided.",
+            ),
+          );
+        }
+        const items = holdPassingAngleVerdicts(
+          admittedAngles.map((row) => {
+            const statementFingerprint = angleFingerprint({
+              statement: row.statement,
+              territoryFingerprint: parentTerritoryFingerprint,
+            });
+            if (individualFailures.some((failure) => failure.code.toUpperCase() === row.code.toUpperCase())) {
+              return { code: row.code, verdict: "AUDIT_FAIL" as const, statementFingerprint };
+            }
+            const scored = siblingScores.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
+            return {
+              code: row.code,
+              verdict: scored?.verdict === "AUDIT_PASS" ? ("AUDIT_PASS" as const) : ("AUDIT_FAIL" as const),
+              statementFingerprint,
+            };
+          }),
+          [...heldPass],
+        );
+        const siblingLessons = angleFailureLessons({
+          rows: siblingRows,
+          items,
           siblingSet,
-          siblingSetCurrent: true,
-        });
+        }).filter((lesson) => !individualFailures.some((failure) => failure.code.toUpperCase() === lesson.code.toUpperCase()));
         await angleSet.save.mutateAsync({
           schema: "thinking-lab/angle-set/v1",
           repairCount: items.some((item) => item.verdict === "AUDIT_FAIL") ? (angleSet.data?.repairCount ?? 0) : 0,
           siblingSet,
           audit: { fingerprint: angleFingerprintNow, items },
           challenger: null,
+          auditLessons: mergeAngleAuditLessons(angleSet.data?.auditLessons ?? [], [
+            ...individualFailures,
+            ...siblingLessons,
+          ]),
         });
         return;
       }
@@ -2607,6 +4172,7 @@ export function ThinkingLabPage() {
           siblingSet,
           audit: angleSet.data?.audit ?? null,
           challenger: { fingerprint: angleFingerprintNow, result },
+          auditLessons: angleSet.data?.auditLessons ?? [],
         });
         return;
       }
@@ -2654,6 +4220,7 @@ export function ThinkingLabPage() {
         siblingSet: null,
         audit: { fingerprint: "", items },
         challenger: null,
+        auditLessons: angleSet.data?.auditLessons ?? [],
       });
       setAngleFixOffers((current) =>
         current.filter(
@@ -2665,8 +4232,8 @@ export function ThinkingLabPage() {
 
   const onLockAngles = () =>
     run(async () => {
-      if (!focusedTerritory || admittedAngles.length < 3 || !parentTerritoryFingerprint) return;
-      if (!angleVerdicts.every((verdict) => verdict === "AUDIT_PASS")) return;
+      if (!focusedTerritory || admittedAngles.length === 0 || !parentTerritoryFingerprint) return;
+      if (!angleVerdicts.every((verdict) => verdict === "AUDIT_PASS") || angleExampleOpen) return;
       await angleSet.lock.mutateAsync({
         territoryFingerprint: parentTerritoryFingerprint,
         ids: admittedAngles.map((row) => row.id),
@@ -2684,6 +4251,7 @@ export function ThinkingLabPage() {
         parentStatement: focusedThought.statement,
         ancestors: territoryAncestors,
         audience: selected?.audience,
+        answeredQuestion,
         code,
         statement,
         ask: (prompt) => askThinkingLab(prompt, 0),
@@ -2720,46 +4288,117 @@ export function ThinkingLabPage() {
       });
     }, "skip-gap");
 
+  const ensureAnsweredQuestion = async (thought: NonNullable<typeof focusedThought>) => {
+    const stored =
+      thought.canonicalSemantic?.answeredQuestionVersion === ANSWERED_QUESTION_VERSION
+        ? thought.canonicalSemantic.answeredQuestion?.trim() ?? ""
+        : "";
+    if (stored) return stored;
+    const question = await resolveAnsweredQuestion({
+      master: selected?.statement ?? "",
+      reason: thought.statement,
+      audience: selected?.audience,
+      ask: (prompt) => askThinkingLab(prompt, 0),
+    });
+    if (!question || !masters.organizationId) return "";
+    await thoughts.saveAnsweredQuestion.mutateAsync({ id: thought.id, question });
+    return question;
+  };
+
   const repairFailedTerritories = async (onlyCode?: string) => {
     if (!focusedThought || !masters.organizationId || !parentFp || admittedTerritories.length === 0) return;
+    const questionForCheck = await ensureAnsweredQuestion(focusedThought);
     const failed = admittedTerritories.filter((row, index) => {
-      if (territoryVerdicts[index] !== "AUDIT_FAIL") return false;
+      const checklistFailed = (territoryChecklists[row.code.toUpperCase()]?.checks ?? []).some(
+        (check) => check.state === "fail",
+      );
+      if (territoryVerdicts[index] !== "AUDIT_FAIL" && !checklistFailed) return false;
       return !onlyCode || row.code.toUpperCase() === onlyCode.toUpperCase();
     });
     if (failed.length === 0) return;
     const keepers = admittedTerritories.filter((_, index) => territoryVerdicts[index] === "AUDIT_PASS");
-    const conflicts = territoryNotes.map((note) =>
+    const conflicts = territoryNotes.flatMap((note) =>
       note.kind === "overlap"
-        ? `${note.a} · ${note.b}: ${note.explanation}`
+        ? [`${note.a} · ${note.b}: ${note.explanation}`]
         : note.kind === "containment"
-          ? `${note.container} · ${note.contained}: ${note.explanation}`
-          : note.text,
+          ? [`${note.container} · ${note.contained}: ${note.explanation}`]
+          : [],
     );
-    const offers: Array<{ thoughtId: string; failedCode: string; statement: string; facts: TerritorySemanticFacts }> = [];
+    const applied = new Map<string, string>();
+    const learnedDuringFix: Array<{ code: string; statement: string; reason: string }> = [];
     for (const row of failed) {
-      const script = await askThinkingLab(
-        buildTerritoryFixOptionsPrompt({
-          parentStatement: focusedThought.statement,
-          ancestors: territoryAncestors,
-          audience: selected?.audience,
-          failed: { code: row.code, statement: row.statement },
-          keepers: keepers.map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
-          conflicts,
-        }),
-        0.2,
-      );
-      const statements = parseTerritoryFixOptionsScript(script).filter((statement) => statement !== row.statement.trim());
-      for (const statement of statements) {
-        if (offers.some((offer) => offer.failedCode === row.code && offer.statement === statement)) continue;
-        const facts = await judgeAndSealTerritory({
-          parentStatement: focusedThought.statement,
-          ancestors: territoryAncestors,
-          audience: selected?.audience,
-          code: row.code,
+      const learned = [...usableTerritoryFixLessons(territorySet.data?.auditLessons ?? [], row.code)];
+      const refused = new Set(learned.map((lesson) => lesson.statement.trim().toLowerCase()));
+      refused.add(row.statement.trim().toLowerCase());
+      let shown = territoryChecklists[row.code.toUpperCase()]?.checks ?? [];
+      const checklistAtStart = shown.map((check) => ({ ...check }));
+      let scope: FixScope = scopeFromHistory(shown, learned);
+      let offered = false;
+      for (let attempt = 0; attempt < fixAttemptCap() && !offered; attempt += 1) {
+        const script = await askThinkingLab(
+          buildTerritoryFixOptionsPrompt({
+            parentStatement: focusedThought.statement,
+            ancestors: territoryAncestors,
+            audience: selected?.audience,
+            answeredQuestion,
+            failed: { code: row.code, statement: row.statement },
+            keepers: keepers.map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
+            conflicts,
+            lessons: learned,
+            scope,
+          }),
+          0.2,
+        );
+        const candidates = parseTerritoryFixOptionsScript(script);
+        const statement = candidates.find((candidate) => !refused.has(candidate.trim().toLowerCase()));
+        if (!statement) {
+          if (candidates.length === 0) {
+            const reason = "No replacement came back.";
+            const lesson = { code: row.code, statement: row.statement, reason };
+            learned.push(lesson);
+            learnedDuringFix.push(lesson);
+          } else {
+            for (const candidate of candidates) {
+              const reason = "This name was offered again after it already failed.";
+              const lesson = { code: row.code, statement: candidate, reason };
+              learned.push(lesson);
+              learnedDuringFix.push(lesson);
+              refused.add(candidate.trim().toLowerCase());
+            }
+          }
+          continue;
+        }
+        if (territoryNameTooLong(statement) || territoryNameIsActivity(statement)) {
+          const reason = territoryNameTooLong(statement) ? TERRITORY_NAME_LENGTH_REASON : TERRITORY_ACTIVITY_REASON;
+          const lesson = { code: row.code, statement, reason };
+          learned.push(lesson);
+          learnedDuringFix.push(lesson);
+          refused.add(statement.trim().toLowerCase());
+          continue;
+        }
+        let livedSentence = "";
+        let freshQuestion = "";
+        const checked = await runTerritoryOpenChecks({
           statement,
+          parentStatement: focusedThought.statement,
+          audience: selected?.audience,
+          question: questionForCheck,
+          prior: shown,
           ask: (prompt) => askThinkingLab(prompt, 0),
+          onStep: (checks) => publishTerritoryChecklist(row.code, checks),
         });
-        if (admitTerritory(facts) !== "GENERATE_VALID") continue;
+        if (!checked.passed) {
+          const failedCheck = checked.checks.find((check) => check.state === "fail");
+          const reason = failedCheck ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim() : "This check could not be decided.";
+          const lesson = { code: row.code, statement, reason };
+          learned.push(lesson);
+          learnedDuringFix.push(lesson);
+          refused.add(statement.trim().toLowerCase());
+          shown = checked.checks;
+          scope = nextFixScope(scope, checked.checks);
+          continue;
+        }
+        publishTerritoryChecklist(row.code, beginSiblingCheck(checked.checks));
         const rows = admittedTerritories.map((item) => ({
           code: item.code,
           statement: item.code.toUpperCase() === row.code.toUpperCase() ? statement : item.statement,
@@ -2775,26 +4414,90 @@ export function ThinkingLabPage() {
           0,
         );
         const siblingSet = parseTerritorySet(siblingScript, fingerprint);
-        if (!territoryReplacementPasses(siblingSet, row.code)) continue;
-        offers.push({ thoughtId: focusedThought.id, failedCode: row.code, statement, facts });
+        if (!territoryReplacementPasses(siblingSet, row.code)) {
+          const reason =
+            territoryFailureLessons({
+              rows: [{ code: row.code, statement }],
+              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+              siblingSet,
+            })[0]?.reason ?? "Sibling audit failed this Territory.";
+          const lesson = { code: row.code, statement, reason: `siblingsDistinct: ${reason}` };
+          learned.push(lesson);
+          learnedDuringFix.push(lesson);
+          refused.add(statement.trim().toLowerCase());
+          const failedSibling = finishSiblingCheck(checked.checks, false, reason);
+          shown = failedSibling;
+          publishTerritoryChecklist(row.code, failedSibling);
+          scope = nextFixScope(scope, failedSibling);
+          continue;
+        }
+        const passedChecks = finishSiblingCheck(checked.checks, true, "");
+        publishTerritoryChecklist(row.code, passedChecks);
+        const sameArea =
+          scope.preserve.includes("questionArises") && scope.repair.every((item) => item.id === "audienceLanguage");
+        if (!freshQuestion || !livedSentence) {
+          const written = await writeTerritoryAreaSentence({
+            territory: statement,
+            parentStatement: focusedThought.statement,
+            masterStatement: selected?.statement,
+            audience: selected?.audience,
+            answeredQuestion: questionForCheck || answeredQuestion,
+            siblings: admittedTerritories
+              .filter((item) => item.code.toUpperCase() !== row.code.toUpperCase())
+              .map((item) => item.statement),
+            ask: (prompt) => askThinkingLab(prompt, 0.2),
+          });
+          if (!livedSentence) livedSentence = written.sentence;
+          if (!freshQuestion) freshQuestion = written.question;
+        }
+        const areaQuestion = sameArea
+          ? row.canonicalSemantic.areaQuestion || freshQuestion || checked.question
+          : freshQuestion || checked.question || row.canonicalSemantic.areaQuestion;
+        await labTerritories.replace.mutateAsync({
+          bigThoughtId: focusedThought.id,
+          id: row.id,
+          statement,
+          facts: {
+            ...row.canonicalSemantic,
+            ...shownTerritoryFacts(row.code, statement),
+            areaQuestion,
+            whatItSays: livedSentence.trim() || (sameArea ? row.canonicalSemantic.whatItSays : statement),
+          },
+          admission: "GENERATE_VALID",
+        });
+        applied.set(row.code.toUpperCase(), statement);
+        offered = true;
       }
+      if (!offered && checklistAtStart.length > 0) publishTerritoryChecklist(row.code, checklistAtStart);
     }
     const replaced = new Set(failed.map((row) => row.code.toUpperCase()));
-    setTerritoryFixOffers((current) => [
-      ...current.filter((offer) => offer.thoughtId !== focusedThought.id || !replaced.has(offer.failedCode.toUpperCase())),
-      ...offers,
-    ]);
-    const remaining = admittedTerritories.filter((_, index) => territoryVerdicts[index] === "AUDIT_FAIL").length;
-    if (failed.length >= remaining) {
-      const held = admittedTerritories.flatMap((row, index) => {
-        const verdict = territoryVerdicts[index];
+    setTerritoryFixOffers((current) =>
+      current.filter((offer) => offer.thoughtId !== focusedThought.id || !replaced.has(offer.failedCode.toUpperCase())),
+    );
+    const covered = applied.size;
+    if (covered === 0) {
+      if (learnedDuringFix.length > 0) {
+        await territorySet.save.mutateAsync({
+          schema: "thinking-lab/territory-set/v1",
+          repairCount: territorySet.data?.repairCount ?? 0,
+          siblingSet: storedTerritorySet,
+          audit: territorySet.data?.audit ?? null,
+          challenger: territorySet.data?.challenger ?? null,
+          auditLessons: mergeTerritoryAuditLessons(territorySet.data?.auditLessons ?? [], learnedDuringFix),
+        });
+      }
+    } else {
+      const items = admittedTerritories.flatMap((row, index) => {
+        const code = row.code.toUpperCase();
+        const statement = applied.get(code) ?? row.statement;
+        const verdict = applied.has(code) ? ("AUDIT_PASS" as const) : territoryVerdicts[index];
         if (verdict !== "AUDIT_PASS" && verdict !== "AUDIT_FAIL") return [];
         return [
           {
             code: row.code,
             verdict,
             statementFingerprint: territoryFingerprint({
-              statement: row.statement,
+              statement,
               bigThoughtFingerprint: focusedBigThoughtFingerprint,
             }),
           },
@@ -2804,23 +4507,15 @@ export function ThinkingLabPage() {
         schema: "thinking-lab/territory-set/v1",
         repairCount: (territorySet.data?.repairCount ?? 0) + 1,
         siblingSet: null,
-        audit: held.length > 0 ? { fingerprint: "", items: held } : null,
+        audit: items.length > 0 ? { fingerprint: "", items } : null,
         challenger: null,
-        auditLessons: mergeTerritoryAuditLessons(
-          territorySet.data?.auditLessons ?? [],
-          territoryFailureLessons({
-            rows: failed.map((row) => ({ code: row.code, statement: row.statement })),
-            items: failed.map((row) => ({ code: row.code, verdict: "AUDIT_FAIL" })),
-            siblingSet: storedTerritorySet,
-          }),
-        ),
+        auditLessons: mergeTerritoryAuditLessons(territorySet.data?.auditLessons ?? [], learnedDuringFix),
       });
     }
-    const covered = new Set(offers.map((offer) => offer.failedCode.toUpperCase()));
-    if (covered.size < failed.length) {
+    if (covered < failed.length) {
       setNotice(
         t("thinkingLab.territory.noSafeReplacement", "NO_SAFE_REPLACEMENT {{count}}/{{failed}}", {
-          count: covered.size,
+          count: covered,
           failed: failed.length,
         }),
       );
@@ -2858,47 +4553,127 @@ export function ThinkingLabPage() {
         return;
       }
       if (territoryStage === "audit") {
-        const script = await askThinkingLab(
-          buildTerritorySiblingPrompt({
+        const questionForAudit = await ensureAnsweredQuestion(focusedThought);
+        const heldPass = new Set(
+          territoryCodesHeldPass(admittedTerritories, territoryVerdicts).map((code) => code.toUpperCase()),
+        );
+        const eligible: typeof admittedTerritories = [];
+        const checked = new Map<string, TerritoryPassCheck[]>();
+        const individualFailures: Array<{ code: string; statement: string; reason: string }> = [];
+        for (const row of admittedTerritories) {
+          if (heldPass.has(row.code.toUpperCase())) {
+            eligible.push(row);
+            continue;
+          }
+          const run = await runTerritoryIndividualChecks({
+            statement: row.statement,
             parentStatement: focusedThought.statement,
-            rows: admittedTerritories.map((row) => ({ code: row.code, statement: row.statement })),
-          }),
-          0,
-        );
-        const siblingSet = parseTerritorySet(script, territoryFingerprintNow);
-        const passingCodes = admittedTerritories.flatMap((row, index) =>
-          territoryVerdicts[index] === "AUDIT_PASS" ? [row.code] : [],
-        );
+            audience: selected?.audience,
+            question: questionForAudit || row.canonicalSemantic.areaQuestion,
+            ensureQuestion: async () => {
+              const written = await writeTerritoryAreaSentence({
+                territory: row.statement,
+                parentStatement: focusedThought.statement,
+                masterStatement: selected?.statement,
+                audience: selected?.audience,
+              answeredQuestion: questionForAudit || answeredQuestion,
+              siblings: admittedTerritories
+                .filter((item) => item.id !== row.id)
+                  .map((item) => item.statement),
+                ask: (prompt) => askThinkingLab(prompt, 0.2),
+              });
+              if (written.sentence && written.question) {
+                await labTerritories.saveGloss.mutateAsync({
+                  bigThoughtId: row.bigThoughtId,
+                  id: row.id,
+                  facts: { ...row.canonicalSemantic, whatItSays: written.sentence, areaQuestion: written.question },
+                });
+              }
+              return written.question;
+            },
+            ask: (prompt) => askThinkingLab(prompt, 0),
+            onStep: (checks) => publishTerritoryChecklist(row.code, checks),
+          });
+          if (!run.passed) {
+            const failedCheck = run.checks.find((check) => check.state === "fail");
+            individualFailures.push({
+              code: row.code,
+              statement: row.statement,
+              reason: failedCheck
+                ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim()
+                : "This check could not be decided.",
+            });
+            continue;
+          }
+          checked.set(row.code.toUpperCase(), run.checks);
+          eligible.push(row);
+          publishTerritoryChecklist(row.code, beginSiblingCheck(run.checks));
+        }
+        const siblingRows = eligible.map((row) => ({ code: row.code, statement: row.statement }));
+        const siblingScript =
+          siblingRows.length === 0
+            ? null
+            : await askThinkingLab(
+                buildTerritorySiblingPrompt({ parentStatement: focusedThought.statement, rows: siblingRows }),
+                0,
+              );
+        const siblingSet = siblingScript ? parseTerritorySet(siblingScript, territoryFingerprintNow) : storedTerritorySet;
+        const siblingScores =
+          siblingRows.length === 0 || !siblingSet
+            ? []
+            : scoreTerritoryAudit({
+                codes: siblingRows.map((row) => row.code),
+                siblingSet,
+                siblingSetCurrent: true,
+              });
+        for (const row of eligible) {
+          const prior = checked.get(row.code.toUpperCase());
+          if (!prior) continue;
+          const verdict = siblingScores.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict;
+          const reason =
+            territoryFailureLessons({
+              rows: [{ code: row.code, statement: row.statement }],
+              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+              siblingSet,
+            })[0]?.reason ?? "Sibling audit failed this Territory.";
+          publishTerritoryChecklist(
+            row.code,
+            finishSiblingCheck(prior, verdict === "AUDIT_PASS", verdict === "AUDIT_PASS" ? "" : reason || "This check could not be decided."),
+          );
+        }
         const items = holdPassingTerritoryVerdicts(
-          scoreTerritoryAudit({
-          codes: admittedTerritories.map((row) => row.code),
-          siblingSet,
-          siblingSetCurrent: true,
+          admittedTerritories.map((row) => {
+            const statementFingerprint = territoryFingerprint({
+              statement: row.statement,
+              bigThoughtFingerprint: focusedBigThoughtFingerprint,
+            });
+            if (individualFailures.some((failure) => failure.code.toUpperCase() === row.code.toUpperCase())) {
+              return { code: row.code, verdict: "AUDIT_FAIL" as const, statementFingerprint };
+            }
+            const scored = siblingScores.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
+            return {
+              code: row.code,
+              verdict: scored?.verdict === "AUDIT_PASS" ? ("AUDIT_PASS" as const) : ("AUDIT_FAIL" as const),
+              statementFingerprint,
+            };
           }),
-          passingCodes,
-        ).map((item) => {
-          const row = admittedTerritories.find((candidate) => candidate.code.toUpperCase() === item.code.toUpperCase());
-          return {
-            ...item,
-            statementFingerprint: row
-              ? territoryFingerprint({ statement: row.statement, bigThoughtFingerprint: focusedBigThoughtFingerprint })
-              : item.statementFingerprint,
-          };
-        });
+          [...heldPass],
+        );
+        const siblingLessons = territoryFailureLessons({
+          rows: siblingRows,
+          items,
+          siblingSet,
+        }).filter((lesson) => !individualFailures.some((failure) => failure.code.toUpperCase() === lesson.code.toUpperCase()));
         await territorySet.save.mutateAsync({
           schema: "thinking-lab/territory-set/v1",
           repairCount: items.some((item) => item.verdict === "AUDIT_FAIL") ? (territorySet.data?.repairCount ?? 0) : 0,
           siblingSet,
           audit: { fingerprint: territoryFingerprintNow, items },
           challenger: null,
-          auditLessons: mergeTerritoryAuditLessons(
-            territorySet.data?.auditLessons ?? [],
-            territoryFailureLessons({
-              rows: admittedTerritories.map((row) => ({ code: row.code, statement: row.statement })),
-              items,
-              siblingSet,
-            }),
-          ),
+          auditLessons: mergeTerritoryAuditLessons(territorySet.data?.auditLessons ?? [], [
+            ...individualFailures,
+            ...siblingLessons,
+          ]),
         });
         return;
       }
@@ -2907,6 +4682,7 @@ export function ThinkingLabPage() {
         const script = await askThinkingLab(
           buildTerritoryChallengerPrompt({
             parentStatement: focusedThought.statement,
+            answeredQuestion,
             rows: admittedTerritories.map((row) => ({ code: row.code, statement: row.statement })),
           }),
           0,
@@ -3261,8 +5037,6 @@ export function ThinkingLabPage() {
       else setNotice(t("thinkingLab.bt.noSafeReplacement", "NO_SAFE_REPLACEMENT {{codes}}", { codes: unsafe.join(", ") }));
   };
 
-  const onFix = () => run(() => repairFailedBigThoughts());
-
   const onFixBigThought = (code: string) => {
     const key = code.trim().toUpperCase();
     if (!key || fixingBigThoughtCodesRef.current.has(key)) return;
@@ -3379,6 +5153,33 @@ export function ThinkingLabPage() {
 
   const focusedExecution =
     focus?.kind === "execution" ? ((labExecutions.data ?? []).find((row) => row.id === focus.executionId) ?? null) : null;
+
+  useEffect(() => {
+    if (!focusedExecution || !focusedIdea || busy || executionProgress) return;
+    const facts = focusedExecution.canonicalSemantic;
+    if (pillarHopStopped(focusedExecution.pillarName, focusedExecution.script, focusedExecution.id)) return;
+    if (!pillarNeedsRecommendation(facts.relationToParent) || facts.recommendation) return;
+    if ((contentPillars.data ?? []).length === 0) return;
+    if (recommendationAttempt.current.has(focusedExecution.id)) return;
+    recommendationAttempt.current.add(focusedExecution.id);
+    const execution = focusedExecution;
+    const idea = focusedIdea;
+    const token = executionCancel.current;
+    void run(async () => {
+      const { ancestors } = ideaParentFor(idea.angleId);
+      const next = await withPillarRecommendation(facts, execution.pillarName, idea.statement, ancestors, token);
+      if (!next.recommendation || executionCancel.current !== token) return;
+      await labExecutions.save.mutateAsync({
+        ideaId: idea.id,
+        pillar: execution.contentPillarId ?? execution.pillar,
+        contentPillarId: execution.contentPillarId,
+        pillarName: execution.pillarName,
+        statement: execution.statement,
+        script: execution.script,
+        facts: next,
+      });
+    }, "execution-recommend");
+  }, [focusedExecution, focusedIdea, busy, executionProgress, contentPillars.data]);
 
   const onGenerateCharacter = (handle: string) => {
     const execution = focusedExecution;
@@ -3501,7 +5302,7 @@ export function ThinkingLabPage() {
     const angle = (labAngles.data ?? []).find((row) => row.id === focus.angleId);
     const angleItem = {
       label: t("thinkingLab.tree.angle", "Angle"),
-      title: angle ? angleNodeSubject(angle.statement, territory?.statement ?? "") : "",
+      title: angle ? angleListSubject(angle.canonicalSemantic.subject ?? "", territory?.statement ?? "") : "",
     };
     if (focus.kind === "angle") return [territoryItem, thoughtItem, masterItem];
     return [angleItem, territoryItem, thoughtItem, masterItem];
@@ -3588,6 +5389,14 @@ export function ThinkingLabPage() {
                               )}
                             </p>
                           </div>
+                          <ProductBeliefSource
+                            disabled={busy}
+                            onApply={(draft) => {
+                              setNewPrior(draft.priorBelief);
+                              setNewPlanted(draft.plantedBelief);
+                              setNewAudience(draft.audience);
+                            }}
+                          />
                           <label className="shrink-0 space-y-1 text-sm font-medium text-foreground">
                             {t("thinkingLab.master.prior", "Old belief (false belief)")}
                           <Textarea
@@ -3632,7 +5441,9 @@ export function ThinkingLabPage() {
                             className="shrink-0"
                             onClick={onCreate}
                             disabled={busy || !newPrior.trim() || !newPlanted.trim() || beliefsMatch(newPrior, newPlanted)}
+                            aria-busy={busyAction === "formulate" || undefined}
                           >
+                            {busyAction === "formulate" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
                             {t("thinkingLab.action.formulate", "Formulate Master Thought")}
                           </Button>
                           </div>
@@ -3697,36 +5508,28 @@ export function ThinkingLabPage() {
                                 focus.kind === "angle" || focus.kind === "idea" || focus.kind === "execution"
                                   ? focus.angleId
                                   : null;
-                              const lockedAnglesFor = (territoryId: string, territoryStatement: string) => {
+                              const lockedAnglesFor = (territoryId: string) => {
                                 if (anglesOpen !== territoryId) return [];
-                                const territoryFp = focusedBigThoughtFingerprint
-                                  ? territoryFingerprint({
-                                      statement: territoryStatement,
-                                      bigThoughtFingerprint: focusedBigThoughtFingerprint,
-                                    })
-                                  : "";
                                 return (labAngles.data ?? [])
                                   .filter(
                                     (angle) => angle.territoryId === territoryId && angle.admission === "GENERATE_VALID",
                                   )
                                   .map((angle) => {
                                     const ideas = visibleIdeas(labIdeas.data ?? [], angle.id);
-                                    const angleFp = territoryFp
-                                      ? angleFingerprint({ statement: angle.statement, territoryFingerprint: territoryFp })
-                                      : "";
-                                    const currentSet = ideaSetFingerprint({
-                                      angleFingerprint: angleFp,
-                                      ideaFingerprints: ideas.map((idea) =>
-                                        ideaFingerprint({ statement: idea.statement, angleFingerprint: angleFp }),
-                                      ),
-                                    });
-                                    const downTop =
-                                      ideasOpen === angle.id && ideaSet.data ? ideaSet.data.downTop : angle.ideaSet.downTop;
-                                    const downTopCurrent = fingerprintsMatch(downTop?.fingerprint, currentSet);
+                                    const territoryName =
+                                      (labTerritories.data ?? []).find((item) => item.id === territoryId)?.statement ?? "";
+                                    const ownSubject = angleChecklists[angle.code.toUpperCase()]?.checks.find(
+                                      (check) => check.id === "ownSubject",
+                                    );
+                                    const listedSubject =
+                                      ownSubject?.state === "fail"
+                                        ? ""
+                                        : angleListSubject(angle.canonicalSemantic.subject ?? "", territoryName);
                                     return {
                                       id: angle.id,
                                       code: angle.code,
                                       statement: angle.statement,
+                                      subject: listedSubject,
                                       childCount: ideas.length,
                                       ideas:
                                         ideasOpen === angle.id
@@ -3734,13 +5537,8 @@ export function ThinkingLabPage() {
                                               id: idea.id,
                                               code: idea.code,
                                               statement: idea.statement,
-                                              recommended:
-                                                downTopCurrent &&
-                                                idea.canonicalSemantic.causeLock === "LOCKED" &&
-                                                downTop?.items.some(
-                                                  (item) =>
-                                                    item.code.toUpperCase() === idea.code.toUpperCase() && item.verdict === "PASS",
-                                                ) === true,
+                                              subject: idea.canonicalSemantic.subject,
+                                              recommended: idea.canonicalSemantic.causeLock === "LOCKED",
                                               executions:
                                                 focus?.kind !== "master" &&
                                                 focus?.kind !== "bigThought" &&
@@ -3749,9 +5547,11 @@ export function ThinkingLabPage() {
                                                   ? (labExecutions.data ?? []).map((row) => ({
                                                       id: row.id,
                                                       label: row.pillarName,
-                                                      passed:
-                                                        row.admission === "GENERATE_VALID" &&
-                                                        (row.script?.lineIssues.length ?? 0) === 0,
+                                                      passed: executionChecklistPassed(
+                                                        row.canonicalSemantic,
+                                                        row.admission,
+                                                        row.script?.lineIssues.length ?? 0,
+                                                      ),
                                                     }))
                                                   : [],
                                             }))
@@ -3765,7 +5565,7 @@ export function ThinkingLabPage() {
                                   code: row.code,
                                   statement: row.statement,
                                   childCount: angleCountFor(row.id),
-                                  angles: lockedAnglesFor(row.id, row.statement),
+                                  angles: lockedAnglesFor(row.id),
                                 }));
                               const next = new Map(withWorkingSet());
                               const children = next.get(selected.id) ?? [];
@@ -3831,7 +5631,7 @@ export function ThinkingLabPage() {
                     </div>
                     <div className={LAB_RIGHT_COL}>
                       <div className={LAB_SECTION}>
-                        <div className={LAB_RIGHT_CARD}>
+                        <div className={cn(LAB_RIGHT_CARD, showBeliefField && "overflow-hidden")}>
                           {showComposer && hasMasters ? (
                             <SavedMasterThoughtList
                               masters={masters.data ?? []}
@@ -3854,10 +5654,38 @@ export function ThinkingLabPage() {
                                 facts={focusedExecution.canonicalSemantic}
                                 progress={executionProgress}
                                 pending={busy}
+                                fixingLineId={fixingLineId}
                                 onStop={onStopExecution}
                                 onRepair={() => void onRepairExecution()}
+                                onFixLine={onFixLine}
                                 onRewrite={onRewriteExecution}
-                                onChangePillar={onOpenPillarPicker}
+                                onChangePillar={
+                                  pillarHopStopped(focusedExecution.pillarName, focusedExecution.script, focusedExecution.id)
+                                    ? undefined
+                                    : onOpenPillarPicker
+                                }
+                                onUseRecommendation={
+                                  pillarHopStopped(focusedExecution.pillarName, focusedExecution.script, focusedExecution.id)
+                                    ? undefined
+                                    : onUseRecommendation
+                                }
+                                onUseOffer={onUseExecutionOffer}
+                                onRetrySelling={onRetrySelling}
+                                checks={executionChecklists[focusedExecution.id]}
+                                offerNote={executionRepairNote}
+                                offer={
+                                  executionLineOffer?.executionId === focusedExecution.id
+                                    ? executionLineOffer.script.scenes.flatMap((scene) =>
+                                        scene.lines.flatMap((line) => {
+                                          const previous = focusedExecution.script?.scenes
+                                            .flatMap((item) => item.lines)
+                                            .find((item) => item.id === line.id);
+                                          if (!previous || previous.narration === line.narration) return [];
+                                          return [{ lineId: line.id, narration: line.narration }];
+                                        }),
+                                      )
+                                    : null
+                                }
                                 onViewTable={focusedExecution.script ? () => setScriptTableOpen(true) : undefined}
                                 onGenerateCharacter={onGenerateCharacter}
                                 onStoreCharacterVisual={onStoreCharacterVisual}
@@ -3905,9 +5733,12 @@ export function ThinkingLabPage() {
                                   focus.kind === "bigThought"
                                     ? lockedChildren.get(selected.id)?.find((child) => child.id === focus.thoughtId)?.label
                                     : focus.kind === "angle"
-                                      ? angleNodeSubject(focusedAngle?.statement ?? "", focusedTerritory?.statement ?? "")
+                                      ? angleListSubject(
+                                          focusedAngle?.canonicalSemantic.subject ?? "",
+                                          focusedTerritory?.statement ?? "",
+                                        )
                                       : focus.kind === "idea"
-                                        ? ideaNodeSummary(focusedIdea?.statement ?? "")
+                                        ? ideaLabel(focusedIdea?.statement ?? "", focusedIdea?.canonicalSemantic.subject)
                                         : undefined
                                 }
                                 statement={
@@ -3925,11 +5756,37 @@ export function ThinkingLabPage() {
                                         )
                                       : masterDescription
                                 }
+                                example={
+                                  focus.kind === "angle" && focusedAngle
+                                    ? angleCardView(
+                                        focusedAngle,
+                                        admittedAngles.findIndex((row) => row.id === focusedAngle.id),
+                                      ).example
+                                    : undefined
+                                }
+                                checks={
+                                  focus.kind === "angle" && focusedAngle && !angleSetLocked
+                                    ? angleCardView(
+                                        focusedAngle,
+                                        admittedAngles.findIndex((row) => row.id === focusedAngle.id),
+                                      ).checklist
+                                    : undefined
+                                }
+                                onFixNode={
+                                  focus.kind === "angle" && focusedAngle && !angleSetLocked
+                                    ? () => onFixAngle(focusedAngle.code)
+                                    : undefined
+                                }
+                                fixingNode={
+                                  focus.kind === "angle" && focusedAngle
+                                    ? fixingAngleCodes.has(focusedAngle.code.toUpperCase())
+                                    : false
+                                }
                                 territoryId={focus.kind === "territory" ? focusedTerritory?.id : undefined}
-                                territoryArea={
-                                  focus.kind === "territory" && territoryCopy?.area
-                                    ? { lead: territoryCopy.areaLead, body: territoryCopy.area }
-                                    : null
+                                territoryArea={null}
+                                linkSentence={focus.kind === "territory" ? territoryCopy?.area || null : null}
+                                areaQuestion={
+                                  focus.kind === "territory" ? focusedTerritory?.canonicalSemantic.areaQuestion?.trim() || null : null
                                 }
                                 territoryPass={
                                   focus.kind === "territory" &&
@@ -3949,7 +5806,21 @@ export function ThinkingLabPage() {
                                             id: focus.territoryId,
                                             bigThoughtId: focus.thoughtId,
                                           })
-                                      : undefined
+                                      : focus.kind === "idea" && focusedIdea
+                                        ? () =>
+                                            setPendingDelete({
+                                              kind: "idea",
+                                              id: focusedIdea.id,
+                                              angleId: focusedIdea.angleId,
+                                            })
+                                        : focus.kind === "angle" && focusedAngle
+                                          ? () =>
+                                              setPendingDelete({
+                                                kind: "angle",
+                                                id: focusedAngle.id,
+                                                territoryId: focusedAngle.territoryId,
+                                              })
+                                          : undefined
                                 }
                                 unlockDisabled={busy}
                                 pendingAction={
@@ -4002,26 +5873,23 @@ export function ThinkingLabPage() {
                                         id: row.id,
                                         code: row.code,
                                         statement: row.statement,
+                                        mechanismKeys: row.canonicalSemantic.mechanismKeys,
                                         editable: row.status === "candidate",
-                                        verdict: ideaVerdicts[index] ?? ideaDownTop[index] ?? null,
+                                        verdict: shownIdeaVerdicts[index] ?? null,
+                                        checklist: ideaChecklists[row.code.toUpperCase()]?.checks,
+                                        checklistNote: ideaChecklists[row.code.toUpperCase()]?.note,
                                       }))
                                     : undefined
                                 }
                                 ideaStage={focus.kind === "angle" && !ideaSetLocked ? ideaStage : null}
                                 onIdeaStage={() => void onIdeaStage()}
                                 onLockIdeas={
-                                  focus.kind === "angle" &&
-                                  !ideaSetLocked &&
-                                  openIdeas.length > 0 &&
-                                  ideaVerdicts.length === openIdeas.length &&
-                                  ideaVerdicts.every((verdict) => verdict === "AUDIT_PASS")
+                                  focus.kind === "angle" && !ideaSetLocked && ideaLock.ok
                                     ? () => void onLockIdeas()
                                     : undefined
                                 }
                                 onFixIdea={
-                                  focus.kind === "angle" && !ideaSetLocked && ideaStage === "fix"
-                                    ? onFixIdea
-                                    : undefined
+                                  focus.kind === "angle" && !ideaSetLocked ? onFixIdea : undefined
                                 }
                                 fixingIdeaCodes={focus.kind === "angle" && !ideaSetLocked ? [...fixingIdeaCodes] : undefined}
                                 ideaNotes={
@@ -4070,29 +5938,48 @@ export function ThinkingLabPage() {
                                 angleReady={
                                   focus.kind === "territory" &&
                                   showGenerateAngle &&
-                                  !angleSetLocked &&
+                                  admittedAngles.length < ACTIVE_SET_CAP &&
                                   angleStage !== "fix" &&
-                                  angleStage !== "generate" &&
-                                  (admittedAngles.length === 0 || busyAction === "generate-angle")
+                                  angleStage !== "generate"
                                 }
                                 angles={
                                   focus.kind === "territory" && !angleSetLocked
-                                    ? admittedAngles.map((row, index) => ({
-                                        id: row.id,
-                                        code: row.code,
-                                        statement: row.statement,
-                                        verdict: angleVerdicts[index] ?? null,
-                                        editable: row.status === "candidate",
-                                      }))
+                                    ? admittedAngles.map((row, index) => {
+                                        const view = angleCardView(row, index);
+                                        return {
+                                          id: row.id,
+                                          code: row.code,
+                                          statement: row.statement,
+                                          subject: view.subject,
+                                          example: view.example,
+                                          verdict: angleVerdicts[index] ?? null,
+                                          editable: row.status === "candidate",
+                                          checklist: view.checklist,
+                                          checklistNote: angleChecklists[row.code.toUpperCase()]?.note,
+                                        };
+                                      })
                                     : undefined
                                 }
                                 angleStage={focus.kind === "territory" && !angleSetLocked ? angleStage : null}
                                 onAngleStage={() => void onAngleStage()}
                                 onFixAngle={
+                                  focus.kind === "territory" && !angleSetLocked ? onFixAngle : undefined
+                                }
+                                onDeleteAngle={
+                                  focus.kind === "territory" && !angleSetLocked
+                                    ? (id) =>
+                                        setPendingDelete({
+                                          kind: "angle",
+                                          id,
+                                          territoryId: focus.territoryId,
+                                        })
+                                    : undefined
+                                }
+                                onFixFailedAngles={
                                   focus.kind === "territory" &&
                                   !angleSetLocked &&
                                   angleVerdicts.some((verdict) => verdict === "AUDIT_FAIL")
-                                    ? onFixAngle
+                                    ? () => void run(() => repairFailedAngles(), "fix-angles")
                                     : undefined
                                 }
                                 fixingAngleCodes={
@@ -4101,8 +5988,9 @@ export function ThinkingLabPage() {
                                 onLockAngles={
                                   focus.kind === "territory" &&
                                   !angleSetLocked &&
-                                  admittedAngles.length >= 3 &&
-                                  angleVerdicts.every((verdict) => verdict === "AUDIT_PASS")
+                                  admittedAngles.length > 0 &&
+                                  angleVerdicts.every((verdict) => verdict === "AUDIT_PASS") &&
+                                  !angleExampleOpen
                                     ? () => void onLockAngles()
                                     : undefined
                                 }
@@ -4121,23 +6009,33 @@ export function ThinkingLabPage() {
                                 }
                                 territories={
                                   focus.kind === "bigThought" && !territoriesPanelClosed
-                                    ? (focusedThought?.territories ?? []).map((row) => ({
-                                        ...row,
-                                        editable: row.status === "candidate",
-                                        verdict:
-                                          territoryVerdicts[
-                                            admittedTerritories.findIndex((item) => item.id === row.id)
-                                          ] ?? null,
-                                      }))
+                                    ? (focusedThought?.territories ?? []).map((row) => {
+                                        return {
+                                          ...row,
+                                          editable: row.status === "candidate",
+                                          checklist: territoryChecklists[row.code.toUpperCase()]?.checks,
+                                          checklistNote: territoryChecklists[row.code.toUpperCase()]?.note,
+                                          verdict:
+                                            territoryVerdicts[
+                                              admittedTerritories.findIndex((item) => item.id === row.id)
+                                            ] ?? null,
+                                        };
+                                      })
                                     : undefined
                                 }
                                 territoryStage={focus.kind === "bigThought" && !territoriesPanelClosed ? territoryStage : null}
                                 onTerritoryStage={() => void onTerritoryStage()}
                                 onFixTerritory={
-                                  focus.kind === "bigThought" &&
-                                  !territoriesPanelClosed &&
-                                  territoryVerdicts.some((verdict) => verdict === "AUDIT_FAIL")
-                                    ? onFixTerritory
+                                  focus.kind === "bigThought" && !territoriesPanelClosed ? onFixTerritory : undefined
+                                }
+                                onDeleteTerritory={
+                                  focus.kind === "bigThought" && !territoriesPanelClosed
+                                    ? (id) =>
+                                        setPendingDelete({
+                                          kind: "territory",
+                                          id,
+                                          bigThoughtId: focus.thoughtId,
+                                        })
                                     : undefined
                                 }
                                 fixingTerritoryCodes={
@@ -4155,7 +6053,9 @@ export function ThinkingLabPage() {
                                     : undefined
                                 }
                                 onGenerateTerritory={
-                                  focus.kind === "bigThought" && territoryGenerateThoughtId === focus.thoughtId
+                                  focus.kind === "bigThought" &&
+                                  focusedThought?.canGenerateTerritory &&
+                                  admittedTerritories.length < ACTIVE_SET_CAP
                                     ? () => void onGenerateTerritory(focus.thoughtId)
                                     : undefined
                                 }
@@ -4203,15 +6103,15 @@ export function ThinkingLabPage() {
                                       )
                                     : null
                                 }
-                                questionNotes={
-                                  focus.kind === "bigThought" && !territoriesPanelClosed ? bigThoughtQuestionNotes : undefined
-                                }
                                 territoryNotes={focus.kind === "bigThought" && !territoriesPanelClosed ? territoryNotes : undefined}
                                 territoryFixOffers={
                                   focus.kind === "bigThought" && !territoriesPanelClosed
                                     ? territoryFixOffers
                                         .filter((offer) => offer.thoughtId === focusedThought?.id)
-                                        .map((offer) => ({ failedCode: offer.failedCode, statement: offer.statement }))
+                                        .map((offer) => ({
+                                          failedCode: offer.failedCode,
+                                          statement: offer.statement,
+                                        }))
                                     : undefined
                                 }
                                 onPickTerritoryFixOffer={
@@ -4226,12 +6126,11 @@ export function ThinkingLabPage() {
                               {(ready || locked) && !showBeliefField ? (
                                 <header className="space-y-2 border-b border-border pb-3">
                                   <div className="flex items-center justify-between gap-3">
-                                    <p className="text-xs font-medium text-muted-foreground">
-                                      {t("thinkingLab.tree.masterThought", "Master Thought")}
+                                    <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                                      <span>{t("thinkingLab.tree.masterThought", "Master Thought")}</span>
+                                      <NodeDefinitionInfo kind="master" />
                                     </p>
-                                    {!editingBelief &&
-                                    ((Boolean(selected.statement) && busyAction !== "generate") ||
-                                      (busyAction !== "manual-big-thought" && Boolean(stageAction))) ? (
+                                    {!editingBelief && (masterMenuStage || showGenerateBigThought) && busyAction !== "manual-big-thought" ? (
                                       <DropdownMenu modal={false}>
                                         <DropdownMenuTrigger asChild>
                                           <Button
@@ -4245,39 +6144,40 @@ export function ThinkingLabPage() {
                                           </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="min-w-[11rem]">
-                                          {selected.statement && busyAction !== "generate" ? (
+                                          {showGenerateBigThought ? (
                                             <DropdownMenuItem
-                                              className="cursor-pointer"
+                                              className="cursor-pointer gap-2"
+                                              disabled={busy}
                                               onSelect={() => {
-                                                window.setTimeout(() => setShowManualBigThought(true), 0);
+                                                window.setTimeout(() => void onGenerate(), 0);
                                               }}
                                             >
-                                              {t("thinkingLab.manual.bigThought", "Big Thought label")}
+                                              <Sparkles className="h-3.5 w-3.5" />
+                                              {t("thinkingLab.bt.generate", "Generate Big Thought")}
                                             </DropdownMenuItem>
                                           ) : null}
-                                          {busyAction !== "manual-big-thought" && stageAction ? (
+                                          {masterMenuStage ? (
                                             <DropdownMenuItem
-                                              className="cursor-pointer"
+                                              className="cursor-pointer gap-2"
                                               disabled={busy}
                                               onSelect={() => {
                                                 window.setTimeout(() => {
-                                                  if (stageAction === "generate") void onGenerate();
-                                                  else if (stageAction === "audit") void onAudit();
-                                                  else if (stageAction === "fix") void onFix();
-                                                  else if (stageAction === "challenger") void onChallenger();
+                                                  if (masterMenuStage === "generate") void onGenerate();
+                                                  else if (masterMenuStage === "audit") void onAudit();
+                                                  else if (masterMenuStage === "challenger") void onChallenger();
                                                   else void onLock();
                                                 }, 0);
                                               }}
                                             >
-                                              {stageAction === "fix"
-                                                ? t("thinkingLab.action.fix", "Fix")
-                                                : stageAction === "generate"
-                                                  ? t("thinkingLab.action.generate", "Generate")
-                                                  : stageAction === "audit"
-                                                    ? t("thinkingLab.action.audit", "Audit")
-                                                    : stageAction === "challenger"
-                                                      ? t("thinkingLab.action.challenger", "Challenger")
-                                                      : t("thinkingLab.action.lock", "Lock")}
+                                              {masterMenuStage === "generate" ? <Sparkles className="h-3.5 w-3.5" /> : null}
+                                              {masterMenuStage === "audit" ? <ClipboardCheck className="h-3.5 w-3.5" /> : null}
+                                              {masterMenuStage === "generate"
+                                                ? t("thinkingLab.bt.generate", "Generate Big Thought")
+                                                : masterMenuStage === "audit"
+                                                  ? t("thinkingLab.action.audit", "Audit")
+                                                  : masterMenuStage === "challenger"
+                                                    ? t("thinkingLab.action.challenger", "Challenger")
+                                                    : t("thinkingLab.action.lock", "Lock")}
                                             </DropdownMenuItem>
                                           ) : null}
                                         </DropdownMenuContent>
@@ -4301,6 +6201,7 @@ export function ThinkingLabPage() {
                                 <MasterThoughtSection
                                   locked={locked}
                                   busy={busy}
+                                  understanding={busyAction === "understand" || busyAction === "formulate"}
                                   priorDraft={priorDraft}
                                   originalDraft={originalDraft}
                                   audienceDraft={audienceDraft}
@@ -4314,13 +6215,78 @@ export function ThinkingLabPage() {
                                   onProposalChange={setProposalDraft}
                                   onUnderstand={() => void onUnderstand()}
                                   judgmentCurrent={judgmentCurrent}
-                                  onClarify={(answer, question) => {
-                                    const asked = question?.trim() || selected.canonicalSemantic?.clarificationQuestion;
-                                    if (!asked) return;
-                                    void onUnderstand({ question: asked, answer });
+                                  onKeepOriginal={() => {
+                                    const planted = originalDraft.trim();
+                                    if (!planted || !selected) return;
+                                    void run(async () => {
+                                      await masters.saveJudge.mutateAsync({
+                                        id: selected.id,
+                                        facts: acceptChosenBelief(planted),
+                                        fingerprint: understandFingerprint(planted, null),
+                                      });
+                                    }, "understand");
+                                  }}
+                                  onUseSubject={(answer) => {
+                                    const planted = originalDraft.trim() || selected.originalInput.trim();
+                                    const subject = answer.trim();
+                                    if (!planted || !subject || !selected) return;
+                                    void run(async () => {
+                                      await masters.saveJudge.mutateAsync({
+                                        id: selected.id,
+                                        facts: acceptChosenBelief(subject),
+                                        fingerprint: understandFingerprint(planted, null),
+                                      });
+                                    }, "understand");
+                                  }}
+                                  onPickBelief={(belief) => {
+                                    const next = belief.trim();
+                                    if (!next || !selected) return;
+                                    void run(async () => {
+                                      const prior = priorDraft.trim();
+                                      const audience = audienceDraft.trim();
+                                      if (beliefsMatch(beliefClaim(next), beliefClaim(prior))) throw new Error("SAME_BELIEF");
+                                      setOriginalDraft(next);
+                                      await masters.saveOriginal.mutateAsync({
+                                        id: selected.id,
+                                        planted: next,
+                                        priorBelief: prior,
+                                        audience,
+                                      });
+                                      const facts = acceptPlantedBelief(next);
+                                      await masters.saveJudge.mutateAsync({
+                                        id: selected.id,
+                                        facts,
+                                        fingerprint: understandFingerprint(next, null),
+                                      });
+                                    }, "understand");
+                                  }}
+                                  onUseBelief={(belief) => {
+                                    const next = belief.trim();
+                                    if (!next || !selected) return;
+                                    void run(async () => {
+                                      const prior = priorDraft.trim();
+                                      const audience = audienceDraft.trim();
+                                      if (beliefsMatch(next, prior)) throw new Error("SAME_BELIEF");
+                                      setOriginalDraft(next);
+                                      await masters.saveOriginal.mutateAsync({
+                                        id: selected.id,
+                                        planted: next,
+                                        priorBelief: prior,
+                                        audience,
+                                      });
+                                      const facts = await judgeMasterThought(next, askThinkingLab, undefined, {
+                                        priorBelief: prior,
+                                        audience,
+                                      });
+                                      await masters.saveJudge.mutateAsync({
+                                        id: selected.id,
+                                        facts,
+                                        fingerprint: understandFingerprint(next, facts.proposedRootBelief),
+                                      });
+                                    }, "understand");
                                   }}
                                   onOpenChoices={async (question) => {
-                                    let choices: string[] = [];
+                                    let choices: MasterChoiceSet = { subjects: [], beliefs: [] };
                                     await run(async () => {
                                       const raw = await askThinkingLab(
                                         buildMasterChoicePrompt({
@@ -4331,7 +6297,10 @@ export function ThinkingLabPage() {
                                         }),
                                         0.2,
                                       );
-                                      choices = parseMasterChoices(raw ? parseModelJson(raw) : null, { priorBelief: priorDraft });
+                                      choices = parseMasterChoiceSet(raw ? parseModelJson(raw) : null, {
+                                        priorBelief: priorDraft,
+                                        originalInput: originalDraft,
+                                      });
                                     });
                                     return choices;
                                   }}
@@ -4402,9 +6371,49 @@ export function ThinkingLabPage() {
         masterSells={masterSells}
         pending={busy}
         onOpenChange={setPillarPickerOpen}
-        onConfirm={(pillars, audio, look, speech, durationSeconds) =>
-          void onGenerateExecutions(pillars, audio, look, speech, null, durationSeconds)
+        onConfirm={(pillars, audio, look, speech, durationSeconds, brandName, cta) =>
+          loadScriptConfirm({ pillars, audio, look, speech, durationSeconds, brandName, cta })
         }
+      />
+      <ExecutionConfirmDialog
+        open={scriptConfirm !== null}
+        loading={scriptConfirm?.loading ?? false}
+        failed={scriptConfirm?.failed ?? false}
+        questions={scriptConfirm?.questions ?? null}
+        pending={busy}
+        onOpenChange={(open) => {
+          if (open) return;
+          confirmToken.current += 1;
+          setScriptConfirm(null);
+        }}
+        onRetry={() => {
+          if (!scriptConfirm) return;
+          loadScriptConfirm(scriptConfirm);
+        }}
+        onConfirm={(answers) => {
+          if (!scriptConfirm) return;
+          const settings = scriptConfirm;
+          confirmToken.current += 1;
+          setScriptConfirm(null);
+          const questions = settings.questions ?? [];
+          const chosenDecisions: ScriptDecision[] = questions.flatMap((question) => {
+            const answer = answers.find((item) => item.question === question.prompt)?.answer.trim() ?? "";
+            if (!answer) return [];
+            return [{ category: question.category, question: question.prompt, answer, binds: question.binds }];
+          });
+          onGenerateExecutions(
+            settings.pillars,
+            settings.audio,
+            settings.look,
+            settings.speech,
+            null,
+            settings.durationSeconds,
+            settings.brandName,
+            settings.cta,
+            chosenDecisions.find((row) => row.binds === "viewpoint")?.answer ?? null,
+            chosenDecisions,
+          );
+        }}
       />
       <SaveToPlanModal
         isOpen={planSaveOpen && Boolean(focusedExecution?.script)}
@@ -4417,6 +6426,9 @@ export function ThinkingLabPage() {
         lockedPillarId={focusedExecution?.contentPillarId}
         preserveTableColumns
         syncPlanIdentity
+        onSuccess={() => {
+          void invalidateContentPillarQueries(queryClient, masters.organizationId);
+        }}
       />
       <AlertDialog
         open={Boolean(pendingDelete)}
@@ -4429,8 +6441,12 @@ export function ThinkingLabPage() {
             <AlertDialogTitle>
               {pendingDelete?.kind === "territory"
                 ? t("thinkingLab.confirm.deleteTerritoryTitle", "Delete this Territory?")
-                : pendingDelete?.kind === "bigThought"
+                : pendingDelete?.kind === "angle"
+                  ? t("thinkingLab.confirm.deleteAngleTitle", "Delete this Angle?")
+                  : pendingDelete?.kind === "bigThought"
                   ? t("thinkingLab.confirm.deleteBigThoughtTitle", "Delete this Big Thought?")
+                  : pendingDelete?.kind === "idea"
+                    ? t("thinkingLab.confirm.deleteIdeaTitle", "Delete this Idea?")
                   : pendingDelete?.kind === "execution"
                     ? t("thinkingLab.confirm.deleteExecutionTitle", "Delete this Execution?")
                     : t("thinkingLab.confirm.deleteTitle", "Delete this Master Thought?")}
@@ -4441,11 +6457,21 @@ export function ThinkingLabPage() {
                     "thinkingLab.confirm.deleteTerritoryBody",
                     "This deletes the Territory and the Angles under it. This cannot be undone.",
                   )
-                : pendingDelete?.kind === "bigThought"
+                : pendingDelete?.kind === "angle"
+                  ? t(
+                      "thinkingLab.confirm.deleteAngleBody",
+                      "This deletes the Angle and the Ideas under it. This cannot be undone.",
+                    )
+                  : pendingDelete?.kind === "bigThought"
                   ? t(
                       "thinkingLab.confirm.deleteBigThoughtBody",
                       "This deletes the Big Thought and the Territories and Angles under it. This cannot be undone.",
                     )
+                  : pendingDelete?.kind === "idea"
+                    ? t(
+                        "thinkingLab.confirm.deleteIdeaBody",
+                        "This deletes the Idea and the Executions under it. This cannot be undone.",
+                      )
                   : pendingDelete?.kind === "execution"
                     ? t(
                         "thinkingLab.confirm.deleteExecutionBody",

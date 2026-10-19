@@ -3,6 +3,7 @@ import { createBriefSequence, upsertBriefSequencesInMarkdown } from "@/6-1-dashb
 import { serializeBriefConcept } from "@/6-1-dashboard/modal/briefConceptAssets";
 import type { ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
 import { isFlashSalePillar } from "@/thinking-lab/execution/types";
+import { confirmedDecisionRules, readPointOfView, readScriptDecisions, type ScriptDecision } from "@/thinking-lab/execution/confirm";
 import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 
 const PLAN_TABLE_HEADERS = [
@@ -60,6 +61,7 @@ export type ScriptScene = {
   id: string;
   title: string;
   lines: ScriptLine[];
+  purpose?: "cta";
 };
 
 export type ScriptAudio = {
@@ -81,10 +83,16 @@ export type VoiceOverScript = {
   };
   scenes: ScriptScene[];
   lineIssues: Array<{ lineId: string; reason: string }>;
+  productionIssues?: Array<{ lineId: string; reason: string; kind: "viewpoint" | "continuity" }>;
   audio: ScriptAudio;
   look?: ScriptLook;
   speech?: ScriptSpeech;
   durationSeconds?: number;
+  brandName?: string;
+  cta?: string;
+  pointOfView?: string;
+  decisions?: ScriptDecision[];
+  followedRecommendation?: boolean;
 };
 
 export type ScriptLineReplacement = {
@@ -296,8 +304,15 @@ export function parseVoiceOverScript(raw: unknown): VoiceOverScript | null {
       const parsed = readLine(line, id, lineIndex, speech);
       return parsed ? [parsed] : [];
     });
+    const isCta = sceneRow?.purpose === "cta" || sceneRow?.kind === "cta";
     if (lines.length === 0 || lines.every((line) => !line.narration.trim())) return [];
-    return [{ id, title: title || `Scene ${sceneIndex + 1}`, lines }];
+    const parsedScene: ScriptScene = {
+      id,
+      title: title || `Scene ${sceneIndex + 1}`,
+      lines,
+      ...(isCta ? { purpose: "cta" as const } : {}),
+    };
+    return [parsedScene];
   });
   if (scenes.length === 0) return null;
   const known = new Set(scenes.flatMap((scene) => scene.lines.map((line) => line.id)));
@@ -310,6 +325,15 @@ export function parseVoiceOverScript(raw: unknown): VoiceOverScript | null {
     if (!known.has(lineId) || !reason) return [];
     return [{ lineId, reason }];
   });
+  const productionIssues = asList(row.productionIssues).flatMap((issue) => {
+    const issueRow = asRecord(issue);
+    if (!issueRow) return [];
+    const lineId = asText(issueRow.lineId ?? issueRow.id);
+    const reason = asText(issueRow.reason);
+    if (!known.has(lineId) || !reason) return [];
+    const kind = issueRow.kind === "viewpoint" ? "viewpoint" : "continuity";
+    return [{ lineId, reason, kind }] as const;
+  });
   const look = readScriptLook(row.look);
   return {
     title: asText(row.title ?? row.postTitle ?? row.headline ?? row.judul),
@@ -321,10 +345,18 @@ export function parseVoiceOverScript(raw: unknown): VoiceOverScript | null {
     },
     scenes,
     lineIssues,
+    ...(productionIssues.length > 0 ? { productionIssues: [...productionIssues] } : {}),
     audio: readScriptAudio(row.audio),
     ...(look ? { look } : {}),
     ...(speech ? { speech } : {}),
     ...(readDurationSeconds(row.durationSeconds) ? { durationSeconds: readDurationSeconds(row.durationSeconds) } : {}),
+    ...(readBrandName(row.brandName) ? { brandName: readBrandName(row.brandName) ?? undefined } : {}),
+    ...(readCallToAction(row.cta) ? { cta: readCallToAction(row.cta) ?? undefined } : {}),
+    ...(readScriptDecisions(row.decisions).length > 0 ? { decisions: readScriptDecisions(row.decisions) } : {}),
+    ...(readPointOfView(row.pointOfView, row.confirmations, row.decisions)
+      ? { pointOfView: readPointOfView(row.pointOfView, row.confirmations, row.decisions) ?? undefined }
+      : {}),
+    ...(row.followedRecommendation === true ? { followedRecommendation: true } : {}),
   };
 }
 
@@ -332,6 +364,221 @@ function readDurationSeconds(value: unknown): number | null {
   const amount = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(amount) || amount <= 0) return null;
   return Math.round(amount);
+}
+
+export function readBrandName(value: unknown): string | null {
+  const text = asText(value).replace(/\s+/g, " ");
+  return text || null;
+}
+
+export function readCallToAction(value: unknown): string | null {
+  const text = asText(value).replace(/\s+/g, " ");
+  if (!text || text.length > 80) return null;
+  return text;
+}
+
+export function scriptMentionsBrand(script: VoiceOverScript, brand: string): boolean {
+  const name = brand.trim();
+  if (!name) return true;
+  const inNarration = script.scenes.some((scene) => scene.lines.some((line) => line.narration.includes(name)));
+  if (!inNarration) return false;
+  if (script.speech !== "silent") return true;
+  return script.scenes.some((scene) => scene.lines.some((line) => line.shots.some((shot) => shot.prompt.includes(name))));
+}
+
+function weaveBrand(text: string, brand: string): string {
+  if (text.includes(brand)) return text;
+  const trimmed = text.trim();
+  if (!trimmed) return brand;
+  const matched = trimmed.match(/^(.*?)([.!?…]+)\s*$/);
+  if (matched?.[1]?.trim()) return `${matched[1].trimEnd()} ${brand}${matched[2]}`;
+  return `${trimmed} ${brand}`;
+}
+
+export function ensureBrandMention(script: VoiceOverScript, brand: string): VoiceOverScript {
+  const name = brand.trim();
+  if (!name) return script;
+  const named = script.brandName === name ? script : { ...script, brandName: name };
+  if (scriptMentionsBrand(named, name)) return named;
+  let placedNarration = false;
+  let placedShot = named.speech !== "silent";
+  return {
+    ...named,
+    scenes: named.scenes.map((scene) => ({
+      ...scene,
+      lines: scene.lines.map((line) => {
+        let narration = line.narration;
+        if (!placedNarration && narration.trim()) {
+          narration = weaveBrand(narration, name);
+          placedNarration = narration.includes(name);
+        }
+        let shots = line.shots;
+        if (narration.includes(name) && line.delivery === "dialogue" && shots[0] && shotHasSaid(shots[0].prompt)) {
+          const prompt = shots[0].prompt.replace(SAID_CLAUSE, (clause) => {
+            const token = clause.match(/@[A-Za-z0-9_.]+/);
+            return token ? `${token[0]} said: "${narration}"` : clause;
+          });
+          if (prompt !== shots[0].prompt) shots = shots.map((shot, index) => (index === 0 ? { ...shot, prompt } : shot));
+        }
+        if (!placedShot && narration.includes(name)) {
+          const already = shots.some((shot) => shot.prompt.includes(name));
+          if (!already && shots[0]) {
+            shots = shots.map((shot, index) =>
+              index === 0
+                ? { ...shot, prompt: `${shot.prompt.trim()} Readable on-screen text shows "${name}".`.trim() }
+                : shot,
+            );
+          }
+          placedShot = shots.some((shot) => shot.prompt.includes(name));
+        }
+        return { ...line, narration, shots };
+      }),
+    })),
+  };
+}
+
+export function chainNarrationLines(script: VoiceOverScript): Array<{ id: string; narration: string }> {
+  return script.scenes
+    .filter((scene) => scene.purpose !== "cta")
+    .flatMap((scene) => scene.lines.map((line) => ({ id: line.id, narration: line.narration })));
+}
+
+/** Lines a one-line recheck needs. Viewpoint is local; continuity also needs the line before it. */
+export function linesForProductionRecheck(
+  lines: Array<{ id: string; narration: string }>,
+  lineId: string,
+  kind: "viewpoint" | "continuity",
+): Array<{ id: string; narration: string }> {
+  const index = lines.findIndex((line) => line.id === lineId);
+  if (index < 0) return lines;
+  if (kind === "viewpoint") return [lines[index]];
+  return lines.slice(Math.max(0, index - 1), index + 1);
+}
+
+export function conclusionNarrationLines(script: VoiceOverScript): Array<{ id: string; narration: string }> {
+  const story = script.scenes.filter((scene) => scene.purpose !== "cta");
+  const last = story[story.length - 1];
+  if (!last) return [];
+  return last.lines.map((line) => ({ id: line.id, narration: line.narration }));
+}
+
+export function storyVoiceOver(script: VoiceOverScript): string {
+  return flattenVoiceOver({ ...script, scenes: script.scenes.filter((scene) => scene.purpose !== "cta") });
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function bareCallToAction(text: string, action: string): boolean {
+  const normalized = text.trim().replace(/[.!?…]+$/g, "").trim().toLowerCase();
+  return normalized === action.trim().toLowerCase();
+}
+
+function withoutTrailingAction(narration: string, action: string): string {
+  if (bareCallToAction(narration, action)) return "";
+  const pattern = new RegExp(`\\s+${escapeRegExp(action.trim())}\\s*[.!?…]*\\s*$`, "i");
+  return narration.replace(pattern, "").trim();
+}
+
+export function detachCallToAction(script: VoiceOverScript, cta: string): VoiceOverScript {
+  const action = readCallToAction(cta);
+  if (!action) return script;
+  const tagged = script.cta === action ? script : { ...script, cta: action };
+  const scenes = tagged.scenes.flatMap((scene) => {
+    if (scene.purpose === "cta") return [scene];
+    const lines = scene.lines.flatMap((line) => {
+      const narration = withoutTrailingAction(line.narration, action);
+      if (!narration) return [];
+      let shots = line.shots;
+      if (narration !== line.narration && line.delivery === "dialogue" && shots[0] && shotHasSaid(shots[0].prompt)) {
+        const prompt = shots[0].prompt.replace(SAID_CLAUSE, (clause) => {
+          const token = clause.match(/@[A-Za-z0-9_.]+/);
+          return token ? `${token[0]} said: "${narration}"` : clause;
+        });
+        if (prompt !== shots[0].prompt) shots = shots.map((shot, index) => (index === 0 ? { ...shot, prompt } : shot));
+      }
+      return [{ ...line, narration, shots }];
+    });
+    if (lines.length === 0) return [];
+    return [{ ...scene, lines }];
+  });
+  const story = scenes.filter((scene) => scene.purpose !== "cta");
+  const invitation = scenes.filter((scene) => scene.purpose === "cta");
+  return { ...tagged, scenes: [...story, ...invitation] };
+}
+
+export function callToActionSceneReady(script: VoiceOverScript, cta: string): boolean {
+  const action = cta.trim();
+  const scene = [...script.scenes].reverse().find((item) => item.purpose === "cta");
+  if (!scene || !action) return false;
+  const text = scene.lines.map((line) => line.narration.trim()).filter(Boolean).join(" ");
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length < 8 || words.length > 60) return false;
+  return !bareCallToAction(text, action);
+}
+
+export function attachCtaScene(script: VoiceOverScript, scene: ScriptScene): VoiceOverScript {
+  const story = script.scenes.filter((item) => item.purpose !== "cta");
+  const index = story.length + 1;
+  const id = `s${index}`;
+  const lines = scene.lines.map((line, lineIndex) => ({
+    ...line,
+    id: `${id}-l${lineIndex + 1}`,
+    shots: line.shots.map((shot, shotIndex) => ({ ...shot, id: `${id}-l${lineIndex + 1}-h${shotIndex + 1}` })),
+  }));
+  return {
+    ...script,
+    scenes: [...story, { ...scene, id, title: scene.title.trim() || `Scene ${index}`, purpose: "cta", lines }],
+  };
+}
+
+export function parseCtaScene(raw: unknown, speech?: ScriptSpeech): ScriptScene | null {
+  const row = asRecord(raw);
+  const scene = row?.scene ?? row?.scenes ?? raw;
+  const parsed = parseVoiceOverScript({ speech, scenes: Array.isArray(scene) ? scene : [scene] });
+  const first = parsed?.scenes[0];
+  if (!first) return null;
+  return { ...first, purpose: "cta" };
+}
+
+export function buildCtaScenePrompt(input: {
+  ideaStatement: string;
+  masterStatement: string;
+  pointOfView?: string | null;
+  decisions?: ScriptDecision[] | null;
+  action: string;
+  speech?: ScriptSpeech | null;
+  brandName?: string | null;
+}): string {
+  const action = input.action.trim();
+  const locked = confirmedDecisionRules(input.decisions, input.pointOfView);
+  return [
+    "Write one new scene for the end of a video script.",
+    "This scene is only the call to action. It comes after the conclusion.",
+    `The chosen action is "${action}". That label is not the narration.`,
+    "Write one or two sentences in the Idea's language.",
+    ...(locked.length > 0 ? locked : ["Speak from the same point of view as the rest of the script."]),
+    "Show the viewer taking that action, or invite them in that point of view's voice.",
+    "Do not make the scene only the settings label.",
+    "Do not repeat the Master Thought and do not add a new cause.",
+    "Do not title the scene Conclusion, Kesimpulan, CTA, or Call to Action.",
+    input.speech === "silent"
+      ? "There is no spoken voice. One shot shows the invitation as readable text inside the picture."
+      : input.speech === "dialog"
+        ? "A character speaks the invitation. The main shot carries said: and two supporting shots do not."
+        : "The invitation is voice-over unless the speech mode is dialogue.",
+    input.brandName?.trim() ? `The brand name already in the script is "${input.brandName.trim()}". Keep that spelling if you name it.` : "",
+    'Return JSON only: {"title":"...","purpose":"cta","lines":[{"narration":"...","delivery":"vo","shots":[{"role":"Shot 1 — Main Shot","angle":"...","visualFunction":"...","prompt":"..."}]}]}',
+    "",
+    "Master Thought, already said in the conclusion. Do not say it again:",
+    input.masterStatement.trim(),
+    "",
+    "Idea:",
+    input.ideaStatement.trim(),
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
 }
 
 export function readScriptAudio(raw: unknown): ScriptAudio {
@@ -487,6 +734,7 @@ export function pillarLessSuitable(name: string, masterSells: true | false | "un
 }
 
 export function scriptLineRepairReady(facts: ExecutionSemanticFacts, script: VoiceOverScript | null): boolean {
+  if (facts.meaningAudit) return false;
   const hasNarration = Boolean(script?.scenes.some((scene) => scene.lines.some((line) => line.narration.trim())));
   if (!script || !hasNarration || script.lineIssues.length === 0) return false;
   if (facts.mechanismVisible === false || facts.pillarOutside === true) return false;
@@ -645,6 +893,15 @@ export function buildSpeechRepairPrompt(input: {
   const missingVoiceOver = !lines.some(isVoiceOverLine);
   const shortDialogue = lines.some(dialogueNeedsShots);
   const missingPlace = lines.some(lineMissingLocation);
+  const brand = input.script.brandName?.trim() ?? "";
+  const brandMissing = Boolean(brand) && !scriptMentionsBrand(input.script, brand);
+  const brandGap = !brandMissing
+    ? ""
+    : input.speech === "silent"
+      ? `The script never says "${brand}". Change one narration line so that exact name appears in the situation, and show that same name as readable text in one shot prompt of that line. Return that line.`
+      : input.speech === "dialog"
+        ? `The script never says "${brand}". Change one dialogue line so a character says that exact name, and put the same sentence in the main shot's said: quotation. Return that line.`
+        : `The script never says "${brand}". Change one narration line so that exact name is spoken inside the situation. Return that line.`;
   const placeGap =
     "A shot that names a @character token is missing a @location token in that same prompt. Add a location from assets to those shots. Reuse the location already used with that character in the scene when the shot stays in that place. Leave a prompt with no @character unchanged. Return only the lines you change.";
   const shapeGap =
@@ -669,7 +926,7 @@ export function buildSpeechRepairPrompt(input: {
         : input.speech === "mix"
           ? missingDialogue || missingVoiceOver || shortDialogue
           : false;
-  const gap = !speechShapeBroken && missingPlace ? placeGap : shapeGap;
+  const gap = brandGap || (!speechShapeBroken && missingPlace ? placeGap : shapeGap);
   return [
     "Fix only the narration lines that do not match the speech mode.",
     gap,
@@ -683,6 +940,20 @@ export function buildSpeechRepairPrompt(input: {
     "The token is the speaking character's handle from assets.",
     "A voice-over shot prompt does not contain said:.",
     "Narration stays in the Idea's language. The rest of the shot prompt stays in English.",
+    ...(input.script.brandName
+      ? [
+          `Keep the exact brand name "${input.script.brandName}" in the script.`,
+          "If a line you change already says that name, keep the spelling.",
+          "If the script never says it, add that exact name to one narration line you return.",
+        ]
+      : []),
+    ...(input.script.cta?.trim()
+      ? [
+          `The call to action "${input.script.cta.trim()}" lives in its own final scene.`,
+          "Do not append that label to a story line.",
+        ]
+      : []),
+    ...confirmedDecisionRules(input.script.decisions, input.script.pointOfView),
     `Pillar: ${input.pillarName}.`,
     "Return JSON only: {\"lines\":[{\"lineId\":\"...\",\"narration\":\"...\",\"delivery\":\"vo\"|\"dialogue\",\"shots\":[{\"role\":\"...\",\"angle\":\"...\",\"visualFunction\":\"...\",\"prompt\":\"...\"}]}]}",
     "",
@@ -755,6 +1026,99 @@ export function parseMasterSells(raw: unknown): true | false | "unresolved" {
   return "unresolved";
 }
 
+export function buildViewpointAuditPrompt(input: {
+  ideaStatement: string;
+  pointOfView: string;
+  lines: Array<{ id: string; narration: string }>;
+}): string {
+  const viewpoint = input.pointOfView.trim();
+  return [
+    "Read each narration line of a voice-over script.",
+    `The locked point of view is "${viewpoint}".`,
+    "A line fails when it states another person's private thoughts, feelings, intentions, or knowledge that this point of view cannot see or hear.",
+    "A line passes when it describes what this point of view sees, hears, or thinks.",
+    "A line passes when another person speaks out loud or performs an action this point of view can see.",
+    "A line fails when it tells the same moment from inside two people.",
+    `Example fail: the point of view is a documentation team, and a line narrates the couple's anxious nights at home as if the team lived them.`,
+    `Example fail: the point of view is the wife, and a line enters the husband's private hope with "Dalam benaknya".`,
+    "Return JSON only: {\"lines\":[{\"lineId\":\"...\",\"reason\":\"...\"}]}.",
+    "Include only the failing lines. Return {\"lines\":[]} when every line stays inside the point of view.",
+    "Write each reason in the same language as the Idea.",
+    "",
+    "Idea:",
+    input.ideaStatement.trim(),
+    "",
+    "Lines:",
+    ...input.lines.map((line) => `${line.id}: ${line.narration.trim()}`),
+  ].join("\n");
+}
+
+export function buildContinuityAuditPrompt(input: {
+  ideaStatement: string;
+  lines: Array<{ id: string; narration: string }>;
+}): string {
+  return [
+    "Read each narration line of a voice-over script.",
+    "A line fails when it does not follow from the line before it.",
+    "The first line of a new beat fails when it starts an event the previous line did not cause or show.",
+    "Example fail: the previous line is still waiting with blurry photos, and the next line says they found a team.",
+    "Write the reason as the missing step between those two lines.",
+    "Do not fail a line for a new claim, a wrong cause, or a conclusion that misses the Master Thought.",
+    "Return JSON only: {\"lines\":[{\"lineId\":\"...\",\"reason\":\"...\"}]}.",
+    "Include only the failing lines. Return {\"lines\":[]} when every line follows the one before it.",
+    "Write each reason in the same language as the Idea.",
+    "",
+    "Idea:",
+    input.ideaStatement.trim(),
+    "",
+    "Lines:",
+    ...input.lines.map((line) => `${line.id}: ${line.narration.trim()}`),
+  ].join("\n");
+}
+
+export function buildProductionRepairPrompt(input: {
+  ideaStatement: string;
+  pointOfView?: string;
+  lineId: string;
+  narration: string;
+  reason: string;
+  kind: "viewpoint" | "continuity";
+}): string {
+  return [
+    "Rewrite only this narration line.",
+    input.kind === "viewpoint"
+      ? "Keep the line inside the locked point of view. Do not enter another person's private thoughts."
+      : "Make the line follow from the narration before it. Do not open an event the previous line did not cause or show.",
+    "Do not change the story's belief, the shots, or the call to action.",
+    "Return JSON only: {\"lines\":[{\"lineId\":\"...\",\"narration\":\"...\"}]}",
+    "",
+    "Idea:",
+    input.ideaStatement.trim(),
+    ...(input.pointOfView?.trim() ? ["", `Point of view: ${input.pointOfView.trim()}`] : []),
+    "",
+    `${input.lineId}: ${input.narration.trim()}`,
+    `Why it failed: ${input.reason}`,
+  ].join("\n");
+}
+
+export function mergeNarrationRepairs(
+  script: VoiceOverScript,
+  replacements: Array<{ lineId: string; narration: string }>,
+): VoiceOverScript {
+  const byId = new Map(replacements.map((line) => [line.lineId, line.narration.trim()]));
+  return {
+    ...script,
+    scenes: script.scenes.map((scene) => ({
+      ...scene,
+      lines: scene.lines.map((line) => {
+        const narration = byId.get(line.id);
+        if (!narration) return line;
+        return { ...line, narration };
+      }),
+    })),
+  };
+}
+
 export function buildLineAuditPrompt(input: {
   ideaStatement: string;
   masterStatement: string;
@@ -766,9 +1130,15 @@ export function buildLineAuditPrompt(input: {
     "Read each narration line of a voice-over script.",
     "A line fails when it adds a claim the Idea does not already carry, or drops the Idea's message.",
     "A line also fails when it installs a cause that is not this chain: the Big Thought's stake happens, and that stake, not an advertisement, moves the Master Thought's outcome.",
+    "A line also fails when it does not follow from the line before it.",
+    "The first line of a new beat fails when it starts an event the previous line did not cause or show.",
+    "Example fail: the previous line is still waiting with blurry photos, and the next line says they found a team.",
+    "Write the reason as the missing step between those two lines.",
     "Do not require the line to quote those beliefs.",
-    "The last narration lines are the conclusion scene. A viewer who hears only those lines must be able to say the Master Thought.",
+    "The last narration lines below are the conclusion scene. A call-to-action scene is not included here.",
+    "A viewer who hears only those conclusion lines must be able to say the Master Thought.",
     "Those closing lines fail when they only restate the mechanism, hide the Master Thought, or announce another cause.",
+    "An invitation to follow, save, comment, share, or click is not part of this chain. Do not judge it, because it is not in these lines.",
     "Saying the Master Thought in the situation's words passes. Pasting it unchanged as a slogan is not required.",
     "A closing line that announces another cause fails. Example: this is not about price or need, it is about a fitting number.",
     "A short line, a question, or a line that only shows the Idea's mechanism does not fail when it comes before the conclusion.",
@@ -804,12 +1174,30 @@ export function buildLineRepairPrompt(input: {
     "If a failing line is in the conclusion, rewrite it so a viewer who hears only that line can say the Master Thought.",
     "Say it as what just happened in this situation. Leave the old belief behind. Do not stop at the mechanism.",
     "Do not install another cause. Do not title the scene Conclusion or Kesimpulan.",
+    "A rewritten line must follow from the narration line before it.",
+    "Do not open the line on an event the previous line did not cause or show.",
     "Return replacements only for the failing line ids. Do not return the other lines.",
     "Each replacement keeps more than one shot for that sentence, each with its own angle and its own English prompt.",
     "When a shot prompt names a @character token, that same prompt also names a @location token.",
     "Shots of every other line stay as they are.",
     "Narration stays in the Idea's language. Shot prompts stay in English.",
     "Do not add a claim the Idea does not already carry.",
+    ...(input.script.brandName?.trim()
+      ? [
+          `Keep the exact brand name "${input.script.brandName.trim()}" in the script.`,
+          "If a line you rewrite already says that name, keep the spelling.",
+        ]
+      : []),
+    ...(input.script.cta?.trim()
+      ? [
+          `The action "${input.script.cta.trim()}" belongs in its own call-to-action scene.`,
+          "Do not paste that label onto a conclusion line.",
+        ]
+      : []),
+    ...confirmedDecisionRules(input.script.decisions, input.script.pointOfView),
+    ...(input.script.pointOfView?.trim()
+      ? ["Rewrite a failing line from that point of view. Keep the same story beat. Do not switch to another person."]
+      : []),
     `Pillar: ${input.pillarName}.`,
     "Return JSON only: {\"lines\":[{\"lineId\":\"...\",\"narration\":\"...\",\"shots\":[{\"role\":\"...\",\"angle\":\"...\",\"visualFunction\":\"...\",\"prompt\":\"...\"}]}]}",
     "",

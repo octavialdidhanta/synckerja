@@ -28,6 +28,7 @@ import {
   isTextAIConfigured,
   resolveTextAIProvider,
   textAIProviderLabel,
+  TEXT_AI_PROVIDERS,
   type TextAIProvider,
 } from '@/6-1-script-generator/utils/scriptAiTextProvider';
 
@@ -259,6 +260,15 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
                   'productKnowledge.generate.apiKeyNotSetGemini',
                   'API key Gemini belum dikonfigurasi di Settings (dibutuhkan jika provider Text AI = Gemini).'
                 )}
+              {!aiConfigLoading &&
+                !aiConfigError &&
+                aiConfig &&
+                resolveTextAIProvider(aiConfig) === 'openai' &&
+                !aiConfig.openai_api_key_configured &&
+                t(
+                  'productKnowledge.generate.apiKeyNotSetOpenAI',
+                  'API key OpenAI belum dikonfigurasi di Settings untuk organisasi ini.'
+                )}
             </span>
             {!aiConfigLoading && (
               <button
@@ -320,7 +330,7 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
               <div className="flex flex-col items-stretch gap-2 sm:items-end">
                 <span className="text-xs text-red-700">Ubah provider</span>
                 <div className="flex flex-wrap justify-end gap-2">
-                  {(['gemini', 'groq', 'fireworks'] as const).map((p) => {
+                  {TEXT_AI_PROVIDERS.map((p) => {
                     const selected = resolveTextAIProvider(aiConfig) === p;
                     return (
                       <Button
@@ -378,7 +388,7 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
                 <span className="font-semibold">{textAIProviderLabel(resolveTextAIProvider(aiConfig))}</span>
               </span>
               <div className="flex flex-wrap gap-2">
-                {(['gemini', 'groq', 'fireworks'] as const).map((p) => {
+                {TEXT_AI_PROVIDERS.map((p) => {
                   const selected = resolveTextAIProvider(aiConfig) === p;
                   return (
                     <Button

@@ -12,10 +12,16 @@ export type IdeaRelation =
   | "CAUSE_UNLOCKED"
   | "UNRESOLVED";
 
-/** LOCKED means other explanations are closed so the Master Thought subject is a plausible cause. */
+/** LOCKED means the separate mechanism keys close other explanations so the Master Thought subject is the plausible cause. */
 export type IdeaCauseLock = "LOCKED" | "OPEN" | "UNRESOLVED";
 
-/** SITUATION creates a scene. VERBAL explains the Big Thought in words and is that level's job. */
+/** One other explanation a viewer might reach, and how this Idea closes it. Stored apart from the mechanism sentence. */
+export type IdeaMechanismKey = {
+  otherExplanation: string;
+  close: string;
+};
+
+/** SITUATION states the mechanism and lets the reason happen there. VERBAL explains the Big Thought in words. */
 export type IdeaSituationForm = "SITUATION" | "VERBAL" | "UNRESOLVED";
 
 export type IdeaConceptualForm =
@@ -53,6 +59,8 @@ export type IdeaResolution = "RESOLVED" | "UNRESOLVED";
 export type IdeaSemanticFacts = {
   code: string;
   whatItSays: string;
+  /** Short name of the mechanism, at most six words. */
+  subject: string;
   relationToParent: IdeaRelation;
   parentFit: IdeaTriState;
   conceptualForm: IdeaConceptualForm;
@@ -61,6 +69,7 @@ export type IdeaSemanticFacts = {
   executionIndependence: IdeaExecutionIndependence;
   boundedness: IdeaBoundedness;
   causeLock: IdeaCauseLock;
+  mechanismKeys: IdeaMechanismKey[];
   situationForm: IdeaSituationForm;
   resolution: IdeaResolution;
   unresolvedReasons: string[];

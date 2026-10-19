@@ -25,6 +25,7 @@ import { Button } from '@/shared/components/ui/button';
 import {
   isTextAIConfigured,
   resolveTextAIProvider,
+  TEXT_AI_PROVIDERS,
   textAIProviderLabel,
 } from '@/6-1-script-generator/utils/scriptAiTextProvider';
 import { useScriptGeneratorSession } from './hooks/useScriptGeneratorSession';
@@ -168,7 +169,7 @@ const ScriptGeneratorContent: React.FC = () => {
                                   <span className="font-medium">{textAIProviderLabel(resolveTextAIProvider(aiConfig))}</span>
                                 </span>
                                 <div className="flex flex-wrap gap-2">
-                                  {(['gemini', 'groq', 'fireworks'] as const).map((p) => {
+                                  {TEXT_AI_PROVIDERS.map((p) => {
                                     const selected = resolveTextAIProvider(aiConfig) === p;
                                     return (
                                       <Button
@@ -210,6 +211,12 @@ const ScriptGeneratorContent: React.FC = () => {
                                     resolveTextAIProvider(aiConfig) === 'gemini' &&
                                     !aiConfig.api_key_configured &&
                                     'API key Gemini belum dikonfigurasi di Settings (dibutuhkan jika provider Text AI = Gemini).'}
+                                  {!scriptAiPending &&
+                                    !aiConfigError &&
+                                    aiConfig &&
+                                    resolveTextAIProvider(aiConfig) === 'openai' &&
+                                    !aiConfig.openai_api_key_configured &&
+                                    'API key OpenAI belum dikonfigurasi di Settings untuk organisasi ini.'}
                                 </span>
                                 {!scriptAiPending && (
                                   <button

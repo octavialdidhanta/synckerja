@@ -30,6 +30,8 @@ export type BigThoughtFacts = {
   confidence?: number;
   judgmentVerdict?: string;
   judgmentReason?: string;
+  answeredQuestion?: string;
+  answeredQuestionVersion?: number;
 };
 
 export type ReasonContributionFact = {

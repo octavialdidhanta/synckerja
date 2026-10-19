@@ -34,4 +34,27 @@ describe("ideaNodeSummary", () => {
       ),
     ).toBe("Dua individu dengan gaji awal sama");
   });
+
+  it("keeps the mechanism when the sentence is a story, a comparison, or a simulation", () => {
+    expect(
+      ideaNodeSummary(
+        "Sebuah proyek multi-departemen dimulai dengan instruksi tertulis yang lengkap, namun ketika hambatan tak terduga muncul, kita mengamati bagaimana proyek hanya dapat dilanjutkan setelah seorang individu secara proaktif mencari solusi dan mengkoordinasikan ulang antar departemen.",
+      ),
+    ).toBe("Proyek dilanjutkan setelah individu proaktif mencari");
+    expect(
+      ideaNodeSummary(
+        "Kita menciptakan skenario di mana dua departemen harus berkolaborasi tanpa adanya protokol komunikasi resmi, dan mengamati bagaimana keberhasilan kolaborasi sepenuhnya bergantung pada upaya seorang individu.",
+      ),
+    ).toBe("Dua departemen harus berkolaborasi tanpa protokol");
+    expect(
+      ideaNodeSummary(
+        "Kita membandingkan waktu dan upaya yang dihabiskan oleh seorang manajer untuk secara manual mengkoordinasikan tugas-tugas rutin antar departemen setiap hari, dengan waktu yang dibutuhkan jika ada sistem otomatis yang menangani sebagian besar koordinasi tersebut.",
+      ),
+    ).toBe("Manajer manual dengan sistem otomatis");
+    expect(
+      ideaNodeSummary(
+        "Kita mensimulasikan situasi di mana seorang koordinator informal yang selalu berinisiatif untuk menyelaraskan pekerjaan antar departemen tiba-tiba tidak hadir, dan mengamati bagaimana alur kerja terhenti.",
+      ),
+    ).toBe("Koordinator informal tidak hadir");
+  });
 });

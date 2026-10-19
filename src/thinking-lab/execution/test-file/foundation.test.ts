@@ -97,6 +97,8 @@ describe("execution relations", () => {
     expect(prompt).toContain("must not add a claim");
     expect(prompt).toContain("named Master Thought subject");
     expect(prompt).toContain("Flash Sale Hook is valid only when the Master Thought is actually selling");
+    expect(prompt).toContain("whatItSays is the explanation of this decision");
+    expect(prompt).toContain("name the specific message, missing mechanism, or wrong conclusion");
     const generate = buildExecutionGeneratePrompt({
       masterStatement: "People should believe this.",
       ideaStatement: "Ask the courier, so the kindness is visible.",
@@ -162,5 +164,32 @@ describe("execution relations", () => {
     });
     expect(generate).toContain("Fit the narration to about 30 seconds, about 66 words.");
     expect(generate).toContain("Do not make the script much shorter or much longer than that.");
+  });
+
+  it("asks every speech mode to say the brand name when one is set", () => {
+    const base = {
+      masterStatement: "People should believe this.",
+      ideaStatement: "Ask the courier, so the kindness is visible.",
+      pillar: "B_ROLL_STORYTELLING",
+      brandName: "Vialdi Wedding",
+    };
+    for (const speech of ["vo", "mix", "dialog", "silent"] as const) {
+      const prompt = buildExecutionGeneratePrompt({ ...base, speech });
+      expect(prompt).toContain('The script must mention this brand name exactly: "Vialdi Wedding".');
+    }
+    expect(buildExecutionGeneratePrompt({ ...base, speech: "silent" })).toContain("readable text");
+    expect(buildExecutionGeneratePrompt({ ...base, speech: "dialog" })).toContain("A character says the brand name");
+    const withCta = buildExecutionGeneratePrompt({ ...base, speech: "vo", cta: "Follow Akun Ini" });
+    expect(withCta).toContain('The video settings chose this action: "Follow Akun Ini".');
+    expect(withCta).toContain("Do not put the call to action in the conclusion");
+    expect(withCta).toContain("Do not make the scene only the settings label.");
+    expect(withCta).not.toContain("using this exact phrase");
+    expect(
+      buildExecutionGeneratePrompt({
+        masterStatement: base.masterStatement,
+        ideaStatement: base.ideaStatement,
+        pillar: base.pillar,
+      }),
+    ).toContain("or brand");
   });
 });

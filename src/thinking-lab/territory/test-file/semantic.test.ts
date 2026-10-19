@@ -205,18 +205,27 @@ describe("normalizeTerritoryFacts", () => {
     const prompt = buildTerritoryJudgePrompt({
       parentStatement: "Waktu untuk pertumbuhan investasi lebih panjang.",
       ancestors: [{ label: "Master Thought", statement: "Uang di usia muda lebih berharga ditabung." }],
+      answeredQuestion: "di mana waktu itu terasa lebih panjang?",
       candidate: { code: "TR01", statement: "Pensiun Dini" },
     });
     expect(prompt).toContain("a phenomenon, habit, life moment, culture, or everyday problem");
     expect(prompt).toContain("It is a noun or a noun phrase. It does not yet contain a claim.");
     expect(prompt).toContain("It is part of the Big Thought, not a keyword of the Big Thought.");
     expect(prompt).toContain("how the audience would name that area");
-    expect(prompt).toContain("the question answered by the Big Thought actually shows up");
+    expect(prompt).toContain("The question answered by the Big Thought must actually show up");
+    expect(prompt).toContain("The question this Big Thought answers is: \"di mana waktu itu terasa lebih panjang?\"");
+    expect(prompt).toContain("livedQuestion is true when that question actually shows up in this area");
+    expect(prompt).toContain("Kurir paket is the shape of a name");
     expect(prompt).toContain("wide enough for several different Angles");
     expect(prompt).toContain("its main job is an impact, a requirement, or an evaluation");
     expect(prompt).toContain("after the distinctive stake of the direct Big Thought or an ancestor is removed, including the Master Thought");
     expect(prompt).toContain("the part of that belief that is not in the subject");
+    expect(prompt).toContain("Putting that stake into the name does not make parentFit true.");
+    expect(prompt).toContain("Writing the reason as a shorter noun is not a child space.");
+    expect(prompt).toContain("when it states the parent's reason or the lack the parent already asserts");
+    expect(prompt).toContain("Do not state the parent's reason, lack, or conclusion.");
     expect(prompt).toContain("not rejected only because that name can still be said");
+    expect(prompt).toContain("The name is at most three words.");
     expect(prompt).not.toContain("Audience:");
     expect(prompt).not.toContain("orang");
   });
@@ -231,12 +240,15 @@ describe("normalizeTerritoryFacts", () => {
         },
       ],
       audience: "anak muda hobi motor",
+      answeredQuestion: "uangnya habis ke mana?",
       candidate: { code: "TR01", statement: "Pakaian tren musiman" },
     });
     expect(prompt).toContain("It is part of the Big Thought, not a keyword of the Big Thought.");
     expect(prompt).toContain("This is a test of words, not of topic.");
     expect(prompt).toContain("how the audience would name that area");
     expect(prompt).toContain("this audience's real life");
+    expect(prompt).toContain('The question this Big Thought answers is: "uangnya habis ke mana?"');
+    expect(prompt).toContain("shows up in this area of this audience's real life");
     expect(prompt).toContain("only fits a different audience");
     expect(prompt).toContain("wide enough for several different Angles");
     expect(prompt).toContain("Audience: anak muda hobi motor");

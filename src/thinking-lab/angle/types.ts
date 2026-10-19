@@ -39,6 +39,10 @@ export type AngleSemanticFacts = {
   resolution: AngleResolution;
   unresolvedReasons: string[];
   confidence?: number;
+  /** Short name for the list. It is not the Territory's name. */
+  subject?: string;
+  /** One concrete situation that shows the observation. */
+  example?: string;
 };
 
 export type AngleCoverage = "SUFFICIENT" | "MATERIAL_GAP" | "UNRESOLVED";

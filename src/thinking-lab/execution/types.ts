@@ -23,12 +23,44 @@ export type ExecutionRelation =
   | "PILLAR_NOT_SELLING"
   | "CLIMB_MISSED"
   | "SUBJECT_MISMATCH"
+  | "CAUSE_BROKEN"
+  | "CONCLUSION_MISSED"
   | "UNRESOLVED";
+
+export type ExecutionPassCheckId =
+  | "pillarFits"
+  | "sellingFits"
+  | "mechanismVisible"
+  | "messageStays"
+  | "causeChain"
+  | "viewerClimb"
+  | "subjectMatch"
+  | "conclusionLands";
+
+export type ExecutionMeaningAudit = { cleared: true } | { id: ExecutionPassCheckId; reason: string; lineIds: string[] };
+
+export function isFailedMeaningAudit(
+  audit: ExecutionMeaningAudit | null | undefined,
+): audit is { id: ExecutionPassCheckId; reason: string; lineIds: string[] } {
+  return Boolean(audit && !("cleared" in audit));
+}
+
+export type ExecutionAuditLesson = {
+  checkId: ExecutionPassCheckId;
+  reason: string;
+  lines: string[];
+};
+
+export type PillarRecommendation = {
+  pillarName: string;
+  reason: string;
+};
 
 export type ExecutionSemanticFacts = {
   pillar: string;
   whatItSays: string;
   relationToParent: ExecutionRelation;
+  recommendation?: PillarRecommendation | null;
   messageAdded: ExecutionTriState;
   mechanismVisible: ExecutionTriState;
   pillarOutside: ExecutionTriState;
@@ -37,6 +69,8 @@ export type ExecutionSemanticFacts = {
   subjectMatch: ExecutionSubjectMatch;
   resolution: "RESOLVED" | "UNRESOLVED";
   unresolvedReasons: string[];
+  meaningAudit?: ExecutionMeaningAudit;
+  auditLessons?: ExecutionAuditLesson[];
 };
 
 export function executionPillarLabel(id: string, name?: string | null): string {

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { angleReplacementPasses, parseAngleFixOptions, parseAngleFixReplacements } from "@/thinking-lab/angle/fix";
+import {
+  angleReplacementPasses,
+  buildAngleFixOptionsPrompt,
+  parseAngleFixOptions,
+  parseAngleFixReplacements,
+} from "@/thinking-lab/angle/fix";
 import type { AngleSetFacts } from "@/thinking-lab/angle/types";
 
 describe("angle fix", () => {
@@ -22,6 +27,27 @@ describe("angle fix", () => {
       "One view",
       "Another view",
     ]);
+  });
+
+  it("tells the next fix why the failed sentence already lost", () => {
+    const prompt = buildAngleFixOptionsPrompt({
+      parentStatement: "Pilihan makan siang",
+      failed: { code: "AN02", statement: "Porsi kecil membuat harga terlihat hemat" },
+      keepers: [{ code: "AN01", statement: "Dapur warung membeli bahan sekaligus" }],
+      conflicts: [],
+      lessons: [
+        {
+          code: "AN02",
+          statement: "Porsi kecil membuat harga terlihat hemat",
+          reason: "observationJob: Kalimat ini masuk sebagai karena.",
+        },
+      ],
+    });
+    expect(prompt).toContain("Propose one replacement Angle");
+    expect(prompt).toContain("AN02: Porsi kecil membuat harga terlihat hemat");
+    expect(prompt).toContain("Why it failed: observationJob: Kalimat ini masuk sebagai karena.");
+    expect(prompt).toContain("A new sentence that fails for the same reason is still that mistake.");
+    expect(prompt).toContain("Do not return a sentence listed there.");
   });
 
   it("offers a replacement only when the sibling judgment already passes that code", () => {

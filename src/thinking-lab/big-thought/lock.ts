@@ -38,6 +38,7 @@ export function selectStageAction(input: {
   auditPassCount: number;
   anyStale: boolean;
   anyUnresolved: boolean;
+  siblingCurrent: boolean;
   challengerComplete: boolean;
   lockOk: boolean;
 }): StageAction | null {
@@ -51,5 +52,6 @@ export function selectStageAction(input: {
     (input.missingWhy && input.activeCount < ACTIVE_SET_CAP);
   if (needsGenerate) return "generate";
   if (input.lockOk) return "lock";
+  if (input.auditPassCount >= 3 && input.auditPassCount === input.activeCount && !input.siblingCurrent) return "audit";
   return null;
 }

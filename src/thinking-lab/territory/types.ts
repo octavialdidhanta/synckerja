@@ -38,6 +38,8 @@ export type TerritoryChallengerStatus = "COMPLETE" | "MATERIAL_GAP" | "UNRESOLVE
 export type TerritorySemanticFacts = {
   code: string;
   whatItSays: string;
+  /** Question people ask in this area. The Big Thought is the answer. */
+  areaQuestion?: string;
   relationToParent: TerritoryRelation;
   parentFit: TerritoryTriState;
   conceptualForm: TerritoryConceptualForm;

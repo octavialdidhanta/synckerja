@@ -85,6 +85,14 @@ describe("planTerritoryGenerate", () => {
       needed: 0,
       stop: "ENOUGH",
     });
+    expect(planTerritoryGenerate({ activeCount: 3, generateValidCount: 3, round: 1, topUp: true })).toEqual({
+      needed: 1,
+      stop: null,
+    });
+    expect(planTerritoryGenerate({ activeCount: 6, generateValidCount: 6, round: 1, topUp: true })).toEqual({
+      needed: 0,
+      stop: "CAP",
+    });
   });
 });
 
@@ -155,9 +163,87 @@ describe("runTerritoryGenerate", () => {
       }),
     });
     expect(propose).toHaveBeenCalledTimes(2);
+    expect(
+      propose.mock.calls[1]?.[2].slice(0, 3).every((row: { relationToParent?: string }) => row.relationToParent === "UNRESOLVED"),
+    ).toBe(true);
     expect(result.generateValid).toBe(0);
     expect(result.outcome).toBe("INSUFFICIENT_VALID_TERRITORIES");
     expect(result.incumbents).toHaveLength(6);
+  });
+
+  it("adds one Territory beside an already locked set and keeps those incumbents", async () => {
+    const propose = vi.fn(async () => ["A further space", "Ignored"]);
+    const locked = ["TR01", "TR02", "TR03"].map((code) => ({
+      code,
+      statement: code,
+      admission: "GENERATE_VALID" as const,
+      bigThoughtId: "bt-1",
+    }));
+    const result = await runTerritoryGenerate({
+      loadParent: async () => ({ ok: true, parent: { id: "bt-1", code: "BT01", statement: "Parent" } }),
+      incumbents: locked,
+      topUp: true,
+      propose,
+      judge: async (_parent, code) => validFacts(code),
+      persist: async (input) => ({
+        code: input.code,
+        statement: input.statement,
+        admission: input.admission,
+        bigThoughtId: input.parent.id,
+      }),
+    });
+    expect(propose).toHaveBeenCalledTimes(1);
+    expect(propose.mock.calls[0]?.[0].needed).toBe(1);
+    expect(propose.mock.calls[0]?.[2].map((row: { code: string }) => row.code)).toEqual(["TR01", "TR02", "TR03"]);
+    expect(result.incumbents.map((row) => row.code)).toEqual(["TR01", "TR02", "TR03", "TR04"]);
+    expect(result.generateValid).toBe(4);
+  });
+
+  it("does not count a name longer than three words as admitted", async () => {
+    const result = await runTerritoryGenerate({
+      loadParent: async () => ({ ok: true, parent: { id: "bt-1", code: "BT01", statement: "Parent" } }),
+      incumbents: [],
+      propose: async () => ["Pekerjaan yang Membutuhkan Konsistensi"],
+      judge: async (_parent, code) => validFacts(code),
+      persist: async (input) => ({
+        code: input.code,
+        statement: input.statement,
+        admission: input.admission,
+        bigThoughtId: input.parent.id,
+      }),
+    });
+    expect(result.generateValid).toBe(0);
+    expect(result.incumbents.every((row) => row.admission === "GENERATE_REJECT")).toBe(true);
+    const prompt = buildTerritoryGeneratePrompt({
+      parentStatement: "Parent",
+      incumbents: result.incumbents,
+      needed: 1,
+    });
+    expect(prompt).toContain("Why it failed: The name is longer than three words. Write a noun of at most three words.");
+  });
+
+  it("does not count an activity name as admitted", async () => {
+    let calls = 0;
+    const result = await runTerritoryGenerate({
+      loadParent: async () => ({ ok: true, parent: { id: "bt-1", code: "BT01", statement: "Parent" } }),
+      incumbents: [],
+      propose: async () => {
+        calls += 1;
+        return calls === 1 ? ["Pelaksanaan Prosedur", "Pengenalan Pekerjaan", "Serah Terima Tugas"] : [];
+      },
+      judge: async (_parent, code) => validFacts(code),
+      persist: async (input) => ({
+        code: input.code,
+        statement: input.statement,
+        admission: input.admission,
+        bigThoughtId: input.parent.id,
+      }),
+    });
+    const byName = new Map(result.incumbents.map((row) => [row.statement, row.admission]));
+    expect(byName.get("Pelaksanaan Prosedur")).toBe("GENERATE_REJECT");
+    expect(byName.get("Pengenalan Pekerjaan")).toBe("GENERATE_REJECT");
+    expect(byName.get("Serah Terima Tugas")).toBe("GENERATE_VALID");
+    expect(result.generateValid).toBe(1);
   });
 });
 
@@ -180,14 +266,18 @@ describe("buildTerritoryGeneratePrompt", () => {
     });
     expect(prompt).toContain("area in the audience's world");
     expect(prompt).toContain("Write a noun or a noun phrase. Do not write a claim, a belief, or a because-clause.");
+    expect(prompt).toContain("Kurir paket is the shape of the name");
+    expect(prompt).toContain("Write the name only");
     expect(prompt).toContain("It is part of the Big Thought, not a keyword of the Big Thought.");
     expect(prompt).toContain("not an internal strategy term");
     expect(prompt).toContain("must actually show up in that area of real life");
     expect(prompt).toContain("wide enough for several different Angles");
     expect(prompt).toContain("impact, a requirement, or an evaluation");
+    expect(prompt).toContain("Do not put the Big Thought's reason into the name.");
     expect(prompt).toContain("once the Master Thought stake is removed");
     expect(prompt).toContain("the part of the belief that is not in the subject");
     expect(prompt).toContain("not rejected only because that name can still be said");
+    expect(prompt).toContain("The name is at most three words.");
     expect(prompt).not.toContain("Audience:");
     expect(prompt).not.toContain("orang");
   });
@@ -225,5 +315,24 @@ describe("buildTerritoryGeneratePrompt", () => {
     expect(prompt).toContain("TR04: A failed space");
     expect(prompt).toContain("Why it failed: It overlapped TR02.");
     expect(prompt).toContain("Do not repeat the mistake");
+    expect(prompt).toContain("A new name that fails for the same reason is still that mistake.");
+  });
+
+  it("carries an out-of-scope rejection into the next generate", () => {
+    const prompt = buildTerritoryGeneratePrompt({
+      parentStatement: "panduan yang jelas untuk setiap langkah kerja.",
+      incumbents: [
+        {
+          code: "TR01",
+          statement: "Proses Kerja Harian",
+          admission: "GENERATE_REJECT",
+          relationToParent: "OUT_OF_PARENT_SCOPE",
+        },
+      ],
+      needed: 3,
+    });
+    expect(prompt).toContain("TR01: Proses Kerja Harian");
+    expect(prompt).toContain("Why it failed: This is not an area in the audience's world. A keyword of the Big Thought, an internal term, or a claim is the same mistake.");
+    expect(prompt).toContain("Do not put the reason into the name.");
   });
 });

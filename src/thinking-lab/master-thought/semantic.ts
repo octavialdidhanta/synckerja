@@ -5,6 +5,7 @@ import {
 } from "@/thinking-lab/shared/fingerprint";
 import type { Resolution } from "@/thinking-lab/shared/verdict";
 import type {
+  BeliefOption,
   ConfirmationSource,
   MasterAdmission,
   MasterThoughtFacts,
@@ -65,9 +66,10 @@ export function buildMasterThoughtJudgePrompt(
     "Broadness alone is not ambiguity. A broad statement can already be the umbrella parent belief.",
     "Subjectivity alone is not ambiguity. A strong opinion alone is not ambiguity.",
     "A subjective, broad, simple, emotional, normative, or opinionated belief can still be a parent belief.",
-    "Name the subject: the shortest clause that still states the planted belief. That clause must stay grammatical immediately before karena or because, and it must later be visible as the cause at Idea.",
-    "subject is that short clause in the same language as the Master Thought. It is not a noun title, not a reason, and not the whole belief.",
-    "A shorter prefix of the planted belief is allowed when it still states the claim. A noun phrase or other span lifted from the middle of the sentence is not a subject.",
+    "Name the subject as one dense clause in the same language as the Master Thought. The subject is shorter than the belief. A reader who sees only that clause must still hold the belief. Keep the shift: the contrast, the result, and the degree. Fewer words come from tighter wording. Leaving a claim out is not a shorter subject. Do not stitch leftover words from different parts of the sentence. A subject that repeats the belief with one or two words changed is still the belief. It is not a full sentence copied whole, not a noun title, and not a reason.",
+    "The subject starts with a capital letter.",
+    "That clause must stay grammatical immediately before karena or because, and it must later be visible as the cause at Idea. Read the subject, then a comma, then karena. It must sound like one spoken sentence. A heading that starts with Kemampuan or The ability is not a subject.",
+    "A near copy is not a subject. A noun phrase or other span lifted from the middle of the sentence is not a subject.",
     "If that subject cannot be named safely, do not return ORIGINAL_READY or PROPOSAL_RECOMMENDED. Return CLARIFICATION_REQUIRED with one question that asks what the subject is. Do not ask why the belief is true.",
     "ORIGINAL_READY is a positive requirement, not the fallback when no other problem is noticed.",
     "Return ORIGINAL_READY only when the Original Input itself contains an actual belief, claim, or proposition, expresses exactly one coherent parent belief, makes the WHAT of that belief clear enough for downstream Big Thought generation, needs no semantic repair, and does not materially need rewriting. Breadth may be intentional. Return proposedRootBelief null.",
@@ -174,11 +176,19 @@ function asConfidence(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function withCapital(subject: string): string {
+  const characters = Array.from(subject);
+  const index = characters.findIndex((character) => /\p{L}/u.test(character));
+  if (index < 0) return subject;
+  characters[index] = characters[index].toLocaleUpperCase();
+  return characters.join("");
+}
+
 function namedSubject(value: unknown, beliefs: string[]): string | null {
   const subject = asText(value).replace(/\s+/g, " ");
   if (!subject) return null;
   const copiesBelief = beliefs.some((belief) => belief.replace(/\s+/g, " ").trim() === subject);
-  return copiesBelief ? null : subject;
+  return copiesBelief ? null : withCapital(subject);
 }
 
 function beliefWords(value: string): string {
@@ -187,6 +197,40 @@ function beliefWords(value: string): string {
     .replace(/[^\p{L}\p{N}\s]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function wordStem(word: string): string {
+  return word.replace(/(?:nya|kah|lah|pun)$/i, "");
+}
+
+function subjectStitchesBelief(subject: string, beliefs: string[]): boolean {
+  const words = beliefWords(subject).split(" ").filter(Boolean);
+  if (words.length < 4) return false;
+  const stems = words.map(wordStem).filter((word) => word.length >= 4);
+  if (stems.length < 4) return false;
+  return beliefs.some((belief) => {
+    const text = beliefWords(belief);
+    if (!text || text.includes(words.join(" "))) return false;
+    const known = new Set(text.split(" ").map(wordStem).filter((word) => word.length >= 4));
+    return stems.every((word) => known.has(word));
+  });
+}
+
+function subjectSoundsLikeTitle(subject: string): boolean {
+  return /^(?:kemampuan|kemungkinan|pentingnya|adanya|the ability|the possibility|the importance)\b/i.test(subject.trim());
+}
+
+function subjectRepeatsBelief(subject: string, beliefs: string[]): boolean {
+  const subjectWords = beliefWords(subject).split(" ").filter(Boolean);
+  if (subjectWords.length < 8) return false;
+  return beliefs.some((belief) => {
+    const beliefWordsList = beliefWords(belief).split(" ").filter(Boolean);
+    if (beliefWordsList.length < 8) return false;
+    if (subjectWords.length < Math.ceil(beliefWordsList.length * 0.8)) return false;
+    const known = new Set(beliefWordsList.map(wordStem));
+    const shared = subjectWords.filter((word) => known.has(wordStem(word))).length;
+    return shared / subjectWords.length >= 0.8;
+  });
 }
 
 function subjectCopiesSpan(subject: string, beliefs: string[]): boolean {
@@ -275,13 +319,34 @@ export function normalizeMasterThoughtFacts(
   const note = asText(row.formulationNote) || null;
   const question = asText(row.clarificationQuestion) || null;
   const options = asOptions(row.clarificationOptions);
+  const beliefOptions = asBeliefOptions(row.beliefOptions);
   const resolution = asResolution(row.resolution);
   const reasons = asReasons(row.unresolvedReasons);
   const confidence = asConfidence(row.confidence);
   const original = originalInput.trim();
   const prior = priorBelief.trim();
+  if (outcome === "UNRESOLVED" && beliefOptions) {
+    return {
+      outcome: "UNRESOLVED",
+      subject: null,
+      proposedRootBelief: null,
+      formulationNote: null,
+      clarificationQuestion: null,
+      clarificationOptions: null,
+      resolution: "UNRESOLVED",
+      unresolvedReasons: reasons.length > 0 ? reasons : ["CHOOSE_BELIEF"],
+      beliefOptions,
+    };
+  }
   const finish = (facts: MasterThoughtFacts) => {
-    if (gate?.rejectCopiedSubject && facts.subject && subjectCopiesSpan(facts.subject, [original, prior, facts.proposedRootBelief ?? ""])) {
+    if (
+      gate?.rejectCopiedSubject &&
+      facts.subject &&
+      (subjectCopiesSpan(facts.subject, [original, prior, facts.proposedRootBelief ?? ""]) ||
+        subjectStitchesBelief(facts.subject, [original, prior, facts.proposedRootBelief ?? ""]) ||
+        subjectRepeatsBelief(facts.subject, [original, prior, facts.proposedRootBelief ?? ""]) ||
+        subjectSoundsLikeTitle(facts.subject))
+    ) {
       return unresolvedMasterThought("SUBJECT_IS_FRAGMENT");
     }
     return applyComparisonForm(facts, row, original, priorBelief);
@@ -477,12 +542,231 @@ export function confirmedParentReady(input: {
   );
 }
 
-/** The user already chose what the new belief means, so that sentence is the parent. */
+const LEADING_TERNYATA = /^\s*ternyata\b[\s,:]*/i;
+
+function recordOf(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  return raw as Record<string, unknown>;
+}
+
+function sameClaim(left: string, right: string): boolean {
+  const claim = (value: string) => beliefClaim(value).toLocaleLowerCase();
+  return beliefsMatch(claim(left), claim(right));
+}
+
+function readBeliefOption(item: unknown): BeliefOption | null {
+  if (typeof item === "string") {
+    const belief = item.replace(/\s+/g, " ").trim();
+    return belief ? { belief, description: "" } : null;
+  }
+  const row = recordOf(item);
+  if (!row) return null;
+  const belief = asText(row.belief ?? row.text).replace(/\s+/g, " ").trim();
+  if (!belief) return null;
+  return { belief, description: asText(row.description ?? row.note).replace(/\s+/g, " ").trim() };
+}
+
+function asBeliefOptions(value: unknown): BeliefOption[] | null {
+  if (!Array.isArray(value)) return null;
+  const options = value.flatMap((item) => {
+    const option = readBeliefOption(item);
+    return option ? [option] : [];
+  }).slice(0, 3);
+  return options.length > 0 ? options : null;
+}
+
+/** The claim without a leading Ternyata, used to compare beliefs and to name the subject. */
+export function beliefClaim(value: string): string {
+  return value.replace(LEADING_TERNYATA, "").replace(/\s+/g, " ").trim();
+}
+
+export function subjectFromBelief(belief: string): string {
+  const claim = beliefClaim(belief);
+  return withCapital(claim || belief.replace(/\s+/g, " ").trim());
+}
+
+/** Drop empty lines, reasons, titles, the old belief, and duplicates. A leading Ternyata is ignored. */
+export function filterBeliefCandidates(candidates: Array<string | BeliefOption>, priorBelief = ""): BeliefOption[] {
+  const seen = new Set<string>();
+  const kept: BeliefOption[] = [];
+  for (const raw of candidates) {
+    const option = readBeliefOption(raw);
+    if (!option) continue;
+    const choice = option.belief;
+    const claim = beliefClaim(choice);
+    if (!claim) continue;
+    if (startsWithBecause(choice) || startsWithBecause(claim)) continue;
+    if (subjectSoundsLikeTitle(claim) || subjectSoundsLikeTitle(choice)) continue;
+    if (priorBelief.trim() && sameClaim(choice, priorBelief)) continue;
+    const key = claim.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push({ belief: withCapital(choice), description: option.description });
+  }
+  return kept;
+}
+
+export function buildBeliefOptionsPrompt(input: {
+  planted: string;
+  priorBelief?: string;
+  audience?: string;
+}): string {
+  const priorBelief = input.priorBelief?.trim() ?? "";
+  const audience = input.audience?.trim() ?? "";
+  return [
+    "Write three beliefs the user can plant as a Master Thought.",
+    "Each belief states exactly one claim. A sentence that joins two independent beliefs with dan or and is not one claim.",
+    "Length may be short or detailed. Do not prefer a shorter sentence.",
+    "Each belief is one grammatical clause. Read the belief, then a comma, then karena or because. It must sound like one spoken sentence.",
+    "Do not start a belief with karena or because.",
+    "Do not copy the old belief.",
+    "Start a belief with Ternyata only when that belief shifts the old belief.",
+    "A belief that already stands on its own does not start with Ternyata.",
+    "Ternyata is optional. Do not add it to every belief.",
+    "Stay inside the shift between the old belief and the new belief.",
+    "Do not add a topic, benefit, feeling, or situation that neither of those sentences carries.",
+    "Each description says what this belief asks someone to hold, and how it shifts the old belief.",
+    "Write the description in the same language as the belief. Two or three sentences are enough.",
+    "Write every belief in the same language as the new belief.",
+    "Return JSON only: {\"beliefs\":[{\"belief\":\"\",\"description\":\"\"}]}",
+    "Do not use examples from any specific industry, belief system, or brand.",
+    "",
+    "New belief:",
+    input.planted.trim(),
+    ...(priorBelief ? ["", "Old belief:", priorBelief] : []),
+    ...(audience
+      ? ["", "The audience is only who is addressed. Do not replace the claim with the audience.", "Audience:", audience]
+      : []),
+  ].join("\n");
+}
+
+export function parseBeliefDrafts(raw: unknown): BeliefOption[] {
+  const row = recordOf(raw);
+  const list = Array.isArray(raw) ? raw : Array.isArray(row?.beliefs) ? row.beliefs : [];
+  return list.flatMap((item) => {
+    const option = readBeliefOption(item);
+    return option ? [option] : [];
+  }).slice(0, 3);
+}
+
+export function buildBeliefOptionCheckPrompt(input: {
+  beliefs: string[];
+  planted: string;
+  priorBelief?: string;
+}): string {
+  const priorBelief = input.priorBelief?.trim() ?? "";
+  return [
+    "Judge each belief on its own.",
+    "Pass only when it states exactly one claim and reads as one spoken sentence before karena or because.",
+    "A sentence that joins two independent beliefs with dan or and fails.",
+    "A title, a fragment, or a line that starts with karena or because fails.",
+    "Fail a belief that leaves the shift between the old belief and the new belief.",
+    "Fail a belief that adds a topic, benefit, feeling, or situation that neither the old belief nor the new belief carries.",
+    "A leading Ternyata does not change the claim and does not by itself fail the belief.",
+    "Return JSON only: {\"results\":[{\"index\":0,\"pass\":true}]}",
+    "Include one result for every belief below. index is the number shown before that belief.",
+    "",
+    "New belief:",
+    input.planted.trim(),
+    ...(priorBelief ? ["", "Old belief:", priorBelief] : []),
+    "",
+    "Beliefs:",
+    ...input.beliefs.map((belief, index) => `${index}: ${belief}`),
+  ].join("\n");
+}
+
+export function parseBeliefOptionChecks(raw: unknown, count: number): boolean[] {
+  const passes = Array.from({ length: Math.max(0, count) }, () => false);
+  const row = recordOf(raw);
+  const list = Array.isArray(raw)
+    ? raw
+    : Array.isArray(row?.results)
+      ? row.results
+      : Array.isArray(row?.beliefs)
+        ? row.beliefs
+        : [];
+  for (const item of list) {
+    const entry = recordOf(item);
+    if (!entry) continue;
+    const index = typeof entry.index === "number" ? entry.index : Number(entry.index);
+    const pass = entry.pass === true || entry.pass === "true";
+    if (!pass || !Number.isInteger(index) || index < 0 || index >= passes.length) continue;
+    passes[index] = true;
+  }
+  return passes;
+}
+
+export function beliefChoiceFacts(options: BeliefOption[]): MasterThoughtFacts {
+  const beliefOptions = options
+    .flatMap((option) => {
+      const belief = option.belief.replace(/\s+/g, " ").trim();
+      return belief ? [{ belief: withCapital(belief), description: option.description.replace(/\s+/g, " ").trim() }] : [];
+    })
+    .slice(0, 3);
+  if (beliefOptions.length === 0) return unresolvedMasterThought("NO_BELIEF_OPTIONS");
+  return {
+    outcome: "UNRESOLVED",
+    subject: null,
+    proposedRootBelief: null,
+    formulationNote: null,
+    clarificationQuestion: null,
+    clarificationOptions: null,
+    resolution: "UNRESOLVED",
+    unresolvedReasons: ["CHOOSE_BELIEF"],
+    beliefOptions,
+  };
+}
+
+/** Ask for three beliefs, then keep only the ones the model passes as one claim before karena. */
+export async function collectBeliefOptions(
+  input: { planted: string; priorBelief?: string; audience?: string },
+  ask: (prompt: string) => Promise<string | null>,
+): Promise<MasterThoughtFacts> {
+  const planted = input.planted.trim();
+  const prior = input.priorBelief?.trim() ?? "";
+  if (!planted) return unresolvedMasterThought("EMPTY_INPUT");
+  if (prior && beliefsMatch(beliefClaim(planted), beliefClaim(prior))) return unresolvedMasterThought("SAME_BELIEF");
+  const drafted = parseBeliefDrafts(parseModelJson(await ask(buildBeliefOptionsPrompt({ planted, priorBelief: prior, audience: input.audience }))));
+  const candidates = filterBeliefCandidates(drafted, prior).filter((option) => !sameClaim(option.belief, planted));
+  if (candidates.length === 0) return unresolvedMasterThought("NO_BELIEF_OPTIONS");
+  const passes = parseBeliefOptionChecks(
+    parseModelJson(
+      await ask(
+        buildBeliefOptionCheckPrompt({
+          beliefs: candidates.map((option) => option.belief),
+          planted,
+          priorBelief: prior,
+        }),
+      ),
+    ),
+    candidates.length,
+  );
+  return beliefChoiceFacts(candidates.filter((_, index) => passes[index]));
+}
+
+/** The picked belief is ready to confirm. Its subject is that belief without a leading Ternyata. */
+export function acceptPlantedBelief(belief: string): MasterThoughtFacts {
+  const statement = belief.replace(/\s+/g, " ").trim();
+  return {
+    outcome: "ORIGINAL_READY",
+    subject: subjectFromBelief(statement),
+    proposedRootBelief: null,
+    formulationNote: null,
+    clarificationQuestion: null,
+    clarificationOptions: null,
+    resolution: "RESOLVED",
+    unresolvedReasons: [],
+    accepted: true,
+    beliefOptions: null,
+  };
+}
+
+/** The user picked a subject, or kept the written new belief. The stored new belief stays as written. */
 export function acceptChosenBelief(choice: string): MasterThoughtFacts {
   const statement = choice.replace(/\s+/g, " ").trim();
   return {
     outcome: "ORIGINAL_READY",
-    subject: statement,
+    subject: withCapital(statement),
     proposedRootBelief: null,
     formulationNote: null,
     clarificationQuestion: null,
@@ -504,7 +788,7 @@ export function masterRecovery(
   if (!facts || facts.outcome !== "UNRESOLVED") return null;
   if (!originalInput.trim()) return null;
   const reason = facts.unresolvedReasons[0] ?? "UNRESOLVED";
-  if (reason === "EMPTY_INPUT") return null;
+  if (reason === "EMPTY_INPUT" || reason === "CHOOSE_BELIEF" || reason === "NO_BELIEF_OPTIONS") return null;
   if (reason === "SAME_BELIEF" || beliefsMatch(originalInput, priorBelief)) return "edit";
   if (reason === "JUDGE_UNAVAILABLE" || reason === "JUDGE_UNPARSEABLE") return "retry";
   return "clarify";
@@ -519,14 +803,20 @@ export function buildMasterChoicePrompt(input: {
   const priorBelief = input.priorBelief?.trim() ?? "";
   const audience = input.audience?.trim() ?? "";
   return [
-    "Offer choices for one belief that could not be named yet.",
-    "Return three different short claims the user might mean.",
-    "Each claim is one grammatical clause in the same language as the new belief.",
-    "Each claim could stand immediately before karena or because.",
-    "The claims are different readings of the new belief, not the same sentence rewritten.",
-    "Do not add a WHY. Do not start a claim with karena or because.",
+    "Offer three subjects for the new belief. A subject does not replace that belief.",
+    "One subject is shorter than the new belief. The other two may stay closer to its length.",
+    "A shorter subject still says the whole belief. Fewer words come from tighter wording.",
+    "Leaving out a shift, a result, a degree, or who it reaches is not a shorter subject.",
+    "If the new belief states a change and then what that change produces, every subject keeps both.",
+    "Each subject is one grammatical clause in the same language as the new belief.",
+    "A reader who sees only the shorter subject must still hold the new belief.",
+    "Say each subject, then a comma, then karena. It must sound like one spoken sentence. Do not start a subject with Kemampuan or The ability.",
+    "Do not add a WHY. Do not start a subject with karena or because.",
     "Do not copy the old belief. Do not invent a claim the new belief does not carry.",
-    "Return JSON only: {\"choices\":[\"\",\"\",\"\"]}",
+    "Also recommend one clearer wording of the new belief when the written sentence can be said more clearly and still means the same thing.",
+    "If the written new belief should stay, return an empty belief. Do not return the written sentence again.",
+    "A subject is not that recommended belief. Do not put the same sentence in both.",
+    "Return JSON only: {\"subjects\":[\"\",\"\",\"\"],\"belief\":\"\"}",
     "Do not use examples from any specific industry, belief system, or brand.",
     "",
     "Question:",
@@ -541,28 +831,70 @@ export function buildMasterChoicePrompt(input: {
   ].join("\n");
 }
 
-export function parseMasterChoices(raw: unknown, context?: { priorBelief?: string }): string[] {
-  const list = Array.isArray(raw) ? raw : asRecordChoices(raw);
-  const prior = context?.priorBelief?.trim() ?? "";
-  const seen = new Set<string>();
-  const choices: string[] = [];
-  for (const item of list) {
-    const choice = typeof item === "string" ? item.replace(/\s+/g, " ").trim() : "";
-    if (!choice || startsWithBecause(choice)) continue;
-    if (prior && beliefsMatch(choice, prior)) continue;
-    const key = choice.toLocaleLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    choices.push(choice);
-    if (choices.length === 4) break;
-  }
-  return choices;
+export type MasterChoiceSet = {
+  subjects: string[];
+  beliefs: string[];
+};
+
+function choiceRewritesBelief(choice: string, belief: string): boolean {
+  const planted = belief.trim();
+  if (!planted) return false;
+  if (beliefsMatch(choice, planted) || subjectRepeatsBelief(choice, [planted])) return true;
+  const choiceWords = beliefWords(choice).split(" ").filter(Boolean);
+  const beliefList = beliefWords(planted).split(" ").filter(Boolean);
+  if (choiceWords.length < 6 || beliefList.length < 6) return false;
+  if (choiceWords.length < Math.ceil(beliefList.length * 0.75)) return false;
+  const known = new Set(beliefList.map(wordStem));
+  const shared = choiceWords.filter((word) => known.has(wordStem(word))).length;
+  return shared / choiceWords.length >= 0.55;
 }
 
-function asRecordChoices(raw: unknown): unknown[] {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
-  const choices = (raw as { choices?: unknown }).choices;
-  return Array.isArray(choices) ? choices : [];
+function cleanChoice(item: unknown, prior: string): string {
+  const choice = typeof item === "string" ? item.replace(/\s+/g, " ").trim() : "";
+  if (!choice || startsWithBecause(choice) || subjectSoundsLikeTitle(choice)) return "";
+  if (prior && beliefsMatch(choice, prior)) return "";
+  return choice;
+}
+
+/** Subjects stay beside the written belief. A near-copy is a recommended new belief. */
+export function parseMasterChoiceSet(
+  raw: unknown,
+  context?: { priorBelief?: string; originalInput?: string },
+): MasterChoiceSet {
+  const prior = context?.priorBelief?.trim() ?? "";
+  const original = context?.originalInput?.trim() ?? "";
+  const record =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as { belief?: unknown; subjects?: unknown; choices?: unknown })
+      : null;
+  const listed = Array.isArray(raw)
+    ? raw
+    : Array.isArray(record?.subjects)
+      ? record.subjects
+      : Array.isArray(record?.choices)
+        ? record.choices
+        : [];
+  const subjects: string[] = [];
+  const beliefs: string[] = [];
+  const seen = new Set<string>();
+  const take = (choice: string) => {
+    const key = choice.toLocaleLowerCase();
+    if (!choice || seen.has(key)) return;
+    seen.add(key);
+    if (original && beliefsMatch(choice, original)) return;
+    if (original && choiceRewritesBelief(choice, original)) {
+      if (beliefs.length < 3) beliefs.push(choice);
+      return;
+    }
+    if (subjects.length < 3) subjects.push(choice);
+  };
+  take(cleanChoice(record?.belief, prior));
+  for (const item of listed) take(cleanChoice(item, prior));
+  return { subjects, beliefs };
+}
+
+export function parseMasterChoices(raw: unknown, context?: { priorBelief?: string; originalInput?: string }): string[] {
+  return parseMasterChoiceSet(raw, context).subjects;
 }
 
 export function masterRecoveryQuestionKey(reason: string): string {

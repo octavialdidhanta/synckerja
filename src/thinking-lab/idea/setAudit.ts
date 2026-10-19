@@ -1,7 +1,6 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { fingerprintsMatch } from "@/thinking-lab/shared/fingerprint";
 import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
-import type { IdeaDownTopItem } from "@/thinking-lab/idea/downTop";
 
 export type IdeaTriState = true | false | "unresolved";
 export type IdeaResolution = "RESOLVED" | "UNRESOLVED";
@@ -34,13 +33,36 @@ export type IdeaAuditItem = {
   statementFingerprint?: string;
 };
 
+export type IdeaAuditLesson = {
+  code: string;
+  statement: string;
+  reason: string;
+};
+
 export type IdeaSetRecord = {
   schema: "thinking-lab/idea-set/v1";
   repairCount: number;
   siblingSet: IdeaSetFacts | null;
   audit: { fingerprint: string; items: IdeaAuditItem[] } | null;
-  downTop: { fingerprint: string; items: IdeaDownTopItem[] } | null;
+  downTop: { fingerprint: string; items: unknown[] } | null;
+  auditLessons: IdeaAuditLesson[];
 };
+
+/** Open Ideas that already passed stay passed when a later sibling is audited. */
+export function ideaCodesHeldPass(
+  rows: Array<{ code: string; status?: string }>,
+  verdicts: Array<AuditVerdict | null | undefined>,
+): string[] {
+  return rows.flatMap((row, index) =>
+    row.status === "locked" || verdicts[index] === "AUDIT_PASS" ? [row.code] : [],
+  );
+}
+
+/** An Idea that already passed stays passed. Later scoring can change only the other rows. */
+export function holdPassingIdeaVerdicts(scored: IdeaAuditItem[], passingCodes: string[]): IdeaAuditItem[] {
+  const passing = new Set(passingCodes.map((code) => code.toUpperCase()));
+  return scored.map((item) => (passing.has(item.code.toUpperCase()) ? { ...item, verdict: "AUDIT_PASS" } : item));
+}
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -100,7 +122,70 @@ function readContainment(value: unknown): IdeaContainment[] | null {
 }
 
 export function emptyIdeaSetRecord(): IdeaSetRecord {
-  return { schema: "thinking-lab/idea-set/v1", repairCount: 0, siblingSet: null, audit: null, downTop: null };
+  return {
+    schema: "thinking-lab/idea-set/v1",
+    repairCount: 0,
+    siblingSet: null,
+    audit: null,
+    downTop: null,
+    auditLessons: [],
+  };
+}
+
+export function ideaFailureLessons(input: {
+  rows: Array<{ code: string; statement: string }>;
+  items: IdeaAuditItem[];
+  siblingSet: IdeaSetFacts | null;
+}): IdeaAuditLesson[] {
+  const failed = new Set(
+    input.items.filter((item) => item.verdict === "AUDIT_FAIL").map((item) => item.code.toUpperCase()),
+  );
+  return input.rows.flatMap((row) => {
+    const code = row.code.toUpperCase();
+    if (!failed.has(code)) return [];
+    const reasons = [
+      ...(input.siblingSet?.materialOverlapPairs ?? [])
+        .filter((pair) => pair.ideaCodeA.toUpperCase() === code || pair.ideaCodeB.toUpperCase() === code)
+        .map((pair) => `${pair.ideaCodeA} · ${pair.ideaCodeB}: ${pair.explanation}`),
+      ...(input.siblingSet?.containmentPairs ?? [])
+        .filter((pair) => pair.containerCode.toUpperCase() === code || pair.containedCode.toUpperCase() === code)
+        .map((pair) => `${pair.containerCode} covers ${pair.containedCode}: ${pair.explanation}`),
+    ];
+    return [
+      {
+        code: row.code,
+        statement: row.statement,
+        reason: reasons.join(" ") || "Sibling audit failed this Idea.",
+      },
+    ];
+  });
+}
+
+const GENERIC_IDEA_FAIL = "Sibling audit failed this Idea.";
+
+/** Drop a generic fail note when the same statement already has the real conflict. */
+export function usableIdeaFixLessons(lessons: IdeaAuditLesson[], code: string): IdeaAuditLesson[] {
+  const mine = lessons.filter((lesson) => lesson.code.toUpperCase() === code.toUpperCase());
+  const explained = new Set(
+    mine
+      .filter((lesson) => lesson.reason.trim() !== GENERIC_IDEA_FAIL)
+      .map((lesson) => lesson.statement.trim().toLowerCase()),
+  );
+  return mine.filter(
+    (lesson) => lesson.reason.trim() !== GENERIC_IDEA_FAIL || !explained.has(lesson.statement.trim().toLowerCase()),
+  );
+}
+
+export function mergeIdeaAuditLessons(existing: IdeaAuditLesson[], next: IdeaAuditLesson[]): IdeaAuditLesson[] {
+  const seen = new Set(existing.map((lesson) => `${lesson.statement}\n${lesson.reason}`));
+  const merged = [...existing];
+  for (const lesson of next) {
+    const key = `${lesson.statement}\n${lesson.reason}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(lesson);
+  }
+  return merged;
 }
 
 export function unresolvedIdeaSet(fingerprint: string, reason: string): IdeaSetFacts {
@@ -214,15 +299,15 @@ export function buildIdeaSiblingPrompt(input: {
   return [
     "You are the canonical sibling judge for one Idea set under a direct Angle.",
     "Each Idea was already admitted. Do not reclassify whether an individual Idea is valid.",
-    "Decide only whether any two admitted Ideas occupy substantially the same situation, or whether one substantially contains the other.",
-    "materialOverlapPairs lists pairs that would create substantially the same situation.",
-    "Overlap requires that the audience would enter the same situation in both Ideas. A shared Angle, a shared cause, or a shared result is not overlap.",
-    "containmentPairs lists a broader situation and the situation that sits inside it.",
+    "Decide only whether any two admitted Ideas use substantially the same mechanism, or whether one substantially contains the other.",
+    "materialOverlapPairs lists pairs that would set up substantially the same mechanism.",
+    "Overlap requires the same setup in both Ideas. A shared Angle, a shared cause, or a shared result is not overlap.",
+    "containmentPairs lists a broader mechanism and the mechanism that sits inside it.",
     "coreDistinct is true only when both pair lists are empty.",
     "coreDistinct is false only when at least one pair explains the conflict.",
     "Every pair needs an explanation.",
     "Use exactly the keys ideaCodeA, ideaCodeB, containerCode, and containedCode. Do not rename them.",
-    "Do not decide what a viewer would conclude. That belongs to the down-top test.",
+    "Do not decide what a viewer would conclude.",
     "Mark resolution RESOLVED only when distinctness is fully decided. Otherwise use UNRESOLVED.",
     "Write explanations in the same language as the Angle.",
     "Do not use examples from any specific industry, belief system, or brand.",
@@ -244,7 +329,7 @@ export function buildIdeaSiblingPrompt(input: {
     ...(sealed.length > 0
       ? [
           "",
-          "Locked Ideas already sealed. An admitted Idea that creates the same situation as a locked Idea is a material overlap. Pair the admitted code with the locked code. Do not pair two locked Ideas.",
+          "Locked Ideas already sealed. An admitted Idea that uses the same mechanism as a locked Idea is a material overlap. Pair the admitted code with the locked code. Do not pair two locked Ideas.",
           sealed.map((row) => `${row.code}: ${row.statement}`).join("\n"),
         ]
       : []),
@@ -275,15 +360,27 @@ export function readIdeaSetRecord(raw: unknown): IdeaSetRecord {
       ? {
           fingerprint: asText((downTopRaw as { fingerprint?: unknown }).fingerprint),
           items: Array.isArray((downTopRaw as { items?: unknown }).items)
-            ? ((downTopRaw as { items: IdeaDownTopItem[] }).items ?? [])
+            ? ((downTopRaw as { items: unknown[] }).items ?? [])
             : [],
         }
       : null;
+  const auditLessons = Array.isArray(row.auditLessons)
+    ? row.auditLessons.flatMap((lesson) => {
+        if (!lesson || typeof lesson !== "object" || Array.isArray(lesson)) return [];
+        const item = lesson as { code?: unknown; statement?: unknown; reason?: unknown };
+        const code = asText(item.code);
+        const statement = asText(item.statement);
+        const reason = asText(item.reason);
+        if (!code || !statement || !reason) return [];
+        return [{ code, statement, reason }];
+      })
+    : [];
   return {
     schema: "thinking-lab/idea-set/v1",
     repairCount: repairCount(row.repairCount),
     siblingSet,
     audit,
     downTop,
+    auditLessons,
   };
 }

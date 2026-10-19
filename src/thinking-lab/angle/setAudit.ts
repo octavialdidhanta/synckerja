@@ -17,12 +17,35 @@ export type AngleAuditItem = {
   statementFingerprint?: string;
 };
 
+/** Locked Angles and rows that already passed stay passed when a later sibling is audited. */
+export function angleCodesHeldPass(
+  rows: Array<{ code: string; status?: string }>,
+  verdicts: Array<AuditVerdict | null | undefined>,
+): string[] {
+  return rows.flatMap((row, index) =>
+    row.status === "locked" || verdicts[index] === "AUDIT_PASS" ? [row.code] : [],
+  );
+}
+
+/** An Angle that already passed stays passed. Later scoring can change only the other rows. */
+export function holdPassingAngleVerdicts(scored: AngleAuditItem[], passingCodes: string[]): AngleAuditItem[] {
+  const passing = new Set(passingCodes.map((code) => code.toUpperCase()));
+  return scored.map((item) => (passing.has(item.code.toUpperCase()) ? { ...item, verdict: "AUDIT_PASS" } : item));
+}
+
+export type AngleAuditLesson = {
+  code: string;
+  statement: string;
+  reason: string;
+};
+
 export type AngleSetRecord = {
   schema: "thinking-lab/angle-set/v1";
   repairCount: number;
   siblingSet: AngleSetFacts | null;
   audit: { fingerprint: string; items: AngleAuditItem[] } | null;
   challenger: { fingerprint: string; result: AngleChallengerResult } | null;
+  auditLessons: AngleAuditLesson[];
 };
 
 function asText(value: unknown): string {
@@ -83,7 +106,70 @@ function readContainment(value: unknown): AngleContainment[] | null {
 }
 
 export function emptyAngleSetRecord(): AngleSetRecord {
-  return { schema: "thinking-lab/angle-set/v1", repairCount: 0, siblingSet: null, audit: null, challenger: null };
+  return {
+    schema: "thinking-lab/angle-set/v1",
+    repairCount: 0,
+    siblingSet: null,
+    audit: null,
+    challenger: null,
+    auditLessons: [],
+  };
+}
+
+export function angleFailureLessons(input: {
+  rows: Array<{ code: string; statement: string }>;
+  items: AngleAuditItem[];
+  siblingSet: AngleSetFacts | null;
+}): AngleAuditLesson[] {
+  const failed = new Set(
+    input.items.filter((item) => item.verdict === "AUDIT_FAIL").map((item) => item.code.toUpperCase()),
+  );
+  return input.rows.flatMap((row) => {
+    const code = row.code.toUpperCase();
+    if (!failed.has(code)) return [];
+    const reasons = [
+      ...(input.siblingSet?.materialOverlapPairs ?? [])
+        .filter((pair) => pair.angleCodeA.toUpperCase() === code || pair.angleCodeB.toUpperCase() === code)
+        .map((pair) => `${pair.angleCodeA} · ${pair.angleCodeB}: ${pair.explanation}`),
+      ...(input.siblingSet?.containmentPairs ?? [])
+        .filter((pair) => pair.containerCode.toUpperCase() === code || pair.containedCode.toUpperCase() === code)
+        .map((pair) => `${pair.containerCode} covers ${pair.containedCode}: ${pair.explanation}`),
+    ];
+    return [
+      {
+        code: row.code,
+        statement: row.statement,
+        reason: reasons.join(" ") || "Sibling audit failed this Angle.",
+      },
+    ];
+  });
+}
+
+const GENERIC_ANGLE_FAIL = "Sibling audit failed this Angle.";
+
+/** Drop a generic fail note when the same statement already has the real conflict. */
+export function usableAngleFixLessons(lessons: AngleAuditLesson[], code: string): AngleAuditLesson[] {
+  const mine = lessons.filter((lesson) => lesson.code.toUpperCase() === code.toUpperCase());
+  const explained = new Set(
+    mine
+      .filter((lesson) => lesson.reason.trim() !== GENERIC_ANGLE_FAIL)
+      .map((lesson) => lesson.statement.trim().toLowerCase()),
+  );
+  return mine.filter(
+    (lesson) => lesson.reason.trim() !== GENERIC_ANGLE_FAIL || !explained.has(lesson.statement.trim().toLowerCase()),
+  );
+}
+
+export function mergeAngleAuditLessons(existing: AngleAuditLesson[], next: AngleAuditLesson[]): AngleAuditLesson[] {
+  const seen = new Set(existing.map((lesson) => `${lesson.statement}\n${lesson.reason}`));
+  const merged = [...existing];
+  for (const lesson of next) {
+    const key = `${lesson.statement}\n${lesson.reason}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(lesson);
+  }
+  return merged;
 }
 
 export function unresolvedAngleSet(fingerprint: string, reason: string): AngleSetFacts {
@@ -261,5 +347,23 @@ export function readAngleSetRecord(raw: unknown): AngleSetRecord {
           },
         }
       : null;
-  return { schema: "thinking-lab/angle-set/v1", repairCount: repairCount(row.repairCount), siblingSet, audit, challenger };
+  const auditLessons = Array.isArray(row.auditLessons)
+    ? row.auditLessons.flatMap((lesson) => {
+        if (!lesson || typeof lesson !== "object" || Array.isArray(lesson)) return [];
+        const item = lesson as { code?: unknown; statement?: unknown; reason?: unknown };
+        const code = asText(item.code);
+        const statement = asText(item.statement);
+        const reason = asText(item.reason);
+        if (!code || !statement || !reason) return [];
+        return [{ code, statement, reason }];
+      })
+    : [];
+  return {
+    schema: "thinking-lab/angle-set/v1",
+    repairCount: repairCount(row.repairCount),
+    siblingSet,
+    audit,
+    challenger,
+    auditLessons,
+  };
 }

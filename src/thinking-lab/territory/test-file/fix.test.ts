@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseTerritoryFixOptions, parseTerritoryFixReplacements, territoryReplacementPasses } from "@/thinking-lab/territory/fix";
+import {
+  buildTerritoryFixOptionsPrompt,
+  parseTerritoryFixOptions,
+  parseTerritoryFixReplacements,
+  territoryReplacementPasses,
+} from "@/thinking-lab/territory/fix";
 import type { TerritorySetFacts } from "@/thinking-lab/territory/types";
 
 describe("territory fix", () => {
@@ -22,6 +27,34 @@ describe("territory fix", () => {
       "One space",
       "Another space",
     ]);
+  });
+
+  it("tells the next fix why the failed name already lost", () => {
+    const prompt = buildTerritoryFixOptionsPrompt({
+      parentStatement: "Produk yang memenuhi kebutuhan menaikkan penjualan, bukan hanya iklan.",
+      failed: { code: "TR04", statement: "Kepuasan pelanggan" },
+      keepers: [{ code: "TR03", statement: "Umpan balik pelanggan" }],
+      conflicts: [],
+      lessons: [
+        {
+          code: "TR04",
+          statement: "Kepuasan pelanggan",
+          reason: "TR03 · TR04: Kedua wilayah ini mengumpulkan masukan pelanggan.",
+        },
+      ],
+      scope: {
+        preserve: ["partOfBigThought", "audienceLanguage", "questionArises", "wideEnough"],
+        repair: [{ id: "siblingsDistinct", reason: "TR03 · TR04: Kedua wilayah ini mengumpulkan masukan pelanggan." }],
+      },
+    });
+    expect(prompt).toContain("TR04: Kepuasan pelanggan");
+    expect(prompt).toContain("Why it failed: TR03 · TR04: Kedua wilayah ini mengumpulkan masukan pelanggan.");
+    expect(prompt).toContain("A new name that fails for the same reason is still that mistake.");
+    expect(prompt).toContain("Move only the boundary");
+    expect(prompt).toContain("Checks to repair:");
+    expect(prompt).toContain("siblingsDistinct: TR03 · TR04: Kedua wilayah ini mengumpulkan masukan pelanggan.");
+    expect(prompt).toContain("Propose one replacement Territory");
+    expect(prompt).toContain("Do not return a name listed there.");
   });
 
   it("offers a replacement only when the sibling judgment already passes that code", () => {

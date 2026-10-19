@@ -1,3 +1,4 @@
+import { BECAUSE_RESULT_LINES } from "@/thinking-lab/big-thought/because";
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import type { Resolution, TriState } from "@/thinking-lab/shared/verdict";
 import type {
@@ -110,6 +111,12 @@ export function normalizeBigThoughtFacts(raw: unknown, fallbackCode = ""): BigTh
   };
   const confidence = asConfidence(row.confidence);
   if (confidence !== undefined) facts.confidence = confidence;
+  const answeredQuestion = asText(row.answeredQuestion);
+  if (answeredQuestion) facts.answeredQuestion = answeredQuestion;
+  const answeredQuestionVersion = row.answeredQuestionVersion;
+  if (typeof answeredQuestionVersion === "number" && Number.isFinite(answeredQuestionVersion)) {
+    facts.answeredQuestionVersion = answeredQuestionVersion;
+  }
   if (legacyPositive) {
     facts.resolution = "UNRESOLVED";
     if (!facts.unresolvedReasons.includes("LEGACY_POSITIVE_RELATION")) {
@@ -163,6 +170,8 @@ export function buildBigThoughtJudgePrompt(input: {
     "Because Test: try the form 'the Master Thought is true because [candidate]'. If the result is circular, tautological, or only says the parent again in another form, the candidate must not be DISTINCT_MATERIAL_SUPPORT.",
     "Job Form Test: join the texts as '[Master Thought], because [candidate]' by inserting only the word because. becauseForm is CLAUSE when that sentence is already grammatical and the candidate finishes the belief, including its comparison, without repeating the Master Thought and without opening a separate claim. STANDALONE when the candidate is its own sentence and would need to be rewritten before it can follow because. NOMINAL when it only names an area. OBSERVATION when it is a rarely noticed observation rather than a reason. UNRESOLVED when that cannot be decided.",
     "Do not return DISTINCT_MATERIAL_SUPPORT unless becauseForm is CLAUSE. A sentence that merely could be forced after because, while still introducing a new claim, is STANDALONE.",
+    ...BECAUSE_RESULT_LINES,
+    "A result joined by sehingga or so that stays one reason when it names what that cause produces. Do not reject the clause only because those words are present. Do not return DISTINCT_MATERIAL_SUPPORT when that result is still missing: set explainsWhyParentIsTrue false and relationToParent UNRESOLVED, and add RESULT_NOT_SHOWN to unresolvedReasons. A sehingga or so that clause that repeats the Master Thought, or that adds a second conclusion, stays an elaboration.",
     "A parent of the form 'X remains responsible after Y' and a candidate of the form 'X has an ongoing responsibility after Y' is a restatement.",
     "Normative-Conclusion Guard: when the Master Thought is normative, another normative duty for the same subject is especially likely to be RESTATEMENT or ELABORATION unless it supplies a distinct material support.",
     "Argumentative Support Test: does this downstream fact materially increase the rational support for believing the Master Thought?",
@@ -359,7 +368,7 @@ function buildAdversarialVerifierPrompt(input: {
     "When both parent and candidate assert the same normative proposition about the same actor, default toward REJECT_AS_RESTATEMENT unless the candidate introduces a clearly distinct material support.",
     "Mixed-Conclusion Guard: before CONFIRM_MATERIAL_SUPPORT, ask: Does this candidate contain a valid support clause plus another clause that restates or reproduces the parent conclusion?",
     "If yes, use REJECT_AS_ELABORATION unless the statement can clearly be shown to have one single dominant support job without reasserting the parent.",
-    "Clause Independence Test: split the candidate into its material argumentative clauses. Ask whether each clause could independently function as a material support, a restatement/elaboration of the parent, or another exclusion. If the candidate combines materially different jobs, do not confirm.",
+    "Clause Independence Test: split the candidate into its material argumentative clauses. Ask whether each clause could independently function as a material support, a restatement/elaboration of the parent, or another exclusion. If the candidate combines materially different jobs, do not confirm. A single sehingga or so that result of the same cause is not a second job, and it is not an outcome merely because it names what the cause produces. Reject it when that result repeats the parent or the result is missing.",
     "A valid premise must stand on its own. Do not allow a parent-conclusion clause to be attached merely to make the candidate sound complete.",
     "A parent 'Kesungguhan memilih wadah pengelolaan merupakan bagian dari tanggung jawab pemberi.' and a candidate 'Pemberian mencerminkan komitmen spiritual, sehingga pemilihan wadah harus dilakukan dengan sungguh-sungguh.' is REJECT_AS_ELABORATION. The first clause is a valid premise and the second clause restates or operationalizes the parent conclusion.",
     "The clean version 'Pemberian merupakan manifestasi dari komitmen spiritual pemberi.' may be CONFIRM_MATERIAL_SUPPORT as PREMISE when it stands alone and is materially relevant.",

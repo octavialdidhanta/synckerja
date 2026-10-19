@@ -8,6 +8,7 @@ export type LabContentPillar = {
   name: string;
   funnel: ContentPillarFunnel;
   category: string | null;
+  description?: string | null;
   isDefault: boolean;
 };
 
@@ -31,7 +32,7 @@ export function useOrgContentPillars(organizationId: string | null, enabled = tr
       if (!organizationId) return [];
       const { data, error } = await supabase
         .from("content_pillars")
-        .select("id, name, is_active, organization_id, is_default, funnel_stage, category")
+        .select("id, name, is_active, organization_id, is_default, funnel_stage, category, description")
         .or(`is_default.eq.true,organization_id.eq.${organizationId}`)
         .eq("is_active", true)
         .order("name");
@@ -47,6 +48,7 @@ export function useOrgContentPillars(organizationId: string | null, enabled = tr
             name,
             funnel: contentPillarFunnel(row.funnel_stage),
             category: typeof row.category === "string" && row.category.trim() ? row.category.trim() : null,
+            description: typeof row.description === "string" && row.description.trim() ? row.description.trim() : null,
             isDefault: row.is_default === true,
           },
         ];

@@ -442,10 +442,23 @@ Deno.serve(async (req: Request) => {
     }
 
     const rawProvider = (config as { text_ai_provider?: unknown }).text_ai_provider;
+    const rawProviderText = typeof rawProvider === "string" ? rawProvider.trim() : "";
+    const textProviderIsOpenAI = rawProviderText === "openai";
+    if (textProviderIsOpenAI && !safeTrim(config.google_ai_api_key)) {
+      return jsonResponse(
+        {
+          error:
+            "Analisis struk tetap memakai Gemini. Tambahkan Gemini API key di Settings > Script AI Generator.",
+        },
+        400,
+      );
+    }
     const normalizedProvider =
-      typeof rawProvider === "string" && ["gemini", "groq", "fireworks"].includes(rawProvider.trim())
-        ? rawProvider.trim() as "gemini" | "groq" | "fireworks"
-        : (config.is_active ? "groq" : "gemini");
+      textProviderIsOpenAI
+        ? "gemini"
+        : rawProviderText === "gemini" || rawProviderText === "groq" || rawProviderText === "fireworks"
+          ? rawProviderText as "gemini" | "groq" | "fireworks"
+          : (config.is_active ? "groq" : "gemini");
 
     // Do not gate Gemini-only flows on `is_active` (legacy Groq flag left many Gemini orgs "disabled").
 
@@ -646,7 +659,7 @@ Deno.serve(async (req: Request) => {
           400,
         );
       }
-      const rawModel = storedModel || "gemini-2.5-flash";
+      const rawModel = textProviderIsOpenAI ? "gemini-2.5-flash" : (storedModel || "gemini-2.5-flash");
       const model = deprecatedModels[rawModel] ?? rawModel;
       const inlineParts = receiptFiles.map((file) => ({
         inline_data: {

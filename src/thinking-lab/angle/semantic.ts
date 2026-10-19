@@ -1,3 +1,5 @@
+import { normalizeAngleExample } from "@/thinking-lab/angle/example";
+import { normalizeAngleSubject } from "@/thinking-lab/angle/subject";
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import type {
@@ -102,6 +104,8 @@ function unresolvedAngle(code: string, reason: string): AngleSemanticFacts {
     jobForm: "UNRESOLVED",
     resolution: "UNRESOLVED",
     unresolvedReasons: [reason],
+    subject: "",
+    example: "",
   };
 }
 
@@ -206,6 +210,8 @@ export function normalizeAngleFacts(raw: unknown, fallbackCode = ""): AngleSeman
         : derived.blockedByContradiction
           ? [...new Set(["CONTRADICTORY_CANONICAL_FACTS", ...asReasons(row.unresolvedReasons)])]
           : [...new Set([...asReasons(row.unresolvedReasons), ...unresolvedFactReasons(canonical)])],
+    subject: normalizeAngleSubject(asText(row.subject)),
+    example: normalizeAngleExample(asText(row.example)),
   };
   if (confidence !== undefined) facts.confidence = confidence;
   return facts;

@@ -1,5 +1,5 @@
-import { asBecauseClause } from "@/thinking-lab/big-thought/because";
-import { normalizeBigThoughtLabel } from "@/thinking-lab/big-thought/label";
+import { asBecauseClause, BECAUSE_RESULT_LINES } from "@/thinking-lab/big-thought/because";
+import { bigThoughtRepeats, normalizeBigThoughtLabel } from "@/thinking-lab/big-thought/label";
 import { ACTIVE_SET_CAP, MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "@/thinking-lab/shared/limits";
 import { individualAdmission } from "@/thinking-lab/big-thought/policy";
 import { judgeBigThought } from "@/thinking-lab/big-thought/semantic";
@@ -23,6 +23,7 @@ export function planGenerate(input: {
   generateValidCount: number;
   round: number;
   missingWhy: MissingWhy | null;
+  topUp?: boolean;
 }): PlannedGenerate {
   if (input.round > MAX_GENERATE_ROUNDS) {
     return { needed: 0, mode: null, stop: "ROUNDS", missingWhy: input.missingWhy };
@@ -36,7 +37,10 @@ export function planGenerate(input: {
   }
   const missing = TARGET_GENERATE_VALID - input.generateValidCount;
   if (missing <= 0) {
-    return { needed: 0, mode: null, stop: "ENOUGH", missingWhy: null };
+    if (!input.topUp || room <= 0) {
+      return { needed: 0, mode: null, stop: input.topUp && room <= 0 ? "CAP" : "ENOUGH", missingWhy: null };
+    }
+    return { needed: Math.min(TARGET_GENERATE_VALID, room), mode: "fill", stop: null, missingWhy: null };
   }
   return { needed: Math.min(missing, room), mode: "fill", stop: null, missingWhy: null };
 }
@@ -55,14 +59,16 @@ export function nextBigThoughtCode(existingCodes: string[]): string {
   return `BT${String(max + 1).padStart(2, "0")}`;
 }
 
-function incumbentLines(rows: Array<{ code: string; statement: string; reasonContribution?: string | null }>): string {
+function incumbentLines(
+  rows: Array<{ code: string; statement: string; label?: string; reasonContribution?: string | null }>,
+): string {
   if (rows.length === 0) return "(none)";
   return rows
     .map((row) => {
+      const label = row.label?.trim();
+      const heading = label ? `${row.code} ${label}: ${row.statement}` : `${row.code}: ${row.statement}`;
       const contribution = row.reasonContribution?.trim() ?? "";
-      return contribution
-        ? `${row.code}: ${row.statement}\nReason contribution: ${contribution}`
-        : `${row.code}: ${row.statement}`;
+      return contribution ? `${heading}\nReason contribution: ${contribution}` : heading;
     })
     .join("\n");
 }
@@ -84,7 +90,7 @@ function exclusionLines(entries: SemanticExclusion[]): string {
 
 export function buildGeneratePrompt(input: {
   parentStatement: string;
-  incumbents: Array<{ code: string; statement: string; reasonContribution?: string | null }>;
+  incumbents: Array<{ code: string; statement: string; label?: string; reasonContribution?: string | null }>;
   needed: number;
   missingWhy: MissingWhy | null;
   exclusions?: SemanticExclusion[];
@@ -126,23 +132,28 @@ export function buildGeneratePrompt(input: {
     "Write Big Thought candidates for the confirmed Master Thought.",
     "Each candidate is only the clause that follows because. Inserting the word because between the Master Thought and the candidate must already make one sentence.",
     "The clause finishes the belief that is already there, including its comparison. It does not open a new claim.",
+    ...BECAUSE_RESULT_LINES,
     "Do not repeat the Master Thought. Do not start the clause with because.",
     "One candidate is one foundational reason. It should feel awkward as a noun phrase and awkward as an observation that begins from what is rarely noticed.",
     "Prefer materially different reasons rather than multiple clauses that say the same thing.",
     "Do not restate or elaborate the Master Thought. Do not offer a method, tactic, execution, or a weak example.",
-    "Do not offer an outcome, a consequence, or a standalone sentence about a new mechanism.",
+    "Do not offer a bare outcome, a bare consequence, or a standalone sentence about a new mechanism. A result joined with sehingga or so that is part of the same reason when the lines above ask for it.",
     "Search for the missing because-clause, not a sentence that already repeats the Master Thought.",
     "Do not invent a weak statement to fill a quota. Return fewer statements when a strong support is not available.",
     "Keep every incumbent. Do not rewrite them.",
+    "Read the incumbent labels. A candidate whose label uses the same words as an incumbent label, in any order, is that same Big Thought. Do not return it.",
     "Write the statements in the same language as the Master Thought.",
-    "Each item also has a label: a heading of 1 to 3 words that names the core of that statement.",
+    "Each item also has a label: a semantic name of that statement's meaning, in a few words, not a shorter copy of the sentence.",
+    "A name of two or three words is right when it still names the same reason. Use more words only when a shorter name would name a different reason.",
+    "Do not write a clause, and do not copy a stretch of the statement.",
+    "Start the label with a capital letter. Do not end it on a loose word such as Tak, Yang, Dan, or Untuk.",
     "The label is not a new Big Thought. Do not shorten or rewrite the statement so that it matches the label.",
     "Write the label in the same language as the statement.",
     "Do not use examples from any specific industry, belief system, or brand.",
     gap,
     ...exclusionSearch,
     `Return at most ${input.needed} item(s).`,
-    "Return JSON only: {\"items\":[{\"label\":\"1 to 3 words\",\"statement\":\"...\"}]}",
+    "Return JSON only: {\"items\":[{\"label\":\"semantic name\",\"statement\":\"...\"}]}",
     "",
     "Master Thought:",
     input.parentStatement.trim(),
@@ -185,11 +196,14 @@ export type GenerateRunResult = {
   target: number;
 };
 
-export async function runGenerateRounds<T extends { code: string; statement: string; admission: IndividualAdmission }>(input: {
+export async function runGenerateRounds<
+  T extends { code: string; statement: string; admission: IndividualAdmission; label?: string },
+>(input: {
   parentStatement: string;
   incumbents: T[];
   activeCount: number;
   missingWhy: MissingWhy | null;
+  topUp?: boolean;
   propose: (plan: PlannedGenerate, incumbents: T[]) => Promise<GeneratedBigThought[]>;
   judge: (
     statement: string,
@@ -205,25 +219,29 @@ export async function runGenerateRounds<T extends { code: string; statement: str
       generateValidCount: countGenerateValid(incumbents),
       round,
       missingWhy: input.missingWhy,
+      topUp: input.topUp,
     });
     if (plan.needed === 0) break;
+    const validBefore = countGenerateValid(incumbents);
     const proposed = await input.propose(plan, incumbents);
     const batch = plan.mode === "gap" ? proposed.slice(0, 1) : proposed.slice(0, plan.needed);
     let addedGap = false;
     for (const candidate of batch) {
       if (activeCount >= ACTIVE_SET_CAP) break;
+      if (incumbents.some((row) => row.admission === "GENERATE_VALID" && bigThoughtRepeats(candidate, row))) continue;
       const siblings = incumbents
         .filter((row) => row.admission === "GENERATE_VALID")
         .map((row) => ({ code: row.code, statement: row.statement }));
       const facts = await input.judge(candidate.statement, siblings);
       const admission = individualAdmission({ facts, factsCurrent: true });
       const saved = await input.persist(candidate, facts);
-      incumbents = [...incumbents, { ...saved, admission }];
+      incumbents = [...incumbents, { ...saved, admission, label: saved.label || candidate.label }];
       activeCount += 1;
       addedGap = plan.mode === "gap" && admission === "GENERATE_VALID";
     }
     if (addedGap) break;
-    if (!input.missingWhy && countGenerateValid(incumbents) >= TARGET_GENERATE_VALID) break;
+    const added = countGenerateValid(incumbents) - validBefore;
+    if (!input.missingWhy && countGenerateValid(incumbents) >= TARGET_GENERATE_VALID && (!input.topUp || added > 0)) break;
   }
   const generateValid = countGenerateValid(incumbents);
   const filled = input.missingWhy ? generateValid > countGenerateValid(input.incumbents) : generateValid >= TARGET_GENERATE_VALID;

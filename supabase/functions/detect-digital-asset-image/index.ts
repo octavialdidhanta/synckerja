@@ -128,6 +128,7 @@ Deno.serve(async (req: Request) => {
 
     const dailyLimit = Math.max(1, config.daily_limit ?? 50);
     const rawModel = (config.model ?? "gemini-2.5-flash").trim() || "gemini-2.5-flash";
+    const geminiModel = rawModel.startsWith("gemini-") ? rawModel : "gemini-2.5-flash";
     const deprecatedModels: Record<string, string> = {
       "gemini-1.5-flash": "gemini-2.5-flash",
       "gemini-1.5-flash-latest": "gemini-2.5-flash",
@@ -135,7 +136,7 @@ Deno.serve(async (req: Request) => {
       "gemini-2.0-flash": "gemini-2.5-flash",
       "gemini-2.0-flash-exp": "gemini-2.5-flash",
     };
-    const model = deprecatedModels[rawModel] ?? rawModel;
+    const model = deprecatedModels[geminiModel] ?? geminiModel;
 
     const today = new Date().toISOString().slice(0, 10);
     const { data: usageRow, error: usageError } = await supabaseAdmin

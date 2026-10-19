@@ -9,6 +9,7 @@ import {
   lockLabBigThoughts,
   rejectLabBigThought,
   unlockLabBigThoughts,
+  saveLabBigThoughtAnsweredQuestion,
   updateLabBigThoughtFacts,
   updateLabBigThoughtLabels,
 } from "@/thinking-lab/big-thought/repository";
@@ -68,6 +69,17 @@ export function useBigThoughts(masterThoughtId: string | null) {
     onSuccess: invalidate,
   });
 
+  const saveAnsweredQuestion = useMutation({
+    mutationFn: (input: { id: string; question: string }) =>
+      saveLabBigThoughtAnsweredQuestion({
+        id: input.id,
+        question: input.question,
+        organizationId: organizationId as string,
+        masterThoughtId: masterThoughtId as string,
+      }),
+    onSuccess: invalidate,
+  });
+
   const saveLabels = useMutation({
     mutationFn: (labels: Array<{ id: string; label: string }>) =>
       updateLabBigThoughtLabels({
@@ -116,7 +128,7 @@ export function useBigThoughts(masterThoughtId: string | null) {
     },
   });
 
-  return { ...query, organizationId, insert, updateFacts, saveLabels, remove, reject, lockMany, unlockAll };
+  return { ...query, organizationId, insert, updateFacts, saveAnsweredQuestion, saveLabels, remove, reject, lockMany, unlockAll };
 }
 
 export function useLockedLabTree() {

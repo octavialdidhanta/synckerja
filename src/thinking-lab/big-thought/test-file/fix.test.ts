@@ -379,7 +379,10 @@ describe("fix replacements", () => {
     expect(elaboration.body).toContain("REJECT_AS_ELABORATION");
     expect(elaboration.body).toContain("The closing clause restates the parent conclusion.");
 
-    const broken = '{ "distinct": true, "reasonContributions": [ { "code": "NEW", "reasonContribution": "A job", } ] }';
+    const repaired = '{ "distinct": true, "reasonContributions": [ { "code": "NEW", "reasonContribution": "A job", } ] }';
+    const recovered = presentFixModelResponse("sibling", repaired, ["BT01", "NEW"]);
+    expect(recovered.body).toContain("NEW: A job");
+    const broken = '{ "distinct": true, "reasonContributions": [ { "code": "NEW" "reasonContribution": "A job" } ] }';
     const sibling = presentFixModelResponse("sibling", broken, ["BT01", "NEW"]);
     expect(sibling.valid).toBe(false);
     expect(sibling.body).toBe(broken.trim());

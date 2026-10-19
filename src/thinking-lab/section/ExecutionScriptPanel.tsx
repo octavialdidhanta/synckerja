@@ -22,12 +22,38 @@ import {
   type VoiceOverScript,
 } from "@/thinking-lab/execution/script";
 import { characterVisualUrl, type CharacterGeneratePhase } from "@/thinking-lab/execution/generateCharacterVisual";
+import { executionChecklistPassed, meaningLineRepairReady } from "@/thinking-lab/execution/passChecklist";
+import { pillarNeedsRecommendation } from "@/thinking-lab/execution/recommend";
 import { CharacterVisualSlots, type CharacterStudioTab } from "@/thinking-lab/section/CharacterVisualStudio";
-import type { ExecutionRelation, ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
+import { isFailedMeaningAudit, type ExecutionRelation, type ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
 
 export type CharacterGenerateState = { handle: string; phase: CharacterGeneratePhase } | null;
 
-export type ExecutionRunPhase = "write" | "audit" | "repair";
+export type ExecutionRunPhase = "write" | "audit" | "repair" | "recommend";
+
+function LockedChoices({ script }: { script: VoiceOverScript }) {
+  const { t } = useAppTranslation();
+  const decisions = (script.decisions ?? []).filter((row) => row.category.trim() && row.answer.trim());
+  if (decisions.length > 0) {
+    return (
+      <div className="space-y-2">
+        {decisions.map((row) => (
+          <div key={`${row.binds}:${row.question}`} className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">{row.category}</p>
+            <p className="text-sm text-foreground">{row.answer}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (!script.pointOfView?.trim()) return null;
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-muted-foreground">{t("thinkingLab.execution.viewpointLabel", "Point of view")}</p>
+      <p className="text-sm text-foreground">{script.pointOfView.trim()}</p>
+    </div>
+  );
+}
 
 const RELATION_COPY: Record<ExecutionRelation, string> = {
   VALID_EXECUTION: "The script carries the Idea and a viewer can climb to the Master Thought.",
@@ -37,7 +63,20 @@ const RELATION_COPY: Record<ExecutionRelation, string> = {
   PILLAR_NOT_SELLING: "Flash Sale Hook needs a Master Thought that is actually selling.",
   CLIMB_MISSED: "A viewer does not climb from this script to the Master Thought.",
   SUBJECT_MISMATCH: "The viewer reaches a different subject than the Master Thought.",
+  CAUSE_BROKEN: "A line installs a cause other than the Big Thought's stake.",
+  CONCLUSION_MISSED: "The closing lines do not let a viewer say the Master Thought.",
   UNRESOLVED: "The check could not finish.",
+};
+
+const EXECUTION_PASS_CHECK_LABELS: Record<string, string> = {
+  pillarFits: "The pillar does not force a message outside the Idea",
+  sellingFits: "Flash Sale only when the Master Thought is selling",
+  mechanismVisible: "The Idea's mechanism is visible",
+  messageStays: "The script does not add a claim",
+  causeChain: "The cause is the Big Thought's stake, not an advertisement",
+  viewerClimb: "The viewer climbs from the mechanism to the Master Thought",
+  subjectMatch: "The subject reached is the Master Thought subject",
+  conclusionLands: "The closing lines let a viewer say the Master Thought",
 };
 
 function ExecutionMenu({ onDelete, pending = false }: { onDelete?: () => void; pending?: boolean }) {
@@ -261,7 +300,25 @@ function AssetList({
 const SCENE_COLUMN_WIDTHS = ["16rem", "10rem", "8rem", "14rem", "20rem", "28rem"] as const;
 const SCENE_COLUMN_SHARES = ["16%", "10%", "8%", "14%", "22%", "30%"] as const;
 
-function SceneTables({ script, failing, fill = false }: { script: VoiceOverScript; failing: Set<string>; fill?: boolean }) {
+function SceneTables({
+  script,
+  failing,
+  fill = false,
+  pending = false,
+  fixingLineId = null,
+  onFixLine,
+  fixable,
+  reasonFor,
+}: {
+  script: VoiceOverScript;
+  failing: Set<string>;
+  fill?: boolean;
+  pending?: boolean;
+  fixingLineId?: string | null;
+  onFixLine?: (lineId: string) => void;
+  fixable?: Set<string>;
+  reasonFor?: (lineId: string) => string;
+}) {
   const { t } = useAppTranslation();
   const copyPrompt = async (prompt: string) => {
     try {
@@ -307,9 +364,26 @@ function SceneTables({ script, failing, fill = false }: { script: VoiceOverScrip
                         <td className={cn("px-3 py-2 break-words", failing.has(line.id) && "bg-rose-50")} rowSpan={shots.length}>
                           <p className="whitespace-pre-wrap break-words">{line.narration}</p>
                           {failing.has(line.id) ? (
-                            <p className="mt-1 text-xs text-rose-700">
-                              {script.lineIssues.find((issue) => issue.lineId === line.id)?.reason}
-                            </p>
+                            <div className="mt-2 space-y-2">
+                              <p className="text-xs text-rose-700">
+                                {reasonFor?.(line.id) ||
+                                  (script.productionIssues ?? []).find((issue) => issue.lineId === line.id)?.reason ||
+                                  script.lineIssues.find((issue) => issue.lineId === line.id)?.reason}
+                              </p>
+                              {onFixLine && (!fixable || fixable.has(line.id)) ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={pending}
+                                  aria-busy={fixingLineId === line.id}
+                                  onClick={() => onFixLine(line.id)}
+                                >
+                                  {fixingLineId === line.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                                  {t("thinkingLab.execution.fixLine", "Fix this line")}
+                                </Button>
+                              ) : null}
+                            </div>
                           ) : null}
                         </td>
                       ) : null}
@@ -375,10 +449,18 @@ export function ExecutionScriptPanel({
   facts,
   progress = null,
   pending = false,
+  fixingLineId = null,
   onStop,
   onRepair,
+  onFixLine,
   onRewrite,
   onChangePillar,
+  onUseRecommendation,
+  onUseOffer,
+  onRetrySelling,
+  checks,
+  offer,
+  offerNote,
   onViewTable,
   onDelete,
   onGenerateCharacter,
@@ -395,10 +477,18 @@ export function ExecutionScriptPanel({
   facts: ExecutionSemanticFacts;
   progress?: { phase: ExecutionRunPhase; pillarName: string } | null;
   pending?: boolean;
+  fixingLineId?: string | null;
   onStop?: () => void;
   onRepair?: () => void;
+  onFixLine?: (lineId: string) => void;
   onRewrite?: () => void;
   onChangePillar?: () => void;
+  onUseRecommendation?: () => void;
+  onUseOffer?: () => void;
+  onRetrySelling?: () => void;
+  checks?: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
+  offer?: Array<{ lineId: string; narration: string }> | null;
+  offerNote?: string | null;
   onViewTable?: () => void;
   onDelete?: () => void;
   onGenerateCharacter?: (handle: string) => void;
@@ -411,15 +501,22 @@ export function ExecutionScriptPanel({
   const { t } = useAppTranslation();
   const [tab, setTab] = useState<"script" | "execution">("script");
   const [assetsOpen, setAssetsOpen] = useState(false);
-  const [reasonOpen, setReasonOpen] = useState(false);
   const duration = script ? scriptDurationSeconds(script) : narrationDurationSeconds(statement);
-  const failing = new Set(script?.lineIssues.map((issue) => issue.lineId) ?? []);
-  const passed = admission === "GENERATE_VALID" && failing.size === 0;
-  const repairReady = scriptLineRepairReady(facts, script);
-  const needsAnotherPillar =
-    facts.relationToParent === "MESSAGE_ADDED" ||
-    facts.relationToParent === "PILLAR_OUTSIDE" ||
-    facts.relationToParent === "PILLAR_NOT_SELLING";
+  const productionIssues = script?.productionIssues ?? [];
+  const failedAudit = isFailedMeaningAudit(facts.meaningAudit) ? facts.meaningAudit : null;
+  const meaningLineIds = failedAudit?.lineIds ?? [];
+  const failing = new Set([
+    ...(facts.meaningAudit ? productionIssues.map((issue) => issue.lineId) : (script?.lineIssues.map((issue) => issue.lineId) ?? [])),
+    ...meaningLineIds,
+  ]);
+  const fixable = new Set(
+    facts.meaningAudit ? productionIssues.map((issue) => issue.lineId) : (script?.lineIssues.map((issue) => issue.lineId) ?? []),
+  );
+  const passed = executionChecklistPassed(facts, admission, script?.lineIssues.length ?? 0);
+  const repairReady = facts.meaningAudit ? meaningLineRepairReady(facts) : scriptLineRepairReady(facts, script);
+  const needsAnotherPillar = pillarNeedsRecommendation(facts.relationToParent);
+  const sellingUnresolved = failedAudit?.id === "sellingFits" && facts.relationToParent === "UNRESOLVED";
+  const visibleChecks = (checks ?? []).filter((check) => check.state !== "pending");
   const scriptWarning = failing.size > 0;
   const executionWarning = !passed;
 
@@ -472,26 +569,48 @@ export function ExecutionScriptPanel({
               {t("thinkingLab.execution.seconds", "{{count}} seconds", { count: duration })}
             </span>
           ) : null}
-          {!passed ? (
-            <button
-              type="button"
-              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
-              aria-expanded={reasonOpen}
-              aria-label={t("thinkingLab.execution.whyFailed", "Why not passed")}
-              onClick={() => setReasonOpen((open) => !open)}
-            >
-              <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", reasonOpen && "rotate-90")} aria-hidden />
-            </button>
-          ) : null}
         </div>
-        {!passed && reasonOpen ? (
-          <div className="space-y-1 text-xs leading-relaxed text-muted-foreground">
+        {!passed ? (
+          <div className="space-y-1 text-sm leading-relaxed">
             <p>{t(`thinkingLab.execution.relation.${facts.relationToParent}`, RELATION_COPY[facts.relationToParent])}</p>
-            {(script?.lineIssues ?? []).map((issue) => (
-              <p key={issue.lineId}>{issue.reason}</p>
+            {facts.whatItSays.trim() ? <p className="text-muted-foreground">{facts.whatItSays.trim()}</p> : null}
+            {(facts.meaningAudit ? productionIssues : (script?.lineIssues ?? [])).map((issue) => (
+              <p key={`${issue.lineId}-${issue.reason}`} className="text-muted-foreground">
+                {issue.reason}
+              </p>
             ))}
           </div>
         ) : null}
+        {visibleChecks.length > 0 ? (
+          <ul className="space-y-1">
+            {visibleChecks.map((check) => (
+              <li key={check.id} className="text-sm">
+                <p className={check.state === "fail" ? "text-destructive" : "text-foreground"}>
+                  {t(`thinkingLab.execution.pass.${check.id}`, EXECUTION_PASS_CHECK_LABELS[check.id] ?? check.id)}
+                </p>
+                {check.state === "fail" && check.reason ? (
+                  <p className="text-sm text-muted-foreground">{check.reason}</p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {offer && offer.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">{t("thinkingLab.execution.offer", "Proposed lines")}</p>
+            {offer.map((line) => (
+              <p key={line.lineId} className="text-sm text-foreground">
+                {line.narration}
+              </p>
+            ))}
+            {onUseOffer ? (
+              <Button type="button" size="sm" onClick={onUseOffer} disabled={pending}>
+                {t("thinkingLab.execution.useOffer", "Use this repair")}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {offerNote ? <p className="text-sm text-muted-foreground">{offerNote}</p> : null}
       </header>
       {progress ? (
         <div className="space-y-3 rounded-lg border border-border bg-muted/40 px-3 py-3">
@@ -501,7 +620,9 @@ export function ExecutionScriptPanel({
               ? t("thinkingLab.execution.writing", "Writing the voice-over script for {{pillar}}...", { pillar: progress.pillarName })
               : progress.phase === "repair"
                 ? t("thinkingLab.execution.repairing", "Repairing only the failing lines...")
-                : t("thinkingLab.execution.auditing", "Tracing the script path up to the Master Thought...")}
+                : progress.phase === "recommend"
+                  ? t("thinkingLab.execution.recommending", "Looking for a pillar that can carry this Idea...")
+                  : t("thinkingLab.execution.auditing", "Tracing the script path up to the Master Thought...")}
           </p>
           {onStop ? (
             <Button type="button" size="sm" variant="outline" onClick={onStop}>
@@ -510,12 +631,41 @@ export function ExecutionScriptPanel({
           ) : null}
         </div>
       ) : null}
-      {!progress && !passed && !repairReady ? (
-        needsAnotherPillar ? (
-          onChangePillar ? (
+      {!progress && !passed && !repairReady && sellingUnresolved && onRetrySelling ? (
+        <Button type="button" size="sm" onClick={onRetrySelling} disabled={pending}>
+          {t("thinkingLab.execution.retrySelling", "Ask again whether this Master Thought is selling")}
+        </Button>
+      ) : null}
+      {!progress && !passed && !repairReady && !sellingUnresolved ? (
+        needsAnotherPillar && onUseRecommendation ? (
+          facts.recommendation ? (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                {t("thinkingLab.execution.recommendedPillar", "Recommended pillar")}
+              </p>
+              <p className="text-sm font-medium text-foreground">{facts.recommendation.pillarName}</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">{facts.recommendation.reason}</p>
+              <Button type="button" size="sm" onClick={onUseRecommendation} disabled={pending}>
+                {t("thinkingLab.execution.useRecommendation", "Write with this pillar")}
+              </Button>
+            </div>
+          ) : onChangePillar ? (
             <div>
               <Button type="button" size="sm" onClick={onChangePillar} disabled={pending}>
                 {t("thinkingLab.execution.changePillar", "Choose another pillar")}
+              </Button>
+            </div>
+          ) : null
+        ) : needsAnotherPillar ? (
+          failing.size > 0 ? (
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {t("thinkingLab.execution.stayOnPillar", "This pillar was already the recommendation. Fix the failing lines.")}
+            </p>
+          ) : onRewrite ? (
+            <div>
+              <Button type="button" size="sm" onClick={onRewrite} disabled={pending}>
+                {pending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                {t("thinkingLab.execution.rewrite", "Rewrite this execution")}
               </Button>
             </div>
           ) : null
@@ -536,7 +686,7 @@ export function ExecutionScriptPanel({
               <p className="text-sm leading-relaxed text-foreground">
                 {t(
                   "thinkingLab.execution.repairReady",
-                  "Repair checks the belief chain and rewrites only the lines that install another cause. The other lines and their shots stay.",
+                  "Repair rewrites only the lines on the failed check. Checks that already passed stay passed, and a script that passes is saved on this click.",
                 )}
               </p>
               {onRepair ? (
@@ -549,6 +699,7 @@ export function ExecutionScriptPanel({
           ) : null}
           {script ? (
             <>
+              <LockedChoices script={script} />
               <PostPack title={script.title} caption={script.caption} />
               <button type="button" className="flex items-center gap-2 text-sm font-medium" onClick={() => setAssetsOpen((current) => !current)}>
                 <ChevronRight className={cn("h-4 w-4 transition-transform", assetsOpen && "rotate-90")} aria-hidden />
@@ -578,7 +729,18 @@ export function ExecutionScriptPanel({
                   {t("thinkingLab.execution.copyPrompts", "Copy all prompts")}
                 </Button>
               </div>
-              <SceneTables script={script} failing={failing} />
+              <SceneTables
+                script={script}
+                failing={failing}
+                pending={pending || Boolean(progress)}
+                fixingLineId={fixingLineId}
+                onFixLine={onFixLine}
+                fixable={fixable}
+                reasonFor={(lineId) =>
+                  productionIssues.find((issue) => issue.lineId === lineId)?.reason ??
+                  (failedAudit?.lineIds.includes(lineId) ? failedAudit.reason : "")
+                }
+              />
             </>
           ) : (
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{statement}</p>
@@ -688,6 +850,7 @@ export function ExecutionScriptTable({
           <ExecutionMenu onDelete={onDelete} />
         </div>
       </div>
+      <LockedChoices script={script} />
       <PostPack title={script.title} caption={script.caption} />
       <AssetList
         script={script}

@@ -98,9 +98,43 @@ describe("generate planner", () => {
     expect(result.generateValid).toBe(2);
   });
 
+  it("does not save a Big Thought whose label repeats one already kept", async () => {
+    const saved: string[] = [];
+    const result = await runGenerateRounds({
+      parentStatement: "A general belief",
+      incumbents: [{ code: "BT01", statement: "People return because the experience is clear.", label: "Pengalaman Pengguna", admission: "GENERATE_VALID" }],
+      activeCount: 1,
+      missingWhy: null,
+      topUp: true,
+      propose: async () => [
+        { label: "Pengalaman Pengguna", statement: "A later clause about the same experience." },
+        { label: "Kualitas Produk dan Nilai", statement: "Product quality carries the purchase." },
+        { label: "Kualitas dan Nilai Produk", statement: "Another wording of product quality." },
+      ],
+      judge: async () => validFacts(),
+      persist: async (candidate) => {
+        saved.push(candidate.label);
+        return { code: "BT02", statement: candidate.statement, label: candidate.label, admission: "GENERATE_VALID" as const };
+      },
+    });
+    expect(saved).toEqual(["Kualitas Produk dan Nilai"]);
+    expect(result.incumbents).toHaveLength(2);
+  });
+
   it("stops after two rounds and at the cap", () => {
     expect(planGenerate({ activeCount: 0, generateValidCount: 0, round: 3, missingWhy: null }).stop).toBe("ROUNDS");
     expect(planGenerate({ activeCount: 6, generateValidCount: 2, round: 1, missingWhy: null }).stop).toBe("CAP");
+  });
+
+  it("adds another batch when the user asks for more after three valid Big Thoughts", () => {
+    expect(planGenerate({ activeCount: 3, generateValidCount: 3, round: 1, missingWhy: null }).stop).toBe("ENOUGH");
+    expect(planGenerate({ activeCount: 3, generateValidCount: 3, round: 1, missingWhy: null, topUp: true })).toEqual({
+      needed: 3,
+      mode: "fill",
+      stop: null,
+      missingWhy: null,
+    });
+    expect(planGenerate({ activeCount: 5, generateValidCount: 5, round: 1, missingWhy: null, topUp: true }).needed).toBe(1);
   });
 
   it("passes the stored missing WHY into the request", () => {
@@ -119,8 +153,11 @@ describe("generate planner", () => {
     expect(prompt).toContain("The candidate must not restate the Master Thought or an incumbent Big Thought.");
     expect(prompt).toContain("Inserting the word because between the Master Thought and the candidate must already make one sentence.");
     expect(prompt).toContain("It does not open a new claim.");
-    expect(prompt).toContain("1 to 3 words");
+    expect(prompt).toContain("Join it with sehingga when the Master Thought is Indonesian");
+    expect(prompt).toContain("When the cause already shows that result, stop.");
+    expect(prompt).toContain("semantic name of that statement's meaning");
     expect(prompt).toContain("Do not shorten or rewrite the statement so that it matches the label.");
+    expect(prompt).toContain("same words as an incumbent label, in any order");
     const lower = `${prompt}\n${buildBigThoughtJudgePrompt({
       parentStatement: "A general belief",
       candidate: { code: "BT04", statement: "Candidate" },

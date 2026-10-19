@@ -1,4 +1,6 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { fixScopeLines, openMistakeLines, type FixScope } from "@/thinking-lab/shared/fixScope";
+import { territoryLinkInstruction } from "@/thinking-lab/territory/link";
 import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { TERRITORY_STAKE_LINES, territoryPassLines } from "@/thinking-lab/territory/semantic";
 import { scoreTerritoryAudit } from "@/thinking-lab/territory/setAudit";
@@ -13,6 +15,7 @@ export function buildTerritoryFixPrompt(input: {
   parentStatement: string;
   ancestors?: AncestorStake[];
   audience?: string;
+  answeredQuestion?: string;
   failed: Array<{ code: string; statement: string }>;
   keepers: Array<{ code: string; statement: string }>;
   conflicts: string[];
@@ -23,11 +26,15 @@ export function buildTerritoryFixPrompt(input: {
   const conflictLines = input.conflicts.length === 0 ? "(none)" : input.conflicts.join("\n");
   return [
     "Replace each failed Territory with one audience area named as a noun or noun phrase, without a claim.",
+    territoryLinkInstruction(
+      input.answeredQuestion ?? "",
+      [input.parentStatement, ...(input.ancestors ?? []).map((item) => item.statement)].join(" "),
+    ),
     ...territoryPassLines(input.audience),
-    ...TERRITORY_STAKE_LINES,
     "A replacement must be able to hold several different observations.",
     "It must not restate the Big Thought, repeat a keeper, overlap another replacement, or sit inside another replacement.",
     ...ANCESTOR_STAKE_RULES,
+    ...TERRITORY_STAKE_LINES,
     "Use the conflict notes to leave the failed space, not to paraphrase it.",
     "Return one replacement for every failed code. Do not replace a Territory that already passed.",
     "Write in the same language as the Big Thought.",
@@ -77,25 +84,39 @@ export function buildTerritoryFixOptionsPrompt(input: {
   parentStatement: string;
   ancestors?: AncestorStake[];
   audience?: string;
+  answeredQuestion?: string;
   failed: { code: string; statement: string };
   keepers: Array<{ code: string; statement: string }>;
   conflicts: string[];
+  lessons?: Array<{ code: string; statement: string; reason: string }>;
+  scope?: FixScope;
 }): string {
   const keeperLines =
     input.keepers.length === 0 ? "(none)" : input.keepers.map((row) => `${row.code}: ${row.statement}`).join("\n");
   const conflictLines = input.conflicts.length === 0 ? "(none)" : input.conflicts.join("\n");
+  const lessons = input.lessons ?? [];
+  const lessonLines =
+    lessons.length === 0
+      ? "(none)"
+      : lessons.map((lesson) => `${lesson.code}: ${lesson.statement}\nWhy it failed: ${lesson.reason}`).join("\n");
   return [
-    "Propose three replacement Territories for one failed Territory.",
-    "Each replacement is a noun or noun phrase naming an audience area, without a claim, and can hold several different observations.",
+    "Propose one replacement Territory for the failed Territory.",
+    "The replacement is a noun or noun phrase naming an audience area, without a claim, and can hold several different observations.",
+    territoryLinkInstruction(
+      input.answeredQuestion ?? "",
+      [input.parentStatement, ...(input.ancestors ?? []).map((item) => item.statement)].join(" "),
+    ),
     ...territoryPassLines(input.audience),
-    ...TERRITORY_STAKE_LINES,
-    "Each one must stay distinct from the keepers, from the failed Territory, and from the other proposals.",
+    "It must stay distinct from the keepers and from the failed Territory.",
     "Do not restate the Big Thought, paraphrase the failed Territory, or sit inside a keeper.",
     ...ANCESTOR_STAKE_RULES,
+    ...TERRITORY_STAKE_LINES,
     "Use the conflict notes to leave the failed space.",
+    "Read the earlier failures. Do not return a name listed there. A new name that fails for the same reason is still that mistake.",
+    ...fixScopeLines(input.scope ?? { preserve: [], repair: [] }),
     "Write in the same language as the Big Thought.",
     "Do not use examples from any specific industry, belief system, or brand.",
-    "Return JSON only: {\"statements\":[\"...\",\"...\",\"...\"]}",
+    "Return JSON only: {\"statements\":[\"...\"]}",
     "",
     "Direct Big Thought:",
     input.parentStatement.trim(),
@@ -109,6 +130,10 @@ export function buildTerritoryFixOptionsPrompt(input: {
     "",
     "Conflict notes:",
     conflictLines,
+    "",
+    "Earlier failures. Do not repeat these names or this mistake:",
+    lessonLines,
+    ...openMistakeLines(lessons, input.scope ?? { preserve: [], repair: [] }),
   ].join("\n");
 }
 

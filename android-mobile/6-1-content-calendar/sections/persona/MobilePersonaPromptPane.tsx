@@ -4,6 +4,7 @@ import { ScriptResult } from "@/6-1-script-generator/components/ScriptResult";
 import {
   isTextAIConfigured,
   resolveTextAIProvider,
+  TEXT_AI_PROVIDERS,
   textAIProviderLabel,
   type TextAIProvider,
 } from "@/6-1-script-generator/utils/scriptAiTextProvider";
@@ -54,7 +55,7 @@ export function MobilePersonaPromptPane({
               <span className="font-medium">{textAIProviderLabel(resolveTextAIProvider(aiConfig))}</span>
             </span>
             <div className="flex flex-wrap gap-2">
-              {(["gemini", "groq", "fireworks"] as const).map((p) => {
+              {TEXT_AI_PROVIDERS.map((p) => {
                 const selected = resolveTextAIProvider(aiConfig) === p;
                 return (
                   <Button
@@ -97,6 +98,12 @@ export function MobilePersonaPromptPane({
                 resolveTextAIProvider(aiConfig) === "gemini" &&
                 !aiConfig.api_key_configured &&
                 "API key Gemini belum dikonfigurasi di Settings (dibutuhkan jika provider Text AI = Gemini)."}
+              {!scriptAiPending &&
+                !aiConfigError &&
+                aiConfig &&
+                resolveTextAIProvider(aiConfig) === "openai" &&
+                !aiConfig.openai_api_key_configured &&
+                "API key OpenAI belum dikonfigurasi di Settings untuk organisasi ini."}
             </span>
             {!scriptAiPending ? (
               <button

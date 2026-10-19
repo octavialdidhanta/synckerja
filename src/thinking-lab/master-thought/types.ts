@@ -10,6 +10,11 @@ export type UnderstandOutcome =
   | "CLARIFICATION_REQUIRED"
   | "UNRESOLVED";
 
+export type BeliefOption = {
+  belief: string;
+  description: string;
+};
+
 export type MasterThoughtFacts = {
   outcome: UnderstandOutcome;
   /** The thing that must later be visible as the cause at Idea. Null when it cannot be named. */
@@ -23,6 +28,8 @@ export type MasterThoughtFacts = {
   confidence?: number;
   /** The user picked this sentence. Keep it even when the subject is the whole belief. */
   accepted?: boolean;
+  /** Beliefs that passed the plant filter and are waiting to be picked. */
+  beliefOptions?: BeliefOption[] | null;
 };
 
 export type MasterBeliefInput = {

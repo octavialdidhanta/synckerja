@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Loader2, MoreVertical, Pencil, Sparkles, Trash2, Wrench } from "lucide-react";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -317,11 +317,12 @@ export function BigThoughtSection({
                     <DropdownMenuContent align="end" className="min-w-[9rem]">
                       {canFix ? (
                         <DropdownMenuItem
-                          className="cursor-pointer"
+                          className="cursor-pointer gap-2"
                           disabled={generateBusy || fixing}
                           aria-busy={fixing}
                           onSelect={() => onFixBigThought?.(row.code)}
                         >
+                          <Wrench className="h-3.5 w-3.5" />
                           {t("thinkingLab.action.fix", "Fix")}
                         </DropdownMenuItem>
                       ) : null}
@@ -364,6 +365,7 @@ export function BigThoughtSection({
                   disabled={generateBusy}
                   onClick={() => onGenerateTerritory(row.id)}
                 >
+                  <Sparkles className="h-3.5 w-3.5" />
                   {t("thinkingLab.territory.generate", "Generate Territory")}
                 </Button>
               ) : null}

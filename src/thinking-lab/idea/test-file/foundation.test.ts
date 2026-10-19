@@ -3,7 +3,14 @@ import { sameIdeaConcept } from "@/thinking-lab/idea/conceptIdentity";
 import { canShowGenerateIdea, evaluateIdeaParent } from "@/thinking-lab/idea/eligibility";
 import { buildIdeaGeneratePrompt, countAdmittedIdeas, planIdeaGenerate, runIdeaGenerate } from "@/thinking-lab/idea/generate";
 import { admitIdea, visibleIdeas } from "@/thinking-lab/idea/policy";
-import { buildIdeaJudgePrompt, deriveIdeaRelation, holdCauseUntilSubject, normalizeIdeaFacts } from "@/thinking-lab/idea/semantic";
+import {
+  buildIdeaJudgePrompt,
+  deriveIdeaRelation,
+  holdCauseUntilSubject,
+  judgeIdea,
+  normalizeIdeaFacts,
+  rejectAnnouncedConclusion,
+} from "@/thinking-lab/idea/semantic";
 import type { IdeaSemanticFacts } from "@/thinking-lab/idea/types";
 import { angleFingerprint, territoryFingerprint, bigThoughtFingerprint } from "@/thinking-lab/shared/fingerprint";
 
@@ -15,6 +22,7 @@ function facts(overrides: Partial<IdeaSemanticFacts> = {}): IdeaSemanticFacts {
   return {
     code: "ID01",
     whatItSays: "A concrete concept",
+    subject: "A concrete concept",
     relationToParent: "UNRESOLVED",
     parentFit: true,
     conceptualForm: "IDEA_CONCEPT",
@@ -23,6 +31,7 @@ function facts(overrides: Partial<IdeaSemanticFacts> = {}): IdeaSemanticFacts {
     executionIndependence: "INDEPENDENT",
     boundedness: "BOUNDED",
     causeLock: "LOCKED",
+    mechanismKeys: [{ otherExplanation: "Another cause", close: "The setup removes it" }],
     situationForm: "SITUATION",
     resolution: "UNRESOLVED",
     unresolvedReasons: [],
@@ -34,6 +43,7 @@ function sealed(overrides: Record<string, unknown> = {}) {
   return normalizeIdeaFacts({
     code: "ID01",
     whatItSays: "A concrete concept",
+    subject: "A concrete concept",
     parentFit: true,
     conceptualForm: "IDEA_CONCEPT",
     creativeMechanism: "COMPARISON",
@@ -41,6 +51,7 @@ function sealed(overrides: Record<string, unknown> = {}) {
     executionIndependence: "INDEPENDENT",
     boundedness: "BOUNDED",
     causeLock: "LOCKED",
+    mechanismKeys: [{ otherExplanation: "Another cause", close: "The setup removes it" }],
     situationForm: "SITUATION",
     ...overrides,
   });
@@ -77,8 +88,17 @@ describe("idea relations", () => {
     expect(sealed({ creativeMechanism: "EXPERIMENT" }).relationToParent).toBe("VALID_IDEA");
   });
 
-  it("accepts a narrative idea", () => {
-    expect(sealed({ creativeMechanism: "NARRATIVE" }).relationToParent).toBe("VALID_IDEA");
+  it("rejects a finished story", () => {
+    expect(sealed({ creativeMechanism: "NARRATIVE" }).relationToParent).toBe("EXECUTION_LIKE");
+  });
+
+  it("rejects a mechanism that is not a demonstration, experiment, comparison, or situation", () => {
+    expect(sealed({ creativeMechanism: "METAPHOR" }).relationToParent).toBe("UNDERDEVELOPED_CONCEPT");
+    expect(sealed({ creativeMechanism: "OBSERVATION" }).relationToParent).toBe("ANGLE_LIKE");
+  });
+
+  it("rejects a locked cause that has no separate keys", () => {
+    expect(sealed({ mechanismKeys: [] }).relationToParent).toBe("CAUSE_UNLOCKED");
   });
 
   it("rejects a candidate outside the parent angle", () => {
@@ -115,6 +135,40 @@ describe("idea relations", () => {
   it("rejects a verbal explanation of the Big Thought", () => {
     expect(deriveIdeaRelation(facts({ situationForm: "VERBAL" }))).toBe("BIG_THOUGHT_LIKE");
     expect(admitIdea(sealed({ situationForm: "VERBAL" }))).toBe("GENERATE_REJECT");
+  });
+
+  it("treats an announced conclusion as verbal and keeps a stated result", async () => {
+    const announced =
+      "Sebuah layanan yang menyediakan tenaga kerja khusus untuk menyiapkan bekal dipekerjakan, menunjukkan bahwa biaya total bekal melebihi harga makan siang di luar.";
+    const stated =
+      "Sebuah layanan yang menyediakan tenaga kerja khusus untuk menyiapkan bekal dipekerjakan, dan upah tenaga kerja itu membuat biaya total bekal melebihi harga makan siang di luar.";
+    const rejected = rejectAnnouncedConclusion(sealed({ situationForm: "SITUATION" }), announced);
+    expect(rejected.situationForm).toBe("VERBAL");
+    expect(rejected.relationToParent).toBe("BIG_THOUGHT_LIKE");
+    expect(admitIdea(rejected)).toBe("GENERATE_REJECT");
+    const kept = rejectAnnouncedConclusion(sealed({ situationForm: "SITUATION" }), stated);
+    expect(kept.situationForm).toBe("SITUATION");
+    expect(kept.relationToParent).toBe("VALID_IDEA");
+    const judged = await judgeIdea(
+      { parentStatement: APPLE_ANGLE, masterSubject: "the tool", candidate: { code: "ID05", statement: announced } },
+      async () =>
+        JSON.stringify({
+          code: "ID05",
+          subject: "Upah tenaga bekal",
+          whatItSays: announced,
+          parentFit: true,
+          conceptualForm: "IDEA_CONCEPT",
+          creativeMechanism: "COMPARISON",
+          conceptualCompleteness: "SUFFICIENT",
+          executionIndependence: "INDEPENDENT",
+          boundedness: "BOUNDED",
+          situationForm: "SITUATION",
+          causeLock: "LOCKED",
+          mechanismKeys: [{ otherExplanation: "Waktu persiapan bekal itu gratis", close: "Ada harga untuk setiap menit yang dihemat" }],
+        }),
+    );
+    expect(judged.situationForm).toBe("VERBAL");
+    expect(judged.relationToParent).toBe("BIG_THOUGHT_LIKE");
   });
 
   it("rejects a situation that leaves another explanation open", () => {
@@ -168,8 +222,10 @@ describe("idea relations", () => {
     expect(row.relationToParent).toBe("VALID_IDEA");
     expect(admitIdea(row)).toBe("GENERATE_VALID");
     const prompt = buildIdeaJudgePrompt({ parentStatement: APPLE_ANGLE, candidate: { code: "ID01", statement: APPLE_IDEA } });
-    expect(prompt).toContain("creates a situation");
+    expect(prompt).toContain("concrete mechanism");
+    expect(prompt).toContain("is not SITUATION");
     expect(prompt).toContain("must not verbally explain the Big Thought");
+    expect(prompt).toContain("mechanismKeys");
     expect(prompt).toContain("named Master Thought subject");
     const named = buildIdeaJudgePrompt({
       parentStatement: APPLE_ANGLE,
@@ -249,6 +305,11 @@ describe("idea persistence helpers", () => {
     expect(prompt).toContain("Locked Ideas already sealed:");
     expect(prompt).toContain(locked.statement);
     expect(prompt).toContain("Do not reuse its meaning.");
+    expect(prompt).toContain("Do not write a finished story.");
+    expect(prompt).toContain("State what becomes true in the sentence so the mechanism can be understood.");
+    expect(prompt).toContain("menunjukkan bahwa");
+    expect(prompt).toContain("When the Angle is not English, do not write the statement or the keys in English.");
+    expect(prompt).not.toContain("We [make / invite / show / create]");
     expect(prompt).toContain("A rejected observation.");
     const stored: string[] = [];
     const seen: string[][] = [];

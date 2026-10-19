@@ -17,6 +17,16 @@ export type TerritoryAuditItem = {
   statementFingerprint?: string;
 };
 
+/** Locked Territories and rows that already passed stay passed when a later sibling is audited. */
+export function territoryCodesHeldPass(
+  rows: Array<{ code: string; status?: string }>,
+  verdicts: Array<AuditVerdict | null | undefined>,
+): string[] {
+  return rows.flatMap((row, index) =>
+    row.status === "locked" || verdicts[index] === "AUDIT_PASS" ? [row.code] : [],
+  );
+}
+
 /** A Territory that already passed stays passed. Later scoring can change only the other rows. */
 export function holdPassingTerritoryVerdicts(
   scored: TerritoryAuditItem[],
@@ -136,6 +146,25 @@ export function territoryFailureLessons(input: {
       },
     ];
   });
+}
+
+const GENERIC_TERRITORY_FAIL = "Sibling audit failed this Territory.";
+
+/** Drop a generic fail note when the same statement already has the real conflict. */
+export function usableTerritoryFixLessons(
+  lessons: TerritoryAuditLesson[],
+  code: string,
+): TerritoryAuditLesson[] {
+  const mine = lessons.filter((lesson) => lesson.code.toUpperCase() === code.toUpperCase());
+  const explained = new Set(
+    mine
+      .filter((lesson) => lesson.reason.trim() !== GENERIC_TERRITORY_FAIL)
+      .map((lesson) => lesson.statement.trim().toLowerCase()),
+  );
+  return mine.filter(
+    (lesson) =>
+      lesson.reason.trim() !== GENERIC_TERRITORY_FAIL || !explained.has(lesson.statement.trim().toLowerCase()),
+  );
 }
 
 export function mergeTerritoryAuditLessons(

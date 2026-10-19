@@ -10,16 +10,92 @@ function labelWords(raw: string): string[] {
     .filter(Boolean);
 }
 
+const OPEN_LABEL_WORD = new Set([
+  "tak",
+  "tidak",
+  "yang",
+  "dan",
+  "atau",
+  "dari",
+  "ke",
+  "di",
+  "untuk",
+  "tanpa",
+  "dengan",
+  "pada",
+  "akan",
+  "karena",
+  "of",
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "to",
+  "for",
+  "with",
+]);
+
+function withCapital(label: string): string {
+  const characters = Array.from(label);
+  const index = characters.findIndex((character) => /\p{L}/u.test(character));
+  if (index < 0) return label;
+  characters[index] = characters[index].toLocaleUpperCase();
+  return characters.join("");
+}
+
+const LABEL_WORD_CAP = 12;
+
 export function normalizeBigThoughtLabel(raw: string): string {
-  const words = labelWords(raw).slice(0, 3);
+  const words = labelWords(raw).slice(0, LABEL_WORD_CAP);
   if (words.length < 1) return "";
-  return words.join(" ");
+  return withCapital(words.join(" "));
+}
+
+export function bigThoughtLabelIsOpen(raw: string): boolean {
+  const words = labelWords(raw);
+  if (words.length === 0) return false;
+  return OPEN_LABEL_WORD.has(words[words.length - 1].toLocaleLowerCase());
+}
+
+const LABEL_GLUE = new Set(["dan", "atau", "and", "or", "the", "of", "yang", "dengan"]);
+
+export function sameBigThoughtLabel(left: string, right: string): boolean {
+  const tokens = (value: string) =>
+    labelWords(value)
+      .map((word) => word.toLocaleLowerCase())
+      .filter((word) => !LABEL_GLUE.has(word));
+  const a = [...new Set(tokens(left))].sort();
+  const b = [...new Set(tokens(right))].sort();
+  if (a.length === 0 || b.length === 0) return false;
+  return a.length === b.length && a.every((word, index) => word === b[index]);
+}
+
+export function bigThoughtRepeats(
+  candidate: { label: string; statement: string },
+  incumbent: { label?: string; statement: string },
+): boolean {
+  const left = candidate.statement.trim().toLocaleLowerCase();
+  const right = incumbent.statement.trim().toLocaleLowerCase();
+  if (left && right && left === right) return true;
+  return Boolean(candidate.label.trim() && incumbent.label?.trim() && sameBigThoughtLabel(candidate.label, incumbent.label));
+}
+
+export function bigThoughtLabelRestates(label: string, statement: string): boolean {
+  const words = labelWords(label).map((word) => word.toLocaleLowerCase());
+  if (words.length >= 6) return true;
+  if (words.length < 4) return false;
+  const span = words.join(" ");
+  const haystack = labelWords(statement)
+    .map((word) => word.toLocaleLowerCase())
+    .join(" ");
+  return haystack.includes(span);
 }
 
 export function readBigThoughtLabel(raw: string): { ok: true; label: string } | { ok: false; reason: "EMPTY" | "TOO_LONG" } {
   const words = labelWords(raw);
   if (words.length === 0) return { ok: false, reason: "EMPTY" };
-  if (words.length > 3) return { ok: false, reason: "TOO_LONG" };
+  if (words.length > LABEL_WORD_CAP) return { ok: false, reason: "TOO_LONG" };
   return { ok: true, label: words.join(" ") };
 }
 
@@ -36,10 +112,14 @@ export function bigThoughtTreeCode(code: string, label: string): string {
 export function buildBigThoughtLabelPrompt(rows: Array<{ code: string; statement: string }>): string {
   const lines = rows.map((row) => `${row.code}: ${row.statement.trim()}`).join("\n");
   return [
-    "Write one short label for each Big Thought.",
-    "Each label is 1 to 3 words.",
-    "The label is only a heading. It names the core of that because-clause.",
-    "The label is not a new Big Thought.",
+    "Name each Big Thought by the meaning of its because-clause.",
+    "The subject is a semantic name: the reason in a few words, not a shorter copy of the sentence.",
+    "Keep that meaning. A name of two or three words is right when it still names the same reason.",
+    "Use more words only when a shorter name would name a different reason.",
+    "Do not write a clause, and do not copy a stretch of the because-clause.",
+    "Start each subject with a capital letter.",
+    "Do not end a subject on a loose word such as Tak, Yang, Dan, Atau, Dari, Untuk, Tanpa, or Karena.",
+    "The subject is only a heading. It is not a new Big Thought.",
     "Do not rewrite, shorten, or replace any because-clause.",
     "Write each label in the same language as its because-clause.",
     "Return JSON only: {\"labels\":[{\"code\":\"BT01\",\"label\":\"...\"}]}",

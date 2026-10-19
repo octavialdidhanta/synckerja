@@ -279,6 +279,20 @@ export async function saveIdeaSet(input: {
   if (error) throw error;
 }
 
+export async function deleteLabIdea(input: {
+  organizationId: string;
+  angleId: string;
+  id: string;
+}): Promise<void> {
+  const { error } = await supabase
+    .from("thinking_lab_ideas")
+    .delete()
+    .eq("id", input.id)
+    .eq("organization_id", input.organizationId)
+    .eq("angle_id", input.angleId);
+  if (error) throw error;
+}
+
 export async function lockLabIdeas(input: {
   organizationId: string;
   angleId: string;

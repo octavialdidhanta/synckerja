@@ -2,6 +2,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { normalizeBigThoughtLabel } from "@/thinking-lab/big-thought/label";
 import { bigThoughtFingerprint } from "@/thinking-lab/shared/fingerprint";
 import { LAB_WORKSPACE } from "@/thinking-lab/shared/verdict";
+import { ANSWERED_QUESTION_VERSION } from "@/thinking-lab/big-thought/answeredQuestion";
 import { normalizeBigThoughtFacts } from "@/thinking-lab/big-thought/semantic";
 import type { BigThoughtFacts, LabBigThought } from "@/thinking-lab/big-thought/types";
 
@@ -196,6 +197,40 @@ export async function rejectLabBigThought(
     .eq("organization_id", organizationId)
     .eq("master_thought_id", masterThoughtId);
   if (error) throw error;
+}
+
+export async function saveLabBigThoughtAnsweredQuestion(input: {
+  id: string;
+  organizationId: string;
+  masterThoughtId: string;
+  question: string;
+}): Promise<void> {
+  await requireLabMaster(input.organizationId, input.masterThoughtId);
+  const question = input.question.trim();
+  if (!question) return;
+  const { data, error } = await supabase
+    .from("thinking_big_thoughts")
+    .select("canonical_semantic")
+    .eq("id", input.id)
+    .eq("organization_id", input.organizationId)
+    .eq("master_thought_id", input.masterThoughtId)
+    .maybeSingle();
+  if (error) throw error;
+  const current = data?.canonical_semantic;
+  if (!current || typeof current !== "object" || Array.isArray(current)) return;
+  const { error: updateError } = await supabase
+    .from("thinking_big_thoughts")
+    .update({
+      canonical_semantic: {
+        ...current,
+        answeredQuestion: question,
+        answeredQuestionVersion: ANSWERED_QUESTION_VERSION,
+      },
+    })
+    .eq("id", input.id)
+    .eq("organization_id", input.organizationId)
+    .eq("master_thought_id", input.masterThoughtId);
+  if (updateError) throw updateError;
 }
 
 export async function lockLabBigThoughts(

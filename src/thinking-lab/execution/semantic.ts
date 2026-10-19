@@ -1,8 +1,14 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
+import { EXECUTION_PASS_CHECK_IDS } from "@/thinking-lab/execution/passChecklist";
+import { pillarNeedsRecommendation } from "@/thinking-lab/execution/recommend";
 import {
   executionPillarLabel,
+  isFailedMeaningAudit,
   isFlashSalePillar,
+  type ExecutionAuditLesson,
+  type ExecutionMeaningAudit,
+  type ExecutionPassCheckId,
   type ExecutionRelation,
   type ExecutionSemanticFacts,
   type ExecutionTriState,
@@ -18,6 +24,11 @@ type CanonicalInput = Pick<
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
 }
 
 function asReasons(value: unknown): string[] {
@@ -142,19 +153,84 @@ export function normalizeExecutionFacts(raw: unknown, fallbackPillar = "UNRESOLV
     viewerClimb: viewerClimb.value,
     subjectMatch: subjectMatch.value,
   };
-  const relationToParent = contradictory ? "UNRESOLVED" : deriveExecutionRelation(canonical);
+  const meaningAudit = readMeaningAudit(row.meaningAudit);
+  const auditLessons = readAuditLessons(row.auditLessons);
+  const relationToParent = meaningAudit
+    ? (readRelation(row.relationToParent) ?? (isFailedMeaningAudit(meaningAudit) ? "UNRESOLVED" : "VALID_EXECUTION"))
+    : contradictory
+      ? "UNRESOLVED"
+      : deriveExecutionRelation(canonical);
   return {
     ...canonical,
     whatItSays: asText(row.whatItSays),
     relationToParent,
     resolution: relationToParent === "UNRESOLVED" ? "UNRESOLVED" : "RESOLVED",
     unresolvedReasons:
-      relationToParent !== "UNRESOLVED"
-        ? []
+      meaningAudit || relationToParent !== "UNRESOLVED"
+        ? relationToParent === "UNRESOLVED"
+          ? asReasons(row.unresolvedReasons)
+          : []
         : contradictory
           ? ["CONTRADICTORY_CANONICAL_FACTS"]
           : [...new Set([...asReasons(row.unresolvedReasons), ...unresolvedFactReasons(canonical)])],
+    ...readStoredRecommendation(row.recommendation, relationToParent),
+    ...(meaningAudit ? { meaningAudit } : {}),
+    ...(auditLessons.length > 0 ? { auditLessons } : {}),
   };
+}
+
+const RELATIONS: readonly ExecutionRelation[] = [
+  "VALID_EXECUTION",
+  "MESSAGE_ADDED",
+  "MECHANISM_HIDDEN",
+  "PILLAR_OUTSIDE",
+  "PILLAR_NOT_SELLING",
+  "CLIMB_MISSED",
+  "SUBJECT_MISMATCH",
+  "CAUSE_BROKEN",
+  "CONCLUSION_MISSED",
+  "UNRESOLVED",
+];
+
+function readRelation(value: unknown): ExecutionRelation | null {
+  return RELATIONS.find((relation) => relation === value) ?? null;
+}
+
+function readMeaningAudit(value: unknown): ExecutionMeaningAudit | null {
+  const row = asRecord(value);
+  if (!row) return null;
+  if (row.cleared === true) return { cleared: true };
+  const id = asText(row.id);
+  if (!EXECUTION_PASS_CHECK_IDS.some((check) => check === id)) return null;
+  const reason = asText(row.reason);
+  if (!reason) return null;
+  const lineIds = Array.isArray(row.lineIds) ? row.lineIds.map((item) => asText(item)).filter(Boolean) : [];
+  return { id: id as ExecutionPassCheckId, reason, lineIds };
+}
+
+function readAuditLessons(value: unknown): ExecutionAuditLesson[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const row = asRecord(item);
+    if (!row) return [];
+    const checkId = asText(row.checkId);
+    const reason = asText(row.reason);
+    if (!EXECUTION_PASS_CHECK_IDS.some((check) => check === checkId) || !reason) return [];
+    const lines = Array.isArray(row.lines) ? row.lines.map((line) => asText(line)).filter(Boolean) : [];
+    return [{ checkId: checkId as ExecutionPassCheckId, reason, lines }];
+  });
+}
+
+function readStoredRecommendation(
+  value: unknown,
+  relation: ExecutionRelation,
+): { recommendation: { pillarName: string; reason: string } } | Record<string, never> {
+  if (!pillarNeedsRecommendation(relation)) return {};
+  const row = asRecord(value);
+  const pillarName = asText(row?.pillarName ?? row?.pillar).slice(0, 120);
+  const reason = asText(row?.reason).slice(0, 500);
+  if (!pillarName || !reason) return {};
+  return { recommendation: { pillarName, reason } };
 }
 
 export function parseExecutionJudge(script: string | null, pillar: string, subjectSealed = true): ExecutionSemanticFacts {
@@ -191,7 +267,9 @@ export function buildExecutionJudgePrompt(input: {
     "masterSells is true when the Master Thought is selling something. false when it is not. unresolved when that cannot be decided.",
     "viewerClimb is CLIMBS when that viewer reaches the Idea's mechanism and then this Master Thought. OTHER when they reach a different conclusion. NEGATIVE when they reach an unwanted negative conclusion. UNRESOLVED when that cannot be decided.",
     "subjectMatch is MATCH when the Master Thought they reach is about the named subject. OTHER when it is about a different subject. UNRESOLVED when that cannot be decided or the subject is not sealed.",
-    "Write whatItSays in the same language as the Idea.",
+    "whatItSays is the explanation of this decision, in the same language as the Idea.",
+    "When a check fails, name the specific message, missing mechanism, or wrong conclusion in this script, and say how it parts from the Idea.",
+    "Use one or two sentences. Do not answer with only the verdict.",
     "Do not use examples from any specific industry, belief system, or brand.",
     "Return JSON only:",
     JSON.stringify({

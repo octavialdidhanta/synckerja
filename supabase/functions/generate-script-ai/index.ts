@@ -125,7 +125,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: config, error: configError } = await supabaseAdmin
       .from("organization_script_ai_config")
-      .select("google_ai_api_key, daily_limit, model, is_active, text_ai_provider")
+      .select("google_ai_api_key, openai_api_key, daily_limit, model, is_active, text_ai_provider")
       .eq("organization_id", orgId)
       .maybeSingle();
 
@@ -136,7 +136,7 @@ Deno.serve(async (req: Request) => {
     const dailyLimit = Math.max(1, config.daily_limit ?? 50);
     const rawProvider = (config as { text_ai_provider?: unknown }).text_ai_provider;
     const normalizedProvider =
-      typeof rawProvider === "string" && ["gemini", "groq", "fireworks"].includes(rawProvider.trim())
+      typeof rawProvider === "string" && ["gemini", "groq", "fireworks", "openai"].includes(rawProvider.trim())
         ? rawProvider.trim()
         : (config.is_active ? "groq" : "gemini");
 
@@ -221,18 +221,20 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
     }
 
     let script = "";
-    if (normalizedProvider === "groq" || normalizedProvider === "fireworks") {
-      const approxInputTokens = Math.ceil(fullPrompt.length / 4);
-      const MAX_APPROX_INPUT_TOKENS = 5000;
-      if (approxInputTokens > MAX_APPROX_INPUT_TOKENS) {
-        return jsonResponse(
-          {
-            error:
-              `Prompt terlalu besar untuk provider Text AI ini (perkiraan input ~${approxInputTokens} tokens). ` +
-              "Kurangi ukuran prompt/data, atau pilih provider lain (mis. Gemini) untuk prompt yang panjang.",
-          },
-          413,
-        );
+    if (normalizedProvider === "groq" || normalizedProvider === "fireworks" || normalizedProvider === "openai") {
+      if (normalizedProvider !== "openai") {
+        const approxInputTokens = Math.ceil(fullPrompt.length / 4);
+        const MAX_APPROX_INPUT_TOKENS = 5000;
+        if (approxInputTokens > MAX_APPROX_INPUT_TOKENS) {
+          return jsonResponse(
+            {
+              error:
+                `Prompt terlalu besar untuk provider Text AI ini (perkiraan input ~${approxInputTokens} tokens). ` +
+                "Kurangi ukuran prompt/data, atau pilih provider lain (mis. Gemini) untuk prompt yang panjang.",
+            },
+            413,
+          );
+        }
       }
 
       const callOpenAICompatibleChat = async (url: string, apiKey: string, model: string) => {
@@ -342,6 +344,34 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
           const groqData = await groqRes.json();
           script = extractOpenAIChatText(groqData);
         }
+      } else if (normalizedProvider === "openai") {
+        const openaiApiKey = ((config as { openai_api_key?: string | null }).openai_api_key ?? "").trim();
+        if (!openaiApiKey) {
+          return jsonResponse(
+            { error: "OpenAI API key belum dikonfigurasi untuk organisasi ini. Tambahkan di Settings > Script AI Configuration." },
+            400,
+          );
+        }
+
+        const allowedOpenAIModels = new Set(["gpt-4o-mini", "gpt-4o"]);
+        const requestedOpenAIModel = (config.model ?? "gpt-4o-mini").trim();
+        const openaiModel = allowedOpenAIModels.has(requestedOpenAIModel) ? requestedOpenAIModel : "gpt-4o-mini";
+        const openaiRes = await callOpenAICompatibleChat("https://api.openai.com/v1", openaiApiKey, openaiModel);
+        if (!openaiRes.ok) {
+          const errText = await openaiRes.text();
+          console.error("OpenAI API error:", openaiRes.status, errText);
+          let errMsg = "Failed to generate script";
+          try {
+            const errJson = JSON.parse(errText);
+            errMsg = errJson.error?.message ?? errMsg;
+          } catch {
+            // use default
+          }
+          const status = openaiRes.status === 429 ? 429 : 500;
+          return jsonResponse({ error: errMsg }, status);
+        }
+        const openaiData = await openaiRes.json();
+        script = extractOpenAIChatText(openaiData);
       } else {
         const fireworksApiKey = (Deno.env.get("FIREWORKS_API_KEY") ?? "").trim();
         if (!fireworksApiKey) {

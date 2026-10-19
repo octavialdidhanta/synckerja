@@ -6,9 +6,17 @@ import { parseAIScriptOutput } from "@/6-1-script-generator/utils/parseAIScriptO
 import { groupContentPillars } from "@/thinking-lab/execution/pillars";
 import {
   audioMasterLine,
+  buildContinuityAuditPrompt,
   buildLineAuditPrompt,
   buildLineRepairPrompt,
   buildSpeechRepairPrompt,
+  ensureBrandMention,
+  attachCtaScene,
+  callToActionSceneReady,
+  chainNarrationLines,
+  linesForProductionRecheck,
+  detachCallToAction,
+  scriptMentionsBrand,
   lookMasterLine,
   mergeSpeechRepairs,
   parseSpeechRepairs,
@@ -18,6 +26,7 @@ import {
   flattenVoiceOver,
   lineAudio,
   lineMasterPrompt,
+  mergeNarrationRepairs,
   mergeRepairedLines,
   durationWordBudget,
   narrationDurationSeconds,
@@ -278,7 +287,133 @@ describe("voice-over script", () => {
     expect(durationWordBudget(30)).toBe(66);
     expect(parseVoiceOverScript({ ...sample, durationSeconds: 45 })?.durationSeconds).toBe(45);
     expect(parseVoiceOverScript({ ...sample, durationSeconds: 0 })?.durationSeconds).toBeUndefined();
+    expect(parseVoiceOverScript({ ...sample, brandName: "Vialdi Wedding" })?.brandName).toBe("Vialdi Wedding");
+    expect(parseVoiceOverScript({ ...sample, brandName: "  " })?.brandName).toBeUndefined();
+    expect(parseVoiceOverScript({ ...sample, cta: "Klik Link di Bio" })?.cta).toBe("Klik Link di Bio");
+    expect(parseVoiceOverScript({ ...sample, cta: "  " })?.cta).toBeUndefined();
+    expect(parseVoiceOverScript({ ...sample, pointOfView: "Istri" })?.pointOfView).toBe("Istri");
+    expect(
+      parseVoiceOverScript({
+        ...sample,
+        decisions: [
+          { category: "Sudut pandang", question: "Siapa yang bercerita?", answer: "Istri", binds: "viewpoint" },
+          { category: "Momen", question: "Momen mana?", answer: "Malam pertama", binds: "story" },
+        ],
+      })?.decisions,
+    ).toEqual([
+      { category: "Sudut pandang", question: "Siapa yang bercerita?", answer: "Istri", binds: "viewpoint" },
+      { category: "Momen", question: "Momen mana?", answer: "Malam pertama", binds: "story" },
+    ]);
+    expect(
+      parseVoiceOverScript({
+        ...sample,
+        confirmations: [{ question: "Narasi ini diceritakan dari sudut pandang siapa?", answer: "Istri" }],
+      })?.pointOfView,
+    ).toBe("Istri");
     expect(scriptDurationSeconds(parseVoiceOverScript(sample) as VoiceOverScript)).toBe(5);
+  });
+
+  it("keeps an exact brand mention in voice-over, dialogue, and visual scripts", () => {
+    const line = {
+      id: "s1-l1",
+      narration: "Mereka menunggu dokumentasi.",
+      delivery: "vo" as const,
+      shots: [{ id: "s1-l1-h1", role: "Shot 1", angle: "wide", visualFunction: "tunggu", prompt: "A couple waits." }],
+    };
+    const base: VoiceOverScript = {
+      title: "",
+      caption: "",
+      assets: { locations: [], characters: [], properties: [] },
+      scenes: [{ id: "s1", title: "SCENE 1", lines: [line] }],
+      lineIssues: [],
+      audio: { sound: false, music: false },
+    };
+    const voiced = ensureBrandMention({ ...base, speech: "vo" }, "Vialdi Wedding");
+    const mixed = ensureBrandMention({ ...base, speech: "mix" }, "Vialdi Wedding");
+    const dialog = ensureBrandMention(
+      {
+        ...base,
+        speech: "dialog",
+        scenes: [
+          {
+            ...base.scenes[0],
+            lines: [
+              {
+                ...line,
+                delivery: "dialogue",
+                shots: [{ ...line.shots[0], prompt: '@couple said: "Mereka menunggu dokumentasi."' }],
+              },
+            ],
+          },
+        ],
+      },
+      "Vialdi Wedding",
+    );
+    const silent = ensureBrandMention({ ...base, speech: "silent" }, "Vialdi Wedding");
+    expect(voiced.scenes[0]?.lines[0]?.narration).toBe("Mereka menunggu dokumentasi Vialdi Wedding.");
+    expect(mixed.scenes[0]?.lines[0]?.narration).toContain("Vialdi Wedding");
+    expect(dialog.scenes[0]?.lines[0]?.narration).toContain("Vialdi Wedding");
+    expect(dialog.scenes[0]?.lines[0]?.shots[0]?.prompt).toContain('said: "Mereka menunggu dokumentasi Vialdi Wedding."');
+    expect(silent.scenes[0]?.lines[0]?.narration).toContain("Vialdi Wedding");
+    expect(silent.scenes[0]?.lines[0]?.shots[0]?.prompt).toContain('Readable on-screen text shows "Vialdi Wedding".');
+    expect(scriptMentionsBrand(voiced, "Vialdi Wedding")).toBe(true);
+    expect(scriptMentionsBrand(silent, "Vialdi Wedding")).toBe(true);
+    expect(ensureBrandMention(voiced, "Vialdi Wedding").scenes[0]?.lines[0]?.narration).toBe(voiced.scenes[0]?.lines[0]?.narration);
+  });
+
+  it("keeps the call to action in its own scene", () => {
+    const script: VoiceOverScript = {
+      title: "",
+      caption: "",
+      assets: { locations: [], characters: [], properties: [] },
+      scenes: [
+        {
+          id: "s1",
+          title: "SCENE 4 — THE NEW REALITY",
+          lines: [
+            {
+              id: "s1-l1",
+              narration: "Dokumentasi pernikahan mereka siap dalam tiga hari. Follow Akun Ini.",
+              delivery: "vo",
+              shots: [{ id: "h1", role: "Shot 1", angle: "wide", visualFunction: "tutup", prompt: "A gallery arrives." }],
+            },
+          ],
+        },
+      ],
+      lineIssues: [],
+      audio: { sound: false, music: false },
+      speech: "vo",
+    };
+    const detached = detachCallToAction(script, "Follow Akun Ini");
+    expect(detached.scenes[0]?.lines[0]?.narration).toBe("Dokumentasi pernikahan mereka siap dalam tiga hari.");
+    expect(detached.scenes.some((scene) => scene.purpose === "cta")).toBe(false);
+    const invitation =
+      "Kalau cerita ini terasa dekat, ikuti akun ini supaya dokumentasi yang selesai dalam tiga hari tidak hilang dari beranda.";
+    const withScene = attachCtaScene(detached, {
+      id: "cta",
+      title: "SCENE — undangan",
+      purpose: "cta",
+      lines: [
+        {
+          id: "cta-l1",
+          narration: invitation,
+          shots: [{ id: "cta-h1", role: "Shot 1", angle: "close", visualFunction: "ajak", prompt: "A thumb hovers over follow." }],
+        },
+      ],
+    });
+    expect(withScene.scenes[0]?.lines[0]?.narration).not.toContain("Follow Akun Ini");
+    expect(withScene.scenes[1]?.purpose).toBe("cta");
+    expect(withScene.scenes[1]?.lines[0]?.narration).toBe(invitation);
+    expect(callToActionSceneReady(withScene, "Follow Akun Ini")).toBe(true);
+    expect(chainNarrationLines(withScene).map((line) => line.narration)).toEqual([
+      "Dokumentasi pernikahan mereka siap dalam tiga hari.",
+    ]);
+    expect(callToActionSceneReady(attachCtaScene(detached, {
+      id: "cta",
+      title: "SCENE — undangan",
+      purpose: "cta",
+      lines: [{ id: "cta-l1", narration: "Follow Akun Ini.", shots: [] }],
+    }), "Follow Akun Ini")).toBe(false);
   });
 
   it("marks Flash Sale Hook only when the Master Thought is not selling", () => {
@@ -308,6 +443,45 @@ describe("voice-over script", () => {
     expect(merged.scenes[0]?.lines[1]?.narration).toBe("Sekarang dengerin obrolan mereka.");
     expect(parseLineIssues({ lines: [{ lineId: "s1-l2", reason: "masih meleset" }, { lineId: "missing", reason: "no" }] }, script)).toEqual([
       { lineId: "s1-l2", reason: "masih meleset" },
+    ]);
+    expect(scriptLineRepairReady(facts({ meaningAudit: { cleared: true } }), script)).toBe(false);
+  });
+
+  it("keeps production issues off the badge path and changes only narration", () => {
+    expect(parseVoiceOverScript(sample)?.productionIssues).toBeUndefined();
+    const script = parseVoiceOverScript({
+      ...sample,
+      productionIssues: [
+        { lineId: "s1-l1", reason: "Tidak nyambung.", kind: "continuity" },
+        { lineId: "missing", reason: "Hilang.", kind: "viewpoint" },
+        { lineId: "s1-l2", reason: "Masuk ke orang lain.", kind: "other" },
+      ],
+    }) as VoiceOverScript;
+    expect(script.productionIssues).toEqual([
+      { lineId: "s1-l1", reason: "Tidak nyambung.", kind: "continuity" },
+      { lineId: "s1-l2", reason: "Masuk ke orang lain.", kind: "continuity" },
+    ]);
+    const shot = script.scenes[0]?.lines[0]?.shots[0]?.prompt;
+    const merged = mergeNarrationRepairs(script, [{ lineId: "s1-l1", narration: "Narasi baru." }]);
+    expect(merged.scenes[0]?.lines[0]?.narration).toBe("Narasi baru.");
+    expect(merged.scenes[0]?.lines[0]?.shots[0]?.prompt).toBe(shot);
+    expect(merged.productionIssues).toEqual(script.productionIssues);
+    expect(merged.lineIssues).toEqual(script.lineIssues);
+    const prompt = buildContinuityAuditPrompt({
+      ideaStatement: "Nabung keliatan dari obrolan.",
+      lines: [{ id: "s1-l1", narration: "Lo bilang, nabung doang nggak seru." }],
+    });
+    expect(prompt).toContain("does not follow from the line before it");
+    expect(prompt).toContain("Do not fail a line for a new claim");
+    const lines = [
+      { id: "s1-l1", narration: "Awal." },
+      { id: "s1-l2", narration: "Tengah." },
+      { id: "s5-l1", narration: "Akhir." },
+    ];
+    expect(linesForProductionRecheck(lines, "s1-l2", "viewpoint")).toEqual([{ id: "s1-l2", narration: "Tengah." }]);
+    expect(linesForProductionRecheck(lines, "s1-l2", "continuity")).toEqual([
+      { id: "s1-l1", narration: "Awal." },
+      { id: "s1-l2", narration: "Tengah." },
     ]);
   });
 
@@ -484,6 +658,7 @@ describe("voice-over script", () => {
     expect(prompt).toContain("can say the Master Thought");
     expect(prompt).toContain("Do not stop at the mechanism");
     expect(prompt).toContain("Do not install another cause");
+    expect(prompt).toContain("follow from the narration line before it");
     expect(prompt).toContain("Kenaikan penjualan tidak hanya disebabkan oleh iklan.");
     expect(prompt).toContain("Big Thought: Kemudahan memperoleh mengalahkan keinginan memiliki.");
     expect(prompt).toContain("more than one shot");
@@ -505,6 +680,8 @@ describe("voice-over script", () => {
     expect(prompt).toContain("conclusion scene");
     expect(prompt).toContain("must be able to say the Master Thought");
     expect(prompt).toContain("fitting number");
+    expect(prompt).toContain("does not follow from the line before it");
+    expect(prompt).toContain("still waiting with blurry photos");
     expect(prompt).toContain("only shows the Idea's mechanism does not fail");
     expect(prompt).toContain("Kenaikan penjualan tidak hanya disebabkan oleh iklan.");
     expect(prompt).toContain("Big Thought: Kemudahan memperoleh mengalahkan keinginan memiliki.");

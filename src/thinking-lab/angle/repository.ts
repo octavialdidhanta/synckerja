@@ -274,6 +274,20 @@ export async function lockLabAngles(input: {
   }
 }
 
+export async function deleteLabAngle(input: {
+  organizationId: string;
+  territoryId: string;
+  id: string;
+}): Promise<void> {
+  const { error } = await supabase
+    .from("thinking_lab_angles")
+    .delete()
+    .eq("id", input.id)
+    .eq("organization_id", input.organizationId)
+    .eq("territory_id", input.territoryId);
+  if (error) throw error;
+}
+
 export async function replaceLabAngle(input: {
   organizationId: string;
   territoryId: string;

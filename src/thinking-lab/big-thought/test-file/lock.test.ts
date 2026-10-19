@@ -59,6 +59,7 @@ describe("stage action priority", () => {
     auditPassCount: 3,
     anyStale: false,
     anyUnresolved: false,
+    siblingCurrent: true,
     challengerComplete: false,
     lockOk: false,
   };
@@ -73,5 +74,6 @@ describe("stage action priority", () => {
     expect(selectStageAction({ ...base, auditPassCount: 2 })).toBe("audit");
     expect(selectStageAction(base)).toBeNull();
     expect(selectStageAction({ ...base, challengerComplete: false, lockOk: true })).toBe("lock");
+    expect(selectStageAction({ ...base, siblingCurrent: false, lockOk: false })).toBe("audit");
   });
 });

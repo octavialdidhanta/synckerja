@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { angleConflictFailures, normalizeAngleSet, scoreAngleAudit } from "@/thinking-lab/angle/setAudit";
+import {
+  angleCodesHeldPass,
+  angleConflictFailures,
+  angleFailureLessons,
+  holdPassingAngleVerdicts,
+  mergeAngleAuditLessons,
+  normalizeAngleSet,
+  readAngleSetRecord,
+  scoreAngleAudit,
+  usableAngleFixLessons,
+} from "@/thinking-lab/angle/setAudit";
 import { selectAngleStage } from "@/thinking-lab/angle/lock";
 
 const fingerprint = "angle-set";
@@ -29,9 +39,101 @@ describe("angle sibling audit", () => {
     });
     expect(items.map((item) => item.verdict)).toEqual(["AUDIT_PASS", "AUDIT_PASS", "AUDIT_PASS", "AUDIT_FAIL"]);
   });
+
+  it("keeps a locked Angle passed when a new sibling overlaps it", () => {
+    const scored = scoreAngleAudit({
+      codes: ["AN01", "AN04"],
+      siblingSet: resolved({
+        coreDistinct: false,
+        materialOverlapPairs: [{ angleCodeA: "AN01", angleCodeB: "AN04", explanation: "Same point of view" }],
+        containmentPairs: [],
+        resolution: "RESOLVED",
+        unresolvedReasons: [],
+      }),
+      siblingSetCurrent: true,
+    });
+    const held = angleCodesHeldPass(
+      [
+        { code: "AN01", status: "locked" },
+        { code: "AN04", status: "candidate" },
+      ],
+      [null, null],
+    );
+    expect(holdPassingAngleVerdicts(scored, held).map((item) => item.verdict)).toEqual(["AUDIT_PASS", "AUDIT_FAIL"]);
+  });
+});
+
+describe("angle audit lessons", () => {
+  it("keeps an old record without lessons and does not store the same lesson twice", () => {
+    const stored = readAngleSetRecord({
+      schema: "thinking-lab/angle-set/v1",
+      repairCount: 0,
+      siblingSet: null,
+      audit: null,
+      challenger: null,
+    });
+    expect(stored.auditLessons).toEqual([]);
+    const lesson = {
+      code: "AN02",
+      statement: "Porsi kecil membuat harga terlihat hemat",
+      reason: "observationJob: Kalimat ini masuk sebagai karena.",
+    };
+    const merged = mergeAngleAuditLessons(stored.auditLessons, [lesson, lesson]);
+    expect(merged).toEqual([lesson]);
+    const set = resolved({
+      coreDistinct: false,
+      materialOverlapPairs: [{ angleCodeA: "AN01", angleCodeB: "AN02", explanation: "Sudut yang sama" }],
+      containmentPairs: [],
+      resolution: "RESOLVED",
+      unresolvedReasons: [],
+    });
+    expect(
+      angleFailureLessons({
+        rows: [
+          { code: "AN01", statement: "Dapur warung membeli bahan sekaligus" },
+          { code: "AN02", statement: "Harga terlihat hemat" },
+        ],
+        items: [
+          { code: "AN01", verdict: "AUDIT_PASS" },
+          { code: "AN02", verdict: "AUDIT_FAIL" },
+        ],
+        siblingSet: set,
+      }),
+    ).toEqual([{ code: "AN02", statement: "Harga terlihat hemat", reason: "AN01 · AN02: Sudut yang sama" }]);
+  });
+
+  it("keeps the explained failure and drops the generic note for the same sentence", () => {
+    const lessons = usableAngleFixLessons(
+      [
+        {
+          code: "AN02",
+          statement: "Porsi kecil",
+          reason: "AN01 · AN02: Sudut yang sama",
+        },
+        { code: "AN02", statement: "Porsi kecil", reason: "Sibling audit failed this Angle." },
+        { code: "AN02", statement: "Menu harian", reason: "Sibling audit failed this Angle." },
+      ],
+      "AN02",
+    );
+    expect(lessons.map((lesson) => lesson.statement)).toEqual(["Porsi kecil", "Menu harian"]);
+  });
 });
 
 describe("selectAngleStage", () => {
+  it("locks a passing set without waiting for a third angle", () => {
+    expect(
+      selectAngleStage({
+        admittedCount: 2,
+        verdicts: ["AUDIT_PASS", "AUDIT_PASS"],
+        challengerComplete: false,
+        materialGap: false,
+        canAdd: true,
+        repairsUsed: false,
+        lockOk: true,
+      }),
+    ).toBe("lock");
+  });
+
   it("asks for one more angle when coverage has a gap and there is room", () => {
     expect(
       selectAngleStage({

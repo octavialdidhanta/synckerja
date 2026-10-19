@@ -1,3 +1,4 @@
+import { confirmedDecisionRules, type ScriptDecision } from "@/thinking-lab/execution/confirm";
 import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { judgeExecution } from "@/thinking-lab/execution/semantic";
 import { durationWordBudget, type ScriptSpeech } from "@/thinking-lab/execution/script";
@@ -52,6 +53,52 @@ function speechGenerateRules(speech?: ScriptSpeech): string[] {
   return [];
 }
 
+function brandMentionRules(brand: string, speech?: ScriptSpeech): string[] {
+  const name = brand.trim();
+  if (!name) return [];
+  const shared = [
+    `The script must mention this brand name exactly: "${name}".`,
+    "Keep that spelling. Do not translate the name.",
+    "Say it at least once, inside the situation. Do not turn the script into an advertisement.",
+  ];
+  if (speech === "silent") {
+    return [
+      ...shared,
+      "Put the brand name in one unspoken narration line.",
+      "Also show that exact name as readable text in one shot prompt, such as a sign, a card, or a lower third.",
+    ];
+  }
+  if (speech === "dialog") return [...shared, "A character says the brand name in one spoken line."];
+  if (speech === "mix") return [...shared, "Say the brand name in one voice-over line or one dialogue line."];
+  return [...shared, "The voice-over says the brand name in one narration line."];
+}
+
+function callToActionRules(cta: string, speech?: ScriptSpeech): string[] {
+  const action = cta.trim();
+  if (!action) return [];
+  const shared = [
+    `The video settings chose this action: "${action}".`,
+    "That label names the action. It is not the scene.",
+    "After the conclusion scene, add one new scene whose only job is this call to action.",
+    "Do not put the call to action in the conclusion or in any earlier scene.",
+    "The conclusion still lands the Master Thought, with no invitation glued onto it.",
+    "Write the new scene as one or two sentences in the Idea's language, from the locked point of view.",
+    "Show why this viewer would take that action now. Do not make the scene only the settings label.",
+    "Do not title that scene Conclusion, Kesimpulan, CTA, or Call to Action.",
+    'Mark that scene with "purpose": "cta".',
+  ];
+  if (speech === "silent") {
+    return [
+      ...shared,
+      "The unspoken narration carries the invitation.",
+      "One shot shows the action as readable text, written as part of the picture, not as the settings label alone.",
+    ];
+  }
+  if (speech === "dialog") return [...shared, "A character invites that action in the new scene. Do not paste the settings label as the whole line."];
+  if (speech === "mix") return [...shared, "Say the invitation in the new scene as voice-over or dialogue. Do not paste the settings label as the whole line."];
+  return [...shared, "The voice-over speaks the invitation in the new scene. Do not paste the settings label as the whole line."];
+}
+
 export function buildExecutionGeneratePrompt(input: {
   masterStatement: string;
   masterSubject?: string;
@@ -61,12 +108,19 @@ export function buildExecutionGeneratePrompt(input: {
   ancestors?: AncestorStake[];
   speech?: ScriptSpeech;
   durationSeconds?: number | null;
+  brandName?: string | null;
+  cta?: string | null;
+  pointOfView?: string | null;
+  decisions?: ScriptDecision[] | null;
 }): string {
   const pillarLabel = executionPillarLabel(input.pillar);
+  const brandName = input.brandName?.trim() ?? "";
+  const cta = input.cta?.trim() ?? "";
   return [
     "Write one voice-over script for one locked Idea and one content pillar.",
     "The pillar is a format. It is not a new belief, territory, angle, or idea.",
     `Pillar: ${pillarLabel}.`,
+    ...confirmedDecisionRules(input.decisions, input.pointOfView),
     "The default deliverable is the Script VO: scenes, spoken narration, shots, and prompts.",
     "Do not add a claim the Idea does not already carry.",
     "A viewer must be able to see the Idea's mechanism and climb to the named Master Thought subject.",
@@ -75,6 +129,10 @@ export function buildExecutionGeneratePrompt(input: {
     "The conclusion is one or two sentences. A viewer who hears only those sentences must be able to say the Master Thought.",
     "Say the Master Thought as what just happened in this situation, and leave the old belief behind.",
     "Do not stop at the mechanism. The mechanism scene comes before the conclusion.",
+    "The first sentence of each story scene follows from the last sentence of the previous story scene.",
+    "A viewer who hears those two sentences in order can say what just happened that makes the next sentence possible.",
+    "Do not open a scene on a discovery, a meeting, or a promise the previous scene did not show.",
+    "The call-to-action scene is not this join.",
     "Do not title that scene Conclusion, Kesimpulan, or THE REAL REASON.",
     "Do not explain a new theory. Do not paste the Master Thought unchanged as a slogan, and do not hide it.",
     ...(input.durationSeconds && input.durationSeconds > 0
@@ -107,6 +165,8 @@ export function buildExecutionGeneratePrompt(input: {
       ? "Each scene has a title and narration lines. One narration line is one sentence, not a paragraph."
       : "Each scene has a title and narration lines. One narration line is one spoken sentence, not a paragraph.",
     ...speechGenerateRules(input.speech),
+    ...brandMentionRules(brandName, input.speech),
+    ...callToActionRules(cta, input.speech),
     "Every sentence needs more than one shot and more than one prompt, so the angles stay rich.",
     ...(input.speech === "mix" || input.speech === "dialog"
       ? [
@@ -125,7 +185,9 @@ export function buildExecutionGeneratePrompt(input: {
     "Vary the angles across wide, medium, close-up, insert, over-the-shoulder, and graphic overlay.",
     "Do not cover several sentences with only one or two shots.",
     ...ANCESTOR_STAKE_RULES,
-    "Do not use examples from any specific industry, belief system, or brand.",
+    brandName
+      ? `Do not use examples from any specific industry or belief system. The only brand name allowed is "${brandName}".`
+      : "Do not use examples from any specific industry, belief system, or brand.",
     "Return JSON only:",
     JSON.stringify({
       title: "",
@@ -157,6 +219,30 @@ export function buildExecutionGeneratePrompt(input: {
             },
           ],
         },
+        ...(cta
+          ? [
+              {
+                title: "SCENE — the invitation",
+                purpose: "cta",
+                lines: [
+                  {
+                    narration: "",
+                    ...(input.speech
+                      ? { delivery: input.speech === "mix" || input.speech === "vo" ? "vo" : input.speech === "dialog" ? "dialogue" : "silent" }
+                      : {}),
+                    shots: [
+                      {
+                        role: "Shot 1 — Main Shot",
+                        angle: "",
+                        visualFunction: "",
+                        prompt: input.speech === "dialog" ? `@character_example at @location_example. ${SAID_SHAPE}` : "",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ]
+          : []),
       ],
     }),
     "",

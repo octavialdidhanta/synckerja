@@ -1,4 +1,3 @@
-import { TARGET_GENERATE_VALID } from "@/thinking-lab/shared/limits";
 import type { AngleChallengerResult } from "@/thinking-lab/angle/types";
 import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
 
@@ -13,7 +12,7 @@ export function evaluateAngleLock(input: {
   challenger: AngleChallengerResult | null;
   challengerCurrent: boolean;
 }): AngleLockDecision {
-  if (input.verdicts.length < TARGET_GENERATE_VALID) return { ok: false, reason: "NEED_AUDIT_PASS" };
+  if (input.verdicts.length === 0) return { ok: false, reason: "NEED_AUDIT_PASS" };
   if (input.verdicts.some((verdict) => verdict == null)) return { ok: false, reason: "NEED_AUDIT_PASS" };
   if (input.verdicts.some((verdict) => verdict === "AUDIT_FAIL")) return { ok: false, reason: "AUDIT_FAIL" };
   if (input.verdicts.some((verdict) => verdict === "STALE")) return { ok: false, reason: "STALE" };
@@ -37,7 +36,6 @@ export function selectAngleStage(input: {
     input.verdicts.some((verdict) => verdict == null || verdict === "STALE" || verdict === "UNRESOLVED");
   if (awaitingAudit) return "audit";
   if (input.verdicts.some((verdict) => verdict === "AUDIT_FAIL")) return input.repairsUsed ? null : "fix";
-  if (input.admittedCount < TARGET_GENERATE_VALID) return null;
   if (input.materialGap && input.canAdd) return "generate";
   if (input.lockOk) return "lock";
   return null;

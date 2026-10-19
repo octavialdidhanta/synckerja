@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { labIdeaKey } from "@/thinking-lab/shared/queryKeys";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
-import { insertLabIdea, listLabIdeas, loadIdeaSet, lockLabIdeas, replaceLabIdea, saveIdeaSet } from "@/thinking-lab/idea/repository";
+import { deleteLabIdea, insertLabIdea, listLabIdeas, loadIdeaSet, lockLabIdeas, replaceLabIdea, saveIdeaSet } from "@/thinking-lab/idea/repository";
 import type { IdeaSetRecord } from "@/thinking-lab/idea/setAudit";
 import type { IdeaSemanticFacts } from "@/thinking-lab/idea/types";
 
@@ -32,6 +32,18 @@ export function useLabIdeas(angleIds: string[]) {
       await queryClient.invalidateQueries({ queryKey: ["thinking-lab-ideas", organizationId] });
     },
   });
+  const remove = useMutation({
+    mutationFn: (input: { angleId: string; id: string }) =>
+      deleteLabIdea({
+        organizationId: organizationId as string,
+        ...input,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-ideas", organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-idea-set", organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-executions", organizationId] });
+    },
+  });
   const replace = useMutation({
     mutationFn: (input: {
       angleId: string;
@@ -44,7 +56,7 @@ export function useLabIdeas(angleIds: string[]) {
       await queryClient.invalidateQueries({ queryKey: ["thinking-lab-ideas", organizationId] });
     },
   });
-  return { ...query, organizationId, insert, replace };
+  return { ...query, organizationId, insert, replace, remove };
 }
 
 export function useIdeaSet(angleId: string | null) {

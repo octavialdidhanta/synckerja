@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { MasterThoughtMapTree, panToCenter, settleCurves, type MasterMapChild } from "@/thinking-lab/section/MasterThoughtMapTree";
+import { MasterThoughtMapTree, mapLinkPath, panToCenter, settleCurves, type MasterMapChild } from "@/thinking-lab/section/MasterThoughtMapTree";
 import type { LabMasterThought, MasterThoughtFacts } from "@/thinking-lab/master-thought/types";
 
 vi.mock("@/shared/i18n/useAppTranslation", () => ({
@@ -61,6 +61,7 @@ function renderMap(children: MasterMapChild[], inspected: Partial<{
       onRequestDelete={vi.fn()}
     />,
   );
+  fireEvent.click(screen.getByRole("button", { name: "Uang muda lebih baik ditabung" }));
 }
 
 describe("MasterThoughtMapTree pills", () => {
@@ -96,7 +97,7 @@ describe("MasterThoughtMapTree pills", () => {
     expect(screen.queryByText("Pasar motor bekas modif")).toBeNull();
   });
 
-  it("stars only an Idea whose cause is locked and whose down-top still passes", () => {
+  it("stars an Idea whose cause is locked", () => {
     renderMap(
       [
         {
@@ -116,6 +117,7 @@ describe("MasterThoughtMapTree pills", () => {
                   id: "a1",
                   code: "AN01",
                   statement: "Motor kebanggaan kini nganggur",
+                  subject: "Motor kebanggaan kini nganggur",
                   childCount: 2,
                   ideas: [
                     { id: "i1", code: "ID01", statement: "Buka Terpal", recommended: true },
@@ -159,6 +161,7 @@ describe("MasterThoughtMapTree pills", () => {
                   id: "a1",
                   code: "AN01",
                   statement: "Waktu kerja bunga",
+                  subject: "Waktu kerja bunga",
                   childCount: 1,
                   ideas: [
                     { id: "i1", code: "ID04", statement },
@@ -214,12 +217,14 @@ describe("MasterThoughtMapTree pills", () => {
                   id: "a1",
                   code: "AN01",
                   statement: "Waktu singkat",
+                  subject: "Waktu singkat",
                   childCount: 0,
                 },
                 {
                   id: "a2",
                   code: "AN02",
                   statement: "Kebebasan finansial yang datang dari menabung sejak muda",
+                  subject: "Kebebasan finansial yang datang",
                   childCount: 0,
                 },
               ],
@@ -265,7 +270,7 @@ describe("MasterThoughtMapTree pills", () => {
     expect(thoughtSibling.getAttribute("title")).toBe("Alasan yang lebih panjang dari label");
   });
 
-  it("shows a node's details on the first click, then hides and opens its children", () => {
+  it("opens a branch on the first click, then closes it on the next click", () => {
     const onSelect = vi.fn();
     const onSelectChild = vi.fn();
     const children: MasterMapChild[] = [
@@ -310,12 +315,12 @@ describe("MasterThoughtMapTree pills", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Identitas Dini/ }));
     expect(onSelectChild).toHaveBeenCalledWith("m1", "bt1");
-    expect(screen.queryByRole("button", { name: /Turunan terbuka/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Turunan terbuka/ })).toBeTruthy();
     rerender(<MasterThoughtMapTree {...props} inspectedThoughtId="bt1" />);
     fireEvent.click(screen.getByRole("button", { name: /Identitas Dini/ }));
-    expect(screen.getByRole("button", { name: /Turunan terbuka/ })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Identitas Dini/ }));
     expect(screen.queryByRole("button", { name: /Turunan terbuka/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Identitas Dini/ }));
+    expect(screen.getByRole("button", { name: /Turunan terbuka/ })).toBeTruthy();
   });
 
   it("names the Master Thought node with its subject", () => {
@@ -381,7 +386,7 @@ describe("MasterThoughtMapTree pills", () => {
     expect(canvas?.querySelectorAll("[data-map-node='master:m1']")).toHaveLength(1);
     expect(canvas?.querySelector("[data-map-node='master:m2']")).toBeNull();
     expect(canvas?.textContent).not.toContain("Anak dua");
-    expect(screen.getByRole("button", { name: "Akar dua" }).closest("[data-map-canvas]")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Akar dua" })).toBeNull();
   });
 
   it("keeps a measured root curve when a later measure is empty", () => {
@@ -424,11 +429,72 @@ describe("MasterThoughtMapTree pills", () => {
         onRequestDelete={vi.fn()}
       />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Akar satu" }));
     expect(container.querySelectorAll("svg path")).toHaveLength(2);
     spy.mockImplementation(() => box(0, 0, 0, 0));
     const viewport = container.querySelector("[data-map-canvas]")?.parentElement;
     if (viewport) fireEvent.wheel(viewport, { deltaY: -100, clientX: 10, clientY: 10 });
     expect(container.querySelectorAll("svg path")).toHaveLength(2);
+    spy.mockRestore();
+  });
+
+  it("draws a straight link when a Territory sits level with its Big Thought", () => {
+    expect(mapLinkPath(10, 40, 80, 44)).toBe("M 10 40 L 80 44");
+    expect(mapLinkPath(10, 40, 80, 90)).toContain("C ");
+  });
+
+  it("draws a separate root curve for every child, including the two beside the root center", () => {
+    const parentY = 82;
+    const childY = [16, 60, 104, 148];
+    const paths = childY.map((y) => mapLinkPath(120, parentY, 280, y));
+    expect(new Set(paths).size).toBe(4);
+    expect(paths[1]).not.toBe(paths[2]);
+    const box = (x: number, y: number, width: number, height: number) =>
+      ({ left: x, top: y, right: x + width, bottom: y + height, width, height, x, y, toJSON() { return {}; } }) as DOMRect;
+    const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const id = this.getAttribute("data-map-node");
+      if (id === "master:m1") return box(0, 66, 160, 32);
+      if (id === "bt:bt1") return box(240, 0, 180, 32);
+      if (id === "bt:bt2") return box(240, 44, 180, 32);
+      if (id === "bt:bt3") return box(240, 88, 180, 32);
+      if (id === "bt:bt4") return box(240, 132, 180, 32);
+      return box(0, 0, 480, 200);
+    });
+    const { container } = render(
+      <MasterThoughtMapTree
+        masters={[master("m1", "Akar")]}
+        selectedId="m1"
+        inspectedMasterId="m1"
+        inspectedThoughtId={null}
+        inspectedTerritoryId={null}
+        inspectedAngleId={null}
+        inspectedIdeaId={null}
+        childrenByMasterId={
+          new Map([
+            [
+              "m1",
+              [
+                { id: "bt1", code: "BT01", statement: "Satu" },
+                { id: "bt2", code: "BT02", statement: "Dua" },
+                { id: "bt3", code: "BT03", statement: "Tiga" },
+                { id: "bt4", code: "BT04", statement: "Empat" },
+              ],
+            ],
+          ])
+        }
+        onSelect={vi.fn()}
+        onSelectChild={vi.fn()}
+        onSelectTerritory={vi.fn()}
+        onSelectAngle={vi.fn()}
+        onSelectIdea={vi.fn()}
+        onRequestEdit={vi.fn()}
+        onRequestDelete={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Akar" }));
+    const drawn = [...container.querySelectorAll("svg path")].map((path) => path.getAttribute("d"));
+    expect(drawn).toHaveLength(4);
+    expect(new Set(drawn).size).toBe(4);
     spy.mockRestore();
   });
 
@@ -487,6 +553,7 @@ describe("MasterThoughtMapTree pills", () => {
         onRequestDelete={vi.fn()}
       />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Uang muda lebih baik ditabung" }));
     const generate = screen.getAllByRole("button", { name: "Generate Territory" });
     expect(generate).toHaveLength(1);
     expect(generate[0].closest("[data-map-node='bt:bt1']")).toBeTruthy();
@@ -510,7 +577,7 @@ describe("MasterThoughtMapTree pills", () => {
             id: "t1",
             code: "TR01",
             statement: "Pakaian tren musiman",
-            angles: [{ id: "a1", code: "AN01", statement }],
+            angles: [{ id: "a1", code: "AN01", statement, subject: "Pembelian berulang" }],
           },
         ],
       },

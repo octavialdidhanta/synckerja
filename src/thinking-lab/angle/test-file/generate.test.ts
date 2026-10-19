@@ -50,6 +50,14 @@ describe("planAngleGenerate", () => {
       needed: 0,
       stop: "ENOUGH",
     });
+    expect(planAngleGenerate({ activeCount: 3, generateValidCount: 3, round: 1, topUp: true })).toEqual({
+      needed: 1,
+      stop: null,
+    });
+    expect(planAngleGenerate({ activeCount: 5, generateValidCount: 5, round: 1, topUp: true })).toEqual({
+      needed: 1,
+      stop: null,
+    });
   });
 });
 
@@ -133,6 +141,35 @@ describe("runAngleGenerate", () => {
 });
 
 describe("buildAngleGeneratePrompt", () => {
+  it("keeps the concrete situation on the saved angle", async () => {
+    let savedExample = "";
+    await runAngleGenerate({
+      loadParent: async () => ({
+        ok: true,
+        parent: { id: "tr-1", code: "TR01", statement: "Pembelian berlebih", territoryFingerprint: "fp-1" },
+      }),
+      incumbents: [],
+      propose: async () => [
+        {
+          statement: "Pembelian berlebih menggeser fokus ke kepemilikan",
+          subject: "Pergeseran fokus kepemilikan",
+          example: "Lemari sudah penuh baju, tapi yang terasa kurang selalu baju yang belum dibeli",
+        },
+      ],
+      judge: async (_parent, code) => validFacts(code),
+      persist: async (input) => {
+        savedExample = input.facts.example ?? "";
+        return {
+          code: input.code,
+          statement: input.statement,
+          admission: input.admission,
+          territoryId: input.parent.id,
+        };
+      },
+    });
+    expect(savedExample.startsWith("Lemari sudah penuh")).toBe(true);
+  });
+
   it("does not use banned domain examples", () => {
     const prompt = buildAngleGeneratePrompt({
       parentStatement: "A space.",
@@ -140,5 +177,7 @@ describe("buildAngleGeneratePrompt", () => {
       needed: 3,
     }).toLowerCase();
     for (const word of BANNED) expect(prompt).not.toContain(word);
+    expect(prompt).toContain("concrete situation");
+    expect(prompt).toContain("\"example\"");
   });
 });

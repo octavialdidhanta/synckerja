@@ -1,4 +1,5 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { territoryLinkInstruction } from "@/thinking-lab/territory/link";
 import type { TerritoryChallengerResult, TerritoryChallengerStatus, TerritoryCoverage } from "@/thinking-lab/territory/types";
 
 const STATUSES = new Set<TerritoryChallengerStatus>(["COMPLETE", "MATERIAL_GAP", "UNRESOLVED"]);
@@ -50,6 +51,7 @@ export function coverageFromChallenger(result: TerritoryChallengerResult): Terri
 
 export function buildTerritoryChallengerPrompt(input: {
   parentStatement: string;
+  answeredQuestion?: string;
   rows: Array<{ code: string; statement: string }>;
 }): string {
   const lines = input.rows.map((row) => `${row.code}: ${row.statement}`).join("\n");
@@ -57,6 +59,7 @@ export function buildTerritoryChallengerPrompt(input: {
     "You are the canonical coverage judge for one Territory set.",
     "These Territories already passed sibling audit. Do not reclassify overlap or containment.",
     "Decide whether a materially different exploration space is still missing under the direct Big Thought.",
+    territoryLinkInstruction(input.answeredQuestion ?? "", input.parentStatement),
     "A missing space must be able to hold several substantively different angles that the current set does not already host.",
     "Do not demand another Territory merely because the parent could be named again.",
     "status is COMPLETE, MATERIAL_GAP, or UNRESOLVED.",

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
+import { Fragment, startTransition, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { AlertCircle, MoreVertical, Pencil, Star, Trash2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -9,8 +9,8 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
-import { angleNodeSubject } from "@/thinking-lab/angle/subject";
-import { ideaNodeSummary } from "@/thinking-lab/idea/subject";
+import { angleListSubject } from "@/thinking-lab/angle/subject";
+import { ideaLabel } from "@/thinking-lab/idea/subject";
 import type { LabMasterThought } from "@/thinking-lab/master-thought/types";
 
 export type MasterMapExecution = {
@@ -23,6 +23,7 @@ export type MasterMapIdea = {
   id: string;
   code: string;
   statement: string;
+  subject?: string;
   recommended?: boolean;
   executions?: MasterMapExecution[];
 };
@@ -31,6 +32,7 @@ export type MasterMapAngle = {
   id: string;
   code: string;
   statement: string;
+  subject?: string;
   childCount?: number;
   ideas?: MasterMapIdea[];
 };
@@ -89,7 +91,7 @@ function longestLabel(labels: string[]): string {
 function WidthSizer({ label, accent = false, star = false }: { label: string; accent?: boolean; star?: boolean }) {
   if (!label) return null;
   return (
-    <div className="h-0 min-w-max overflow-hidden" aria-hidden>
+    <div className="invisible col-start-1 row-start-1 h-0 min-h-0 w-max min-w-max overflow-hidden" aria-hidden>
       <div
         className={cn(
           "flex w-max items-center whitespace-nowrap border border-transparent text-xs font-medium",
@@ -133,14 +135,14 @@ function EqualBranch({
     >
       {rows.map((row, index) => (
         <Fragment key={row.key}>
-          <div className="relative w-full">
+          <div className="relative grid w-full">
             {index === 0 ? (
               <WidthSizer label={longestLabel(measured)} accent={accent} star={star} />
             ) : null}
             {row.leading}
             {row.pill}
           </div>
-          {open ? <div>{row.branch}</div> : null}
+          {open ? <div className="flex items-center self-center">{row.branch}</div> : null}
         </Fragment>
       ))}
     </div>
@@ -160,15 +162,20 @@ function layoutBox(root: HTMLElement, node: HTMLElement) {
   };
 }
 
-function curve(x1: number, y1: number, x2: number, y2: number): string {
+export function mapLinkPath(x1: number, y1: number, x2: number, y2: number): string {
+  if (Math.abs(y1 - y2) <= 24) return `M ${x1} ${y1} L ${x2} ${y2}`;
   const mid = x1 + (x2 - x1) * 0.55;
   return `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`;
 }
 
-export function settleCurves(current: string[], measured: string[], unmeasured: number): string[] {
+export type MapCurve = { id: string; d: string };
+
+export function settleCurves<T>(current: T[], measured: T[], unmeasured: number): T[] {
   if (unmeasured > 0 && measured.length === 0) return current;
   return measured;
 }
+
+const DEFAULT_MAP_VIEW = { x: 12, y: 12, scale: 1 };
 
 /** Screen-pixel pan that places a node at the center of the map viewport. */
 export function panToCenter(input: {
@@ -206,7 +213,7 @@ type OpenBranches = {
 };
 
 function freshBranches(): OpenBranches {
-  return { master: true, thoughts: new Set(), territories: new Set(), angles: new Set() };
+  return { master: false, thoughts: new Set(), territories: new Set(), angles: new Set() };
 }
 
 function withId(ids: ReadonlySet<string>, id: string, open: boolean): Set<string> {
@@ -225,7 +232,7 @@ function MapCurves({
   links: Array<{ from: string; to: string }>;
   layoutEpoch: string;
 }) {
-  const [paths, setPaths] = useState<string[]>([]);
+  const [paths, setPaths] = useState<MapCurve[]>([]);
   const [box, setBox] = useState({ width: 0, height: 0 });
   const linksRef = useRef(links);
   linksRef.current = links;
@@ -250,11 +257,15 @@ function MapCurves({
           unmeasured += 1;
           return [];
         }
-        return [curve(from.right, from.midY, to.left, to.midY)];
+        const count = fromNode.querySelector("[data-map-count]");
+        const fromX = count instanceof HTMLElement ? layoutBox(root, count).right : from.right;
+        return [{ id: `${link.from}>${link.to}`, d: mapLinkPath(fromX, from.midY, to.left, to.midY) }];
       });
       setPaths((current) => {
         const next = settleCurves(current, measured, unmeasured);
-        return current.length === next.length && current.every((path, index) => path === next[index]) ? current : next;
+        return current.length === next.length && current.every((path, index) => path.id === next[index]?.id && path.d === next[index]?.d)
+          ? current
+          : next;
       });
       const width = root.scrollWidth;
       const height = root.scrollHeight;
@@ -282,7 +293,7 @@ function MapCurves({
       aria-hidden
     >
       {paths.map((path) => (
-        <path key={path} d={path} fill="none" stroke="#cbd5e1" strokeWidth="1.5" />
+        <path key={path.id} d={path.d} fill="none" stroke="#cbd5e1" strokeWidth="1.5" />
       ))}
     </svg>
   );
@@ -332,12 +343,12 @@ function Pill({
               : t("thinkingLab.idea.list", "Idea");
   const badge = code?.trim();
   return (
-    <div className={cn("relative", stretch && "w-full")} data-map-node={nodeId}>
+    <div className={cn("relative col-start-1 row-start-1", stretch && "w-full")} data-map-node={nodeId}>
       <button
         type="button"
         onClick={onClick}
         title={fullTitle && fullTitle.trim() !== title.trim() ? fullTitle.trim() : undefined}
-        aria-label={title}
+        aria-label={title.trim() || (badge ? `${level} - ${badge}` : level)}
         aria-current={selected ? "true" : undefined}
         className={cn(
           "items-stretch whitespace-nowrap rounded-[4px] px-2 py-0.5 text-left text-xs font-medium",
@@ -354,7 +365,7 @@ function Pill({
           <span className="text-[10px] font-medium leading-none text-white/90">
             {badge ? `${level} - ${badge}` : level}
           </span>
-          <span className="leading-none">{title}</span>
+          {title ? <span className="leading-none">{title}</span> : null}
         </span>
         {recommended ? (
           <Star
@@ -370,6 +381,7 @@ function Pill({
       {count > 0 ? (
         <span
           className="absolute -right-2.5 top-1/2 flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white px-1 text-[10px] font-semibold text-slate-600 shadow-sm"
+          data-map-count=""
           aria-label={t("thinkingLab.tree.childCount", "{{count}} below", { count })}
         >
           +{count}
@@ -432,13 +444,26 @@ export function MasterThoughtMapTree({
   const dragRef = useRef<{ x: number; y: number; originX: number; originY: number } | null>(null);
   const movedRef = useRef(false);
   const centerRequest = useRef<string | null>(null);
-  const [view, setView] = useState({ x: 12, y: 12, scale: 1 });
-  const [centering, setCentering] = useState(false);
+  const centerOrigin = useRef<{
+    nodeId: string;
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    viewportLeft: number;
+    viewportTop: number;
+    viewportWidth: number;
+    viewportHeight: number;
+  } | null>(null);
+  const pendingMove = useRef<{ x: number; y: number } | null>(null);
+  const centerFrames = useRef<number[]>([]);
+  const [view, setView] = useState(() => ({ ...DEFAULT_MAP_VIEW }));
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const [centerTick, setCenterTick] = useState(0);
   const [measureNonce, setMeasureNonce] = useState(0);
   const [expanded, setExpanded] = useState<OpenBranches>(freshBranches);
   const selected = masters.find((row) => row.id === selectedId) ?? masters[0] ?? null;
-  const others = masters.filter((row) => row.id !== selected?.id);
   const visibleExecutionCount = (selected ? (childrenByMasterId.get(selected.id) ?? []) : []).reduce(
     (sum, child) =>
       sum +
@@ -459,55 +484,118 @@ export function MasterThoughtMapTree({
     setMeasureNonce((current) => current + 1);
   }, [selected?.id, masters.length, visibleExecutionCount]);
 
+  const cancelCenterMotion = () => {
+    pendingMove.current = null;
+    for (const frame of centerFrames.current) cancelAnimationFrame(frame);
+    centerFrames.current = [];
+    if (canvasRef.current) canvasRef.current.style.transition = "none";
+  };
+  const cancelCenterMotionRef = useRef(cancelCenterMotion);
+  cancelCenterMotionRef.current = cancelCenterMotion;
+
   useEffect(() => {
-    setCentering(false);
-    setView({ x: 12, y: 12, scale: 1 });
+    cancelCenterMotionRef.current();
+    setView({ ...DEFAULT_MAP_VIEW });
     setExpanded(freshBranches());
   }, [selected?.id]);
 
   const stopCentering = () => {
-    setCentering(false);
-    if (canvasRef.current) canvasRef.current.style.transition = "none";
+    cancelCenterMotion();
   };
 
   const centerNode = (nodeId: string) => {
     if (movedRef.current) return;
+    const viewport = viewportRef.current;
+    const canvas = canvasRef.current;
+    const node = canvas?.querySelector<HTMLElement>(mapNodeSelector(nodeId));
+    if (viewport && node) {
+      const box = node.getBoundingClientRect();
+      const viewBox = viewport.getBoundingClientRect();
+      centerOrigin.current = {
+        nodeId,
+        left: box.left,
+        top: box.top,
+        width: box.width,
+        height: box.height,
+        viewportLeft: viewBox.left,
+        viewportTop: viewBox.top,
+        viewportWidth: viewBox.width,
+        viewportHeight: viewBox.height,
+      };
+    } else {
+      centerOrigin.current = null;
+    }
     centerRequest.current = nodeId;
     setCenterTick((tick) => tick + 1);
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const nodeId = centerRequest.current;
     if (!nodeId) return;
     const viewport = viewportRef.current;
     const canvas = canvasRef.current;
     centerRequest.current = null;
+    const origin = centerOrigin.current;
+    centerOrigin.current = null;
     if (!viewport || !canvas) return;
     const node = canvas.querySelector<HTMLElement>(mapNodeSelector(nodeId));
     if (!node) return;
+
+    for (const frame of centerFrames.current) cancelAnimationFrame(frame);
+    centerFrames.current = [];
+    canvas.style.transition = "none";
     const live = readMapTranslation(canvas);
-    if (live) {
-      canvas.style.transition = "none";
-      setCentering(false);
-      setView((current) =>
-        current.x === live.x && current.y === live.y ? current : { ...current, x: live.x, y: live.y },
-      );
+    const after = node.getBoundingClientRect();
+    const sameNode = origin?.nodeId === nodeId;
+    const dx = sameNode && origin ? origin.left - after.left : 0;
+    const dy = sameNode && origin ? origin.top - after.top : 0;
+    const baseX = (live?.x ?? viewRef.current.x) + dx;
+    const baseY = (live?.y ?? viewRef.current.y) + dy;
+    const from = sameNode && origin
+      ? { left: origin.left, top: origin.top, width: origin.width, height: origin.height }
+      : { left: after.left + dx, top: after.top + dy, width: after.width, height: after.height };
+    const viewBox = sameNode && origin
+      ? {
+          left: origin.viewportLeft,
+          top: origin.viewportTop,
+          width: origin.viewportWidth,
+          height: origin.viewportHeight,
+        }
+      : viewport.getBoundingClientRect();
+    const shift = panToCenter({ viewport: viewBox, node: from });
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    const targetX = baseX + (shift?.x ?? 0);
+    const targetY = baseY + (shift?.y ?? 0);
+    if (Math.abs(baseX - viewRef.current.x) > 0.5 || Math.abs(baseY - viewRef.current.y) > 0.5) {
+      setView((current) => ({ ...current, x: baseX, y: baseY }));
     }
-    const frame = requestAnimationFrame(() => {
-      const nextNode = canvas.querySelector<HTMLElement>(mapNodeSelector(nodeId));
-      const shift = nextNode
-        ? panToCenter({
-            viewport: viewport.getBoundingClientRect(),
-            node: nextNode.getBoundingClientRect(),
-          })
-        : null;
-      if (!shift) return;
-      canvas.style.transition = "";
-      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      setCentering(!reduce);
-      setView((current) => ({ ...current, x: current.x + shift.x, y: current.y + shift.y }));
+    if (!shift || reduce) {
+      pendingMove.current = null;
+      if (reduce && shift) setView((current) => ({ ...current, x: targetX, y: targetY }));
+      return;
+    }
+    pendingMove.current = { x: targetX, y: targetY };
+  }, [centerTick]);
+
+  useEffect(() => {
+    const target = pendingMove.current;
+    if (!target) return;
+    pendingMove.current = null;
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      canvas.style.transition = "transform 450ms ease-in-out";
+      second = requestAnimationFrame(() => {
+        setView((current) => ({ ...current, x: target.x, y: target.y }));
+      });
+      centerFrames.current.push(second);
     });
-    return () => cancelAnimationFrame(frame);
+    centerFrames.current.push(first);
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
   }, [centerTick]);
 
   useEffect(() => {
@@ -515,10 +603,10 @@ export function MasterThoughtMapTree({
     if (!viewport) return;
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
+      cancelCenterMotionRef.current();
       const canvas = canvasRef.current;
       const live = canvas ? readMapTranslation(canvas) : null;
       if (canvas) canvas.style.transition = "none";
-      setCentering(false);
       const box = viewport.getBoundingClientRect();
       const px = event.clientX - box.left;
       const py = event.clientY - box.top;
@@ -607,20 +695,6 @@ export function MasterThoughtMapTree({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {others.length > 0 ? (
-        <div className="mb-2 flex flex-wrap gap-1">
-          {others.map((row) => (
-              <button
-              key={row.id}
-                type="button"
-                onClick={() => onSelect(row.id)}
-              className="max-w-[12rem] truncate rounded-full border border-border bg-background px-2 py-1 text-xs text-foreground"
-              >
-              {masterNodeTitle(row)}
-              </button>
-          ))}
-        </div>
-      ) : null}
       <div
         ref={viewportRef}
         className="relative min-h-[16rem] flex-1 cursor-grab touch-none overflow-hidden active:cursor-grabbing"
@@ -638,10 +712,7 @@ export function MasterThoughtMapTree({
         <div
           ref={canvasRef}
           data-map-canvas=""
-          className={cn(
-            "relative w-max",
-            centering && "transition-transform duration-500 ease-out motion-reduce:transition-none",
-          )}
+          className="relative w-max"
           style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`, transformOrigin: "0 0" }}
         >
           <MapCurves canvasRef={canvasRef} links={links} layoutEpoch={`${measureNonce}|${view.x}|${view.y}|${view.scale}`} />
@@ -653,6 +724,7 @@ export function MasterThoughtMapTree({
                       tone="master"
                       title={masterNodeTitle(selected)}
                       selected={masterSelected}
+                      childCount={children.length}
                       accessory={
                         <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
@@ -694,16 +766,12 @@ export function MasterThoughtMapTree({
                         </DropdownMenu>
                       }
                       onClick={() => {
+                        setExpanded((current) => {
+                          if (!masterSelected || !current.master) return { ...current, master: true };
+                          return { master: false, thoughts: new Set(), territories: new Set(), angles: new Set() };
+                        });
                         centerNode(`master:${selected.id}`);
-                        if (!masterSelected) {
-                          onSelect(selected.id);
-                          return;
-                        }
-                        setExpanded((current) =>
-                          current.master
-                            ? { master: false, thoughts: new Set(), territories: new Set(), angles: new Set() }
-                            : { ...current, master: true },
-                        );
+                        if (!masterSelected) startTransition(() => onSelect(selected.id));
                       }}
                     />
             </div>
@@ -748,13 +816,9 @@ export function MasterThoughtMapTree({
                                 ) : null
                               }
                               onClick={() => {
-                                centerNode(`bt:${child.id}`);
-                                if (inspectedThoughtId !== child.id) {
-                                  onSelectChild(selected.id, child.id);
-                                  return;
-                                }
+                                const already = inspectedThoughtId === child.id;
                                 setExpanded((current) => {
-                                  if (!current.thoughts.has(child.id)) {
+                                  if (!already || !current.thoughts.has(child.id)) {
                                     return { ...current, thoughts: withId(current.thoughts, child.id, true) };
                                   }
                                   const territories = new Set(current.territories);
@@ -770,6 +834,8 @@ export function MasterThoughtMapTree({
                                     angles,
                                   };
                                 });
+                                centerNode(`bt:${child.id}`);
+                                if (!already) startTransition(() => onSelectChild(selected.id, child.id));
                               }}
                             />
                           ),
@@ -794,13 +860,9 @@ export function MasterThoughtMapTree({
                                       selected={inspectedTerritoryId === territory.id}
                                       childCount={territory.childCount}
                                       onClick={() => {
-                                        centerNode(`tr:${territory.id}`);
-                                        if (inspectedTerritoryId !== territory.id) {
-                                          onSelectTerritory(selected.id, child.id, territory.id);
-                                          return;
-                                        }
+                                        const already = inspectedTerritoryId === territory.id;
                                         setExpanded((current) => {
-                                          if (!current.territories.has(territory.id)) {
+                                          if (!already || !current.territories.has(territory.id)) {
                                             return { ...current, territories: withId(current.territories, territory.id, true) };
                                           }
                                           const angles = new Set(current.angles);
@@ -811,6 +873,8 @@ export function MasterThoughtMapTree({
                                             angles,
                                           };
                                         });
+                                        centerNode(`tr:${territory.id}`);
+                                        if (!already) startTransition(() => onSelectTerritory(selected.id, child.id, territory.id));
                                       }}
                                     />
                                   ),
@@ -820,10 +884,10 @@ export function MasterThoughtMapTree({
                                       accent
                                       codes={(territory.angles ?? []).map((angle) => angle.code)}
                                       labels={(territory.angles ?? []).map((angle) =>
-                                        angleNodeSubject(angle.statement, territory.statement),
+                                        angleListSubject(angle.subject ?? "", territory.statement),
                                       )}
                                       rows={(territory.angles ?? []).map((angle) => {
-                                        const angleTitle = angleNodeSubject(angle.statement, territory.statement);
+                                        const angleTitle = angleListSubject(angle.subject ?? "", territory.statement);
                                         const ideasOpen = expanded.angles.has(angle.id) && (angle.ideas?.length ?? 0) > 0;
                                         return {
                                           key: angle.id,
@@ -838,15 +902,15 @@ export function MasterThoughtMapTree({
                                               selected={inspectedAngleId === angle.id}
                                               childCount={angle.childCount}
                                               onClick={() => {
+                                                const already = inspectedAngleId === angle.id;
+                                                setExpanded((current) => {
+                                                  if (!already || !current.angles.has(angle.id)) {
+                                                    return { ...current, angles: withId(current.angles, angle.id, true) };
+                                                  }
+                                                  return { ...current, angles: withId(current.angles, angle.id, false) };
+                                                });
                                                 centerNode(`an:${angle.id}`);
-                                                if (inspectedAngleId !== angle.id) {
-                                                  onSelectAngle(selected.id, child.id, territory.id, angle.id);
-                                                  return;
-                                                }
-                                                setExpanded((current) => ({
-                                                  ...current,
-                                                  angles: withId(current.angles, angle.id, !current.angles.has(angle.id)),
-                                                }));
+                                                if (!already) startTransition(() => onSelectAngle(selected.id, child.id, territory.id, angle.id));
                                               }}
                                             />
                                           ),
@@ -856,7 +920,7 @@ export function MasterThoughtMapTree({
                                               accent
                                               codes={(angle.ideas ?? []).map((idea) => idea.code)}
                                               star={(angle.ideas ?? []).some((idea) => idea.recommended)}
-                                              labels={(angle.ideas ?? []).map((idea) => ideaNodeSummary(idea.statement))}
+                                              labels={(angle.ideas ?? []).map((idea) => ideaLabel(idea.statement, idea.subject))}
                                               rows={(angle.ideas ?? []).map((idea) => ({
                                                 key: idea.id,
                                                 pill: (
@@ -865,13 +929,15 @@ export function MasterThoughtMapTree({
                                                     tone="idea"
                                                     stretch
                                                     code={idea.code}
-                                                    title={ideaNodeSummary(idea.statement)}
+                                                    title={ideaLabel(idea.statement, idea.subject)}
                                                     fullTitle={idea.statement}
                                                     selected={inspectedIdeaId === idea.id}
                                                     recommended={idea.recommended}
                                                     onClick={() => {
                                                       centerNode(`idea:${idea.id}`);
-                                                      onSelectIdea(selected.id, child.id, territory.id, angle.id, idea.id);
+                                                      startTransition(() =>
+                                                        onSelectIdea(selected.id, child.id, territory.id, angle.id, idea.id),
+                                                      );
                                                     }}
                                                   />
                                                 ),
@@ -893,13 +959,15 @@ export function MasterThoughtMapTree({
                                                             warning={!execution.passed}
                                                             onClick={() => {
                                                               centerNode(`ex:${execution.id}`);
-                                                              onSelectExecution?.(
-                                                                selected.id,
-                                                                child.id,
-                                                                territory.id,
-                                                                angle.id,
-                                                                idea.id,
-                                                                execution.id,
+                                                              startTransition(() =>
+                                                                onSelectExecution?.(
+                                                                  selected.id,
+                                                                  child.id,
+                                                                  territory.id,
+                                                                  angle.id,
+                                                                  idea.id,
+                                                                  execution.id,
+                                                                ),
                                                               );
                                                             }}
                                                           />

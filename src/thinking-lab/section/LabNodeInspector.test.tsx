@@ -45,6 +45,23 @@ describe("LabNodeInspector territory entry", () => {
     expect(onGenerateTerritory).toHaveBeenCalledOnce();
   });
 
+  it("keeps Generate Territory in the menu after a Territory already exists", () => {
+    const onGenerateTerritory = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="bigThought"
+        code="BT04"
+        statement="Kebocoran Abstraksi"
+        onDelete={vi.fn()}
+        onGenerateTerritory={onGenerateTerritory}
+        territories={[{ id: "t4", code: "TR04", statement: "Permainan telepon rusak", verdict: "AUDIT_FAIL" }]}
+      />,
+    );
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Generate Territory" }));
+    expect(onGenerateTerritory).toHaveBeenCalledOnce();
+  });
+
   it("keeps Write a Territory and Generate Territory off an empty Big Thought inspector", () => {
     render(
       <LabNodeInspector
@@ -56,6 +73,70 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.queryByRole("button", { name: "Generate Territory" })).toBeNull();
     expect(screen.queryByText("Write a Territory")).toBeNull();
     expect(screen.queryByRole("button", { name: "Unlock" })).toBeNull();
+  });
+
+  it("shows the Territory description under the name and on a recommended repair", () => {
+    render(
+      <LabNodeInspector
+        kind="bigThought"
+        code="BT01"
+        statement="Keputusan kecil menghabiskan sumber daya."
+        territories={[
+          {
+            id: "t1",
+            code: "TR01",
+            statement: "Ketersediaan informasi kerja",
+            detail: "Di wilayah ini, orang membuka ulang catatan yang sama sebelum bisa melanjutkan pekerjaan.",
+            question: "Kenapa catatan yang sama harus dibuka ulang sebelum pekerjaan bisa lanjut?",
+            verdict: "AUDIT_PASS",
+          },
+          {
+            id: "t3",
+            code: "TR03",
+            statement: "Tumpukan tugas administratif",
+            verdict: "AUDIT_FAIL",
+          },
+        ]}
+        territoryFixOffers={[
+          {
+            failedCode: "TR03",
+            statement: "Layanan pelanggan",
+            detail: "Pelanggan menunggu jawaban yang sama berulang kali.",
+          },
+        ]}
+        onPickTerritoryFixOffer={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Di wilayah ini, orang membuka ulang catatan yang sama sebelum bisa melanjutkan pekerjaan.")).toBeTruthy();
+    expect(screen.getByText("Kenapa catatan yang sama harus dibuka ulang sebelum pekerjaan bisa lanjut?")).toBeTruthy();
+    expect(screen.getByText("Pelanggan menunggu jawaban yang sama berulang kali.")).toBeTruthy();
+  });
+
+  it("shows pass checks up to the one that failed", () => {
+    render(
+      <LabNodeInspector
+        kind="bigThought"
+        code="BT01"
+        statement="Keputusan kecil menghabiskan sumber daya."
+        territories={[
+          {
+            id: "t1",
+            code: "TR01",
+            statement: "Ketersediaan informasi kerja",
+            verdict: "AUDIT_FAIL",
+            checklist: [
+              { id: "partOfBigThought", state: "pass" },
+              { id: "audienceLanguage", state: "fail", reason: "Istilah internal." },
+              { id: "questionArises", state: "pending" },
+            ],
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Part of the Big Thought, not a keyword of it")).toBeTruthy();
+    expect(screen.getByText("Audience language, not an internal term")).toBeTruthy();
+    expect(screen.getByText("Istilah internal.")).toBeTruthy();
+    expect(screen.queryByText("The question the Big Thought answers comes up here")).toBeNull();
   });
 
   it("offers Audit for an admitted territory set", () => {
@@ -71,7 +152,7 @@ describe("LabNodeInspector territory entry", () => {
     );
     openActionMenu();
     expect(screen.getByRole("menuitem", { name: "Audit" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Buat ulang Angle" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Generate Angle" })).toBeNull();
   });
 
   it("groups sibling conflicts so each pair can be read on its own", () => {
@@ -317,7 +398,7 @@ describe("LabNodeInspector territory entry", () => {
         ]}
       />,
     );
-    expect(screen.queryByRole("button", { name: "Buat ulang Angle" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Generate Angle" })).toBeNull();
     expect(screen.getByText("TR01")).toBeTruthy();
     expect(screen.getByText("TR02")).toBeTruthy();
     expect(screen.queryByText("AN01")).toBeNull();
@@ -370,9 +451,9 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.getByRole("heading", { name: "Kerangka Etika dan Nilai Organisasi" })).toBeTruthy();
     expect(screen.getByText(/Di area ini:/)).toBeTruthy();
     expect(screen.getByText(/Lolos pemeriksaan\./)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Buat ulang Angle" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Generate Angle" })).toBeNull();
     openActionMenu();
-    expect(screen.getByRole("menuitem", { name: "Buat ulang Angle" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Generate Angle" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Generate Territory" })).toBeNull();
   });
 
@@ -393,7 +474,7 @@ describe("LabNodeInspector territory entry", () => {
       />,
     );
     openActionMenu();
-    expect(screen.getByRole("menuitem", { name: "Buat ulang Angle" }).getAttribute("aria-busy")).toBe("true");
+    expect(screen.getByRole("menuitem", { name: "Generate Angle" }).getAttribute("aria-busy")).toBe("true");
     expect(screen.queryByRole("button", { name: "Audit" })).toBeNull();
     rerender(
       <LabNodeInspector
@@ -406,8 +487,11 @@ describe("LabNodeInspector territory entry", () => {
         onAngleStage={vi.fn()}
       />,
     );
-    expect(screen.queryByRole("button", { name: "Buat ulang Angle" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Audit" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Generate Angle" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Audit" })).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    openActionMenu();
+    expect(screen.getByRole("menuitem", { name: "Audit" })).toBeTruthy();
   });
 
   it("shows a spinner on Audit and hides Generate Angle while audit is running", () => {
@@ -425,11 +509,14 @@ describe("LabNodeInspector territory entry", () => {
         onAngleStage={vi.fn()}
       />,
     );
-    expect(screen.queryByRole("button", { name: "Buat ulang Angle" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Audit" }).getAttribute("aria-busy")).toBe("true");
+    expect(screen.queryByRole("button", { name: "Generate Angle" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Audit" })).toBeNull();
+    expect(screen.getByRole("button", { name: "More actions" }).getAttribute("aria-busy")).toBe("true");
+    openActionMenu();
+    expect(screen.getByRole("menuitem", { name: "Audit" }).getAttribute("aria-busy")).toBe("true");
   });
 
-  it("does not offer a handwritten Angle, and shows Buat ulang Angle while generate runs", () => {
+  it("does not offer a handwritten Angle, and shows Generate Angle while generate runs", () => {
     const { rerender } = render(
       <LabNodeInspector
         kind="territory"
@@ -443,9 +530,9 @@ describe("LabNodeInspector territory entry", () => {
     );
     expect(screen.queryByLabelText("Write an Angle")).toBeNull();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Buat ulang Angle" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Generate Angle" })).toBeNull();
     openActionMenu();
-    expect(screen.getByRole("menuitem", { name: "Buat ulang Angle" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Generate Angle" })).toBeTruthy();
     rerender(
       <LabNodeInspector
         kind="territory"
@@ -476,7 +563,7 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.queryByRole("button", { name: "Generate Idea" })).toBeNull();
     openActionMenu();
     expect(screen.getByRole("menuitem", { name: "Generate Idea" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Buat ulang Angle" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Generate Angle" })).toBeNull();
   });
 
   it("puts Lock in the Angle menu", () => {
@@ -492,6 +579,14 @@ describe("LabNodeInspector territory entry", () => {
     openActionMenu();
     fireEvent.click(screen.getByRole("menuitem", { name: "Lock" }));
     expect(onLockIdeas).toHaveBeenCalledOnce();
+  });
+
+  it("puts Delete in the Angle menu", () => {
+    const onDelete = vi.fn();
+    render(<LabNodeInspector kind="angle" code="AN02" statement="Ketersediaan informasi." onDelete={onDelete} />);
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalledOnce();
   });
 
   it("puts Lock in the Big Thought menu", () => {
@@ -529,6 +624,62 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
   });
 
+  it("puts Fix on the failed Territory check", () => {
+    const onFixTerritory = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="bigThought"
+        code="BT01"
+        statement="Makan di luar terasa lebih hemat."
+        territories={[
+          {
+            id: "t3",
+            code: "TR03",
+            statement: "Kerepotan masak",
+            verdict: "AUDIT_FAIL",
+            checklist: [
+              { id: "partOfBigThought", state: "pass" },
+              { id: "siblingsDistinct", state: "fail", reason: "TR01 · TR03: tugas dapur yang sama." },
+            ],
+          },
+        ]}
+        onFixTerritory={onFixTerritory}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Fix" }));
+    expect(onFixTerritory).toHaveBeenCalledWith("TR03");
+  });
+
+  it("puts Fix on a failed check before the card is marked FAIL", () => {
+    const onFixTerritory = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="bigThought"
+        code="BT01"
+        statement="Makan di luar terasa lebih hemat."
+        territories={[
+          {
+            id: "t4",
+            code: "TR04",
+            statement: "Efisiensi makan",
+            verdict: null,
+            checklist: [
+              { id: "partOfBigThought", state: "pass" },
+              {
+                id: "audienceLanguage",
+                state: "fail",
+                reason: "Istilah 'Efisiensi makan' terdengar seperti jargon internal.",
+              },
+            ],
+          },
+        ]}
+        onFixTerritory={onFixTerritory}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Fix" }));
+    expect(onFixTerritory).toHaveBeenCalledWith("TR04");
+  });
+
   it("puts a Fix button on each failed Territory card", () => {
     const onFixTerritory = vi.fn();
     render(
@@ -548,6 +699,46 @@ describe("LabNodeInspector territory entry", () => {
     openActionMenu(/More actions TR01/);
     fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
     expect(onFixTerritory).toHaveBeenCalledWith("TR01");
+  });
+
+  it("puts Delete on each Territory card", () => {
+    const onDeleteTerritory = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="bigThought"
+        statement="Kebocoran Abstraksi"
+        territories={[
+          { id: "t4", code: "TR04", statement: "Permainan telepon rusak", verdict: "AUDIT_FAIL", editable: true },
+          { id: "t5", code: "TR05", statement: "Dunia di atas kertas", verdict: "AUDIT_FAIL", editable: true },
+        ]}
+        onEditTerritory={vi.fn(async () => null)}
+        onFixTerritory={vi.fn()}
+        onDeleteTerritory={onDeleteTerritory}
+      />,
+    );
+    openActionMenu(/More actions TR05/);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete Territory" }));
+    expect(onDeleteTerritory).toHaveBeenCalledWith("t5");
+  });
+
+  it("puts Delete on each Angle card", () => {
+    const onDeleteAngle = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="territory"
+        statement="Perpindahan dari tangan ke tangan"
+        angles={[
+          { id: "a1", code: "AN01", statement: "Setiap serah terima adalah monumen", verdict: "AUDIT_FAIL", editable: true },
+          { id: "a2", code: "AN02", statement: "Semakin sering berpindah tangan", verdict: "AUDIT_PASS", editable: true },
+        ]}
+        onEditAngle={vi.fn(async () => null)}
+        onFixAngle={vi.fn()}
+        onDeleteAngle={onDeleteAngle}
+      />,
+    );
+    openActionMenu(/More actions AN02/);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete Angle" }));
+    expect(onDeleteAngle).toHaveBeenCalledWith("a2");
   });
 
   it("keeps the other Territory Fix buttons clickable while one fix is running", () => {
@@ -650,6 +841,94 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.queryByText(/mengunci penjelasan lain/)).toBeNull();
   });
 
+  it("fixes every failed Angle from the territory menu", () => {
+    const onFixFailedAngles = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="territory"
+        code="TR04"
+        statement="Perpindahan dari tangan"
+        onDelete={vi.fn()}
+        onFixFailedAngles={onFixFailedAngles}
+        angles={[
+          { id: "a1", code: "AN01", statement: "Fail one", verdict: "AUDIT_FAIL" },
+          { id: "a2", code: "AN02", statement: "Pass", verdict: "AUDIT_PASS" },
+          { id: "a3", code: "AN03", statement: "Fail two", verdict: "AUDIT_FAIL" },
+        ]}
+      />,
+    );
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fix" }));
+    expect(onFixFailedAngles).toHaveBeenCalledOnce();
+  });
+
+  it("shows angle pass checks up to the one that failed", () => {
+    render(
+      <LabNodeInspector
+        kind="territory"
+        statement="Pilihan makan siang"
+        angles={[
+          {
+            id: "a1",
+            code: "AN01",
+            statement: "Porsi kecil membuat harga terlihat hemat",
+            verdict: "AUDIT_FAIL",
+            checklist: [
+              { id: "stakeHolds", state: "pass" },
+              { id: "observationShape", state: "fail", reason: "Ini sudah konsep Idea." },
+              { id: "severalIdeas", state: "pending" },
+            ],
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Still depends on the Territory, Big Thought, and Master Thought")).toBeTruthy();
+    expect(screen.getByText("An observation, narrower than the Territory and broader than an Idea")).toBeTruthy();
+    expect(screen.getByText("Ini sudah konsep Idea.")).toBeTruthy();
+    expect(screen.queryByText("Enough for several Ideas")).toBeNull();
+  });
+
+  it("shows idea pass checks up to the one that failed", () => {
+    render(
+      <LabNodeInspector
+        kind="angle"
+        statement="Porsi kecil membuat harga terlihat hemat"
+        ideas={[
+          {
+            id: "i1",
+            code: "ID01",
+            statement: "Kita bandingkan harga per ons sehingga hematnya terlihat",
+            verdict: "AUDIT_FAIL",
+            checklist: [
+              { id: "sentenceForm", state: "pass" },
+              { id: "stakeHolds", state: "fail", reason: "Masih berdiri tanpa Angle." },
+              { id: "mechanismShape", state: "pending" },
+            ],
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Names what is made, invited, shown, or created, then what becomes true")).toBeTruthy();
+    expect(screen.getByText("Still depends on the stake of the Angle and its ancestors")).toBeTruthy();
+    expect(screen.getByText("Masih berdiri tanpa Angle.")).toBeTruthy();
+    expect(screen.queryByText("A mechanism, not an observation, area name, reason, or finished form")).toBeNull();
+  });
+
+  it("hides the territory Fix when every Angle passed", () => {
+    render(
+      <LabNodeInspector
+        kind="territory"
+        code="TR04"
+        statement="Perpindahan dari tangan"
+        onDelete={vi.fn()}
+        onFixFailedAngles={vi.fn()}
+        angles={[{ id: "a2", code: "AN02", statement: "Pass", verdict: "AUDIT_PASS" }]}
+      />,
+    );
+    openActionMenu();
+    expect(screen.queryByRole("menuitem", { name: "Fix" })).toBeNull();
+  });
+
   it("puts a Fix button on each failed Angle card", () => {
     const onFixAngle = vi.fn();
     render(
@@ -739,7 +1018,8 @@ describe("LabNodeInspector territory entry", () => {
     expect(onGenerateIdea).toHaveBeenCalledWith("a1");
   });
 
-  it("offers Lock beside Generate Angle while a passing set is still open", () => {
+  it("keeps Lock in the territory menu while Generate Angle stays on the page", () => {
+    const onLockAngles = vi.fn();
     render(
       <LabNodeInspector
         kind="territory"
@@ -748,11 +1028,60 @@ describe("LabNodeInspector territory entry", () => {
         angles={[{ id: "a1", code: "AN01", statement: "One point of view", verdict: "AUDIT_PASS" }]}
         angleStage="generate"
         onAngleStage={vi.fn()}
-        onLockAngles={vi.fn()}
+        onLockAngles={onLockAngles}
       />,
     );
-    expect(screen.getByRole("button", { name: "Buat ulang Angle" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Lock" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Generate Angle" })).toBeTruthy();
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Lock" }));
+    expect(onLockAngles).toHaveBeenCalledOnce();
+  });
+
+  it("puts Lock only in the territory menu", () => {
+    const onAngleStage = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="territory"
+        code="TR05"
+        statement="Momen pengumuman"
+        angles={[
+          { id: "a1", code: "AN01", statement: "Pengumuman", verdict: "AUDIT_PASS" },
+          { id: "a2", code: "AN02", statement: "Momen daring", verdict: "AUDIT_PASS" },
+        ]}
+        angleStage="lock"
+        onAngleStage={onAngleStage}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Lock" })).toBeNull();
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Lock" }));
+    expect(onAngleStage).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Generate Angle in the territory menu after Angles already exist", () => {
+    const onGenerateAngle = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="territory"
+        code="TR04"
+        statement="Perpindahan dari tangan ke tangan"
+        territoryId="t4"
+        angleReady
+        onGenerateAngle={onGenerateAngle}
+        onDelete={vi.fn()}
+        onAngleStage={vi.fn()}
+        angleStage="lock"
+        angles={[
+          { id: "a1", code: "AN01", statement: "Setiap tangan", verdict: "AUDIT_PASS" },
+          { id: "a2", code: "AN02", statement: "Semakin sering", verdict: "AUDIT_PASS" },
+          { id: "a3", code: "AN03", statement: "Keamanan di setiap tangan", verdict: "AUDIT_PASS" },
+        ]}
+      />,
+    );
+    openActionMenu();
+    expect(screen.getByRole("menuitem", { name: "Lock" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Generate Angle" }));
+    expect(onGenerateAngle).toHaveBeenCalledWith("t4");
   });
 
   it("keeps the Master Thought definition behind an Indonesian info mark", () => {
@@ -767,6 +1096,29 @@ describe("LabNodeInspector territory entry", () => {
     render(<LabNodeInspector kind="angle" code="AN01" statement="Satu sudut pandang." />);
     fireEvent.click(screen.getByRole("button", { name: "Definisi Angle" }));
     expect(screen.getByText(/pengamatan di dalam Territory/i)).toBeTruthy();
+    expect(screen.getByText(/contoh situasi yang bisa ditunjuk/i)).toBeTruthy();
+  });
+
+  it("shows the concrete example under the Angle explanation", () => {
+    render(
+      <LabNodeInspector
+        kind="angle"
+        code="AN01"
+        title="Pergeseran fokus kepemilikan"
+        statement="Pembelian berlebih seringkali menggeser fokus dari nilai guna barang menjadi sekadar kepemilikan."
+        example="Lemari sudah penuh baju, tapi yang terasa kurang selalu baju yang belum dibeli"
+      />,
+    );
+    expect(screen.getByText(/Lemari sudah penuh baju/)).toBeTruthy();
+    expect(screen.getByText(/Example\./)).toBeTruthy();
+  });
+
+  it("puts Delete in the Idea menu", () => {
+    const onDelete = vi.fn();
+    render(<LabNodeInspector kind="idea" code="ID01" statement="Satu konsep kreatif." onDelete={onDelete} />);
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalledOnce();
   });
 
   it("keeps the Idea definition behind an Indonesian info mark", () => {
@@ -779,7 +1131,7 @@ describe("LabNodeInspector territory entry", () => {
     render(<LabNodeInspector kind="territory" code="TR03" statement="Ruang pemberian sukarela." />);
     expect(screen.queryByText(/specific point of view/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Definisi Territory" }));
-    expect(screen.getByText(/kata atau frasa benda, tanpa klaim/i)).toBeTruthy();
+    expect(screen.getByText(/kata benda atau frasa benda, tanpa klaim/i)).toBeTruthy();
   });
 
   it("keeps Lock off while Challenger is the territory action", () => {

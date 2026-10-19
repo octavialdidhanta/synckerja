@@ -8,6 +8,8 @@ const REJECT_RELATIONS = new Set<ExecutionSemanticFacts["relationToParent"]>([
   "PILLAR_NOT_SELLING",
   "CLIMB_MISSED",
   "SUBJECT_MISMATCH",
+  "CAUSE_BROKEN",
+  "CONCLUSION_MISSED",
 ]);
 
 export function admitExecution(facts: ExecutionSemanticFacts | null): IndividualAdmission {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -12,9 +12,10 @@ import {
 } from '@/shared/components/ui/select';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { useScriptAIConfig } from '@/6-1-script-generator/hooks/useScriptAIConfig';
+import { useScriptAIConfig, type ScriptAIConfigRow } from '@/6-1-script-generator/hooks/useScriptAIConfig';
 import {
   resolveTextAIProvider,
+  textAIProviderLabel,
   type TextAIProvider,
 } from '@/6-1-script-generator/utils/scriptAiTextProvider';
 import { toast } from 'sonner';
@@ -35,8 +36,9 @@ interface ScriptAIConfig {
   daily_limit: number;
   model: string;
   is_active: boolean;
-  text_ai_provider?: 'gemini' | 'groq' | 'fireworks';
+  text_ai_provider?: TextAIProvider;
   api_key_configured: boolean;
+  openai_api_key_configured: boolean;
 }
 
 const DEPRECATED_GEMINI_MODELS = [
@@ -83,8 +85,15 @@ const FIREWORKS_MODEL_OPTIONS = [
   },
 ] as const;
 
+const PROVIDER_BUTTON_ORDER = ['gemini', 'openai', 'groq', 'fireworks'] as const satisfies readonly TextAIProvider[];
+
+const OPENAI_MODEL_OPTIONS = [
+  { value: 'gpt-4o-mini', label: 'GPT-4o mini' },
+  { value: 'gpt-4o', label: 'GPT-4o' },
+] as const;
+
 const CONFIG_SELECT =
-  'id, organization_id, daily_limit, model, is_active, text_ai_provider, api_key_configured' as const;
+  'id, organization_id, daily_limit, model, is_active, text_ai_provider, api_key_configured, openai_api_key_configured' as const;
 
 function normalizeStoredModel(raw: string | null | undefined, provider: TextAIProvider): string {
   const fallback =
@@ -92,7 +101,9 @@ function normalizeStoredModel(raw: string | null | undefined, provider: TextAIPr
       ? 'llama-3.3-70b-versatile'
       : provider === 'fireworks'
         ? 'fireworks/llama-v3p3-70b-instruct'
-        : 'gemini-2.5-flash';
+        : provider === 'openai'
+          ? 'gpt-4o-mini'
+          : 'gemini-2.5-flash';
   const rawStr = String(raw ?? fallback).trim();
   const s = rawStr.toLowerCase();
 
@@ -105,6 +116,11 @@ function normalizeStoredModel(raw: string | null | undefined, provider: TextAIPr
   if (provider === 'groq') {
     if (GROQ_MODEL_OPTIONS.some((o) => o.value === s)) return s;
     return 'llama-3.3-70b-versatile';
+  }
+
+  if (provider === 'openai') {
+    if (OPENAI_MODEL_OPTIONS.some((o) => o.value === rawStr)) return rawStr;
+    return 'gpt-4o-mini';
   }
 
   // Fireworks model ids are case-sensitive; match known options first, else keep trimmed raw.
@@ -128,19 +144,24 @@ export const ScriptAIConfigSection: React.FC = () => {
   const [model, setModel] = useState('gemini-2.5-flash');
   const [textAiProvider, setTextAiProvider] = useState<TextAIProvider>('gemini');
   const [apiKeyInput, setApiKeyInput] = useState('');
+  const [openaiKeyInput, setOpenaiKeyInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showRemoveApiKeyConfirm, setShowRemoveApiKeyConfirm] = useState(false);
   const [isRemovingApiKey, setIsRemovingApiKey] = useState(false);
+  const [appliedServerKey, setAppliedServerKey] = useState('');
 
-  const provider: TextAIProvider = textAiProvider;
-  const modelOptions =
-    provider === 'groq'
-      ? GROQ_MODEL_OPTIONS
-      : provider === 'fireworks'
-        ? FIREWORKS_MODEL_OPTIONS
-        : GEMINI_MODEL_OPTIONS;
-
-  useEffect(() => {
+  const serverKey = configRow
+    ? [
+        configRow.id,
+        configRow.daily_limit,
+        configRow.model,
+        configRow.text_ai_provider,
+        configRow.api_key_configured,
+        configRow.openai_api_key_configured,
+      ].join(':')
+    : '';
+  if (serverKey !== appliedServerKey && !apiKeyInput.trim() && !openaiKeyInput.trim()) {
+    setAppliedServerKey(serverKey);
     if (configRow) {
       setDailyLimit(configRow.daily_limit ?? 50);
       const nextProvider = resolveTextAIProvider(configRow);
@@ -151,7 +172,29 @@ export const ScriptAIConfigSection: React.FC = () => {
       setModel('gemini-2.5-flash');
       setTextAiProvider('gemini');
     }
-  }, [configRow]);
+  }
+
+  const provider: TextAIProvider = textAiProvider;
+  const savedProvider = configRow ? resolveTextAIProvider(configRow) : 'gemini';
+  const savedModel = normalizeStoredModel(configRow?.model, savedProvider);
+  const savedLimit = configRow?.daily_limit ?? 50;
+  const hasUnsavedKey =
+    (provider === 'gemini' && apiKeyInput.trim().length > 0) ||
+    (provider === 'openai' && openaiKeyInput.trim().length > 0);
+  const isDirty =
+    !configRow ||
+    textAiProvider !== savedProvider ||
+    model !== savedModel ||
+    Number(dailyLimit) !== Number(savedLimit) ||
+    hasUnsavedKey;
+  const modelOptions =
+    provider === 'groq'
+      ? GROQ_MODEL_OPTIONS
+      : provider === 'fireworks'
+        ? FIREWORKS_MODEL_OPTIONS
+        : provider === 'openai'
+          ? OPENAI_MODEL_OPTIONS
+          : GEMINI_MODEL_OPTIONS;
 
   const handleSave = async () => {
     if (!organizationId) {
@@ -162,6 +205,10 @@ export const ScriptAIConfigSection: React.FC = () => {
     // If provider=Gemini, we must have a Gemini key before enabling text AI (image/vision also uses Gemini).
     if (textAiProvider === 'gemini' && !configRow?.api_key_configured && !apiKeyInput.trim()) {
       toast.error('Gemini API key wajib diisi jika provider Text AI adalah Gemini');
+      return;
+    }
+    if (textAiProvider === 'openai' && !configRow?.openai_api_key_configured && !openaiKeyInput.trim()) {
+      toast.error('OpenAI API key wajib diisi jika provider Text AI adalah OpenAI');
       return;
     }
 
@@ -179,9 +226,14 @@ export const ScriptAIConfigSection: React.FC = () => {
         payload.google_ai_api_key = apiKeyInput.trim();
         payload.api_key_configured = true;
       }
+      if (openaiKeyInput.trim()) {
+        payload.openai_api_key = openaiKeyInput.trim();
+        payload.openai_api_key_configured = true;
+      }
 
+      let saved: ScriptAIConfigRow | null = null;
       if (configRow?.id) {
-        const { data: saved, error } = await supabase
+        const { data, error } = await supabase
           .from('organization_script_ai_config')
           .update(payload)
           .eq('id', configRow.id)
@@ -189,34 +241,32 @@ export const ScriptAIConfigSection: React.FC = () => {
           .single();
 
         if (error) throw error;
-        if (saved) {
-          setDailyLimit(saved.daily_limit ?? 50);
-          const nextProvider = resolveTextAIProvider(saved);
-          setTextAiProvider(nextProvider);
-          setModel(normalizeStoredModel(saved.model, nextProvider));
-        }
+        saved = data as ScriptAIConfigRow | null;
       } else {
         const insertPayload = {
           ...payload,
           organization_id: organizationId,
           api_key_configured: !!apiKeyInput.trim(),
+          openai_api_key_configured: !!openaiKeyInput.trim(),
         };
-        const { data: saved, error } = await supabase
+        const { data, error } = await supabase
           .from('organization_script_ai_config')
           .insert(insertPayload)
           .select(CONFIG_SELECT)
           .single();
 
         if (error) throw error;
-        if (saved) {
-          setDailyLimit(saved.daily_limit ?? 50);
-          const nextProvider = resolveTextAIProvider(saved);
-          setTextAiProvider(nextProvider);
-          setModel(normalizeStoredModel(saved.model, nextProvider));
-        }
+        saved = data as ScriptAIConfigRow | null;
       }
 
+      if (!saved) throw new Error('Konfigurasi tidak tersimpan');
+      const nextProvider = resolveTextAIProvider(saved);
+      setDailyLimit(saved.daily_limit ?? 50);
+      setTextAiProvider(nextProvider);
+      setModel(normalizeStoredModel(saved.model, nextProvider));
       setApiKeyInput('');
+      setOpenaiKeyInput('');
+      queryClient.setQueryData(['script-ai-config', organizationId], saved);
       queryClient.invalidateQueries({ queryKey: ['script-ai-config', organizationId] });
       toast.success('Konfigurasi berhasil disimpan');
     } catch (err) {
@@ -233,10 +283,11 @@ export const ScriptAIConfigSection: React.FC = () => {
     try {
       const { error } = await supabase
         .from('organization_script_ai_config')
-        .update({
-          google_ai_api_key: null,
-          api_key_configured: false,
-        })
+        .update(
+          provider === 'openai'
+            ? { openai_api_key: null, openai_api_key_configured: false }
+            : { google_ai_api_key: null, api_key_configured: false },
+        )
         .eq('id', configRow.id);
 
       if (error) throw error;
@@ -255,6 +306,9 @@ export const ScriptAIConfigSection: React.FC = () => {
   const apiKeyPlaceholder = configRow?.api_key_configured
     ? '•••••••••••• API key sudah dikonfigurasi'
     : 'Masukkan API key dari Google AI Studio';
+  const openaiKeyPlaceholder = configRow?.openai_api_key_configured
+    ? '•••••••••••• API key sudah dikonfigurasi'
+    : 'Masukkan API key dari OpenAI';
 
   if (!organizationId || isPending) {
     return null;
@@ -266,24 +320,14 @@ export const ScriptAIConfigSection: React.FC = () => {
         <div className="rounded-lg border p-4 space-y-3">
           <div>
             <Label id="ai-provider-label">Text AI Provider</Label>
-            <p className="text-xs text-gray-500">
-              Script Generator & Creative. Analisis struk (gambar) memakai model vision untuk provider
-              terpilih; API key Groq/Fireworks diatur di secrets proyek Supabase (sama seperti generate script). Untuk
-              file PDF, gunakan Gemini atau unggah hasil OCR dari perangkat.
-            </p>
           </div>
           <div
             role="tablist"
             aria-labelledby="ai-provider-label"
-            className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+            className="grid grid-cols-2 gap-2"
           >
-            {(
-              [
-                { id: 'gemini' as const, label: 'Gemini' },
-                { id: 'groq' as const, label: 'Groq' },
-                { id: 'fireworks' as const, label: 'Fireworks' },
-              ] as const
-            ).map((opt) => {
+            {PROVIDER_BUTTON_ORDER.map((id) => {
+              const opt = { id, label: textAIProviderLabel(id) };
               const selected = textAiProvider === opt.id;
               return (
                 <Button
@@ -348,6 +392,49 @@ export const ScriptAIConfigSection: React.FC = () => {
           </div>
         )}
 
+        {provider === 'openai' && (
+          <div className="space-y-2">
+            <Label htmlFor="openai-api-key">OpenAI API Key</Label>
+            <div className="flex gap-2">
+              <Input
+                id="openai-api-key"
+                type="password"
+                value={openaiKeyInput}
+                onChange={(e) => setOpenaiKeyInput(e.target.value)}
+                placeholder={openaiKeyPlaceholder}
+                autoComplete="off"
+                className="font-mono flex-1"
+              />
+              {configRow?.openai_api_key_configured && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 shrink-0 px-4"
+                  onClick={() => setShowRemoveApiKeyConfirm(true)}
+                  disabled={isSaving}
+                  title="Hapus API key dari database"
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Hapus API Key
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
+              Text AI (OpenAI) untuk organisasi ini.{' '}
+              <a
+                href="https://platform.openai.com/api-keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline inline-flex items-center gap-1"
+              >
+                Buat key
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              . Key tidak ditampilkan setelah disimpan.
+            </p>
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label htmlFor="daily-limit">Daily Limit</Label>
           <Input
@@ -378,14 +465,16 @@ export const ScriptAIConfigSection: React.FC = () => {
         </div>
       </div>
 
-      <Button onClick={handleSave} disabled={isSaving}>
+      <Button onClick={handleSave} disabled={isSaving || !isDirty}>
         {isSaving ? (
           <>
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             Menyimpan...
           </>
-        ) : (
+        ) : isDirty ? (
           'Simpan'
+        ) : (
+          'Tersimpan'
         )}
       </Button>
 
@@ -414,7 +503,9 @@ export const ScriptAIConfigSection: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus API Key?</AlertDialogTitle>
             <AlertDialogDescription>
-              Key dihapus dari database. Text AI (Gemini) dan Image/Vision nonaktif sampai key baru ditambahkan.
+              {provider === 'openai'
+                ? 'Key OpenAI dihapus dari organisasi ini. Permintaan teks OpenAI berhenti sampai key baru ditambahkan.'
+                : 'Key dihapus dari database. Text AI (Gemini) dan Image/Vision nonaktif sampai key baru ditambahkan.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

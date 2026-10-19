@@ -1,5 +1,7 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
+import { normalizeAngleExample } from "@/thinking-lab/angle/example";
+import { normalizeAngleSubject } from "@/thinking-lab/angle/subject";
 import { ACTIVE_SET_CAP, MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "@/thinking-lab/shared/limits";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 import type { AngleParentDenial } from "@/thinking-lab/angle/eligibility";
@@ -19,12 +21,16 @@ export function planAngleGenerate(input: {
   activeCount: number;
   generateValidCount: number;
   round: number;
+  topUp?: boolean;
 }): PlannedAngleGenerate {
   if (input.round > MAX_GENERATE_ROUNDS) return { needed: 0, stop: "ROUNDS" };
   if (input.activeCount >= ACTIVE_SET_CAP) return { needed: 0, stop: "CAP" };
   const missing = TARGET_GENERATE_VALID - input.generateValidCount;
-  if (missing <= 0) return { needed: 0, stop: "ENOUGH" };
   const room = ACTIVE_SET_CAP - input.activeCount;
+  if (missing <= 0) {
+    if (!input.topUp || room <= 0) return { needed: 0, stop: input.topUp && room <= 0 ? "CAP" : "ENOUGH" };
+    return { needed: 1, stop: null };
+  }
   return { needed: Math.min(missing, room), stop: null };
 }
 
@@ -63,9 +69,14 @@ export function buildAngleGeneratePrompt(input: {
     ...ANCESTOR_STAKE_RULES,
     "Do not invent a weak observation to fill a quota. Return fewer candidates when a strong Angle is not available.",
     "Write in the same language as the Territory.",
+    "Each candidate also has a subject: one to six words that name the observation on their own.",
+    "The subject does not use the Territory's name and is not a chopped opening of the sentence.",
+    "Each candidate also has an example: one concrete situation a person could point at that shows the observation.",
+    "The statement stays the observation. Do not place that situation inside the statement.",
+    "The example is not a second explanation of the pattern and not a finished Idea.",
     "Do not use examples from any specific industry, belief system, or brand.",
     `Return at most ${input.needed} candidate(s).`,
-    "Return JSON only: {\"statements\":[\"...\"]}",
+    "Return JSON only: {\"angles\":[{\"subject\":\"...\",\"statement\":\"...\",\"example\":\"...\"}]}",
     "",
     "Direct Territory:",
     input.parentStatement.trim(),
@@ -93,8 +104,10 @@ export function buildAngleGapPrompt(input: {
     ...ANCESTOR_STAKE_RULES,
     "It must be able to generate several substantively different Ideas.",
     "Write in the same language as the Territory.",
+    "Also write a subject of one to six words and one concrete situation a person could point at.",
+    "The statement stays the observation. Do not place that situation inside the statement.",
     "Do not use examples from any specific industry, belief system, or brand.",
-    "Return JSON only: {\"statements\":[\"...\"]}",
+    "Return JSON only: {\"angles\":[{\"subject\":\"...\",\"statement\":\"...\",\"example\":\"...\"}]}",
     "",
     "Direct Territory:",
     input.parentStatement.trim(),
@@ -106,6 +119,27 @@ export function buildAngleGapPrompt(input: {
     "Incumbent Angles:",
     kept,
   ].join("\n");
+}
+
+export type AngleDraft = { statement: string; subject: string; example: string };
+
+export function parseGeneratedAngleDrafts(raw: unknown): AngleDraft[] {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const angles = (raw as { angles?: unknown }).angles;
+  if (Array.isArray(angles)) {
+    const drafts: AngleDraft[] = [];
+    for (const row of angles) {
+      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+      const item = row as { statement?: unknown; subject?: unknown; example?: unknown };
+      const statement = typeof item.statement === "string" ? item.statement.trim() : "";
+      const subject = typeof item.subject === "string" ? item.subject.trim() : "";
+      const example = typeof item.example === "string" ? item.example.trim() : "";
+      if (!statement) continue;
+      drafts.push({ statement, subject, example });
+    }
+    if (drafts.length > 0) return drafts;
+  }
+  return parseGeneratedAngleStatements(raw).map((statement) => ({ statement, subject: "", example: "" }));
 }
 
 export function parseGeneratedAngleStatements(raw: unknown): string[] {
@@ -134,6 +168,24 @@ export type AngleGenerateResult<T> = {
   parent: AngleGenerateParent | null;
 };
 
+/** Sentence shown immediately. The pass checklist stays off this path. */
+export function shownAngleFacts(code: string, statement: string, subject = "", example = ""): AngleSemanticFacts {
+  return {
+    code,
+    whatItSays: statement.trim(),
+    relationToParent: "VALID_ANGLE",
+    parentFit: true,
+    conceptualForm: "ANGLE_PROPOSITION",
+    ideaGenerativity: "SUFFICIENT",
+    boundedness: "BOUNDED",
+    jobForm: "OBSERVATION",
+    resolution: "RESOLVED",
+    unresolvedReasons: [],
+    subject: normalizeAngleSubject(subject),
+    example: normalizeAngleExample(example),
+  };
+}
+
 export async function judgeAndSealAngle(input: {
   parentStatement: string;
   ancestors?: AncestorStake[];
@@ -161,7 +213,12 @@ export async function runAngleGenerate<
 >(input: {
   loadParent: () => Promise<{ ok: true; parent: AngleGenerateParent } | { ok: false; reason: AngleParentDenial }>;
   incumbents: T[];
-  propose: (plan: PlannedAngleGenerate, parent: AngleGenerateParent, incumbents: T[]) => Promise<string[]>;
+  topUp?: boolean;
+  propose: (
+    plan: PlannedAngleGenerate,
+    parent: AngleGenerateParent,
+    incumbents: T[],
+  ) => Promise<Array<string | AngleDraft>>;
   judge: (parent: AngleGenerateParent, code: string, statement: string) => Promise<AngleSemanticFacts>;
   persist: (input: {
     parent: AngleGenerateParent;
@@ -189,15 +246,33 @@ export async function runAngleGenerate<
       activeCount,
       generateValidCount: countAdmittedAngles(incumbents),
       round,
+      topUp: input.topUp,
     });
     if (plan.needed === 0) break;
-    const statements = (await input.propose(plan, gate.parent, incumbents)).slice(0, plan.needed);
-    for (const statement of statements) {
+    const drafts = (await input.propose(plan, gate.parent, incumbents))
+      .slice(0, plan.needed)
+      .map((row) =>
+        typeof row === "string"
+          ? { statement: row.trim(), subject: "", example: "" }
+          : { statement: row.statement.trim(), subject: row.subject.trim(), example: row.example.trim() },
+      )
+      .filter((row) => row.statement);
+    for (const draft of drafts) {
       if (activeCount >= ACTIVE_SET_CAP) break;
       const code = nextAngleCode(incumbents.map((row) => row.code));
-      const facts = await input.judge(gate.parent, code, statement);
+      const facts = await input.judge(gate.parent, code, draft.statement);
       const admission = admitAngle(facts);
-      const saved = await input.persist({ parent: gate.parent, code, statement, facts, admission });
+      const saved = await input.persist({
+        parent: gate.parent,
+        code,
+        statement: draft.statement,
+        facts: {
+          ...facts,
+          subject: normalizeAngleSubject(draft.subject) || facts.subject,
+          example: normalizeAngleExample(draft.example) || facts.example,
+        },
+        admission,
+      });
       incumbents = [...incumbents, { ...saved, admission, territoryId: gate.parent.id }];
       activeCount += 1;
     }
@@ -219,7 +294,7 @@ export async function proposeAngleStatements(input: {
   incumbents: Array<{ code: string; statement: string }>;
   needed: number;
   ask: (prompt: string) => Promise<string | null>;
-}): Promise<string[]> {
+}): Promise<AngleDraft[]> {
   const script = await input.ask(
     buildAngleGeneratePrompt({
       parentStatement: input.parentStatement,
@@ -230,5 +305,5 @@ export async function proposeAngleStatements(input: {
   );
   if (!script?.trim()) return [];
   const parsed = parseModelJson(script);
-  return parseGeneratedAngleStatements(parsed);
+  return parseGeneratedAngleDrafts(parsed);
 }

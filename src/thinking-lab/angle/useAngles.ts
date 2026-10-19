@@ -2,7 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { labAngleKey } from "@/thinking-lab/shared/queryKeys";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
-import { insertLabAngle, listLabAngles, loadAngleSet, lockLabAngles, replaceLabAngle, saveAngleSet } from "@/thinking-lab/angle/repository";
+import {
+  deleteLabAngle,
+  insertLabAngle,
+  listLabAngles,
+  loadAngleSet,
+  lockLabAngles,
+  replaceLabAngle,
+  saveAngleSet,
+} from "@/thinking-lab/angle/repository";
 import type { AngleSetRecord } from "@/thinking-lab/angle/setAudit";
 import type { AngleSemanticFacts } from "@/thinking-lab/angle/types";
 
@@ -38,6 +46,20 @@ export function useLabAngles(territoryIds: string[]) {
     },
   });
 
+  const remove = useMutation({
+    mutationFn: (input: { territoryId: string; id: string }) =>
+      deleteLabAngle({
+        organizationId: organizationId as string,
+        ...input,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-angles", organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-ideas", organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-executions", organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-angle-set", organizationId] });
+    },
+  });
+
   const replace = useMutation({
     mutationFn: (input: {
       territoryId: string;
@@ -55,7 +77,7 @@ export function useLabAngles(territoryIds: string[]) {
     },
   });
 
-  return { ...query, organizationId, insert, replace };
+  return { ...query, organizationId, insert, replace, remove };
 }
 
 export function useAngleSet(territoryId: string | null) {
