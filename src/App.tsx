@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { DeferredAppToasters } from "@/shared/components/DeferredAppToasters";
+import { GeminiSpendCapDialog } from "@/shared/ai/GeminiSpendCapDialog";
 import { DeferredNativeAppServices } from "@/shared/components/DeferredNativeAppServices";
 import { TooltipProvider } from "@/shared/components/ui/tooltip";
 import { RequireAuth } from "@/shared/components/RequireAuth";
@@ -3688,6 +3689,7 @@ const App = () => (
       <PosKeyboardFocusScrollLock />
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
         <DeferredAppToasters />
+        <GeminiSpendCapDialog />
         <AuthProvider>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <CentralizedUserDataProvider>

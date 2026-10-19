@@ -22,6 +22,7 @@ import {
   SCRIPT_BREAKDOWN_CELL_TH,
   scriptBreakdownMarkdownTableClassName,
 } from '../utils/scriptBreakdownTableClasses';
+import { isGeminiSpendCapError, isGeminiSpendCapMessage } from '@/shared/ai/geminiSpendCap';
 import { reviseScriptPart, regenerateScriptWithDifferentProblem } from '../services/scriptGeneratorAIService';
 
 /** Format satu baris tabel (string[]) jadi satu baris markdown | a | b | c | */
@@ -375,7 +376,9 @@ export const AIScriptResult: React.FC<AIScriptResultProps> = ({
         nextRowText
       );
       if (!result.success || !result.script) {
-        toast.error(result.error || 'Gagal merevisi');
+        if (!isGeminiSpendCapMessage(result.error)) {
+          toast.error(result.error || 'Gagal merevisi');
+        }
         throw new Error(result.error);
       }
       let newScript: string;
@@ -421,7 +424,9 @@ export const AIScriptResult: React.FC<AIScriptResultProps> = ({
       setRevisiModalOpen(false);
       setRevisiTarget(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Revisi gagal. Coba lagi.');
+      if (!isGeminiSpendCapError(err)) {
+        toast.error(err instanceof Error ? err.message : 'Revisi gagal. Coba lagi.');
+      }
     } finally {
       setIsRevising(false);
     }
@@ -433,8 +438,10 @@ export const AIScriptResult: React.FC<AIScriptResultProps> = ({
     try {
       const result = await regenerateScriptWithDifferentProblem(script, instruction);
       if (!result.success || !result.script) {
-        toast.error(result.error || 'Gagal meregenerasi');
-        throw new Error(result.error);
+        if (!isGeminiSpendCapMessage(result.error)) {
+          toast.error(result.error || 'Gagal meregenerasi');
+        }
+        return;
       }
       onScriptChange(result.script);
       toast.success('Script berhasil diregenerasi');

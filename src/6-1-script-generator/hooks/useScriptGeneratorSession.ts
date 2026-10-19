@@ -4,6 +4,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 import { generateScript, type ScriptGeneratorRequest } from '../services/scriptGeneratorService';
+import { isGeminiSpendCapMessage } from '@/shared/ai/geminiSpendCap';
 import { generateScriptWithAI } from '../services/scriptGeneratorAIService';
 import { useScriptAIConfig } from './useScriptAIConfig';
 import {
@@ -183,7 +184,7 @@ export function useScriptGeneratorSession() {
             msg.toLowerCase().includes('tpm') ||
             msg.toLowerCase().includes('tokens per minute') ||
             msg.includes('Request terlalu besar'));
-        toast.error(msg);
+        if (!isGeminiSpendCapMessage(msg)) toast.error(msg);
         return shouldOfferSwitch ? false : false;
       } catch (error) {
         console.error('Error generating script with AI:', error);

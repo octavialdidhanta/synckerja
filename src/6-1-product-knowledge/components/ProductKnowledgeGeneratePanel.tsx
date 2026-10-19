@@ -13,6 +13,7 @@ import {
 } from '@/shared/components/ui/dialog';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useScriptAIConfig } from '@/6-1-script-generator/hooks/useScriptAIConfig';
+import { isGeminiSpendCapMessage } from '@/shared/ai/geminiSpendCap';
 import { generateScriptWithAI } from '@/6-1-script-generator/services/scriptGeneratorAIService';
 import { buildProductKnowledgePrompt, type AudienceMode } from '../utils/buildProductKnowledgePrompt';
 import { parseProductKnowledgeAiTable, type ProductKnowledgeAiRow } from '../utils/parseProductKnowledgeAiTable';
@@ -150,10 +151,26 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
         }
       } else {
         const msg = result.error || t('productKnowledge.generate.aiFailed', 'Gagal generate dengan AI.');
-        setParseError(msg);
+        setParseError(
+          isGeminiSpendCapMessage(msg)
+            ? t(
+                'geminiSpendCap.body',
+                'Proyek Google AI Studio sudah melewati batas belanja bulan ini. Naikkan atau reset batasnya, lalu coba lagi.',
+              )
+            : msg,
+        );
       }
     } catch (err) {
       console.error('Generate with AI error:', err);
+      if (isGeminiSpendCapMessage(err instanceof Error ? err.message : '')) {
+        setParseError(
+          t(
+            'geminiSpendCap.body',
+            'Proyek Google AI Studio sudah melewati batas belanja bulan ini. Naikkan atau reset batasnya, lalu coba lagi.',
+          ),
+        );
+        return;
+      }
       setParseError(err instanceof Error ? err.message : 'Unknown error');
       toast.error(t('productKnowledge.generate.aiFailed', 'Gagal generate dengan AI.'));
     } finally {

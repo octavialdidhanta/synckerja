@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/shared/components/ui/button';
+import { presentGeminiSpendCap, readEdgeFunctionError } from '@/shared/ai/geminiSpendCap';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -886,7 +887,8 @@ export const DetectFromImageSection: React.FC = () => {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       // Prefer server error message when present (e.g. 500 with JSON body)
-      const serverMessage = data && typeof data === 'object' && 'error' in data ? String((data as { error: unknown }).error) : '';
+      const serverMessage = data?.error || error ? await readEdgeFunctionError(data, error) : '';
+      if (presentGeminiSpendCap(serverMessage)) return;
       if (serverMessage) {
         const msg = serverMessage;
         if (msg.includes('limit') || msg.includes('429')) {
@@ -938,6 +940,7 @@ export const DetectFromImageSection: React.FC = () => {
     } catch (err) {
       console.error(err);
       const msg = err instanceof Error ? err.message : String(err);
+      if (presentGeminiSpendCap(msg)) return;
       const is429 =
         msg.includes('429') ||
         msg.includes('Too Many Requests') ||
@@ -1513,8 +1516,10 @@ export const DetectFromImageSection: React.FC = () => {
         // Perpanjang timeout agar request sampai ke Gemini (generate image bisa 60–120 detik)
         timeout: 180000, // 3 menit (default client sering 60s)
       });
-      if (data?.error) {
-        const msg = String(data.error);
+      if (data?.error || error) {
+        const msg = await readEdgeFunctionError(data, error);
+        if (presentGeminiSpendCap(msg)) return;
+        if (!data?.error) throw error;
         if (msg.includes('limit') || msg.includes('429')) {
           toast.error(t('detectFromImage.errorLimit', 'Daily limit reached. Try again tomorrow.'));
         } else if (msg.includes('config') || msg.includes('Script AI')) {
@@ -1524,7 +1529,6 @@ export const DetectFromImageSection: React.FC = () => {
         }
         return;
       }
-      if (error) throw error;
       const base64 = data?.imageBase64;
       const mimeType = data?.mimeType ?? 'image/png';
       if (!base64) {
@@ -1537,6 +1541,7 @@ export const DetectFromImageSection: React.FC = () => {
       setGeneratedImageUrl(fittedUrl);
     } catch (err) {
       console.error(err);
+      if (presentGeminiSpendCap(err instanceof Error ? err.message : '')) return;
       const msg =
         err instanceof Error ? err.message : t('digitalAssets.detectError', 'Image generation failed.');
       const is429 =

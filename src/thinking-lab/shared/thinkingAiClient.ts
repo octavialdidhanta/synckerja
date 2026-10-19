@@ -1,3 +1,4 @@
+import { presentGeminiSpendCap } from "@/shared/ai/geminiSpendCap";
 import { supabase, SUPABASE_URL } from "@/shared/lib/supabaseClient";
 
 export const THINKING_JSON_PURPOSE = "thinking_json";
@@ -58,11 +59,14 @@ export async function generateThinkingJsonWithAI(
       const errMsg = typeof (data as { error?: unknown }).error === "string"
         ? String((data as { error: string }).error)
         : `Request gagal (${res.status})`;
+      presentGeminiSpendCap(errMsg);
       return { success: false, error: errMsg };
     }
     const errMsg = (data as { error?: unknown }).error;
     if (errMsg) {
-      return { success: false, error: typeof errMsg === "string" ? errMsg : "Failed to generate" };
+      const message = typeof errMsg === "string" ? errMsg : "Failed to generate";
+      presentGeminiSpendCap(message);
+      return { success: false, error: message };
     }
     const script = (data as { script?: unknown }).script;
     if (typeof script !== "string") {

@@ -1,3 +1,4 @@
+import { GeminiSpendCapError, presentGeminiSpendCap, readEdgeFunctionError } from '@/shared/ai/geminiSpendCap';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { loadPoseReferencesForCharacters } from '@/6-1-social-media-settings/lib/loadCharacterPoseReferences';
 import type { BriefConceptDocument } from '@/6-1-dashboard/modal/briefConceptAssets';
@@ -359,10 +360,11 @@ export async function generateBriefSceneImageFile(params: {
     headers: { Authorization: `Bearer ${session.access_token}` },
   });
 
-  if (data?.error) {
-    throw new Error(String(data.error));
+  if (data?.error || error) {
+    const message = await readEdgeFunctionError(data, error);
+    if (presentGeminiSpendCap(message)) throw new GeminiSpendCapError(message);
+    throw new Error(message || t('briefDialog.layout.generateFailed', 'Image generation failed.'));
   }
-  if (error) throw error;
 
   const base64 = data?.imageBase64;
   const mimeType = (data?.mimeType as string | undefined) ?? 'image/png';

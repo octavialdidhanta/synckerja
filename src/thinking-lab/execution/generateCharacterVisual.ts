@@ -1,4 +1,5 @@
 import { buildLocationImagePrompt, buildPropertyImagePrompt, type LocationImageBrief } from "@/6-1-dashboard/modal/locationImagePrompt";
+import { GeminiSpendCapError, presentGeminiSpendCap, readEdgeFunctionError } from "@/shared/ai/geminiSpendCap";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { storageUploadOptions } from "@/shared/lib/storageCacheControl";
 import {
@@ -109,8 +110,11 @@ async function generateDesignImage(
     headers: { Authorization: `Bearer ${session.access_token}` },
     timeout: 180000,
   });
-  if (data?.error) throw new Error(String(data.error));
-  if (error) throw error;
+  if (data?.error || error) {
+    const message = await readEdgeFunctionError(data, error);
+    if (presentGeminiSpendCap(message)) throw new GeminiSpendCapError(message);
+    throw new Error(message || "EMPTY");
+  }
   const base64 = data?.imageBase64;
   if (!base64 || typeof base64 !== "string") throw new Error("EMPTY");
   return { base64, mimeType: typeof data?.mimeType === "string" ? data.mimeType : "image/png" };

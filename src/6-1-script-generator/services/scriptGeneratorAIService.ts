@@ -1,9 +1,15 @@
+import { presentGeminiSpendCap, readEdgeFunctionError } from '@/shared/ai/geminiSpendCap';
 import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 
 export interface GenerateScriptWithAIResponse {
   success: boolean;
   script?: string;
   error?: string;
+}
+
+function aiFailure(error: string): GenerateScriptWithAIResponse {
+  presentGeminiSpendCap(error);
+  return { success: false, error };
 }
 
 export async function reviseScriptPart(
@@ -53,19 +59,13 @@ export async function reviseScriptPart(
     });
 
     if (error) {
-      const serverMsg = data?.error;
-      return {
-        success: false,
-        error: typeof serverMsg === 'string' ? serverMsg : (error.message || 'Gagal merevisi. Coba lagi.'),
-      };
+      const serverMsg = await readEdgeFunctionError(data, error);
+      return aiFailure(serverMsg || 'Gagal merevisi. Coba lagi.');
     }
 
     const errMsg = data?.error;
     if (errMsg) {
-      return {
-        success: false,
-        error: typeof errMsg === 'string' ? errMsg : 'Failed to revise script part',
-      };
+      return aiFailure(typeof errMsg === 'string' ? errMsg : 'Failed to revise script part');
     }
 
     const script = data?.script;
@@ -119,19 +119,13 @@ export async function regenerateScriptWithDifferentProblem(
     });
 
     if (error) {
-      const serverMsg = data?.error;
-      return {
-        success: false,
-        error: typeof serverMsg === 'string' ? serverMsg : (error.message || 'Gagal meregenerasi. Coba lagi.'),
-      };
+      const serverMsg = await readEdgeFunctionError(data, error);
+      return aiFailure(serverMsg || 'Gagal meregenerasi. Coba lagi.');
     }
 
     const errMsg = data?.error;
     if (errMsg) {
-      return {
-        success: false,
-        error: typeof errMsg === 'string' ? errMsg : 'Failed to regenerate script',
-      };
+      return aiFailure(typeof errMsg === 'string' ? errMsg : 'Failed to regenerate script');
     }
 
     const script = data?.script;
@@ -202,15 +196,12 @@ export async function generateScriptWithAI(
       } else if (res.status >= 500) {
         message = errMsg || 'Server sibuk. Coba lagi dalam beberapa saat.';
       }
-      return { success: false, error: message };
+      return aiFailure(message);
     }
 
     const errMsg = data?.error;
     if (errMsg) {
-      return {
-        success: false,
-        error: typeof errMsg === 'string' ? errMsg : 'Failed to generate script',
-      };
+      return aiFailure(typeof errMsg === 'string' ? errMsg : 'Failed to generate script');
     }
 
     const script = data?.script;

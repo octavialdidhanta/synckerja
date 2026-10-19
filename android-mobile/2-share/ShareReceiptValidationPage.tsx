@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { ChevronLeft, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/mobile-app/components/ui/button";
+import { isGeminiSpendCapMessage } from "@/shared/ai/geminiSpendCap";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { ShareIntent } from "@/plugins/share-intent";
 import { shareIntentFilesToFiles } from "@/mobile-app/shareIntent/shareFilesToWeb";
@@ -227,7 +228,7 @@ export default function ShareReceiptValidationPage() {
           "Payment draft filled from receipt."
         )
       );
-    } else {
+    } else if (!isGeminiSpendCapMessage(result.error)) {
       toast.error(
         result.error ||
           t(
@@ -318,7 +319,7 @@ export default function ShareReceiptValidationPage() {
       toast.success(
         t("shareReceipt.aiAutofillReady", "Draft expense berhasil diisi otomatis dari receipt.")
       );
-    } else {
+    } else if (!isGeminiSpendCapMessage(result.error)) {
       toast.error(
         result.error ||
           t(
@@ -349,7 +350,7 @@ export default function ShareReceiptValidationPage() {
           "Draft pemasukan berhasil diisi otomatis dari receipt."
         )
       );
-    } else {
+    } else if (!isGeminiSpendCapMessage(result.error)) {
       toast.error(
         result.error ||
           t(

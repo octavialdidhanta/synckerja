@@ -1,3 +1,4 @@
+import { GeminiSpendCapError, isGeminiSpendCapMessage } from "@/shared/ai/geminiSpendCap";
 import {
   generateThinkingJsonWithAI,
   type ThinkingAiTemperature,
@@ -8,6 +9,9 @@ export async function askThinkingLab(
   temperature: ThinkingAiTemperature = 0,
 ): Promise<string | null> {
   const result = await generateThinkingJsonWithAI(prompt, { temperature });
+  if (isGeminiSpendCapMessage(result.error)) {
+    throw new GeminiSpendCapError(result.error);
+  }
   if (!result.success || !result.script?.trim()) return null;
   return result.script.trim();
 }

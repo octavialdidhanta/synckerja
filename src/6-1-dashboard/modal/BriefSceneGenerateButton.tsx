@@ -3,6 +3,7 @@ import { Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
+import { isGeminiSpendCapError } from '@/shared/ai/geminiSpendCap';
 import { toast } from 'sonner';
 import {
   generateBriefSceneImageFile,
@@ -94,6 +95,7 @@ export function BriefSceneGenerateButton({
       toast.success(t('briefDialog.layout.generateSuccess', 'Scene image generated.'));
     } catch (err) {
       console.error(err);
+      if (isGeminiSpendCapError(err)) return;
       const msg =
         err instanceof Error
           ? err.message

@@ -1,3 +1,4 @@
+import { presentGeminiSpendCap } from "@/shared/ai/geminiSpendCap";
 import { supabase, SUPABASE_URL } from "@/shared/lib/supabaseClient";
 
 export interface ExpenseReceiptAutofillData {
@@ -156,9 +157,11 @@ export async function analyzeExpenseReceiptWithAI(params: {
       const serverError = typeof (payload as { error?: unknown }).error === "string"
         ? (payload as { error: string }).error
         : "";
+      const message = serverError || `Analisis receipt gagal (${response.status}).`;
+      presentGeminiSpendCap(message);
       return {
         success: false,
-        error: serverError || `Analisis receipt gagal (${response.status}).`,
+        error: message,
       };
     }
 

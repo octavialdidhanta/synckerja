@@ -24,6 +24,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { cn } from "@/shared/lib/utils";
+import { isGeminiSpendCapError, isGeminiSpendCapMessage } from "@/shared/ai/geminiSpendCap";
 import { askThinkingLab, parseModelJson } from "@/thinking-lab/shared/ai";
 import { ACTIVE_SET_CAP } from "@/thinking-lab/shared/limits";
 import type { AncestorStake } from "@/thinking-lab/shared/ancestorStake";
@@ -1173,11 +1174,16 @@ export function ThinkingLabPage() {
     try {
       await work();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));
+      reportStepError(error);
     } finally {
       setBusy(false);
       setBusyAction(null);
     }
+  };
+
+  const reportStepError = (error: unknown) => {
+    if (isGeminiSpendCapError(error)) return;
+    toast.error(error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));
   };
 
   const runManual = async (action: string, work: () => Promise<string | null>): Promise<string | null> => {
@@ -1188,6 +1194,7 @@ export function ThinkingLabPage() {
     try {
       return await work();
     } catch (error) {
+      if (isGeminiSpendCapError(error)) return null;
       const message = error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step.");
       toast.error(message);
       return message;
@@ -1633,7 +1640,7 @@ export function ThinkingLabPage() {
       try {
         await generateTerritory(bigThoughtId);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));
+        reportStepError(error);
       } finally {
         generatingTerritoryIdsRef.current.delete(bigThoughtId);
         setGeneratingTerritoryIds(new Set(generatingTerritoryIdsRef.current));
@@ -2068,7 +2075,7 @@ export function ThinkingLabPage() {
       try {
         await repairFailedIdeas(code);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));
+        reportStepError(error);
       } finally {
         fixingIdeaCodesRef.current.delete(key);
         setFixingIdeaCodes(new Set(fixingIdeaCodesRef.current));
@@ -3998,7 +4005,7 @@ export function ThinkingLabPage() {
       try {
         await repairFailedAngles(code);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));
+        reportStepError(error);
       } finally {
         fixingAngleCodesRef.current.delete(key);
         setFixingAngleCodes(new Set(fixingAngleCodesRef.current));
@@ -4533,7 +4540,7 @@ export function ThinkingLabPage() {
       try {
         await repairFailedTerritories(code);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));
+        reportStepError(error);
       } finally {
         fixingTerritoryCodesRef.current.delete(key);
         setFixingTerritoryCodes(new Set(fixingTerritoryCodesRef.current));
@@ -5046,7 +5053,7 @@ export function ThinkingLabPage() {
       try {
         await repairFailedBigThoughts(code);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));
+        reportStepError(error);
       } finally {
         fixingBigThoughtCodesRef.current.delete(key);
         setFixingBigThoughtCodes(new Set(fixingBigThoughtCodesRef.current));
@@ -5202,12 +5209,17 @@ export function ThinkingLabPage() {
           try {
             await labExecutions.patchScript.mutateAsync({ id: execution.id, script: error.script });
           } catch (saveError) {
-            toast.error(saveError instanceof Error ? saveError.message : t("thinkingLab.execution.characterFailed", "The character image could not be made."));
+            if (!isGeminiSpendCapError(saveError)) {
+              toast.error(saveError instanceof Error ? saveError.message : t("thinkingLab.execution.characterFailed", "The character image could not be made."));
+            }
             return;
           }
-          toast.error(t("thinkingLab.execution.characterPortraitOnly", "The portrait is saved. The character sheet could not be made."));
+          if (!isGeminiSpendCapMessage(error.message)) {
+            toast.error(t("thinkingLab.execution.characterPortraitOnly", "The portrait is saved. The character sheet could not be made."));
+          }
           return;
         }
+        if (isGeminiSpendCapError(error)) return;
         toast.error(error instanceof Error && error.message && error.message !== "AUTH" && error.message !== "EMPTY"
           ? error.message
           : t("thinkingLab.execution.characterFailed", "The character image could not be made."));
