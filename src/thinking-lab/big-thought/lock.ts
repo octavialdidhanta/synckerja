@@ -20,7 +20,7 @@ export function evaluateLock(input: {
   challenger: ChallengerFacts | null;
   challengerCurrent: boolean;
 }): LockDecision {
-  if (input.auditPassCount < 3 || input.auditPassCount !== input.activeCount) {
+  if (input.auditPassCount < 1 || input.auditPassCount !== input.activeCount) {
     return { ok: false, reason: "NEED_AUDIT_PASS" };
   }
   if (input.anyFail) return { ok: false, reason: "AUDIT_FAIL" };
@@ -47,11 +47,9 @@ export function selectStageAction(input: {
     input.activeCount > 0 &&
     (input.auditPassCount !== input.activeCount || input.anyStale || input.anyUnresolved);
   if (awaitingAudit) return "audit";
-  const needsGenerate =
-    input.generateValidCount < TARGET_GENERATE_VALID ||
-    (input.missingWhy && input.activeCount < ACTIVE_SET_CAP);
-  if (needsGenerate) return "generate";
+  if (input.auditPassCount >= 1 && input.auditPassCount === input.activeCount && !input.siblingCurrent) return "audit";
+  if (input.missingWhy && input.activeCount < ACTIVE_SET_CAP) return "generate";
   if (input.lockOk) return "lock";
-  if (input.auditPassCount >= 3 && input.auditPassCount === input.activeCount && !input.siblingCurrent) return "audit";
+  if (input.generateValidCount < TARGET_GENERATE_VALID) return "generate";
   return null;
 }

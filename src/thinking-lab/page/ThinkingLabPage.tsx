@@ -99,6 +99,7 @@ import {
   buildGeneratePrompt,
   countGenerateValid,
   judgeCandidateWithAsk,
+  keepGroundedBigThoughts,
   nextBigThoughtCode,
   parseGeneratedBigThoughts,
   runGenerateRounds,
@@ -110,7 +111,7 @@ import {
   buildBigThoughtLabelPrompt,
   buildKeyBeliefFromLabelPrompt,
   parseBigThoughtLabels,
-  parseKeyBeliefFromLabel,
+  parseKeyBeliefChoice,
   readBigThoughtLabel,
 } from "@/thinking-lab/big-thought/label";
 import {
@@ -278,7 +279,7 @@ import {
   type ScriptSpeech,
   type VoiceOverScript,
 } from "@/thinking-lab/execution/script";
-import { useLabExecutions } from "@/thinking-lab/execution/useExecutions";
+import { useLabExecutionCounts, useLabExecutions } from "@/thinking-lab/execution/useExecutions";
 import { canGenerateTerritory } from "@/thinking-lab/territory/eligibility";
 import {
   buildTerritoryFixOptionsPrompt,
@@ -340,6 +341,7 @@ import { ExecutionConfirmDialog } from "@/thinking-lab/section/ExecutionConfirmD
 import { MasterThoughtMapTree } from "@/thinking-lab/section/MasterThoughtMapTree";
 import { SavedMasterThoughtList } from "@/thinking-lab/section/SavedMasterThoughtList";
 import { MasterThoughtSection } from "@/thinking-lab/section/MasterThoughtSection";
+import type { ProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
 import { ProductBeliefSource } from "@/thinking-lab/section/ProductBeliefSource";
 
 function parentFingerprint(master: LabMasterThought): string | null {
@@ -364,6 +366,7 @@ export function ThinkingLabPage() {
   const [newPrior, setNewPrior] = useState("");
   const [newPlanted, setNewPlanted] = useState("");
   const [newAudience, setNewAudience] = useState("");
+  const [reasonPool, setReasonPool] = useState<ProductReasonPool | null>(null);
   const [originalDraft, setOriginalDraft] = useState("");
   const [priorDraft, setPriorDraft] = useState("");
   const [audienceDraft, setAudienceDraft] = useState("");
@@ -577,6 +580,11 @@ export function ThinkingLabPage() {
   const labAngles = useLabAngles(angleParentIds);
   const ideaParentIds = useMemo(() => (labAngles.data ?? []).map((row) => row.id), [labAngles.data]);
   const labIdeas = useLabIdeas(ideaParentIds);
+  const executionCountIdeaIds = useMemo(() => {
+    if (!focus || !("angleId" in focus)) return [];
+    return visibleIdeas(labIdeas.data ?? [], focus.angleId).map((idea) => idea.id);
+  }, [focus, labIdeas.data]);
+  const executionCounts = useLabExecutionCounts(executionCountIdeaIds);
   const lockedChildren = useMemo(
     () =>
       buildLockedMapChildren({
@@ -1209,7 +1217,12 @@ export function ThinkingLabPage() {
       const planted = newPlanted.trim();
       const priorBelief = newPrior.trim();
       const audience = newAudience.trim();
-      const created = await masters.create.mutateAsync({ planted, priorBelief, audience });
+      const created = await masters.create.mutateAsync({
+        planted,
+        priorBelief,
+        audience,
+        productReasonPool: reasonPool,
+      });
       const facts = await collectBeliefOptions({ planted, priorBelief, audience }, (prompt) => askThinkingLab(prompt, 0.2));
       await masters.saveJudge.mutateAsync({
         id: created.id,
@@ -1219,6 +1232,7 @@ export function ThinkingLabPage() {
       setNewPrior("");
       setNewPlanted("");
       setNewAudience("");
+      setReasonPool(null);
       setComposerOpen(false);
       skipAutoSelect.current = false;
       setSelectedId(created.id);
@@ -1229,6 +1243,7 @@ export function ThinkingLabPage() {
     setNewPrior("");
     setNewPlanted("");
     setNewAudience("");
+    setReasonPool(null);
   };
 
   const confirmDelete = () => {
@@ -1476,7 +1491,18 @@ export function ThinkingLabPage() {
       const codes = known.map((row) => row.code);
       let sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0);
       let record = parseLabSetRecord(selected.lastAudit);
-      await runGenerateRounds({
+      const pool = selected.productReasonPool;
+      if (pool && pool.items.length === 0) {
+        setNotice(
+          t(
+            "thinkingLab.product.noSupport",
+            "Produk ini tidak menopang Master Thought. Tidak ada alasan tersimpan yang menyelesaikan keyakinan ini.",
+          ),
+        );
+        return;
+      }
+      const started = rowViews.length;
+      const generated = await runGenerateRounds({
         parentStatement: becauseParent,
         incumbents: rowViews.map((row) => ({
           code: row.code,
@@ -1496,10 +1522,12 @@ export function ThinkingLabPage() {
                 .map((row) => ({ code: row.code, statement: row.statement, label: row.label })),
               needed: plan.needed,
               missingWhy: plan.missingWhy,
+              reasonPool: pool,
             }),
             0.2,
           );
-          return parseGeneratedBigThoughts(script ? parseModelJson(script) : null, becauseParent);
+          const parsed = parseGeneratedBigThoughts(script ? parseModelJson(script) : null, becauseParent, pool);
+          return keepGroundedBigThoughts(parsed, pool);
         },
         judge: (statement, siblings) =>
           judgeCandidateWithAsk({
@@ -1534,6 +1562,14 @@ export function ThinkingLabPage() {
           };
         },
       });
+      if (pool && generated.incumbents.length === started) {
+        setNotice(
+          t(
+            "thinkingLab.product.noSupport",
+            "Produk ini tidak menopang Master Thought. Tidak ada alasan tersimpan yang menyelesaikan keyakinan ini.",
+          ),
+        );
+      }
     }, "generate");
 
   const generateTerritory = async (bigThoughtId: string) => {
@@ -2319,6 +2355,13 @@ export function ThinkingLabPage() {
       const siblings = rowViews
         .filter((row) => row.admission === "GENERATE_VALID")
         .map((row) => ({ code: row.code, statement: row.statement }));
+      const pool = selected.productReasonPool;
+      if (pool && pool.items.length === 0) {
+        return t(
+          "thinkingLab.product.noSupport",
+          "Produk ini tidak menopang Master Thought. Tidak ada alasan tersimpan yang menyelesaikan keyakinan ini.",
+        );
+      }
       let rejectionNote: string | null = null;
       let statement = "";
       let sealed = null as Awaited<ReturnType<typeof judgeCandidateWithAsk>> | null;
@@ -2329,11 +2372,21 @@ export function ThinkingLabPage() {
             label: read.label,
             incumbents: siblings,
             rejection: rejectionNote,
+            reasonPool: pool,
           }),
           0.2,
         );
-        statement = parseKeyBeliefFromLabel(script ? parseModelJson(script) : null, becauseParent);
+        const choice = parseKeyBeliefChoice(script ? parseModelJson(script) : null, becauseParent);
+        statement = choice?.statement ?? "";
         if (!statement) return t("thinkingLab.manual.beliefUnreadable", "The Key Belief for this label could not be read. Try again.");
+        if (pool && keepGroundedBigThoughts([{ label: "", statement, reasonId: choice?.reasonId }], pool).length === 0) {
+          rejectionNote = t(
+            "thinkingLab.product.noSupport",
+            "Produk ini tidak menopang Master Thought. Tidak ada alasan tersimpan yang menyelesaikan keyakinan ini.",
+          );
+          if (attempt === 1) return rejectionNote;
+          continue;
+        }
         const facts = await judgeCandidateWithAsk({
           parentStatement: becauseParent,
           statement,
@@ -4944,6 +4997,8 @@ export function ThinkingLabPage() {
         propose: async () => null,
         listProposals: async ({ failure, incumbents: currentIncumbents, exclusions: currentExclusions }) => {
           subjectCode = failure.code;
+          const pool = selected.productReasonPool;
+          if (pool && pool.items.length === 0) return [];
           const script = await askThinkingLab(
             buildGeneratePrompt({
               parentStatement: selected.statement,
@@ -4952,6 +5007,7 @@ export function ThinkingLabPage() {
               missingWhy: null,
               exclusions: currentExclusions,
               failed: failure,
+              reasonPool: pool,
             }),
             0.2,
           );
@@ -4959,7 +5015,10 @@ export function ThinkingLabPage() {
             ...current,
             { ...presentFixModelResponse("proposal", script), code: failure.code },
           ]);
-          const items = parseGeneratedBigThoughts(script ? parseModelJson(script) : null, selected.statement);
+          const items = keepGroundedBigThoughts(
+            parseGeneratedBigThoughts(script ? parseModelJson(script) : null, selected.statement, pool),
+            pool,
+          );
           for (const item of items) {
             if (item.label) labelsByStatement.set(item.statement, item.label);
           }
@@ -5368,21 +5427,18 @@ export function ThinkingLabPage() {
                       <div className={LAB_LEFT_SECTION}>
                         <div className={LAB_MT_CARD}>
                           {!showComposer && selected?.priorBelief ? (
-                            <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1.15fr)] items-center gap-x-5 border-b border-white/15 bg-brand-blue px-5 py-4 text-white">
+                            <div className="flex shrink-0 flex-col gap-3 border-b border-white/15 bg-brand-blue px-5 py-4 text-white">
                               <div className="min-w-0">
                                 <p className="text-[11px] leading-4 text-white">
                                   {t("thinkingLab.master.shiftFrom", "Keyakinan lama yang mau digeser")}
                                 </p>
-                                <p className="mt-1 break-words text-sm leading-snug text-white">{selected.priorBelief}</p>
+                                <p className="mt-1 max-w-[46rem] whitespace-normal break-words text-sm leading-snug text-white">{selected.priorBelief}</p>
                               </div>
-                              <span className="text-base text-white" aria-hidden="true">
-                                →
-                              </span>
                               <div className="min-w-0">
                                 <p className="text-[11px] leading-4 text-white">
                                   {t("thinkingLab.tree.masterThought", "Master Thought")}:
                                 </p>
-                                <p className="mt-1 break-words text-sm font-medium leading-snug text-white">
+                                <p className="mt-1 max-w-[46rem] whitespace-normal break-words text-sm font-medium leading-snug text-white">
                                   {selected.statement || selected.originalInput}
                                 </p>
                               </div>
@@ -5403,6 +5459,7 @@ export function ThinkingLabPage() {
                           </div>
                           <ProductBeliefSource
                             disabled={busy}
+                            onPoolChange={setReasonPool}
                             onApply={(draft) => {
                               setNewPrior(draft.priorBelief);
                               setNewPlanted(draft.plantedBelief);
@@ -5551,6 +5608,7 @@ export function ThinkingLabPage() {
                                               statement: idea.statement,
                                               subject: idea.canonicalSemantic.subject,
                                               recommended: idea.canonicalSemantic.causeLock === "LOCKED",
+                                              childCount: executionCounts[idea.id] ?? 0,
                                               executions:
                                                 focus?.kind !== "master" &&
                                                 focus?.kind !== "bigThought" &&
@@ -6196,7 +6254,7 @@ export function ThinkingLabPage() {
                                       </DropdownMenu>
                                     ) : null}
                                   </div>
-                                  <h2 className="text-base font-semibold text-foreground">
+                                  <h2 className="max-w-[46rem] whitespace-normal break-words text-base font-semibold leading-snug text-foreground">
                                     {masterSubject || selected.statement || selected.originalInput}
                                   </h2>
                                   {masterSubject && masterDescription.trim() !== masterSubject ? (
@@ -6205,6 +6263,24 @@ export function ThinkingLabPage() {
                                   {selected.audience.trim() && masterDescription === (selected.statement || selected.originalInput).trim() ? (
                                     <p className="text-sm text-muted-foreground">
                                       {t("thinkingLab.master.audience", "Target audience (optional)")}: {selected.audience}
+                                    </p>
+                                  ) : null}
+                                  {selected.productReasonPool ? (
+                                    <p className="text-sm text-muted-foreground">
+                                      {selected.productReasonPool.items.length > 0
+                                        ? t(
+                                            "thinkingLab.product.attached",
+                                            "{{name}}: {{count}} alasan tersimpan untuk Big Thought.",
+                                            {
+                                              name: selected.productReasonPool.serviceName,
+                                              count: selected.productReasonPool.items.length,
+                                            },
+                                          )
+                                        : t(
+                                            "thinkingLab.product.poolEmpty",
+                                            "{{name}} belum punya alasan tersimpan. Generate Big Thought akan berhenti.",
+                                            { name: selected.productReasonPool.serviceName },
+                                          )}
                                     </p>
                                   ) : null}
                                 </header>

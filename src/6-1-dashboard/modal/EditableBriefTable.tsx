@@ -5,7 +5,11 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 import { toast } from 'sonner';
 import { BriefStoryboardImageCell } from './BriefStoryboardImageCell';
+import { BriefMasterVideoButton, BriefVideoProvider } from './briefVideoContext';
 import { BriefSceneGenerateButton } from './BriefSceneGenerateButton';
+import { BriefImagePromptDialog } from './BriefImagePromptDialog';
+import { BriefVeoPromptSlides } from './BriefVeoPromptSlides';
+import { isVeoPromptHeader, veoColumnUsesSlides } from '@/6-1-dashboard/lib/seedanceVideo';
 import { BriefStoryBoardView, useHideOnScrollDown } from './BriefStoryBoardView';
 import { BriefSequenceHeader } from './BriefSequenceHeader';
 import {
@@ -141,7 +145,7 @@ interface EditableBriefTableProps {
   onToggleWorkArea?: () => void;
   imageColumnIndex?: number;
   rowImagesMap?: Record<number, BriefStoryboardImageWithUrl[]>;
-  onUploadImages?: (rowIndex: number, files: File[]) => Promise<unknown>;
+  onUploadImages?: (rowIndex: number, files: File[], promptOverride?: string | null) => Promise<unknown>;
   onDeleteImage?: (imageId: string) => Promise<unknown>;
   onInsertRowImages?: (insertAtRowIndex: number) => Promise<unknown>;
   onDeleteRowImages?: (rowIndex: number) => Promise<unknown>;
@@ -167,6 +171,9 @@ function StoryLineVisualCell({
   mediaBusy,
   onUploadImages,
   onDeleteImage,
+  activeImageId,
+  onActiveImageIdChange,
+  onEditPrompt,
 }: {
   rowIndex: number;
   headers: string[];
@@ -181,8 +188,11 @@ function StoryLineVisualCell({
   film?: StoryboardFilmContext;
   characterIds: string[];
   mediaBusy: boolean;
-  onUploadImages?: (rowIndex: number, files: File[]) => Promise<unknown>;
+  onUploadImages?: (rowIndex: number, files: File[], promptOverride?: string | null) => Promise<unknown>;
   onDeleteImage?: (imageId: string) => Promise<unknown>;
+  activeImageId?: string | null;
+  onActiveImageIdChange?: (imageId: string) => void;
+  onEditPrompt?: () => void;
 }) {
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -197,6 +207,9 @@ function StoryLineVisualCell({
         isDeleting={isDeleting}
         onUploadFiles={onUploadImages}
         onDeleteImage={onDeleteImage}
+        activeImageId={activeImageId}
+        onActiveImageIdChange={onActiveImageIdChange}
+        onEditPrompt={onEditPrompt}
       />
       <BriefSceneGenerateButton
         rowIndex={rowIndex}
@@ -260,6 +273,11 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     parseBriefSceneMetaFromMarkdown(sequencesSource ?? ''),
   );
   const [copiedMasterPromptRow, setCopiedMasterPromptRow] = useState<number | null>(null);
+  const [activeImageIds, setActiveImageIds] = useState<Record<number, string>>({});
+  const [imagePromptRow, setImagePromptRow] = useState<number | null>(null);
+  const selectImage = (rowIndex: number, imageId: string) => {
+    setActiveImageIds((current) => (current[rowIndex] === imageId ? current : { ...current, [rowIndex]: imageId }));
+  };
   const copiedMasterPromptTimer = useRef<number | null>(null);
   useEffect(() => {
     return () => {
@@ -1183,52 +1201,69 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                   mediaBusy={isStructureBusy}
                   onUploadImages={onUploadImages}
                   onDeleteImage={onDeleteImage}
+                  activeImageId={activeImageIds[rowIdx] ?? null}
+                  onActiveImageIdChange={(imageId) => selectImage(rowIdx, imageId)}
+                  onEditPrompt={
+                    planId && film && onUploadImages ? () => setImagePromptRow(rowIdx) : undefined
+                  }
+                />
+              ) : isVeoPromptHeader(String(headerRow[cellIdx] ?? '')) && veoColumnUsesSlides(rowImages) ? (
+                <BriefVeoPromptSlides
+                  images={rowImages}
+                  activeImageId={activeImageIds[rowIdx] ?? null}
+                  originalPrompt={cell}
+                  editable={isEditing || alwaysEditable}
+                  concept={film?.concept}
+                  onChangeOriginal={(next) => updateCell(rowIdx, cellIdx, next)}
+                  onSelectImage={(imageId) => selectImage(rowIdx, imageId)}
+                  minRows={2}
+                  fieldClassName="box-border w-full min-w-0 max-w-full min-h-[60px] flex-1 rounded border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 [overflow-wrap:anywhere] [word-break:break-word]"
                 />
               ) : (
-                <div className={cn(masterText && 'relative min-w-0')}>
+                <div className="min-w-0">
+                  {masterText ? (
+                    <div className="mb-1 flex justify-end">
+                      <BriefMasterVideoButton rowIndex={rowIdx} className="h-7 w-7 shrink-0 bg-white p-0" />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 shrink-0 bg-white p-0"
+                        aria-label={
+                          copiedMasterPromptRow === rowIdx
+                            ? t('briefDialog.masterPromptCopied', 'Copied')
+                            : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
+                        }
+                        title={
+                          copiedMasterPromptRow === rowIdx
+                            ? t('briefDialog.masterPromptCopied', 'Copied')
+                            : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
+                        }
+                        onClick={() => void copyMasterPrompt(rowIdx, cell)}
+                      >
+                        {copiedMasterPromptRow === rowIdx ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" aria-hidden />
+                        )}
+                      </Button>
+                    </div>
+                  ) : null}
                   {(isEditing || alwaysEditable) ? (
                     <BriefMentionField
                       value={cell}
                       concept={film?.concept}
                       onChange={(next) => updateCell(rowIdx, cellIdx, next)}
-                      className={cn(
-                        'box-border w-full min-w-0 max-w-full min-h-[60px] flex-1 rounded border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 [overflow-wrap:anywhere] [word-break:break-word]',
-                        masterText && 'pr-8',
-                      )}
+                      className="box-border w-full min-w-0 max-w-full min-h-[60px] flex-1 rounded border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 [overflow-wrap:anywhere] [word-break:break-word]"
                       minRows={2}
                     />
                   ) : (
                     <BriefMentionText
                       value={cell}
                       concept={film?.concept}
-                      className="block min-w-0 flex-1 whitespace-pre-wrap pr-8"
+                      className="block min-w-0 w-full whitespace-pre-wrap"
                     />
                   )}
-                  {masterText ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="absolute right-1 top-1 h-7 w-7 shrink-0 bg-white p-0"
-                      aria-label={
-                        copiedMasterPromptRow === rowIdx
-                          ? t('briefDialog.masterPromptCopied', 'Copied')
-                          : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
-                      }
-                      title={
-                        copiedMasterPromptRow === rowIdx
-                          ? t('briefDialog.masterPromptCopied', 'Copied')
-                          : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
-                      }
-                      onClick={() => void copyMasterPrompt(rowIdx, cell)}
-                    >
-                      {copiedMasterPromptRow === rowIdx ? (
-                        <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5" aria-hidden />
-                      )}
-                    </Button>
-                  ) : null}
                 </div>
               )}
             </td>
@@ -1325,6 +1360,14 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   ) : null;
 
   return (
+    <BriefVideoProvider
+      planId={planId}
+      headers={headerRow}
+      rows={bodyRows}
+      film={film}
+      imagesByRow={rowImagesMap}
+      masterSpans={masterPromptSpans}
+    >
     <div
       className={cn(
         'relative flex min-h-0 flex-col overflow-hidden',
@@ -1530,5 +1573,26 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       </div>
       {isMobile2Col && !useStoryBoardLayout ? addSequenceBelowButton : null}
     </div>
+    <BriefImagePromptDialog
+      open={imagePromptRow != null && Boolean(onUploadImages)}
+      rowIndex={imagePromptRow ?? 0}
+      headers={headerRow}
+      row={imagePromptRow != null ? (bodyRows[imagePromptRow] ?? []) : []}
+      imageColumnIndex={imageColumnIndex}
+      film={film}
+      characterIds={imagePromptRow != null ? getSceneCharacterIds(sceneMeta, imagePromptRow) : []}
+      startingPrompt={(() => {
+        if (imagePromptRow == null) return null;
+        const rowImages = rowImagesMap[imagePromptRow] ?? [];
+        const selected = rowImages.find((image) => image.id === activeImageIds[imagePromptRow]) ?? rowImages[0];
+        return selected?.prompt_override ?? null;
+      })()}
+      onUploadImages={onUploadImages}
+      onClose={() => setImagePromptRow(null)}
+      onCreated={(imageId) => {
+        if (imagePromptRow != null && imageId) selectImage(imagePromptRow, imageId);
+      }}
+    />
+    </BriefVideoProvider>
   );
 };

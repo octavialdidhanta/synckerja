@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildStoryboardShotPrompt, storyboardShotAspect } from "@/6-1-dashboard/lib/generateBriefSceneImage";
+import { applyVeoPrompt, buildStoryboardShotPrompt, storyboardShotAspect } from "@/6-1-dashboard/lib/generateBriefSceneImage";
 
 const headers = ["Timing", "Visual", "VO (Voice Over)", "Shot", "Angle", "Visual function", "Veo 3 prompt"];
 const row = [
@@ -38,5 +38,31 @@ describe("storyboard shot prompt", () => {
     expect(prompt).toContain("NO WRITING");
     expect(prompt).toContain("do not render");
     expect(storyboardShotAspect({ contentTypeName: "Reel" })).toBe("9:16");
+  });
+
+  it("keeps angle and concept context when the Veo sentence is replaced", () => {
+    const edited = applyVeoPrompt(
+      headers,
+      row,
+      "Close up of @character_budi_young standing near the window.",
+    );
+    const prompt = buildStoryboardShotPrompt({
+      headers,
+      row: edited,
+      imageColumnIndex: 1,
+      context: {
+        concept: {
+          locations: [],
+          characters: [{ handle: "@character_budi_young", description: "A young man, early 20s." }],
+          properties: [],
+        },
+      },
+    });
+    expect(edited[6]).toBe("Close up of @character_budi_young standing near the window.");
+    expect(prompt).toContain("ANGLE: Medium shot");
+    expect(prompt).toContain("VISUAL FUNCTION: Introduce young Budi");
+    expect(prompt).toContain("VEO PROMPT: Close up of @character_budi_young standing near the window.");
+    expect(prompt).toContain("A young man, early 20s.");
+    expect(prompt).toContain("VOICE-OVER, mood only");
   });
 });

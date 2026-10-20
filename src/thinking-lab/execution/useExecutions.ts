@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import {
+  countLabExecutionsByIdea,
   deleteLabExecution,
   listLabExecutions,
   saveLabExecution,
@@ -31,7 +32,7 @@ export function useLabExecutions(ideaId: string | null) {
       facts: ExecutionSemanticFacts;
     }) => saveLabExecution({ organizationId: organizationId as string, ...input }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-executions", organizationId, ideaId] });
+      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-executions", organizationId] });
     },
   });
   const patchScript = useMutation({
@@ -47,8 +48,21 @@ export function useLabExecutions(ideaId: string | null) {
   const remove = useMutation({
     mutationFn: (id: string) => deleteLabExecution(organizationId as string, id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-executions", organizationId, ideaId] });
+      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-executions", organizationId] });
     },
   });
   return { ...query, organizationId, save, patchScript, remove };
+}
+
+export function useLabExecutionCounts(ideaIds: string[]) {
+  const { organizationId } = useCurrentOrg();
+  const ids = [...new Set(ideaIds)].sort();
+  const query = useQuery({
+    queryKey: ["thinking-lab-executions", organizationId, "counts", ids],
+    queryFn: () => countLabExecutionsByIdea(organizationId as string, ids),
+    enabled: Boolean(organizationId && ids.length > 0),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  return query.data ?? {};
 }

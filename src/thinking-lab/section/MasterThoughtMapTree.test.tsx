@@ -32,6 +32,7 @@ function master(id: string, statement: string): LabMasterThought {
     canonicalSemantic: null,
     semanticFingerprint: "fp",
     lastAudit: null,
+    productReasonPool: null,
     updatedAt: "",
   };
 }
@@ -137,6 +138,55 @@ describe("MasterThoughtMapTree pills", () => {
     fireEvent.click(screen.getByRole("button", { name: /Motor kebanggaan kini nganggur/ }));
     expect(screen.getByRole("button", { name: /Buka Terpal/ }).querySelector("[aria-label='Recommended to start']")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Foto Dulu/ }).querySelector("[aria-label='Recommended to start']")).toBeNull();
+  });
+
+  it("shows the execution count on an Idea that has a branch", () => {
+    renderMap(
+      [
+        {
+          id: "bt1",
+          code: "BT01",
+          label: "Keinginan",
+          statement: "Alasan",
+          childCount: 1,
+          territories: [
+            {
+              id: "t1",
+              code: "TR01",
+              statement: "Mantan anak motor",
+              childCount: 1,
+              angles: [
+                {
+                  id: "a1",
+                  code: "AN01",
+                  statement: "Motor kebanggaan kini nganggur",
+                  subject: "Motor kebanggaan kini nganggur",
+                  childCount: 1,
+                  ideas: [
+                    {
+                      id: "i1",
+                      code: "ID01",
+                      statement: "Buka Terpal",
+                      childCount: 2,
+                      executions: [
+                        { id: "e1", label: "Cerita", passed: true },
+                        { id: "e2", label: "Ulasan", passed: false },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      { thoughtId: "bt1", territoryId: "t1", angleId: "a1", ideaId: "i1" },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Keinginan/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mantan anak motor/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Motor kebanggaan kini nganggur/ }));
+    expect(screen.getByLabelText("2 below").textContent).toBe("+2");
   });
 
   it("shows an Idea as a short summary and keeps the full sentence on hover", () => {

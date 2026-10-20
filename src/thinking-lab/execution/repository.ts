@@ -53,6 +53,31 @@ export function mapExecution(row: ExecutionRow): LabExecution | null {
   };
 }
 
+export function executionCountsByIdea(rows: Array<{ idea_id?: string | null }>): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    const ideaId = row.idea_id?.trim() ?? "";
+    if (!ideaId) continue;
+    counts[ideaId] = (counts[ideaId] ?? 0) + 1;
+  }
+  return counts;
+}
+
+export async function countLabExecutionsByIdea(
+  organizationId: string,
+  ideaIds: string[],
+): Promise<Record<string, number>> {
+  const ids = [...new Set(ideaIds.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) return {};
+  const { data, error } = await supabase
+    .from("thinking_lab_executions")
+    .select("idea_id")
+    .eq("organization_id", organizationId)
+    .in("idea_id", ids);
+  if (error) throw error;
+  return executionCountsByIdea((data ?? []) as Array<{ idea_id?: string | null }>);
+}
+
 export async function listLabExecutions(organizationId: string, ideaId: string): Promise<LabExecution[]> {
   const { data, error } = await supabase
     .from("thinking_lab_executions")

@@ -11,6 +11,7 @@ import { getSequenceRowRanges } from './briefSequences';
 import type { BriefSceneMeta } from './briefSceneMeta';
 import { getSceneCharacterIds } from './briefSceneMeta';
 import type { StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
+import { readShotBrief, shootHeaderLabels, shootNumberFromShotLabel } from '@/6-1-dashboard/lib/seedanceVideo';
 
 /** Show the bottom bar only after the last sequence/card is reached. */
 export function useHideOnScrollDown(
@@ -95,7 +96,7 @@ export interface BriefStoryBoardViewProps {
   uploadingRowIndex?: number | null;
   deletingImageId?: string | null;
   onUpdateCell: (rowIndex: number, cellIdx: number, value: string) => void;
-  onUploadImages?: (rowIndex: number, files: File[]) => Promise<unknown>;
+  onUploadImages?: (rowIndex: number, files: File[], promptOverride?: string | null) => Promise<unknown>;
   onDeleteImage?: (imageId: string) => Promise<unknown>;
   onAddRow?: (rowIndex: number) => void;
   onAddSequenceAfterRow?: (rowIndex: number) => void;
@@ -175,8 +176,13 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
         )}
         style={{ overflowAnchor: 'none' } as React.CSSProperties}
       >
-      {ranges.map(({ sequence, startRow, endRow }) => {
+      {ranges.map(({ sequence, startRow, endRow }, sequenceIndex) => {
         const rows = bodyRows.slice(startRow, endRow);
+        const shootLabels = shootHeaderLabels(
+          rows.map((row, localIdx) =>
+            shootNumberFromShotLabel(readShotBrief(headers, row).shot, localIdx + 1),
+          ),
+        );
         const canDelete = sequences.length > 1;
 
         return (
@@ -225,7 +231,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
                   const isRowDeleting = images.some((image) => image.id === deletingImageId);
                   const isFirstInSequence = localIdx === 0;
                   const isLastInSequence = localIdx === rows.length - 1;
-                  const seqIndex = ranges.findIndex((item) => item.sequence.id === sequence.id);
+                  const seqIndex = sequenceIndex;
 
                   const eager = eagerLeft > 0;
                   if (eager) eagerLeft -= 1;
@@ -237,6 +243,8 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
                     <SceneSlot key={rowIdx} eager={eager} widthClassName={slotClassName}>
                     <BriefStoryBoardSceneCard
                       rowIndex={rowIdx}
+                      sceneNumber={sequenceIndex + 1}
+                      shootNumber={shootLabels[localIdx] ?? String(localIdx + 1)}
                       headers={headers}
                       row={row}
                       imageColumnIndex={imageColumnIndex}

@@ -4,6 +4,7 @@ import { loadPoseReferencesForCharacters } from '@/6-1-social-media-settings/lib
 import type { BriefConceptDocument } from '@/6-1-dashboard/modal/briefConceptAssets';
 import { locationFrameForContentType } from '@/6-1-dashboard/modal/briefConceptAssets';
 import { loadLinkedIdeaStatement, readStoredCharacterVisual } from '@/thinking-lab/execution/generateCharacterVisual';
+import { isVeoPromptHeader } from '@/6-1-dashboard/lib/seedanceVideo';
 
 export type BriefSceneGenerateT = (
   key: string,
@@ -116,6 +117,14 @@ export function mentionedHandles(text: string): string[] {
   return [...new Set((text.match(/@[a-z0-9_]+/gi) ?? []).map((handle) => handle.toLowerCase()))];
 }
 
+export function applyVeoPrompt(headers: string[], row: string[], veoPrompt: string): string[] {
+  const index = headers.findIndex((header) => isVeoPromptHeader(header));
+  if (index < 0) return row.slice();
+  const next = row.slice();
+  next[index] = veoPrompt;
+  return next;
+}
+
 export function storyboardShotAspect(context?: StoryboardFilmContext): '1:1' | '4:5' | '9:16' | '16:9' {
   const frame = locationFrameForContentType(context?.contentTypeName ?? '', context?.postAspect);
   if (frame) return frame;
@@ -133,11 +142,7 @@ export function buildStoryboardShotPrompt(input: {
 }): string {
   const angle = findCell(input.headers, input.row, (header) => header === 'angle' || header.startsWith('angle'));
   const visualFunction = findCell(input.headers, input.row, (header) => header.includes('visual function'));
-  const veo = findCell(
-    input.headers,
-    input.row,
-    (header) => header.includes('veo') || (header.includes('prompt') && !header.includes('visual function')),
-  );
+  const veo = findCell(input.headers, input.row, isVeoPromptHeader);
   const voice = findCell(input.headers, input.row, (header) => header.includes('voice') || header.includes('narasi'));
   const concept = input.context?.concept;
   const handles = mentionedHandles(veo);
@@ -248,13 +253,16 @@ export async function generateBriefSceneImageFile(params: {
   imageColumnIndex: number;
   t: BriefSceneGenerateT;
   film?: StoryboardFilmContext;
+  veoPrompt?: string;
+  refine?: boolean;
 }): Promise<{
   file: File;
   truncated: boolean;
   included: number;
   totalAvailable: number;
 }> {
-  const { characterIds, characterNamesById, headers, row, imageColumnIndex, t, film } = params;
+  const { characterIds, characterNamesById, headers, imageColumnIndex, t, film, veoPrompt, refine } = params;
+  const row = veoPrompt != null ? applyVeoPrompt(headers, params.row, veoPrompt) : params.row;
   const ids = [...new Set(characterIds.filter(Boolean))];
   const hasSceneText = hasBriefSceneTextContent(headers, row, imageColumnIndex);
 
@@ -297,11 +305,7 @@ export async function generateBriefSceneImageFile(params: {
     );
   }
 
-  const veo = findCell(
-    headers,
-    row,
-    (header) => header.includes('veo') || (header.includes('prompt') && !header.includes('visual function')),
-  );
+  const veo = findCell(headers, row, isVeoPromptHeader);
   const namedCharacters = (film?.concept?.characters ?? []).filter((item) =>
     mentionedHandles(veo).includes(item.handle.toLowerCase()),
   );
@@ -322,9 +326,15 @@ export async function generateBriefSceneImageFile(params: {
     hasPortrait: Boolean(portraitImage),
     context: { ...film, title: [film?.title, idea].filter(Boolean).join('\n') },
   });
-  const prompt = [shotPrompt, buildBriefScenePrompt(headers, row, imageColumnIndex, {
-    hasCharacterReferences: characterPoseReferences.length > 0 || Boolean(portraitImage),
-  })].join('\n\n');
+  const prompt = [
+    shotPrompt,
+    buildBriefScenePrompt(headers, row, imageColumnIndex, {
+      hasCharacterReferences: characterPoseReferences.length > 0 || Boolean(portraitImage),
+    }),
+    refine
+      ? 'Make this the strongest single photograph of that exact shot: sharp, natural, and faithful to the Veo prompt and the reference images. Do not change the person, the place, or the action.'
+      : '',
+  ].filter(Boolean).join('\n\n');
 
   const { data: refreshed } = await supabase.auth.refreshSession();
   const session =

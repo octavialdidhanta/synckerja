@@ -1,4 +1,5 @@
 import { supabase } from "@/shared/lib/supabaseClient";
+import { readProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
 import { LAB_WORKSPACE } from "@/thinking-lab/shared/verdict";
 import { beliefsMatch, normalizeMasterThoughtFacts, understandPersistMode } from "@/thinking-lab/master-thought/semantic";
 import type {
@@ -23,6 +24,7 @@ type MasterRow = {
   canonical_semantic: unknown;
   semantic_fingerprint: string | null;
   last_audit: unknown;
+  product_reason_pool?: unknown;
   updated_at: string;
 };
 
@@ -51,6 +53,7 @@ function mapMaster(row: MasterRow): LabMasterThought {
     canonicalSemantic: facts,
     semanticFingerprint: row.semantic_fingerprint,
     lastAudit: row.last_audit ?? null,
+    productReasonPool: readProductReasonPool(row.product_reason_pool),
     updatedAt: row.updated_at,
   };
 }
@@ -93,6 +96,7 @@ export async function createLabMaster(
       mt_status: "raw",
       status: "draft",
       workspace: LAB_WORKSPACE,
+      product_reason_pool: input.productReasonPool ?? null,
       created_by: userData.user?.id ?? null,
     })
     .select("*")

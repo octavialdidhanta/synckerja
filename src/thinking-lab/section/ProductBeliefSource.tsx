@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
@@ -19,10 +19,12 @@ import {
   type ProductBeliefDraft,
   type ProductBeliefSourceRow,
 } from "@/thinking-lab/master-thought/productBrief";
+import { buildProductReasonPool, type ProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
 
 type Props = {
   disabled?: boolean;
   onApply: (draft: ProductBeliefDraft) => void;
+  onPoolChange?: (pool: ProductReasonPool | null) => void;
 };
 
 function plain(value: unknown): string {
@@ -53,7 +55,7 @@ function sourceRow(row: ProductKnowledge): ProductBeliefSourceRow {
   };
 }
 
-export function ProductBeliefSource({ disabled, onApply }: Props) {
+export function ProductBeliefSource({ disabled, onApply, onPoolChange }: Props) {
   const { t } = useAppTranslation();
   const knowledge = useProductKnowledge();
   const [serviceId, setServiceId] = useState("");
@@ -78,6 +80,18 @@ export function ProductBeliefSource({ disabled, onApply }: Props) {
   );
   const selected = features.filter((row) => featureIds.includes(row.id));
   const allChecked = features.length > 0 && selected.length === features.length;
+  const pool = useMemo(() => {
+    if (!serviceId) return null;
+    const name = services.find((service) => service.id === serviceId)?.name ?? "";
+    const chosen = features.filter((row) => featureIds.includes(row.id));
+    return buildProductReasonPool(name, chosen.map(sourceRow));
+  }, [featureIds, features, serviceId, services]);
+
+  useEffect(() => {
+    onPoolChange?.(pool);
+  }, [onPoolChange, pool]);
+
+  useEffect(() => () => onPoolChange?.(null), [onPoolChange]);
 
   const toggle = (id: string, checked: boolean) => {
     setFeatureIds((current) => {
@@ -136,8 +150,37 @@ export function ProductBeliefSource({ disabled, onApply }: Props) {
               </SelectItem>
             ))}
           </SelectContent>
-        </Select>
-      </label>
+          </Select>
+        </label>
+        <p className="text-xs text-muted-foreground">
+          {pool && pool.items.length > 0
+            ? t("thinkingLab.product.poolCount", "{{name}}: {{count}} alasan akan dibekukan untuk Big Thought.", {
+                name: pool.serviceName,
+                count: pool.items.length,
+              })
+            : pool
+              ? t(
+                  "thinkingLab.product.poolEmpty",
+                  "{{name}} belum punya alasan tersimpan. Generate Big Thought akan berhenti.",
+                  { name: pool.serviceName },
+                )
+              : t("thinkingLab.product.poolGeneral", "Tanpa produk, Generate Big Thought mencari alasan umum.")}
+        </p>
+        {serviceId ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs"
+            disabled={disabled || pending}
+            onClick={() => {
+              setServiceId("");
+              setFeatureIds([]);
+            }}
+          >
+            {t("thinkingLab.product.clear", "Cari alasan umum")}
+          </Button>
+        ) : null}
       {services.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           {t("thinkingLab.product.empty", "No product knowledge yet. Add it on the Product Knowledge page first.")}

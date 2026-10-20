@@ -33,7 +33,7 @@ export function SavedMasterThoughtList({ masters, onOpen, onDelete }: Props) {
       <h2 className="shrink-0 text-sm font-semibold text-foreground">
         {t("thinkingLab.saved.title", "Saved Master Thoughts")}
       </h2>
-      <ul className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+      <ul className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {masters.map((row) => {
           const title = savedTitle(row);
           const when = savedDate(row.updatedAt, dateLocale);
@@ -43,7 +43,7 @@ export function SavedMasterThoughtList({ masters, onOpen, onDelete }: Props) {
                 <button type="button" className="min-w-0 flex-1 space-y-3 text-left" onClick={() => onOpen(row.id)}>
                   <div className="border-l-2 border-brand-blue-deep pl-3">
                     <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      {t("thinkingLab.tree.masterThought", "Master Thought")}
+                      {t("thinkingLab.saved.newBelief", "New belief")}
                     </p>
                     <p className="mt-1 break-words text-sm font-medium leading-snug text-foreground">{title}</p>
                   </div>

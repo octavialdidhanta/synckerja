@@ -1,0 +1,179 @@
+import { describe, expect, it } from "vitest";
+import {
+  audioForbidden,
+  buildVideoPrompt,
+  durationChoices,
+  durationIsValid,
+  imageRatioDiffers,
+  lookIsUgc,
+  masterGroupRows,
+  missingConceptImages,
+  readLook,
+  promptSlideForImage,
+  readShotBrief,
+  shootHeaderLabels,
+  shootNumberFromShotLabel,
+  veoColumnUsesSlides,
+  videoRatioForContent,
+} from "@/6-1-dashboard/lib/seedanceVideo";
+
+const headers = ["Timing", "Visual", "VO (Voice Over)", "Master prompt"];
+
+describe("seedance video settings", () => {
+  it("caps Seedance 2.0 at 15 seconds and 2.5 at 30", () => {
+    expect(durationChoices("dreamina-seedance-2-0-260128")).toEqual([5, 10, 15]);
+    expect(durationChoices("dreamina-seedance-2-5-260628")).toEqual([5, 10, 15, 20, 25, 30]);
+    expect(durationIsValid("dreamina-seedance-2-0-260128", 20)).toBe(false);
+    expect(durationIsValid("dreamina-seedance-2-5-260628", 7)).toBe(false);
+    expect(durationIsValid("dreamina-seedance-2-5-260628", 30)).toBe(true);
+  });
+
+  it("reads look and silence from the master prompt", () => {
+    const master = "Audio : no sound, no music\nLook : UGC, handheld iPhone";
+    expect(readLook(master)).toBe("UGC, handheld iPhone");
+    expect(lookIsUgc(readLook(master))).toBe(true);
+    expect(lookIsUgc("Cinematic")).toBe(false);
+    expect(audioForbidden(master)).toBe(true);
+    expect(audioForbidden("Look : UGC")).toBe(false);
+  });
+
+  it("blocks a mentioned concept image that has not been saved", () => {
+    const text = "Wide shot of @location_food_stall_outside_pik and @character_reviewer";
+    expect(missingConceptImages(text, {
+      locations: [{ handle: "@location_food_stall_outside_pik", description: "Stall" }],
+      characters: [{ handle: "@character_reviewer", description: "Reviewer", portraitPath: "org/brief/plan/character_reviewer-portrait.jpg" }],
+      properties: [],
+    })).toEqual(["@location_food_stall_outside_pik"]);
+  });
+
+  it("uses the content type ratio and warns when the still does not match", () => {
+    expect(videoRatioForContent("Reel")).toBe("9:16");
+    expect(videoRatioForContent("Story")).toBe("9:16");
+    expect(videoRatioForContent("Post", "1:1")).toBe("1:1");
+    expect(videoRatioForContent("YouTube")).toBe("16:9");
+    expect(imageRatioDiffers(1080, 1920, "9:16")).toBe(false);
+    expect(imageRatioDiffers(1920, 1080, "9:16")).toBe(true);
+  });
+
+  it("groups empty master-prompt rows into one clip and keeps the shot text", () => {
+    const rows = [
+      ["0:00", "", "Hello", "Look : UGC\nAudio : no sound"],
+      ["0:05", "", "", ""],
+    ];
+    expect(masterGroupRows(rows, headers, 0)).toEqual([0, 1]);
+    expect(buildVideoPrompt({
+      scope: "master",
+      rows,
+      headers,
+      rowIndexes: [0, 1],
+      ugcType: "Product Demo",
+    })).toContain("UGC type: Product Demo");
+    expect(buildVideoPrompt({
+      scope: "shot",
+      rows,
+      headers,
+      rowIndexes: [1],
+    })).toContain("Master prompt:");
+  });
+
+  it("reads the shot, angle, visual function, and Veo 3 prompt from the photo row", () => {
+    const briefHeaders = ["Shot", "Angle", "Visual function", "Veo 3 prompt"];
+    const brief = readShotBrief(briefHeaders, [
+      "Shot 1 — Main Shot",
+      "Medium shot",
+      "Introduce the reviewer and their perspective.",
+      "The reviewer looks up from a phone in a bright kitchen.",
+    ]);
+    expect(brief).toEqual({
+      shot: "Shot 1 — Main Shot",
+      angle: "Medium shot",
+      visualFunction: "Introduce the reviewer and their perspective.",
+      veoPrompt: "The reviewer looks up from a phone in a bright kitchen.",
+    });
+    expect(buildVideoPrompt({
+      scope: "shot",
+      rows: [briefHeaders.map(() => ""), [
+        "Shot 1 — Main Shot",
+        "Medium shot",
+        "Introduce the reviewer and their perspective.",
+        "The reviewer looks up from a phone in a bright kitchen.",
+      ]],
+      headers: briefHeaders,
+      rowIndexes: [1],
+    })).toContain("Veo 3 prompt: The reviewer looks up from a phone in a bright kitchen.");
+  });
+
+  it("takes the card shoot number from the Shot cell and keeps the position when that cell has no number", () => {
+    expect(shootNumberFromShotLabel("Shot 1 — Main Shot", 4)).toBe(1);
+    expect(shootNumberFromShotLabel("Shot 3 — Supporting Shot", 1)).toBe(3);
+    expect(shootNumberFromShotLabel("Supporting Shot", 4)).toBe(4);
+    expect(shootNumberFromShotLabel("", 2)).toBe(2);
+  });
+
+  it("marks a repeated shoot number inside one scene as 1.1 and 2.1", () => {
+    expect(shootHeaderLabels([1, 2, 3, 1, 2])).toEqual(["1", "2", "3", "1.1", "2.1"]);
+    expect(shootHeaderLabels([1, 1, 1])).toEqual(["1", "1.1", "1.2"]);
+    expect(shootHeaderLabels([3, 1, 2])).toEqual(["3", "1", "2"]);
+  });
+
+  it("keeps an edited image prompt on that shot without rewriting the master prompt", () => {
+    const briefHeaders = ["Shot", "Angle", "Visual function", "Veo 3 prompt", "Master prompt"];
+    const rows = [[
+      "Shot 1 — Main Shot",
+      "Medium shot",
+      "Introduce the reviewer.",
+      "Medium shot of the reviewer at the table.",
+      "Look : UGC\nAudio : no sound\nThe reviewer sits in the kitchen.",
+    ]];
+    const prompt = buildVideoPrompt({
+      scope: "master",
+      rows,
+      headers: briefHeaders,
+      rowIndexes: [0],
+      veoByRow: { 0: "Close up of the reviewer by the window." },
+    });
+    expect(prompt).toContain("Veo 3 prompt: Close up of the reviewer by the window.");
+    expect(prompt).toContain("Master prompt:\nLook : UGC");
+    expect(prompt).not.toContain("Medium shot of the reviewer at the table.");
+    expect(promptSlideForImage("Close up of the reviewer by the window.", "Medium shot of the reviewer at the table.")).toEqual({
+      text: "Close up of the reviewer by the window.",
+      locked: true,
+    });
+    expect(promptSlideForImage(null, "Medium shot of the reviewer at the table.").locked).toBe(false);
+    expect(veoColumnUsesSlides([{ prompt_override: null }])).toBe(false);
+    expect(veoColumnUsesSlides([{ prompt_override: "Close up" }])).toBe(true);
+    expect(veoColumnUsesSlides([{ prompt_override: null }, { prompt_override: null }])).toBe(true);
+  });
+
+  it("writes an opening and ending frame for one shot without rewriting the master prompt", () => {
+    const briefHeaders = ["Shot", "Angle", "Visual function", "Veo 3 prompt", "VO (Voice Over)", "Master prompt"];
+    const rows = [[
+      "Shot 1 — Main Shot",
+      "Medium shot",
+      "Introduce the reviewer and their perspective.",
+      "Medium shot of the reviewer at the table.",
+      "Tahukah Anda",
+      "Look : UGC\nThe reviewer sits in the kitchen.",
+    ]];
+    const prompt = buildVideoPrompt({
+      scope: "shot",
+      rows,
+      headers: briefHeaders,
+      rowIndexes: [0],
+      veoByRow: { 0: "Medium shot of @character_reviewer looking thoughtful." },
+      endVeo: "Medium shot of @character_reviewer doing a selfie.",
+    });
+    expect(prompt).toContain("Master prompt:\nLook : UGC");
+    expect(prompt).toContain("The reviewer sits in the kitchen.");
+    expect(prompt).toContain("Opening frame:\nShot: Shot 1 — Main Shot");
+    expect(prompt).toContain("Veo 3 prompt: Medium shot of @character_reviewer looking thoughtful.");
+    expect(prompt).toContain("Voice: Tahukah Anda");
+    const ending = prompt.split("Ending frame:")[1] ?? "";
+    expect(ending).toContain("Angle: Medium shot");
+    expect(ending).toContain("Visual function: Introduce the reviewer and their perspective.");
+    expect(ending).toContain("Veo 3 prompt: Medium shot of @character_reviewer doing a selfie.");
+    expect(ending).not.toContain("Shot:");
+    expect(ending).not.toContain("Voice:");
+    expect(prompt).not.toContain("Medium shot of the reviewer at the table.");
+  });
+});

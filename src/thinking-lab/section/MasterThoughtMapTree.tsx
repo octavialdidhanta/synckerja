@@ -25,6 +25,7 @@ export type MasterMapIdea = {
   statement: string;
   subject?: string;
   recommended?: boolean;
+  childCount?: number;
   executions?: MasterMapExecution[];
 };
 
@@ -351,7 +352,8 @@ function Pill({
         aria-label={title.trim() || (badge ? `${level} - ${badge}` : level)}
         aria-current={selected ? "true" : undefined}
         className={cn(
-          "items-stretch whitespace-nowrap rounded-[4px] px-2 py-0.5 text-left text-xs font-medium",
+          "items-stretch rounded-[4px] px-2 py-0.5 text-left text-xs font-medium",
+          tone === "master" ? "max-w-[22rem] whitespace-normal" : "whitespace-nowrap",
           accessory && "pl-6",
           stretch ? "flex w-full" : "inline-flex w-max",
           solid ? SOLID[tone] : cn("gap-1.5 pl-1", ACCENT[tone]),
@@ -365,7 +367,9 @@ function Pill({
           <span className="text-[10px] font-medium leading-none text-white/90">
             {badge ? `${level} - ${badge}` : level}
           </span>
-          {title ? <span className="leading-none">{title}</span> : null}
+          {title ? (
+            <span className={tone === "master" ? "whitespace-normal break-words leading-snug" : "leading-none"}>{title}</span>
+          ) : null}
         </span>
         {recommended ? (
           <Star
@@ -933,6 +937,7 @@ export function MasterThoughtMapTree({
                                                     fullTitle={idea.statement}
                                                     selected={inspectedIdeaId === idea.id}
                                                     recommended={idea.recommended}
+                                                    childCount={Math.max(idea.childCount ?? 0, idea.executions?.length ?? 0)}
                                                     onClick={() => {
                                                       centerNode(`idea:${idea.id}`);
                                                       startTransition(() =>

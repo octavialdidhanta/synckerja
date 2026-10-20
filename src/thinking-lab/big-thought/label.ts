@@ -1,4 +1,5 @@
 import { asBecauseClause } from "@/thinking-lab/big-thought/because";
+import { productReasonLines, type ProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
 
 function labelWords(raw: string): string[] {
   return raw
@@ -133,6 +134,7 @@ export function buildKeyBeliefFromLabelPrompt(input: {
   label: string;
   incumbents: Array<{ code: string; statement: string }>;
   rejection?: string | null;
+  reasonPool?: ProductReasonPool | null;
 }): string {
   const kept =
     input.incumbents.length === 0
@@ -143,6 +145,18 @@ export function buildKeyBeliefFromLabelPrompt(input: {
         "The previous because-clause was rejected.",
         `Rejection: ${input.rejection.trim()}`,
         "Write a different because-clause that still belongs to the same label.",
+      ]
+    : [];
+  const pool = input.reasonPool ?? null;
+  const productLines = pool
+    ? [
+        "Use exactly one allowed product reason.",
+        "Keep that reason's concrete words. Do not replace them with a broader subject.",
+        "Do not combine two reasons. Do not write a reason that is not on this list.",
+        "Return the reasonId of the one list item the clause uses.",
+        "",
+        "Allowed product reasons:",
+        productReasonLines(pool),
       ]
     : [];
   return [
@@ -156,7 +170,10 @@ export function buildKeyBeliefFromLabelPrompt(input: {
     "Do not start with because. Do not return only the label.",
     "Write the clause in the same language as the Master Thought.",
     ...retry,
-    "Return JSON only: {\"statement\":\"...\"}",
+    ...productLines,
+    pool
+      ? "Return JSON only: {\"statement\":\"...\",\"reasonId\":\"r1\"}"
+      : "Return JSON only: {\"statement\":\"...\"}",
     "",
     "Label:",
     input.label.trim(),
@@ -170,14 +187,28 @@ export function buildKeyBeliefFromLabelPrompt(input: {
 }
 
 export function parseKeyBeliefFromLabel(raw: unknown, parentStatement = ""): string {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
-  const record = raw as { statement?: unknown; items?: unknown };
+  return parseKeyBeliefChoice(raw, parentStatement)?.statement ?? "";
+}
+
+export function parseKeyBeliefChoice(
+  raw: unknown,
+  parentStatement = "",
+): { statement: string; reasonId: string } | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as { statement?: unknown; reasonId?: unknown; items?: unknown };
   const direct = typeof record.statement === "string" ? record.statement : "";
-  if (direct.trim()) return asBecauseClause(direct, parentStatement);
-  if (!Array.isArray(record.items)) return "";
+  const reasonId = typeof record.reasonId === "string" ? record.reasonId.trim() : "";
+  if (direct.trim()) return { statement: asBecauseClause(direct, parentStatement), reasonId };
+  if (!Array.isArray(record.items)) return null;
   const first = record.items.find((row) => row && typeof row === "object");
-  const statement = first && typeof first === "object" ? (first as { statement?: unknown }).statement : null;
-  return typeof statement === "string" ? asBecauseClause(statement, parentStatement) : "";
+  if (!first || typeof first !== "object") return null;
+  const statement = (first as { statement?: unknown }).statement;
+  const itemReason = (first as { reasonId?: unknown }).reasonId;
+  if (typeof statement !== "string" || !statement.trim()) return null;
+  return {
+    statement: asBecauseClause(statement, parentStatement),
+    reasonId: typeof itemReason === "string" ? itemReason.trim() : reasonId,
+  };
 }
 
 export function parseBigThoughtLabels(raw: unknown): Map<string, string> {

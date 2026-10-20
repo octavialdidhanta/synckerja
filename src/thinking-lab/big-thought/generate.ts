@@ -1,5 +1,6 @@
 import { asBecauseClause, BECAUSE_RESULT_LINES } from "@/thinking-lab/big-thought/because";
 import { bigThoughtRepeats, normalizeBigThoughtLabel } from "@/thinking-lab/big-thought/label";
+import { productReasonLines, statementUsesReason, type ProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
 import { ACTIVE_SET_CAP, MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "@/thinking-lab/shared/limits";
 import { individualAdmission } from "@/thinking-lab/big-thought/policy";
 import { judgeBigThought } from "@/thinking-lab/big-thought/semantic";
@@ -9,6 +10,7 @@ import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 export type GeneratedBigThought = {
   label: string;
   statement: string;
+  reasonId?: string;
 };
 
 export type PlannedGenerate = {
@@ -95,8 +97,10 @@ export function buildGeneratePrompt(input: {
   missingWhy: MissingWhy | null;
   exclusions?: SemanticExclusion[];
   failed?: { code: string; statement: string; reasonContribution?: string | null } | null;
+  reasonPool?: ProductReasonPool | null;
 }): string {
   const kept = incumbentLines(input.incumbents);
+  const pool = input.reasonPool ?? null;
   const gap = input.missingWhy
     ? [
         "Search only for this missing because-clause.",
@@ -128,6 +132,18 @@ export function buildGeneratePrompt(input: {
           "Known semantic exclusions:",
           exclusionLines(input.exclusions),
         ];
+  const productSearch = pool
+    ? [
+        "Use exactly one allowed product reason for each candidate.",
+        "Keep that reason's concrete words. Do not replace them with a broader subject.",
+        "Do not combine two reasons. Do not write a reason that is not on this list.",
+        "A reason about the surrounding place, the whole market, or every tenant is allowed only when those words are on this list.",
+        "Return the reasonId of the one list item the clause uses.",
+        "",
+        "Allowed product reasons:",
+        productReasonLines(pool),
+      ]
+    : ["Do not use examples from any specific industry, belief system, or brand."];
   return [
     "Write Big Thought candidates for the confirmed Master Thought.",
     "Each candidate is only the clause that follows because. Inserting the word because between the Master Thought and the candidate must already make one sentence.",
@@ -149,11 +165,13 @@ export function buildGeneratePrompt(input: {
     "Start the label with a capital letter. Do not end it on a loose word such as Tak, Yang, Dan, or Untuk.",
     "The label is not a new Big Thought. Do not shorten or rewrite the statement so that it matches the label.",
     "Write the label in the same language as the statement.",
-    "Do not use examples from any specific industry, belief system, or brand.",
+    ...productSearch,
     gap,
     ...exclusionSearch,
     `Return at most ${input.needed} item(s).`,
-    "Return JSON only: {\"items\":[{\"label\":\"semantic name\",\"statement\":\"...\"}]}",
+    pool
+      ? "Return JSON only: {\"items\":[{\"label\":\"semantic name\",\"statement\":\"...\",\"reasonId\":\"r1\"}]}"
+      : "Return JSON only: {\"items\":[{\"label\":\"semantic name\",\"statement\":\"...\"}]}",
     "",
     "Master Thought:",
     input.parentStatement.trim(),
@@ -163,27 +181,50 @@ export function buildGeneratePrompt(input: {
   ].join("\n");
 }
 
-export function parseGeneratedBigThoughts(raw: unknown, parentStatement = ""): GeneratedBigThought[] {
+export function parseGeneratedBigThoughts(
+  raw: unknown,
+  parentStatement = "",
+  reasonPool?: ProductReasonPool | null,
+): GeneratedBigThought[] {
+  const allowed = reasonPool ? new Set(reasonPool.items.map((item) => item.id)) : null;
+  const read = (row: unknown): GeneratedBigThought | null => {
+    if (!row || typeof row !== "object") return null;
+    const statement = (row as { statement?: unknown }).statement;
+    const label = (row as { label?: unknown }).label;
+    const reasonId = (row as { reasonId?: unknown }).reasonId;
+    if (typeof statement !== "string" || !statement.trim()) return null;
+    const cited = typeof reasonId === "string" ? reasonId.trim() : "";
+    if (allowed && !allowed.has(cited)) return null;
+    return {
+      statement: asBecauseClause(statement, parentStatement),
+      label: normalizeBigThoughtLabel(typeof label === "string" ? label : ""),
+      ...(cited ? { reasonId: cited } : {}),
+    };
+  };
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
   const record = raw as { items?: unknown; statements?: unknown };
   if (Array.isArray(record.items)) {
     return record.items.flatMap((row) => {
-      if (!row || typeof row !== "object") return [];
-      const statement = (row as { statement?: unknown }).statement;
-      const label = (row as { label?: unknown }).label;
-      if (typeof statement !== "string" || !statement.trim()) return [];
-      return [
-        {
-          statement: asBecauseClause(statement, parentStatement),
-          label: normalizeBigThoughtLabel(typeof label === "string" ? label : ""),
-        },
-      ];
+      const item = read(row);
+      return item ? [item] : [];
     });
   }
+  if (allowed) return [];
   if (!Array.isArray(record.statements)) return [];
   return record.statements
     .filter((row): row is string => typeof row === "string" && row.trim().length > 0)
     .map((statement) => ({ statement: asBecauseClause(statement, parentStatement), label: "" }));
+}
+
+export function keepGroundedBigThoughts(
+  items: GeneratedBigThought[],
+  reasonPool?: ProductReasonPool | null,
+): GeneratedBigThought[] {
+  if (!reasonPool) return items;
+  return items.filter((item) => {
+    const reason = reasonPool.items.find((row) => row.id === item.reasonId);
+    return Boolean(reason && statementUsesReason(item.statement, reason.text));
+  });
 }
 
 export function parseGeneratedStatements(raw: unknown, parentStatement = ""): string[] {

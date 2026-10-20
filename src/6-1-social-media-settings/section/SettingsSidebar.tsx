@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Calendar, Sparkles, Image, Scan } from 'lucide-react';
+import { Shield, Calendar, Sparkles, Image, Scan, Clapperboard } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 
@@ -28,6 +28,13 @@ const settingsSections = [
     title: 'Script AI Generator',
     description: 'Google Gemini API & rate limit',
     icon: Sparkles,
+    status: 'active'
+  },
+  {
+    id: 'video-ai',
+    title: 'Video AI Generator',
+    description: 'BytePlus Seedance API & rate limit',
+    icon: Clapperboard,
     status: 'active'
   },
   {

@@ -1,9 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, ChevronLeft, ChevronRight, ImagePlus, Images, Loader2, Upload, X } from 'lucide-react';
+import { Camera, ChevronLeft, ChevronRight, Clapperboard, ImagePlus, Images, Loader2, Pencil, Trash2, Upload } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { cn } from '@/shared/lib/utils';
 import type { BriefStoryboardImageWithUrl } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
 import { Button } from '@/shared/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import {
   Drawer,
@@ -14,6 +24,7 @@ import {
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { pickStoryboardNativePhoto } from '@/6-1-dashboard/lib/pickStoryboardImage';
+import { useBriefVideo } from '@/6-1-dashboard/modal/briefVideoContext';
 
 interface BriefStoryboardImageCellProps {
   rowIndex: number;
@@ -22,8 +33,11 @@ interface BriefStoryboardImageCellProps {
   disabled?: boolean;
   isUploading?: boolean;
   isDeleting?: boolean;
-  onUploadFiles?: (rowIndex: number, files: File[]) => Promise<unknown>;
+  onUploadFiles?: (rowIndex: number, files: File[], promptOverride?: string | null) => Promise<unknown>;
   onDeleteImage?: (imageId: string) => Promise<unknown>;
+  activeImageId?: string | null;
+  onActiveImageIdChange?: (imageId: string) => void;
+  onEditPrompt?: () => void;
   /** 16:9 frame for Story Board cards */
   aspectVideo?: boolean;
   /** Explicit Upload button (Story Board discoverability) */
@@ -65,23 +79,43 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
   aspectVideo = false,
   showUploadButton = false,
   uploadButtonLabel = 'Upload',
+  activeImageId = null,
+  onActiveImageIdChange,
+  onEditPrompt,
 }) => {
   const { t } = useAppTranslation();
   const isMobile = useIsMobile();
+  const briefVideo = useBriefVideo();
+  const videoStatus = briefVideo?.statusFor(rowIndex) ?? { phase: 'idle' as const, url: null, error: null };
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const singleClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTapAtRef = useRef(0);
   const [sourceOpen, setSourceOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [localIndex, setLocalIndex] = useState(0);
+  const controlled = Boolean(onActiveImageIdChange);
+  const foundIndex = images.findIndex((image) => image.id === activeImageId);
+  const activeIndex = controlled ? (foundIndex >= 0 ? foundIndex : 0) : localIndex;
+  const setActiveIndex = (value: number | ((prev: number) => number)) => {
+    const next = typeof value === 'function' ? value(activeIndex) : value;
+    const clamped = Math.max(0, Math.min(next, Math.max(0, images.length - 1)));
+    if (!controlled) {
+      setLocalIndex(clamped);
+      return;
+    }
+    const image = images[clamped];
+    if (image) onActiveImageIdChange?.(image.id);
+  };
   const [isDragActive, setIsDragActive] = useState(false);
   const [showThumbnails, setShowThumbnails] = useState(false);
 
   useEffect(() => {
-    if (activeIndex > images.length - 1) {
-      setActiveIndex(Math.max(0, images.length - 1));
+    if (controlled) return;
+    if (localIndex > images.length - 1) {
+      setLocalIndex(Math.max(0, images.length - 1));
     }
-  }, [activeIndex, images.length]);
+  }, [controlled, localIndex, images.length]);
 
   useEffect(() => {
     if (images.length <= 1) setShowThumbnails(false);
@@ -109,8 +143,11 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
 
   const handleFiles = async (files: File[]) => {
     if (!canOpenPicker || !onUploadFiles || files.length === 0) return;
-    await onUploadFiles(rowIndex, files);
-    setActiveIndex(images.length);
+    const inserted = await onUploadFiles(rowIndex, files);
+    const created = Array.isArray(inserted) ? (inserted as Array<{ id?: string }>) : [];
+    const lastId = created.map((item) => item?.id).filter((id): id is string => Boolean(id)).at(-1);
+    if (lastId && onActiveImageIdChange) onActiveImageIdChange(lastId);
+    else setLocalIndex(images.length);
   };
 
   const handlePaste: React.ClipboardEventHandler<HTMLDivElement> = async (event) => {
@@ -378,18 +415,68 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
           })()
         )}
 
-        {activeImage && onDeleteImage && editable ? (
+        {images.length > 0 && briefVideo?.enabled ? (
           <button
             type="button"
+            title={t('videoAi.cell.generate', 'Generate video')}
+            aria-label={t('videoAi.cell.generate', 'Generate video')}
             onClick={(event) => {
               event.stopPropagation();
-              void handleDelete(activeImage.id);
+              event.preventDefault();
+              briefVideo?.openShot(rowIndex, activeImage?.id);
             }}
-            disabled={disabled}
-            title="Delete image"
-            className="absolute right-1.5 top-1.5 z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition-colors hover:bg-red-600 disabled:opacity-50"
+            onPointerDown={(event) => event.stopPropagation()}
+            onDoubleClick={(event) => event.stopPropagation()}
+            className="absolute left-1.5 top-1.5 z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition-colors hover:bg-black/75"
           >
-            <X className="h-3.5 w-3.5" />
+            <Clapperboard className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+
+        {onEditPrompt ? (
+          <button
+            type="button"
+            title={t('briefDialog.imagePrompt.edit', 'Edit image prompt')}
+            aria-label={t('briefDialog.imagePrompt.edit', 'Edit image prompt')}
+            onClick={(event) => {
+              event.stopPropagation();
+              event.preventDefault();
+              onEditPrompt();
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            onDoubleClick={(event) => event.stopPropagation()}
+            className={cn(
+              'absolute top-1.5 z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition-colors hover:bg-black/75',
+              images.length > 0 && briefVideo?.enabled ? 'left-9' : 'left-1.5',
+            )}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+
+        {activeImage && onDeleteImage ? (
+          <button
+            type="button"
+            title={t('briefDialog.storyboard.deleteImage', 'Hapus gambar')}
+            aria-label={t('briefDialog.storyboard.deleteImage', 'Hapus gambar')}
+            onClick={(event) => {
+              event.stopPropagation();
+              event.preventDefault();
+              setConfirmDeleteId(activeImage.id);
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            onDoubleClick={(event) => event.stopPropagation()}
+            disabled={disabled}
+            className={cn(
+              'absolute top-1.5 z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition-colors hover:bg-red-600 disabled:opacity-50',
+              (images.length > 0 && briefVideo?.enabled ? 1 : 0) + (onEditPrompt ? 1 : 0) === 0
+                ? 'left-1.5'
+                : (images.length > 0 && briefVideo?.enabled ? 1 : 0) + (onEditPrompt ? 1 : 0) === 1
+                  ? 'left-9'
+                  : 'left-[4.125rem]',
+            )}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         ) : null}
 
@@ -498,6 +585,25 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
         </div>
       ) : null}
 
+      {videoStatus.phase === 'working' ? (
+        <p className="mt-1 text-xs font-medium text-gray-600">{t('videoAi.cell.making', 'Membuat video…')}</p>
+      ) : null}
+      {videoStatus.url ? (
+        <video
+          key={videoStatus.url}
+          src={videoStatus.url}
+          controls
+          playsInline
+          preload="metadata"
+          className="mt-2 w-full rounded-md bg-black"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        />
+      ) : null}
+      {videoStatus.error ? (
+        <p className="mt-1 text-xs text-red-600">{videoStatus.error}</p>
+      ) : null}
+
       {showUploadButton && canInteract ? (
         <Button
           type="button"
@@ -514,6 +620,30 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
           {uploadButtonLabel}
         </Button>
       ) : null}
+
+      <AlertDialog open={Boolean(confirmDeleteId)} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
+        <AlertDialogContent className="z-[1000005] rounded-none" overlayClassName="z-[1000004]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('briefDialog.storyboard.deleteImageTitle', 'Hapus gambar ini?')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('briefDialog.storyboard.deleteImageBody', 'Gambar ini akan dihapus dari shot. Prompt yang menempel pada gambar ini ikut terhapus.')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-none">{t('common.cancel', 'Batal')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-none bg-red-600 text-white hover:bg-red-700"
+              onClick={() => {
+                const imageId = confirmDeleteId;
+                setConfirmDeleteId(null);
+                if (imageId) void handleDelete(imageId);
+              }}
+            >
+              {t('briefDialog.storyboard.deleteImageConfirm', 'Hapus')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {isMobile ? (
         <Drawer shouldScaleBackground={false} open={sourceOpen} onOpenChange={setSourceOpen}>

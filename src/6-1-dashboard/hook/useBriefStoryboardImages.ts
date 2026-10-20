@@ -10,6 +10,8 @@ export const BRIEF_STORYBOARD_IMAGES_QUERY_KEY = 'brief-storyboard-images';
 export const BRIEF_STORYBOARD_IMAGE_COLUMN_INDEX = 1;
 export const BRIEF_STORYBOARD_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 export const BRIEF_STORYBOARD_IMAGE_ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
+const BRIEF_STORYBOARD_IMAGE_COLUMNS =
+  'id, social_media_plan_id, row_index, column_index, sort_order, storage_path, file_name, mime_type, file_size, width, height, prompt_override, created_at, updated_at';
 
 export interface BriefStoryboardImageRow {
   id: string;
@@ -23,6 +25,7 @@ export interface BriefStoryboardImageRow {
   file_size: number;
   width: number | null;
   height: number | null;
+  prompt_override: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -46,9 +49,7 @@ export async function fetchBriefStoryboardImages(
 ): Promise<BriefStoryboardImageRow[]> {
   const { data, error } = await supabase
     .from('brief_storyboard_images')
-    .select(
-      'id, social_media_plan_id, row_index, column_index, sort_order, storage_path, file_name, mime_type, file_size, width, height, created_at, updated_at',
-    )
+    .select(BRIEF_STORYBOARD_IMAGE_COLUMNS)
     .eq('social_media_plan_id', socialMediaPlanId)
     .eq('column_index', BRIEF_STORYBOARD_IMAGE_COLUMN_INDEX)
     .order('row_index', { ascending: true })
@@ -150,7 +151,15 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
   });
 
   const uploadMutation = useMutation({
-    mutationFn: async ({ rowIndex, files }: { rowIndex: number; files: File[] }) => {
+    mutationFn: async ({
+      rowIndex,
+      files,
+      promptOverride,
+    }: {
+      rowIndex: number;
+      files: File[];
+      promptOverride?: string | null;
+    }) => {
       if (!socialMediaPlanId || !organizationId) throw new Error('Plan and organization are required');
       if (files.length === 0) return [] as BriefStoryboardImageRow[];
       files.forEach(validateImageFile);
@@ -167,7 +176,7 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
       let nextOrder = rows?.[0] ? (rows[0] as { sort_order: number }).sort_order + 1 : 0;
 
       const insertedRows: BriefStoryboardImageRow[] = [];
-      for (const file of files) {
+      for (const [fileIndex, file] of files.entries()) {
         const extension = normalizeImageExtension(file);
         const path = `${organizationId}/${socialMediaPlanId}/${rowIndex}/${crypto.randomUUID()}.${extension}`;
         const dimensions = await getImageDimensions(file);
@@ -189,10 +198,9 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
             file_size: file.size,
             width: dimensions?.width ?? null,
             height: dimensions?.height ?? null,
+            prompt_override: fileIndex === 0 ? (promptOverride?.trim() || null) : null,
           })
-          .select(
-            'id, social_media_plan_id, row_index, column_index, sort_order, storage_path, file_name, mime_type, file_size, width, height, created_at, updated_at',
-          )
+          .select(BRIEF_STORYBOARD_IMAGE_COLUMNS)
           .single();
 
         if (insertError) {
@@ -377,7 +385,8 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
   }, [images]);
 
   const uploadMany = useCallback(
-    async (rowIndex: number, files: File[]) => uploadMutation.mutateAsync({ rowIndex, files }),
+    async (rowIndex: number, files: File[], promptOverride?: string | null) =>
+      uploadMutation.mutateAsync({ rowIndex, files, promptOverride }),
     [uploadMutation],
   );
   const remove = useCallback((id: string) => deleteMutation.mutateAsync(id), [deleteMutation]);

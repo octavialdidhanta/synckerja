@@ -1,3 +1,4 @@
+import type { ProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
 import type { Resolution } from "@/thinking-lab/shared/verdict";
 
 export type ConfirmationSource = "original" | "recommendation" | "edited";
@@ -36,6 +37,7 @@ export type MasterBeliefInput = {
   planted: string;
   priorBelief: string;
   audience: string;
+  productReasonPool?: ProductReasonPool | null;
 };
 
 export type LabMasterThought = {
@@ -53,5 +55,6 @@ export type LabMasterThought = {
   canonicalSemantic: MasterThoughtFacts | null;
   semanticFingerprint: string | null;
   lastAudit: unknown;
+  productReasonPool: ProductReasonPool | null;
   updatedAt: string;
 };

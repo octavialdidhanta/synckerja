@@ -27,8 +27,13 @@ function ready() {
 }
 
 describe("lock decision", () => {
-  it("refuses when fewer than 3 rows are AUDIT_PASS", () => {
+  it("refuses when the passing rows are not the whole active set", () => {
     expect(evaluateLock({ ...ready(), auditPassCount: 2 }).ok).toBe(false);
+    expect(evaluateLock({ ...ready(), auditPassCount: 0, activeCount: 1 }).ok).toBe(false);
+  });
+
+  it("allows lock when one passing row is the whole set", () => {
+    expect(evaluateLock({ ...ready(), auditPassCount: 1, activeCount: 1 })).toEqual({ ok: true });
   });
 
   it("refuses stale, unresolved, sibling, and failure gates", () => {
@@ -74,6 +79,15 @@ describe("stage action priority", () => {
     expect(selectStageAction({ ...base, auditPassCount: 2 })).toBe("audit");
     expect(selectStageAction(base)).toBeNull();
     expect(selectStageAction({ ...base, challengerComplete: false, lockOk: true })).toBe("lock");
+    expect(
+      selectStageAction({
+        ...base,
+        generateValidCount: 1,
+        activeCount: 1,
+        auditPassCount: 1,
+        lockOk: true,
+      }),
+    ).toBe("lock");
     expect(selectStageAction({ ...base, siblingCurrent: false, lockOk: false })).toBe("audit");
   });
 });

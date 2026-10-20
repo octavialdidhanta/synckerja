@@ -4,8 +4,12 @@ import { Check, Copy, MoreVertical, Plus, Trash2 } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 import { BriefStoryboardImageCell } from './BriefStoryboardImageCell';
+import { BriefMasterVideoButton } from './briefVideoContext';
 import { BriefSceneGenerateButton } from './BriefSceneGenerateButton';
 import { BriefMentionField, BriefMentionText } from './BriefMentionField';
+import { BriefImagePromptDialog } from './BriefImagePromptDialog';
+import { BriefVeoPromptSlides } from './BriefVeoPromptSlides';
+import { isVeoPromptHeader, veoColumnUsesSlides } from '@/6-1-dashboard/lib/seedanceVideo';
 import type { BriefStoryboardImageWithUrl } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
 import type { StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
 import type { BriefConceptDocument } from '@/6-1-dashboard/modal/briefConceptAssets';
@@ -85,6 +89,8 @@ function StoryBoardFieldValue({
 
 export interface BriefStoryBoardSceneCardProps {
   rowIndex: number;
+  sceneNumber: number;
+  shootNumber: string;
   headers: string[];
   row: string[];
   imageColumnIndex: number;
@@ -99,7 +105,7 @@ export interface BriefStoryBoardSceneCardProps {
   characterIds?: string[];
   onCharacterIdsChange?: (rowIndex: number, characterIds: string[]) => void;
   onUpdateCell: (rowIndex: number, cellIdx: number, value: string) => void;
-  onUploadImages?: (rowIndex: number, files: File[]) => Promise<unknown>;
+  onUploadImages?: (rowIndex: number, files: File[], promptOverride?: string | null) => Promise<unknown>;
   onDeleteImage?: (imageId: string) => Promise<unknown>;
   onAddRow?: (rowIndex: number) => void;
   onAddSequenceAfterRow?: (rowIndex: number) => void;
@@ -113,6 +119,8 @@ export interface BriefStoryBoardSceneCardProps {
 
 export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> = ({
   rowIndex,
+  sceneNumber,
+  shootNumber,
   headers,
   row,
   imageColumnIndex,
@@ -139,6 +147,8 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
 }) => {
   const { t } = useAppTranslation();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [activeImageId, setActiveImageId] = useState<string | null>(null);
+  const [promptOpen, setPromptOpen] = useState(false);
   const [masterPromptCopied, setMasterPromptCopied] = useState(false);
   const copiedTimer = useRef<number | null>(null);
   useEffect(() => {
@@ -175,7 +185,10 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
     >
       <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-2 py-1.5">
         <span className="text-xs font-semibold text-gray-700">
-          {t('briefDialog.layout.scene', 'Scene')} {rowIndex + 1}
+          {t('briefDialog.layout.sceneShoot', 'Scene {{scene}} - Shoot {{shoot}}', {
+            scene: sceneNumber,
+            shoot: shootNumber,
+          })}
         </span>
         {showRowActions ? (
           <DropdownMenu>
@@ -248,6 +261,9 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
           isDeleting={isDeleting}
           onUploadFiles={onUploadImages}
           onDeleteImage={onDeleteImage}
+          activeImageId={activeImageId}
+          onActiveImageIdChange={setActiveImageId}
+          onEditPrompt={planId && film && onUploadImages ? () => setPromptOpen(true) : undefined}
           showUploadButton={Boolean(isEditing && planId)}
           uploadButtonLabel={t('briefDialog.layout.upload', 'Upload')}
         />
@@ -275,7 +291,19 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
                 <span className="whitespace-nowrap pt-0.5 text-[11px] font-semibold text-gray-500">
                   {header}:
                 </span>
-                {isEditing ? (
+                {isVeoPromptHeader(header) && veoColumnUsesSlides(images) ? (
+                  <BriefVeoPromptSlides
+                    images={images}
+                    activeImageId={activeImageId}
+                    originalPrompt={value}
+                    editable={isEditing}
+                    concept={film?.concept}
+                    onChangeOriginal={(next) => onUpdateCell(rowIndex, colIdx, next)}
+                    onSelectImage={setActiveImageId}
+                    minRows={1}
+                    fieldClassName="min-w-0 w-full rounded border border-gray-200 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
+                  />
+                ) : isEditing ? (
                   <BriefMentionField
                     value={value}
                     minRows={1}
@@ -300,46 +328,67 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
               <span className="whitespace-nowrap pt-0.5 text-[11px] font-semibold text-gray-500">
                 {headers[masterPromptColumnIndex]}:
               </span>
-              <div className={cn('min-w-0', isEditing && 'relative')}>
+              <div className="min-w-0">
+                {masterPrompt.trim() ? (
+                  <div className="mb-1 flex justify-end">
+                    <BriefMasterVideoButton rowIndex={rowIndex} className="h-7 w-7 shrink-0 bg-white p-0" />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0 bg-white p-0"
+                      aria-label={
+                        masterPromptCopied
+                          ? t('briefDialog.masterPromptCopied', 'Copied')
+                          : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
+                      }
+                      title={
+                        masterPromptCopied
+                          ? t('briefDialog.masterPromptCopied', 'Copied')
+                          : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
+                      }
+                      onClick={() => void copyMasterPrompt()}
+                    >
+                      {masterPromptCopied ? (
+                        <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" aria-hidden />
+                      )}
+                    </Button>
+                  </div>
+                ) : null}
                 {isEditing ? (
                   <BriefMentionField
                     value={masterPrompt}
                     minRows={2}
                     concept={film?.concept}
                     onChange={(next) => onUpdateCell(rowIndex, masterPromptColumnIndex, next)}
-                    className="min-w-0 w-full rounded border border-gray-200 bg-white py-0.5 pl-1.5 pr-8 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
+                    className="min-w-0 w-full rounded border border-gray-200 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
                   />
-                ) : null}
-                {masterPrompt.trim() ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className={cn('h-7 w-7 shrink-0 p-0', isEditing && 'absolute right-0.5 top-0.5 bg-white')}
-                    aria-label={
-                      masterPromptCopied
-                        ? t('briefDialog.masterPromptCopied', 'Copied')
-                        : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
-                    }
-                    title={
-                      masterPromptCopied
-                        ? t('briefDialog.masterPromptCopied', 'Copied')
-                        : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
-                    }
-                    onClick={() => void copyMasterPrompt()}
-                  >
-                    {masterPromptCopied ? (
-                      <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
-                    ) : (
-                      <Copy className="h-3.5 w-3.5" aria-hidden />
-                    )}
-                  </Button>
                 ) : null}
               </div>
             </>
           ) : null}
         </div>
       </div>
+      <BriefImagePromptDialog
+        open={promptOpen && Boolean(onUploadImages)}
+        rowIndex={rowIndex}
+        headers={headers}
+        row={row}
+        imageColumnIndex={imageColumnIndex}
+        film={film}
+        characterIds={characterIds}
+        startingPrompt={(() => {
+          const selected = images.find((image) => image.id === activeImageId) ?? images[0];
+          return selected?.prompt_override ?? null;
+        })()}
+        onUploadImages={onUploadImages}
+        onClose={() => setPromptOpen(false)}
+        onCreated={(imageId) => {
+          if (imageId) setActiveImageId(imageId);
+        }}
+      />
     </article>
   );
 };
