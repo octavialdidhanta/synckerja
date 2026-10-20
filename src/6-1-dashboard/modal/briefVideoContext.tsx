@@ -63,6 +63,7 @@ export function BriefVideoProvider({
   film,
   imagesByRow,
   masterSpans,
+  canGenerate = true,
   children,
 }: {
   planId?: string;
@@ -71,6 +72,7 @@ export function BriefVideoProvider({
   film?: StoryboardFilmContext;
   imagesByRow: Record<number, BriefStoryboardImageWithUrl[]>;
   masterSpans: Array<{ row: number; span: number }>;
+  canGenerate?: boolean;
   children: ReactNode;
 }) {
   const { t } = useAppTranslation();
@@ -185,14 +187,14 @@ export function BriefVideoProvider({
   };
 
   const value = useMemo<BriefVideoContextValue>(() => ({
-    enabled: Boolean(planId && film),
-    openShot: (rowIndex, imageId) => { if (planId && film) setDraft(makeDraft("shot", rowIndex, imageId)); },
-    openMaster: (rowIndex) => { if (planId && film) setDraft(makeDraft("master", rowIndex)); },
+    enabled: Boolean(planId && film && canGenerate),
+    openShot: (rowIndex, imageId) => { if (planId && film && canGenerate) setDraft(makeDraft("shot", rowIndex, imageId)); },
+    openMaster: (rowIndex) => { if (planId && film && canGenerate) setDraft(makeDraft("master", rowIndex)); },
     statusFor,
-  }), [planId, videos, headers, rows, film, imagesByRow, masterSpans]);
+  }), [planId, videos, headers, rows, film, imagesByRow, masterSpans, canGenerate]);
 
   const confirm = async (input: { model: SeedanceModelId; resolution: SeedanceResolution; duration: number; ugcType: UgcType | null; imageIds: Record<number, string>; endImageId: string | null }) => {
-    if (!draft || !planId) return;
+    if (!draft || !planId || !canGenerate) return;
     setPending(true);
     try {
       const veoByRow: Record<number, string | null> = {};

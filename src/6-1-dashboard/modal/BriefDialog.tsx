@@ -52,6 +52,8 @@ interface BriefDialogProps {
   tryStartApprovalFromBrief?: (planId: string) => boolean;
   /** Already resolved on the dashboard. Avoids a fresh auth/role/approval round trip on every open. */
   canApprove?: boolean;
+  /** True when the signed-in employee is the PIC of this content row. */
+  canEditBriefContent?: boolean;
 }
 
 const BriefDialog: React.FC<BriefDialogProps> = ({
@@ -68,6 +70,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   contentTypeName = "",
   tryStartApprovalFromBrief,
   canApprove = false,
+  canEditBriefContent = false,
 }) => {
   const { t } = useAppTranslation();
   const { organizationId } = useCurrentOrg();
@@ -167,7 +170,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
 
     isPersistingRef.current = true;
     if (!socialMediaPlanId) {
-      onSave(briefText.trim());
+      if (canEditBriefContent) onSave(briefText.trim());
       if (closeAfter) onClose();
       isPersistingRef.current = false;
       return;
@@ -177,33 +180,36 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
       const now = new Date().toISOString();
       const trimmedBrief = briefText.trim();
       const briefIsEmpty = trimmedBrief === '';
+      let planRowUpdate: Record<string, unknown> | null = null;
 
-      if (briefIsEmpty) {
-        await removeAllForPlan();
-      }
+      if (canEditBriefContent) {
+        if (briefIsEmpty) {
+          await removeAllForPlan();
+        }
 
-      const planRowUpdate: Record<string, unknown> = briefIsEmpty
-        ? {
-            brief: trimmedBrief,
-            status: '',
-            completion_date: null,
-            approved: false,
-          }
-        : {
-            brief: trimmedBrief,
-            completion_date: now,
-            status: 'Need Review',
-          };
+        planRowUpdate = briefIsEmpty
+          ? {
+              brief: trimmedBrief,
+              status: '',
+              completion_date: null,
+              approved: false,
+            }
+          : {
+              brief: trimmedBrief,
+              completion_date: now,
+              status: 'Need Review',
+            };
 
-      const { error: planError } = await supabase
-        .from('social_media_plans')
-        .update(planRowUpdate)
-        .eq('id', socialMediaPlanId);
+        const { error: planError } = await supabase
+          .from('social_media_plans')
+          .update(planRowUpdate)
+          .eq('id', socialMediaPlanId);
 
-      if (planError) {
-        devLog.error('Error updating brief:', planError);
-        toast.error('Failed to save brief');
-        return;
+        if (planError) {
+          devLog.error('Error updating brief:', planError);
+          toast.error('Failed to save brief');
+          return;
+        }
       }
 
       const { error: audienceError } = await supabase
@@ -258,13 +264,13 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
       }
 
       invalidateExtended();
-      if (onStatusUpdate) {
+      if (onStatusUpdate && planRowUpdate) {
         onStatusUpdate(socialMediaPlanId, planRowUpdate);
       }
       if (closeAfter) {
         toast.success('Brief saved successfully');
         skipFlushOnNextCloseRef.current = true;
-        onSave(trimmedBrief);
+        if (canEditBriefContent) onSave(trimmedBrief);
         onClose();
       }
     } catch (error) {
@@ -302,7 +308,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
       clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = null;
     }
-    onSave(briefText.trim());
+    if (canEditBriefContent) onSave(briefText.trim());
     onClose();
     if (isPersistingRef.current) {
       return;
@@ -561,6 +567,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
     newTableData: string[][],
     meta?: { sequences: BriefSequence[]; sceneMeta?: BriefSceneMeta[] },
   ) => {
+    if (!canEditBriefContent) return;
     setBriefText((prev) => {
       let next = applyTableToBrief(prev, newTableData, parseMarkdownTable(prev));
       if (meta?.sequences) {
@@ -574,6 +581,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   };
 
   const handleLabTableSave = (index: number, newTableData: string[][]) => {
+    if (!canEditBriefContent) return;
     setBriefText((prev) => {
       const tables = parseAllMarkdownTables(prev);
       const target = tables[index];
@@ -588,6 +596,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   };
 
   const handleCreateStoryboardTable = (tableData: string[][]) => {
+    if (!canEditBriefContent) return;
     setBriefText((prev) => applyTableToBrief(prev, tableData, null));
     setCreateTableOpen(false);
   };
@@ -870,6 +879,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                       key={`lab-table-${index}`}
                                       tableData={part.table}
                                       onSave={(data) => handleLabTableSave(part.index, data)}
+                                      readOnly={!canEditBriefContent}
                                       className="!my-1"
                                     />
                                   ),
@@ -891,6 +901,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                 <EditableBriefTable
                                   tableData={parsedTable.table}
                                   onSave={handleTableSave}
+                                  readOnly={!canEditBriefContent}
                                   storyboardToolbar
                                   workAreaExpanded={briefExpanded}
                                   onToggleWorkArea={() => setExpandedSection((current) => (current === 'brief' ? null : 'brief'))}
@@ -947,7 +958,9 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                   </div>
                                 ) : null}
                                 <BriefStoryboardEmptyState
-                                  onCreateTable={() => setCreateTableOpen(true)}
+                                  onCreateTable={
+                                    canEditBriefContent ? () => setCreateTableOpen(true) : undefined
+                                  }
                                 />
                               </>
                             )}

@@ -4,7 +4,7 @@ import { Button } from '@/shared/components/ui/button';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 interface BriefStoryboardEmptyStateProps {
-  onCreateTable: () => void;
+  onCreateTable?: () => void;
 }
 
 export const BriefStoryboardEmptyState: React.FC<BriefStoryboardEmptyStateProps> = ({
@@ -20,12 +20,14 @@ export const BriefStoryboardEmptyState: React.FC<BriefStoryboardEmptyStateProps>
           'No storyboard table yet. Create a custom table to start the brief.',
         )}
       </p>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Button type="button" size="sm" onClick={onCreateTable} className="gap-2">
-          <Table2 className="h-4 w-4" />
-          {t('briefDialog.storyboard.createTable', 'Create table')}
-        </Button>
-      </div>
+      {onCreateTable ? (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <Button type="button" size="sm" onClick={onCreateTable} className="gap-2">
+            <Table2 className="h-4 w-4" />
+            {t('briefDialog.storyboard.createTable', 'Create table')}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 };

@@ -255,6 +255,8 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   deletingImageId = null,
   className = '',
 }) => {
+  const uploadImages = readOnly ? undefined : onUploadImages;
+  const deleteImage = readOnly ? undefined : onDeleteImage;
   const { t } = useAppTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<string[][]>([]);
@@ -365,6 +367,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     nextSequences?: BriefSequence[],
     nextSceneMeta?: BriefSceneMeta[],
   ) => {
+    if (readOnly) return newData;
     const finalColCount = Math.max(...newData.map((r) => r.length), 1);
     const padded = sanitizeStoryboardData(padTable(newData, finalColCount));
     const nextBodyCount = Math.max(0, padded.length - 1);
@@ -381,6 +384,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   };
 
   const startEdit = () => {
+    if (readOnly) return;
     const bodyRows = displayData.slice(1).map(padRow);
     setEditData(bodyRows);
     setIsEditing(true);
@@ -409,6 +413,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   };
 
   const handleDeleteRow = async (rowIdx: number) => {
+    if (readOnly) return;
     const tableColCount = Math.max(...tableData.map((r) => r.length), 1);
     const headerRow = (tableData[0] ?? displayData[0] ?? []).slice(0, tableColCount);
     const body = isEditing ? editData : displayData.slice(1);
@@ -427,6 +432,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   };
 
   const handleAddRow = async (rowIdx: number, sequenceId?: string) => {
+    if (readOnly) return;
     const tableColCount = Math.max(...tableData.map((r) => r.length), 1);
     const headerRow = (tableData[0] ?? displayData[0] ?? []).slice(0, tableColCount);
     const body = isEditing ? editData : displayData.slice(1);
@@ -620,7 +626,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   const tableLayoutKey = briefTableColumnKey(headerRow);
 
   const renderStoryboardToolbar = () => {
-    if (!storyboardToolbar || alwaysEditable || readOnly || !onSave) return null;
+    if (!storyboardToolbar || alwaysEditable || !onSave) return null;
 
     const toolbarBtnClass = cn('h-8 shrink-0 text-xs', isMobile2Col && 'whitespace-nowrap');
 
@@ -745,6 +751,8 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
           ) : (
             layoutToggle
           )}
+          {readOnly ? null : (
+          <>
           <Button type="button" variant="outline" size="sm" className={toolbarBtnClass} onClick={handleAddColumn}>
             <Plus className="mr-1 h-3.5 w-3.5" />
             {t('briefDialog.storyboard.addColumn', 'Add column')}
@@ -936,16 +944,18 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
               </DropdownMenu>
             );
           })()}
+          </>
+          )}
           {isMobile2Col ? (
             <>
-              {editActions}
+              {readOnly ? null : editActions}
               {workAreaButton}
             </>
           ) : null}
         </div>
         {isMobile2Col ? null : (
           <div className="flex items-center gap-1">
-            {editActions}
+            {readOnly ? null : editActions}
             {workAreaButton}
           </div>
         )}
@@ -1011,6 +1021,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   };
 
   const persistSequencesOnly = (nextSequences: BriefSequence[]) => {
+    if (readOnly) return;
     const bodyCount = isEditing ? Math.max(editData.length, bodyRowCount) : bodyRowCount;
     const normalized = normalizeBriefSequences(
       nextSequences,
@@ -1029,6 +1040,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   };
 
   const handleSceneCharacterIdsChange = (rowIndex: number, characterIds: string[]) => {
+    if (readOnly) return;
     const nextMeta = setSceneCharacterIds(sceneMetaRef.current, rowIndex, characterIds);
     setSceneMeta(nextMeta);
     const bodyCount = isEditing ? Math.max(editData.length, bodyRowCount) : bodyRowCount;
@@ -1199,12 +1211,12 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                   film={film}
                   characterIds={getSceneCharacterIds(sceneMeta, rowIdx)}
                   mediaBusy={isStructureBusy}
-                  onUploadImages={onUploadImages}
-                  onDeleteImage={onDeleteImage}
+                  onUploadImages={uploadImages}
+                  onDeleteImage={deleteImage}
                   activeImageId={activeImageIds[rowIdx] ?? null}
                   onActiveImageIdChange={(imageId) => selectImage(rowIdx, imageId)}
                   onEditPrompt={
-                    planId && film && onUploadImages ? () => setImagePromptRow(rowIdx) : undefined
+                    planId && film && uploadImages ? () => setImagePromptRow(rowIdx) : undefined
                   }
                 />
               ) : isVeoPromptHeader(String(headerRow[cellIdx] ?? '')) && veoColumnUsesSlides(rowImages) ? (
@@ -1367,6 +1379,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       film={film}
       imagesByRow={rowImagesMap}
       masterSpans={masterPromptSpans}
+      canGenerate={!readOnly}
     >
     <div
       className={cn(
@@ -1420,8 +1433,8 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             uploadingRowIndex={uploadingRowIndex}
             deletingImageId={deletingImageId}
             onUpdateCell={updateCell}
-            onUploadImages={onUploadImages}
-            onDeleteImage={onDeleteImage}
+            onUploadImages={uploadImages}
+            onDeleteImage={deleteImage}
             onAddRow={(rowIdx) => void handleAddRow(rowIdx)}
             onAddSequenceAfterRow={handleAddSequenceAfterRow}
             onDeleteRow={(rowIdx) => void handleDeleteRow(rowIdx)}
@@ -1574,7 +1587,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       {isMobile2Col && !useStoryBoardLayout ? addSequenceBelowButton : null}
     </div>
     <BriefImagePromptDialog
-      open={imagePromptRow != null && Boolean(onUploadImages)}
+      open={imagePromptRow != null && Boolean(uploadImages)}
       rowIndex={imagePromptRow ?? 0}
       headers={headerRow}
       row={imagePromptRow != null ? (bodyRows[imagePromptRow] ?? []) : []}
@@ -1587,7 +1600,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
         const selected = rowImages.find((image) => image.id === activeImageIds[imagePromptRow]) ?? rowImages[0];
         return selected?.prompt_override ?? null;
       })()}
-      onUploadImages={onUploadImages}
+      onUploadImages={uploadImages}
       onClose={() => setImagePromptRow(null)}
       onCreated={(imageId) => {
         if (imagePromptRow != null && imageId) selectImage(imagePromptRow, imageId);

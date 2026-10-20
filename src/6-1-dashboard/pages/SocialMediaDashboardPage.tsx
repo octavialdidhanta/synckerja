@@ -48,6 +48,7 @@ import { useDigitalMarketingEmployees } from "../hook/useDigitalMarketingEmploye
 import { useBatchApprovalAccess } from "../hook/useBatchApprovalAccess";
 import { useSyncPicProduction } from "../hook/useSyncPicProduction";
 import { useApprovalTaskStepCreation } from "../hook/useApprovalTaskStepCreation";
+import { canEditBriefContent } from "../lib/canEditBriefContent";
 import DailyTaskSelectorDialog from "../modal/DailyTaskSelectorDialog";
 import {
   planNeedsStaleMetadataSync,
@@ -1462,6 +1463,10 @@ const SocialMediaContent = () => {
             })()}
             tryStartApprovalFromBrief={tryStartApprovalFromBrief}
             canApprove={approvalAccess.approved}
+            canEditBriefContent={canEditBriefContent(
+              currentEmployeeId,
+              contentPlans.find((plan) => plan.id === briefDialog.id)?.pic_id,
+            )}
           />
 
           <TitleDialog 

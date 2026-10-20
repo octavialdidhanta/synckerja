@@ -51,7 +51,7 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({}));
     if (body.action === "status") return await refreshVideo(supabaseAdmin, orgId, String(body.videoId ?? ""));
-    return await createVideo(supabaseAdmin, orgId, body, json);
+    return await createVideo(supabaseAdmin, orgId, userData.user.id, body, json);
   } catch (error) {
     console.error("generate-brief-video", error);
     return json({ error: error instanceof Error ? error.message : "Video AI could not finish" }, 500);
@@ -61,6 +61,7 @@ Deno.serve(async (req: Request) => {
 async function createVideo(
   supabaseAdmin: ReturnType<typeof createClient>,
   orgId: string,
+  userId: string,
   body: Record<string, unknown>,
   json: (body: object, status?: number) => Response,
 ) {
@@ -86,10 +87,15 @@ async function createVideo(
 
   const { data: plan } = await supabaseAdmin
     .from("social_media_plans")
-    .select("id, organization_id")
+    .select("id, organization_id, pic_id")
     .eq("id", planId)
     .maybeSingle();
   if (!plan || plan.organization_id !== orgId) return json({ error: "Brief ini bukan milik organisasi aktif" }, 403);
+  const picId = String(plan.pic_id ?? "").trim();
+  const { data: picEmployee } = picId
+    ? await supabaseAdmin.from("employees").select("id").eq("id", picId).eq("user_id", userId).maybeSingle()
+    : { data: null };
+  if (!picEmployee) return json({ error: "Hanya PIC brief ini yang dapat membuat video." }, 403);
 
   const { data: config } = await supabaseAdmin
     .from("organization_video_ai_config")
