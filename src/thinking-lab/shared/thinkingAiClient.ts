@@ -8,6 +8,18 @@ export const THINKING_JSON_SYSTEM =
 
 export type ThinkingAiTemperature = 0 | 0.2;
 
+export type ThinkingAuditScope = {
+  masterThoughtId: string | null;
+  action: string | null;
+  target: string | null;
+};
+
+let thinkingAuditScope: ThinkingAuditScope = { masterThoughtId: null, action: null, target: null };
+
+export function setThinkingAuditScope(next: Partial<ThinkingAuditScope>) {
+  thinkingAuditScope = { ...thinkingAuditScope, ...next };
+}
+
 export function buildThinkingAiRequestBody(
   prompt: string,
   temperature: ThinkingAiTemperature = 0,
@@ -15,12 +27,26 @@ export function buildThinkingAiRequestBody(
   prompt: string;
   purpose: typeof THINKING_JSON_PURPOSE;
   temperature: number;
+  masterThoughtId?: string;
+  usageAction?: string;
+  usageTarget?: string;
 } {
-  return {
+  const body: {
+    prompt: string;
+    purpose: typeof THINKING_JSON_PURPOSE;
+    temperature: number;
+    masterThoughtId?: string;
+    usageAction?: string;
+    usageTarget?: string;
+  } = {
     prompt: prompt.trim(),
     purpose: THINKING_JSON_PURPOSE,
     temperature,
   };
+  if (thinkingAuditScope.masterThoughtId) body.masterThoughtId = thinkingAuditScope.masterThoughtId;
+  if (thinkingAuditScope.action) body.usageAction = thinkingAuditScope.action;
+  if (thinkingAuditScope.target) body.usageTarget = thinkingAuditScope.target;
+  return body;
 }
 
 export function thinkingPromptContainsScriptFormat(text: string): boolean {
@@ -36,13 +62,13 @@ export async function generateThinkingJsonWithAI(
   prompt: string,
   opts?: { temperature?: ThinkingAiTemperature },
 ): Promise<{ success: boolean; script?: string; error?: string }> {
+  const body = buildThinkingAiRequestBody(prompt, opts?.temperature ?? 0);
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       return { success: false, error: "Sesi login tidak valid. Silakan login ulang." };
     }
     const url = `${SUPABASE_URL}/functions/v1/generate-script-ai`;
-    const body = buildThinkingAiRequestBody(prompt, opts?.temperature ?? 0);
     const res = await fetch(url, {
       method: "POST",
       headers: {

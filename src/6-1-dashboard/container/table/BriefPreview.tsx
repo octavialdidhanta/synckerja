@@ -2,8 +2,7 @@
 import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
-import { stripBriefSequencesComment } from '@/6-1-dashboard/modal/briefSequences';
-import { stripBriefSceneMetaComment } from '@/6-1-dashboard/modal/briefSceneMeta';
+import { stripBriefStorageComments } from '@/6-1-dashboard/modal/briefVoVersions';
 
 interface BriefPreviewProps {
   brief: string | null;
@@ -12,7 +11,7 @@ interface BriefPreviewProps {
 }
 
 export const BriefPreview: React.FC<BriefPreviewProps> = ({ brief, onClick, isSelected = false }) => {
-  const briefTrimmed = stripBriefSceneMetaComment(stripBriefSequencesComment(brief?.trim() ?? ''));
+  const briefTrimmed = stripBriefStorageComments(brief?.trim() ?? '');
   if (!briefTrimmed) {
     return (
       <button

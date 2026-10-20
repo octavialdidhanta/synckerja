@@ -79,11 +79,17 @@ async function generateDesignImage(
   prompt: string,
   aspectRatio: DesignAspect,
   reference?: { imageBase64: string; mimeType: string },
+  audit?: { planId: string; action: string; target: string },
 ): Promise<{ base64: string; mimeType: string }> {
   const { data: refreshed } = await supabase.auth.refreshSession();
   const session = refreshed.session ?? (await supabase.auth.getSession()).data.session;
   if (!session?.access_token) throw new Error("AUTH");
   const body: Record<string, unknown> = { prompt, aspectRatio };
+  if (audit?.planId) {
+    body.planId = audit.planId;
+    body.usageAction = audit.action;
+    body.usageTarget = audit.target;
+  }
   if (reference) {
     body.identitySheet = true;
     body.referenceImageBase64 = reference.imageBase64;
@@ -360,7 +366,11 @@ export async function generateBriefLocationVisual(input: {
     storyboard: input.storyboard ?? "",
     concept: input.concept ?? { locations: [], characters: [], properties: [] },
   });
-  const image = await generateDesignImage(prompt, input.aspect);
+  const image = await generateDesignImage(prompt, input.aspect, undefined, {
+    planId: input.planId,
+    action: "generate_location",
+    target: input.handle,
+  });
   return storeBriefLocationVisual({ ...input, file: base64ToBlob(image.base64, image.mimeType) });
 }
 
@@ -392,7 +402,11 @@ export async function generateBriefPropertyVisual(input: {
     storyboard: input.storyboard ?? "",
     concept: input.concept ?? { locations: [], characters: [], properties: [] },
   });
-  const image = await generateDesignImage(prompt, input.aspect);
+  const image = await generateDesignImage(prompt, input.aspect, undefined, {
+    planId: input.planId,
+    action: "generate_property",
+    target: input.handle,
+  });
   return storeBriefPropertyVisual({ ...input, file: base64ToBlob(image.base64, image.mimeType) });
 }
 

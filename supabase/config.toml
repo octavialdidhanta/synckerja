@@ -102,6 +102,9 @@ verify_jwt = false
 [functions.generate-brief-video]
 verify_jwt = false
 
+[functions.generate-brief-voice]
+verify_jwt = false
+
 [functions.analyze-expense-receipt-ai]
 verify_jwt = false
 

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -41,6 +42,7 @@ export function BriefSceneGenerateButton({
   onGeneratingChange?: (generating: boolean) => void;
 }) {
   const { t } = useAppTranslation();
+  const queryClient = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
   const { data: characters = [] } = useDigitalAssetCharactersListQuery();
   const characterNamesById = useMemo(() => {
@@ -81,6 +83,8 @@ export function BriefSceneGenerateButton({
         imageColumnIndex,
         t,
         film,
+        planId,
+        rowIndex,
       });
       if (result.truncated) {
         toast.message(
@@ -102,6 +106,7 @@ export function BriefSceneGenerateButton({
           : t('briefDialog.layout.generateFailed', 'Image generation failed.');
       toast.error(msg);
     } finally {
+      if (planId) void queryClient.invalidateQueries({ queryKey: ["content-ai-usage", planId] });
       setGenerating(false);
     }
   };

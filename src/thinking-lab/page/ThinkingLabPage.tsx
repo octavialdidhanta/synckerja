@@ -12,6 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
+import { Accordion } from "@/shared/components/ui/accordion";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
@@ -25,7 +26,7 @@ import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { cn } from "@/shared/lib/utils";
 import { isGeminiSpendCapError, isGeminiSpendCapMessage } from "@/shared/ai/geminiSpendCap";
-import { askThinkingLab, parseModelJson } from "@/thinking-lab/shared/ai";
+import { askThinkingLab, parseModelJson, setThinkingAuditScope } from "@/thinking-lab/shared/ai";
 import { ACTIVE_SET_CAP } from "@/thinking-lab/shared/limits";
 import type { AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import {
@@ -339,6 +340,7 @@ import { SaveToPlanModal } from "@/6-1-script-generator/components/SaveToPlanMod
 import { PillarPickerSheet } from "@/thinking-lab/section/PillarPickerSheet";
 import { ExecutionConfirmDialog } from "@/thinking-lab/section/ExecutionConfirmDialog";
 import { MasterThoughtMapTree } from "@/thinking-lab/section/MasterThoughtMapTree";
+import { ContentUsageAudit } from "@/6-1-dashboard/modal/ContentUsageAudit";
 import { SavedMasterThoughtList } from "@/thinking-lab/section/SavedMasterThoughtList";
 import { MasterThoughtSection } from "@/thinking-lab/section/MasterThoughtSection";
 import type { ProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
@@ -506,8 +508,10 @@ export function ThinkingLabPage() {
     if (missing.length === 0) return;
     labelFlight.current = true;
     const ids = missing.map((row) => row.id);
+    const masterThoughtId = selected.id;
     void (async () => {
       try {
+        setThinkingAuditScope({ masterThoughtId, action: "lab_label", target: "Big Thought" });
         const script = await askThinkingLab(
           buildBigThoughtLabelPrompt(missing.map((row) => ({ code: row.code, statement: row.statement }))),
           0,
@@ -519,11 +523,12 @@ export function ThinkingLabPage() {
           return [{ id: row.id, label }];
         });
         if (labels.length > 0) await thoughts.saveLabels.mutateAsync(labels);
-      } catch {
+        } catch {
         // The Key Belief stays as stored. The next visit can ask for the heading again.
       } finally {
         for (const id of ids) labeledAttempt.current.add(id);
         labelFlight.current = false;
+        void queryClient.invalidateQueries({ queryKey: ["content-ai-usage", "master", masterThoughtId] });
       }
     })();
   }, [busy, selected, thoughts.data, thoughts.organizationId, thoughts.saveLabels]);
@@ -532,7 +537,7 @@ export function ThinkingLabPage() {
   const labTerritories = useLabTerritories(territoryParentIds);
 
   useEffect(() => {
-    if (!thoughts.organizationId) return;
+    if (busy || !thoughts.organizationId) return;
     const parents = new Map((thoughts.data ?? []).map((row) => [row.id, row]));
     const missing = (labTerritories.data ?? []).filter((row) => {
       if (row.admission !== "GENERATE_VALID" || descriptionFlight.current.has(row.id)) return false;
@@ -550,6 +555,9 @@ export function ThinkingLabPage() {
         const question =
           stored?.answeredQuestionVersion === ANSWERED_QUESTION_VERSION ? stored.answeredQuestion?.trim() ?? "" : "";
         try {
+          if (selected?.id) {
+            setThinkingAuditScope({ masterThoughtId: selected.id, action: "lab_territory_area", target: "Territory" });
+          }
           const written = await writeTerritoryAreaSentence({
             territory: row.statement,
             parentStatement: parent.statement,
@@ -574,8 +582,10 @@ export function ThinkingLabPage() {
           descriptionFlight.current.delete(row.id);
         }
       }),
-    );
-  }, [labTerritories.data, labTerritories.saveGloss, selected?.audience, selected?.statement, thoughts.data, thoughts.organizationId]);
+    ).finally(() => {
+      if (selected?.id) void queryClient.invalidateQueries({ queryKey: ["content-ai-usage", "master", selected.id] });
+    });
+  }, [busy, labTerritories.data, labTerritories.saveGloss, queryClient, selected?.audience, selected?.id, selected?.statement, thoughts.data, thoughts.organizationId]);
   const angleParentIds = useMemo(() => (labTerritories.data ?? []).map((row) => row.id), [labTerritories.data]);
   const labAngles = useLabAngles(angleParentIds);
   const ideaParentIds = useMemo(() => (labAngles.data ?? []).map((row) => row.id), [labAngles.data]);
@@ -1173,8 +1183,36 @@ export function ThinkingLabPage() {
       )
     : null;
 
-  const run = async (work: () => Promise<void>, action?: string) => {
+  const labTarget = (action?: string | null): string | null => {
+    if (!action) return null;
+    if (action === "formulate" || action === "understand") return "Master Thought";
+    if (action === "generate" || action === "manual-big-thought" || action === "audit" || action === "challenger" || action === "fix") return "Big Thought";
+    if (action.includes("angle") || action === "accept-gap" || action === "skip-gap") return "Angle";
+    if (action.includes("idea")) return "Idea";
+    if (action.includes("territory")) return "Territory";
+    if (action.startsWith("execution")) return "Execution";
+    return null;
+  };
+  const bindUsage = (action?: string | null, masterThoughtId?: string | null, target?: string | null) => {
+    setThinkingAuditScope({
+      masterThoughtId: masterThoughtId ?? selected?.id ?? focus?.masterId ?? null,
+      action: action ? `lab_${action}` : null,
+      target: target || labTarget(action) || "Master Thought",
+    });
+  };
+  const askScoped = (action: string, target: string, prompt: string, temperature: 0 | 0.2 = 0) => {
+    setThinkingAuditScope({
+      masterThoughtId: selected?.id ?? focus?.masterId ?? null,
+      action: `lab_${action}`,
+      target,
+    });
+    return askThinkingLab(prompt, temperature);
+  };
+
+  const run = async (work: () => Promise<void>, action?: string, target?: string) => {
     if (!masters.organizationId) return;
+    const masterThoughtId = selected?.id ?? focus?.masterId ?? null;
+    bindUsage(action, masterThoughtId, target);
     setBusy(true);
     setBusyAction(action ?? null);
     setNotice(null);
@@ -1186,6 +1224,7 @@ export function ThinkingLabPage() {
     } finally {
       setBusy(false);
       setBusyAction(null);
+      if (masterThoughtId) void queryClient.invalidateQueries({ queryKey: ["content-ai-usage", "master", masterThoughtId] });
     }
   };
 
@@ -1194,8 +1233,10 @@ export function ThinkingLabPage() {
     toast.error(error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));
   };
 
-  const runManual = async (action: string, work: () => Promise<string | null>): Promise<string | null> => {
+  const runManual = async (action: string, work: () => Promise<string | null>, target?: string): Promise<string | null> => {
     if (!masters.organizationId) return null;
+    const masterThoughtId = selected?.id ?? focus?.masterId ?? null;
+    bindUsage(action, masterThoughtId, target);
     setBusy(true);
     setBusyAction(action);
     setNotice(null);
@@ -1209,6 +1250,7 @@ export function ThinkingLabPage() {
     } finally {
       setBusy(false);
       setBusyAction(null);
+      if (masterThoughtId) void queryClient.invalidateQueries({ queryKey: ["content-ai-usage", "master", masterThoughtId] });
     }
   };
 
@@ -1223,6 +1265,7 @@ export function ThinkingLabPage() {
         audience,
         productReasonPool: reasonPool,
       });
+      bindUsage("formulate", created.id);
       const facts = await collectBeliefOptions({ planted, priorBelief, audience }, (prompt) => askThinkingLab(prompt, 0.2));
       await masters.saveJudge.mutateAsync({
         id: created.id,
@@ -1514,7 +1557,9 @@ export function ThinkingLabPage() {
         missingWhy,
         topUp: true,
         propose: async (plan, incumbents) => {
-          const script = await askThinkingLab(
+          const script = await askScoped(
+            "generate",
+            "Big Thought",
             buildGeneratePrompt({
               parentStatement: becauseParent,
               incumbents: incumbents
@@ -1535,7 +1580,7 @@ export function ThinkingLabPage() {
             statement,
             code: "NEW",
             siblings,
-            ask: askThinkingLab,
+            ask: (prompt) => askScoped("generate", "Big Thought", prompt, 0),
           }),
         persist: async (candidate, facts) => {
           const code = nextBigThoughtCode(codes);
@@ -1617,7 +1662,7 @@ export function ThinkingLabPage() {
             lessons: auditLessons,
             needed: plan.needed,
             ask: async (prompt) => {
-              const script = await askThinkingLab(prompt, 0.2);
+              const script = await askScoped("generate", "Territory", prompt, 0.2);
               if (!script) throw new Error(t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));
               return script;
             },
@@ -2268,7 +2313,7 @@ export function ThinkingLabPage() {
           ids: openIdeas.map((row) => row.id),
         });
       }
-    }, ideaStage ?? "audit");
+    }, ideaStage ?? "audit", "Idea");
 
   const onLockIdeas = () =>
     run(async () => {
@@ -4242,7 +4287,7 @@ export function ThinkingLabPage() {
           ids: admittedAngles.map((row) => row.id),
         });
       }
-    }, angleStage ?? "audit");
+    }, angleStage ?? "audit", "Angle");
 
   const onPickAngleFixOffer = (failedCode: string, statement: string) =>
     run(async () => {
@@ -4767,7 +4812,7 @@ export function ThinkingLabPage() {
           ids: admittedTerritories.map((row) => row.id),
         });
       }
-    }, territoryStage ?? "territory");
+    }, territoryStage ?? "territory", "Territory");
   };
 
   const onLockTerritories = () =>
@@ -4849,7 +4894,7 @@ export function ThinkingLabPage() {
             siblings: local
               .filter((item) => item.code !== row.code)
               .map((item) => ({ code: item.code, statement: item.statement })),
-            ask: askThinkingLab,
+            ask: (prompt) => askScoped("audit", row.code, prompt, 0),
           });
           await thoughts.updateFacts.mutateAsync({
             id: row.id,
@@ -4883,7 +4928,7 @@ export function ThinkingLabPage() {
             rows: local.map((row) => ({ code: row.code, statement: row.statement })),
             fingerprint: nextSetFingerprint,
           },
-          askThinkingLab,
+          (prompt) => askScoped("audit", "Big Thought", prompt, 0),
         );
         setAuditProgress({ done, total, current: null });
       }
@@ -4947,7 +4992,7 @@ export function ThinkingLabPage() {
       } finally {
         setAuditProgress(null);
       }
-    });
+    }, "audit", "Big Thought");
 
   const repairFailedBigThoughts = async (onlyCode?: string) => {
       setAuditProgress(null);
@@ -4960,6 +5005,8 @@ export function ThinkingLabPage() {
         setFixOffers([]);
       }
       if (!selected || !parentFp) return;
+      const fixTarget = onlyCode?.trim().toUpperCase() || "Big Thought";
+      const askFix = (prompt: string, temperature: 0 | 0.2 = 0) => askScoped("fix", fixTarget, prompt, temperature);
       const siblingForParent = siblingSetBelongsToParent(setRecord?.siblingSet ?? null, parentFp)
         ? setRecord?.siblingSet ?? null
         : null;
@@ -4999,7 +5046,7 @@ export function ThinkingLabPage() {
           subjectCode = failure.code;
           const pool = selected.productReasonPool;
           if (pool && pool.items.length === 0) return [];
-          const script = await askThinkingLab(
+          const script = await askFix(
             buildGeneratePrompt({
               parentStatement: selected.statement,
               incumbents: currentIncumbents,
@@ -5035,7 +5082,7 @@ export function ThinkingLabPage() {
             code: "NEW",
             siblings: judgedSiblings,
             ask: async (prompt) => {
-              const script = await askThinkingLab(prompt, 0);
+              const script = await askFix(prompt, 0);
               pass += 1;
               const kind = pass === 1 ? "individual" : "adversarial";
               setFixResponses((current) => [
@@ -5060,7 +5107,7 @@ export function ThinkingLabPage() {
               }),
             },
             async (prompt) => {
-              const script = await askThinkingLab(prompt, 0);
+              const script = await askFix(prompt, 0);
               setFixResponses((current) => [
                 ...current,
                 {
@@ -5116,6 +5163,7 @@ export function ThinkingLabPage() {
       } finally {
         fixingBigThoughtCodesRef.current.delete(key);
         setFixingBigThoughtCodes(new Set(fixingBigThoughtCodesRef.current));
+        if (selected?.id) void queryClient.invalidateQueries({ queryKey: ["content-ai-usage", "master", selected.id] });
       }
     })();
   };
@@ -5192,7 +5240,7 @@ export function ThinkingLabPage() {
       };
       await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: next });
       setNotice(challenger.status);
-    });
+    }, "challenger", "Big Thought");
 
   const onLock = () =>
     run(async () => {
@@ -6444,6 +6492,11 @@ export function ThinkingLabPage() {
                                 : t("thinkingLab.list.select", "Select a Master Thought from the list.")}
                             </p>
                           )}
+                          {selected && !(showComposer && hasMasters) ? (
+                            <Accordion type="single" collapsible className="mt-3">
+                              <ContentUsageAudit masterThoughtId={selected.id} />
+                            </Accordion>
+                          ) : null}
                         </div>
                       </div>
                     </div>

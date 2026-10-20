@@ -16,6 +16,7 @@ import {
   stringifyMarkdownTable,
 } from '@/6-1-dashboard/utils/markdownTableUtils';
 import { mergeBriefConceptVisuals } from '@/6-1-dashboard/modal/briefConceptAssets';
+import { restoreScriptReceipts, takeScriptReceipts } from '../services/scriptGeneratorAIService';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { toast } from 'sonner';
 
@@ -230,6 +231,15 @@ export function useSaveToPlan() {
           );
 
           if (conceptError) throw conceptError;
+        }
+
+        const receiptIds = takeScriptReceipts();
+        if (receiptIds.length > 0) {
+          const { error: attachError } = await supabase.functions.invoke('generate-script-ai', {
+            body: { mode: 'attribute', planId: targetPlanId, receiptIds },
+          });
+          if (attachError) restoreScriptReceipts(receiptIds);
+          else queryClient.invalidateQueries({ queryKey: ['content-ai-usage', targetPlanId] });
         }
 
         queryClient.invalidateQueries({ queryKey: ['social-media-plans', organizationId] });

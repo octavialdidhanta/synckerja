@@ -1,8 +1,13 @@
 import { GeminiSpendCapError, isGeminiSpendCapMessage } from "@/shared/ai/geminiSpendCap";
 import {
   generateThinkingJsonWithAI,
+  setThinkingAuditScope,
   type ThinkingAiTemperature,
+  type ThinkingAuditScope,
 } from "@/thinking-lab/shared/thinkingAiClient";
+
+export { setThinkingAuditScope };
+export type { ThinkingAuditScope };
 
 export async function askThinkingLab(
   prompt: string,

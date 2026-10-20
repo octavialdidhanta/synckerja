@@ -18,20 +18,27 @@ import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { toast } from "sonner";
 
+type VideoProvider = "byteplus" | "gemini";
+
 type VideoAIConfigRow = {
   id: string;
   organization_id: string;
   api_key_configured: boolean;
   daily_limit: number;
+  provider?: VideoProvider | null;
 };
 
-const CONFIG_SELECT = "id, organization_id, api_key_configured, daily_limit";
+const CONFIG_SELECT = "id, organization_id, api_key_configured, daily_limit, provider";
+
+function asProvider(value: string | null | undefined): VideoProvider {
+  return value === "gemini" ? "gemini" : "byteplus";
+}
 
 export const VideoAIConfigSection: React.FC = () => {
   const { t } = useAppTranslation();
   const { organizationId } = useCurrentOrg();
   const queryClient = useQueryClient();
-  const { data: configRow, isPending } = useQuery({
+  const { data: configRow, isPending, isError } = useQuery({
     queryKey: ["video-ai-config", organizationId],
     enabled: Boolean(organizationId),
     queryFn: async () => {
@@ -44,6 +51,20 @@ export const VideoAIConfigSection: React.FC = () => {
       return (data ?? null) as VideoAIConfigRow | null;
     },
   });
+  const { data: scriptReady } = useQuery({
+    queryKey: ["script-ai-gemini-ready", organizationId],
+    enabled: Boolean(organizationId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("organization_script_ai_config")
+        .select("api_key_configured")
+        .eq("organization_id", organizationId as string)
+        .maybeSingle();
+      if (error) throw error;
+      return Boolean(data?.api_key_configured);
+    },
+  });
+  const [provider, setProvider] = useState<VideoProvider>("byteplus");
   const [dailyLimit, setDailyLimit] = useState(20);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -51,24 +72,31 @@ export const VideoAIConfigSection: React.FC = () => {
   const [isRemoving, setIsRemoving] = useState(false);
   const [appliedKey, setAppliedKey] = useState("");
 
-  const serverKey = configRow ? `${configRow.id}:${configRow.daily_limit}:${configRow.api_key_configured}` : "";
+  const serverKey = configRow
+    ? `${configRow.id}:${configRow.daily_limit}:${configRow.api_key_configured}:${configRow.provider ?? "byteplus"}`
+    : "";
   if (serverKey !== appliedKey && !apiKeyInput.trim()) {
     setAppliedKey(serverKey);
     setDailyLimit(configRow?.daily_limit ?? 20);
+    setProvider(asProvider(configRow?.provider));
   }
 
   const savedLimit = configRow?.daily_limit ?? 20;
-  const isDirty = !configRow || Number(dailyLimit) !== Number(savedLimit) || apiKeyInput.trim().length > 0;
+  const savedProvider = asProvider(configRow?.provider);
+  const isDirty = !configRow || provider !== savedProvider || Number(dailyLimit) !== Number(savedLimit) || apiKeyInput.trim().length > 0;
 
   const save = async () => {
     if (!organizationId) return;
-    if (!configRow?.api_key_configured && !apiKeyInput.trim()) {
+    if (provider === "byteplus" && !configRow?.api_key_configured && !apiKeyInput.trim()) {
       toast.error(t("videoAi.settings.keyRequired", "API key BytePlus wajib diisi."));
       return;
     }
     setIsSaving(true);
     try {
-      const payload: Record<string, unknown> = { daily_limit: Math.max(1, Number(dailyLimit) || 20) };
+      const payload: Record<string, unknown> = {
+        provider,
+        daily_limit: Math.max(1, Number(dailyLimit) || 20),
+      };
       if (apiKeyInput.trim()) {
         payload.byteplus_api_key = apiKeyInput.trim();
         payload.api_key_configured = true;
@@ -78,7 +106,7 @@ export const VideoAIConfigSection: React.FC = () => {
         : supabase.from("organization_video_ai_config").insert({
             ...payload,
             organization_id: organizationId,
-            api_key_configured: true,
+            api_key_configured: Boolean(apiKeyInput.trim()),
           });
       const { error } = await query;
       if (error) throw error;
@@ -112,9 +140,43 @@ export const VideoAIConfigSection: React.FC = () => {
   };
 
   if (!organizationId || isPending) return null;
+  if (isError) {
+    return <p className="text-sm text-destructive">{t("videoAi.settings.loadFailed", "Konfigurasi video tidak bisa dibaca.")}</p>;
+  }
 
   return (
     <div className="max-w-xl space-y-6">
+      <div className="space-y-3 rounded-lg border p-4">
+        <Label id="video-provider-label">{t("videoAi.settings.provider", "Video provider")}</Label>
+        <div role="tablist" aria-labelledby="video-provider-label" className="grid grid-cols-2 gap-2">
+          {(["byteplus", "gemini"] as const).map((id) => {
+            const selected = provider === id;
+            return (
+              <Button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                variant={selected ? "default" : "outline"}
+                className="h-auto min-h-10 whitespace-normal px-3 py-2 text-sm"
+                onClick={() => setProvider(id)}
+              >
+                {id === "byteplus" ? t("videoAi.settings.byteplus", "BytePlus") : t("videoAi.settings.gemini", "Gemini")}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+      {provider === "gemini" ? (
+        <div className="space-y-2">
+          <Label>{t("videoAi.settings.geminiKey", "Gemini API Key")}</Label>
+          <p className="text-xs text-muted-foreground">
+            {scriptReady
+              ? t("videoAi.settings.geminiUsesScriptKey", "Video Gemini memakai API key yang sama dengan Script AI. Key tidak disalin ke sini.")
+              : t("videoAi.settings.geminiKeyMissing", "Gemini API key belum ada. Isi di Settings > Script AI Generator.")}
+          </p>
+        </div>
+      ) : (
       <div className="space-y-2">
         <Label htmlFor="video-ai-key">{t("videoAi.settings.key", "BytePlus API Key")}</Label>
         <div className="flex items-center gap-2">
@@ -145,6 +207,7 @@ export const VideoAIConfigSection: React.FC = () => {
           </a>
         </p>
       </div>
+      )}
       <div className="space-y-2">
         <Label htmlFor="video-ai-limit">{t("videoAi.settings.limit", "Daily Limit")}</Label>
         <Input
@@ -156,7 +219,7 @@ export const VideoAIConfigSection: React.FC = () => {
           onChange={(event) => setDailyLimit(Math.max(1, Number.parseInt(event.target.value, 10) || 20))}
         />
         <p className="text-xs text-muted-foreground">
-          {t("videoAi.settings.limitHelp", "Maksimum video Seedance per hari untuk organisasi ini.")}
+          {t("videoAi.settings.limitHelp", "Maksimum video per hari untuk organisasi ini, dipakai bersama oleh BytePlus dan Gemini.")}
         </p>
       </div>
       <Button type="button" onClick={() => void save()} disabled={isSaving || !isDirty}>

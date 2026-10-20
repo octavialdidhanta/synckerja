@@ -20,22 +20,43 @@ const AccordionTrigger = React.forwardRef<
     headerAccessory?: React.ReactNode;
     headerClassName?: string;
   }
->(({ className, children, headerAccessory, headerClassName, ...props }, ref) => (
-  <AccordionPrimitive.Header className={cn("flex items-center", headerClassName)}>
-    <AccordionPrimitive.Trigger
-      ref={ref}
-      className={cn(
-        "flex flex-1 items-center justify-between py-4 font-medium transition-all duration-300 ease-smooth hover:underline motion-reduce:duration-150 [&[data-state=open]>svg]:rotate-180",
-        className,
-      )}
-      {...props}
-    >
-      {children}
-      <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-300 ease-smooth motion-reduce:duration-150" />
-    </AccordionPrimitive.Trigger>
-    {headerAccessory}
-  </AccordionPrimitive.Header>
-));
+>(({ className, children, headerAccessory, headerClassName, ...props }, ref) => {
+  const innerRef = React.useRef<HTMLButtonElement>(null);
+  const setRefs = (node: HTMLButtonElement | null) => {
+    innerRef.current = node;
+    if (typeof ref === "function") ref(node);
+    else if (ref) ref.current = node;
+  };
+
+  return (
+    <AccordionPrimitive.Header className={cn("flex items-center", headerClassName)}>
+      <AccordionPrimitive.Trigger
+        ref={setRefs}
+        className={cn(
+          "flex min-w-0 flex-1 items-center py-4 text-left font-medium transition-all duration-300 ease-smooth hover:underline motion-reduce:duration-150 [&[data-state=open]>svg]:rotate-180",
+          headerAccessory ? "peer justify-start" : "justify-between",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+        {headerAccessory ? null : (
+          <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-300 ease-smooth motion-reduce:duration-150" />
+        )}
+      </AccordionPrimitive.Trigger>
+      {headerAccessory}
+      {headerAccessory ? (
+        <span
+          aria-hidden
+          className="ml-2 inline-flex shrink-0 cursor-pointer items-center peer-data-[state=open]:[&>svg]:rotate-180"
+          onClick={() => innerRef.current?.click()}
+        >
+          <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-300 ease-smooth motion-reduce:duration-150" />
+        </span>
+      ) : null}
+    </AccordionPrimitive.Header>
+  );
+});
 AccordionTrigger.displayName = AccordionPrimitive.Trigger.displayName;
 
 const AccordionContent = React.forwardRef<

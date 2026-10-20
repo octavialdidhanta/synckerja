@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
@@ -107,6 +108,7 @@ export function BriefConceptEditor({
   onChange: (next: BriefConceptDocument) => void;
 }) {
   const { t } = useAppTranslation();
+  const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
   const [saving, setSaving] = useState<{ handle: string; kind: CharacterStudioTab } | null>(null);
   const [locationBusy, setLocationBusy] = useState<{ handle: string; mode: "upload" | "generate" } | null>(null);
@@ -255,6 +257,7 @@ export function BriefConceptEditor({
         ? error.message
         : t("briefDialog.conceptLocationGenerateFailed", "The location image could not be generated."));
     } finally {
+      if (planId) void queryClient.invalidateQueries({ queryKey: ["content-ai-usage", planId] });
       setLocationBusy(null);
     }
   };
@@ -338,6 +341,7 @@ export function BriefConceptEditor({
         ? error.message
         : t("briefDialog.conceptPropertyFailed", "The property image could not be saved."));
     } finally {
+      if (planId) void queryClient.invalidateQueries({ queryKey: ["content-ai-usage", planId] });
       setPropertyBusy(null);
     }
   };

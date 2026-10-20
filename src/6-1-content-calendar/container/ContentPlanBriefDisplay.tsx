@@ -29,12 +29,24 @@ import {
   stripBriefSceneMetaComment,
   type BriefSceneMeta,
 } from '@/6-1-dashboard/modal/briefSceneMeta';
+import {
+  stripBriefVoVersionsComment,
+  upsertBriefVoVersionsInMarkdown,
+  type BriefVoVersions,
+} from '@/6-1-dashboard/modal/briefVoVersions';
+import {
+  stripBriefFieldVersionsComment,
+  upsertBriefFieldVersionsInMarkdown,
+  type BriefFieldVersions,
+} from '@/6-1-dashboard/modal/briefFieldVersions';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useSocialMediaMutations } from '@/6-1-dashboard/hook/useOptimizedSocialMediaState';
 import { useBriefStoryboardImages } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
 
 function stripBriefInternalComments(markdown: string): string {
-  return stripBriefSceneMetaComment(stripBriefSequencesComment(markdown));
+  return stripBriefFieldVersionsComment(
+    stripBriefVoVersionsComment(stripBriefSceneMetaComment(stripBriefSequencesComment(markdown))),
+  );
 }
 
 /** Match BriefDialog markdown styling for consistency with brief content modal */
@@ -151,7 +163,12 @@ export const ContentPlanBriefDisplay: React.FC<ContentPlanBriefDisplayProps> = (
 
   const handleTableSave = (
     newTableData: string[][],
-    meta?: { sequences: BriefSequence[]; sceneMeta?: BriefSceneMeta[] },
+    meta?: {
+      sequences: BriefSequence[];
+      sceneMeta?: BriefSceneMeta[];
+      voVersions?: BriefVoVersions[];
+      fieldVersions?: BriefFieldVersions[];
+    },
   ) => {
     let next = applyTableToBrief(briefText, newTableData, parseMarkdownTable(briefText));
     if (meta?.sequences) {
@@ -159,6 +176,12 @@ export const ContentPlanBriefDisplay: React.FC<ContentPlanBriefDisplayProps> = (
     }
     if (meta?.sceneMeta) {
       next = upsertBriefSceneMetaInMarkdown(next, meta.sceneMeta);
+    }
+    if (meta?.voVersions) {
+      next = upsertBriefVoVersionsInMarkdown(next, meta.voVersions);
+    }
+    if (meta?.fieldVersions) {
+      next = upsertBriefFieldVersionsInMarkdown(next, meta.fieldVersions);
     }
     persistBrief(next);
   };

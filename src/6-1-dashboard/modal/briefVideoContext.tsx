@@ -10,6 +10,7 @@ import { BRIEF_STORYBOARD_IMAGES_BUCKET, type BriefStoryboardImageWithUrl } from
 import type { StoryboardFilmContext } from "@/6-1-dashboard/lib/generateBriefSceneImage";
 import {
   audioForbidden,
+  briefForStoredScene,
   buildVideoPrompt,
   coveringMasterRow,
   imageRatioDiffers,
@@ -19,8 +20,9 @@ import {
   readNarration,
   readShotBrief,
   videoRatioForContent,
-  type SeedanceModelId,
-  type SeedanceResolution,
+  type VideoModelId,
+  type VideoProvider,
+  type VideoResolution,
   type UgcType,
 } from "@/6-1-dashboard/lib/seedanceVideo";
 import { BriefVideoConfirmDialog, type BriefVideoDraft } from "@/6-1-dashboard/modal/BriefVideoConfirmDialog";
@@ -32,17 +34,27 @@ export type BriefShotVideo = {
   row_indexes: number[];
   status: "queued" | "running" | "succeeded" | "failed";
   storage_path: string | null;
+  generate_audio: boolean;
   error: string | null;
   created_at: string;
 };
 
-type VideoStatus = { phase: "idle" | "working" | "ready" | "failed"; url: string | null; error: string | null };
+type VideoStatus = {
+  phase: "idle" | "working" | "ready" | "failed";
+  url: string | null;
+  error: string | null;
+  videoId: string | null;
+};
+
+export type ReadyBriefVideo = { id: string; url: string };
 
 type BriefVideoContextValue = {
   enabled: boolean;
   openShot: (rowIndex: number, imageId?: string) => void;
   openMaster: (rowIndex: number) => void;
   statusFor: (rowIndex: number) => VideoStatus;
+  readyVideos: (rowIndex: number) => ReadyBriefVideo[];
+  readyVoiceVideo: (rowIndex: number, scope: "shot" | "master") => string | null;
 };
 
 const BriefVideoContext = createContext<BriefVideoContextValue | null>(null);
@@ -63,6 +75,8 @@ export function BriefVideoProvider({
   film,
   imagesByRow,
   masterSpans,
+  activeImageIds = {},
+  onActiveImageChange,
   canGenerate = true,
   children,
 }: {
@@ -72,6 +86,8 @@ export function BriefVideoProvider({
   film?: StoryboardFilmContext;
   imagesByRow: Record<number, BriefStoryboardImageWithUrl[]>;
   masterSpans: Array<{ row: number; span: number }>;
+  activeImageIds?: Record<number, string | null | undefined>;
+  onActiveImageChange?: (rowIndex: number, imageId: string) => void;
   canGenerate?: boolean;
   children: ReactNode;
 }) {
@@ -86,7 +102,7 @@ export function BriefVideoProvider({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("brief_shot_videos")
-        .select("id, scope, row_index, row_indexes, status, storage_path, error, created_at")
+        .select("id, scope, row_index, row_indexes, status, storage_path, generate_audio, error, created_at")
         .eq("social_media_plan_id", planId as string)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -111,7 +127,10 @@ export function BriefVideoProvider({
         if (stopped) return;
         await readEdgeFunctionError(data, error);
       }));
-      if (!stopped) await queryClient.invalidateQueries({ queryKey: ["brief-shot-videos", planId] });
+      if (!stopped) {
+        await queryClient.invalidateQueries({ queryKey: ["brief-shot-videos", planId] });
+        await queryClient.invalidateQueries({ queryKey: ["content-ai-usage", planId] });
+      }
     };
     void refresh();
     const timer = window.setInterval(() => void refresh(), 8000);
@@ -166,9 +185,17 @@ export function BriefVideoProvider({
           width: image.width,
           height: image.height,
           promptOverride: image.prompt_override?.trim() || null,
+          shotText: image.shot_text?.trim() || null,
+          angleText: image.angle_text?.trim() || null,
+          visualFunctionText: image.visual_function_text?.trim() || null,
         })),
       ])),
-      initialImageIds: imageId ? { [rowIndex]: imageId } : {},
+      initialImageIds: Object.fromEntries(rowIndexes.flatMap((index) => {
+        const images = imagesByRow[index] ?? [];
+        const preferred = scope === "shot" && imageId && index === rowIndex ? imageId : activeImageIds[index];
+        const found = images.find((image) => image.id === preferred) ?? images[0];
+        return found ? [[index, found.id]] : [];
+      })),
       sourceHeaders: headers,
       sourceRows: rows,
       concept: film?.concept ?? null,
@@ -178,12 +205,34 @@ export function BriefVideoProvider({
   const statusFor = (rowIndex: number): VideoStatus => {
     const matching = videos.filter((video) => (video.row_indexes ?? []).includes(rowIndex));
     const latest = matching[0];
-    if (!latest) return { phase: "idle", url: null, error: null };
+    if (!latest) return { phase: "idle", url: null, error: null, videoId: null };
     const ready = matching.find((video) => video.status === "succeeded" && video.storage_path);
     const url = ready ? videoUrl(ready.storage_path) : null;
-    if (latest.status === "queued" || latest.status === "running") return { phase: "working", url, error: null };
-    if (latest.status === "succeeded") return { phase: "ready", url, error: null };
-    return { phase: url ? "ready" : "failed", url, error: latest.error };
+    const videoId = url ? ready?.id ?? null : null;
+    if (latest.status === "queued" || latest.status === "running") return { phase: "working", url, error: null, videoId };
+    if (latest.status === "succeeded") return { phase: "ready", url, error: null, videoId };
+    return { phase: url ? "ready" : "failed", url, error: latest.error, videoId };
+  };
+
+  const readyVideos = (rowIndex: number): ReadyBriefVideo[] =>
+    videos
+      .filter((video) => video.status === "succeeded" && video.storage_path && (video.row_indexes ?? []).includes(rowIndex))
+      .slice()
+      .reverse()
+      .flatMap((video) => {
+        const url = videoUrl(video.storage_path);
+        return url ? [{ id: video.id, url }] : [];
+      });
+
+  const readyVoiceVideo = (rowIndex: number, scope: "shot" | "master") => {
+    const match = videos.find((video) =>
+      video.scope === scope
+      && video.status === "succeeded"
+      && video.generate_audio
+      && Boolean(video.storage_path)
+      && (video.row_indexes ?? []).includes(rowIndex)
+    );
+    return match?.id ?? null;
   };
 
   const value = useMemo<BriefVideoContextValue>(() => ({
@@ -191,25 +240,41 @@ export function BriefVideoProvider({
     openShot: (rowIndex, imageId) => { if (planId && film && canGenerate) setDraft(makeDraft("shot", rowIndex, imageId)); },
     openMaster: (rowIndex) => { if (planId && film && canGenerate) setDraft(makeDraft("master", rowIndex)); },
     statusFor,
-  }), [planId, videos, headers, rows, film, imagesByRow, masterSpans, canGenerate]);
+    readyVideos,
+    readyVoiceVideo,
+  }), [planId, videos, headers, rows, film, imagesByRow, masterSpans, canGenerate, activeImageIds]);
 
-  const confirm = async (input: { model: SeedanceModelId; resolution: SeedanceResolution; duration: number; ugcType: UgcType | null; imageIds: Record<number, string>; endImageId: string | null }) => {
+  const confirm = async (input: { provider: VideoProvider; model: VideoModelId; resolution: VideoResolution; duration: number; ugcType: UgcType | null; imageIds: Record<number, string>; endImageId: string | null }) => {
     if (!draft || !planId || !canGenerate) return;
     setPending(true);
     try {
       const veoByRow: Record<number, string | null> = {};
-      draft.rowIndexes.forEach((rowIndex) => {
+      const sceneByRow: Record<number, ReturnType<typeof readShotBrief>> = {};
+      draft.rowIndexes.forEach((rowIndex, index) => {
         const imageId = input.imageIds[rowIndex];
         const image = (imagesByRow[rowIndex] ?? []).find((item) => item.id === imageId);
-        const text = image?.prompt_override?.trim();
-        if (text) veoByRow[rowIndex] = text;
+        const cell = draft.shotBriefs[index] ?? readShotBrief(headers, rows[rowIndex] ?? []);
+        const scene = briefForStoredScene(cell, {
+          shotText: image?.shot_text,
+          angleText: image?.angle_text,
+          visualFunctionText: image?.visual_function_text,
+          promptOverride: image?.prompt_override,
+        });
+        sceneByRow[rowIndex] = scene;
+        if (scene.veoPrompt) veoByRow[rowIndex] = scene.veoPrompt;
       });
       const shotRow = draft.rowIndexes[0] ?? 0;
       const endImage = input.endImageId && draft.scope === "shot"
         ? (imagesByRow[shotRow] ?? []).find((item) => item.id === input.endImageId)
         : undefined;
-      const endVeo = input.endImageId && draft.scope === "shot"
-        ? endImage?.prompt_override?.trim() || readShotBrief(headers, rows[shotRow] ?? []).veoPrompt
+      const endCell = readShotBrief(headers, rows[shotRow] ?? []);
+      const endScene = input.endImageId && draft.scope === "shot"
+        ? briefForStoredScene(endCell, {
+          shotText: endImage?.shot_text,
+          angleText: endImage?.angle_text,
+          visualFunctionText: endImage?.visual_function_text,
+          promptOverride: endImage?.prompt_override,
+        })
         : null;
       const prompt = buildVideoPrompt({
         scope: draft.scope,
@@ -218,7 +283,9 @@ export function BriefVideoProvider({
         rowIndexes: draft.rowIndexes,
         ugcType: input.ugcType,
         veoByRow,
-        endVeo,
+        sceneByRow,
+        endVeo: endScene?.veoPrompt,
+        endScene,
       });
       const { data, error } = await supabase.functions.invoke("generate-brief-video", {
         body: {
@@ -226,6 +293,7 @@ export function BriefVideoProvider({
           planId,
           scope: draft.scope,
           rowIndexes: draft.rowIndexes,
+          provider: input.provider,
           model: input.model,
           resolution: input.resolution,
           duration: input.duration,
@@ -244,6 +312,7 @@ export function BriefVideoProvider({
       setDraft(null);
       toast.success(t("videoAi.confirm.started", "Video sedang dibuat."));
       await queryClient.invalidateQueries({ queryKey: ["brief-shot-videos", planId] });
+      await queryClient.invalidateQueries({ queryKey: ["content-ai-usage", planId] });
     } finally {
       setPending(false);
     }
@@ -252,7 +321,13 @@ export function BriefVideoProvider({
   return (
     <BriefVideoContext.Provider value={value}>
       {children}
-      <BriefVideoConfirmDialog draft={draft} pending={pending} onClose={() => setDraft(null)} onConfirm={(input) => void confirm(input)} />
+      <BriefVideoConfirmDialog
+        draft={draft}
+        pending={pending}
+        onClose={() => setDraft(null)}
+        onSelectImage={onActiveImageChange}
+        onConfirm={(input) => void confirm(input)}
+      />
     </BriefVideoContext.Provider>
   );
 }

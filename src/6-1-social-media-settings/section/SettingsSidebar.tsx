@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Calendar, Sparkles, Image, Scan, Clapperboard } from 'lucide-react';
+import { Shield, Calendar, Sparkles, Image, Scan, Clapperboard, AudioLines } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 
@@ -35,6 +35,13 @@ const settingsSections = [
     title: 'Video AI Generator',
     description: 'BytePlus Seedance API & rate limit',
     icon: Clapperboard,
+    status: 'active'
+  },
+  {
+    id: 'voice-ai',
+    title: 'Voice AI',
+    description: 'ElevenLabs API, voice, and shared settings',
+    icon: AudioLines,
     status: 'active'
   },
   {

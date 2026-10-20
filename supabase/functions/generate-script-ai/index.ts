@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isUsageUuid, officialTokenSplit, recordContentUsage } from "../_shared/contentUsage.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -105,6 +106,30 @@ Deno.serve(async (req: Request) => {
     const temperature = requestedTemp ?? (isThinkingJson ? 0 : 0.2);
     const THINKING_JSON_SYSTEM =
       "Return JSON only. Do not write advertising scripts, captions, hashtags, Scene, Visual, VO, timing tables, or 15–60 second formats.";
+
+    if (body.mode === "attribute") {
+      const planId = String(body.planId ?? "").trim();
+      const receiptIds = Array.isArray(body.receiptIds)
+        ? body.receiptIds.map((value: unknown) => String(value ?? "").trim()).filter(isUsageUuid).slice(0, 40)
+        : [];
+      if (!isUsageUuid(planId) || receiptIds.length === 0) return jsonResponse({ ok: true, attached: 0 }, 200);
+      const { data: plan } = await supabaseAdmin
+        .from("social_media_plans")
+        .select("id")
+        .eq("id", planId)
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      if (!plan) return jsonResponse({ error: "Brief ini bukan milik organisasi aktif" }, 403);
+      const { error: attachError } = await supabaseAdmin
+        .from("content_ai_usage")
+        .update({ social_media_plan_id: planId })
+        .in("id", receiptIds)
+        .eq("actor_user_id", user.id)
+        .eq("organization_id", orgId)
+        .is("social_media_plan_id", null);
+      if (attachError) return jsonResponse({ error: attachError.message }, 500);
+      return jsonResponse({ ok: true }, 200);
+    }
 
     const isReframe = body.mode === "reframe";
     const isRevise =
@@ -221,6 +246,8 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
     }
 
     let script = "";
+    let billedPayload: unknown = null;
+    let billedModel = "";
     if (normalizedProvider === "groq" || normalizedProvider === "fireworks" || normalizedProvider === "openai") {
       if (normalizedProvider !== "openai") {
         const approxInputTokens = Math.ceil(fullPrompt.length / 4);
@@ -305,6 +332,8 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
             const retryRes = await callOpenAICompatibleChat("https://api.groq.com/openai/v1", groqApiKey, retryModel);
             if (retryRes.ok) {
               const retryData = await retryRes.json();
+              billedPayload = retryData;
+              billedModel = retryModel;
               script = extractOpenAIChatText(retryData);
             } else {
               const retryErrText = await retryRes.text();
@@ -342,6 +371,8 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
 
         if (!script) {
           const groqData = await groqRes.json();
+          billedPayload = groqData;
+          billedModel = primaryGroqModel;
           script = extractOpenAIChatText(groqData);
         }
       } else if (normalizedProvider === "openai") {
@@ -371,6 +402,8 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
           return jsonResponse({ error: errMsg }, status);
         }
         const openaiData = await openaiRes.json();
+        billedPayload = openaiData;
+        billedModel = openaiModel;
         script = extractOpenAIChatText(openaiData);
       } else {
         const fireworksApiKey = (Deno.env.get("FIREWORKS_API_KEY") ?? "").trim();
@@ -419,6 +452,8 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
         }
 
         const fwData = await fwRes.json();
+        billedPayload = fwData;
+        billedModel = fireworksModel;
         script = extractOpenAIChatText(fwData);
       }
     } else {
@@ -468,6 +503,8 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
       }
 
       const geminiData = await geminiRes.json();
+      billedPayload = geminiData;
+      billedModel = model;
       const textPart = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
       script = typeof textPart === "string" ? textPart.trim() : "";
     }
@@ -489,7 +526,72 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
       });
     }
 
-    return jsonResponse({ success: true, script }, 200);
+    const requestedPlan = String(body.planId ?? "").trim();
+    let planForRow: string | null = null;
+    if (isUsageUuid(requestedPlan)) {
+      const { data: plan } = await supabaseAdmin
+        .from("social_media_plans")
+        .select("id")
+        .eq("id", requestedPlan)
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      if (plan) planForRow = requestedPlan;
+    }
+    const requestedMaster = String(body.masterThoughtId ?? "").trim();
+    let masterForRow: string | null = null;
+    if (isUsageUuid(requestedMaster)) {
+      const { data: master } = await supabaseAdmin
+        .from("thinking_master_thoughts")
+        .select("id")
+        .eq("id", requestedMaster)
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      if (master) masterForRow = requestedMaster;
+    }
+    let usageId: string | null = null;
+    if (masterForRow) {
+      const tokens = officialTokenSplit(billedPayload);
+      const action = String(body.usageAction ?? "generate").trim().slice(0, 40) || "generate";
+      await recordContentUsage(supabaseAdmin, {
+        organizationId: orgId,
+        masterThoughtId: masterForRow,
+        actorUserId: user.id,
+        service: "script",
+        action,
+        targetLabel: String(body.usageTarget ?? "Text").trim() || "Text",
+        model: billedModel || null,
+        usageAmount: tokens.total,
+        usageUnit: tokens.total == null ? null : "token",
+        inputTokens: tokens.input,
+        outputTokens: tokens.output,
+        status: "succeeded",
+        promptExcerpt: prompt,
+      });
+    } else if (!isThinkingJson && (planForRow || body.trackForPlan === true)) {
+      const tokens = officialTokenSplit(billedPayload);
+      usageId = await recordContentUsage(supabaseAdmin, {
+        organizationId: orgId,
+        planId: planForRow,
+        actorUserId: user.id,
+        service: "script",
+        action: mode,
+        targetLabel: sectionType || "Script",
+        model: billedModel || null,
+        usageAmount: tokens.total,
+        usageUnit: tokens.total == null ? null : "token",
+        inputTokens: tokens.input,
+        outputTokens: tokens.output,
+        status: "succeeded",
+        promptExcerpt: instruction || prompt || fullScript,
+      });
+    }
+
+    return jsonResponse({
+      success: true,
+      script,
+      usageId: planForRow ? null : usageId,
+      unassigned: Boolean(usageId) && !planForRow,
+    }, 200);
   } catch (err) {
     console.error("generate-script-ai error:", err);
     return jsonResponse(

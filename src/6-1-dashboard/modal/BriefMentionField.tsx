@@ -17,6 +17,7 @@ import {
   type MentionQuery,
   type MentionRange,
 } from "@/6-1-dashboard/modal/briefMentions";
+import { createUndoHistory, moveUndo, pushUndo, type UndoHistory } from "@/6-1-dashboard/modal/briefFieldUndo";
 
 const KIND_ORDER: MentionKind[] = ["character", "location", "property"];
 
@@ -124,6 +125,9 @@ export function BriefMentionField({
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const pendingCaret = useRef<number | null>(null);
+  const historyRef = useRef<UndoHistory>(createUndoHistory(value));
+  const emittedRef = useRef(value);
+  const historyKeyRef = useRef(false);
   const queryRef = useRef<MentionQuery | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState<MentionQuery | null>(null);
@@ -136,6 +140,12 @@ export function BriefMentionField({
     () => (query ? filterMentions(mentions, query.query) : []),
     [mentions, query],
   );
+
+  useEffect(() => {
+    if (value === emittedRef.current) return;
+    historyRef.current = createUndoHistory(value);
+    emittedRef.current = value;
+  }, [value]);
 
   useEffect(() => {
     const el = fieldRef.current;
@@ -202,6 +212,26 @@ export function BriefMentionField({
     setOpen(false);
   };
 
+  const commit = (next: string, caret: number, coalesce: boolean) => {
+    historyRef.current = pushUndo(historyRef.current, next, caret, Date.now(), coalesce);
+    emittedRef.current = next;
+    pendingCaret.current = caret;
+    onChange(next);
+    refreshQuery(next, caret);
+  };
+
+  const travel = (direction: -1 | 1) => {
+    const next = moveUndo(historyRef.current, direction);
+    if (!next) return;
+    historyRef.current = next;
+    const snap = next.entries[next.index];
+    if (!snap) return;
+    emittedRef.current = snap.value;
+    pendingCaret.current = snap.caret;
+    onChange(snap.value);
+    closeMenu();
+  };
+
   const choose = (item: ConceptMention) => {
     const el = fieldRef.current;
     const live = el?.value ?? value;
@@ -213,8 +243,7 @@ export function BriefMentionField({
     if (!liveQuery || liveQuery.end > live.length) return;
     const next = insertMention(live, liveQuery, item.handle);
     queryRef.current = null;
-    pendingCaret.current = next.caret;
-    onChange(next.text);
+    commit(next.text, next.caret, false);
     setQuery(null);
     setOpen(false);
   };
@@ -261,12 +290,30 @@ export function BriefMentionField({
           if (!el) return;
           const start = el.selectionStart ?? 0;
           const end = el.selectionEnd ?? start;
+          const shortcut = (event.ctrlKey || event.metaKey) && !event.altKey;
+          if (shortcut && event.key.toLowerCase() === "z") {
+            event.preventDefault();
+            historyKeyRef.current = true;
+            travel(event.shiftKey ? 1 : -1);
+            window.setTimeout(() => {
+              historyKeyRef.current = false;
+            }, 0);
+            return;
+          }
+          if (shortcut && event.key.toLowerCase() === "y") {
+            event.preventDefault();
+            historyKeyRef.current = true;
+            travel(1);
+            window.setTimeout(() => {
+              historyKeyRef.current = false;
+            }, 0);
+            return;
+          }
           if (event.key === "Backspace" || event.key === "Delete") {
             const next = atomicDelete(value, start, end, ranges, event.key);
             if (!next) return;
             event.preventDefault();
-            pendingCaret.current = next.caret;
-            onChange(next.text);
+            commit(next.text, next.caret, false);
             closeMenu();
             return;
           }
@@ -286,6 +333,16 @@ export function BriefMentionField({
           }
         }}
         onBeforeInput={(event) => {
+          const inputType = event.nativeEvent instanceof InputEvent ? event.nativeEvent.inputType : "";
+          if (inputType === "historyUndo" || inputType === "historyRedo") {
+            event.preventDefault();
+            if (historyKeyRef.current) {
+              historyKeyRef.current = false;
+              return;
+            }
+            travel(inputType === "historyRedo" ? 1 : -1);
+            return;
+          }
           const el = fieldRef.current;
           if (!el) return;
           const start = el.selectionStart ?? 0;
@@ -296,9 +353,7 @@ export function BriefMentionField({
         onChange={(event) => {
           const next = event.target.value;
           const caret = event.target.selectionStart ?? next.length;
-          pendingCaret.current = caret;
-          onChange(next);
-          refreshQuery(next, caret);
+          commit(next, caret, true);
         }}
         />
       </div>

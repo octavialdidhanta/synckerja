@@ -11,7 +11,7 @@ export const BRIEF_STORYBOARD_IMAGE_COLUMN_INDEX = 1;
 export const BRIEF_STORYBOARD_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 export const BRIEF_STORYBOARD_IMAGE_ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
 const BRIEF_STORYBOARD_IMAGE_COLUMNS =
-  'id, social_media_plan_id, row_index, column_index, sort_order, storage_path, file_name, mime_type, file_size, width, height, prompt_override, created_at, updated_at';
+  'id, social_media_plan_id, row_index, column_index, sort_order, storage_path, file_name, mime_type, file_size, width, height, prompt_override, shot_text, angle_text, visual_function_text, created_at, updated_at';
 
 export interface BriefStoryboardImageRow {
   id: string;
@@ -26,12 +26,65 @@ export interface BriefStoryboardImageRow {
   width: number | null;
   height: number | null;
   prompt_override: string | null;
+  shot_text: string | null;
+  angle_text: string | null;
+  visual_function_text: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface BriefStoryboardImageWithUrl extends BriefStoryboardImageRow {
   publicUrl: string;
+}
+
+export type BriefImageSceneVersion = {
+  shot: string;
+  angle: string;
+  visualFunction: string;
+  veoPrompt: string;
+  previous: {
+    shot: string;
+    angle: string;
+    visualFunction: string;
+    veoPrompt: string;
+  };
+};
+
+function isSceneVersion(value: unknown): value is BriefImageSceneVersion {
+  return Boolean(value) && typeof value === "object" && "previous" in (value as object) && "veoPrompt" in (value as object);
+}
+
+async function freezeSceneOnExistingImages(
+  planId: string,
+  rowIndex: number,
+  previous: BriefImageSceneVersion["previous"],
+) {
+  const { data, error } = await supabase
+    .from("brief_storyboard_images")
+    .select("id, shot_text, angle_text, visual_function_text, prompt_override")
+    .eq("social_media_plan_id", planId)
+    .eq("row_index", rowIndex)
+    .eq("column_index", BRIEF_STORYBOARD_IMAGE_COLUMN_INDEX);
+  if (error) throw error;
+  for (const image of data ?? []) {
+    const row = image as {
+      id: string;
+      shot_text: string | null;
+      angle_text: string | null;
+      visual_function_text: string | null;
+      prompt_override: string | null;
+    };
+    const patch: Record<string, string> = {};
+    if (!row.shot_text?.trim() && previous.shot.trim()) patch.shot_text = previous.shot.trim();
+    if (!row.angle_text?.trim() && previous.angle.trim()) patch.angle_text = previous.angle.trim();
+    if (!row.visual_function_text?.trim() && previous.visualFunction.trim()) {
+      patch.visual_function_text = previous.visualFunction.trim();
+    }
+    if (!row.prompt_override?.trim() && previous.veoPrompt.trim()) patch.prompt_override = previous.veoPrompt.trim();
+    if (Object.keys(patch).length === 0) continue;
+    const { error: updateError } = await supabase.from("brief_storyboard_images").update(patch).eq("id", row.id);
+    if (updateError) throw updateError;
+  }
 }
 
 function normalizeImageExtension(file: File): string {
@@ -158,11 +211,14 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
     }: {
       rowIndex: number;
       files: File[];
-      promptOverride?: string | null;
+      promptOverride?: string | BriefImageSceneVersion | null;
     }) => {
       if (!socialMediaPlanId || !organizationId) throw new Error('Plan and organization are required');
       if (files.length === 0) return [] as BriefStoryboardImageRow[];
       files.forEach(validateImageFile);
+      const scene = isSceneVersion(promptOverride) ? promptOverride : null;
+      if (scene) await freezeSceneOnExistingImages(socialMediaPlanId, rowIndex, scene.previous);
+      const veoPrompt = scene ? scene.veoPrompt : typeof promptOverride === "string" ? promptOverride : null;
 
       const { data: rows, error: orderError } = await supabase
         .from('brief_storyboard_images')
@@ -198,7 +254,10 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
             file_size: file.size,
             width: dimensions?.width ?? null,
             height: dimensions?.height ?? null,
-            prompt_override: fileIndex === 0 ? (promptOverride?.trim() || null) : null,
+            prompt_override: fileIndex === 0 ? (veoPrompt?.trim() || null) : null,
+            shot_text: fileIndex === 0 ? (scene?.shot.trim() || null) : null,
+            angle_text: fileIndex === 0 ? (scene?.angle.trim() || null) : null,
+            visual_function_text: fileIndex === 0 ? (scene?.visualFunction.trim() || null) : null,
           })
           .select(BRIEF_STORYBOARD_IMAGE_COLUMNS)
           .single();
@@ -385,7 +444,7 @@ export function useBriefStoryboardImages(socialMediaPlanId: string | undefined) 
   }, [images]);
 
   const uploadMany = useCallback(
-    async (rowIndex: number, files: File[], promptOverride?: string | null) =>
+    async (rowIndex: number, files: File[], promptOverride?: string | BriefImageSceneVersion | null) =>
       uploadMutation.mutateAsync({ rowIndex, files, promptOverride }),
     [uploadMutation],
   );

@@ -255,6 +255,8 @@ export async function generateBriefSceneImageFile(params: {
   film?: StoryboardFilmContext;
   veoPrompt?: string;
   refine?: boolean;
+  planId?: string;
+  rowIndex?: number;
 }): Promise<{
   file: File;
   truncated: boolean;
@@ -346,6 +348,9 @@ export async function generateBriefSceneImageFile(params: {
   const body: Record<string, unknown> = {
     prompt,
     aspectRatio: storyboardShotAspect(film),
+    planId: params.planId,
+    usageAction: refine ? 'refine_scene' : 'generate_scene',
+    usageTarget: typeof params.rowIndex === 'number' ? `Baris ${params.rowIndex + 1}` : '',
   };
   if (portraitImage) {
     body.identitySheet = true;

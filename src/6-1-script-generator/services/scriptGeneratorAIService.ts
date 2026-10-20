@@ -12,6 +12,22 @@ function aiFailure(error: string): GenerateScriptWithAIResponse {
   return { success: false, error };
 }
 
+const scriptReceipts: string[] = [];
+
+function rememberScriptReceipt(data: { usageId?: unknown; unassigned?: unknown } | null | undefined) {
+  if (data?.unassigned === true && typeof data.usageId === "string" && data.usageId) {
+    scriptReceipts.push(data.usageId);
+  }
+}
+
+export function takeScriptReceipts(): string[] {
+  return scriptReceipts.splice(0, scriptReceipts.length);
+}
+
+export function restoreScriptReceipts(ids: string[]) {
+  if (ids.length > 0) scriptReceipts.unshift(...ids);
+}
+
 export async function reviseScriptPart(
   originalText: string,
   instruction: string,
@@ -55,7 +71,7 @@ export async function reviseScriptPart(
     }
 
     const { data, error } = await supabase.functions.invoke('generate-script-ai', {
-      body,
+      body: { ...body, trackForPlan: true },
     });
 
     if (error) {
@@ -76,6 +92,7 @@ export async function reviseScriptPart(
       };
     }
 
+    rememberScriptReceipt(data);
     return {
       success: true,
       script: script.trim(),
@@ -115,6 +132,7 @@ export async function regenerateScriptWithDifferentProblem(
         mode: 'reframe',
         fullScript: trimmedScript,
         instruction: trimmedInstruction,
+        trackForPlan: true,
       },
     });
 
@@ -136,6 +154,7 @@ export async function regenerateScriptWithDifferentProblem(
       };
     }
 
+    rememberScriptReceipt(data);
     return {
       success: true,
       script: script.trim(),
@@ -157,7 +176,8 @@ export async function regenerateScriptWithDifferentProblem(
 }
 
 export async function generateScriptWithAI(
-  prompt: string
+  prompt: string,
+  options?: { trackForPlan?: boolean },
 ): Promise<GenerateScriptWithAIResponse> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -175,7 +195,7 @@ export async function generateScriptWithAI(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ prompt: prompt.trim() }),
+      body: JSON.stringify({ prompt: prompt.trim(), trackForPlan: options?.trackForPlan === true }),
     });
 
     const data = await res.json().catch(() => null);
@@ -212,6 +232,7 @@ export async function generateScriptWithAI(
       };
     }
 
+    if (options?.trackForPlan) rememberScriptReceipt(data);
     return {
       success: true,
       script: script.trim(),

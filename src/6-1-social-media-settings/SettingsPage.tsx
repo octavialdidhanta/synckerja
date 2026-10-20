@@ -12,6 +12,7 @@ import { ApprovalAccessSection } from './section/ApprovalAccessSection';
 import { ContentSchedulingSection } from './section/ContentSchedulingSection';
 import { ScriptAIConfigSection } from './section/ScriptAIConfigSection';
 import { VideoAIConfigSection } from './section/VideoAIConfigSection';
+import { VoiceAIConfigSection } from './section/VoiceAIConfigSection';
 import { DigitalAssetsSection } from './section/DigitalAssetsSection';
 import { DetectFromImageSection } from './section/DetectFromImageSection';
 import { ComingSoonSection } from './section/ComingSoonSection';
@@ -171,6 +172,8 @@ export const SettingsPage: React.FC = () => {
         return <ScriptAIConfigSection />;
       case 'video-ai':
         return <VideoAIConfigSection />;
+      case 'voice-ai':
+        return <VoiceAIConfigSection />;
       default:
         return <ComingSoonSection />;
     }
@@ -238,7 +241,9 @@ export const SettingsPage: React.FC = () => {
                                               ? 'Script AI Configuration'
                                               : activeSection === 'video-ai'
                                                 ? 'Video AI Configuration'
-                                                : 'Settings'}
+                                                : activeSection === 'voice-ai'
+                                                  ? 'Voice AI Configuration'
+                                                  : 'Settings'}
                                   </h2>
                                   <p className="mt-1 text-xs text-muted-foreground">
                                     {activeSection === 'approval-access'
@@ -255,8 +260,10 @@ export const SettingsPage: React.FC = () => {
                                             : activeSection === 'script-ai'
                                               ? 'Konfigurasi Google AI API untuk Script Generator'
                                               : activeSection === 'video-ai'
-                                                ? 'Konfigurasi BytePlus API untuk Seedance'
-                                                : 'Configure social media settings'}
+                                                ? 'Konfigurasi BytePlus atau Gemini untuk video. Gemini memakai API key Script AI.'
+                                                : activeSection === 'voice-ai'
+                                                  ? 'Konfigurasi ElevenLabs untuk narasi brief'
+                                                  : 'Configure social media settings'}
                                   </p>
                                 </div>
                                 {activeSection === 'approval-access' && (

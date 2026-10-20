@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -17,9 +18,15 @@ import {
   type StoryboardFilmContext,
 } from "@/6-1-dashboard/lib/generateBriefSceneImage";
 import { promptSlideForImage, readNarration, readShotBrief } from "@/6-1-dashboard/lib/seedanceVideo";
+import { briefAuditField } from "@/6-1-dashboard/modal/briefFieldVersions";
+import type { BriefImageSceneVersion } from "@/6-1-dashboard/hook/useBriefStoryboardImages";
 import { BriefMentionField } from "@/6-1-dashboard/modal/BriefMentionField";
 
-type UploadImages = (rowIndex: number, files: File[], promptOverride?: string | null) => Promise<unknown>;
+type UploadImages = (
+  rowIndex: number,
+  files: File[],
+  promptOverride?: string | BriefImageSceneVersion | null,
+) => Promise<unknown>;
 
 export function BriefImagePromptDialog({
   open,
@@ -28,7 +35,11 @@ export function BriefImagePromptDialog({
   row,
   imageColumnIndex,
   film,
+  planId,
   characterIds = [],
+  startingShot = null,
+  startingAngle = null,
+  startingVisual = null,
   startingPrompt = null,
   onUploadImages,
   onClose,
@@ -40,24 +51,40 @@ export function BriefImagePromptDialog({
   row: string[];
   imageColumnIndex: number;
   film?: StoryboardFilmContext;
+  planId?: string;
   characterIds?: string[];
+  startingShot?: string | null;
+  startingAngle?: string | null;
+  startingVisual?: string | null;
   startingPrompt?: string | null;
   onUploadImages?: UploadImages;
   onClose: () => void;
-  onCreated: (imageId: string | null) => void;
+  onCreated: (imageId: string | null, version: BriefImageSceneVersion) => void;
 }) {
   const { t } = useAppTranslation();
+  const queryClient = useQueryClient();
   const [pending, setPending] = useState<"generate" | "regenerate" | null>(null);
   const busy = pending === "generate" || pending === "regenerate" ? pending : null;
+  const [shot, setShot] = useState("");
+  const [angle, setAngle] = useState("");
+  const [visualFunction, setVisualFunction] = useState("");
   const [text, setText] = useState("");
   const [session, setSession] = useState("");
   const brief = readShotBrief(headers, row);
   const narration = readNarration(headers, [row], [0]);
+  const seededShot = startingShot?.trim() || brief.shot;
+  const seededAngle = startingAngle?.trim() || brief.angle;
+  const seededVisual = startingVisual?.trim() || brief.visualFunction;
   const seededPrompt = promptSlideForImage(startingPrompt, brief.veoPrompt).text;
-  const nextSession = open ? `open:${rowIndex}:${seededPrompt}` : "";
+  const nextSession = open ? `open:${rowIndex}:${seededShot}:${seededAngle}:${seededVisual}:${seededPrompt}` : "";
   if (nextSession !== session) {
     setSession(nextSession);
-    if (open) setText(seededPrompt);
+    if (open) {
+      setShot(seededShot);
+      setAngle(seededAngle);
+      setVisualFunction(seededVisual);
+      setText(seededPrompt);
+    }
   }
   const { data: characters = [] } = useDigitalAssetCharactersListQuery();
   const characterNamesById = Object.fromEntries(
@@ -69,16 +96,26 @@ export function BriefImagePromptDialog({
     if (!veoPrompt || !onUploadImages || busy) return;
     setPending(refine ? "regenerate" : "generate");
     try {
+      const nextRow = headers.map((header, index) => {
+        const field = briefAuditField(header);
+        if (field === "shot") return shot;
+        if (field === "angle") return angle;
+        if (field === "visual") return visualFunction;
+        if (field === "veo") return veoPrompt;
+        return row[index] ?? "";
+      });
       const result = await generateBriefSceneImageFile({
         characterIds,
         characterNamesById,
         headers,
-        row,
+        row: nextRow,
         imageColumnIndex,
         t,
         film,
         veoPrompt,
         refine,
+        planId,
+        rowIndex,
       });
       if (result.truncated) {
         toast.message(
@@ -88,9 +125,21 @@ export function BriefImagePromptDialog({
           }),
         );
       }
-      const inserted = await onUploadImages(rowIndex, [result.file], veoPrompt);
+      const version: BriefImageSceneVersion = {
+        shot: shot.trim(),
+        angle: angle.trim(),
+        visualFunction: visualFunction.trim(),
+        veoPrompt,
+        previous: {
+          shot: brief.shot,
+          angle: brief.angle,
+          visualFunction: brief.visualFunction,
+          veoPrompt: brief.veoPrompt,
+        },
+      };
+      const inserted = await onUploadImages(rowIndex, [result.file], version);
       const created = Array.isArray(inserted) ? (inserted as Array<{ id?: string }>) : [];
-      onCreated(created[0]?.id ?? null);
+      onCreated(created[0]?.id ?? null, version);
       toast.success(t("briefDialog.layout.generateSuccess", "Scene image generated."));
       onClose();
     } catch (error) {
@@ -99,14 +148,15 @@ export function BriefImagePromptDialog({
       const message = error instanceof Error ? error.message : t("briefDialog.layout.generateFailed", "Image generation failed.");
       toast.error(message);
     } finally {
+      if (planId) void queryClient.invalidateQueries({ queryKey: ["content-ai-usage", planId] });
       setPending(null);
     }
   };
 
   const fields = [
-    ["videoAi.confirm.shotField", "Shot", brief.shot],
-    ["videoAi.confirm.angle", "Angle", brief.angle],
-    ["videoAi.confirm.visualFunction", "Visual function", brief.visualFunction],
+    ["videoAi.confirm.shotField", "Shot", shot, setShot],
+    ["videoAi.confirm.angle", "Angle", angle, setAngle],
+    ["videoAi.confirm.visualFunction", "Visual function", visualFunction, setVisualFunction],
   ] as const;
 
   return (
@@ -124,10 +174,16 @@ export function BriefImagePromptDialog({
         <div className="scrollbar-hide seamless-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="space-y-3">
             <div className="space-y-2 rounded-none border border-border bg-muted/40 px-3 py-2">
-              {fields.map(([key, fallback, value]) => (
-                <div key={key} className="space-y-0.5">
+              {fields.map(([key, fallback, value, setValue]) => (
+                <div key={key} className="space-y-1">
                   <p className="text-[11px] font-semibold text-muted-foreground">{t(key, fallback)}</p>
-                  <p className="whitespace-pre-wrap text-sm">{value || "—"}</p>
+                  <BriefMentionField
+                    value={value}
+                    concept={film?.concept}
+                    onChange={setValue}
+                    minRows={2}
+                    className="box-border w-full min-w-0 rounded-none border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
                 </div>
               ))}
               <div className="space-y-1">

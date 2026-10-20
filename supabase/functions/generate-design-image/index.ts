@@ -1,6 +1,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isUsageUuid, officialTokenCount, promptExcerpt, recordContentUsage } from "../_shared/contentUsage.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +9,90 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
+
+async function syncImageUsage(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  orgId: string,
+  planId: string,
+  jsonResponse: (body: object, status: number) => Response,
+) {
+  if (!isUsageUuid(planId)) return jsonResponse({ error: "Content tidak ditemukan" }, 400);
+  const { data: plan } = await supabaseAdmin
+    .from("social_media_plans")
+    .select("id, organization_id, pic_id")
+    .eq("id", planId)
+    .maybeSingle();
+  if (!plan || plan.organization_id !== orgId) return jsonResponse({ error: "Brief ini bukan milik organisasi aktif" }, 403);
+  const picId = String(plan.pic_id ?? "").trim();
+  const { data: pic } = picId
+    ? await supabaseAdmin.from("employees").select("user_id").eq("id", picId).maybeSingle()
+    : { data: null };
+  const actorUserId = pic?.user_id && isUsageUuid(String(pic.user_id)) ? String(pic.user_id) : null;
+  const { data: images, error: imageError } = await supabaseAdmin
+    .from("brief_storyboard_images")
+    .select("id, row_index, sort_order, file_name, prompt_override, created_at")
+    .eq("social_media_plan_id", planId)
+    .like("file_name", "storyboard-scene-%");
+  if (imageError) return jsonResponse({ error: imageError.message }, 500);
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("content_ai_usage")
+    .select("id, source_id, actor_user_id, target_label, created_at, usage_amount")
+    .eq("service", "image")
+    .eq("social_media_plan_id", planId);
+  if (existingError) return jsonResponse({ error: existingError.message }, 500);
+  const rows = (existing ?? []) as Array<{
+    id: string;
+    source_id: string | null;
+    actor_user_id: string | null;
+    target_label: string | null;
+    created_at: string;
+    usage_amount: number | null;
+  }>;
+  const linked = new Set(rows.map((row) => row.source_id).filter((id): id is string => Boolean(id)));
+  const open = rows.filter((row) => !row.source_id);
+  let added = 0;
+  for (const image of (images ?? []) as Array<{ id: string; row_index: number; sort_order: number; prompt_override: string | null; created_at: string }>) {
+    if (linked.has(image.id)) continue;
+    const imageAt = new Date(image.created_at).getTime();
+    const target = `Baris ${image.row_index + 1}`;
+    let closest: (typeof open)[number] | null = null;
+    let closestDelta = Number.POSITIVE_INFINITY;
+    for (const row of open) {
+      const delta = imageAt - new Date(row.created_at).getTime();
+      if (delta < -15_000 || delta > 3 * 60 * 1000) continue;
+      if (row.target_label && !row.target_label.startsWith(target)) continue;
+      if (delta < closestDelta) {
+        closest = row;
+        closestDelta = delta;
+      }
+    }
+    if (closest) {
+      const patch: Record<string, unknown> = { source_id: image.id };
+      if (!closest.actor_user_id && actorUserId) patch.actor_user_id = actorUserId;
+      const { error } = await supabaseAdmin.from("content_ai_usage").update(patch).eq("id", closest.id).is("source_id", null);
+      if (error) return jsonResponse({ error: error.message }, 500);
+      open.splice(open.indexOf(closest), 1);
+      linked.add(image.id);
+      continue;
+    }
+    const { error } = await supabaseAdmin.from("content_ai_usage").insert({
+      organization_id: orgId,
+      social_media_plan_id: planId,
+      actor_user_id: actorUserId,
+      service: "image",
+      action: "generate_scene",
+      target_label: `${target} · V.${image.sort_order + 1}`,
+      status: "succeeded",
+      source_id: image.id,
+      prompt_excerpt: promptExcerpt(image.prompt_override),
+      created_at: image.created_at,
+    });
+    if (error) return jsonResponse({ error: error.message }, 500);
+    linked.add(image.id);
+    added += 1;
+  }
+  return jsonResponse({ ok: true, added, priced: 0 }, 200);
+}
 
 // Prefer Nano Banana Pro (Gemini 3 Pro Image); fallback to 2.5 Flash Image if unavailable
 const IMAGE_MODEL_PRIMARY = "gemini-3-pro-image-preview";
@@ -125,6 +210,7 @@ Deno.serve(async (req: Request) => {
         400
       );
     }
+    if (body.action === "sync") return await syncImageUsage(supabaseAdmin, orgId, String(body.planId ?? ""), jsonResponse);
     const prompt = body.prompt != null ? String(body.prompt).trim() : "";
     const headlineExact = body.headline != null ? String(body.headline).trim() : "";
     const subHeadlineExact = body.sub_headline != null ? String(body.sub_headline).trim() : "";
@@ -726,6 +812,36 @@ Deno.serve(async (req: Request) => {
       : [IMAGE_MODEL_FALLBACK, IMAGE_MODEL_PRIMARY];
     let lastErrorMsg = "Image generation failed";
     let geminiRes: Response | null = null;
+    let usedModel = modelsToTry[0];
+    const recordImageAudit = async (status: "succeeded" | "failed", payload: unknown) => {
+      const planId = String(body.planId ?? "").trim();
+      if (!isUsageUuid(planId)) return;
+      const { data: plan } = await supabaseAdmin
+        .from("social_media_plans")
+        .select("id")
+        .eq("id", planId)
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      if (!plan) return;
+      const requested = String(body.usageAction ?? "").trim();
+      const action = ["generate_scene", "refine_scene", "generate_location", "generate_property"].includes(requested)
+        ? requested
+        : "generate_scene";
+      const tokens = officialTokenCount(payload);
+      await recordContentUsage(supabaseAdmin, {
+        organizationId: orgId,
+        planId,
+        actorUserId: user.id,
+        service: "image",
+        action,
+        targetLabel: String(body.usageTarget ?? "").trim() || null,
+        model: usedModel,
+        usageAmount: tokens,
+        usageUnit: tokens == null ? null : "token",
+        status,
+        promptExcerpt: prompt,
+      });
+    };
 
     for (const model of modelsToTry) {
       let configToUse: Record<string, unknown> = generationConfigPrimary;
@@ -751,7 +867,10 @@ Deno.serve(async (req: Request) => {
             : {}),
         }),
       });
-      if (geminiRes.ok) break;
+      if (geminiRes.ok) {
+        usedModel = model;
+        break;
+      }
       const errText = await geminiRes.text();
       console.error(`Gemini API error (${model}):`, geminiRes.status, errText);
       let errMsg = "Image generation failed";
@@ -791,7 +910,10 @@ Deno.serve(async (req: Request) => {
               : {}),
           }),
         });
-        if (geminiRes.ok) break;
+        if (geminiRes.ok) {
+        usedModel = model;
+        break;
+      }
         const retryErrText = await geminiRes.text();
         console.error(`Gemini API retry without imageConfig (${model}):`, geminiRes.status, retryErrText);
         try {
@@ -807,6 +929,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!geminiRes || !geminiRes.ok) {
+      await recordImageAudit("failed", null);
       return jsonResponse({ error: lastErrorMsg }, 500);
     }
 
@@ -838,6 +961,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!imageBase64) {
+      await recordImageAudit("failed", geminiData);
       return jsonResponse({ error: "AI did not return an image" }, 500);
     }
 
@@ -856,6 +980,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    await recordImageAudit("succeeded", geminiData);
     return jsonResponse({ imageBase64, mimeType }, 200);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

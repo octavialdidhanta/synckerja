@@ -5,11 +5,23 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 import { BriefStoryboardImageCell } from './BriefStoryboardImageCell';
 import { BriefMasterVideoButton } from './briefVideoContext';
+import { BriefNarrationPlay, BriefSeedanceVoiceButton, BriefVoiceOverActions } from './briefVoiceContext';
 import { BriefSceneGenerateButton } from './BriefSceneGenerateButton';
 import { BriefMentionField, BriefMentionText } from './BriefMentionField';
 import { BriefImagePromptDialog } from './BriefImagePromptDialog';
-import { BriefVeoPromptSlides } from './BriefVeoPromptSlides';
-import { isVeoPromptHeader, veoColumnUsesSlides } from '@/6-1-dashboard/lib/seedanceVideo';
+import { BriefVersionPager } from './BriefVersionPager';
+import { activeVoSlide, savedVoSlides, type BriefVoVersions } from './briefVoVersions';
+import {
+  briefAuditField,
+  pairedSceneSlides,
+  pairedSceneValue,
+  pairedVeoIndex,
+  type BriefAuditField,
+  type BriefFieldDraft,
+  type BriefFieldVersions,
+} from './briefFieldVersions';
+import type { BriefImageSceneVersion } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
+import { isBriefVoHeader } from './briefStoryboardConstants';
 import type { BriefStoryboardImageWithUrl } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
 import type { StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
 import type { BriefConceptDocument } from '@/6-1-dashboard/modal/briefConceptAssets';
@@ -19,69 +31,25 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
-import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
+const storyboardFieldBoxClass =
+  'min-w-0 w-full cursor-default select-text rounded border border-gray-200 bg-gray-50 px-1.5 py-1 text-sm text-gray-600';
 
 function StoryBoardFieldValue({
   value,
-  label,
-  viewFullLabel,
   concept,
 }: {
   value: string;
-  label: string;
-  viewFullLabel: string;
   concept?: BriefConceptDocument | null;
 }) {
-  const [open, setOpen] = useState(false);
   const trimmed = value.trim();
-
-  if (!trimmed) {
-    return <span className="min-w-0 flex-1 text-sm text-gray-400">—</span>;
-  }
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        title={viewFullLabel}
-        aria-label={`${label}: ${trimmed}. ${viewFullLabel}`}
-        className={cn(
-          'min-w-0 flex-1 overflow-x-auto text-left text-sm text-gray-700',
-          'whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-          'cursor-pointer rounded px-0.5 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400',
-        )}
-        onClick={() => setOpen(true)}
-      >
-        <BriefMentionText value={value.replace(/\n/g, ' ')} concept={concept} />
-      </button>
-    );
-  }
-
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          title={viewFullLabel}
-          aria-label={`${label}: ${trimmed}. ${viewFullLabel}`}
-          className={cn(
-            'min-w-0 flex-1 overflow-x-auto text-left text-sm text-gray-700',
-            'whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-            'cursor-pointer rounded px-0.5 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400',
-          )}
-        >
-          <BriefMentionText value={value.replace(/\n/g, ' ')} concept={concept} />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="bottom"
-        className="max-w-[min(320px,90vw)] whitespace-pre-wrap break-words p-3 text-sm leading-relaxed"
-        style={{ zIndex: 999999 }}
-      >
-        <BriefMentionText value={value} concept={concept} />
-      </PopoverContent>
-    </Popover>
+    <div className={storyboardFieldBoxClass}>
+      {trimmed ? (
+        <BriefMentionText value={value} concept={concept} className="block whitespace-pre-wrap break-words" />
+      ) : (
+        <span className="text-gray-400">—</span>
+      )}
+    </div>
   );
 }
 
@@ -104,8 +72,26 @@ export interface BriefStoryBoardSceneCardProps {
   film?: StoryboardFilmContext;
   characterIds?: string[];
   onCharacterIdsChange?: (rowIndex: number, characterIds: string[]) => void;
+  voVersions?: BriefVoVersions[];
+  voSlide?: number;
+  onSelectVoSlide?: (index: number) => void;
+  narrationPlay?: {
+    rowIndex: number;
+    slides: string[];
+    activeIndex: number;
+    onSelect: (index: number) => void;
+  } | null;
+  fieldVersions?: BriefFieldVersions[];
+  fieldSlide?: Record<string, number>;
+  fieldDrafts?: Record<string, BriefFieldDraft>;
+  onSelectFieldSlide?: (field: BriefAuditField, index: number) => void;
+  onFieldDraft?: (field: BriefAuditField, index: number, text: string) => void;
+  onCommitScene?: (version: BriefImageSceneVersion) => void;
+  activeImageId?: string | null;
+  onActiveImageIdChange?: (imageId: string) => void;
+  masterPromptText?: string;
   onUpdateCell: (rowIndex: number, cellIdx: number, value: string) => void;
-  onUploadImages?: (rowIndex: number, files: File[], promptOverride?: string | null) => Promise<unknown>;
+  onUploadImages?: (rowIndex: number, files: File[], promptOverride?: string | BriefImageSceneVersion | null) => Promise<unknown>;
   onDeleteImage?: (imageId: string) => Promise<unknown>;
   onAddRow?: (rowIndex: number) => void;
   onAddSequenceAfterRow?: (rowIndex: number) => void;
@@ -133,6 +119,14 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
   planId,
   film,
   characterIds = [],
+  voVersions = [],
+  voSlide,
+  onSelectVoSlide,
+  narrationPlay = null,
+  onCommitScene,
+  activeImageId: activeImageIdProp = null,
+  onActiveImageIdChange,
+  masterPromptText,
   onUpdateCell,
   onUploadImages,
   onDeleteImage,
@@ -147,7 +141,12 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
 }) => {
   const { t } = useAppTranslation();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeImageId, setActiveImageId] = useState<string | null>(null);
+  const [localActiveImageId, setLocalActiveImageId] = useState<string | null>(null);
+  const activeImageId = onActiveImageIdChange ? activeImageIdProp : localActiveImageId;
+  const selectActiveImage = (imageId: string) => {
+    if (onActiveImageIdChange) onActiveImageIdChange(imageId);
+    else setLocalActiveImageId(imageId);
+  };
   const [promptOpen, setPromptOpen] = useState(false);
   const [masterPromptCopied, setMasterPromptCopied] = useState(false);
   const copiedTimer = useRef<number | null>(null);
@@ -158,7 +157,7 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
   }, []);
   const isMasterPromptHeader = (header: string) => header.trim().toLowerCase() === 'master prompt';
   const masterPromptColumnIndex = headers.findIndex(isMasterPromptHeader);
-  const masterPrompt = masterPromptColumnIndex >= 0 ? (row[masterPromptColumnIndex] ?? '') : '';
+  const masterPrompt = masterPromptText ?? (masterPromptColumnIndex >= 0 ? (row[masterPromptColumnIndex] ?? '') : '');
   const textColumns = headers
     .map((header, colIdx) => ({ header, colIdx }))
     .filter(({ header, colIdx }) => colIdx !== imageColumnIndex && !isMasterPromptHeader(header));
@@ -180,16 +179,26 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
         'flex shrink-0 flex-col overflow-hidden rounded-lg border-2 border-gray-300 bg-white [touch-action:pan-x_pan-y]',
         density === 'mobile-2col'
           ? 'w-[calc((100cqw-0.75rem)/1.25)] min-w-[calc((100cqw-0.75rem)/1.25)]'
-          : 'w-[360px] max-h-[70vh]',
+          : 'w-[360px] max-h-[max(85vh,46rem)]',
       )}
     >
-      <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-2 py-1.5">
-        <span className="text-xs font-semibold text-gray-700">
-          {t('briefDialog.layout.sceneShoot', 'Scene {{scene}} - Shoot {{shoot}}', {
-            scene: sceneNumber,
-            shoot: shootNumber,
-          })}
-        </span>
+      <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-1 border-b border-gray-200 bg-gray-50 px-2 py-1.5">
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          <span className="min-w-0 truncate text-xs font-semibold text-gray-700">
+            {t('briefDialog.layout.sceneShoot', 'Scene {{scene}} - Shoot {{shoot}}', {
+              scene: sceneNumber,
+              shoot: shootNumber,
+            })}
+          </span>
+          {narrationPlay ? (
+            <BriefNarrationPlay
+              rowIndex={narrationPlay.rowIndex}
+              slides={narrationPlay.slides}
+              activeIndex={narrationPlay.activeIndex}
+              onSelect={narrationPlay.onSelect}
+            />
+          ) : null}
+        </div>
         {showRowActions ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -242,8 +251,8 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
         className={cn(
           'space-y-2 p-3',
           density === 'mobile-2col'
-            ? 'overflow-visible'
-            : 'min-h-0 flex-1 overflow-y-auto scrollbar-hide nested-scroll-touch-chain-xy [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            ? 'min-w-0 overflow-x-hidden'
+            : 'min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto scrollbar-hide [touch-action:pan-x_pan-y] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         )}
       >
         <BriefStoryboardImageCell
@@ -262,7 +271,7 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
           onUploadFiles={onUploadImages}
           onDeleteImage={onDeleteImage}
           activeImageId={activeImageId}
-          onActiveImageIdChange={setActiveImageId}
+          onActiveImageIdChange={selectActiveImage}
           onEditPrompt={planId && film && onUploadImages ? () => setPromptOpen(true) : undefined}
           showUploadButton={Boolean(isEditing && planId)}
           uploadButtonLabel={t('briefDialog.layout.upload', 'Upload')}
@@ -283,42 +292,79 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
           onGeneratingChange={setIsGenerating}
         />
 
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-1.5">
+        <div className="grid w-full min-w-0 max-w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-1.5">
           {textColumns.map(({ header, colIdx }) => {
             const value = row[colIdx] ?? '';
+            const voiceHeader = isBriefVoHeader(header);
+            const voiceSlides = voiceHeader ? savedVoSlides(voVersions, rowIndex, value) : [];
+            const voiceActive = activeVoSlide(voSlide, voiceSlides.length);
+            const voiceEditingLatest = isEditing && voiceActive >= voiceSlides.length - 1;
+            const voiceText = voiceSlides.length > 1 && !voiceEditingLatest ? (voiceSlides[voiceActive] ?? value) : value;
+            const auditField = briefAuditField(header);
+            const auditView = auditField
+              ? (() => {
+                  const slides = pairedSceneSlides(value, images, auditField);
+                  const active = pairedVeoIndex(images, activeImageId);
+                  return { slides, active, text: slides[active] ?? value };
+                })()
+              : null;
+            const auditText = auditView?.text ?? value;
             return (
               <React.Fragment key={colIdx}>
                 <span className="whitespace-nowrap pt-0.5 text-[11px] font-semibold text-gray-500">
                   {header}:
                 </span>
-                {isVeoPromptHeader(header) && veoColumnUsesSlides(images) ? (
-                  <BriefVeoPromptSlides
-                    images={images}
-                    activeImageId={activeImageId}
-                    originalPrompt={value}
-                    editable={isEditing}
-                    concept={film?.concept}
-                    onChangeOriginal={(next) => onUpdateCell(rowIndex, colIdx, next)}
-                    onSelectImage={setActiveImageId}
-                    minRows={1}
-                    fieldClassName="min-w-0 w-full rounded border border-gray-200 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
-                  />
-                ) : isEditing ? (
-                  <BriefMentionField
-                    value={value}
-                    minRows={1}
-                    concept={film?.concept}
-                    onChange={(next) => onUpdateCell(rowIndex, colIdx, next)}
-                    className="min-w-0 w-full rounded border border-gray-200 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
-                  />
-                ) : (
-                  <StoryBoardFieldValue
-                    value={value}
-                    label={header}
-                    concept={film?.concept}
-                    viewFullLabel={t('briefDialog.layout.viewFull', 'View full')}
-                  />
-                )}
+                <div className="min-w-0 max-w-full overflow-x-hidden">
+                  {auditView && auditField ? (
+                    <div className="min-w-0">
+                      <StoryBoardFieldValue value={auditText} concept={film?.concept} />
+                      <BriefVersionPager
+                        count={auditView.slides.length}
+                        activeIndex={auditView.active}
+                        onSelect={(index) => {
+                          const image = images[index];
+                          if (image?.id) selectActiveImage(image.id);
+                        }}
+                      />
+                    </div>
+                  ) : voiceSlides.length > 1 ? (
+                    <div className="min-w-0">
+                      {voiceEditingLatest ? (
+                        <BriefMentionField
+                          value={value}
+                          minRows={1}
+                          concept={film?.concept}
+                          onChange={(next) => onUpdateCell(rowIndex, colIdx, next)}
+                          className="min-w-0 w-full rounded border border-gray-200 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
+                        />
+                      ) : (
+                        <StoryBoardFieldValue value={voiceText} concept={film?.concept} />
+                      )}
+                      <BriefVersionPager
+                        count={voiceSlides.length}
+                        activeIndex={voiceActive}
+                        onSelect={(index) => onSelectVoSlide?.(index)}
+                      />
+                    </div>
+                  ) : isEditing ? (
+                    <BriefMentionField
+                      value={value}
+                      minRows={1}
+                      concept={film?.concept}
+                      onChange={(next) => onUpdateCell(rowIndex, colIdx, next)}
+                      className="min-w-0 w-full rounded border border-gray-200 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
+                    />
+                  ) : (
+                    <StoryBoardFieldValue value={value} concept={film?.concept} />
+                  )}
+                  {voiceHeader ? (
+                    <BriefVoiceOverActions
+                      rowIndex={rowIndex}
+                      text={voiceText}
+                      onChangeText={(next) => onUpdateCell(rowIndex, colIdx, next)}
+                    />
+                  ) : null}
+                </div>
               </React.Fragment>
             );
           })}
@@ -328,10 +374,11 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
               <span className="whitespace-nowrap pt-0.5 text-[11px] font-semibold text-gray-500">
                 {headers[masterPromptColumnIndex]}:
               </span>
-              <div className="min-w-0">
+              <div className="min-w-0 max-w-full overflow-x-hidden">
                 {masterPrompt.trim() ? (
                   <div className="mb-1 flex justify-end">
                     <BriefMasterVideoButton rowIndex={rowIndex} className="h-7 w-7 shrink-0 bg-white p-0" />
+                    <BriefSeedanceVoiceButton rowIndex={rowIndex} scope="master" />
                     <Button
                       type="button"
                       size="sm"
@@ -357,15 +404,16 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
                     </Button>
                   </div>
                 ) : null}
-                {isEditing ? (
-                  <BriefMentionField
+                <div
+                  aria-disabled="true"
+                  className={cn(storyboardFieldBoxClass, 'min-h-[60px] py-0.5')}
+                >
+                  <BriefMentionText
                     value={masterPrompt}
-                    minRows={2}
                     concept={film?.concept}
-                    onChange={(next) => onUpdateCell(rowIndex, masterPromptColumnIndex, next)}
-                    className="min-w-0 w-full rounded border border-gray-200 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:border-blue-400 focus:outline-none"
+                    className="block whitespace-pre-wrap"
                   />
-                ) : null}
+                </div>
               </div>
             </>
           ) : null}
@@ -378,15 +426,17 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
         row={row}
         imageColumnIndex={imageColumnIndex}
         film={film}
+        planId={planId}
         characterIds={characterIds}
-        startingPrompt={(() => {
-          const selected = images.find((image) => image.id === activeImageId) ?? images[0];
-          return selected?.prompt_override ?? null;
-        })()}
+        startingShot={pairedSceneValue(String(row[headers.findIndex((header) => briefAuditField(header) === 'shot')] ?? ''), images, 'shot', activeImageId)}
+        startingAngle={pairedSceneValue(String(row[headers.findIndex((header) => briefAuditField(header) === 'angle')] ?? ''), images, 'angle', activeImageId)}
+        startingVisual={pairedSceneValue(String(row[headers.findIndex((header) => briefAuditField(header) === 'visual')] ?? ''), images, 'visual', activeImageId)}
+        startingPrompt={pairedSceneValue(String(row[headers.findIndex((header) => briefAuditField(header) === 'veo')] ?? ''), images, 'veo', activeImageId)}
         onUploadImages={onUploadImages}
         onClose={() => setPromptOpen(false)}
-        onCreated={(imageId) => {
-          if (imageId) setActiveImageId(imageId);
+        onCreated={(imageId, version) => {
+          if (imageId) selectActiveImage(imageId);
+          onCommitScene?.(version);
         }}
       />
     </article>

@@ -169,7 +169,7 @@ export function useScriptGeneratorSession() {
       setAiGeneratedScript(null);
 
       try {
-        const result = await generateScriptWithAI(prompt);
+        const result = await generateScriptWithAI(prompt, { trackForPlan: true });
         if (result.success && result.script) {
           setAiGeneratedScript(result.script);
           setFormPanelHidden(true);

@@ -25,6 +25,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { pickStoryboardNativePhoto } from '@/6-1-dashboard/lib/pickStoryboardImage';
 import { useBriefVideo } from '@/6-1-dashboard/modal/briefVideoContext';
+import { BriefDubbedVideo, BriefSeedanceVoiceButton, useBriefVoice } from '@/6-1-dashboard/modal/briefVoiceContext';
 
 interface BriefStoryboardImageCellProps {
   rowIndex: number;
@@ -86,7 +87,9 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
   const { t } = useAppTranslation();
   const isMobile = useIsMobile();
   const briefVideo = useBriefVideo();
+  const briefVoice = useBriefVoice();
   const videoStatus = briefVideo?.statusFor(rowIndex) ?? { phase: 'idle' as const, url: null, error: null };
+  const readyVideos = briefVideo?.readyVideos(rowIndex) ?? [];
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const singleClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -109,6 +112,38 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
   };
   const [isDragActive, setIsDragActive] = useState(false);
   const [showThumbnails, setShowThumbnails] = useState(false);
+  const [videoSlide, setVideoSlide] = useState<number | null>(null);
+  const followedImageId = controlled ? (activeImageId ?? '') : '';
+  const [followedImage, setFollowedImage] = useState(followedImageId);
+  if (controlled && followedImageId !== followedImage) {
+    setFollowedImage(followedImageId);
+    setVideoSlide(null);
+  }
+  const slideCount = images.length + readyVideos.length;
+  const imagePos = images.length === 0 ? 0 : Math.max(0, Math.min(activeIndex, images.length - 1));
+  const slideIndex = videoSlide != null && videoSlide >= images.length && videoSlide < slideCount ? videoSlide : imagePos;
+  const activeVideo = slideIndex >= images.length ? readyVideos[slideIndex - images.length] ?? null : null;
+  const activeVoiceUrl = activeVideo ? briefVoice?.seedanceClip(activeVideo.id)?.url ?? null : null;
+  const knownReadyCount = useRef<number | null>(null);
+  useEffect(() => {
+    if (knownReadyCount.current == null) {
+      knownReadyCount.current = readyVideos.length;
+      return;
+    }
+    if (readyVideos.length > knownReadyCount.current) {
+      setVideoSlide(images.length + readyVideos.length - 1);
+    }
+    knownReadyCount.current = readyVideos.length;
+  }, [images.length, readyVideos.length]);
+  const selectSlide = (index: number) => {
+    const next = Math.max(0, Math.min(index, Math.max(0, slideCount - 1)));
+    if (next >= images.length) {
+      setVideoSlide(next);
+      return;
+    }
+    setVideoSlide(null);
+    setActiveIndex(next);
+  };
 
   useEffect(() => {
     if (controlled) return;
@@ -226,14 +261,14 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
   };
 
   const handleFrameClick: React.MouseEventHandler<HTMLDivElement> = (event) => {
-    if (!activeImage) {
+    if (!activeImage && !activeVideo) {
       if (isMobile && canOpenPicker) {
         event.preventDefault();
         openFilePicker();
       }
       return;
     }
-    if (images.length <= 1) return;
+    if (activeVideo || slideCount <= 1) return;
 
     const bounds = event.currentTarget.getBoundingClientRect();
     const clickX = event.clientX - bounds.left;
@@ -241,11 +276,8 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
       clearTimeout(singleClickTimerRef.current);
     }
     singleClickTimerRef.current = setTimeout(() => {
-      if (clickX < bounds.width / 2) {
-        setActiveIndex((prev) => Math.max(0, prev - 1));
-      } else {
-        setActiveIndex((prev) => Math.min(images.length - 1, prev + 1));
-      }
+      if (clickX < bounds.width / 2) selectSlide(slideIndex - 1);
+      else selectSlide(slideIndex + 1);
       singleClickTimerRef.current = null;
     }, 250);
   };
@@ -296,14 +328,14 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
         setIsDragActive(false);
       }}
       onKeyDown={(event) => {
-        if (event.key === 'ArrowLeft' && images.length > 1) {
+        if (event.key === 'ArrowLeft' && slideCount > 1) {
           event.preventDefault();
-          setActiveIndex((prev) => Math.max(0, prev - 1));
+          selectSlide(slideIndex - 1);
           return;
         }
-        if (event.key === 'ArrowRight' && images.length > 1) {
+        if (event.key === 'ArrowRight' && slideCount > 1) {
           event.preventDefault();
-          setActiveIndex((prev) => Math.min(images.length - 1, prev + 1));
+          selectSlide(slideIndex + 1);
           return;
         }
         if (!canInteract) return;
@@ -345,7 +377,7 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
       />
 
       <div
-        role={canInteract || images.length > 1 ? 'button' : undefined}
+        role={canInteract || slideCount > 1 ? 'button' : undefined}
         tabIndex={-1}
         onClick={handleFrameClick}
         onDoubleClick={handleFrameDoubleClick}
@@ -353,13 +385,20 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
         className={cn(
           'relative w-full overflow-hidden rounded-md border border-gray-200 bg-white [touch-action:pan-x_pan-y]',
           canInteract && 'cursor-pointer',
-          images.length > 1 && 'cursor-ew-resize',
+          slideCount > 1 && 'cursor-ew-resize',
           aspectVideo && 'aspect-video',
           !activeImage && !aspectVideo && 'flex min-h-[160px] items-center justify-center',
           !activeImage && aspectVideo && 'flex items-center justify-center',
         )}
       >
-        {activeImage ? (
+        {activeVideo ? (
+          <BriefDubbedVideo
+            videoUrl={activeVideo.url}
+            voiceUrl={activeVoiceUrl}
+            videoName={`video-${rowIndex + 1}.mp4`}
+            framed
+          />
+        ) : activeImage ? (
           <div className={cn('w-full bg-gray-100', aspectVideo ? 'absolute inset-0 overflow-hidden' : '')}>
             <img
               src={activeImage.publicUrl}
@@ -454,7 +493,7 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
           </button>
         ) : null}
 
-        {activeImage && onDeleteImage ? (
+        {activeImage && !activeVideo && onDeleteImage ? (
           <button
             type="button"
             title={t('briefDialog.storyboard.deleteImage', 'Hapus gambar')}
@@ -480,16 +519,16 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
           </button>
         ) : null}
 
-        {images.length > 1 ? (
+        {slideCount > 1 ? (
           <>
-            {activeIndex > 0 ? (
+            {slideIndex > 0 ? (
               <button
                 type="button"
                 title="Previous image"
                 aria-label="Previous image"
                 onClick={(event) => {
                   event.stopPropagation();
-                  setActiveIndex((prev) => Math.max(0, prev - 1));
+                  selectSlide(slideIndex - 1);
                 }}
                 className={cn(
                   'absolute left-1.5 top-1/2 z-[1] flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full',
@@ -500,14 +539,14 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
                 <ChevronLeft className="h-4 w-4" />
               </button>
             ) : null}
-            {activeIndex < images.length - 1 ? (
+            {slideIndex < slideCount - 1 ? (
               <button
                 type="button"
                 title="Next image"
                 aria-label="Next image"
                 onClick={(event) => {
                   event.stopPropagation();
-                  setActiveIndex((prev) => Math.min(images.length - 1, prev + 1));
+                  selectSlide(slideIndex + 1);
                 }}
                 className={cn(
                   'absolute right-1.5 top-1/2 z-[1] flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full',
@@ -518,29 +557,46 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
                 <ChevronRight className="h-4 w-4" />
               </button>
             ) : null}
+            {!activeVideo ? (
             <div className="pointer-events-none absolute inset-x-0 bottom-2 z-[1] flex items-center justify-center gap-1.5">
-              {images.map((image, index) => (
-                <button
-                  key={image.id}
-                  type="button"
-                  title={`Image ${index + 1}`}
-                  aria-label={`Show image ${index + 1}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (showThumbnails && index === activeIndex) {
-                      setShowThumbnails(false);
-                      return;
-                    }
-                    setActiveIndex(index);
-                    setShowThumbnails(true);
-                  }}
-                  className={cn(
-                    'pointer-events-auto h-1.5 w-1.5 rounded-full shadow-sm transition-all',
-                    index === activeIndex ? 'w-3 bg-white' : 'bg-white/55 hover:bg-white/80',
-                  )}
-                />
-              ))}
+              {Array.from({ length: slideCount }, (_, index) => {
+                const videoOffset = index - images.length;
+                const versionLabel = videoOffset >= 0
+                  ? (readyVideos.length > 1
+                    ? t('videoAi.cell.videoNumber', 'Video {{index}}', { index: videoOffset + 1 })
+                    : t('videoAi.cell.video', 'Video'))
+                  : index <= 0
+                    ? t('briefDialog.version.original', 'Original')
+                    : t('briefDialog.version.numbered', 'V.{{index}}', { index });
+                return (
+                  <button
+                    key={videoOffset >= 0 ? readyVideos[videoOffset]?.id ?? `video-${index}` : images[index]?.id ?? index}
+                    type="button"
+                    title={versionLabel}
+                    aria-label={versionLabel}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (videoOffset < 0 && showThumbnails && index === slideIndex) {
+                        setShowThumbnails(false);
+                        return;
+                      }
+                      selectSlide(index);
+                      if (videoOffset < 0) setShowThumbnails(true);
+                    }}
+                    className={cn(
+                      'pointer-events-auto h-1.5 w-1.5 rounded-full shadow-sm transition-all',
+                      index === slideIndex ? 'w-3 bg-white' : 'bg-white/55 hover:bg-white/80',
+                    )}
+                  />
+                );
+              })}
+              <span className="pointer-events-none shrink-0 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-medium leading-none text-white">
+                {slideIndex <= 0
+                  ? t('briefDialog.version.original', 'Original')
+                  : t('briefDialog.version.numbered', 'V.{{index}}', { index: slideIndex })}
+              </span>
             </div>
+            ) : null}
           </>
         ) : null}
 
@@ -551,7 +607,7 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
         )}
       </div>
 
-      {showThumbnails && images.length > 1 ? (
+      {(showThumbnails || activeVideo) && images.length + readyVideos.length > 1 ? (
         <div
           className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onClick={(event) => event.stopPropagation()}
@@ -564,11 +620,11 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
               title={image.file_name || `Image ${index + 1}`}
               onClick={(event) => {
                 event.stopPropagation();
-                setActiveIndex(index);
+                selectSlide(index);
               }}
               className={cn(
                 'h-12 w-12 shrink-0 overflow-hidden rounded border bg-white transition-shadow',
-                index === activeIndex
+                index === slideIndex && !activeVideo
                   ? 'border-blue-500 ring-2 ring-blue-200'
                   : 'border-gray-200 hover:border-gray-300',
               )}
@@ -582,27 +638,52 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
               />
             </button>
           ))}
+          {readyVideos.map((video, offset) => {
+            const index = images.length + offset;
+            const label = readyVideos.length > 1
+              ? t('videoAi.cell.videoNumber', 'Video {{index}}', { index: offset + 1 })
+              : t('videoAi.cell.video', 'Video');
+            return (
+              <button
+                key={video.id}
+                type="button"
+                title={label}
+                aria-label={label}
+                aria-pressed={activeVideo?.id === video.id}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  selectSlide(index);
+                }}
+                className={cn(
+                  'relative h-12 w-12 shrink-0 overflow-hidden rounded border bg-black transition-shadow',
+                  activeVideo?.id === video.id
+                    ? 'border-blue-500 ring-2 ring-blue-200'
+                    : 'border-gray-200 hover:border-gray-300',
+                )}
+              >
+                <video
+                  src={`${video.url}#t=0.1`}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="pointer-events-none h-full w-full object-cover"
+                />
+                <span className="pointer-events-none absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-white">
+                  <Clapperboard className="h-2.5 w-2.5" />
+                </span>
+              </button>
+            );
+          })}
         </div>
       ) : null}
 
       {videoStatus.phase === 'working' ? (
         <p className="mt-1 text-xs font-medium text-gray-600">{t('videoAi.cell.making', 'Membuat video…')}</p>
       ) : null}
-      {videoStatus.url ? (
-        <video
-          key={videoStatus.url}
-          src={videoStatus.url}
-          controls
-          playsInline
-          preload="metadata"
-          className="mt-2 w-full rounded-md bg-black"
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-        />
-      ) : null}
       {videoStatus.error ? (
         <p className="mt-1 text-xs text-red-600">{videoStatus.error}</p>
       ) : null}
+      <BriefSeedanceVoiceButton rowIndex={rowIndex} scope="shot" />
 
       {showUploadButton && canInteract ? (
         <Button

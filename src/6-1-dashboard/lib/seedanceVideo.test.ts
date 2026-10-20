@@ -4,12 +4,17 @@ import {
   buildVideoPrompt,
   durationChoices,
   durationIsValid,
+  geminiAspectRatio,
+  GEMINI_VIDEO_MODEL,
   imageRatioDiffers,
   lookIsUgc,
   masterGroupRows,
   missingConceptImages,
   readLook,
   promptSlideForImage,
+  activeShotBriefs,
+  briefForStoredScene,
+  masterPromptWithActiveShots,
   readShotBrief,
   shootHeaderLabels,
   shootNumberFromShotLabel,
@@ -26,6 +31,15 @@ describe("seedance video settings", () => {
     expect(durationIsValid("dreamina-seedance-2-0-260128", 20)).toBe(false);
     expect(durationIsValid("dreamina-seedance-2-5-260628", 7)).toBe(false);
     expect(durationIsValid("dreamina-seedance-2-5-260628", 30)).toBe(true);
+    expect(durationChoices(GEMINI_VIDEO_MODEL)).toEqual([4, 6, 8, 10]);
+    expect(durationIsValid(GEMINI_VIDEO_MODEL, 5)).toBe(false);
+    expect(durationChoices("veo-3.1-generate-preview")).toEqual([4, 6, 8]);
+    expect(durationChoices("veo-3.1-lite-generate-preview", "1080p")).toEqual([8]);
+    expect(durationChoices("veo-3.0-generate-001")).toEqual([4, 6, 8]);
+    expect(durationIsValid("veo-3.1-fast-generate-preview", 10)).toBe(false);
+    expect(geminiAspectRatio("16:9")).toBe("16:9");
+    expect(geminiAspectRatio("9:16")).toBe("9:16");
+    expect(geminiAspectRatio("4:5")).toBe("9:16");
   });
 
   it("reads look and silence from the master prompt", () => {
@@ -175,5 +189,112 @@ describe("seedance video settings", () => {
     expect(ending).not.toContain("Shot:");
     expect(ending).not.toContain("Voice:");
     expect(prompt).not.toContain("Medium shot of the reviewer at the table.");
+  });
+
+  it("follows the selected image shot, angle, and visual function in a master prompt", () => {
+    const briefHeaders = ["Shot", "Angle", "Visual function", "Veo 3 prompt", "Master prompt"];
+    const cell = {
+      shot: "Shot 1 — Main Shot",
+      angle: "Medium shot",
+      visualFunction: "Introduce the reviewer.",
+      veoPrompt: "Medium shot of the reviewer at the table.",
+    };
+    const selected = briefForStoredScene(cell, {
+      shotText: "Shot 4 — Main Shot",
+      angleText: "Over-the-shoulder shot - Wide Shot",
+      visualFunctionText: "Show the reviewer looking the youtube or screen.",
+      promptOverride: null,
+    });
+    expect(selected).toEqual({
+      shot: "Shot 4 — Main Shot",
+      angle: "Over-the-shoulder shot - Wide Shot",
+      visualFunction: "Show the reviewer looking the youtube or screen.",
+      veoPrompt: "Medium shot of the reviewer at the table.",
+    });
+    expect(briefForStoredScene(cell, {
+      shotText: null,
+      angleText: "  ",
+      visualFunctionText: null,
+      promptOverride: "Tablet screen inside the complex.",
+    })).toEqual({
+      ...cell,
+      veoPrompt: "Tablet screen inside the complex.",
+    });
+    const rows = [[
+      cell.shot,
+      cell.angle,
+      cell.visualFunction,
+      cell.veoPrompt,
+      "Look : UGC\nThe reviewer sits in the kitchen.",
+    ]];
+    const prompt = buildVideoPrompt({
+      scope: "master",
+      rows,
+      headers: briefHeaders,
+      rowIndexes: [0],
+      sceneByRow: { 0: selected },
+    });
+    expect(prompt).toContain("Shot: Shot 4 — Main Shot");
+    expect(prompt).toContain("Angle: Over-the-shoulder shot - Wide Shot");
+    expect(prompt).toContain("Visual function: Show the reviewer looking the youtube or screen.");
+    expect(prompt).toContain("Veo 3 prompt: Medium shot of the reviewer at the table.");
+    expect(prompt).toContain("Master prompt:\nLook : UGC");
+    expect(prompt).not.toContain("Shot: Shot 1 — Main Shot");
+    expect(prompt).not.toContain("Angle: Medium shot");
+  });
+
+  it("writes the open shot version into each master-prompt block and leaves audio and look alone", () => {
+    const master = [
+      "Audio : no sound, no music",
+      "Look : UGC, handheld iPhone",
+      "",
+      "Shot : Shot 1 — Main Shot",
+      "Angle : Over-the-shoulder shot",
+      "Visual function : Show the map.",
+      "",
+      "Over-the-shoulder shot of the map.",
+      "",
+      "Shot : Shot 2 — Supporting Shot",
+      "Angle : Insert shot",
+      "Visual function : Highlight the inside.",
+      "",
+      "Insert shot of the tablet screen.",
+    ].join("\n");
+    const briefs = activeShotBriefs(
+      ["Shot", "Angle", "Visual function", "Veo 3 prompt"],
+      [
+        ["Shot 1 — Main Shot", "Over-the-shoulder shot", "Show the map.", "Over-the-shoulder shot of the map."],
+        ["Shot 2 — Supporting Shot", "Insert shot", "Highlight the inside.", "Insert shot of the tablet screen."],
+      ],
+      {
+        0: [
+          { id: "original", shot_text: "Shot 1 — Main Shot", angle_text: "Over-the-shoulder shot", visual_function_text: "Show the map.", prompt_override: "Over-the-shoulder shot of the map." },
+          { id: "active", shot_text: "Shot 4 — Main Shot", angle_text: "Over-the-shoulder shot - Wide Shot", visual_function_text: "Show the reviewer looking the youtube or screen.", prompt_override: "Over-the-shoulder shot of the youtube screen." },
+        ],
+      },
+      { 0: "active" },
+      [0, 1],
+    );
+    const shown = masterPromptWithActiveShots(master, briefs);
+    expect(shown.startsWith("Audio : no sound, no music\nLook : UGC, handheld iPhone\n\n")).toBe(true);
+    expect(shown).toContain("Shot : Shot 4 — Main Shot\nAngle : Over-the-shoulder shot - Wide Shot\nVisual function : Show the reviewer looking the youtube or screen.\n\nOver-the-shoulder shot of the youtube screen.");
+    expect(shown).toContain("Shot : Shot 2 — Supporting Shot\nAngle : Insert shot\nVisual function : Highlight the inside.\n\nInsert shot of the tablet screen.");
+    expect(shown).not.toContain("Show the map.");
+    const prompt = buildVideoPrompt({
+      scope: "master",
+      rows: [[
+        "Shot 1 — Main Shot",
+        "Over-the-shoulder shot",
+        "Show the map.",
+        "Over-the-shoulder shot of the map.",
+        master,
+      ]],
+      headers: ["Shot", "Angle", "Visual function", "Veo 3 prompt", "Master prompt"],
+      rowIndexes: [0],
+      sceneByRow: { 0: briefs[0] },
+    });
+    expect(prompt).toContain("Master prompt:\nAudio : no sound, no music");
+    expect(prompt).toContain("Shot : Shot 4 — Main Shot");
+    expect(prompt).not.toContain("Shot : Shot 1 — Main Shot");
   });
 });

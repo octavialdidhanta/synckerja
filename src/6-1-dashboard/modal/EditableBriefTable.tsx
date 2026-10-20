@@ -6,10 +6,27 @@ import { cn } from '@/shared/lib/utils';
 import { toast } from 'sonner';
 import { BriefStoryboardImageCell } from './BriefStoryboardImageCell';
 import { BriefMasterVideoButton, BriefVideoProvider } from './briefVideoContext';
+import { BriefSeedanceVoiceButton, BriefVoiceOverActions, BriefVoiceProvider } from './briefVoiceContext';
 import { BriefSceneGenerateButton } from './BriefSceneGenerateButton';
 import { BriefImagePromptDialog } from './BriefImagePromptDialog';
-import { BriefVeoPromptSlides } from './BriefVeoPromptSlides';
-import { isVeoPromptHeader, veoColumnUsesSlides } from '@/6-1-dashboard/lib/seedanceVideo';
+import {
+  adjustFieldVersionsForDeleteRow,
+  adjustFieldVersionsForInsertRow,
+  applyAuditedColumnEdits,
+  briefAuditField,
+  fieldVersionKey,
+  focusFieldSlides,
+  parseBriefFieldVersions,
+  pairedSceneSlides,
+  pairedSceneValue,
+  pairedVeoIndex,
+  shiftFieldDraftForDelete,
+  shiftFieldDraftForInsert,
+  shiftFieldSlideForDelete,
+  shiftFieldSlideForInsert,
+  type BriefFieldDraft,
+  type BriefFieldVersions,
+} from './briefFieldVersions';
 import { BriefStoryBoardView, useHideOnScrollDown } from './BriefStoryBoardView';
 import { BriefSequenceHeader } from './BriefSequenceHeader';
 import {
@@ -35,7 +52,21 @@ import {
   setSceneCharacterIds,
   type BriefSceneMeta,
 } from './briefSceneMeta';
-import type { BriefStoryboardImageWithUrl } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
+import {
+  activeVoSlide,
+  adjustVoVersionsForDeleteRow,
+  adjustVoVersionsForInsertRow,
+  focusLatestVoSlides,
+  parseBriefVoVersions,
+  rememberVoVersion,
+  rememberVoVersions,
+  savedVoSlides,
+  shiftVoSlideForDelete,
+  shiftVoSlideForInsert,
+  type BriefVoVersions,
+} from './briefVoVersions';
+import { BriefVersionPager } from './BriefVersionPager';
+import type { BriefStoryboardImageWithUrl, BriefImageSceneVersion } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,7 +87,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/components/ui/tooltip';
-import { findBriefImageColumnIndex } from './briefStoryboardConstants';
+import { findBriefImageColumnIndex, isBriefVoHeader } from './briefStoryboardConstants';
+import { activeShotBriefs, masterPromptWithActiveShots } from '@/6-1-dashboard/lib/seedanceVideo';
 import { masterPromptRowSpans } from './masterPromptRows';
 import { BriefMentionField, BriefMentionText } from './BriefMentionField';
 import type { StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
@@ -121,7 +153,12 @@ interface EditableBriefTableProps {
   tableData: string[][];
   onSave?: (
     newTableData: string[][],
-    meta?: { sequences: BriefSequence[]; sceneMeta?: BriefSceneMeta[] },
+    meta?: {
+      sequences: BriefSequence[];
+      sceneMeta?: BriefSceneMeta[];
+      voVersions?: BriefVoVersions[];
+      fieldVersions?: BriefFieldVersions[];
+    },
   ) => void;
   onChange?: (newTableData: string[][]) => void;
   /** When true, table is always editable (no Edit button), onChange called on every cell change */
@@ -145,7 +182,7 @@ interface EditableBriefTableProps {
   onToggleWorkArea?: () => void;
   imageColumnIndex?: number;
   rowImagesMap?: Record<number, BriefStoryboardImageWithUrl[]>;
-  onUploadImages?: (rowIndex: number, files: File[], promptOverride?: string | null) => Promise<unknown>;
+  onUploadImages?: (rowIndex: number, files: File[], promptOverride?: string | BriefImageSceneVersion | null) => Promise<unknown>;
   onDeleteImage?: (imageId: string) => Promise<unknown>;
   onInsertRowImages?: (insertAtRowIndex: number) => Promise<unknown>;
   onDeleteRowImages?: (rowIndex: number) => Promise<unknown>;
@@ -188,7 +225,7 @@ function StoryLineVisualCell({
   film?: StoryboardFilmContext;
   characterIds: string[];
   mediaBusy: boolean;
-  onUploadImages?: (rowIndex: number, files: File[], promptOverride?: string | null) => Promise<unknown>;
+  onUploadImages?: (rowIndex: number, files: File[], promptOverride?: string | BriefImageSceneVersion | null) => Promise<unknown>;
   onDeleteImage?: (imageId: string) => Promise<unknown>;
   activeImageId?: string | null;
   onActiveImageIdChange?: (imageId: string) => void;
@@ -274,6 +311,15 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   const [sceneMeta, setSceneMeta] = useState<BriefSceneMeta[]>(() =>
     parseBriefSceneMetaFromMarkdown(sequencesSource ?? ''),
   );
+  const [voVersions, setVoVersions] = useState<BriefVoVersions[]>(() =>
+    parseBriefVoVersions(sequencesSource ?? ''),
+  );
+  const [voSlide, setVoSlide] = useState<Record<number, number>>({});
+  const [fieldVersions, setFieldVersions] = useState<BriefFieldVersions[]>(() =>
+    parseBriefFieldVersions(sequencesSource ?? ''),
+  );
+  const [fieldSlide, setFieldSlide] = useState<Record<string, number>>({});
+  const [fieldDrafts, setFieldDrafts] = useState<Record<string, BriefFieldDraft>>({});
   const [copiedMasterPromptRow, setCopiedMasterPromptRow] = useState<number | null>(null);
   const [activeImageIds, setActiveImageIds] = useState<Record<number, string>>({});
   const [imagePromptRow, setImagePromptRow] = useState<number | null>(null);
@@ -291,6 +337,12 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   sequencesRef.current = sequences;
   const sceneMetaRef = useRef(sceneMeta);
   sceneMetaRef.current = sceneMeta;
+  const voVersionsRef = useRef(voVersions);
+  voVersionsRef.current = voVersions;
+  const fieldVersionsRef = useRef(fieldVersions);
+  fieldVersionsRef.current = fieldVersions;
+  const fieldDraftsRef = useRef(fieldDrafts);
+  fieldDraftsRef.current = fieldDrafts;
   /** Avoid clobbering a just-saved sequence split when parent briefText hydrates one tick later. */
   const skipNextSequencesHydrationRef = useRef(false);
 
@@ -338,6 +390,8 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       ),
     );
     setSceneMeta(parseBriefSceneMetaFromMarkdown(sequencesSource ?? ''));
+    setVoVersions(parseBriefVoVersions(sequencesSource ?? ''));
+    setFieldVersions(parseBriefFieldVersions(sequencesSource ?? ''));
   }, [storyboardToolbar, sequencesSource, bodyRowCount, isEditing, defaultSequenceName]);
 
   const colCount = Math.max(...displayData.map((r) => r.length), 1);
@@ -366,6 +420,8 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     newData: string[][],
     nextSequences?: BriefSequence[],
     nextSceneMeta?: BriefSceneMeta[],
+    nextVoVersions?: BriefVoVersions[],
+    nextFieldVersions?: BriefFieldVersions[],
   ) => {
     if (readOnly) return newData;
     const finalColCount = Math.max(...newData.map((r) => r.length), 1);
@@ -377,9 +433,13 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       defaultSequenceName,
     );
     const meta = nextSceneMeta ?? sceneMetaRef.current;
+    const versions = nextVoVersions ?? voVersionsRef.current;
+    const fields = nextFieldVersions ?? fieldVersionsRef.current;
     setSequences(normalizedSequences);
     setSceneMeta(meta);
-    onSave?.(padded, { sequences: normalizedSequences, sceneMeta: meta });
+    setVoVersions(versions);
+    setFieldVersions(fields);
+    onSave?.(padded, { sequences: normalizedSequences, sceneMeta: meta, voVersions: versions, fieldVersions: fields });
     return padded;
   };
 
@@ -393,6 +453,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   const cancelEdit = () => {
     setIsEditing(false);
     setEditData([]);
+    setFieldDrafts({});
   };
 
   const saveEdit = () => {
@@ -404,7 +465,25 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       while (a.length < tableColCount) a.push('');
       return a.slice(0, tableColCount);
     })];
-    persistTable(newData);
+    const recorded = rememberVoVersions(
+      voVersionsRef.current,
+      tableData[0] ?? [],
+      tableData.slice(1),
+      editData,
+    );
+    const audited = storyboardToolbar
+      ? applyAuditedColumnEdits({
+          history: fieldVersionsRef.current,
+          headers: headerRow,
+          previousBody: tableData.slice(1),
+          nextBody: newData.slice(1),
+          drafts: fieldDraftsRef.current,
+        })
+      : { history: fieldVersionsRef.current, body: newData.slice(1), focus: [] };
+    setVoSlide((current) => focusLatestVoSlides(current, recorded.history, recorded.changedRows));
+    setFieldSlide((current) => focusFieldSlides(current, audited.focus));
+    setFieldDrafts({});
+    persistTable([headerRow, ...audited.body], undefined, undefined, recorded.history, audited.history);
     setIsEditing(false);
     setEditData([]);
     setTimeout(() => {
@@ -425,7 +504,12 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     });
     const nextSequences = adjustSequencesForDeleteRow(sequencesRef.current, rowIdx);
     const nextSceneMeta = adjustSceneMetaForDeleteRow(sceneMetaRef.current, rowIdx);
-    persistTable([headerRow, ...newBody], nextSequences, nextSceneMeta);
+    const nextVoVersions = adjustVoVersionsForDeleteRow(voVersionsRef.current, rowIdx);
+    const nextFieldVersions = adjustFieldVersionsForDeleteRow(fieldVersionsRef.current, rowIdx);
+    setVoSlide((current) => shiftVoSlideForDelete(current, rowIdx));
+    setFieldSlide((current) => shiftFieldSlideForDelete(current, rowIdx));
+    setFieldDrafts((current) => shiftFieldDraftForDelete(current, rowIdx));
+    persistTable([headerRow, ...newBody], nextSequences, nextSceneMeta, nextVoVersions, nextFieldVersions);
     if (isEditing) {
       setEditData(newBody);
     }
@@ -453,7 +537,12 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
         )
       : adjustSequencesForInsertRow(sequencesRef.current, rowIdx);
     const nextSceneMeta = adjustSceneMetaForInsertRow(sceneMetaRef.current, insertAt);
-    persistTable([headerRow, ...newBody], nextSequences, nextSceneMeta);
+    const nextVoVersions = adjustVoVersionsForInsertRow(voVersionsRef.current, insertAt);
+    const nextFieldVersions = adjustFieldVersionsForInsertRow(fieldVersionsRef.current, insertAt);
+    setVoSlide((current) => shiftVoSlideForInsert(current, insertAt));
+    setFieldSlide((current) => shiftFieldSlideForInsert(current, insertAt));
+    setFieldDrafts((current) => shiftFieldDraftForInsert(current, insertAt));
+    persistTable([headerRow, ...newBody], nextSequences, nextSceneMeta, nextVoVersions, nextFieldVersions);
     if (isEditing) {
       setEditData(newBody);
     }
@@ -518,8 +607,11 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
 
   const updateCell = (rowIdx: number, cellIdx: number, value: string) => {
     if (cellIdx === imageColumnIndex) return;
+    const headerName = String((tableData[0] ?? displayData[0] ?? [])[cellIdx] ?? '');
+    if (headerName.trim().toLowerCase() === 'master prompt') return;
+    if (storyboardToolbar && briefAuditField(headerName)) return;
+    const tableColCount = Math.max(...(tableData.length ? tableData : displayData).map((r) => r.length), 1);
     if (alwaysEditable && onChange) {
-      const tableColCount = Math.max(...tableData.map((r) => r.length), 1);
       const newData = tableData.map((r, i) => {
         if (i !== rowIdx + 1) return [...r];
         const newRow = [...r];
@@ -532,6 +624,32 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       onChange(newData);
       return;
     }
+    if (!isEditing) {
+      const headerRow = (tableData[0] ?? displayData[0] ?? []).slice(0, tableColCount);
+      const body = displayData.slice(1).map((row) => {
+        const next = [...row];
+        while (next.length < tableColCount) next.push('');
+        return next.slice(0, tableColCount);
+      });
+      while (body.length <= rowIdx) body.push(Array.from({ length: tableColCount }, () => ''));
+      const row = [...(body[rowIdx] ?? [])];
+      while (row.length <= cellIdx) row.push('');
+      row[cellIdx] = value;
+      body[rowIdx] = row.slice(0, tableColCount);
+      const versions = isBriefVoHeader(headerName)
+        ? rememberVoVersion(
+            voVersionsRef.current,
+            rowIdx,
+            String((displayData[rowIdx + 1] ?? [])[cellIdx] ?? ''),
+            value,
+          )
+        : voVersionsRef.current;
+      if (versions !== voVersionsRef.current) {
+        setVoSlide((current) => focusLatestVoSlides(current, versions, [rowIdx]));
+      }
+      persistTable([headerRow, ...body], undefined, undefined, versions);
+      return;
+    }
     setEditData((prev) => {
       const next = prev.map((r) => [...r]);
       const row = next[rowIdx];
@@ -542,6 +660,51 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       next[rowIdx] = newRow;
       return next;
     });
+  };
+
+  const commitScene = (rowIdx: number, version: { shot: string; angle: string; visualFunction: string; veoPrompt: string }) => {
+    if (readOnly) return;
+    const headers = tableData[0] ?? displayData[0] ?? [];
+    const tableColCount = Math.max(...(tableData.length ? tableData : displayData).map((row) => row.length), 1);
+    const values: Record<string, string> = {
+      shot: version.shot.trim(),
+      angle: version.angle.trim(),
+      visual: version.visualFunction.trim(),
+      veo: version.veoPrompt.trim(),
+    };
+    const savedHeader = headers.slice(0, tableColCount);
+    const body = displayData.slice(1).map((row) => {
+      const next = [...row];
+      while (next.length < tableColCount) next.push('');
+      return next.slice(0, tableColCount);
+    });
+    while (body.length <= rowIdx) body.push(Array.from({ length: tableColCount }, () => ''));
+    const row = [...(body[rowIdx] ?? [])];
+    let changed = false;
+    headers.forEach((header, col) => {
+      const field = briefAuditField(String(header ?? ''));
+      if (!field || values[field] == null) return;
+      while (row.length <= col) row.push('');
+      if (row[col] !== values[field]) changed = true;
+      row[col] = values[field];
+    });
+    if (!changed) return;
+    body[rowIdx] = row.slice(0, tableColCount);
+    persistTable([savedHeader, ...body]);
+    if (isEditing) {
+      setEditData((prev) => {
+        const next = prev.map((item) => [...item]);
+        const editRow = [...(next[rowIdx] ?? [])];
+        headers.forEach((header, col) => {
+          const field = briefAuditField(String(header ?? ''));
+          if (!field || values[field] == null) return;
+          while (editRow.length <= col) editRow.push('');
+          editRow[col] = values[field];
+        });
+        next[rowIdx] = editRow;
+        return next;
+      });
+    }
   };
 
   if (displayData.length === 0) return null;
@@ -997,6 +1160,20 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   for (const item of masterPromptSpans) {
     for (let offset = 1; offset < item.span; offset += 1) masterPromptSkipRows.add(item.row + offset);
   }
+  const shownMasterByRow: Record<number, string> = {};
+  if (masterPromptColumnIndex >= 0) {
+    bodyRows.forEach((row, rowIdx) => {
+      if (masterPromptSkipRows.has(rowIdx)) return;
+      const raw = String(row[masterPromptColumnIndex] ?? '');
+      if (!raw.trim()) return;
+      const span = masterPromptSpanByRow.get(rowIdx) ?? 1;
+      const indexes = Array.from({ length: span }, (_, offset) => rowIdx + offset);
+      shownMasterByRow[rowIdx] = masterPromptWithActiveShots(
+        raw,
+        activeShotBriefs(headerRow, bodyRows, rowImagesMap, activeImageIds, indexes),
+      );
+    });
+  }
   const copyMasterPrompt = async (rowIdx: number, value: string) => {
     if (!value.trim()) return;
     try {
@@ -1189,7 +1366,20 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
           if (cellIdx === masterPromptColumnIndex && masterPromptSkipRows.has(rowIdx)) return null;
           const isMasterPrompt = cellIdx === masterPromptColumnIndex;
           const masterSpan = isMasterPrompt ? masterPromptSpanByRow.get(rowIdx) : undefined;
-          const masterText = isMasterPrompt ? cell.trim() : '';
+          const masterText = isMasterPrompt ? (shownMasterByRow[rowIdx] ?? cell).trim() : '';
+          const voiceHeader = isBriefVoHeader(String(headerRow[cellIdx] ?? ''));
+          const voiceSlides = voiceHeader ? savedVoSlides(voVersions, rowIdx, cell) : [];
+          const voiceActive = activeVoSlide(voSlide[rowIdx], voiceSlides.length);
+          const voiceEditingLatest = (isEditing || alwaysEditable) && voiceActive >= voiceSlides.length - 1;
+          const voiceText = voiceSlides.length > 1 && !voiceEditingLatest ? (voiceSlides[voiceActive] ?? cell) : cell;
+          const auditField = storyboardToolbar ? briefAuditField(String(headerRow[cellIdx] ?? '')) : null;
+          const auditView = auditField
+            ? (() => {
+                const slides = pairedSceneSlides(cell, rowImages, auditField);
+                const active = pairedVeoIndex(rowImages, activeImageIds[rowIdx]);
+                return { slides, active, text: slides[active] ?? cell };
+              })()
+            : null;
           return (
             <td
               key={cellIdx}
@@ -1219,23 +1409,28 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                     planId && film && uploadImages ? () => setImagePromptRow(rowIdx) : undefined
                   }
                 />
-              ) : isVeoPromptHeader(String(headerRow[cellIdx] ?? '')) && veoColumnUsesSlides(rowImages) ? (
-                <BriefVeoPromptSlides
-                  images={rowImages}
-                  activeImageId={activeImageIds[rowIdx] ?? null}
-                  originalPrompt={cell}
-                  editable={isEditing || alwaysEditable}
-                  concept={film?.concept}
-                  onChangeOriginal={(next) => updateCell(rowIdx, cellIdx, next)}
-                  onSelectImage={(imageId) => selectImage(rowIdx, imageId)}
-                  minRows={2}
-                  fieldClassName="box-border w-full min-w-0 max-w-full min-h-[60px] flex-1 rounded border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 [overflow-wrap:anywhere] [word-break:break-word]"
-                />
+              ) : auditView && auditField ? (
+                <div className="min-w-0">
+                  <BriefMentionText
+                    value={auditView.text}
+                    concept={film?.concept}
+                    className="block min-w-0 w-full whitespace-pre-wrap"
+                  />
+                  <BriefVersionPager
+                    count={auditView.slides.length}
+                    activeIndex={auditView.active}
+                    onSelect={(index) => {
+                      const image = rowImages[index];
+                      if (image) selectImage(rowIdx, image.id);
+                    }}
+                  />
+                </div>
               ) : (
                 <div className="min-w-0">
                   {masterText ? (
                     <div className="mb-1 flex justify-end">
                       <BriefMasterVideoButton rowIndex={rowIdx} className="h-7 w-7 shrink-0 bg-white p-0" />
+                      <BriefSeedanceVoiceButton rowIndex={rowIdx} scope="master" />
                       <Button
                         type="button"
                         size="sm"
@@ -1251,7 +1446,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                             ? t('briefDialog.masterPromptCopied', 'Copied')
                             : t('briefDialog.copyMasterPrompt', 'Copy master prompt')
                         }
-                        onClick={() => void copyMasterPrompt(rowIdx, cell)}
+                        onClick={() => void copyMasterPrompt(rowIdx, shownMasterByRow[rowIdx] ?? cell)}
                       >
                         {copiedMasterPromptRow === rowIdx ? (
                           <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
@@ -1261,7 +1456,41 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                       </Button>
                     </div>
                   ) : null}
-                  {(isEditing || alwaysEditable) ? (
+                  {isMasterPrompt ? (
+                    <div
+                      aria-disabled="true"
+                      className="box-border min-h-[60px] w-full cursor-default select-text rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-sm text-gray-600"
+                    >
+                      <BriefMentionText
+                        value={shownMasterByRow[rowIdx] ?? cell}
+                        concept={film?.concept}
+                        className="block min-w-0 w-full whitespace-pre-wrap"
+                      />
+                    </div>
+                  ) : voiceSlides.length > 1 ? (
+                    <div className="min-w-0">
+                      {voiceEditingLatest ? (
+                        <BriefMentionField
+                          value={cell}
+                          concept={film?.concept}
+                          onChange={(next) => updateCell(rowIdx, cellIdx, next)}
+                          className="box-border w-full min-w-0 max-w-full min-h-[60px] flex-1 rounded border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 [overflow-wrap:anywhere] [word-break:break-word]"
+                          minRows={2}
+                        />
+                      ) : (
+                        <BriefMentionText
+                          value={voiceText}
+                          concept={film?.concept}
+                          className="block min-w-0 w-full whitespace-pre-wrap"
+                        />
+                      )}
+                      <BriefVersionPager
+                        count={voiceSlides.length}
+                        activeIndex={voiceActive}
+                        onSelect={(index) => setVoSlide((current) => ({ ...current, [rowIdx]: index }))}
+                      />
+                    </div>
+                  ) : (isEditing || alwaysEditable) ? (
                     <BriefMentionField
                       value={cell}
                       concept={film?.concept}
@@ -1276,6 +1505,13 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                       className="block min-w-0 w-full whitespace-pre-wrap"
                     />
                   )}
+                  {voiceHeader ? (
+                    <BriefVoiceOverActions
+                      rowIndex={rowIdx}
+                      text={voiceText}
+                      onChangeText={(next) => updateCell(rowIdx, cellIdx, next)}
+                    />
+                  ) : null}
                 </div>
               )}
             </td>
@@ -1379,8 +1615,11 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       film={film}
       imagesByRow={rowImagesMap}
       masterSpans={masterPromptSpans}
+      activeImageIds={activeImageIds}
+      onActiveImageChange={selectImage}
       canGenerate={!readOnly}
     >
+      <BriefVoiceProvider planId={planId} canGenerate={!readOnly && Boolean(planId)}>
     <div
       className={cn(
         'relative flex min-h-0 flex-col overflow-hidden',
@@ -1409,7 +1648,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                 storyboardToolbar
                   ? workAreaExpanded
                     ? 'max-h-none min-h-0 flex-1'
-                    : 'max-h-[calc(100dvh-16rem)]'
+                    : 'min-h-[48rem] max-h-none'
                   : 'max-h-[min(720px,78vh)]',
               ),
           useStoryBoardLayout && !isMobile2Col && 'flex min-h-0 flex-col overflow-y-auto overflow-x-hidden',
@@ -1424,6 +1663,24 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             rowImagesMap={rowImagesMap}
             sequences={normalizedSequences}
             sceneMeta={sceneMeta}
+            voVersions={voVersions}
+            voSlide={voSlide}
+            onSelectVoSlide={(rowIndex, index) => setVoSlide((current) => ({ ...current, [rowIndex]: index }))}
+            fieldVersions={fieldVersions}
+            fieldSlide={fieldSlide}
+            fieldDrafts={fieldDrafts}
+            onSelectFieldSlide={(rowIndex, field, index) => setFieldSlide((current) => ({
+              ...current,
+              [fieldVersionKey(rowIndex, field)]: index,
+            }))}
+            onFieldDraft={(rowIndex, field, index, text) => setFieldDrafts((current) => ({
+              ...current,
+              [fieldVersionKey(rowIndex, field)]: { index, text },
+            }))}
+            onCommitScene={commitScene}
+            activeImageIds={activeImageIds}
+            onActiveImageIdChange={selectImage}
+            masterPromptByRow={shownMasterByRow}
             isEditing={isEditing || alwaysEditable}
             showRowActions={Boolean(showRowActionsColumn && onSave)}
             planId={planId}
@@ -1499,7 +1756,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                           <div className="flex items-center justify-between gap-2">
                             <span className="truncate">{cell}</span>
                             {renderHeaderControls()}
-                          </div>
+                        </div>
                         ) : (
                           <span className="block truncate" title={cell}>
                             {cell}
@@ -1593,19 +1850,41 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
       row={imagePromptRow != null ? (bodyRows[imagePromptRow] ?? []) : []}
       imageColumnIndex={imageColumnIndex}
       film={film}
+      planId={planId}
       characterIds={imagePromptRow != null ? getSceneCharacterIds(sceneMeta, imagePromptRow) : []}
-      startingPrompt={(() => {
-        if (imagePromptRow == null) return null;
-        const rowImages = rowImagesMap[imagePromptRow] ?? [];
-        const selected = rowImages.find((image) => image.id === activeImageIds[imagePromptRow]) ?? rowImages[0];
-        return selected?.prompt_override ?? null;
-      })()}
+      startingShot={imagePromptRow == null ? null : pairedSceneValue(
+        String((bodyRows[imagePromptRow] ?? [])[headerRow.findIndex((header) => briefAuditField(String(header ?? '')) === 'shot')] ?? ''),
+        rowImagesMap[imagePromptRow] ?? [],
+        'shot',
+        activeImageIds[imagePromptRow],
+      )}
+      startingAngle={imagePromptRow == null ? null : pairedSceneValue(
+        String((bodyRows[imagePromptRow] ?? [])[headerRow.findIndex((header) => briefAuditField(String(header ?? '')) === 'angle')] ?? ''),
+        rowImagesMap[imagePromptRow] ?? [],
+        'angle',
+        activeImageIds[imagePromptRow],
+      )}
+      startingVisual={imagePromptRow == null ? null : pairedSceneValue(
+        String((bodyRows[imagePromptRow] ?? [])[headerRow.findIndex((header) => briefAuditField(String(header ?? '')) === 'visual')] ?? ''),
+        rowImagesMap[imagePromptRow] ?? [],
+        'visual',
+        activeImageIds[imagePromptRow],
+      )}
+      startingPrompt={imagePromptRow == null ? null : pairedSceneValue(
+        String((bodyRows[imagePromptRow] ?? [])[headerRow.findIndex((header) => briefAuditField(String(header ?? '')) === 'veo')] ?? ''),
+        rowImagesMap[imagePromptRow] ?? [],
+        'veo',
+        activeImageIds[imagePromptRow],
+      )}
       onUploadImages={uploadImages}
       onClose={() => setImagePromptRow(null)}
-      onCreated={(imageId) => {
-        if (imagePromptRow != null && imageId) selectImage(imagePromptRow, imageId);
+      onCreated={(imageId, version) => {
+        if (imagePromptRow == null) return;
+        if (imageId) selectImage(imagePromptRow, imageId);
+        commitScene(imagePromptRow, version);
       }}
     />
-    </BriefVideoProvider>
+          </BriefVoiceProvider>
+        </BriefVideoProvider>
   );
 };

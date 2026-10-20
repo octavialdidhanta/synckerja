@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftRight, Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -19,21 +20,30 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { supabase } from "@/shared/lib/supabaseClient";
+import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import type { BriefConceptDocument } from "@/6-1-dashboard/modal/briefConceptAssets";
 import {
-  SEEDANCE_MODELS,
-  SEEDANCE_RESOLUTIONS,
-  UGC_TYPES,
-  buildVideoPrompt,
   durationChoices,
+  geminiAspectRatio,
+  isOmniVideoModel,
+  isVeoVideoModel,
+  isVideoProvider,
+  modelsForProvider,
+  resolutionsForModel,
+  UGC_TYPES,
+  briefForStoredScene,
+  buildVideoPrompt,
+  masterPromptWithActiveShots,
   imageRatioDiffers,
   lookIsUgc,
   mentionedConceptHandles,
   missingConceptImages,
-  type SeedanceModelId,
+  type VideoResolution,
   type ShotBrief,
-  type SeedanceResolution,
   type UgcType,
+  type VideoModelId,
+  type VideoProvider,
   type VideoRatio,
 } from "@/6-1-dashboard/lib/seedanceVideo";
 
@@ -43,6 +53,9 @@ export type VideoImageChoice = {
   width: number | null;
   height: number | null;
   promptOverride: string | null;
+  shotText: string | null;
+  angleText: string | null;
+  visualFunctionText: string | null;
 };
 
 export type BriefVideoDraft = {
@@ -67,17 +80,16 @@ export type BriefVideoDraft = {
   concept: BriefConceptDocument | null;
 };
 
-function briefWithSelectedVeo(brief: ShotBrief, images: VideoImageChoice[], selectedId?: string): ShotBrief {
+function briefWithSelectedImage(brief: ShotBrief, images: VideoImageChoice[], selectedId?: string): ShotBrief {
   const chosen = images.find((image) => image.id === selectedId);
-  const text = chosen?.promptOverride?.trim();
-  return text ? { ...brief, veoPrompt: text } : brief;
+  return briefForStoredScene(brief, chosen);
 }
 
 function shotBriefForSelection(draft: BriefVideoDraft, selectedImages: Record<number, string>): ShotBrief {
   const rowIndex = draft.rowIndexes[0] ?? 0;
   const images = draft.imagesByRow[rowIndex] ?? [];
   const selectedId = selectedImages[rowIndex] ?? images[0]?.id;
-  return briefWithSelectedVeo(
+  return briefWithSelectedImage(
     draft.shotBrief ?? { shot: "", angle: "", visualFunction: "", veoPrompt: "" },
     images,
     selectedId,
@@ -128,9 +140,11 @@ type Props = {
   draft: BriefVideoDraft | null;
   pending: boolean;
   onClose: () => void;
+  onSelectImage?: (rowIndex: number, imageId: string) => void;
   onConfirm: (input: {
-    model: SeedanceModelId;
-    resolution: SeedanceResolution;
+    provider: VideoProvider;
+    model: VideoModelId;
+    resolution: VideoResolution;
     duration: number;
     ugcType: UgcType | null;
     imageIds: Record<number, string>;
@@ -138,24 +152,43 @@ type Props = {
   }) => void;
 };
 
-export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: Props) {
+export function BriefVideoConfirmDialog({ draft, pending, onClose, onSelectImage, onConfirm }: Props) {
   const { t } = useAppTranslation();
-  const [model, setModel] = useState<SeedanceModelId>("dreamina-seedance-2-5-260628");
-  const [resolution, setResolution] = useState<SeedanceResolution>("720p");
+  const { organizationId } = useCurrentOrg();
+  const { data: savedProvider } = useQuery({
+    queryKey: ["video-ai-provider", organizationId],
+    enabled: Boolean(organizationId) && Boolean(draft),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("organization_video_ai_config")
+        .select("provider")
+        .eq("organization_id", organizationId as string)
+        .maybeSingle();
+      if (error) return "byteplus";
+      return isVideoProvider(String(data?.provider ?? "")) ? String(data?.provider) : "byteplus";
+    },
+  });
+  const [provider, setProvider] = useState<VideoProvider>("byteplus");
+  const [model, setModel] = useState<VideoModelId>("dreamina-seedance-2-5-260628");
+  const [resolution, setResolution] = useState<VideoResolution>("720p");
   const [duration, setDuration] = useState(5);
   const [ugcType, setUgcType] = useState<UgcType | "">("");
   const [selectedImages, setSelectedImages] = useState<Record<number, string>>({});
   const [sceneOn, setSceneOn] = useState(false);
   const [endImageId, setEndImageId] = useState<string | null>(null);
   const [draftKey, setDraftKey] = useState("");
+  const storedProvider: VideoProvider = savedProvider === "gemini" ? "gemini" : "byteplus";
   const nextKey = draft
-    ? `${draft.scope}:${draft.rowIndexes.join(",")}:${draft.look}:${Object.entries(draft.initialImageIds).map(([row, id]) => `${row}:${id}`).join(",")}`
+    ? `${storedProvider}:${draft.scope}:${draft.rowIndexes.join(",")}:${draft.look}:${Object.entries(draft.initialImageIds).map(([row, id]) => `${row}:${id}`).join(",")}`
     : "";
   if (nextKey !== draftKey) {
+    const initialProvider: VideoProvider = storedProvider;
+    const initialModel = modelsForProvider(initialProvider)[0].id;
     setDraftKey(nextKey);
-    setModel("dreamina-seedance-2-5-260628");
+    setProvider(initialProvider);
+    setModel(initialModel);
     setResolution("720p");
-    setDuration(5);
+    setDuration(durationChoices(initialModel)[0] ?? 5);
     setUgcType("");
     setSceneOn(false);
     setEndImageId(null);
@@ -169,16 +202,25 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: 
     setSelectedImages(initial);
   }
 
-  const choices = durationChoices(model);
+  const choices = durationChoices(model, resolution);
   const durationOk = choices.includes(duration);
+  const emptyBrief: ShotBrief = { shot: "", angle: "", visualFunction: "", veoPrompt: "" };
   const veoByRow: Record<number, string | null> = {};
-  draft?.rowIndexes.forEach((rowIndex) => {
+  const sceneByRow: Record<number, ShotBrief> = {};
+  draft?.rowIndexes.forEach((rowIndex, index) => {
     const choicesForRow = draft.imagesByRow[rowIndex] ?? [];
     const selectedId = selectedImages[rowIndex] ?? choicesForRow[0]?.id;
-    const chosen = choicesForRow.find((image) => image.id === selectedId);
-    const text = chosen?.promptOverride?.trim();
-    if (text) veoByRow[rowIndex] = text;
+    const cell = draft.shotBriefs[index] ?? draft.shotBrief ?? emptyBrief;
+    const scene = briefWithSelectedImage(cell, choicesForRow, selectedId);
+    sceneByRow[rowIndex] = scene;
+    if (scene.veoPrompt) veoByRow[rowIndex] = scene.veoPrompt;
   });
+  const shotRow = draft?.rowIndexes[0] ?? 0;
+  const shotImages = draft?.imagesByRow[shotRow] ?? [];
+  const awalId = selectedImages[shotRow] ?? shotImages[0]?.id ?? "";
+  const sceneActive = draft?.scope === "shot" && sceneOn;
+  const awalBrief = sceneByRow[shotRow] ?? briefWithSelectedImage(draft?.shotBrief ?? emptyBrief, shotImages, awalId);
+  const akhirBrief = endImageId ? briefWithSelectedImage(draft?.shotBrief ?? emptyBrief, shotImages, endImageId) : null;
   const liveMissing = draft
     ? missingConceptImages(buildVideoPrompt({
       scope: draft.scope,
@@ -187,15 +229,9 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: 
       rowIndexes: draft.rowIndexes,
       ugcType: ugcType || null,
       veoByRow,
+      sceneByRow,
     }), draft.concept)
     : [];
-  const shotRow = draft?.rowIndexes[0] ?? 0;
-  const shotImages = draft?.imagesByRow[shotRow] ?? [];
-  const awalId = selectedImages[shotRow] ?? shotImages[0]?.id ?? "";
-  const sceneActive = draft?.scope === "shot" && sceneOn;
-  const emptyBrief: ShotBrief = { shot: "", angle: "", visualFunction: "", veoPrompt: "" };
-  const awalBrief = briefWithSelectedVeo(draft?.shotBrief ?? emptyBrief, shotImages, awalId);
-  const akhirBrief = endImageId ? briefWithSelectedVeo(draft?.shotBrief ?? emptyBrief, shotImages, endImageId) : null;
   const sceneHandles = sceneActive
     ? mentionedConceptHandles(buildVideoPrompt({
       scope: "shot",
@@ -204,7 +240,9 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: 
       rowIndexes: draft?.rowIndexes ?? [],
       ugcType: ugcType || null,
       veoByRow,
+      sceneByRow,
       endVeo: akhirBrief?.veoPrompt,
+      endScene: akhirBrief,
     }))
     : [];
   const sceneReady = !sceneActive || (Boolean(endImageId) && endImageId !== awalId);
@@ -218,11 +256,41 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: 
   const blocked = (!sceneActive && liveMissing.length > 0) || (draft?.missingShots.length ?? 0) > 0;
   const ugcOk = !draft?.needsUgcType || ugcType !== "";
   const lookLabel = draft && lookIsUgc(draft.look) ? "UGC" : draft?.look ?? "";
-  const selectModel = (value: SeedanceModelId) => {
-    setModel(value);
-    const nextChoices = durationChoices(value);
-    if (!nextChoices.includes(duration)) setDuration(nextChoices[nextChoices.length - 1] ?? 5);
+  const shownMaster = draft
+    ? masterPromptWithActiveShots(
+      draft.masterPrompt,
+      draft.rowIndexes.map((rowIndex) => sceneByRow[rowIndex] ?? emptyBrief),
+    )
+    : "";
+  const chooseImage = (rowIndex: number, imageId: string) => {
+    setSelectedImages((current) => ({ ...current, [rowIndex]: imageId }));
+    onSelectImage?.(rowIndex, imageId);
   };
+  const selectModel = (value: VideoModelId) => {
+    setModel(value);
+    const allowed = resolutionsForModel(value);
+    const nextResolution = allowed.includes(resolution) ? resolution : "720p";
+    if (nextResolution !== resolution) setResolution(nextResolution);
+    const nextChoices = durationChoices(value, nextResolution);
+    if (!nextChoices.includes(duration)) setDuration(nextChoices[0] ?? 5);
+  };
+  const selectResolution = (value: VideoResolution) => {
+    setResolution(value);
+    const nextChoices = durationChoices(model, value);
+    if (!nextChoices.includes(duration)) setDuration(nextChoices[0] ?? 8);
+  };
+  const selectProvider = (value: VideoProvider) => {
+    setProvider(value);
+    selectModel(modelsForProvider(value)[0].id);
+  };
+  const modelChoices = modelsForProvider(provider);
+  const resolutionChoices = resolutionsForModel(model);
+  const geminiHelp = isOmniVideoModel(model)
+    ? t("videoAi.confirm.omniHelp", "Memakai API key Script AI. Maksimum 7 gambar. Durasi 4, 6, 8, atau 10 detik.")
+    : isVeoVideoModel(model) && (model.includes("lite") || model.startsWith("veo-3.0"))
+      ? t("videoAi.confirm.veoLiteHelp", "Memakai API key Script AI. Satu gambar, atau gambar awal dan akhir. 1080p hanya untuk 8 detik.")
+      : t("videoAi.confirm.veoHelp", "Memakai API key Script AI. Maksimum 3 gambar. 1080p, 4K, dan beberapa gambar hanya untuk 8 detik.");
+  const shownGeminiRatio = draft ? geminiAspectRatio(draft.ratio) : "9:16";
 
   return (
     <Dialog open={Boolean(draft)} onOpenChange={(open) => { if (!open && !pending) onClose(); }}>
@@ -243,13 +311,13 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: 
               <div className="space-y-2">
                 <div className="space-y-0.5 rounded-none border border-border bg-muted/40 px-3 py-2">
                   <p className="text-[11px] font-semibold text-muted-foreground">{t("videoAi.confirm.masterPrompt", "Master prompt")}</p>
-                  <p className="whitespace-pre-wrap text-sm">{draft.masterPrompt || "—"}</p>
+                  <p className="whitespace-pre-wrap text-sm">{shownMaster || "—"}</p>
                 </div>
                 {draft.shotBriefs.map((brief, index) => {
                   const rowIndex = draft.rowIndexes[index] ?? index;
                   const imageChoices = draft.imagesByRow[rowIndex] ?? [];
                   const selectedId = selectedImages[rowIndex] ?? imageChoices[0]?.id;
-                  const shown = briefWithSelectedVeo(brief, imageChoices, selectedId);
+                  const shown = sceneByRow[rowIndex] ?? briefWithSelectedImage(brief, imageChoices, selectedId);
                   return (
                   <div key={`${brief.shot}-${index}`} className="space-y-2 rounded-none border border-border bg-muted/40 px-3 py-2">
                     {imageChoices.length > 0 ? (
@@ -262,7 +330,7 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: 
                               type="button"
                               aria-pressed={selectedId === image.id}
                               aria-label={t("videoAi.confirm.angleImage", "Gambar {{index}}", { index: imageIndex + 1 })}
-                              onClick={() => setSelectedImages((current) => ({ ...current, [rowIndex]: image.id }))}
+                              onClick={() => chooseImage(rowIndex, image.id)}
                               className={cn(
                                 "h-16 w-16 shrink-0 overflow-hidden border bg-white",
                                 selectedId === image.id ? "border-primary ring-2 ring-primary" : "border-input",
@@ -336,7 +404,7 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: 
                         image={shotImages.find((image) => image.id === awalId)}
                         onDropImage={(imageId) => {
                           if (!shotImages.some((image) => image.id === imageId)) return;
-                          setSelectedImages((current) => ({ ...current, [shotRow]: imageId }));
+                          chooseImage(shotRow, imageId);
                           if (imageId === endImageId) setEndImageId(null);
                         }}
                       />
@@ -349,7 +417,7 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: 
                           if (!endImageId || endImageId === awalId) return;
                           const nextStart = endImageId;
                           const nextEnd = awalId;
-                          setSelectedImages((current) => ({ ...current, [shotRow]: nextStart }));
+                          chooseImage(shotRow, nextStart);
                           setEndImageId(nextEnd);
                         }}
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-400 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-40"
@@ -407,11 +475,32 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: 
               </div>
             ) : null}
             <div className="space-y-1">
+              <Label id="video-provider-label">{t("videoAi.confirm.provider", "Provider")}</Label>
+              <div role="tablist" aria-labelledby="video-provider-label" className="grid grid-cols-2 gap-2">
+                {(["byteplus", "gemini"] as const).map((id) => (
+                  <Button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={provider === id}
+                    variant={provider === id ? "default" : "outline"}
+                    className="h-10 rounded-none"
+                    onClick={() => selectProvider(id)}
+                  >
+                    {id === "byteplus" ? "BytePlus" : "Gemini"}
+                  </Button>
+                ))}
+              </div>
+              {provider === "gemini" ? (
+                <p className="text-xs text-muted-foreground">{geminiHelp}</p>
+              ) : null}
+            </div>
+            <div className="space-y-1">
               <Label>{t("videoAi.confirm.model", "Model")}</Label>
-              <Select value={model} onValueChange={(value) => selectModel(value as SeedanceModelId)}>
+              <Select value={model} onValueChange={(value) => selectModel(value as VideoModelId)}>
                 <SelectTrigger className="rounded-none"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {SEEDANCE_MODELS.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}
+                  {modelChoices.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -434,10 +523,10 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: 
             ) : null}
             <div className="space-y-1">
               <Label>{t("videoAi.confirm.resolution", "Resolution")}</Label>
-              <Select value={resolution} onValueChange={(value) => setResolution(value as SeedanceResolution)}>
+              <Select value={resolution} onValueChange={(value) => selectResolution(value as VideoResolution)}>
                 <SelectTrigger className="rounded-none"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {SEEDANCE_RESOLUTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+                  {resolutionChoices.map((item) => <SelectItem key={item} value={item}>{item === "4k" ? "4K" : item}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -467,11 +556,13 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: 
                 ? t("videoAi.confirm.silent", "Audio di Master Prompt melarang bunyi, jadi video dibuat senyap.")
                 : t("videoAi.confirm.sound", "Video dibuat dengan bunyi.")}
               {" "}
-              {sceneActive && model === "dreamina-seedance-2-5-260628"
+              {provider === "gemini" && shownGeminiRatio !== draft.ratio
+                ? t("videoAi.confirm.geminiRatio", "Gemini memakai rasio 9:16 untuk brief {{ratio}} ini.", { ratio: draft.ratio })
+                : sceneActive && model === "dreamina-seedance-2-5-260628"
                 ? t("videoAi.confirm.sceneRatio", "Seedance 2.5 mengikuti bentuk gambar Awal.")
-                : t("videoAi.confirm.ratio", "Rasio {{ratio}}.", { ratio: draft.ratio })}
+                : t("videoAi.confirm.ratio", "Rasio {{ratio}}.", { ratio: provider === "gemini" ? shownGeminiRatio : draft.ratio })}
             </p>
-            {ratioWarning && !(sceneActive && model === "dreamina-seedance-2-5-260628") ? (
+            {ratioWarning && provider === "byteplus" && !(sceneActive && model === "dreamina-seedance-2-5-260628") ? (
               <p className="text-xs text-amber-700">
                 {t("videoAi.confirm.ratioWarning", "Gambar belum sebentuk dengan rasio ini. Seedance 2.5 pada satu gambar mengikuti bentuk gambar.")}
               </p>
@@ -509,6 +600,7 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onConfirm }: 
             className="rounded-none"
             disabled={!draft || pending || blocked || !durationOk || !ugcOk || !sceneReady}
             onClick={() => onConfirm({
+              provider,
               model,
               resolution,
               duration,

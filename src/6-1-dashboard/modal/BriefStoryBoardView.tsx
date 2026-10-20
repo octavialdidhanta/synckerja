@@ -5,13 +5,17 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 import { BriefStoryBoardSceneCard } from './BriefStoryBoardSceneCard';
 import { BriefSequenceHeader } from './BriefSequenceHeader';
-import type { BriefStoryboardImageWithUrl } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
+import type { BriefStoryboardImageWithUrl, BriefImageSceneVersion } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
 import type { BriefSequence } from './briefSequences';
 import { getSequenceRowRanges } from './briefSequences';
 import type { BriefSceneMeta } from './briefSceneMeta';
+import type { BriefVoVersions } from './briefVoVersions';
+import type { BriefAuditField, BriefFieldDraft, BriefFieldVersions } from './briefFieldVersions';
 import { getSceneCharacterIds } from './briefSceneMeta';
 import type { StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
 import { readShotBrief, shootHeaderLabels, shootNumberFromShotLabel } from '@/6-1-dashboard/lib/seedanceVideo';
+import { isBriefVoHeader } from './briefStoryboardConstants';
+import { activeVoSlide, narrationAnchorRow, savedVoSlides } from './briefVoVersions';
 
 /** Show the bottom bar only after the last sequence/card is reached. */
 export function useHideOnScrollDown(
@@ -88,6 +92,18 @@ export interface BriefStoryBoardViewProps {
   rowImagesMap: Record<number, BriefStoryboardImageWithUrl[]>;
   sequences: BriefSequence[];
   sceneMeta?: BriefSceneMeta[];
+  voVersions?: BriefVoVersions[];
+  voSlide?: Record<number, number>;
+  onSelectVoSlide?: (rowIndex: number, index: number) => void;
+  fieldVersions?: BriefFieldVersions[];
+  fieldSlide?: Record<string, number>;
+  fieldDrafts?: Record<string, BriefFieldDraft>;
+  onSelectFieldSlide?: (rowIndex: number, field: BriefAuditField, index: number) => void;
+  onFieldDraft?: (rowIndex: number, field: BriefAuditField, index: number, text: string) => void;
+  onCommitScene?: (rowIndex: number, version: BriefImageSceneVersion) => void;
+  activeImageIds?: Record<number, string | null | undefined>;
+  onActiveImageIdChange?: (rowIndex: number, imageId: string) => void;
+  masterPromptByRow?: Record<number, string>;
   isEditing: boolean;
   showRowActions: boolean;
   planId?: string;
@@ -96,7 +112,7 @@ export interface BriefStoryBoardViewProps {
   uploadingRowIndex?: number | null;
   deletingImageId?: string | null;
   onUpdateCell: (rowIndex: number, cellIdx: number, value: string) => void;
-  onUploadImages?: (rowIndex: number, files: File[], promptOverride?: string | null) => Promise<unknown>;
+  onUploadImages?: (rowIndex: number, files: File[], promptOverride?: string | BriefImageSceneVersion | null) => Promise<unknown>;
   onDeleteImage?: (imageId: string) => Promise<unknown>;
   onAddRow?: (rowIndex: number) => void;
   onAddSequenceAfterRow?: (rowIndex: number) => void;
@@ -120,6 +136,18 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
   rowImagesMap,
   sequences,
   sceneMeta = [],
+  voVersions = [],
+  voSlide = {},
+  onSelectVoSlide,
+  fieldVersions = [],
+  fieldSlide = {},
+  fieldDrafts = {},
+  onSelectFieldSlide,
+  onFieldDraft,
+  onCommitScene,
+  activeImageIds = {},
+  onActiveImageIdChange,
+  masterPromptByRow = {},
   isEditing,
   showRowActions,
   planId,
@@ -146,6 +174,20 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
 }) => {
   const { t } = useAppTranslation();
   const ranges = getSequenceRowRanges(sequences);
+  const voiceColumn = headers.findIndex((header) => isBriefVoHeader(header));
+  const narrationForRow = (rowIndex: number) => {
+    const anchor = narrationAnchorRow(bodyRows, voiceColumn, rowIndex);
+    if (anchor < 0) return null;
+    const cell = String(bodyRows[anchor]?.[voiceColumn] ?? '');
+    const slides = savedVoSlides(voVersions, anchor, cell);
+    if (slides.length === 0) return null;
+    return {
+      rowIndex: anchor,
+      slides,
+      activeIndex: activeVoSlide(voSlide[anchor], slides.length),
+      onSelect: (index: number) => onSelectVoSlide?.(anchor, index),
+    };
+  };
   const canManageSequences = Boolean(showRowActions && onRenameSequence);
   const isMobile = density === 'mobile-2col';
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -259,6 +301,23 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
                       density={density}
                       characterIds={getSceneCharacterIds(sceneMeta, rowIdx)}
                       onCharacterIdsChange={onSceneCharacterIdsChange}
+                      voVersions={voVersions}
+                      voSlide={voSlide[rowIdx]}
+                      onSelectVoSlide={(index) => onSelectVoSlide?.(rowIdx, index)}
+                      narrationPlay={narrationForRow(rowIdx)}
+                      fieldVersions={fieldVersions}
+                      fieldSlide={fieldSlide}
+                      fieldDrafts={fieldDrafts}
+                      onSelectFieldSlide={(field, index) => onSelectFieldSlide?.(rowIdx, field, index)}
+                      onFieldDraft={(field, index, text) => onFieldDraft?.(rowIdx, field, index, text)}
+                      onCommitScene={(version) => onCommitScene?.(rowIdx, version)}
+                      activeImageId={activeImageIds[rowIdx] ?? null}
+                      onActiveImageIdChange={
+                        onActiveImageIdChange
+                          ? (imageId) => onActiveImageIdChange(rowIdx, imageId)
+                          : undefined
+                      }
+                      masterPromptText={masterPromptByRow[rowIdx]}
                       onUpdateCell={onUpdateCell}
                       onUploadImages={onUploadImages}
                       onDeleteImage={onDeleteImage}
