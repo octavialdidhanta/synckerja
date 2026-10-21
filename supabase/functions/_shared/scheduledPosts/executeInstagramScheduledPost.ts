@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveMetaContentAccount } from "../metaContentAuth.ts";
+import { shouldFallbackFromInstagramVideoUrl } from "../metaContent/instagramVideoUrlFallback.ts";
 import {
   buildInstagramReelsFallbackUrl,
   createInstagramReelsContainer,
@@ -8,6 +9,7 @@ import {
   uploadInstagramReelsVideo,
   waitForInstagramReelsContainerReady,
 } from "../metaContent/metaReelsPublishApi.ts";
+import { resolveGoogleDrivePublicVideoUrl } from "./googleDrivePublicVideoUrl.ts";
 import {
   isPlanEligibleForInstagramAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
@@ -273,63 +275,70 @@ export async function executeInstagramScheduledPost(
   }
 
   const driveUrl = plan.google_drive_link?.trim() ?? schedule.media_url_snapshot;
-  const { bytes: videoBytes } = await resolveVideoBytesForUpload(driveUrl, sharedCtx);
-
-  let containerId = String(cfg.ig_container_id ?? "").trim();
-  let uploadUri = "";
-
-  if (!containerId) {
-    const container = await createInstagramReelsContainer(
-      igAccountId,
-      account.pageAccessToken,
-      { caption },
-    );
-    containerId = container.containerId;
-    uploadUri = container.uploadUri;
-    providerConfig = await persistInstagramProviderConfig(admin, schedule.id, providerConfig, {
-      ig_container_id: containerId,
-      ig_upload_session_id: uploadUri,
-      ig_upload_phase: "created",
-    });
+  if (cfg.ig_container_id) {
+    providerConfig = await clearInstagramUploadState(admin, schedule.id, providerConfig);
   }
 
-  if (cfg.ig_upload_phase !== "uploaded") {
-    if (!uploadUri && cfg.ig_upload_session_id) {
-      uploadUri = String(cfg.ig_upload_session_id);
-    }
-    if (!uploadUri) {
+  const videoUrl = resolveGoogleDrivePublicVideoUrl(driveUrl);
+  if (videoUrl) {
+    try {
       const container = await createInstagramReelsContainer(
         igAccountId,
         account.pageAccessToken,
-        { caption },
+        { caption, videoUrl },
       );
-      containerId = container.containerId;
-      uploadUri = container.uploadUri;
       providerConfig = await persistInstagramProviderConfig(admin, schedule.id, providerConfig, {
-        ig_container_id: containerId,
-        ig_upload_session_id: uploadUri,
-        ig_upload_phase: "created",
+        ig_container_id: container.containerId,
+        ig_upload_phase: "uploaded",
       });
+      console.info(`instagram_publish_path=video_url scheduleId=${schedule.id}`);
+      const { mediaId } = await publishInstagramContainerWhenReady(
+        admin,
+        schedule.id,
+        providerConfig,
+        {
+          igAccountId,
+          pageAccessToken: account.pageAccessToken,
+          containerId: container.containerId,
+        },
+      );
+      return finishPublished(mediaId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!shouldFallbackFromInstagramVideoUrl(message)) throw err;
+      console.warn(
+        `instagram_video_url_fallback scheduleId=${schedule.id} reason=${message.slice(0, 180)}`,
+      );
+      providerConfig = await clearInstagramUploadState(admin, schedule.id, providerConfig);
     }
-
-    const uploaded = await uploadInstagramVideoOrReplaceContainer(
-      admin,
-      schedule.id,
-      igAccountId,
-      account.pageAccessToken,
-      caption,
-      providerConfig,
-      containerId,
-      uploadUri,
-      videoBytes,
-    );
-    providerConfig = uploaded.providerConfig;
-    containerId = uploaded.containerId;
-    providerConfig = await persistInstagramProviderConfig(admin, schedule.id, providerConfig, {
-      ig_upload_phase: "uploaded",
-    });
   }
 
+  const { bytes: videoBytes } = await resolveVideoBytesForUpload(driveUrl, sharedCtx);
+  const container = await createInstagramReelsContainer(
+    igAccountId,
+    account.pageAccessToken,
+    { caption },
+  );
+  providerConfig = await persistInstagramProviderConfig(admin, schedule.id, providerConfig, {
+    ig_container_id: container.containerId,
+    ig_upload_session_id: container.uploadUri,
+    ig_upload_phase: "created",
+  });
+  const uploaded = await uploadInstagramVideoOrReplaceContainer(
+    admin,
+    schedule.id,
+    igAccountId,
+    account.pageAccessToken,
+    caption,
+    providerConfig,
+    container.containerId,
+    container.uploadUri,
+    videoBytes,
+  );
+  providerConfig = await persistInstagramProviderConfig(admin, schedule.id, uploaded.providerConfig, {
+    ig_upload_phase: "uploaded",
+  });
+  console.info(`instagram_publish_path=file_upload scheduleId=${schedule.id}`);
   const { mediaId } = await publishInstagramContainerWhenReady(
     admin,
     schedule.id,
@@ -337,7 +346,7 @@ export async function executeInstagramScheduledPost(
     {
       igAccountId,
       pageAccessToken: account.pageAccessToken,
-      containerId,
+      containerId: uploaded.containerId,
     },
   );
   return finishPublished(mediaId);

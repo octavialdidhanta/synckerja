@@ -21,18 +21,22 @@ const DEFAULT_CONTAINER_POLL_MS = 5_000;
 export async function createInstagramReelsContainer(
   igBusinessAccountId: string,
   pageAccessToken: string,
-  args: { caption: string },
+  args: { caption: string; videoUrl?: string },
 ): Promise<MetaReelsContainerResult> {
+  const videoUrl = args.videoUrl?.trim() ?? "";
+  const params: Record<string, string> = {
+    access_token: pageAccessToken,
+    media_type: "REELS",
+    caption: args.caption.slice(0, 2200),
+  };
+  if (videoUrl) params.video_url = videoUrl;
+  else params.upload_type = "resumable";
+
   const url = graphUrl(`${igBusinessAccountId}/media`);
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      access_token: pageAccessToken,
-      media_type: "REELS",
-      upload_type: "resumable",
-      caption: args.caption.slice(0, 2200),
-    }),
+    body: new URLSearchParams(params),
   });
 
   const json = await res.json().catch(() => ({})) as {
@@ -48,9 +52,16 @@ export async function createInstagramReelsContainer(
   }
 
   const uploadUri = String(json.uri ?? "").trim();
-  if (!uploadUri) throw new Error("meta_reels_missing_upload_uri");
+  if (!videoUrl && !uploadUri) throw new Error("meta_reels_missing_upload_uri");
 
   return { containerId: String(json.id), uploadUri };
+}
+
+/** Byte upload must not sit open until the 20-minute stale recovery. */
+const IG_BYTE_UPLOAD_TIMEOUT_MS = 90_000;
+
+function isUploadAbort(err: unknown): boolean {
+  return err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError");
 }
 
 export async function uploadInstagramReelsVideo(
@@ -58,17 +69,27 @@ export async function uploadInstagramReelsVideo(
   pageAccessToken: string,
   videoBytes: Uint8Array,
 ): Promise<void> {
-  const body = videoBytes.slice();
-  const res = await fetch(uploadUri, {
-    method: "POST",
-    headers: {
-      Authorization: `OAuth ${pageAccessToken}`,
-      "Content-Type": "application/octet-stream",
-      offset: "0",
-      file_size: String(body.byteLength),
-    },
-    body,
-  });
+  const body = new Blob([videoBytes], { type: "application/octet-stream" });
+  let res: Response;
+  try {
+    res = await fetch(uploadUri, {
+      method: "POST",
+      headers: {
+        Authorization: `OAuth ${pageAccessToken}`,
+        offset: "0",
+        file_size: String(videoBytes.byteLength),
+      },
+      body,
+      signal: AbortSignal.timeout(IG_BYTE_UPLOAD_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (isUploadAbort(err)) {
+      throw new Error(
+        `ig_upload_timeout: Instagram upload did not finish in ${IG_BYTE_UPLOAD_TIMEOUT_MS}ms`,
+      );
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");

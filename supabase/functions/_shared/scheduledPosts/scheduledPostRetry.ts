@@ -50,6 +50,7 @@ export function isTransientMetaPublishError(message: string): boolean {
     m.includes("(#4)") ||
     m.includes("(#613)") ||
     m.includes("media_not_ready") ||
+    m.includes("ig_upload_timeout") ||
     m.includes("media id is not available") ||
     m.includes("media is not ready") ||
     m.includes("not ready for publishing") ||
