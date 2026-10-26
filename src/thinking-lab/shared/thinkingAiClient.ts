@@ -49,6 +49,15 @@ export function buildThinkingAiRequestBody(
   return body;
 }
 
+export function isThinkingIdleTimeout(value: unknown): boolean {
+  if (typeof value === "string") return /idle timeout/i.test(value);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as { code?: unknown; message?: unknown; error?: unknown };
+  if (row.code === "IDLE_TIMEOUT") return true;
+  const message = typeof row.message === "string" ? row.message : typeof row.error === "string" ? row.error : "";
+  return /idle timeout/i.test(message);
+}
+
 export function thinkingPromptContainsScriptFormat(text: string): boolean {
   return (
     /\bVO \(Voice Over\)\b/i.test(text) ||
@@ -63,44 +72,56 @@ export async function generateThinkingJsonWithAI(
   opts?: { temperature?: ThinkingAiTemperature },
 ): Promise<{ success: boolean; script?: string; error?: string }> {
   const body = buildThinkingAiRequestBody(prompt, opts?.temperature ?? 0);
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      return { success: false, error: "Sesi login tidak valid. Silakan login ulang." };
+  let lastError = "Unknown error";
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        return { success: false, error: "Sesi login tidak valid. Silakan login ulang." };
+      }
+      const url = `${SUPABASE_URL}/functions/v1/generate-script-ai`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => null);
+      if (data === null || typeof data !== "object") {
+        return { success: false, error: "Response server tidak valid. Coba lagi." };
+      }
+      if (!res.ok) {
+        const errMsg = typeof (data as { error?: unknown }).error === "string"
+          ? String((data as { error: string }).error)
+          : typeof (data as { message?: unknown }).message === "string"
+            ? String((data as { message: string }).message)
+            : `Request gagal (${res.status})`;
+        presentGeminiSpendCap(errMsg);
+        lastError = errMsg;
+        if (attempt === 0 && (isThinkingIdleTimeout(data) || isThinkingIdleTimeout(errMsg))) continue;
+        return { success: false, error: errMsg };
+      }
+      const errMsg = (data as { error?: unknown }).error;
+      if (errMsg) {
+        const message = typeof errMsg === "string" ? errMsg : "Failed to generate";
+        presentGeminiSpendCap(message);
+        lastError = message;
+        if (attempt === 0 && (isThinkingIdleTimeout(data) || isThinkingIdleTimeout(message))) continue;
+        return { success: false, error: message };
+      }
+      const script = (data as { script?: unknown }).script;
+      if (typeof script !== "string") {
+        return { success: false, error: "No content generated from AI" };
+      }
+      return { success: true, script: script.trim() };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      lastError = msg;
+      if (attempt === 0 && isThinkingIdleTimeout(msg)) continue;
+      return { success: false, error: msg };
     }
-    const url = `${SUPABASE_URL}/functions/v1/generate-script-ai`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => null);
-    if (data === null || typeof data !== "object") {
-      return { success: false, error: "Response server tidak valid. Coba lagi." };
-    }
-    if (!res.ok) {
-      const errMsg = typeof (data as { error?: unknown }).error === "string"
-        ? String((data as { error: string }).error)
-        : `Request gagal (${res.status})`;
-      presentGeminiSpendCap(errMsg);
-      return { success: false, error: errMsg };
-    }
-    const errMsg = (data as { error?: unknown }).error;
-    if (errMsg) {
-      const message = typeof errMsg === "string" ? errMsg : "Failed to generate";
-      presentGeminiSpendCap(message);
-      return { success: false, error: message };
-    }
-    const script = (data as { script?: unknown }).script;
-    if (typeof script !== "string") {
-      return { success: false, error: "No content generated from AI" };
-    }
-    return { success: true, script: script.trim() };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return { success: false, error: msg };
   }
+  return { success: false, error: lastError };
 }

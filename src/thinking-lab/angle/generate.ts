@@ -52,12 +52,18 @@ export function buildAngleGeneratePrompt(input: {
   parentStatement: string;
   ancestors?: AncestorStake[];
   incumbents: Array<{ code: string; statement: string }>;
+  lessons?: Array<{ code: string; statement: string; reason: string }>;
   needed: number;
 }): string {
   const kept =
     input.incumbents.length === 0
       ? "(none)"
       : input.incumbents.map((row) => `${row.code}: ${row.statement}`).join("\n");
+  const lessons = input.lessons ?? [];
+  const lessonLines =
+    lessons.length === 0
+      ? "(none)"
+      : lessons.map((lesson) => `${lesson.code}: ${lesson.statement}\nWhy it failed: ${lesson.reason}`).join("\n");
   return [
     "Write Angle candidates under one direct Territory.",
     "An Angle raises something rarely noticed, a contradiction, or a tension inside one Territory.",
@@ -75,6 +81,7 @@ export function buildAngleGeneratePrompt(input: {
     "The statement stays the observation. Do not place that situation inside the statement.",
     "The example is not a second explanation of the pattern and not a finished Idea.",
     "Do not use examples from any specific industry, belief system, or brand.",
+    "Read the earlier failures. Do not return a sentence listed there.",
     `Return at most ${input.needed} candidate(s).`,
     "Return JSON only: {\"angles\":[{\"subject\":\"...\",\"statement\":\"...\",\"example\":\"...\"}]}",
     "",
@@ -82,8 +89,11 @@ export function buildAngleGeneratePrompt(input: {
     input.parentStatement.trim(),
     ...ancestorStakeBlock(input.ancestors),
     "",
-    "Incumbent Angles, including ones already rejected:",
+    "Incumbent Angles:",
     kept,
+    "",
+    "Earlier failures. Do not repeat these sentences:",
+    lessonLines,
   ].join("\n");
 }
 
@@ -91,12 +101,18 @@ export function buildAngleGapPrompt(input: {
   parentStatement: string;
   ancestors?: AncestorStake[];
   incumbents: Array<{ code: string; statement: string }>;
+  lessons?: Array<{ code: string; statement: string; reason: string }>;
   gap: string;
 }): string {
   const kept =
     input.incumbents.length === 0
       ? "(none)"
       : input.incumbents.map((row) => `${row.code}: ${row.statement}`).join("\n");
+  const lessons = input.lessons ?? [];
+  const lessonLines =
+    lessons.length === 0
+      ? "(none)"
+      : lessons.map((lesson) => `${lesson.code}: ${lesson.statement}\nWhy it failed: ${lesson.reason}`).join("\n");
   return [
     "Write one Angle that fills a named gap under one direct Territory.",
     "An Angle is an observation, contradiction, or tension inside one Territory. It must not fit smoothly as a because-clause.",
@@ -107,6 +123,7 @@ export function buildAngleGapPrompt(input: {
     "Also write a subject of one to six words and one concrete situation a person could point at.",
     "The statement stays the observation. Do not place that situation inside the statement.",
     "Do not use examples from any specific industry, belief system, or brand.",
+    "Read the earlier failures. Do not return a sentence listed there.",
     "Return JSON only: {\"angles\":[{\"subject\":\"...\",\"statement\":\"...\",\"example\":\"...\"}]}",
     "",
     "Direct Territory:",
@@ -118,6 +135,9 @@ export function buildAngleGapPrompt(input: {
     "",
     "Incumbent Angles:",
     kept,
+    "",
+    "Earlier failures. Do not repeat these sentences:",
+    lessonLines,
   ].join("\n");
 }
 
@@ -220,6 +240,8 @@ export async function runAngleGenerate<
     incumbents: T[],
   ) => Promise<Array<string | AngleDraft>>;
   judge: (parent: AngleGenerateParent, code: string, statement: string) => Promise<AngleSemanticFacts>;
+  /** Propose one sentence, judge it, then propose the next sentence with that failure available. */
+  carryLessons?: boolean;
   persist: (input: {
     parent: AngleGenerateParent;
     code: string;
@@ -240,23 +262,26 @@ export async function runAngleGenerate<
     };
   }
   let incumbents = [...input.incumbents];
-  let activeCount = incumbents.length;
-  for (let round = 1; round <= MAX_GENERATE_ROUNDS; round += 1) {
+  let activeCount = incumbents.filter((row) => row.admission !== "GENERATE_REJECT").length;
+  const attemptLimit = input.carryLessons ? MAX_GENERATE_ROUNDS * TARGET_GENERATE_VALID : MAX_GENERATE_ROUNDS;
+  for (let attempt = 1; attempt <= attemptLimit; attempt += 1) {
     const plan = planAngleGenerate({
       activeCount,
       generateValidCount: countAdmittedAngles(incumbents),
-      round,
+      round: input.carryLessons ? 1 : attempt,
       topUp: input.topUp,
     });
     if (plan.needed === 0) break;
-    const drafts = (await input.propose(plan, gate.parent, incumbents))
-      .slice(0, plan.needed)
+    const askFor = input.carryLessons ? 1 : plan.needed;
+    const drafts = (await input.propose({ ...plan, needed: askFor }, gate.parent, incumbents))
+      .slice(0, askFor)
       .map((row) =>
         typeof row === "string"
           ? { statement: row.trim(), subject: "", example: "" }
           : { statement: row.statement.trim(), subject: row.subject.trim(), example: row.example.trim() },
       )
       .filter((row) => row.statement);
+    if (input.carryLessons && drafts.length === 0) break;
     for (const draft of drafts) {
       if (activeCount >= ACTIVE_SET_CAP) break;
       const code = nextAngleCode(incumbents.map((row) => row.code));
@@ -274,7 +299,7 @@ export async function runAngleGenerate<
         admission,
       });
       incumbents = [...incumbents, { ...saved, admission, territoryId: gate.parent.id }];
-      activeCount += 1;
+      if (admission !== "GENERATE_REJECT") activeCount += 1;
     }
     if (countAdmittedAngles(incumbents) >= TARGET_GENERATE_VALID) break;
   }
@@ -292,6 +317,7 @@ export async function proposeAngleStatements(input: {
   parentStatement: string;
   ancestors?: AncestorStake[];
   incumbents: Array<{ code: string; statement: string }>;
+  lessons?: Array<{ code: string; statement: string; reason: string }>;
   needed: number;
   ask: (prompt: string) => Promise<string | null>;
 }): Promise<AngleDraft[]> {
@@ -300,6 +326,7 @@ export async function proposeAngleStatements(input: {
       parentStatement: input.parentStatement,
       ancestors: input.ancestors,
       incumbents: input.incumbents,
+      lessons: input.lessons,
       needed: input.needed,
     }),
   );

@@ -4,6 +4,12 @@ import type { ExecutionRelation, PillarRecommendation } from "@/thinking-lab/exe
 
 const PILLAR_RECOMMEND = new Set<ExecutionRelation>(["MECHANISM_HIDDEN", "PILLAR_OUTSIDE", "PILLAR_NOT_SELLING"]);
 
+export const PILLAR_CHOICE_LIMIT = 3;
+
+export function limitPillarChoices<T>(choices: readonly T[]): T[] {
+  return choices.slice(0, PILLAR_CHOICE_LIMIT);
+}
+
 export type RecommendablePillar = {
   name: string;
   funnel?: string | null;
@@ -50,6 +56,49 @@ export function parsePillarRecommendation(
   const match = pillars.find((pillar) => pillar.trim().toLowerCase() === named.toLowerCase());
   if (!match || match.trim().toLowerCase() === failed) return null;
   return { pillarName: match.trim(), reason };
+}
+
+export function buildPillarFitChoicePrompt(input: {
+  masterStatement: string;
+  ideaStatement: string;
+  failedPillar: string;
+  explanation?: string | null;
+  ancestors?: AncestorStake[];
+  pillar: RecommendablePillar;
+}): string {
+  const detail = [input.pillar.funnel, input.pillar.category, clip(input.pillar.description, 240)].filter(Boolean).join(" — ");
+  return [
+    "Decide whether this pillar format can carry the Idea.",
+    "Judge the format. A sentence in a script can be rewritten, so do not fail the format because a script added a solution.",
+    "pass is true when this format can show the Idea without forcing a message the Idea does not contain.",
+    "pass is false when the format itself cannot carry the Idea unless it adds a message the Idea does not contain.",
+    "When pass is false, reason says why in the same language as the Idea.",
+    "When pass is true, reason says in one sentence why this format fits.",
+    'Return JSON only: {"pass":true,"reason":""} or {"pass":false,"reason":"..."}',
+    "",
+    `Pillar: ${input.pillar.name.trim()}`,
+    ...(detail ? [`Detail: ${detail}`] : []),
+    "",
+    "Failed pillar:",
+    input.failedPillar.trim(),
+    ...(input.explanation?.trim() ? ["", "Why the failed pillar could not carry the Idea:", input.explanation.trim()] : []),
+    "",
+    "Master Thought:",
+    input.masterStatement.trim(),
+    ...ancestorStakeBlock(input.ancestors),
+    "",
+    "Idea:",
+    input.ideaStatement.trim(),
+  ].join("\n");
+}
+
+export function parsePillarFitChoice(raw: unknown, pillarName: string): { pillarName: string; reason: string } | null {
+  const row = asRecord(raw);
+  if (!row || row.pass !== true) return null;
+  const reason = clip(asText(row.reason), 500);
+  const name = pillarName.trim();
+  if (!name || !reason) return null;
+  return { pillarName: name, reason };
 }
 
 export function buildPillarRecommendationPrompt(input: {

@@ -53,6 +53,7 @@ interface SaveToPlanModalProps {
   onSuccess?: () => void;
   lockedTitle?: string;
   lockedPillarId?: string | null;
+  lockedContentTypeName?: string | null;
   hideConcept?: boolean;
   preserveTableColumns?: boolean;
   syncPlanIdentity?: boolean;
@@ -75,6 +76,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
   onSuccess,
   lockedTitle,
   lockedPillarId,
+  lockedContentTypeName = null,
   hideConcept = false,
   preserveTableColumns = false,
   syncPlanIdentity = false,
@@ -171,7 +173,11 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
         contentPillars.map((cp: { name: string }) => cp.name)
       );
       // Prefer form data from Script Generator; fallback to parsed metadata from script
-      const contentTypeId = formDataForPlan?.content_type_id
+      const lockedType = lockedContentTypeName
+        ? contentTypes.find((ct: { name: string }) => ct.name.toLowerCase() === lockedContentTypeName.toLowerCase())
+        : null;
+      const contentTypeId = lockedType?.id
+        || formDataForPlan?.content_type_id
         || (contentTypeName ? contentTypes.find((ct: { name: string }) => ct.name.toLowerCase() === contentTypeName.toLowerCase())?.id : '')
         || '';
       const serviceId = formDataForPlan?.service_id || '';
@@ -189,7 +195,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
         content_pillar_id: contentPillarId,
       });
     }
-  }, [isOpen, script, formDataForPlan, contentTypes, contentPillars, (currentEmployee as unknown as Employee | null)?.id, lockedTitle, lockedPillarId, hideConcept]);
+  }, [isOpen, script, formDataForPlan, contentTypes, contentPillars, (currentEmployee as unknown as Employee | null)?.id, lockedTitle, lockedPillarId, lockedContentTypeName, hideConcept]);
 
   useEffect(() => {
     if (isOpen && planMode === 'new' && organizationId) {
@@ -205,7 +211,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
 
   // Content type auto-fill from AI script (only when content_type_id is empty)
   useEffect(() => {
-    if (!isOpen || planMode !== 'new' || contentTypes.length === 0 || !script?.trim()) return;
+    if (!isOpen || planMode !== 'new' || contentTypes.length === 0 || !script?.trim() || lockedContentTypeName) return;
     const { contentTypeName } = parseAIScriptMetadata(
       script,
       contentTypes.map((ct: { name: string }) => ct.name),
@@ -216,7 +222,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
     if (matched) {
       setNewPlanForm((prev) => (prev.content_type_id ? prev : { ...prev, content_type_id: matched.id }));
     }
-  }, [isOpen, planMode, contentTypes, contentPillars, script]);
+  }, [isOpen, planMode, contentTypes, contentPillars, script, lockedContentTypeName]);
 
   // Content pillar auto-fill from AI script (only when content_pillar_id is empty)
   useEffect(() => {
@@ -273,6 +279,14 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
     e.preventDefault();
     if (!saveBrief && !saveCaption && !saveConcept) return;
 
+    if (lockedContentTypeName) {
+      const match = contentTypes.find((ct: { name: string }) => ct.name.toLowerCase() === lockedContentTypeName.toLowerCase());
+      if (!match) {
+        toast.error(t("thinkingLab.execution.missingContentType", "Add a content type named {{name}} before saving this image.", { name: lockedContentTypeName }));
+        return;
+      }
+    }
+
     if (planMode === 'existing') {
       if (!selectedPlan) return;
       const success = await saveToPlan({
@@ -284,7 +298,13 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
         saveConcept,
         preserveTableColumns,
         identity: syncPlanIdentity
-          ? { title: lockedTitle ?? '', contentPillarId: lockedPillarId ?? null }
+          ? {
+              title: lockedTitle ?? '',
+              contentPillarId: lockedPillarId ?? null,
+              contentTypeId: lockedContentTypeName
+                ? contentTypes.find((ct: { name: string }) => ct.name.toLowerCase() === lockedContentTypeName.toLowerCase())?.id ?? null
+                : null,
+            }
           : undefined,
       });
       if (success) {
@@ -596,10 +616,12 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                             placeholder: t('scriptGenerator.saveToPlanModal.contentType', 'Content Type'),
                             options: contentTypes.map((ct) => ({ value: ct.id, label: ct.name })),
                             onSelect: (v) => setNewPlanForm((p) => ({ ...p, content_type_id: v })),
+                            disabled: Boolean(lockedContentTypeName),
                             desktop: (
                               <Select
                                 value={newPlanForm.content_type_id || undefined}
                                 onValueChange={(v) => setNewPlanForm((p) => ({ ...p, content_type_id: v }))}
+                                disabled={Boolean(lockedContentTypeName)}
                               >
                                 <SelectTrigger><SelectValue placeholder={t('scriptGenerator.saveToPlanModal.contentType', 'Content Type')} /></SelectTrigger>
                                 <SelectContent className="z-[1000000]">

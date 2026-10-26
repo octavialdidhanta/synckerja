@@ -1,4 +1,6 @@
+import { IDEA_GENERATE_PASS_IDS, readIdeaGeneratePasses } from "@/thinking-lab/idea/generatePasses";
 import { announcedConclusionReason, ideaAnnouncesConclusion } from "@/thinking-lab/idea/semantic";
+import type { IdeaGeneratePass } from "@/thinking-lab/idea/types";
 import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
 import type { IdeaMechanismKey } from "@/thinking-lab/idea/types";
 import { parseModelJson } from "@/thinking-lab/shared/ai";
@@ -41,6 +43,54 @@ const MISSING_KEYS = "The keys that close other explanations did not come back."
 
 export function emptyIdeaPassChecklist(): IdeaPassCheck[] {
   return IDEA_PASS_CHECK_IDS.map((id) => ({ id, state: "pending" }));
+}
+
+/** Checklist shown while Generate is judging a sentence. Later Audit checks stay off this list. */
+export function ideaAdmissionChecks(
+  failed?: { id: IdeaGeneratePass; reason: string } | null,
+): IdeaPassCheck[] {
+  return IDEA_GENERATE_PASS_IDS.map((id) => {
+    if (!failed) return { id, state: "pending" };
+    const index = IDEA_GENERATE_PASS_IDS.indexOf(id);
+    const failIndex = IDEA_GENERATE_PASS_IDS.indexOf(failed.id);
+    if (index < failIndex) return { id, state: "pass" };
+    if (id === failed.id) return { id, state: "fail", reason: failed.reason };
+    return { id, state: "pending" };
+  });
+}
+
+/** A new sentence loses the two Generate passes. Checks that passed on this sentence stay. */
+export function fixPriorForNextIdeaStatement(
+  prior: readonly IdeaPassCheck[],
+  previousStatement: string,
+  nextStatement: string,
+): IdeaPassCheck[] {
+  const changed = previousStatement.trim().toLocaleLowerCase() !== nextStatement.trim().toLocaleLowerCase();
+  return prior.map((item) =>
+    changed && (item.id === "sentenceForm" || item.id === "mechanismShape")
+      ? { id: item.id, state: "pending" }
+      : { ...item },
+  );
+}
+
+/** The checklist a card shows after refresh, before a live run replaces it. */
+export function ideaChecksFromStored(input: {
+  generatePasses?: unknown;
+  gateFailure?: { gate: IdeaPassCheckId; reason: string } | null;
+  passed?: boolean;
+}): IdeaPassCheck[] {
+  if (input.passed) return IDEA_PASS_CHECK_IDS.map((id) => ({ id, state: "pass" }));
+  const carried = new Set(readIdeaGeneratePasses(input.generatePasses));
+  const failure = input.gateFailure ?? null;
+  const failIndex = failure ? IDEA_PASS_CHECK_IDS.indexOf(failure.gate) : -1;
+  if (!failure && carried.size === 0) return [];
+  return IDEA_PASS_CHECK_IDS.map((id, index) => {
+    if (failure && id === failure.gate) return { id, state: "fail", reason: failure.reason };
+    if (carried.has(id as IdeaGeneratePass)) return { id, state: "pass" };
+    if (failure && index > failIndex) return { id, state: "pending" };
+    if (failure && index < failIndex) return { id, state: "pass" };
+    return { id, state: "pending" };
+  });
 }
 
 export function individualIdeaPassChecksCleared(checks: readonly IdeaPassCheck[]): boolean {
@@ -105,10 +155,9 @@ export function buildIdeaPassPrompt(input: {
                 ]
               : input.id === "situationFelt"
                 ? [
-                    "pass is true only when the situation is where the reason happens.",
-                    "The sentence may say what the mechanism makes true. That result keeps the mechanism understandable.",
-                    "pass is false when the sentence explains the Big Thought in words, or announces the conclusion with shows that, proves that, highlights that, menunjukkan bahwa, membuktikan bahwa, or menyoroti bahwa.",
-                    "A sentence that names the mechanism and what becomes true, without those announcement words, still passes.",
+                    "pass is true when a comparison, a contrast, an experiment, a demonstration, or a situation names the mechanism and what the mechanism makes true, so the reason happens there.",
+                    "pass is false when the sentence explains the Big Thought in words instead of naming what the mechanism makes true.",
+                    "pass is false when the sentence announces the conclusion with shows that, proves that, highlights that, menunjukkan bahwa, membuktikan bahwa, or menyoroti bahwa, even if it also names what the mechanism makes true.",
                   ]
                 : [
                     "pass is true only when the separate keys name each other explanation a viewer might reach and how this Idea closes it, so the named Master Thought subject is the only plausible cause.",
@@ -165,20 +214,63 @@ export function finishIdeaSiblingCheck(
   );
 }
 
+export async function runIdeaAdmissionChecks(input: {
+  statement: string;
+  parentStatement: string;
+  ancestors?: AncestorStake[];
+  ask: (prompt: string) => Promise<string | null>;
+  onStep: (checks: IdeaPassCheck[]) => void;
+}): Promise<{ checks: IdeaPassCheck[]; passed: boolean }> {
+  const checks = ideaAdmissionChecks();
+  const publish = () => input.onStep(checks.map((check) => ({ ...check })));
+  publish();
+  for (const id of IDEA_GENERATE_PASS_IDS) {
+    const index = checks.findIndex((check) => check.id === id);
+    checks[index] = { id, state: "running" };
+    publish();
+    const prompt = buildIdeaPassPrompt({
+      id,
+      statement: input.statement,
+      parentStatement: input.parentStatement,
+      ancestors: input.ancestors,
+    });
+    let script = await input.ask(prompt);
+    let parsed = parseIdeaPassCheck(script);
+    if (!parsed.pass && parsed.reason === UNDECIDED) {
+      script = await input.ask(prompt);
+      parsed = parseIdeaPassCheck(script);
+    }
+    if (!parsed.pass) {
+      checks[index] = { id, state: "fail", reason: parsed.reason };
+      publish();
+      return { checks: checks.map((check) => ({ ...check })), passed: false };
+    }
+    checks[index] = { id, state: "pass" };
+    publish();
+  }
+  return { checks: checks.map((check) => ({ ...check })), passed: true };
+}
+
 export async function runIdeaIndividualChecks(input: {
   statement: string;
   parentStatement: string;
   ancestors?: AncestorStake[];
   masterSubject?: string;
   mechanismKeys?: IdeaMechanismKey[];
+  /** Both Generate passes for this exact sentence. Audit does not ask these again. */
+  carried?: readonly IdeaGeneratePass[];
   ask: (prompt: string) => Promise<string | null>;
   onStep: (checks: IdeaPassCheck[]) => void;
 }): Promise<{ checks: IdeaPassCheck[]; passed: boolean }> {
-  const checks = emptyIdeaPassChecklist();
+  const carried = new Set(readIdeaGeneratePasses(input.carried));
+  const checks = emptyIdeaPassChecklist().map((check) =>
+    carried.has(check.id as IdeaGeneratePass) ? { id: check.id, state: "pass" as const } : check,
+  );
   const publish = () => input.onStep(checks.map((check) => ({ ...check })));
   publish();
   for (const id of INDIVIDUAL_PASS_CHECK_IDS) {
     const index = checks.findIndex((check) => check.id === id);
+    if (checks[index]?.state === "pass") continue;
     checks[index] = { id, state: "running" };
     publish();
     if (id === "situationFelt") {
@@ -233,7 +325,7 @@ export async function runIdeaOpenChecks(input: {
   ask: (prompt: string) => Promise<string | null>;
   onStep: (checks: IdeaPassCheck[]) => void;
 }): Promise<{ checks: IdeaPassCheck[]; passed: boolean }> {
-  const checks = emptyIdeaPassChecklist().map((check) => {
+  const checks: IdeaPassCheck[] = emptyIdeaPassChecklist().map((check) => {
     const previous = input.prior.find((item) => item.id === check.id);
     return previous?.state === "pass" ? { id: check.id, state: "pass" as const } : { id: check.id, state: "pending" as const };
   });

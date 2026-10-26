@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, MoreVertical, Pencil, Sparkles, Trash2, Wrench } from "lucide-react";
+import { Check, Circle, Loader2, MoreVertical, Pencil, Sparkles, Trash2, Wrench, X } from "lucide-react";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -10,22 +10,12 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { becauseSentence } from "@/thinking-lab/big-thought/because";
+import { bigThoughtListed, checklistFromFailure, confirmedPassChecklist, PASS_GATE_IDS, type PassChecklist, type PassGateId, type PassGateState } from "@/thinking-lab/big-thought/checklist";
+import { GENERATE_ADMISSION_GATES } from "@/thinking-lab/big-thought/passChecks";
 import { bigThoughtHeading } from "@/thinking-lab/big-thought/label";
 import { EditableStatement } from "@/thinking-lab/section/ManualStatementForm";
-import type { FixModelResponse } from "@/thinking-lab/big-thought/fix";
-import type { BigThoughtFacts } from "@/thinking-lab/big-thought/types";
+import type { BigThoughtFacts, GateFailure } from "@/thinking-lab/big-thought/types";
 import type { AuditVerdict, IndividualAdmission, TriState } from "@/thinking-lab/shared/verdict";
-
-function groupFixResponses(responses: FixModelResponse[]): Array<{ code: string; steps: FixModelResponse[] }> {
-  const groups: Array<{ code: string; steps: FixModelResponse[] }> = [];
-  for (const response of responses) {
-    const code = response.code?.trim() || "—";
-    const current = groups[groups.length - 1];
-    if (current?.code === code) current.steps.push(response);
-    else groups.push({ code, steps: [response] });
-  }
-  return groups;
-}
 
 export type BigThoughtRowView = {
   id: string;
@@ -40,6 +30,9 @@ export type BigThoughtRowView = {
   siblingPairs: Array<{ a: string; b: string; explanation?: string }> | null;
   reasonContribution: string | null;
   siblingUnresolvedReasons: string[] | null;
+  gateFailure?: GateFailure | null;
+  auditGatesChecked?: boolean;
+  auditGateFailure?: GateFailure | null;
   canGenerateTerritory?: boolean;
   territories?: Array<{
     id: string;
@@ -68,24 +61,6 @@ function storedPairs(
 ): string {
   if (pairs == null) return notStored;
   return pairs.length === 0 ? none : pairs.map((pair) => `${pair.a} / ${pair.b}`).join(", ");
-}
-
-function FixProgress({ steps }: { steps: FixModelResponse[] | undefined }) {
-  const { t } = useAppTranslation();
-  if (!steps || steps.length === 0) return null;
-  return (
-    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-      {steps.map((step, index) => (
-        <span key={`${step.kind}-${index}`}>
-          {index > 0 ? <span className="px-1.5 text-border">·</span> : null}
-          {t(`thinkingLab.fix.${step.kind}`, step.kind)}{" "}
-          <span className={step.valid ? "text-emerald-700" : "text-destructive"}>
-            {step.valid ? t("thinkingLab.fix.valid", "Valid") : t("thinkingLab.fix.notValid", "Not valid")}
-          </span>
-        </span>
-      ))}
-    </p>
-  );
 }
 
 function AuditDetails({ row }: { row: BigThoughtRowView }) {
@@ -166,6 +141,81 @@ function AuditDetails({ row }: { row: BigThoughtRowView }) {
   );
 }
 
+function passLabel(id: PassGateId, t: (key: string, fallback?: string) => string): string {
+  const labels: Record<PassGateId, [string, string]> = {
+    resolved: ["thinkingLab.bt.pass.resolved", "The judgment is finished."],
+    relation: ["thinkingLab.bt.pass.relation", "Not a restatement, elaboration, outcome, or method."],
+    role: ["thinkingLab.bt.pass.role", "Role is premise, reason, or evidence."],
+    explains: ["thinkingLab.bt.pass.explains", "Explains why the Master Thought is true."],
+    premise: ["thinkingLab.bt.pass.premise", "The premise is supported."],
+    duplicate: ["thinkingLab.bt.pass.duplicate", "Not a duplicate of a Big Thought that already passed."],
+    sibling: ["thinkingLab.bt.pass.sibling", "Distinct from the other Big Thoughts."],
+  };
+  const [key, fallback] = labels[id];
+  return t(key, fallback);
+}
+
+function PassChecklistCard({
+  checklist,
+  reveal,
+  gates = PASS_GATE_IDS,
+}: {
+  checklist: PassChecklist;
+  reveal: boolean;
+  gates?: readonly PassGateId[];
+}) {
+  const { t } = useAppTranslation();
+  const report = checklist.report;
+  const reportLabel = report ? passLabel(report.gate, t) : "";
+  const reportText = !reveal
+    ? null
+    : report?.phase === "checking"
+      ? t("thinkingLab.bt.pass.checking", "Checking this requirement: {{gate}}", { gate: reportLabel })
+      : report?.phase === "checked"
+        ? report.outcome === "fail"
+          ? t("thinkingLab.bt.pass.checkedFail", "Checked: {{gate}} It did not pass.", { gate: reportLabel })
+          : t("thinkingLab.bt.pass.checkedPass", "Checked: {{gate}} It passed.", { gate: reportLabel })
+        : t("thinkingLab.bt.pass.notYet", "No requirement has been checked yet.");
+  return (
+    <div className="space-y-2">
+      {reportText ? <p className="text-sm text-foreground">{reportText}</p> : null}
+      <ul className="space-y-1" aria-label={t("thinkingLab.bt.pass.list", "Pass checklist")}>
+        {gates.map((id) => {
+          const item = checklist.items.find((entry) => entry.id === id);
+          const state: PassGateState = item?.state ?? "pending";
+          const mark =
+            state === "pass" ? (
+              <Check className="h-3.5 w-3.5 text-foreground" aria-hidden />
+            ) : state === "fail" ? (
+              <X className="h-3.5 w-3.5 text-destructive" aria-hidden />
+            ) : state === "checking" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground" aria-hidden />
+            ) : (
+              <Circle className={`h-3.5 w-3.5 ${state === "unchecked" ? "text-muted-foreground/40" : "text-muted-foreground"}`} aria-hidden />
+            );
+          return (
+            <li key={id} className="flex items-start gap-2 text-sm">
+              <span className="mt-0.5">{mark}</span>
+              <span className={state === "unchecked" || state === "pending" ? "text-muted-foreground/70" : "text-foreground"}>
+                {passLabel(id, t)}
+                <span className="sr-only">
+                  {state === "pass"
+                    ? t("thinkingLab.bt.pass.passed", "Passed")
+                    : state === "fail"
+                      ? t("thinkingLab.bt.pass.failed", "Failed")
+                      : state === "checking"
+                        ? t("thinkingLab.bt.pass.checkingNow", "Checking")
+                        : t("thinkingLab.bt.pass.pending", "Not checked yet")}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function FactLine({ label, value }: { label: string; value: string }) {
   return (
     <p className="text-sm">
@@ -179,6 +229,7 @@ export type AuditProgress = {
   done: number;
   total: number;
   current: { code: string; statement: string } | null;
+  checklist?: PassChecklist | null;
 };
 
 type BigThoughtSectionProps = {
@@ -187,16 +238,15 @@ type BigThoughtSectionProps = {
   missingWhy: { description: string; boundary: string } | null;
   notice: string | null;
   auditProgress: AuditProgress | null;
-  fixResponses: FixModelResponse[];
-  fixOffers?: Array<{ failedCode: string; statement: string }>;
-  onPickFixOffer?: (failedCode: string, statement: string) => void;
   generateBusy?: boolean;
   generating?: boolean;
+  generateChecklist?: PassChecklist | null;
   onGenerateTerritory?: (bigThoughtId: string) => void;
   onEditBigThought?: (id: string, statement: string) => Promise<string | null>;
   onDeleteBigThought?: (bigThoughtId: string) => void;
   onFixBigThought?: (code: string) => void;
-  fixingCodes?: readonly string[];
+  checklists?: Record<string, PassChecklist>;
+  fixingCodes?: string[];
 };
 
 export function BigThoughtSection({
@@ -205,25 +255,27 @@ export function BigThoughtSection({
   missingWhy,
   notice,
   auditProgress,
-  fixResponses,
-  fixOffers = [],
-  onPickFixOffer,
   generateBusy = false,
   generating = false,
+  generateChecklist = null,
   onGenerateTerritory,
   onEditBigThought,
   onDeleteBigThought,
   onFixBigThought,
-  fixingCodes,
+  checklists,
+  fixingCodes = [],
 }: BigThoughtSectionProps) {
   const { t } = useAppTranslation();
-  const showProgress = Boolean(auditProgress && (auditProgress.done > 0 || auditProgress.current));
+  const showProgress = Boolean(
+    auditProgress && (auditProgress.done > 0 || auditProgress.current || auditProgress.checklist),
+  );
   const [editToken, setEditToken] = useState<Record<string, number>>({});
+  const shownRows = rows.filter((row) => bigThoughtListed(row));
 
   return (
     <div className="space-y-3">
       {showProgress && auditProgress ? (
-        <div className="space-y-1 text-sm">
+        <div className="space-y-2 text-sm" role="status" aria-live="polite">
           {auditProgress.done > 0 ? (
             <p className="text-foreground">
               {auditProgress.done}/{auditProgress.total}
@@ -238,6 +290,7 @@ export function BigThoughtSection({
               </span>
             </p>
           ) : null}
+          {auditProgress.checklist ? <PassChecklistCard checklist={auditProgress.checklist} reveal /> : null}
         </div>
       ) : null}
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
@@ -255,22 +308,30 @@ export function BigThoughtSection({
         </div>
       ) : null}
       {generating ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status" aria-live="polite">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          <span>{t("thinkingLab.bt.generating", "Generating Big Thoughts…")}</span>
+        <div className="space-y-2" role="status" aria-live="polite">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            <span>{t("thinkingLab.bt.generating", "Generating Big Thoughts…")}</span>
+          </div>
+          {generateChecklist ? (
+            <PassChecklistCard checklist={generateChecklist} reveal gates={GENERATE_ADMISSION_GATES} />
+          ) : null}
         </div>
       ) : null}
-      {rows.length === 0 ? (
+      {shownRows.length === 0 ? (
         generating ? null : (
           <p className="text-sm text-muted-foreground">{t("thinkingLab.bt.empty", "No Big Thoughts yet.")}</p>
         )
       ) : (
         <ul className="space-y-2">
-          {rows.map((row) => {
+          {shownRows.map((row) => {
             const canEdit = row.status === "candidate" && Boolean(onEditBigThought);
             const canDelete = Boolean(onDeleteBigThought);
-            const canFix = row.audit === "AUDIT_FAIL" && Boolean(onFixBigThought);
-            const fixing = (fixingCodes ?? []).some((code) => code.toUpperCase() === row.code.toUpperCase());
+            const liveChecklist = checklists?.[row.code.toUpperCase()];
+            const needsFix =
+              Boolean(onFixBigThought) &&
+              (row.audit === "AUDIT_FAIL" || (liveChecklist?.items ?? []).some((item) => item.state === "fail"));
+            const fixing = fixingCodes.some((code) => code.toUpperCase() === row.code.toUpperCase());
             return (
             <li key={row.id} className="rounded-md border border-border p-3">
               <div className="flex items-start justify-between gap-2">
@@ -294,8 +355,41 @@ export function BigThoughtSection({
                     pending={generateBusy}
                     onSave={(statement) => onEditBigThought?.(row.id, statement) ?? Promise.resolve(null)}
                   />
+                  {liveChecklist ? (
+                    <div className="mt-2">
+                      <PassChecklistCard checklist={liveChecklist} reveal />
+                    </div>
+                  ) : row.auditGatesChecked || (row.facts?.passConfirmed && !row.auditGateFailure && !row.gateFailure) ? (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-sm text-foreground">
+                        {t("thinkingLab.bt.pass.allChecked", "Every pass requirement was checked.")}
+                      </p>
+                      <PassChecklistCard checklist={confirmedPassChecklist()} reveal={false} />
+                    </div>
+                  ) : row.auditGateFailure ? (
+                    <div className="mt-2">
+                      <PassChecklistCard checklist={checklistFromFailure(row.auditGateFailure)} reveal={false} />
+                    </div>
+                  ) : row.gateFailure ? (
+                    <div className="mt-2">
+                      <PassChecklistCard checklist={checklistFromFailure(row.gateFailure)} reveal={false} />
+                    </div>
+                  ) : null}
+                  {needsFix ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 h-8 gap-2"
+                      disabled={generateBusy || fixingCodes.length > 0}
+                      onClick={() => onFixBigThought?.(row.code)}
+                    >
+                      {fixing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Wrench className="h-3.5 w-3.5" aria-hidden />}
+                      {t("thinkingLab.action.fix", "Fix")}
+                    </Button>
+                  ) : null}
                 </div>
-                {canEdit || canDelete || canFix ? (
+                {canEdit || canDelete || needsFix ? (
                   <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -303,23 +397,18 @@ export function BigThoughtSection({
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7 shrink-0"
-                        disabled={generateBusy}
-                        aria-busy={fixing ? true : undefined}
+                        disabled={generateBusy || fixing}
+                        aria-busy={fixing || undefined}
                         aria-label={t("thinkingLab.action.more", "More actions")}
                       >
-                        {fixing ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                        ) : (
-                          <MoreVertical className="h-3.5 w-3.5" />
-                        )}
+                        {fixing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <MoreVertical className="h-3.5 w-3.5" />}
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-[9rem]">
-                      {canFix ? (
+                      {needsFix ? (
                         <DropdownMenuItem
                           className="cursor-pointer gap-2"
-                          disabled={generateBusy || fixing}
-                          aria-busy={fixing}
+                          disabled={generateBusy || fixingCodes.length > 0}
                           onSelect={() => onFixBigThought?.(row.code)}
                         >
                           <Wrench className="h-3.5 w-3.5" />
@@ -397,25 +486,6 @@ export function BigThoughtSection({
                   </ul>
                 </div>
               ) : null}
-              <FixProgress steps={groupFixResponses(fixResponses).find((group) => group.code.toUpperCase() === row.code.toUpperCase())?.steps} />
-              {onPickFixOffer
-                ? fixOffers
-                    .filter((offer) => offer.failedCode.toUpperCase() === row.code.toUpperCase())
-                    .map((offer) => (
-                      <div key={offer.statement} className="mt-2 rounded-md border border-border p-2">
-                        <p className="text-sm text-foreground">{offer.statement}</p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="mt-2"
-                          disabled={generateBusy}
-                          onClick={() => onPickFixOffer(row.code, offer.statement)}
-                        >
-                          {t("thinkingLab.fix.pick", "Use this repair")}
-                        </Button>
-                      </div>
-                    ))
-                : null}
               <AuditDetails row={row} />
             </li>
             );

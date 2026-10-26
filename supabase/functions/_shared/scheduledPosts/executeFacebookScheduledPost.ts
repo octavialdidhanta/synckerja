@@ -3,12 +3,19 @@ import { resolveMetaContentAccount } from "../metaContentAuth.ts";
 import { facebookPublishScopesOk } from "../metaPlatformScopes.ts";
 import {
   buildFacebookReelFallbackUrl,
+  classifyFacebookReelStatus,
   fetchFacebookReelPermalink,
+  fetchFacebookReelStatus,
   finishFacebookReelsPublish,
   startFacebookReelsUploadSession,
+  uploadFacebookReelsFromUrl,
   uploadFacebookReelsVideo,
+  waitForFacebookReelUpload,
+  type FacebookReelProgress,
 } from "../metaContent/metaFacebookReelsPublishApi.ts";
 import { downloadGoogleDriveVideo } from "./googleDriveVideoDownload.ts";
+import { resolveGoogleDrivePublicVideoUrl } from "./googleDrivePublicVideoUrl.ts";
+import { touchPublishingHeartbeat } from "./publishingHeartbeat.ts";
 import {
   isPlanEligibleForFacebookAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
@@ -57,9 +64,10 @@ async function persistFacebookProviderConfig(
   patch: Partial<FacebookProviderConfig>,
 ): Promise<Record<string, unknown>> {
   const next = { ...base, ...patch };
+  const now = new Date().toISOString();
   await admin
     .from("social_media_scheduled_posts")
-    .update({ provider_config: next, updated_at: new Date().toISOString() })
+    .update({ provider_config: next, locked_at: now, updated_at: now })
     .eq("id", scheduleId);
   return next;
 }
@@ -139,26 +147,17 @@ export async function executeFacebookScheduledPost(
 
   let providerConfig = { ...(schedule.provider_config as Record<string, unknown>) };
   const caption = schedule.caption?.trim() || schedule.title?.trim() || "";
+  const accountLabel = String(cfg.account_label ?? account.accountLabel ?? "Facebook");
 
-  let videoId = String(cfg.fb_video_id ?? "").trim();
-  let uploadUrl = String(cfg.fb_upload_url ?? "").trim();
-  const uploadPhase = String(cfg.fb_upload_phase ?? "").trim();
-
-  if (videoId && uploadPhase === "uploaded") {
-    const finished = await finishFacebookReelsPublish(pageId, account.pageAccessToken, {
-      videoId,
-      description: caption,
-    });
-    videoId = finished.videoId;
-    const permalink = await fetchFacebookReelPermalink(videoId, account.pageAccessToken);
-    const publishedUrl = permalink ?? buildFacebookReelFallbackUrl(pageId, videoId);
-    const externalPostId = finished.postId ?? videoId;
-    const accountLabel = String(cfg.account_label ?? account.accountLabel ?? "Facebook");
-
+  const finalize = async (finalVideoId: string, postId: string | null) => {
+    const permalink = await fetchFacebookReelPermalink(finalVideoId, account.pageAccessToken);
+    const publishedUrl = permalink ?? buildFacebookReelFallbackUrl(pageId, finalVideoId);
+    const externalPostId = postId ?? finalVideoId;
     await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
-      fb_published_video_id: videoId,
+      fb_upload_phase: "published",
+      fb_published_video_id: finalVideoId,
+      publish_step: "processing",
     });
-
     await upsertFacebookLink(admin, plan, {
       url: publishedUrl,
       accountId: pageId,
@@ -166,52 +165,118 @@ export async function executeFacebookScheduledPost(
       externalPostId,
       employeeId: cfg.employee_id,
     });
-
     return { published_url: publishedUrl, external_post_id: externalPostId };
+  };
+
+  let videoId = String(cfg.fb_video_id ?? "").trim();
+  let uploadUrl = String(cfg.fb_upload_url ?? "").trim();
+  let sessionCreatedNow = false;
+  let progress: FacebookReelProgress = String(cfg.fb_upload_phase ?? "").trim() === "uploaded"
+    ? "upload_complete"
+    : "upload_needed";
+
+  if (videoId) {
+    try {
+      const remote = await fetchFacebookReelStatus(videoId, account.pageAccessToken);
+      progress = classifyFacebookReelStatus(remote);
+      console.info(
+        `facebook_status scheduleId=${schedule.id} videoId=${videoId} uploading=${remote.uploading} processing=${remote.processing} publishing=${remote.publishing} progress=${progress}`,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `facebook_status_unavailable scheduleId=${schedule.id} reason=${message.slice(0, 180)}`,
+      );
+    }
   }
 
-  if (!videoId || !uploadUrl) {
+  if (videoId && progress === "published") {
+    return finalize(videoId, null);
+  }
+
+  if (progress === "error" || !videoId || (progress === "upload_needed" && !uploadUrl)) {
     const session = await startFacebookReelsUploadSession(pageId, account.pageAccessToken);
     videoId = session.videoId;
     uploadUrl = session.uploadUrl;
+    progress = "upload_needed";
+    sessionCreatedNow = true;
     providerConfig = await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
       fb_video_id: videoId,
       fb_upload_url: uploadUrl,
       fb_upload_phase: "started",
+      publish_step: "uploading",
     });
   }
 
-  if (uploadPhase !== "uploaded") {
-    const driveUrl = plan.google_drive_link?.trim() ?? schedule.media_url_snapshot;
-    const { bytes: videoBytes } = await resolveVideoBytesForUpload(driveUrl, sharedCtx);
-    await uploadFacebookReelsVideo(uploadUrl, account.pageAccessToken, videoBytes);
+  if (progress === "upload_needed") {
+    const driveUrl = plan.google_drive_link?.trim() || schedule.media_url_snapshot || "";
+    const publicUrl = resolveGoogleDrivePublicVideoUrl(driveUrl);
+    const heartbeat = () => touchPublishingHeartbeat(admin, [schedule.id]);
+
+    if (publicUrl) {
+      // A session left on "started" already has a binary upload attached. file_url needs a clean session.
+      if (!sessionCreatedNow) {
+        const session = await startFacebookReelsUploadSession(pageId, account.pageAccessToken);
+        videoId = session.videoId;
+        uploadUrl = session.uploadUrl;
+        providerConfig = await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
+          fb_video_id: videoId,
+          fb_upload_url: uploadUrl,
+          fb_upload_phase: "started",
+          publish_step: "uploading",
+        });
+      }
+      try {
+        await uploadFacebookReelsFromUrl(uploadUrl, account.pageAccessToken, publicUrl);
+        providerConfig = await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
+          fb_upload_phase: "transfer",
+          publish_step: "processing",
+        });
+        const waited = await waitForFacebookReelUpload(videoId, account.pageAccessToken, {
+          onTick: heartbeat,
+        });
+        if (waited === "error") throw new Error("fb_file_url_processing_error");
+        if (waited === "published") return finalize(videoId, null);
+        progress = "upload_complete";
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `facebook_file_url_fallback scheduleId=${schedule.id} reason=${message.slice(0, 180)}`,
+        );
+        const session = await startFacebookReelsUploadSession(pageId, account.pageAccessToken);
+        videoId = session.videoId;
+        uploadUrl = session.uploadUrl;
+        providerConfig = await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
+          fb_video_id: videoId,
+          fb_upload_url: uploadUrl,
+          fb_upload_phase: "started",
+          publish_step: "uploading",
+        });
+        const { bytes: videoBytes } = await resolveVideoBytesForUpload(driveUrl, sharedCtx);
+        await uploadFacebookReelsVideo(uploadUrl, account.pageAccessToken, videoBytes);
+        progress = "upload_complete";
+      }
+    } else {
+      providerConfig = await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
+        publish_step: "uploading",
+      });
+      const { bytes: videoBytes } = await resolveVideoBytesForUpload(driveUrl, sharedCtx);
+      await uploadFacebookReelsVideo(uploadUrl, account.pageAccessToken, videoBytes);
+      progress = "upload_complete";
+    }
+
     providerConfig = await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
       fb_upload_phase: "uploaded",
+      publish_step: "processing",
     });
   }
 
+  providerConfig = await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
+    publish_step: "processing",
+  });
   const finished = await finishFacebookReelsPublish(pageId, account.pageAccessToken, {
     videoId,
     description: caption,
   });
-  videoId = finished.videoId;
-  const permalink = await fetchFacebookReelPermalink(videoId, account.pageAccessToken);
-  const publishedUrl = permalink ?? buildFacebookReelFallbackUrl(pageId, videoId);
-  const externalPostId = finished.postId ?? videoId;
-  const accountLabel = String(cfg.account_label ?? account.accountLabel ?? "Facebook");
-
-  await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
-    fb_upload_phase: "published",
-    fb_published_video_id: videoId,
-  });
-
-  await upsertFacebookLink(admin, plan, {
-    url: publishedUrl,
-    accountId: pageId,
-    accountLabel,
-    externalPostId,
-    employeeId: cfg.employee_id,
-  });
-
-  return { published_url: publishedUrl, external_post_id: externalPostId };
+  return finalize(finished.videoId, finished.postId);
 }

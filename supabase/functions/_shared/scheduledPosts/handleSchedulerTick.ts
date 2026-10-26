@@ -39,6 +39,22 @@ export type SchedulerTickResult = {
   monitoring: Awaited<ReturnType<typeof fetchScheduleMonitoringSummary>>;
 };
 
+function groupRowsByPlan(rows: ScheduledPostRow[]): ScheduledPostRow[][] {
+  const groups: ScheduledPostRow[][] = [];
+  const indexByPlan = new Map<string, number>();
+  for (const row of rows) {
+    const key = row.social_media_plan_id || row.id;
+    const existing = indexByPlan.get(key);
+    if (existing === undefined) {
+      indexByPlan.set(key, groups.length);
+      groups.push([row]);
+    } else {
+      groups[existing].push(row);
+    }
+  }
+  return groups;
+}
+
 function tallyResults(results: RunScheduledPostJobResult[]): {
   deferredRateLimited: number;
   publishedOk: number;
@@ -100,7 +116,20 @@ async function processClaimedRows(
   const instagramAfterPeers = rows.filter((row) => instagramPublishShouldFollowPeers(row));
   const withPeers = rows.filter((row) => !instagramPublishShouldFollowPeers(row));
 
-  const peerResults = await runWithConcurrency(withPeers, config.tick_concurrency, runRow);
+  // Same plan shares one video. Parallel byte uploads of that file stall or kill the isolate.
+  const peerGroups = groupRowsByPlan(withPeers);
+  const peerGroupResults = await runWithConcurrency(
+    peerGroups,
+    config.tick_concurrency,
+    async (group) => {
+      const groupResults: RunScheduledPostJobResult[] = [];
+      for (const row of group) {
+        groupResults.push(await runRow(row));
+      }
+      return groupResults;
+    },
+  );
+  const peerResults = peerGroupResults.flat();
   const instagramResults: RunScheduledPostJobResult[] = [];
 
   for (const row of instagramAfterPeers) {

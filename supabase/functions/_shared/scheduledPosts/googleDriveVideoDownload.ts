@@ -1,3 +1,4 @@
+import { DRIVE_DOWNLOAD_TIMEOUT_MS, isFetchAbortError } from "./fetchTimeout.ts";
 import { resolveGoogleDrivePublicVideoUrl } from "./googleDrivePublicVideoUrl.ts";
 import { resolveValidatedVideoMimeType } from "./validateDownloadedVideo.ts";
 
@@ -18,7 +19,21 @@ export async function downloadGoogleDriveVideo(
   const downloadUrl = resolveGoogleDrivePublicVideoUrl(driveShareUrl);
   if (!downloadUrl) throw new Error("invalid_google_drive_video_url");
 
-  const res = await fetch(downloadUrl, { redirect: "follow" });
+  const started = Date.now();
+  let res: Response;
+  try {
+    res = await fetch(downloadUrl, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(DRIVE_DOWNLOAD_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (isFetchAbortError(err)) {
+      throw new Error(
+        `drive_download_timeout: Google Drive download did not finish in ${DRIVE_DOWNLOAD_TIMEOUT_MS}ms`,
+      );
+    }
+    throw err;
+  }
   if (!res.ok) {
     throw new Error(`drive_download_failed: HTTP ${res.status}`);
   }
@@ -43,6 +58,9 @@ export async function downloadGoogleDriveVideo(
   }
 
   const mimeType = resolveValidatedVideoMimeType(bytes, res.headers.get("content-type"));
+  console.info(
+    `drive_download_ok bytes=${bytes.byteLength} ms=${Date.now() - started} mime=${mimeType}`,
+  );
 
   return { bytes, mimeType };
 }

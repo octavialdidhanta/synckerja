@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, ChevronRight, ClipboardCheck, Loader2, Lock, MoreVertical, Pencil, Sparkles, Trash2, Wrench, X } from "lucide-react";
+import { Check, ChevronRight, Circle, ClipboardCheck, Loader2, Lock, MoreVertical, Pencil, Sparkles, Trash2, Wrench, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
@@ -10,7 +10,9 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
+import { CreativePathPanel, type CreativePathView } from "@/thinking-lab/section/CreativePathPanel";
 import { EditableStatement, ManualStatementForm } from "@/thinking-lab/section/ManualStatementForm";
+import { ExecutionPassChecklist } from "@/thinking-lab/section/ExecutionScriptPanel";
 
 type InspectorAngle = {
   id: string;
@@ -74,20 +76,40 @@ type LabNodeInspectorProps = {
     statement: string;
     editable?: boolean;
     verdict?: string | null;
+    decision?: "LOLOS" | "DITOLAK" | "BELUM_TERVERIFIKASI";
+    listed?: boolean;
+    title?: string;
+    concept?: string;
+    mechanism?: string;
+    value?: string;
+    showChecklistPending?: boolean;
+    canRevise?: boolean;
     checklist?: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
     checklistNote?: string;
     mechanismKeys?: Array<{ otherExplanation: string; close: string }>;
   }>;
+  ideaHistory?: { passed: number; rejected: number; unverified: number; topFailed: string | null } | null;
+  ideaRevisionTarget?: { nonce: number; decision: "LOLOS" | "DITOLAK" | "BELUM_TERVERIFIKASI" } | null;
+  onReviseIdea?: (id: string) => void;
   ideaStage?: "fix" | "audit" | "lock" | null;
   onIdeaStage?: () => void;
   onLockIdeas?: () => void;
   onFixIdea?: (code: string) => void;
+  onDeleteIdea?: (id: string) => void;
   fixingIdeaCodes?: readonly string[];
   ideaNotes?: string[];
   ideaFixOffers?: Array<{ failedCode: string; statement: string }>;
   onPickIdeaFixOffer?: (failedCode: string, statement: string) => void;
+  ideaGenerateChecklist?: {
+    checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
+    report: { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" | "unverified" } | null;
+  } | null;
   angles?: InspectorAngle[];
   angleStage?: "fix" | "generate" | "audit" | "challenger" | "lock" | null;
+  angleGenerateChecklist?: {
+    checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
+    report: { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" } | null;
+  } | null;
   onAngleStage?: () => void;
   onLockAngles?: () => void;
   onFixAngle?: (code: string) => void;
@@ -105,6 +127,10 @@ type LabNodeInspectorProps = {
   fixingTerritoryCodes?: readonly string[];
   onLockTerritories?: () => void;
   onGenerateTerritory?: () => void;
+  territoryGenerateChecklist?: {
+    checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
+    report: { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" } | null;
+  } | null;
   onAcceptGap?: () => void;
   onSkipGap?: () => void;
   onRemoveCoveringTerritory?: (code: string) => void;
@@ -127,9 +153,9 @@ type LabNodeInspectorProps = {
   onEditAngle?: (id: string, statement: string) => Promise<string | null>;
   onEditIdea?: (id: string, statement: string) => Promise<string | null>;
   executionReady?: boolean;
-  executions?: Array<{ id: string; pillar: string; label: string; statement: string; admission: string }>;
-  onChoosePillar?: () => void;
-  executionProgress?: { phase: "write" | "audit" | "repair" | "recommend"; pillarName: string } | null;
+  creativePath?: CreativePathView | null;
+  executionProgress?: { phase: "write" | "audit" | "repair" | "line" | "recommend" | "switch"; pillarName: string; medium?: "image" } | null;
+  executionChecklist?: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }> | null;
   onStopExecution?: () => void;
 };
 
@@ -182,7 +208,7 @@ export function NodeDefinitionInfo({ kind }: { kind: keyof typeof NODE_DEFINITIO
   );
 }
 
-function VerdictChip({ verdict }: { verdict: string }) {
+function VerdictChip({ verdict, verbatim = false }: { verdict: string; verbatim?: boolean }) {
   const fail = verdict.includes("FAIL");
   const pass = verdict.includes("PASS");
   return (
@@ -194,7 +220,7 @@ function VerdictChip({ verdict }: { verdict: string }) {
         !pass && !fail && "bg-muted text-muted-foreground",
       )}
     >
-      {verdict.replace(/^AUDIT_/, "")}
+      {verbatim ? verdict : verdict.replace(/^AUDIT_/, "")}
     </span>
   );
 }
@@ -224,9 +250,16 @@ const IDEA_PASS_CHECK_LABELS: Record<string, string> = {
   mechanismShape: "A mechanism, not an observation, area name, reason, or finished form",
   vehicle: "A comparison, experiment, demonstration, or situation",
   recognizable: "The mechanism is recognizable and its boundary is clear",
-  situationFelt: "The situation makes the reason felt, not a verbal explanation",
+  situationFelt: "The reason is felt through the mechanism, not explained in words",
   causeLock: "The keys close the other explanations",
   siblingsDistinct: "Does not overlap a sibling Idea",
+  K1: "A specific how-if proposal",
+  K2: "A mechanism people already do in ordinary life",
+  K3: "The mechanism can produce the stated value",
+  K4: "A beneficiary, a need, and a benefit linked to the mechanism",
+  K5: "Meaningfully different from passed, rejected, and unverified ideas",
+  K6: "Shows the stored Master Thought, Big Thought, and Territory, and how each supports the idea",
+  K7: "Fits the stored audience and can be adopted in their current life",
 };
 
 function checkRowFailed(
@@ -243,6 +276,8 @@ function TerritoryPassChecklist({
   onFix,
   fixing = false,
   blocked = false,
+  showPending = false,
+  report = null,
 }: {
   checks?: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
   note?: string;
@@ -250,6 +285,8 @@ function TerritoryPassChecklist({
   onFix?: () => void;
   fixing?: boolean;
   blocked?: boolean;
+  showPending?: boolean;
+  report?: { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" | "unverified" } | null;
 }) {
   const { t } = useAppTranslation();
   const labels = labelPrefix.endsWith("idea.pass")
@@ -257,14 +294,28 @@ function TerritoryPassChecklist({
     : labelPrefix.endsWith("angle.pass")
       ? ANGLE_PASS_CHECK_LABELS
       : PASS_CHECK_LABELS;
-  const visible = (checks ?? []).filter((check) => check.state !== "pending");
+  const visible = (checks ?? []).filter(
+    (check) => showPending || check.state !== "pending" || Boolean(check.reason?.trim()),
+  );
   const visibleNote = note && /failed \d+ time\(s\)/.test(note) ? "" : note;
-  if (!visibleNote && visible.length === 0) return null;
+  const reportLabel = report ? t(`${labelPrefix}.${report.gate}`, labels[report.gate] ?? report.gate) : "";
+  const reportText = !report
+    ? t("thinkingLab.bt.pass.notYet", "No requirement has been checked yet.")
+    : report.phase === "checking"
+      ? t("thinkingLab.bt.pass.checking", "Checking this requirement: {{gate}}", { gate: reportLabel })
+      : report.outcome === "fail"
+        ? t("thinkingLab.bt.pass.checkedFail", "Checked: {{gate}} It did not pass.", { gate: reportLabel })
+        : report.outcome === "unverified"
+          ? t("thinkingLab.bt.pass.checkedOpen", "Checked: {{gate}} It is not verified yet.", { gate: reportLabel })
+          : t("thinkingLab.bt.pass.checkedPass", "Checked: {{gate}} It passed.", { gate: reportLabel });
+  if (!showPending && !visibleNote && visible.length === 0) return null;
   return (
     <div className="mt-2 space-y-1">
+      {showPending && !report ? <p className="text-sm text-foreground">{t("thinkingLab.bt.pass.notYet", "No requirement has been checked yet.")}</p> : null}
+      {report ? <p className="text-sm text-foreground">{reportText}</p> : null}
       {visibleNote ? <p className="text-sm text-destructive">{visibleNote}</p> : null}
       {visible.length > 0 ? (
-        <ul className="space-y-1">
+        <ul className="space-y-1" aria-label={t("thinkingLab.territory.pass.list", "Pass checklist")}>
           {visible.map((check) => (
             <li key={check.id} className="text-sm">
               <p className="flex items-start gap-2">
@@ -272,6 +323,8 @@ function TerritoryPassChecklist({
                   <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" aria-hidden />
                 ) : check.state === "pass" ? (
                   <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground" aria-hidden />
+                ) : check.state === "pending" ? (
+                  <Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                 ) : (
                   <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden />
                 )}
@@ -279,8 +332,8 @@ function TerritoryPassChecklist({
                   {t(`${labelPrefix}.${check.id}`, labels[check.id] ?? check.id)}
                 </span>
               </p>
-              {check.state === "fail" && check.reason ? (
-                <p className="mt-0.5 pl-5 text-sm text-muted-foreground">{check.reason}</p>
+              {check.reason && check.state !== "running" ? (
+                <p className="mt-0.5 whitespace-pre-line pl-5 text-sm text-muted-foreground">{check.reason}</p>
               ) : null}
               {check.state === "fail" && onFix ? (
                 <Button
@@ -481,16 +534,22 @@ export function LabNodeInspector({
   angleId,
   ideaReady = false,
   ideas,
+  ideaHistory = null,
+  ideaRevisionTarget = null,
+  onReviseIdea,
   ideaStage = null,
   onIdeaStage,
   onLockIdeas,
   onFixIdea,
+  onDeleteIdea,
   fixingIdeaCodes,
   ideaNotes,
   ideaFixOffers,
   onPickIdeaFixOffer,
+  ideaGenerateChecklist = null,
   angles,
   angleStage = null,
+  angleGenerateChecklist = null,
   onAngleStage,
   onLockAngles,
   onFixAngle,
@@ -508,6 +567,7 @@ export function LabNodeInspector({
   fixingTerritoryCodes,
   onLockTerritories,
   onGenerateTerritory,
+  territoryGenerateChecklist = null,
   onAcceptGap,
   onSkipGap,
   onRemoveCoveringTerritory,
@@ -530,9 +590,9 @@ export function LabNodeInspector({
   onEditAngle,
   onEditIdea,
   executionReady = false,
-  executions,
-  onChoosePillar,
+  creativePath = null,
   executionProgress = null,
+  executionChecklist = null,
   onStopExecution,
 }: LabNodeInspectorProps) {
   const { t } = useAppTranslation();
@@ -545,6 +605,7 @@ export function LabNodeInspector({
   const [territoryEditToken, setTerritoryEditToken] = useState<Record<string, number>>({});
   const [angleEditToken, setAngleEditToken] = useState<Record<string, number>>({});
   const [ideaEditToken, setIdeaEditToken] = useState<Record<string, number>>({});
+  const [ideaListFilter, setIdeaListFilter] = useState<"LOLOS" | "DITOLAK">("LOLOS");
   const [openIdeaNotes, setOpenIdeaNotes] = useState<Record<string, boolean>>({});
   const [openAngleNotes, setOpenAngleNotes] = useState<Record<string, boolean>>({});
   const [showWriteIdea, setShowWriteIdea] = useState(false);
@@ -552,7 +613,18 @@ export function LabNodeInspector({
   useEffect(() => {
     setShowWriteIdea(false);
     setStatementEditToken(0);
+    setIdeaListFilter("LOLOS");
   }, [angleId, territoryId, kind]);
+  useEffect(() => {
+    if (!ideaRevisionTarget) return;
+    setIdeaListFilter(ideaRevisionTarget.decision === "LOLOS" ? "LOLOS" : "DITOLAK");
+  }, [ideaRevisionTarget]);
+  const ideaFilterEnabled = (ideas ?? []).some((idea) => idea.decision);
+  const shownIdeas = (ideas ?? []).filter((idea) => {
+    if (!ideaFilterEnabled) return true;
+    if (ideaListFilter === "LOLOS") return idea.decision === "LOLOS" && idea.listed !== false;
+    return idea.decision === "DITOLAK" || idea.decision === "BELUM_TERVERIFIKASI";
+  });
   const showWriteIdeaAction = Boolean(kind === "angle" && manualAdd && !childGenerateRunning);
   const showGenerateIdeaAction = Boolean(kind === "angle" && ideaReady && onGenerateIdea && angleId && !manualRunning);
   const showIdeaStageAction = Boolean(
@@ -982,48 +1054,37 @@ export function LabNodeInspector({
           {t("thinkingLab.action.unlock", "Unlock")}
         </Button>
       ) : null}
-      {kind === "idea" && executionReady && onChoosePillar ? (
+      {kind === "idea" && executionReady && executionProgress ? (
         <div className="space-y-3 rounded-lg border border-border bg-muted/40 px-3 py-3">
-          {executionProgress ? (
-            <>
-              <p className="flex items-center gap-2 text-sm text-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                {executionProgress.phase === "write"
-                  ? t("thinkingLab.execution.writing", "Writing the voice-over script for {{pillar}}...", {
-                      pillar: executionProgress.pillarName,
-                    })
-                  : executionProgress.phase === "repair"
-                    ? t("thinkingLab.execution.repairing", "Repairing only the failing lines...")
-                    : executionProgress.phase === "recommend"
-                      ? t("thinkingLab.execution.recommending", "Looking for a pillar that can carry this Idea...")
-                      : t("thinkingLab.execution.auditing", "Tracing the script path up to the Master Thought...")}
-              </p>
-              {onStopExecution ? (
-                <Button type="button" size="sm" variant="outline" onClick={onStopExecution}>
-                  {t("thinkingLab.execution.stop", "Stop")}
-                </Button>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <p className="text-sm font-medium">{t("thinkingLab.execution.next", "Next step")}</p>
-              <p className="text-sm leading-relaxed text-foreground">
-                {(executions?.length ?? 0) > 0
-                  ? t(
-                      "thinkingLab.execution.addMore",
-                      "This Idea already has an Execution. Add another pillar when you need one.",
-                    )
-                  : t("thinkingLab.execution.pickFirst", "Choose a content pillar to write the Script VO.")}
-              </p>
-              <Button type="button" size="sm" onClick={onChoosePillar} disabled={Boolean(pendingAction)}>
-                {(executions?.length ?? 0) > 0
-                  ? t("thinkingLab.execution.addPillar", "Add pillar")
-                  : t("thinkingLab.execution.choosePillar", "Choose pillar")}
-              </Button>
-            </>
-          )}
+          <p className="flex items-center gap-2 text-sm text-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            {executionProgress.phase === "write"
+              ? executionProgress.medium === "image"
+                ? t("thinkingLab.execution.writingSlides", "Writing the slides for {{pillar}}...", {
+                    pillar: executionProgress.pillarName,
+                  })
+                : t("thinkingLab.execution.writing", "Writing the voice-over script for {{pillar}}...", {
+                    pillar: executionProgress.pillarName,
+                  })
+              : executionProgress.phase === "repair"
+                ? t("thinkingLab.execution.repairing", "Repairing only the failing lines...")
+                : executionProgress.phase === "line"
+                  ? t("thinkingLab.execution.rewritingLine", "Rewriting this line so the requirements that are switched on still pass...")
+                  : executionProgress.phase === "switch"
+                    ? t("thinkingLab.execution.rewritingSwitch", "Rewriting the lines for this requirement...")
+                  : executionProgress.phase === "recommend"
+                    ? t("thinkingLab.execution.recommending", "Looking for a pillar that can carry this Idea...")
+                    : t("thinkingLab.execution.auditing", "Tracing the script path up to the Master Thought...")}
+          </p>
+          {onStopExecution ? (
+            <Button type="button" size="sm" variant="outline" onClick={onStopExecution}>
+              {t("thinkingLab.execution.stop", "Stop")}
+            </Button>
+          ) : null}
+          {executionChecklist && executionChecklist.length > 0 ? <ExecutionPassChecklist checks={executionChecklist} /> : null}
         </div>
       ) : null}
+      {kind === "idea" && executionReady && creativePath ? <CreativePathPanel path={creativePath} pendingAction={pendingAction} /> : null}
       {kind === "angle" && showWriteIdea && manualAdd && !childGenerateRunning ? (
         <ManualStatementForm
           label={manualAdd.label}
@@ -1035,6 +1096,9 @@ export function LabNodeInspector({
             return reason;
           }}
         />
+      ) : null}
+      {kind === "angle" && ideaGenerateChecklist ? (
+        <TerritoryPassChecklist checks={ideaGenerateChecklist.checks} report={ideaGenerateChecklist.report} labelPrefix="thinkingLab.idea.pass" />
       ) : null}
       {kind === "angle" && ideas && ideas.length > 0 ? (
         <div className="space-y-2">
@@ -1053,23 +1117,72 @@ export function LabNodeInspector({
               </Button>
             ) : null}
           </div>
+          {ideaFilterEnabled ? (
+            <div className="space-y-1">
+              <div className="flex flex-wrap gap-1" role="group" aria-label={t("thinkingLab.idea.filter.label", "Idea history")}>
+                {(
+                  [
+                    ["LOLOS", "thinkingLab.idea.filter.passed", "Passed", ideaHistory?.passed],
+                    [
+                      "DITOLAK",
+                      "thinkingLab.idea.filter.rejected",
+                      "Rejected",
+                      ideaHistory ? ideaHistory.rejected + ideaHistory.unverified : undefined,
+                    ],
+                  ] as const
+                ).map(([id, key, fallback, count]) => (
+                  <Button
+                    key={id}
+                    type="button"
+                    size="sm"
+                    variant={ideaListFilter === id ? "default" : "outline"}
+                    aria-pressed={ideaListFilter === id}
+                    onClick={() => setIdeaListFilter(id)}
+                  >
+                    {t(key, fallback)}
+                    {typeof count === "number" ? ` ${count}` : ""}
+                  </Button>
+                ))}
+              </div>
+              {ideaHistory ? (
+                <p className="text-xs text-muted-foreground">
+                  {t(
+                    "thinkingLab.idea.historySummary",
+                    "{{passed}} passed · {{rejected}} rejected · most often failed: {{criterion}}",
+                    {
+                      passed: ideaHistory.passed,
+                      rejected: ideaHistory.rejected + ideaHistory.unverified,
+                      criterion: ideaHistory.topFailed ?? t("thinkingLab.idea.historyNone", "none"),
+                    },
+                  )}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {shownIdeas.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("thinkingLab.idea.filter.empty", "No idea is in this list.")}</p>
+          ) : null}
           <ul className="space-y-2">
-            {ideas.map((idea) => {
+            {shownIdeas.map((idea) => {
               const ideaFixing =
                 (fixingIdeaCodes ?? []).some((code) => code.toUpperCase() === idea.code.toUpperCase()) ||
                 pendingAction === `fix-idea:${idea.code}`;
               const otherWorkRunning = Boolean(pendingAction) && !pendingAction.startsWith("fix-idea:");
               const ideaNeedsFix =
-                idea.verdict?.includes("FAIL") ||
-                idea.verdict === "UNRESOLVED" ||
-                (idea.checklist ?? []).some((check) => check.state === "fail");
-              const showIdeaMenu = Boolean(idea.editable && onEditIdea) || (ideaNeedsFix && Boolean(onFixIdea));
+                !idea.decision &&
+                (idea.verdict?.includes("FAIL") ||
+                  idea.verdict === "UNRESOLVED" ||
+                  (idea.checklist ?? []).some((check) => check.state === "fail"));
+              const showIdeaMenu =
+                Boolean(idea.editable && onEditIdea) ||
+                (ideaNeedsFix && Boolean(onFixIdea)) ||
+                Boolean(onDeleteIdea);
               const cardNotes = ideaNotesForCode(ideaNotes ?? [], idea.code);
               return (
-              <li key={idea.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                <div className="mb-1 flex items-center gap-1.5">
+              <li key={idea.id} className="rounded-lg border border-border bg-background px-3 py-3">
+                <div className="mb-3 flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold tracking-wide text-muted-foreground">{idea.code}</span>
-                  {idea.verdict ? <VerdictChip verdict={idea.verdict} /> : null}
+                  {idea.verdict ? <VerdictChip verdict={idea.verdict} verbatim /> : null}
                   {showIdeaMenu ? (
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
@@ -1116,10 +1229,21 @@ export function LabNodeInspector({
                             {t("thinkingLab.action.fix", "Fix")}
                           </DropdownMenuItem>
                         ) : null}
+                        {onDeleteIdea ? (
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                            disabled={ideaFixing || otherWorkRunning}
+                            onSelect={() => onDeleteIdea(idea.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {t("thinkingLab.action.deleteIdea", "Delete Idea")}
+                          </DropdownMenuItem>
+                        ) : null}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : null}
                 </div>
+                <div className="space-y-3 [&_p]:leading-relaxed">
                 <EditableStatement
                   compact
                   showButton={false}
@@ -1129,14 +1253,58 @@ export function LabNodeInspector({
                   pending={Boolean(pendingAction)}
                   onSave={(next) => onEditIdea?.(idea.id, next) ?? Promise.resolve(null)}
                 />
+                {idea.title && idea.title !== idea.statement ? <p className="text-sm font-medium text-foreground">{idea.title}</p> : null}
+                {idea.concept ? (
+                  <p className="text-sm text-foreground">
+                    <span className="text-muted-foreground">{t("thinkingLab.idea.concept", "Concept")}: </span>
+                    {idea.concept}
+                  </p>
+                ) : null}
+                {idea.mechanism ? (
+                  <p className="text-sm text-foreground">
+                    <span className="text-muted-foreground">{t("thinkingLab.idea.mechanism", "Mechanism")}: </span>
+                    {idea.mechanism}
+                  </p>
+                ) : null}
+                {idea.value ? (
+                  <p className="text-sm text-foreground">
+                    <span className="text-muted-foreground">{t("thinkingLab.idea.value", "Value")}: </span>
+                    {idea.value}
+                  </p>
+                ) : null}
+                {idea.decision && idea.decision !== "LOLOS" ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t(`thinkingLab.idea.decision.${idea.decision}`, idea.decision === "DITOLAK" ? "Rejected" : "Not verified yet")}
+                  </p>
+                ) : null}
                 <TerritoryPassChecklist
                   checks={idea.checklist}
                   note={idea.checklistNote}
                   labelPrefix="thinkingLab.idea.pass"
+                  showPending={idea.showChecklistPending}
                   onFix={ideaNeedsFix && onFixIdea ? () => onFixIdea(idea.code) : undefined}
                   fixing={ideaFixing}
                   blocked={otherWorkRunning}
                 />
+                {idea.canRevise && onReviseIdea ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-2 gap-1.5"
+                    disabled={Boolean(pendingAction)}
+                    aria-busy={pendingAction === "revise-idea" || undefined}
+                    onClick={() => onReviseIdea(idea.id)}
+                  >
+                    {pendingAction === "revise-idea" ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
+                    {t("thinkingLab.idea.revise", "Revise")}
+                  </Button>
+                ) : null}
+                {(idea.decision === "DITOLAK" || idea.decision === "BELUM_TERVERIFIKASI") && idea.canRevise === false ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t("thinkingLab.idea.revisionClosed", "This idea stays rejected. It has already been revised three times.")}
+                  </p>
+                ) : null}
                 {idea.mechanismKeys && idea.mechanismKeys.length > 0 ? (
                   <div className="mt-2 space-y-1">
                     <p className="text-[11px] font-semibold tracking-wide text-muted-foreground">
@@ -1211,6 +1379,7 @@ export function LabNodeInspector({
                         </div>
                       ))
                   : null}
+                </div>
               </li>
               );
             })}
@@ -1225,6 +1394,9 @@ export function LabNodeInspector({
             </ul>
           ) : null}
         </div>
+      ) : null}
+      {kind === "territory" && angleGenerateChecklist ? (
+        <TerritoryPassChecklist checks={angleGenerateChecklist.checks} report={angleGenerateChecklist.report} labelPrefix="thinkingLab.angle.pass" showPending />
       ) : null}
       {kind === "territory" && angles && angles.length > 0 ? (
         <div className="space-y-2">
@@ -1245,7 +1417,7 @@ export function LabNodeInspector({
               <li key={angle.id} className="rounded-lg border border-border bg-background px-3 py-2">
                 <div className="mb-1 flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold tracking-wide text-muted-foreground">{angle.code}</span>
-                  {angle.verdict ? <VerdictChip verdict={angle.verdict} /> : null}
+                  {angle.verdict ? <VerdictChip verdict={angle.verdict} verbatim /> : null}
                   {showAngleMenu ? (
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
@@ -1459,6 +1631,9 @@ export function LabNodeInspector({
           </ul>
         </div>
       ) : null}
+      {kind === "bigThought" && territoryGenerateChecklist ? (
+        <TerritoryPassChecklist checks={territoryGenerateChecklist.checks} report={territoryGenerateChecklist.report} showPending />
+      ) : null}
       {kind === "bigThought" && territories && territories.length > 0 ? (
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("thinkingLab.territory.list", "Territories")}</p>
@@ -1478,7 +1653,7 @@ export function LabNodeInspector({
               <li key={territory.id} className="rounded-lg border border-border bg-background px-3 py-2">
                 <div className="mb-1 flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold tracking-wide text-muted-foreground">{territory.code}</span>
-                  {territory.verdict ? <VerdictChip verdict={territory.verdict} /> : null}
+                  {territory.verdict ? <VerdictChip verdict={territory.verdict} verbatim /> : null}
                   {showTerritoryCardMenu ? (
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>

@@ -20,7 +20,9 @@ export type TikTokProviderConfig = {
   account_label?: string;
   employee_id?: string;
   tiktok_publish_id?: string;
+  tiktok_upload_url?: string;
   tiktok_upload_completed?: boolean;
+  publish_step?: string;
 };
 
 export type YouTubeProviderConfig = {
@@ -44,6 +46,7 @@ export type InstagramProviderConfig = {
   ig_container_id?: string;
   ig_upload_phase?: string;
   ig_upload_session_id?: string;
+  publish_step?: string;
 };
 
 export type FacebookProviderConfig = {
@@ -55,6 +58,7 @@ export type FacebookProviderConfig = {
   fb_upload_phase?: string;
   /** Kept after publish (unlike `fb_video_id`) so delete can target the video node. */
   fb_published_video_id?: string;
+  publish_step?: string;
 };
 
 export type LinkedInProviderConfig = {

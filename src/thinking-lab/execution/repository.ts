@@ -1,3 +1,4 @@
+import type { CreativeExecutionLink, CreativeFormat } from "@/thinking-lab/creative-idea/types";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { admitExecution } from "@/thinking-lab/execution/policy";
 import { normalizeExecutionFacts } from "@/thinking-lab/execution/semantic";
@@ -16,6 +17,8 @@ export type LabExecution = {
   script: VoiceOverScript | null;
   canonicalSemantic: ExecutionSemanticFacts;
   admission: IndividualAdmission;
+  creativeIdeaId: string | null;
+  format: CreativeFormat | null;
 };
 
 type ExecutionRow = {
@@ -29,11 +32,18 @@ type ExecutionRow = {
   script?: unknown;
   canonical_semantic: unknown;
   admission: string;
+  creative_idea_id?: string | null;
+  format?: string | null;
 };
 
 function asAdmission(value: string): IndividualAdmission {
   if (value === "GENERATE_VALID" || value === "GENERATE_REJECT" || value === "UNRESOLVED") return value;
   return "UNRESOLVED";
+}
+
+function asCreativeFormat(value: string | null | undefined): CreativeFormat | null {
+  if (value === "video" || value === "carousel" || value === "post") return value;
+  return null;
 }
 
 export function mapExecution(row: ExecutionRow): LabExecution | null {
@@ -50,6 +60,8 @@ export function mapExecution(row: ExecutionRow): LabExecution | null {
     script: parseVoiceOverScript(row.script),
     canonicalSemantic: normalizeExecutionFacts(row.canonical_semantic, row.pillar_name?.trim() || pillar),
     admission: asAdmission(row.admission),
+    creativeIdeaId: row.creative_idea_id ?? null,
+    format: asCreativeFormat(row.format),
   };
 }
 
@@ -101,6 +113,7 @@ export async function saveLabExecution(input: {
   statement: string;
   script?: VoiceOverScript | null;
   facts: ExecutionSemanticFacts;
+  creativeLink?: CreativeExecutionLink | null;
 }): Promise<LabExecution> {
   const pillar = input.pillar.trim();
   const statement = input.statement.trim();
@@ -116,15 +129,17 @@ export async function saveLabExecution(input: {
   const admission = admitExecution(input.facts);
   const facts = { ...input.facts, pillar: input.pillarName.trim() || pillar };
   const contentPillarId = input.contentPillarId ?? null;
+  const creativeLink = input.creativeLink?.creativeIdeaId ? input.creativeLink : null;
   let existingQuery = supabase
     .from("thinking_lab_executions")
     .select("id")
     .eq("organization_id", input.organizationId)
-    .eq("idea_id", input.ideaId);
+    .eq("idea_id", input.ideaId)
+    .is("creative_idea_id", null);
   existingQuery = contentPillarId
     ? existingQuery.eq("content_pillar_id", contentPillarId)
     : existingQuery.eq("pillar", pillar);
-  const { data: existing, error: existingError } = await existingQuery.maybeSingle();
+  const { data: existing, error: existingError } = creativeLink ? { data: null, error: null } : await existingQuery.maybeSingle();
   if (existingError) throw existingError;
   const payload = {
     pillar,
@@ -134,8 +149,9 @@ export async function saveLabExecution(input: {
     script: input.script ?? null,
     canonical_semantic: facts,
     admission,
+    ...(creativeLink ? { creative_idea_id: creativeLink.creativeIdeaId, format: creativeLink.format } : {}),
   };
-  if (existing && (existing as { id?: string }).id) {
+  if (!creativeLink && existing && (existing as { id?: string }).id) {
     const { data, error } = await supabase
       .from("thinking_lab_executions")
       .update(payload)

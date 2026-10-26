@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { sameIdeaConcept } from "@/thinking-lab/idea/conceptIdentity";
 import { canShowGenerateIdea, evaluateIdeaParent } from "@/thinking-lab/idea/eligibility";
-import { buildIdeaGeneratePrompt, countAdmittedIdeas, planIdeaGenerate, runIdeaGenerate } from "@/thinking-lab/idea/generate";
+import { buildIdeaGeneratePrompt, countAdmittedIdeas, parseGeneratedIdeaDrafts, planIdeaGenerate, runIdeaGenerate } from "@/thinking-lab/idea/generate";
 import { admitIdea, visibleIdeas } from "@/thinking-lab/idea/policy";
 import {
   buildIdeaJudgePrompt,
@@ -12,6 +12,7 @@ import {
   rejectAnnouncedConclusion,
 } from "@/thinking-lab/idea/semantic";
 import type { IdeaSemanticFacts } from "@/thinking-lab/idea/types";
+import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 import { angleFingerprint, territoryFingerprint, bigThoughtFingerprint } from "@/thinking-lab/shared/fingerprint";
 
 const APPLE_ANGLE = "Innovation does not always mean adding something; sometimes innovation means removing what is unnecessary.";
@@ -177,6 +178,14 @@ describe("idea relations", () => {
     expect(admitIdea(row)).toBe("GENERATE_REJECT");
   });
 
+  it("stores generate passes only when both ids are present", () => {
+    const both = sealed({ generatePasses: ["mechanismShape", "extra", "sentenceForm"] });
+    expect(both.generatePasses).toEqual(["sentenceForm", "mechanismShape"]);
+    expect(sealed({ generatePasses: ["sentenceForm"] }).generatePasses).toBeUndefined();
+    expect(sealed({ generatePasses: ["nope"] }).generatePasses).toBeUndefined();
+    expect(sealed().generatePasses).toBeUndefined();
+  });
+
   it("stays unresolved when the new job facts are missing", () => {
     const row = normalizeIdeaFacts({
       code: "ID01",
@@ -224,7 +233,12 @@ describe("idea relations", () => {
     const prompt = buildIdeaJudgePrompt({ parentStatement: APPLE_ANGLE, candidate: { code: "ID01", statement: APPLE_IDEA } });
     expect(prompt).toContain("concrete mechanism");
     expect(prompt).toContain("is not SITUATION");
-    expect(prompt).toContain("must not verbally explain the Big Thought");
+    expect(prompt).toContain("a comparison, a contrast, an experiment, a demonstration, or a situation names the mechanism");
+    expect(prompt).toContain("must not verbally explain the Big Thought instead of naming what the mechanism makes true");
+    expect(prompt).toContain("Naming what the mechanism makes true keeps it IDEA_CONCEPT");
+    expect(prompt).toContain(
+      "BIG_THOUGHT_LIKE when it is a reason or a verbal explanation of why the parent belief is true instead of naming the mechanism and what the mechanism makes true",
+    );
     expect(prompt).toContain("mechanismKeys");
     expect(prompt).toContain("named Master Thought subject");
     const named = buildIdeaJudgePrompt({
@@ -306,9 +320,16 @@ describe("idea persistence helpers", () => {
     expect(prompt).toContain(locked.statement);
     expect(prompt).toContain("Do not reuse its meaning.");
     expect(prompt).toContain("Do not write a finished story.");
-    expect(prompt).toContain("State what becomes true in the sentence so the mechanism can be understood.");
-    expect(prompt).toContain("menunjukkan bahwa");
-    expect(prompt).toContain("When the Angle is not English, do not write the statement or the keys in English.");
+    expect(prompt).toContain("K1. The statement is one specific how-if proposal.");
+    expect(prompt).toContain("K3. The proposed mechanism can produce the stated value.");
+    expect(prompt).toContain("K2. PASS only when the mechanism is a specific action people already do in ordinary life.");
+    expect(prompt).toContain("A reason that only restates the proposed product is not evidence.");
+    expect(prompt).toContain("K7. PASS only when the mechanism fits the stored audience's needs, conditions, ability, time, and behavior");
+    expect(prompt).toContain("what this audience already does and what is still missing");
+    expect(prompt).toContain("A claim that there is no new habit, or that the idea fits an existing routine, is not evidence.");
+    expect(prompt).toContain("A short action inside time this audience already spends is a realistic way to adopt it.");
+    expect(prompt).toContain("Do not treat the idea's own boundary as the obstacle.");
+    expect(prompt).toContain("Write the statement in the same language as the Angle.");
     expect(prompt).not.toContain("We [make / invite / show / create]");
     expect(prompt).toContain("A rejected observation.");
     const stored: string[] = [];
@@ -323,13 +344,107 @@ describe("idea persistence helpers", () => {
       judge: async () => sealed({ creativeMechanism: "EXPERIMENT" }),
       persist: async (row) => {
         stored.push(row.statement);
-        return { code: row.code, statement: row.statement, admission: row.admission, angleId: "an", locked: false };
+        return {
+          code: row.code,
+          statement: row.statement,
+          admission: "GENERATE_VALID" as const,
+          angleId: "an",
+          locked: false,
+        };
       },
     });
     expect(seen[0]).toEqual([locked.statement]);
     expect(stored).not.toContain(locked.statement);
     expect(stored).toContain("Remove one control and watch the task finish.");
     expect(result.generateValid).toBeGreaterThan(0);
+  });
+
+  it("does not spend an active slot when generate rejects a sentence", async () => {
+    const incumbents: Array<{
+      code: string;
+      statement: string;
+      admission: IndividualAdmission;
+      angleId: string;
+    }> = Array.from({ length: 9 }, (_, index) => ({
+      code: `ID${String(index + 1).padStart(2, "0")}`,
+      statement: `Open idea ${index + 1}`,
+      admission: "UNRESOLVED",
+      angleId: "an",
+    }));
+    const propose = vi.fn(async () =>
+      propose.mock.calls.length === 1
+        ? ["A point of view only"]
+        : ["Compare the price per ounce and see which bag lasts."],
+    );
+    const result = await runIdeaGenerate({
+      loadParent: async () => ({ ok: true, parent: { id: "an", code: "AN01", statement: APPLE_ANGLE, angleFingerprint: "fp" } }),
+      incumbents,
+      carryLessons: true,
+      propose,
+      judge: async (_parent, _code, statement) =>
+        statement === "A point of view only"
+          ? facts({
+              conceptualForm: "ANGLE_LIKE",
+              relationToParent: "ANGLE_LIKE",
+              resolution: "RESOLVED",
+              unresolvedReasons: [],
+            })
+          : sealed(),
+      persist: async (row) => ({
+        code: row.code,
+        statement: row.statement,
+        admission: row.admission,
+        angleId: "an",
+      }),
+    });
+    expect(propose).toHaveBeenCalledTimes(2);
+    expect(result.generateValid).toBe(1);
+    expect(result.incumbents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ statement: "A point of view only", admission: "GENERATE_REJECT" }),
+      ]),
+    );
+  });
+
+  it("writes at most three ideas in one click, then waits for the next click", async () => {
+    const propose = vi.fn(async () => [`Idea ${propose.mock.calls.length} makes the comparison visible.`]);
+    const result = await runIdeaGenerate({
+      loadParent: async () => ({ ok: true, parent: { id: "an", code: "AN01", statement: APPLE_ANGLE, angleFingerprint: "fp" } }),
+      incumbents: [],
+      carryLessons: true,
+      propose,
+      judge: async () => sealed(),
+      persist: async (row) => ({
+        code: row.code,
+        statement: row.statement,
+        admission: row.admission,
+        angleId: "an",
+      }),
+    });
+    expect(propose).toHaveBeenCalledTimes(3);
+    expect(result.generateValid).toBe(3);
+    const short = vi.fn(async () => ["A point of view only"]);
+    const stopped = await runIdeaGenerate({
+      loadParent: async () => ({ ok: true, parent: { id: "an", code: "AN01", statement: APPLE_ANGLE, angleFingerprint: "fp" } }),
+      incumbents: [],
+      carryLessons: true,
+      propose: short,
+      judge: async () =>
+        facts({
+          conceptualForm: "ANGLE_LIKE",
+          relationToParent: "ANGLE_LIKE",
+          resolution: "RESOLVED",
+          unresolvedReasons: [],
+        }),
+      persist: async (row) => ({
+        code: row.code,
+        statement: row.statement,
+        admission: row.admission,
+        angleId: "an",
+      }),
+    });
+    expect(short).toHaveBeenCalledTimes(3);
+    expect(stopped.generateValid).toBe(0);
   });
 });
 
@@ -343,5 +458,19 @@ describe("idea concept identity", () => {
     const body = "Compare an overloaded control panel with a simplified one and see which task finishes more easily.";
     expect(sameIdeaConcept(`Feature pile\n${body}`, `Less is more\n${body}`)).toBe(true);
     expect(sameIdeaConcept(body, "Run an experiment that removes one control at a time.")).toBe(false);
+  });
+});
+
+describe("idea revision draft", () => {
+  it("reads a revision that returns one idea object", () => {
+    const drafts = parseGeneratedIdeaDrafts({
+      title: "Skor tim",
+      statement: "Bagaimana jika penugasan memakai skor tim?",
+      concept: "Skor tim",
+      mechanism: "Tugas dibagi menurut hasil tim",
+      value: "Orang tidak dipilah sendirian",
+    });
+    expect(drafts[0]?.statement).toBe("Bagaimana jika penugasan memakai skor tim?");
+    expect(drafts[0]?.concept).toBe("Skor tim");
   });
 });

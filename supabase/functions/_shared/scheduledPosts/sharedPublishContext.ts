@@ -17,19 +17,17 @@ export type SharedPublishContext = {
   preloadedVideo?: PreloadedDriveVideo;
 };
 
+/** Platforms that always send the file from this worker. Facebook and Instagram pull from a public URL first. */
 const PLATFORMS_NEEDING_BYTES = new Set([
   "YouTube",
-  "Instagram",
-  "Facebook",
   "LinkedIn",
 ]);
 
-/** TikTok may use pull-only when sole platform and pull succeeds; preload needed for fallback/mixed batch. */
+/** Download the Drive file only when a platform cannot publish from a public URL. */
 export function planPublishNeedsPreloadedVideo(platforms: string[]): boolean {
   const normalized = platforms.map((p) => p.trim());
   if (normalized.some((p) => PLATFORMS_NEEDING_BYTES.has(p))) return true;
-  if (!normalized.includes("TikTok")) return false;
-  return normalized.length > 1 || !isTikTokPullFromUrlEnabled();
+  return normalized.includes("TikTok") && !isTikTokPullFromUrlEnabled();
 }
 
 export function isTikTokPullFromUrlEnabled(): boolean {
@@ -118,7 +116,11 @@ export async function resolveVideoBytesForUpload(
   sharedCtx?: SharedPublishContext,
 ): Promise<PreloadedDriveVideo> {
   if (sharedCtx?.preloadedVideo) {
-    return sharedCtx.preloadedVideo;
+    // Copy so a parallel or later upload cannot detach the buffer the next platform still needs.
+    return {
+      bytes: sharedCtx.preloadedVideo.bytes.slice(),
+      mimeType: sharedCtx.preloadedVideo.mimeType,
+    };
   }
   const { bytes, mimeType } = await downloadGoogleDriveVideo(driveUrl);
   return { bytes, mimeType };

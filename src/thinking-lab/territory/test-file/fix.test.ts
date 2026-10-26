@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { fixScopeFromChecks } from "@/thinking-lab/shared/fixScope";
 import {
   buildTerritoryFixOptionsPrompt,
   parseTerritoryFixOptions,
   parseTerritoryFixReplacements,
   territoryReplacementPasses,
 } from "@/thinking-lab/territory/fix";
+import { fixPriorForNextTerritoryName } from "@/thinking-lab/territory/passChecklist";
 import type { TerritorySetFacts } from "@/thinking-lab/territory/types";
 
 describe("territory fix", () => {
@@ -75,5 +77,30 @@ describe("territory fix", () => {
     expect(territoryReplacementPasses(distinct, "TR04")).toBe(true);
     expect(territoryReplacementPasses(overlap, "TR04")).toBe(false);
     expect(territoryReplacementPasses(null, "TR04")).toBe(false);
+  });
+
+  it("reopens the Generate checks for a new name and drops a check that just failed", () => {
+    const prior = fixPriorForNextTerritoryName(
+      [
+        { id: "partOfBigThought", state: "pass" },
+        { id: "audienceLanguage", state: "pass" },
+        { id: "questionArises", state: "pass" },
+        { id: "wideEnough", state: "fail", reason: "Only one observation fits." },
+        { id: "siblingsDistinct", state: "pending" },
+      ],
+      "Kepuasan pelanggan",
+      "Umpan balik pelanggan",
+    );
+    expect(prior.find((check) => check.id === "partOfBigThought")?.state).toBe("pending");
+    expect(prior.find((check) => check.id === "audienceLanguage")?.state).toBe("pending");
+    expect(prior.find((check) => check.id === "questionArises")?.state).toBe("pass");
+    const scope = fixScopeFromChecks([
+      { id: "partOfBigThought", state: "pass" },
+      { id: "audienceLanguage", state: "fail", reason: "Internal wording." },
+      { id: "questionArises", state: "pass" },
+      { id: "wideEnough", state: "pass" },
+    ]);
+    expect(scope.preserve).toEqual(["partOfBigThought", "questionArises", "wideEnough"]);
+    expect(scope.repair).toEqual([{ id: "audienceLanguage", reason: "Internal wording." }]);
   });
 });

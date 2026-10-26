@@ -11,13 +11,22 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import { monthFunnelStats, pillarsInFunnel } from "@/thinking-lab/execution/pillarUsage";
 import type { ContentPillarFunnel, LabContentPillar } from "@/thinking-lab/execution/pillars";
-import { pillarLessSuitable, type ScriptAudio, type ScriptLook, type ScriptSpeech } from "@/thinking-lab/execution/script";
+import { pillarLessSuitable, type ImageSettings, type ScriptAudio, type ScriptLook, type ScriptMedium, type ScriptSpeech } from "@/thinking-lab/execution/script";
+
+export type ExecutionSettingsDirect = {
+  token: number;
+  pillarId: string;
+  medium: "video" | "image";
+  imageFormat: "single" | "carousel";
+};
 
 export function PillarPickerSheet({
   open,
   pillars,
   masterSells,
   pending = false,
+  mediumByPillar = {},
+  direct = null,
   onOpenChange,
   onConfirm,
 }: {
@@ -25,6 +34,8 @@ export function PillarPickerSheet({
   pillars: LabContentPillar[];
   masterSells: true | false | "unresolved" | "unknown";
   pending?: boolean;
+  mediumByPillar?: Record<string, ScriptMedium | undefined>;
+  direct?: ExecutionSettingsDirect | null;
   onOpenChange: (open: boolean) => void;
   onConfirm: (
     pillars: LabContentPillar[],
@@ -34,12 +45,19 @@ export function PillarPickerSheet({
     durationSeconds: number | null,
     brandName: string | null,
     cta: string | null,
+    image: ImageSettings | null,
   ) => void;
 }) {
   const { t, dateLocale } = useAppTranslation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [funnel, setFunnel] = useState<ContentPillarFunnel>("top");
   const [audioOpen, setAudioOpen] = useState(false);
+  const [imageOpen, setImageOpen] = useState(false);
+  const [mediumOpen, setMediumOpen] = useState(false);
+  const [imageFormat, setImageFormat] = useState<"single" | "carousel">("single");
+  const [slideCountMode, setSlideCountMode] = useState<"manual" | "idea">("idea");
+  const [slideCount, setSlideCount] = useState("5");
+  const [withImage, setWithImage] = useState(true);
   const [sound, setSound] = useState(false);
   const [music, setMusic] = useState(false);
   const [look, setLook] = useState<ScriptLook>("ugc");
@@ -86,10 +104,41 @@ export function PillarPickerSheet({
   ];
 
   useEffect(() => {
-    if (!open) return;
+    if (direct && !open) {
+      setSelectedId(direct.pillarId);
+      setSound(false);
+      setMusic(false);
+      setLook("ugc");
+      setSpeech("vo");
+      setDurationAmount("");
+      setDurationUnit("seconds");
+      setMentionBrand(false);
+      setBrandName("");
+      setCta("");
+      setImageFormat(direct.imageFormat);
+      setSlideCountMode("idea");
+      setSlideCount("5");
+      setWithImage(true);
+      setMediumOpen(false);
+      setAudioOpen(direct.medium === "video");
+      setImageOpen(direct.medium === "image");
+      return;
+    }
+    if (!open) {
+      setAudioOpen(false);
+      setImageOpen(false);
+      setMediumOpen(false);
+      return;
+    }
     setSelectedId(null);
     setFunnel("top");
     setAudioOpen(false);
+    setImageOpen(false);
+    setMediumOpen(false);
+    setImageFormat("single");
+    setSlideCountMode("idea");
+    setSlideCount("5");
+    setWithImage(true);
     setSound(false);
     setMusic(false);
     setLook("ugc");
@@ -99,9 +148,10 @@ export function PillarPickerSheet({
     setMentionBrand(false);
     setBrandName("");
     setCta("");
-  }, [open]);
+  }, [open, direct]);
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex w-full flex-col gap-4 sm:max-w-md">
         <SheetHeader>
@@ -218,6 +268,7 @@ export function PillarPickerSheet({
             type="button"
             disabled={pending || chosen.length === 0}
             onClick={() => {
+              const remembered = chosen[0] ? mediumByPillar[chosen[0].id] : undefined;
               setSound(false);
               setMusic(false);
               setLook("ugc");
@@ -227,7 +278,13 @@ export function PillarPickerSheet({
               setMentionBrand(false);
               setBrandName("");
               setCta("");
-              setAudioOpen(true);
+              setImageFormat("single");
+              setSlideCountMode("idea");
+              setSlideCount("5");
+              setWithImage(true);
+              if (remembered === "image") setImageOpen(true);
+              else if (remembered === "video") setAudioOpen(true);
+              else setMediumOpen(true);
             }}
           >
             {t("thinkingLab.execution.create", "Create Execution for {{count}} pillar", { count: chosen.length })}
@@ -236,10 +293,22 @@ export function PillarPickerSheet({
             {t("thinkingLab.execution.cancel", "Cancel")}
           </Button>
         </div>
+      </SheetContent>
+    </Sheet>
         <Dialog open={audioOpen} onOpenChange={setAudioOpen}>
           <DialogContent className="gap-4 p-5 sm:max-w-sm">
             <DialogHeader className="space-y-1">
               <DialogTitle className="text-base">{t("thinkingLab.execution.settingsTitle", "Video settings")}</DialogTitle>
+              <button
+                type="button"
+                className="text-left text-xs text-muted-foreground underline-offset-2 hover:underline"
+                onClick={() => {
+                  setAudioOpen(false);
+                  setImageOpen(true);
+                }}
+              >
+                {t("thinkingLab.execution.switchToImage", "Switch to Image")}
+              </button>
             </DialogHeader>
             <section className="space-y-1.5">
               <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -411,6 +480,7 @@ export function PillarPickerSheet({
                     durationSeconds,
                     mentionBrand ? brandName.trim() : null,
                     cta || null,
+                    null,
                   );
                 }}
               >
@@ -419,7 +489,145 @@ export function PillarPickerSheet({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </SheetContent>
-    </Sheet>
+        <Dialog open={mediumOpen} onOpenChange={setMediumOpen}>
+          <DialogContent className="gap-4 p-5 sm:max-w-sm">
+            <DialogHeader className="space-y-1">
+              <DialogTitle className="text-base">{t("thinkingLab.execution.chooseMedium", "Image or Video")}</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pending}
+                onClick={() => {
+                  setMediumOpen(false);
+                  setImageOpen(true);
+                }}
+              >
+                {t("thinkingLab.execution.mediumImage", "Image")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pending}
+                onClick={() => {
+                  setMediumOpen(false);
+                  setAudioOpen(true);
+                }}
+              >
+                {t("thinkingLab.execution.mediumVideo", "Video")}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={imageOpen} onOpenChange={setImageOpen}>
+          <DialogContent className="gap-4 p-5 sm:max-w-sm">
+            <DialogHeader className="space-y-1">
+              <DialogTitle className="text-base">{t("thinkingLab.execution.imageSettingsTitle", "Image settings")}</DialogTitle>
+              <button
+                type="button"
+                className="text-left text-xs text-muted-foreground underline-offset-2 hover:underline"
+                onClick={() => {
+                  setImageOpen(false);
+                  setAudioOpen(true);
+                }}
+              >
+                {t("thinkingLab.execution.switchToVideo", "Switch to Video")}
+              </button>
+            </DialogHeader>
+            <section className="space-y-1.5">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("thinkingLab.execution.imageFormat", "Format")}
+              </h3>
+              <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1">
+                {([
+                  ["single", t("thinkingLab.execution.imageSingle", "Single Image")],
+                  ["carousel", t("thinkingLab.execution.imageCarousel", "Carousel")],
+                ] as const).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={cn(
+                      "h-8 rounded px-1 text-xs font-medium",
+                      imageFormat === id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground",
+                    )}
+                    onClick={() => setImageFormat(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </section>
+            {imageFormat === "carousel" ? (
+              <section className="space-y-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t("thinkingLab.execution.slideCount", "Slides")}
+                  </h3>
+                  <label className="flex items-center gap-2 text-sm">
+                    <span>{t("thinkingLab.execution.slideCountManual", "Choose the count")}</span>
+                    <Switch
+                      checked={slideCountMode === "manual"}
+                      disabled={pending}
+                      onCheckedChange={(checked) => setSlideCountMode(checked ? "manual" : "idea")}
+                    />
+                  </label>
+                </div>
+                {slideCountMode === "manual" ? (
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={slideCount}
+                    disabled={pending}
+                    aria-label={t("thinkingLab.execution.slideCount", "Slides")}
+                    className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
+                    onChange={(event) => {
+                      const next = event.target.value.trim();
+                      if (next === "" || /^\d+$/.test(next)) setSlideCount(next);
+                    }}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {t("thinkingLab.execution.slideCountIdea", "The Idea decides, from 2 to 10 slides.")}
+                  </p>
+                )}
+              </section>
+            ) : null}
+            <section className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t("thinkingLab.execution.imagePicture", "Picture")}
+                </h3>
+                <label className="flex items-center gap-2 text-sm">
+                  <span>{withImage ? t("thinkingLab.execution.withImage", "With image") : t("thinkingLab.execution.copyOnly", "Copy only")}</span>
+                  <Switch checked={withImage} disabled={pending} onCheckedChange={setWithImage} />
+                </label>
+              </div>
+            </section>
+            <DialogFooter className="gap-2 sm:justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={() => setImageOpen(false)}>
+                {t("thinkingLab.execution.cancel", "Cancel")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={pending || chosen.length === 0 || (imageFormat === "carousel" && slideCountMode === "manual" && (Number(slideCount) < 2 || Number(slideCount) > 10))}
+                onClick={() => {
+                  setImageOpen(false);
+                  const count = Number(slideCount);
+                  onConfirm(chosen, { sound: false, music: false }, "ugc", "vo", null, null, null, {
+                    format: imageFormat,
+                    slideCountMode: imageFormat === "carousel" ? slideCountMode : "idea",
+                    slideCount: imageFormat === "carousel" && slideCountMode === "manual" ? count : null,
+                    withImage,
+                  });
+                }}
+              >
+                {t("thinkingLab.execution.create", "Create Execution for {{count}} pillar", { count: chosen.length })}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+    </>
   );
 }

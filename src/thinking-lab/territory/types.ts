@@ -29,6 +29,9 @@ export type TerritoryNominalForm = "NOMINAL" | "CLAIM" | "UNRESOLVED";
 
 export type TerritoryAudienceLanguage = "AUDIENCE" | "INTERNAL" | "UNRESOLVED";
 
+/** The two Generate checks. Both are stored, or neither is. */
+export type TerritoryGeneratePass = "partOfBigThought" | "audienceLanguage";
+
 export type TerritoryResolution = "RESOLVED" | "UNRESOLVED";
 
 export type TerritoryCoverage = "SUFFICIENT" | "MATERIAL_GAP" | "UNRESOLVED";
@@ -52,6 +55,8 @@ export type TerritorySemanticFacts = {
   resolution: TerritoryResolution;
   unresolvedReasons: string[];
   confidence?: number;
+  /** Present only when this exact name passed both Generate checks. */
+  generatePasses?: TerritoryGeneratePass[];
 };
 
 export type TerritoryPair = {

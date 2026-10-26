@@ -140,6 +140,87 @@ describe("MasterThoughtMapTree pills", () => {
     expect(screen.getByRole("button", { name: /Foto Dulu/ }).querySelector("[aria-label='Recommended to start']")).toBeNull();
   });
 
+  it("opens a locked pillar from the map and nests its execution there", () => {
+    const onSelectPillar = vi.fn();
+    render(
+      <MasterThoughtMapTree
+        masters={[master("m1", "Uang muda lebih baik ditabung")]}
+        selectedId="m1"
+        inspectedMasterId="m1"
+        inspectedThoughtId="bt1"
+        inspectedTerritoryId="t1"
+        inspectedAngleId="a1"
+        inspectedIdeaId={null}
+        inspectedPillarId="pillar-1"
+        childrenByMasterId={
+          new Map([
+            [
+              "m1",
+              [
+                {
+                  id: "bt1",
+                  code: "BT01",
+                  label: "Keinginan",
+                  statement: "Alasan",
+                  childCount: 1,
+                  territories: [
+                    {
+                      id: "t1",
+                      code: "TR01",
+                      statement: "Mantan anak motor",
+                      childCount: 1,
+                      angles: [
+                        {
+                          id: "a1",
+                          code: "AN01",
+                          statement: "Motor kebanggaan kini nganggur",
+                          subject: "Motor kebanggaan kini nganggur",
+                          childCount: 1,
+                          ideas: [
+                            {
+                              id: "i1",
+                              code: "ID01",
+                              statement: "Buka Terpal",
+                              childCount: 1,
+                              pillars: [
+                                {
+                                  id: "pillar-1",
+                                  label: "Letter to Younger Self",
+                                  executions: [{ id: "e1", label: "Video", passed: true }],
+                                },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            ],
+          ])
+        }
+        onSelect={vi.fn()}
+        onSelectChild={vi.fn()}
+        onSelectTerritory={vi.fn()}
+        onSelectAngle={vi.fn()}
+        onSelectIdea={vi.fn()}
+        onSelectPillar={onSelectPillar}
+        onSelectExecution={vi.fn()}
+        onRequestEdit={vi.fn()}
+        onRequestDelete={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Uang muda lebih baik ditabung" }));
+    fireEvent.click(screen.getByRole("button", { name: /Keinginan/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mantan anak motor/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Motor kebanggaan kini nganggur/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Letter to Younger Self" }));
+    expect(onSelectPillar).toHaveBeenCalledWith("m1", "bt1", "t1", "a1", "i1", "pillar-1");
+    expect(screen.getByRole("button", { name: "Video" })).toBeTruthy();
+    expect(screen.getAllByLabelText("1 below").some((badge) => badge.textContent === "+1")).toBe(true);
+  });
+
   it("shows the execution count on an Idea that has a branch", () => {
     renderMap(
       [

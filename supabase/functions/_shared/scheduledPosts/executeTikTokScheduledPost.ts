@@ -3,8 +3,10 @@ import { tiktokContentScopesIncludePublish } from "../tiktokContentAuth.ts";
 import { getTikTokPublishAccessToken } from "../tiktokContentOrgResolver.ts";
 import {
   assertTikTokPublicPrivacyAvailable,
+  classifyTikTokPublishProgress,
   computeTikTokFileUploadChunkPlan,
   deriveTikTokPostInteractionFromCreator,
+  fetchTikTokPublishStatus,
   initTikTokVideoPublishFileUpload,
   initTikTokVideoPublishPullFromUrl,
   pollTikTokPublishUntilPublicPostId,
@@ -16,6 +18,7 @@ import {
   isPlanEligibleForTikTokAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
 } from "../scheduledPosts/scheduledPostEligibility.ts";
+import { touchPublishingHeartbeat } from "../scheduledPosts/publishingHeartbeat.ts";
 import {
   isTikTokPullFromUrlEnabled,
   resolveVideoBytesForUpload,
@@ -41,9 +44,15 @@ type TikTokProviderConfigExt = {
   account_label?: string;
   employee_id?: string;
   tiktok_publish_id?: string;
+  tiktok_upload_url?: string;
   tiktok_upload_completed?: boolean;
   tiktok_privacy_level_used?: string;
+  publish_step?: string;
 };
+
+function isUploadCompletedFlag(value: unknown): boolean {
+  return value === true || value === "true";
+}
 
 async function loadPlan(admin: SupabaseClient, planId: string): Promise<PlanRow | null> {
   const { data, error } = await admin
@@ -74,11 +83,13 @@ async function persistTikTokProviderConfig(
   patch: Partial<TikTokProviderConfigExt>,
 ): Promise<Record<string, unknown>> {
   const next = { ...base, ...patch };
+  const now = new Date().toISOString();
   await admin
     .from("social_media_scheduled_posts")
     .update({
       provider_config: next,
-      updated_at: new Date().toISOString(),
+      locked_at: now,
+      updated_at: now,
     })
     .eq("id", scheduleId);
   return next;
@@ -172,6 +183,24 @@ async function finalizeTikTokPublish(
   return { published_url: publishedUrl, external_post_id: externalPostId };
 }
 
+async function clearTikTokUploadAttempt(
+  admin: SupabaseClient,
+  scheduleId: string,
+  base: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const next = { ...base };
+  delete next.tiktok_publish_id;
+  delete next.tiktok_upload_url;
+  delete next.tiktok_upload_completed;
+  delete next.tiktok_privacy_level_used;
+  const now = new Date().toISOString();
+  await admin
+    .from("social_media_scheduled_posts")
+    .update({ provider_config: next, locked_at: now, updated_at: now })
+    .eq("id", scheduleId);
+  return next;
+}
+
 async function publishTikTokViaFileUpload(
   admin: SupabaseClient,
   schedule: ScheduledPostRow,
@@ -200,8 +229,10 @@ async function publishTikTokViaFileUpload(
 
   providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
     tiktok_publish_id: initResult.publish_id,
+    tiktok_upload_url: String(initResult.upload_url),
     tiktok_upload_completed: false,
     tiktok_privacy_level_used: privacyLevel,
+    publish_step: "uploading",
   });
 
   await uploadTikTokVideoChunks(
@@ -209,15 +240,18 @@ async function publishTikTokViaFileUpload(
     videoBytes,
     chunkPlan,
     mimeType,
+    { onChunk: () => touchPublishingHeartbeat(admin, [schedule.id]) },
   );
 
   providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
     tiktok_upload_completed: true,
+    publish_step: "processing",
   });
 
   const { publicPostId } = await pollTikTokPublishUntilPublicPostId(
     publishAccessToken,
     initResult.publish_id,
+    { onTick: () => touchPublishingHeartbeat(admin, [schedule.id]) },
   );
 
   return finalizeTikTokPublish(
@@ -276,12 +310,19 @@ export async function executeTikTokScheduledPost(
 
   let providerConfig = { ...(schedule.provider_config as Record<string, unknown>) };
 
-  if (cfg.tiktok_publish_id && cfg.tiktok_upload_completed) {
+  const heartbeat = () => touchPublishingHeartbeat(admin, [schedule.id]);
+
+  const finishFromPublishId = async (publishId: string) => {
+    providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
+      tiktok_publish_id: publishId,
+      tiktok_upload_completed: true,
+      publish_step: "processing",
+    });
     const { publicPostId } = await pollTikTokPublishUntilPublicPostId(
       publishAccessToken,
-      cfg.tiktok_publish_id,
+      publishId,
+      { onTick: heartbeat },
     );
-
     let creatorUsername: string | undefined;
     try {
       const creatorInfo = await queryTikTokCreatorInfo(publishAccessToken);
@@ -289,7 +330,6 @@ export async function executeTikTokScheduledPost(
     } catch {
       creatorUsername = undefined;
     }
-
     return finalizeTikTokPublish(
       admin,
       schedule,
@@ -298,10 +338,49 @@ export async function executeTikTokScheduledPost(
       publicPostId,
       creatorUsername,
     );
+  };
+
+  if (cfg.tiktok_publish_id && isUploadCompletedFlag(cfg.tiktok_upload_completed)) {
+    return finishFromPublishId(cfg.tiktok_publish_id);
   }
 
-  if (cfg.tiktok_publish_id && !cfg.tiktok_upload_completed) {
-    throw new Error("tiktok_upload_incomplete: wait for stale recovery or retry");
+  if (cfg.tiktok_publish_id && !isUploadCompletedFlag(cfg.tiktok_upload_completed)) {
+    const status = await fetchTikTokPublishStatus(publishAccessToken, cfg.tiktok_publish_id);
+    const progress = classifyTikTokPublishProgress(status);
+    console.info(
+      `tiktok_incomplete_status scheduleId=${schedule.id} publishId=${cfg.tiktok_publish_id} status=${status.status ?? ""} uploaded_bytes=${status.uploaded_bytes ?? 0} progress=${progress}`,
+    );
+
+    if (progress === "complete" || progress === "uploaded") {
+      return finishFromPublishId(cfg.tiktok_publish_id);
+    }
+
+    const savedUploadUrl = String(providerConfig.tiktok_upload_url ?? "").trim();
+    if (progress === "awaiting_bytes" && savedUploadUrl) {
+      const driveUrl = plan.google_drive_link?.trim() ?? schedule.media_url_snapshot;
+      const { bytes: videoBytes, mimeType } = await resolveVideoBytesForUpload(driveUrl, sharedCtx);
+      const chunkPlan = computeTikTokFileUploadChunkPlan(videoBytes.byteLength);
+      try {
+        providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
+          publish_step: "uploading",
+        });
+        await uploadTikTokVideoChunks(savedUploadUrl, videoBytes, chunkPlan, mimeType, {
+          onChunk: heartbeat,
+        });
+        return finishFromPublishId(cfg.tiktok_publish_id);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `tiktok_upload_restart scheduleId=${schedule.id} reason=${message.slice(0, 180)}`,
+        );
+      }
+    } else {
+      console.info(
+        `tiktok_upload_restart scheduleId=${schedule.id} progress=${progress} has_upload_url=${savedUploadUrl.length > 0}`,
+      );
+    }
+
+    providerConfig = await clearTikTokUploadAttempt(admin, schedule.id, providerConfig);
   }
 
   const driveUrl = plan.google_drive_link?.trim() ?? schedule.media_url_snapshot;
@@ -330,11 +409,13 @@ export async function executeTikTokScheduledPost(
         tiktok_publish_id: initResult.publish_id,
         tiktok_upload_completed: true,
         tiktok_privacy_level_used: privacyLevel,
+        publish_step: "processing",
       });
 
       const { publicPostId } = await pollTikTokPublishUntilPublicPostId(
         publishAccessToken,
         initResult.publish_id,
+        { onTick: heartbeat },
       );
 
       console.info(

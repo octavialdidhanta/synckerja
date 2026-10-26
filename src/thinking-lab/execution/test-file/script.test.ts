@@ -655,7 +655,7 @@ describe("voice-over script", () => {
     });
     expect(prompt).toContain("only the narration lines that failed");
     expect(prompt).toContain("not an advertisement");
-    expect(prompt).toContain("can say the Master Thought");
+    expect(prompt).toContain("Do not stop at the mechanism");
     expect(prompt).toContain("Do not stop at the mechanism");
     expect(prompt).toContain("Do not install another cause");
     expect(prompt).toContain("follow from the narration line before it");
@@ -677,12 +677,8 @@ describe("voice-over script", () => {
       ],
     });
     expect(prompt).toContain("not an advertisement");
-    expect(prompt).toContain("conclusion scene");
-    expect(prompt).toContain("must be able to say the Master Thought");
     expect(prompt).toContain("fitting number");
     expect(prompt).toContain("does not follow from the line before it");
-    expect(prompt).toContain("still waiting with blurry photos");
-    expect(prompt).toContain("only shows the Idea's mechanism does not fail");
     expect(prompt).toContain("Kenaikan penjualan tidak hanya disebabkan oleh iklan.");
     expect(prompt).toContain("Big Thought: Kemudahan memperoleh mengalahkan keinginan memiliki.");
     expect(prompt).toContain("s5-l1: Ini bukan tentang harga atau kebutuhan");

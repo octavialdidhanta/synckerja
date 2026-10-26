@@ -104,10 +104,37 @@ export function fixScopeLines(scope: FixScope): string[] {
     .map((check) => (check.reason ? `${check.id}: ${check.reason}` : check.id))
     .join("\n");
   const onlyRepair = scope.repair.length === 1 ? scope.repair[0]?.id : "";
+  const stakeOnly = onlyRepair === "stakeHolds";
   return [
     "Change only the checks listed under Checks to repair.",
     "Every check listed under Checks that already passed must stay passed.",
-    "Keep the meaning that made those passed checks true. Do not replace it with a different kind of statement.",
+    ...(stakeOnly
+      ? [
+          "Replace the scene. If the distinctive stake named in the failed check is deleted, the sentence must stop making sense.",
+          "Naming that stake inside the sentence is not enough. A different situation is allowed. Do not keep the old scene.",
+        ]
+      : ["Keep the meaning that made those passed checks true. Do not replace it with a different kind of statement."]),
+    ...(onlyRepair === "resolved"
+      ? ["Finish only the incomplete sentence. Keep the claim that already passed."]
+      : []),
+    ...(onlyRepair === "relation"
+      ? ["Change only the part that restates, unpacks, or executes the Master Thought. Keep the distinct support that already passed."]
+      : []),
+    ...(onlyRepair === "role"
+      ? ["Name only the premise, reason, or evidence. Keep the sentence that already passed."]
+      : []),
+    ...(onlyRepair === "explains"
+      ? ["Change only the part that does not show why the Master Thought is true. Keep the support that already passed."]
+      : []),
+    ...(onlyRepair === "premise"
+      ? ["Remove only the unsupported factual claim. Keep the reason that already passed."]
+      : []),
+    ...(onlyRepair === "duplicate"
+      ? ["Move only the part that repeats a Big Thought that already passed."]
+      : []),
+    ...(onlyRepair === "sibling"
+      ? ["Move only the boundary so this Big Thought no longer does the same reasoning job as its sibling."]
+      : []),
     ...(onlyRepair === "siblingsDistinct"
       ? ["Move only the boundary so the statement no longer covers the sibling named in the failed check."]
       : []),
@@ -132,12 +159,9 @@ export function fixScopeLines(scope: FixScope): string[] {
     ...(onlyRepair === "livedExample"
       ? ["Write only one concrete situation a person could point at. Keep the observation sentence and the short subject."]
       : []),
-    ...(onlyRepair === "stakeHolds"
-      ? ["Tie the sentence to the distinctive stake named in the failed check. It must stop being coherent if that stake is removed. Keep the act that already passed."]
-      : []),
     ...(onlyRepair === "situationFelt"
       ? [
-          "Remove only the verbal explanation. Keep the situation where the reason happens, and keep what the mechanism makes true.",
+          "Remove only the verbal explanation. Keep the comparison, contrast, experiment, demonstration, or situation, and keep what the mechanism makes true.",
           "Do not say that this shows, proves, or highlights a conclusion. Do not use menunjukkan bahwa, membuktikan bahwa, or menyoroti bahwa.",
         ]
       : []),
@@ -145,19 +169,20 @@ export function fixScopeLines(scope: FixScope): string[] {
       ? ["Rewrite only the keys that close the other explanations. Keep the sentence that already passed."]
       : []),
     ...(onlyRepair === "messageStays"
-      ? ["Change only the lines that add a claim or drop the Idea's message. Keep every line that already kept the message."]
+      ? [
+          "Change only the lines that add a claim or drop the Idea's message. Keep every line that already kept the message.",
+          "A line may keep one part of the Idea. Do not rewrite it only because it does not repeat the whole Idea.",
+          "Keep this pillar's image, label, and way of speaking when the Idea stays the same.",
+          "An earlier failure that only objects to this pillar's image, label, or way of speaking is not a mistake. Keep that image.",
+          "An earlier failure that only says a line dropped the Idea because it did not repeat every part is not a mistake.",
+          "Changing the only measure into the main measure, or turning the result into a broader claim, is still a claim.",
+        ]
       : []),
     ...(onlyRepair === "causeChain"
       ? ["Change only the lines that install another cause. Keep the Big Thought's stake as the cause."]
       : []),
     ...(onlyRepair === "viewerClimb"
       ? ["Change only the lines that lead to another conclusion. Keep the climb toward the Master Thought."]
-      : []),
-    ...(onlyRepair === "subjectMatch"
-      ? ["Change only the lines that reach a different subject. Keep the named Master Thought subject."]
-      : []),
-    ...(onlyRepair === "conclusionLands"
-      ? ["Change only the conclusion lines so a viewer who hears them can say the Master Thought in the situation's words. Keep the mechanism lines that already passed."]
       : []),
     "Checks that already passed:",
     preserve,

@@ -1,4 +1,14 @@
 import { sameIdeaConcept } from "@/thinking-lab/idea/conceptIdentity";
+import { ideaWorldLines } from "@/thinking-lab/idea/discover";
+import type { IdeaDecision } from "@/thinking-lab/idea/setAudit";
+import {
+  formatFailureMemory,
+  howIfInstruction,
+  IDEA_K2_RULE,
+  IDEA_K7_RULE,
+  type FailureMemoryItem,
+  type IdeaValidationDecision,
+} from "@/thinking-lab/idea/validation";
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
@@ -11,6 +21,7 @@ import type { IdeaMechanismKey, IdeaSemanticFacts } from "@/thinking-lab/idea/ty
 export const TARGET_IDEA_VALID = 5;
 export const IDEA_ACTIVE_CAP = 10;
 export const IDEA_MAX_ROUNDS = 2;
+export const IDEA_GENERATE_BATCH = 3;
 
 export type IdeaGenerateStop = null | "ENOUGH" | "CAP" | "ROUNDS";
 
@@ -51,49 +62,59 @@ export function buildIdeaGeneratePrompt(input: {
   masterSubject?: string;
   ancestors?: AncestorStake[];
   incumbents: Array<{ code: string; statement: string; locked?: boolean }>;
+  lessons?: Array<{ code: string; statement: string; reason: string }>;
+  failures?: FailureMemoryItem[];
+  decisions?: IdeaDecision[] | null;
   needed: number;
 }): string {
   const open = input.incumbents.filter((row) => row.locked !== true);
   const sealed = input.incumbents.filter((row) => row.locked === true);
   const kept = open.length === 0 ? "(none)" : open.map((row) => `${row.code}: ${row.statement}`).join("\n");
   const locked = sealed.length === 0 ? "(none)" : sealed.map((row) => `${row.code}: ${row.statement}`).join("\n");
+  const lessons = input.lessons ?? [];
+  const lessonLines =
+    lessons.length === 0
+      ? "(none)"
+      : lessons.map((lesson) => `${lesson.code}: ${lesson.statement}\nWhy it failed: ${lesson.reason}`).join("\n");
+  const failureBlock = (input.failures ?? []).length > 0 ? formatFailureMemory(input.failures ?? []) : lessonLines;
   return [
     "Write Idea candidates under one direct Angle.",
-    "Write the statement and every key in the same language as the Angle.",
-    "When the Angle is not English, do not write the statement or the keys in English.",
-    "An Idea is a concrete mechanism that makes the Angle happen, become visible, or be proved.",
-    "The mechanism is a demonstration, an experiment, a comparison, or a situation.",
-    "Write one sentence in the Angle's language. Name what is made, invited, shown, or created, then what that makes true.",
-    "Do not write a plot. Do not use namun, tiba-tiba, lalu, or kita mengamati bagaimana.",
-    "The sentence contains the mechanism, not a topic, and it does not contain the keys.",
-    "It proves the Angle. It does not jump ahead and explain the Big Thought.",
-    "State what becomes true in the sentence so the mechanism can be understood.",
-    "Do not announce that result with menunjukkan bahwa, membuktikan bahwa, menyoroti bahwa, shows that, proves that, or highlights that.",
-    "Do not explain the Big Thought in words. Do not write that this shows or highlights a conclusion. The situation itself is where the reason happens.",
-    "Write subject as at most six words in the Angle's language. It names this mechanism and keeps its meaning. It is not a cut-off sentence.",
-    "Write the keys separately. Each key is two short clauses, at most twelve words each: the other explanation a viewer might reach, and how this Idea closes it.",
-    "Do not write that this shows, proves, or highlights a conclusion inside a key.",
+    "An Idea is one specific how-if proposal.",
+    howIfInstruction(input.parentStatement),
+    "Write the statement in the same language as the Angle.",
+    "K1. The statement is one specific how-if proposal. It fails when the substance is only a fact, an insight, a problem, a goal, a proposition, a general strategy, a consequence scenario, an activity, or a technique.",
+    "Those may appear inside the proposal. They must not be the whole idea.",
+    `K2. ${IDEA_K2_RULE}`,
+    "K3. The proposed mechanism can produce the stated value.",
+    "K4. A beneficiary, a relevant need, and the reason this mechanism could deliver that benefit are clear. A general claim such as increasing effectiveness is not enough.",
+    "K5. The core concept, the working principle, or the produced value is meaningfully different from ideas that passed, failed, or could not be verified. Compare passed ideas as well as rejected and unverified ideas.",
+    "A new title, wording, visualization, or delivery format is still the same idea when the concept, the working principle, and the value stay the same.",
+    "The same topic or the same Big Thought is not a failure.",
+    "K6. Quote the stored Master Thought, the stored Big Thought, and the stored Territory, and say how each one supports the proposal. They are not the same thing.",
+    `K7. ${IDEA_K7_RULE}`,
+    "Return a title, the concept, the core mechanism, and the value with the statement.",
     `Master Thought subject: ${input.masterSubject?.trim() || "(not sealed)"}`,
     "Do not write a finished story. A story is a pillar, not an Idea.",
-    "Do not write the lesson, the chart, the shots, the dialogue, or the posting format.",
-    "A pillar is chosen later. A pillar that would force a message outside this Idea is refused later.",
     "Do not restate the Angle as an observation or widen it into a life area.",
     ...ANCESTOR_STAKE_RULES,
-    "Do not repeat an incumbent by changing only the title, caption, platform, duration, or a similar prop.",
     "Read every locked Idea. Do not reuse its meaning. A new wording of the same mechanism is still a repeat.",
-    "Do not use examples from any specific industry, belief system, or brand.",
+    "Read the earlier failures. Do not return a sentence listed there.",
+    ...ideaWorldLines(input.decisions),
     `Return at most ${input.needed} candidate(s).`,
-    "Return JSON only: {\"ideas\":[{\"subject\":\"...\",\"statement\":\"...\",\"keys\":[{\"otherExplanation\":\"...\",\"close\":\"...\"}]}]}",
+    "Return JSON only: {\"ideas\":[{\"title\":\"...\",\"statement\":\"...\",\"concept\":\"...\",\"mechanism\":\"...\",\"value\":\"...\"}]}",
     "",
     "Direct Angle:",
     input.parentStatement.trim(),
     ...ancestorStakeBlock(input.ancestors),
     "",
-    "Incumbent Ideas, including ones already rejected:",
+    "Incumbent Ideas:",
     kept,
     "",
     "Locked Ideas already sealed:",
     locked,
+    "",
+    "Earlier failures. Do not repeat these sentences:",
+    failureBlock,
   ].join("\n");
 }
 
@@ -101,6 +122,9 @@ export type IdeaDraft = {
   subject: string;
   statement: string;
   mechanismKeys: IdeaMechanismKey[];
+  concept: string;
+  mechanism: string;
+  value: string;
 };
 
 export function parseGeneratedIdeaDrafts(raw: unknown): IdeaDraft[] {
@@ -109,20 +133,59 @@ export function parseGeneratedIdeaDrafts(raw: unknown): IdeaDraft[] {
   if (Array.isArray(row.ideas)) {
     const drafts: IdeaDraft[] = [];
     for (const item of row.ideas) {
-      if (!item || typeof item !== "object") continue;
-      const statement = typeof (item as { statement?: unknown }).statement === "string"
-        ? (item as { statement: string }).statement.trim()
-        : "";
-      if (!statement) continue;
-      drafts.push({
-        subject: typeof (item as { subject?: unknown }).subject === "string" ? (item as { subject: string }).subject.trim() : "",
-        statement,
-        mechanismKeys: readMechanismKeys((item as { keys?: unknown }).keys),
-      });
+      const draft = readIdeaDraft(item);
+      if (draft) drafts.push(draft);
     }
     return drafts;
   }
-  return parseGeneratedIdeaStatements(raw).map((statement) => ({ subject: "", statement, mechanismKeys: [] }));
+  const single = readIdeaDraft(raw);
+  if (single) return [single];
+  return parseGeneratedIdeaStatements(raw).map((statement) => ({
+    subject: "",
+    statement,
+    mechanismKeys: [],
+    concept: "",
+    mechanism: "",
+    value: "",
+  }));
+}
+
+function readIdeaDraft(item: unknown): IdeaDraft | null {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+  const statement = typeof (item as { statement?: unknown }).statement === "string"
+    ? (item as { statement: string }).statement.trim()
+    : "";
+  if (!statement) return null;
+  const title = typeof (item as { title?: unknown }).title === "string" ? (item as { title: string }).title.trim() : "";
+  const subject = typeof (item as { subject?: unknown }).subject === "string" ? (item as { subject: string }).subject.trim() : "";
+  return {
+    subject: title || subject,
+    statement,
+    mechanismKeys: readMechanismKeys((item as { keys?: unknown }).keys),
+    concept: typeof (item as { concept?: unknown }).concept === "string" ? (item as { concept: string }).concept.trim() : "",
+    mechanism: typeof (item as { mechanism?: unknown }).mechanism === "string" ? (item as { mechanism: string }).mechanism.trim() : "",
+    value: typeof (item as { value?: unknown }).value === "string" ? (item as { value: string }).value.trim() : "",
+  };
+}
+
+export function ideaFactsForValidation(
+  code: string,
+  statement: string,
+  decision: IdeaValidationDecision,
+  mechanismKeys: IdeaMechanismKey[] = [],
+  subject = "",
+): IdeaSemanticFacts {
+  const base = shownIdeaFacts(code, statement, mechanismKeys, subject);
+  if (decision === "LOLOS") return base;
+  if (decision === "DITOLAK") {
+    return { ...base, relationToParent: "UNDERDEVELOPED_CONCEPT", conceptualCompleteness: "INSUFFICIENT" };
+  }
+  return {
+    ...base,
+    relationToParent: "UNRESOLVED",
+    resolution: "UNRESOLVED",
+    unresolvedReasons: ["validation"],
+  };
 }
 
 export function parseGeneratedIdeaStatements(raw: unknown): string[] {
@@ -231,6 +294,8 @@ export async function runIdeaGenerate<
     statement: string,
     mechanismKeys: IdeaMechanismKey[],
   ) => Promise<IdeaSemanticFacts>;
+  /** Propose one sentence, judge it, then propose the next sentence with that failure available. */
+  carryLessons?: boolean;
   persist: (input: {
     parent: IdeaGenerateParent;
     code: string;
@@ -251,13 +316,27 @@ export async function runIdeaGenerate<
     };
   }
   let incumbents = [...input.incumbents];
-  let activeCount = incumbents.length;
-  for (let round = 1; round <= IDEA_MAX_ROUNDS; round += 1) {
-    const plan = planIdeaGenerate({ activeCount, generateValidCount: countAdmittedIdeas(incumbents), round });
+  let activeCount = incumbents.filter((row) => row.admission !== "GENERATE_REJECT").length;
+  const startedValid = countAdmittedIdeas(incumbents);
+  const attemptLimit = input.carryLessons ? IDEA_GENERATE_BATCH : IDEA_MAX_ROUNDS;
+  for (let attempt = 1; attempt <= attemptLimit; attempt += 1) {
+    if (countAdmittedIdeas(incumbents) - startedValid >= IDEA_GENERATE_BATCH) break;
+    const plan = planIdeaGenerate({
+      activeCount,
+      generateValidCount: countAdmittedIdeas(incumbents),
+      round: input.carryLessons ? 1 : attempt,
+    });
     if (plan.needed === 0) break;
-    const drafts = (await input.propose(plan, gate.parent, incumbents)).slice(0, plan.needed).map((row) =>
-      typeof row === "string" ? { subject: "", statement: row, mechanismKeys: [] as IdeaMechanismKey[] } : row,
-    );
+    const askFor = input.carryLessons ? 1 : Math.min(plan.needed, IDEA_GENERATE_BATCH);
+    const drafts = (await input.propose({ ...plan, needed: askFor }, gate.parent, incumbents))
+      .slice(0, askFor)
+      .map((row) =>
+        typeof row === "string"
+          ? { subject: "", statement: row, mechanismKeys: [] as IdeaMechanismKey[], concept: "", mechanism: "", value: "" }
+          : row,
+      )
+      .filter((row) => row.statement.trim());
+    if (input.carryLessons && drafts.length === 0) break;
     for (const draft of drafts) {
       if (activeCount >= IDEA_ACTIVE_CAP) break;
       if (incumbents.some((row) => sameIdeaConcept(row.statement, draft.statement))) continue;
@@ -267,7 +346,7 @@ export async function runIdeaGenerate<
       const admission = admitIdea(facts);
       const saved = await input.persist({ parent: gate.parent, code, statement: draft.statement, facts, admission });
       incumbents = [...incumbents, { ...saved, admission, angleId: gate.parent.id }];
-      activeCount += 1;
+      if (admission !== "GENERATE_REJECT") activeCount += 1;
     }
     if (countAdmittedIdeas(incumbents) >= TARGET_IDEA_VALID) break;
   }
@@ -286,6 +365,9 @@ export async function proposeIdeaStatements(input: {
   masterSubject?: string;
   ancestors?: AncestorStake[];
   incumbents: Array<{ code: string; statement: string; locked?: boolean }>;
+  lessons?: Array<{ code: string; statement: string; reason: string }>;
+  failures?: FailureMemoryItem[];
+  decisions?: IdeaDecision[] | null;
   needed: number;
   ask: (prompt: string) => Promise<string | null>;
 }): Promise<IdeaDraft[]> {
@@ -295,6 +377,9 @@ export async function proposeIdeaStatements(input: {
       masterSubject: input.masterSubject,
       ancestors: input.ancestors,
       incumbents: input.incumbents,
+      lessons: input.lessons,
+      failures: input.failures,
+      decisions: input.decisions,
       needed: input.needed,
     }),
   );

@@ -1,14 +1,7 @@
 import { Badge } from '@/shared/components/ui/badge';
 import { cn } from '@/shared/lib/utils';
+import { scheduleStatusLabel } from '../lib/scheduleStatusLabel';
 import type { ScheduledPostStatus } from '../types/scheduled-post';
-
-const STATUS_LABEL: Record<ScheduledPostStatus, string> = {
-  pending: 'Scheduled',
-  publishing: 'Publishing',
-  published: 'Published',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
-};
 
 const STATUS_VARIANT: Record<ScheduledPostStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   pending: 'secondary',
@@ -21,13 +14,17 @@ const STATUS_VARIANT: Record<ScheduledPostStatus, 'default' | 'secondary' | 'des
 export function ScheduleStatusBadge({
   status,
   className,
+  publishStep,
+  errorMessage,
 }: {
   status: ScheduledPostStatus;
   className?: string;
+  publishStep?: unknown;
+  errorMessage?: string | null;
 }) {
   return (
     <Badge variant={STATUS_VARIANT[status]} className={cn('text-xs', className)}>
-      {STATUS_LABEL[status]}
+      {scheduleStatusLabel(status, { publishStep, errorMessage })}
     </Badge>
   );
 }

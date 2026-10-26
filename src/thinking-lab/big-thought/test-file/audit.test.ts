@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { challengerCanRun } from "@/thinking-lab/big-thought/challenger";
 import { evaluateLock } from "@/thinking-lab/big-thought/lock";
 import {
+  auditRowContinuation,
+  auditSiblingGate,
   displayedAuditVerdict,
   holdPassingAuditVerdicts,
   keptPassingAuditItems,
@@ -11,6 +13,13 @@ import {
   persistedSetRecordAfterFix,
   scoreAudit,
   siblingReasonProofReady,
+  withAuditConfirmation,
+  parseLabSetRecord,
+  mergeFixLessons,
+  mergeGenerateLessons,
+  dropFixLessons,
+  clearSetConclusions,
+  emptySetRecord,
 } from "@/thinking-lab/big-thought/audit";
 import type { BigThoughtFacts, ChallengerFacts, LabSetRecord, SiblingSetFacts } from "@/thinking-lab/big-thought/types";
 import { bigThoughtFingerprint, incumbentSetFingerprint } from "@/thinking-lab/shared/fingerprint";
@@ -36,7 +45,7 @@ describe("keptPassingAuditItems", () => {
     const kept = keptPassingAuditItems({
       editedCode: "BT06",
       items: [
-        { code: "BT01", verdict: "AUDIT_PASS", statementFingerprint: "fp-01" },
+        { code: "BT01", verdict: "AUDIT_PASS", statementFingerprint: "fp-01", gatesChecked: true },
         { code: "BT02", verdict: "AUDIT_PASS", statementFingerprint: "fp-02" },
         { code: "BT06", verdict: "AUDIT_PASS", statementFingerprint: "fp-06" },
       ],
@@ -47,6 +56,7 @@ describe("keptPassingAuditItems", () => {
       ],
     });
     expect(kept.map((item) => item.code)).toEqual(["BT01", "BT02"]);
+    expect(kept[0]?.gatesChecked).toBe(true);
     const scored = holdPassingAuditVerdicts(
       [
         { code: "BT01", verdict: "AUDIT_FAIL" },
@@ -98,6 +108,53 @@ describe("set audit", () => {
       siblingSetCurrent: false,
     });
     expect(items[0]?.verdict).toBe("STALE");
+  });
+
+  it("retries the same Big Thought after a failed gate and moves on only after it passes", () => {
+    expect(auditRowContinuation({ passed: false, attempt: 0, maxAttempts: 6 })).toBe("retry");
+    expect(auditRowContinuation({ passed: false, attempt: 5, maxAttempts: 6 })).toBe("stop");
+    expect(auditRowContinuation({ passed: true, attempt: 2, maxAttempts: 6 })).toBe("next");
+  });
+
+  it("reports the sibling gate from the same audit score", () => {
+    const passed = auditSiblingGate({
+      code: "BT02",
+      siblingSet: siblingSet({
+        distinct: false,
+        duplicatePairs: [{ a: "BT01", b: "BT03", explanation: "Those two overlap." }],
+        reasonContributions: contributions(["BT01", "BT02", "BT03"]),
+      }),
+      siblingSetCurrent: true,
+      activeCodes: ["BT01", "BT02", "BT03"],
+    });
+    const failed = auditSiblingGate({
+      code: "BT01",
+      siblingSet: siblingSet({
+        distinct: false,
+        duplicatePairs: [{ a: "BT01", b: "BT03", explanation: "Same reasoning job." }],
+        reasonContributions: contributions(["BT01", "BT02", "BT03"]),
+      }),
+      siblingSetCurrent: true,
+      activeCodes: ["BT01", "BT02", "BT03"],
+    });
+    expect(passed).toEqual({ passed: true, reason: "" });
+    expect(failed).toEqual({ passed: false, reason: "Same reasoning job." });
+  });
+
+  it("keeps the checklist report only when it matches the saved verdict", () => {
+    const failure = { gate: "sibling" as const, reason: "Same reasoning job.", earlier: "pass" as const };
+    expect(
+      withAuditConfirmation(
+        [{ code: "BT01", verdict: "AUDIT_PASS" }],
+        new Map([["BT01", { gatesChecked: true as const }]]),
+      ),
+    ).toEqual([{ code: "BT01", verdict: "AUDIT_PASS", gatesChecked: true }]);
+    expect(
+      withAuditConfirmation([{ code: "BT01", verdict: "AUDIT_FAIL" }], new Map([["BT01", { gateFailure: failure }]])),
+    ).toEqual([{ code: "BT01", verdict: "AUDIT_FAIL", gateFailure: failure }]);
+    expect(
+      withAuditConfirmation([{ code: "BT01", verdict: "AUDIT_PASS" }], new Map([["BT01", { gateFailure: failure }]])),
+    ).toEqual([{ code: "BT01", verdict: "AUDIT_PASS" }]);
   });
 });
 
@@ -339,5 +396,91 @@ describe("fix audit persistence", () => {
       challenger: null,
     });
     expect(next.semanticExclusions?.entries).toEqual([]);
+  });
+});
+
+describe("Big Thought fix lessons", () => {
+  it("keeps a failed attempt on the set record and drops it when that card passes", () => {
+    const stored = parseLabSetRecord({
+      schema: "thinking-lab/v1",
+      siblingSet: null,
+      audit: null,
+      challenger: null,
+      fixLessons: [
+        { code: "BT07", statement: "The failed clause", reason: "explains: It names a result." },
+        { code: "bt07", statement: "The failed clause", reason: "explains: It names a result." },
+        { code: "BT01", statement: "Another clause", reason: "role: It names a feature." },
+      ],
+    });
+    expect(stored?.fixLessons).toEqual([
+      { code: "BT07", statement: "The failed clause", reason: "explains: It names a result." },
+      { code: "BT01", statement: "Another clause", reason: "role: It names a feature." },
+    ]);
+    const merged = mergeFixLessons(stored?.fixLessons, [
+      { code: "BT07", statement: "A second failed clause", reason: "explains: The result is still missing." },
+    ]);
+    expect(merged.map((lesson) => lesson.statement)).toEqual([
+      "The failed clause",
+      "Another clause",
+      "A second failed clause",
+    ]);
+    const kept = clearSetConclusions({ ...(stored ?? emptySetRecord()), fixLessons: merged });
+    expect(kept.audit).toBeNull();
+    expect(kept.fixLessons).toEqual(merged);
+    const passed = dropFixLessons(merged, ["BT07"]);
+    expect(passed).toEqual([{ code: "BT01", statement: "Another clause", reason: "role: It names a feature." }]);
+  });
+});
+
+describe("Big Thought generate lessons", () => {
+  const failed = "The sentence that only restates the Master Thought.";
+
+  it("keeps a rejected sentence and replaces the reason for the same gate", () => {
+    const stored = parseLabSetRecord({
+      schema: "thinking-lab/v1",
+      siblingSet: null,
+      audit: null,
+      challenger: null,
+      fixLessons: [{ code: "BT04", statement: "A card already saved", reason: "explains: It names a result." }],
+      generateLessons: [
+        { gate: "relation", statement: failed, reason: "It restates the Master Thought." },
+        { gate: "relation", statement: `  ${failed}  `, reason: "It elaborates the same claim." },
+        { gate: "resolved", statement: failed, reason: "The judgment is still open." },
+        { gate: "unknown", statement: failed, reason: "Not a gate." },
+        { gate: "relation", statement: "", reason: "Missing the sentence." },
+      ],
+    });
+    expect(stored?.generateLessons).toEqual([
+      { gate: "relation", statement: failed, reason: "It elaborates the same claim." },
+      { gate: "resolved", statement: failed, reason: "The judgment is still open." },
+    ]);
+    expect(stored?.fixLessons).toEqual([
+      { code: "BT04", statement: "A card already saved", reason: "explains: It names a result." },
+    ]);
+    const merged = mergeGenerateLessons(stored?.generateLessons, [
+      { gate: "duplicate", statement: failed, reason: "Same Big Thought as BT01." },
+    ]);
+    expect(merged.map((lesson) => lesson.gate)).toEqual(["relation", "resolved", "duplicate"]);
+  });
+
+  it("keeps rejected sentences when a later card passes or the set is saved again", () => {
+    const record = {
+      ...emptySetRecord(),
+      fixLessons: [{ code: "BT04", statement: "A card already saved", reason: "explains: It names a result." }],
+      generateLessons: [{ gate: "relation" as const, statement: failed, reason: "It restates the Master Thought." }],
+    };
+    const cleared = clearSetConclusions(record);
+    expect(cleared.audit).toBeNull();
+    expect(cleared.generateLessons).toEqual(record.generateLessons);
+    expect(cleared.fixLessons).toEqual(record.fixLessons);
+    const next = nextAuthoritativeSetRecord({
+      record,
+      parentFingerprint: "parent",
+      siblingSet: null,
+      audit: null,
+      challenger: null,
+    });
+    expect(next.generateLessons).toEqual(record.generateLessons);
+    expect(next.fixLessons).toEqual(record.fixLessons);
   });
 });

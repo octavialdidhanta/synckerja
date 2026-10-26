@@ -73,6 +73,19 @@ export type ScriptLook = "ugc" | "commercial" | "cinematic";
 
 export type ScriptSpeech = "vo" | "mix" | "dialog" | "silent";
 
+export type ScriptMedium = "image" | "video";
+
+export type ImageFormat = "single" | "carousel";
+
+export type SlideCountMode = "manual" | "idea";
+
+export type ImageSettings = {
+  format: ImageFormat;
+  slideCountMode: SlideCountMode;
+  slideCount: number | null;
+  withImage: boolean;
+};
+
 export type VoiceOverScript = {
   title: string;
   caption: string;
@@ -93,6 +106,8 @@ export type VoiceOverScript = {
   pointOfView?: string;
   decisions?: ScriptDecision[];
   followedRecommendation?: boolean;
+  medium?: ScriptMedium;
+  image?: ImageSettings;
 };
 
 export type ScriptLineReplacement = {
@@ -357,6 +372,8 @@ export function parseVoiceOverScript(raw: unknown): VoiceOverScript | null {
       ? { pointOfView: readPointOfView(row.pointOfView, row.confirmations, row.decisions) ?? undefined }
       : {}),
     ...(row.followedRecommendation === true ? { followedRecommendation: true } : {}),
+    ...(readScriptMedium(row.medium) ? { medium: readScriptMedium(row.medium) } : {}),
+    ...(readImageSettings(row.image) ? { image: readImageSettings(row.image) ?? undefined } : {}),
   };
 }
 
@@ -453,13 +470,6 @@ export function linesForProductionRecheck(
   if (index < 0) return lines;
   if (kind === "viewpoint") return [lines[index]];
   return lines.slice(Math.max(0, index - 1), index + 1);
-}
-
-export function conclusionNarrationLines(script: VoiceOverScript): Array<{ id: string; narration: string }> {
-  const story = script.scenes.filter((scene) => scene.purpose !== "cta");
-  const last = story[story.length - 1];
-  if (!last) return [];
-  return last.lines.map((line) => ({ id: line.id, narration: line.narration }));
 }
 
 export function storyVoiceOver(script: VoiceOverScript): string {
@@ -617,6 +627,55 @@ export function readScriptSpeech(raw: unknown): ScriptSpeech | undefined {
   return raw === "vo" || raw === "mix" || raw === "dialog" || raw === "silent" ? raw : undefined;
 }
 
+export function readScriptMedium(raw: unknown): ScriptMedium | undefined {
+  return raw === "image" || raw === "video" ? raw : undefined;
+}
+
+export function readImageSettings(raw: unknown): ImageSettings | null {
+  const row = asRecord(raw);
+  if (!row) return null;
+  const format = row.format === "carousel" ? "carousel" : row.format === "single" ? "single" : null;
+  if (!format) return null;
+  const slideCountMode = row.slideCountMode === "manual" ? "manual" : "idea";
+  const amount = typeof row.slideCount === "number" ? row.slideCount : Number(row.slideCount);
+  const slideCount = Number.isInteger(amount) && amount >= 2 && amount <= 10 ? amount : null;
+  return {
+    format,
+    slideCountMode: format === "single" ? "idea" : slideCountMode,
+    slideCount: format === "single" ? null : slideCountMode === "manual" ? slideCount : null,
+    withImage: row.withImage !== false,
+  };
+}
+
+export function imageContentTypeName(format: ImageFormat): "Carousel" | "Post" {
+  return format === "carousel" ? "Carousel" : "Post";
+}
+
+export function stampImageScript(script: VoiceOverScript, settings: ImageSettings): VoiceOverScript {
+  const scenes = script.scenes
+    .filter((scene) => scene.purpose !== "cta")
+    .flatMap((scene) => {
+      const line = scene.lines.find((item) => item.narration.trim());
+      if (!line) return [];
+      const shot = line.shots.find((item) => item.prompt.trim());
+      const shots = settings.withImage && shot ? [{ ...shot, id: `${line.id}-h1`, role: shot.role || "Image" }] : [];
+      return [{ ...scene, lines: [{ ...line, shots }] }];
+    });
+  return {
+    title: script.title,
+    caption: script.caption,
+    assets: script.assets,
+    scenes,
+    lineIssues: [],
+    audio: { sound: false, music: false },
+    medium: "image",
+    image: settings,
+    ...(script.pointOfView ? { pointOfView: script.pointOfView } : {}),
+    ...(script.decisions?.length ? { decisions: script.decisions } : {}),
+    ...(script.followedRecommendation ? { followedRecommendation: true } : {}),
+  };
+}
+
 const SAID_CLAUSE = /\s*@[A-Za-z0-9_.]+\s+said\s*:\s*"(?:[^"\\]|\\.)*"\s*/gi;
 
 export function shotHasSaid(prompt: string): boolean {
@@ -688,9 +747,14 @@ export function buildPlanBriefMarkdown(script: VoiceOverScript): string {
     let rowCount = 0;
     for (const line of scene.lines) {
       const shots = line.shots.length > 0 ? line.shots : [null];
-      const master = lineMasterPrompt(line, lineAudio(script, line), script.look);
       shots.forEach((shot, index) => {
         rowCount += 1;
+        const master =
+          script.medium === "image"
+            ? planCell(shot?.prompt ?? "")
+            : index === 0
+              ? planCell(lineMasterPrompt(line, lineAudio(script, line), script.look))
+              : "";
         rows.push([
           "",
           "",
@@ -699,7 +763,7 @@ export function buildPlanBriefMarkdown(script: VoiceOverScript): string {
           planCell(shot?.angle ?? ""),
           planCell(shot?.visualFunction ?? ""),
           planCell(shot?.prompt ?? ""),
-          index === 0 ? planCell(master) : "",
+          master,
         ]);
       });
     }
@@ -738,7 +802,6 @@ export function scriptLineRepairReady(facts: ExecutionSemanticFacts, script: Voi
   const hasNarration = Boolean(script?.scenes.some((scene) => scene.lines.some((line) => line.narration.trim())));
   if (!script || !hasNarration || script.lineIssues.length === 0) return false;
   if (facts.mechanismVisible === false || facts.pillarOutside === true) return false;
-  if (isFlashSalePillar(facts.pillar) && facts.masterSells !== true) return false;
   if (
     facts.relationToParent === "PILLAR_OUTSIDE" ||
     facts.relationToParent === "PILLAR_NOT_SELLING" ||
@@ -1135,13 +1198,8 @@ export function buildLineAuditPrompt(input: {
     "Example fail: the previous line is still waiting with blurry photos, and the next line says they found a team.",
     "Write the reason as the missing step between those two lines.",
     "Do not require the line to quote those beliefs.",
-    "The last narration lines below are the conclusion scene. A call-to-action scene is not included here.",
-    "A viewer who hears only those conclusion lines must be able to say the Master Thought.",
-    "Those closing lines fail when they only restate the mechanism, hide the Master Thought, or announce another cause.",
     "An invitation to follow, save, comment, share, or click is not part of this chain. Do not judge it, because it is not in these lines.",
-    "Saying the Master Thought in the situation's words passes. Pasting it unchanged as a slogan is not required.",
-    "A closing line that announces another cause fails. Example: this is not about price or need, it is about a fitting number.",
-    "A short line, a question, or a line that only shows the Idea's mechanism does not fail when it comes before the conclusion.",
+    "A line that announces another cause fails. Example: this is not about price or need, it is about a fitting number.",
     "Return JSON only: {\"lines\":[{\"lineId\":\"...\",\"reason\":\"...\"}]}.",
     "Include only the failing lines. Return {\"lines\":[]} when every line carries the chain.",
     "Write each reason in the same language as the Idea.",
@@ -1171,8 +1229,7 @@ export function buildLineRepairPrompt(input: {
   return [
     "Rewrite only the narration lines that failed.",
     "Keep the picture on the chain: the Big Thought's stake happens, and that stake, not an advertisement, moves the Master Thought's outcome.",
-    "If a failing line is in the conclusion, rewrite it so a viewer who hears only that line can say the Master Thought.",
-    "Say it as what just happened in this situation. Leave the old belief behind. Do not stop at the mechanism.",
+    "Do not stop at the mechanism. Leave the old belief behind.",
     "Do not install another cause. Do not title the scene Conclusion or Kesimpulan.",
     "A rewritten line must follow from the narration line before it.",
     "Do not open the line on an event the previous line did not cause or show.",
@@ -1182,6 +1239,8 @@ export function buildLineRepairPrompt(input: {
     "Shots of every other line stay as they are.",
     "Narration stays in the Idea's language. Shot prompts stay in English.",
     "Do not add a claim the Idea does not already carry.",
+    "A rewritten line may keep one part of the Idea. Do not force it to repeat the whole Idea.",
+    "The pillar's image, label, and way of speaking may say that same Idea.",
     ...(input.script.brandName?.trim()
       ? [
           `Keep the exact brand name "${input.script.brandName.trim()}" in the script.`,

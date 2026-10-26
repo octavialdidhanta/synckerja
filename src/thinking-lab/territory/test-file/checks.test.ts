@@ -68,8 +68,9 @@ describe("territory checks", () => {
       statement: "Layanan Pelanggan",
       question: "mengapa tim saya selalu memulai dari nol saat menghadapi masalah serupa?",
     });
-    expect(prompt).toContain("lived is true only when that question often comes up");
-    expect(prompt).toContain("other questions also come up there");
+    expect(prompt).toContain("lived is true only when that question actually comes up");
+    expect(prompt).toContain("the question only restates the Big Thought");
+    expect(prompt).toContain("Other questions coming up in that area do not make lived false");
     expect(prompt).not.toContain("only nearby");
     expect(prompt).not.toContain("orang");
     expect(parseTerritoryLivedFit('{"lived":false}')).toBe(false);

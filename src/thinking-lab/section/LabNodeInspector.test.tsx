@@ -30,6 +30,30 @@ describe("LabNodeInspector territory entry", () => {
     expect(screen.getByText(/kehilangan satu alasan untuk dipercaya/i)).toBeTruthy();
   });
 
+  it("shows each generate requirement, including the one still being checked", () => {
+    render(
+      <LabNodeInspector
+        kind="bigThought"
+        code="BT02"
+        statement="Sate sultan PIK bukan hanya tempat makan sate."
+        territoryGenerateChecklist={{
+          checks: [
+            { id: "partOfBigThought", state: "pass" },
+            { id: "audienceLanguage", state: "running" },
+            { id: "questionArises", state: "pending" },
+            { id: "wideEnough", state: "pending" },
+            { id: "siblingsDistinct", state: "pending" },
+          ],
+          report: { gate: "audienceLanguage", phase: "checking", outcome: "pass" },
+        }}
+      />,
+    );
+    expect(screen.getByText("Checking this requirement: Audience language, not an internal term")).toBeTruthy();
+    expect(screen.getByText("Part of the Big Thought, not a keyword of it")).toBeTruthy();
+    expect(screen.getByText("Wide enough for several Angles")).toBeTruthy();
+    expect(screen.queryByText("Sate sultan PIK bukan hanya tempat makan sate.")).toBeTruthy();
+  });
+
   it("offers Generate Territory on an empty Big Thought that can start one", () => {
     const onGenerateTerritory = vi.fn();
     render(
@@ -767,6 +791,58 @@ describe("LabNodeInspector territory entry", () => {
     expect(onFixTerritory).toHaveBeenCalledWith("TR01");
   });
 
+  it("shows a cross and Revise for an unverified idea in Rejected", () => {
+    const onReviseIdea = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="angle"
+        statement="Pilihan ibu"
+        onReviseIdea={onReviseIdea}
+        ideas={[
+          {
+            id: "i2",
+            code: "ID02",
+            statement: "Bagaimana jika ibu menanyakan keinginan anak?",
+            decision: "BELUM_TERVERIFIKASI",
+            canRevise: true,
+            checklist: [
+              {
+                id: "K5",
+                state: "fail",
+                reason: "Tidak ada bukti perbandingan dengan ide yang sudah lolos.",
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Rejected" }));
+    const label = screen.getByText("Meaningfully different from passed, rejected, and unverified ideas");
+    expect(label.className).toContain("text-destructive");
+    fireEvent.click(screen.getByRole("button", { name: "Revise" }));
+    expect(onReviseIdea).toHaveBeenCalledWith("i2");
+  });
+
+  it("puts Delete on each Idea card", () => {
+    const onDeleteIdea = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="angle"
+        statement="Waktu kerja bunga"
+        ideas={[
+          { id: "i2", code: "ID02", statement: "Mengundang pensiunan menjadi mentor", verdict: "AUDIT_FAIL", editable: true },
+          { id: "i4", code: "ID04", statement: "Mantan profesional menulis buku", verdict: "AUDIT_PASS", editable: true },
+        ]}
+        onEditIdea={vi.fn(async () => null)}
+        onFixIdea={vi.fn()}
+        onDeleteIdea={onDeleteIdea}
+      />,
+    );
+    openActionMenu(/More actions ID04/);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete Idea" }));
+    expect(onDeleteIdea).toHaveBeenCalledWith("i4");
+  });
+
   it("puts a Fix button on each failed Idea card", () => {
     const onFixIdea = vi.fn();
     render(
@@ -1167,5 +1243,102 @@ describe("LabNodeInspector territory entry", () => {
     openActionMenu();
     expect(screen.getByRole("menuitem", { name: "Delete" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Delete Territory" })).toBeNull();
+  });
+});
+
+describe("LabNodeInspector creative path", () => {
+  it("keeps a locked pillar out of the idea section", () => {
+    const onSelectFormat = vi.fn();
+    const onSelectPillar = vi.fn();
+    render(
+      <LabNodeInspector
+        kind="idea"
+        code="ID01"
+        statement="Bagaimana jika jejak kerja tampil tanpa skor."
+        executionReady
+        creativePath={{
+          reviews: [
+            {
+              contentPillarId: "pillar-1",
+              pillarName: "Cerita tim",
+              status: "RECOMMENDED",
+              development: "Jejak kerja tampil sebagai adegan yang bisa ditonton.",
+              reason: "Adegan itu membawa mekanisme yang sama tanpa mengganti idenya.",
+            },
+            {
+              contentPillarId: "pillar-3",
+              pillarName: "Daftar kerja",
+              status: "RECOMMENDED",
+              development: "Jejak kerja tampil sebagai daftar yang bisa dicentang.",
+              reason: "Daftar itu memakai tindakan yang sama.",
+            },
+            {
+              contentPillarId: "pillar-2",
+              pillarName: "Failed Experiment",
+              status: "NOT_SUITABLE",
+              development: "Ide diganti menjadi eksperimen yang gagal.",
+              reason: "Pillar ini mengganti substansi ide.",
+            },
+          ],
+          reviewReady: true,
+          selectedPillarId: null,
+          selectedPillarName: "",
+          selectedFormat: null,
+          lockedPillarIds: ["pillar-1"],
+          onReview: vi.fn(),
+          onSelectPillar,
+          onSelectFormat,
+        }}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Choose pillar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Generate creative ideas" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Write execution" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Revise creative idea" })).toBeNull();
+    expect(screen.queryByText("Jejak kerja tampil sebagai adegan yang bisa ditonton.")).toBeNull();
+    expect(screen.getByText("Jejak kerja tampil sebagai daftar yang bisa dicentang.")).toBeTruthy();
+    expect(screen.queryByText("Failed Experiment")).toBeNull();
+    expect(screen.queryByText(/not reviewed/i)).toBeNull();
+    expect(screen.queryByText("Locked")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Video" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Carousel" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Static Post" })).toBeNull();
+    expect(onSelectFormat).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Lock Daftar kerja" }));
+    expect(onSelectPillar).toHaveBeenCalledWith("pillar-3");
+  });
+
+  it("keeps format buttons off until a pillar is locked", () => {
+    render(
+      <LabNodeInspector
+        kind="idea"
+        code="ID01"
+        statement="Bagaimana jika jejak kerja tampil tanpa skor."
+        executionReady
+        creativePath={{
+          reviews: [
+            {
+              contentPillarId: "pillar-1",
+              pillarName: "Cerita tim",
+              status: "RECOMMENDED",
+              development: "Jejak kerja tampil sebagai adegan yang bisa ditonton.",
+              reason: "Adegan itu membawa mekanisme yang sama tanpa mengganti idenya.",
+            },
+          ],
+          reviewReady: true,
+          selectedPillarId: null,
+          selectedPillarName: "",
+          selectedFormat: null,
+          onReview: vi.fn(),
+          onSelectPillar: vi.fn(),
+          onSelectFormat: vi.fn(),
+        }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Lock Cerita tim" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Video" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Carousel" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Static Post" })).toBeNull();
+    expect(screen.queryByText("Locked")).toBeNull();
   });
 });

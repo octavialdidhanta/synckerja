@@ -130,7 +130,7 @@ export async function fetchInstagramContainerStatus(
 export async function waitForInstagramReelsContainerReady(
   containerId: string,
   pageAccessToken: string,
-  options?: { maxWaitMs?: number; intervalMs?: number },
+  options?: { maxWaitMs?: number; intervalMs?: number; onTick?: () => Promise<void> | void },
 ): Promise<InstagramContainerStatus> {
   const maxWaitMs = options?.maxWaitMs ?? DEFAULT_CONTAINER_MAX_WAIT_MS;
   const intervalMs = options?.intervalMs ?? DEFAULT_CONTAINER_POLL_MS;
@@ -138,6 +138,7 @@ export async function waitForInstagramReelsContainerReady(
   let last: InstagramContainerStatus = { statusCode: "", status: null };
 
   while (Date.now() <= deadline) {
+    if (options?.onTick) await options.onTick();
     last = await fetchInstagramContainerStatus(containerId, pageAccessToken);
     if (last.statusCode === IG_CONTAINER_READY) return last;
     if (IG_CONTAINER_FATAL.has(last.statusCode)) {

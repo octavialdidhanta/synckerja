@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { ChevronRight, Copy, Loader2, MoreVertical, Trash2 } from "lucide-react";
+import { ChevronRight, Check, Circle, Copy, Loader2, MoreVertical, RefreshCw, Trash2, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
+import { Switch } from "@/shared/components/ui/switch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,14 +23,42 @@ import {
   type VoiceOverScript,
 } from "@/thinking-lab/execution/script";
 import { characterVisualUrl, type CharacterGeneratePhase } from "@/thinking-lab/execution/generateCharacterVisual";
-import { executionChecklistPassed, meaningLineRepairReady } from "@/thinking-lab/execution/passChecklist";
-import { pillarNeedsRecommendation } from "@/thinking-lab/execution/recommend";
+import {
+  ensureVideoPassChecks,
+  executionChecklistPassed,
+  executionChecksFromAudit,
+  meaningLineRepairReady,
+  type NarrationChange,
+  type NarrationWordPart,
+} from "@/thinking-lab/execution/passChecklist";
+import { imageChecksFromAudit, imageResumeReady, imageSlideRepairReady, ensureImageLegacySwitches, retiredImagePassCheck } from "@/thinking-lab/execution/imageChecklist";
+import { limitPillarChoices, pillarNeedsRecommendation } from "@/thinking-lab/execution/recommend";
 import { CharacterVisualSlots, type CharacterStudioTab } from "@/thinking-lab/section/CharacterVisualStudio";
 import { isFailedMeaningAudit, type ExecutionRelation, type ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
 
 export type CharacterGenerateState = { handle: string; phase: CharacterGeneratePhase } | null;
 
-export type ExecutionRunPhase = "write" | "audit" | "repair" | "recommend";
+export type ExecutionRunPhase = "write" | "audit" | "repair" | "line" | "recommend" | "switch";
+
+export function SpokenReading({ script }: { script: VoiceOverScript }) {
+  const groups = script.scenes
+    .map((scene) => scene.lines.map((line) => line.narration.trim()).filter(Boolean))
+    .filter((group) => group.length > 0);
+  if (groups.length === 0) return null;
+  return (
+    <div className="space-y-4">
+      {groups.map((group, index) => (
+        <div key={index} className="space-y-1">
+          {group.map((line, lineIndex) => (
+            <p key={`${index}-${lineIndex}`} className="text-sm leading-relaxed text-foreground">
+              {line}
+            </p>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function LockedChoices({ script }: { script: VoiceOverScript }) {
   const { t } = useAppTranslation();
@@ -61,27 +90,122 @@ const RELATION_COPY: Record<ExecutionRelation, string> = {
   MECHANISM_HIDDEN: "The Idea's mechanism is not visible in this script.",
   PILLAR_OUTSIDE: "This pillar forces a message outside the Idea.",
   PILLAR_NOT_SELLING: "Flash Sale Hook needs a Master Thought that is actually selling.",
+  HOOK_MISSED: "The first sentence is not spoken inside the unfinished problem.",
+  SPEECH_STIFF: "A line sounds like a report.",
+  SLANG_MISSED: "A line is not spoken in slang.",
+  FORMAT_MISSED: "The spoken lines use a different format from the pillar.",
   CLIMB_MISSED: "A viewer does not climb from this script to the Master Thought.",
   SUBJECT_MISMATCH: "The viewer reaches a different subject than the Master Thought.",
   CAUSE_BROKEN: "A line installs a cause other than the Big Thought's stake.",
-  CONCLUSION_MISSED: "The closing lines do not let a viewer say the Master Thought.",
+  PERSON_MISSED: "The story leaves out the person it happens to.",
   UNRESOLVED: "The check could not finish.",
 };
 
 const EXECUTION_PASS_CHECK_LABELS: Record<string, string> = {
+  hookHolds: "The first sentence uses this pillar's format and the situation is clear",
+  soundsSpoken: "The lines sound like everyday speech",
+  usesSlang: "The lines use slang",
+  formatHolds: "The spoken lines use this pillar's format",
   pillarFits: "The pillar does not force a message outside the Idea",
-  sellingFits: "Flash Sale only when the Master Thought is selling",
   mechanismVisible: "The Idea's mechanism is visible",
   messageStays: "The script does not add a claim",
   causeChain: "The cause is the Big Thought's stake, not an advertisement",
   viewerClimb: "The viewer climbs from the mechanism to the Master Thought",
-  subjectMatch: "The subject reached is the Master Thought subject",
-  conclusionLands: "The closing lines let a viewer say the Master Thought",
+  emotionalTone: "The story shows the person it happens to",
+  imageShape: "The slide count matches the image settings",
+  imagePrompt: "The image prompt visualizes this slide and can be pasted into an image generator",
+  imageCaption: "The caption does not copy the slides",
 };
 
-function ExecutionMenu({ onDelete, pending = false }: { onDelete?: () => void; pending?: boolean }) {
+function NarrationWordLine({ parts, changedClass }: { parts: NarrationWordPart[]; changedClass: string }) {
+  return (
+    <p className="text-sm leading-relaxed text-foreground">
+      {parts.map((part, index) => (
+        <span key={`${part.text}-${index}`}>
+          {index > 0 ? " " : null}
+          <span className={part.changed ? changedClass : undefined} data-word-change={part.changed ? "yes" : undefined}>
+            {part.text}
+          </span>
+        </span>
+      ))}
+    </p>
+  );
+}
+
+export function ExecutionPassChecklist({
+  checks,
+  onToggle,
+  pending = false,
+}: {
+  checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; enabled?: boolean; reason?: string }>;
+  onToggle?: (id: string, enabled: boolean) => void;
+  pending?: boolean;
+}) {
   const { t } = useAppTranslation();
-  if (!onDelete) return null;
+  const running = checks.find((check) => check.state === "running" && check.enabled !== false);
+  const runningLabel = running
+    ? t(`thinkingLab.execution.pass.${running.id}`, EXECUTION_PASS_CHECK_LABELS[running.id] ?? running.id)
+    : "";
+  return (
+    <div className="space-y-1">
+      {running ? (
+        <p className="text-sm text-foreground">
+          {t("thinkingLab.bt.pass.checking", "Checking this requirement: {{gate}}", { gate: runningLabel })}
+        </p>
+      ) : null}
+      <ul className="space-y-1" aria-label={t("thinkingLab.territory.pass.list", "Pass checklist")}>
+        {checks.map((check) => {
+          const off = check.enabled === false;
+          const label = t(`thinkingLab.execution.pass.${check.id}`, EXECUTION_PASS_CHECK_LABELS[check.id] ?? check.id);
+          return (
+            <li key={check.id} className="text-sm">
+              <div className="flex items-start gap-2">
+                <p className="flex min-w-0 flex-1 items-start gap-2">
+                  {off ? (
+                    <Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                  ) : check.state === "running" ? (
+                    <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" aria-hidden />
+                  ) : check.state === "pass" ? (
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground" aria-hidden />
+                  ) : check.state === "pending" ? (
+                    <Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                  ) : (
+                    <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden />
+                  )}
+                  <span className={off ? "text-muted-foreground" : check.state === "fail" ? "text-destructive" : "text-foreground"}>{label}</span>
+                </p>
+                {onToggle ? (
+                  <Switch
+                    checked={!off}
+                    disabled={pending || check.state === "running"}
+                    onCheckedChange={(checked) => onToggle(check.id, checked)}
+                    aria-label={t("thinkingLab.execution.passToggle", "Use this requirement: {{gate}}", { gate: label })}
+                    className="mt-0.5"
+                  />
+                ) : null}
+              </div>
+              {!off && check.state === "fail" && check.reason ? (
+                <p className="mt-0.5 pl-5 text-sm text-muted-foreground">{check.reason}</p>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function ExecutionMenu({
+  onRegenerate,
+  onDelete,
+  pending = false,
+}: {
+  onRegenerate?: () => void;
+  onDelete?: () => void;
+  pending?: boolean;
+}) {
+  const { t } = useAppTranslation();
+  if (!onRegenerate && !onDelete) return null;
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -97,14 +221,22 @@ function ExecutionMenu({ onDelete, pending = false }: { onDelete?: () => void; p
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[11rem]">
-        <DropdownMenuItem
-          className="cursor-pointer gap-2 text-destructive focus:text-destructive"
-          disabled={pending}
-          onSelect={() => onDelete()}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          {t("thinkingLab.action.delete", "Delete")}
-        </DropdownMenuItem>
+        {onRegenerate ? (
+          <DropdownMenuItem className="cursor-pointer gap-2" disabled={pending} onSelect={() => onRegenerate()}>
+            <RefreshCw className="h-3.5 w-3.5" />
+            {t("thinkingLab.action.regenerate", "Regenerate")}
+          </DropdownMenuItem>
+        ) : null}
+        {onDelete ? (
+          <DropdownMenuItem
+            className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+            disabled={pending}
+            onSelect={() => onDelete()}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {t("thinkingLab.action.delete", "Delete")}
+          </DropdownMenuItem>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -307,6 +439,7 @@ function SceneTables({
   pending = false,
   fixingLineId = null,
   onFixLine,
+  onRegenerateLine,
   fixable,
   reasonFor,
 }: {
@@ -316,6 +449,7 @@ function SceneTables({
   pending?: boolean;
   fixingLineId?: string | null;
   onFixLine?: (lineId: string) => void;
+  onRegenerateLine?: (lineId: string) => void;
   fixable?: Set<string>;
   reasonFor?: (lineId: string) => string;
 }) {
@@ -364,13 +498,15 @@ function SceneTables({
                         <td className={cn("px-3 py-2 break-words", failing.has(line.id) && "bg-rose-50")} rowSpan={shots.length}>
                           <p className="whitespace-pre-wrap break-words">{line.narration}</p>
                           {failing.has(line.id) ? (
-                            <div className="mt-2 space-y-2">
-                              <p className="text-xs text-rose-700">
-                                {reasonFor?.(line.id) ||
-                                  (script.productionIssues ?? []).find((issue) => issue.lineId === line.id)?.reason ||
-                                  script.lineIssues.find((issue) => issue.lineId === line.id)?.reason}
-                              </p>
-                              {onFixLine && (!fixable || fixable.has(line.id)) ? (
+                            <p className="mt-2 text-xs text-rose-700">
+                              {reasonFor?.(line.id) ||
+                                (script.productionIssues ?? []).find((issue) => issue.lineId === line.id)?.reason ||
+                                script.lineIssues.find((issue) => issue.lineId === line.id)?.reason}
+                            </p>
+                          ) : null}
+                          {onFixLine || onRegenerateLine ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {failing.has(line.id) && onFixLine && (!fixable || fixable.has(line.id)) ? (
                                 <Button
                                   type="button"
                                   size="sm"
@@ -381,6 +517,23 @@ function SceneTables({
                                 >
                                   {fixingLineId === line.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
                                   {t("thinkingLab.execution.fixLine", "Fix this line")}
+                                </Button>
+                              ) : null}
+                              {onRegenerateLine ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={pending}
+                                  aria-busy={fixingLineId === line.id}
+                                  onClick={() => onRegenerateLine(line.id)}
+                                >
+                                  {fixingLineId === line.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                                  ) : (
+                                    <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                                  )}
+                                  {t("thinkingLab.execution.regenerateLine", "Regenerate this line")}
                                 </Button>
                               ) : null}
                             </div>
@@ -445,6 +598,7 @@ export function ExecutionScriptPanel({
   pillarName,
   statement,
   script,
+  reading = null,
   admission,
   facts,
   progress = null,
@@ -453,12 +607,19 @@ export function ExecutionScriptPanel({
   onStop,
   onRepair,
   onFixLine,
+  onRegenerateLine,
   onRewrite,
+  onRegenerate,
   onChangePillar,
   onUseRecommendation,
+  pillarChoices,
   onUseOffer,
-  onRetrySelling,
+  onRetrySelling: _onRetrySelling,
   checks,
+  onTogglePass,
+  passProposal = null,
+  onAcceptPassProposal,
+  onDeclinePassProposal,
   offer,
   offerNote,
   onViewTable,
@@ -473,20 +634,28 @@ export function ExecutionScriptPanel({
   pillarName: string;
   statement: string;
   script: VoiceOverScript | null;
+  reading?: VoiceOverScript | null;
   admission: string;
   facts: ExecutionSemanticFacts;
-  progress?: { phase: ExecutionRunPhase; pillarName: string } | null;
+  progress?: { phase: ExecutionRunPhase; pillarName: string; medium?: "image" } | null;
   pending?: boolean;
   fixingLineId?: string | null;
   onStop?: () => void;
   onRepair?: () => void;
   onFixLine?: (lineId: string) => void;
+  onRegenerateLine?: (lineId: string) => void;
   onRewrite?: () => void;
+  onRegenerate?: () => void;
   onChangePillar?: () => void;
-  onUseRecommendation?: () => void;
+  onUseRecommendation?: (pillarName?: string) => void;
+  pillarChoices?: Array<{ pillarName: string; reason: string }>;
   onUseOffer?: () => void;
   onRetrySelling?: () => void;
-  checks?: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
+  checks?: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; enabled?: boolean; reason?: string }>;
+  onTogglePass?: (id: string, enabled: boolean) => void;
+  passProposal?: NarrationChange[] | null;
+  onAcceptPassProposal?: () => void;
+  onDeclinePassProposal?: () => void;
   offer?: Array<{ lineId: string; narration: string }> | null;
   offerNote?: string | null;
   onViewTable?: () => void;
@@ -513,10 +682,50 @@ export function ExecutionScriptPanel({
     facts.meaningAudit ? productionIssues.map((issue) => issue.lineId) : (script?.lineIssues.map((issue) => issue.lineId) ?? []),
   );
   const passed = executionChecklistPassed(facts, admission, script?.lineIssues.length ?? 0);
-  const repairReady = facts.meaningAudit ? meaningLineRepairReady(facts) : scriptLineRepairReady(facts, script);
+  const resumeReady = script?.medium === "image" && imageResumeReady(facts);
+  const repairReady =
+    script?.medium === "image"
+      ? imageSlideRepairReady(facts, script) || resumeReady
+      : facts.meaningAudit
+        ? meaningLineRepairReady(facts)
+        : scriptLineRepairReady(facts, script);
   const needsAnotherPillar = pillarNeedsRecommendation(facts.relationToParent);
-  const sellingUnresolved = failedAudit?.id === "sellingFits" && facts.relationToParent === "UNRESOLVED";
-  const visibleChecks = (checks ?? []).filter((check) => check.state !== "pending");
+  const relationCopy =
+    script?.medium === "image" && facts.relationToParent === "HOOK_MISSED"
+      ? t("thinkingLab.execution.relation.IMAGE_HOOK_MISSED", "The first slide does not show the situation in this pillar's format.")
+      : t(`thinkingLab.execution.relation.${facts.relationToParent}`, RELATION_COPY[facts.relationToParent]);
+  const offeredPillars = limitPillarChoices(
+    facts.recommendation?.choices && facts.recommendation.choices.length > 0
+      ? facts.recommendation.choices
+      : facts.recommendation
+        ? [{ pillarName: facts.recommendation.pillarName, reason: facts.recommendation.reason }]
+        : [],
+  );
+  const shownChoices = limitPillarChoices(pillarChoices ?? []);
+  const remembered = facts.passChecks?.map((check) => ({
+    id: check.id,
+    state: check.state,
+    enabled: check.enabled,
+    reason: check.reason,
+    lineIds: check.lineIds,
+  }));
+  const shownChecks =
+    checks && checks.length > 0
+      ? checks
+      : remembered && remembered.length > 0
+        ? script?.medium === "image"
+          ? remembered
+          : ensureVideoPassChecks(remembered)
+        : script?.medium === "image"
+          ? imageChecksFromAudit(facts.meaningAudit)
+          : facts.meaningAudit
+            ? executionChecksFromAudit(facts.meaningAudit)
+            : [];
+  const visibleChecks =
+    script?.medium === "image"
+      ? ensureImageLegacySwitches(shownChecks.filter((check) => !retiredImagePassCheck(check.id)))
+      : shownChecks;
+  const failedVisible = visibleChecks.some((check) => check.enabled !== false && check.state === "fail");
   const scriptWarning = failing.size > 0;
   const executionWarning = !passed;
 
@@ -540,7 +749,7 @@ export function ExecutionScriptPanel({
             </p>
             <h2 className="text-2xl font-bold leading-tight tracking-tight text-slate-900">{pillarName}</h2>
           </div>
-          <ExecutionMenu onDelete={onDelete} pending={pending || Boolean(progress)} />
+          <ExecutionMenu onRegenerate={onRegenerate} onDelete={onDelete} pending={pending || Boolean(progress)} />
         </div>
         <div className="grid w-full grid-cols-2 rounded-lg bg-muted p-1 text-sm font-medium">
           <button
@@ -570,9 +779,9 @@ export function ExecutionScriptPanel({
             </span>
           ) : null}
         </div>
-        {!passed ? (
+        {!passed && !progress && !resumeReady && failedVisible ? (
           <div className="space-y-1 text-sm leading-relaxed">
-            <p>{t(`thinkingLab.execution.relation.${facts.relationToParent}`, RELATION_COPY[facts.relationToParent])}</p>
+            <p>{relationCopy}</p>
             {facts.whatItSays.trim() ? <p className="text-muted-foreground">{facts.whatItSays.trim()}</p> : null}
             {(facts.meaningAudit ? productionIssues : (script?.lineIssues ?? [])).map((issue) => (
               <p key={`${issue.lineId}-${issue.reason}`} className="text-muted-foreground">
@@ -582,18 +791,35 @@ export function ExecutionScriptPanel({
           </div>
         ) : null}
         {visibleChecks.length > 0 ? (
-          <ul className="space-y-1">
-            {visibleChecks.map((check) => (
-              <li key={check.id} className="text-sm">
-                <p className={check.state === "fail" ? "text-destructive" : "text-foreground"}>
-                  {t(`thinkingLab.execution.pass.${check.id}`, EXECUTION_PASS_CHECK_LABELS[check.id] ?? check.id)}
-                </p>
-                {check.state === "fail" && check.reason ? (
-                  <p className="text-sm text-muted-foreground">{check.reason}</p>
-                ) : null}
-              </li>
+          <ExecutionPassChecklist
+            checks={visibleChecks}
+            onToggle={onTogglePass}
+            pending={pending || Boolean(progress) || Boolean(passProposal && passProposal.length > 0)}
+          />
+        ) : null}
+        {passProposal && passProposal.length > 0 ? (
+          <div className="space-y-3 rounded-lg border border-border px-3 py-3">
+            {passProposal.map((change) => (
+              <div key={change.lineId} className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">{t("thinkingLab.execution.passProposal.before", "Before")}</p>
+                <NarrationWordLine parts={change.beforeWords} changedClass="rounded bg-rose-100 text-rose-900 line-through" />
+                <p className="text-xs font-medium text-muted-foreground">{t("thinkingLab.execution.passProposal.after", "After")}</p>
+                <NarrationWordLine parts={change.afterWords} changedClass="rounded bg-emerald-100 text-emerald-900" />
+              </div>
             ))}
-          </ul>
+            <div className="flex flex-wrap gap-2">
+              {onAcceptPassProposal ? (
+                <Button type="button" size="sm" onClick={onAcceptPassProposal} disabled={pending}>
+                  {t("thinkingLab.execution.passProposal.accept", "Accept these changes")}
+                </Button>
+              ) : null}
+              {onDeclinePassProposal ? (
+                <Button type="button" size="sm" variant="outline" onClick={onDeclinePassProposal} disabled={pending}>
+                  {t("thinkingLab.execution.passProposal.decline", "Keep the previous lines")}
+                </Button>
+              ) : null}
+            </div>
+          </div>
         ) : null}
         {offer && offer.length > 0 ? (
           <div className="space-y-2">
@@ -617,10 +843,16 @@ export function ExecutionScriptPanel({
           <p className="flex items-center gap-2 text-sm text-foreground">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             {progress.phase === "write"
-              ? t("thinkingLab.execution.writing", "Writing the voice-over script for {{pillar}}...", { pillar: progress.pillarName })
+              ? progress.medium === "image"
+                ? t("thinkingLab.execution.writingSlides", "Writing the slides for {{pillar}}...", { pillar: progress.pillarName })
+                : t("thinkingLab.execution.writing", "Writing the voice-over script for {{pillar}}...", { pillar: progress.pillarName })
               : progress.phase === "repair"
                 ? t("thinkingLab.execution.repairing", "Repairing only the failing lines...")
-                : progress.phase === "recommend"
+                : progress.phase === "line"
+                  ? t("thinkingLab.execution.rewritingLine", "Rewriting this line so the requirements that are switched on still pass...")
+                  : progress.phase === "switch"
+                    ? t("thinkingLab.execution.rewritingSwitch", "Rewriting the lines for this requirement...")
+                  : progress.phase === "recommend"
                   ? t("thinkingLab.execution.recommending", "Looking for a pillar that can carry this Idea...")
                   : t("thinkingLab.execution.auditing", "Tracing the script path up to the Master Thought...")}
           </p>
@@ -629,25 +861,39 @@ export function ExecutionScriptPanel({
               {t("thinkingLab.execution.stop", "Stop")}
             </Button>
           ) : null}
+          {progress.phase === "recommend" && shownChoices.length > 0 ? (
+            <div className="space-y-3">
+              {shownChoices.map((choice) => (
+                <div key={choice.pillarName} className="space-y-2">
+                  <p className="text-sm font-medium text-foreground">{choice.pillarName}</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{choice.reason}</p>
+                  {onUseRecommendation ? (
+                    <Button type="button" size="sm" onClick={() => onUseRecommendation(choice.pillarName)}>
+                      {t("thinkingLab.execution.useThisPillar", "Use {{pillar}}", { pillar: choice.pillarName })}
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
-      {!progress && !passed && !repairReady && sellingUnresolved && onRetrySelling ? (
-        <Button type="button" size="sm" onClick={onRetrySelling} disabled={pending}>
-          {t("thinkingLab.execution.retrySelling", "Ask again whether this Master Thought is selling")}
-        </Button>
-      ) : null}
-      {!progress && !passed && !repairReady && !sellingUnresolved ? (
+      {!progress && !passed && !repairReady ? (
         needsAnotherPillar && onUseRecommendation ? (
-          facts.recommendation ? (
-            <div className="space-y-2">
+          offeredPillars.length > 0 ? (
+            <div className="space-y-3">
               <p className="text-xs font-medium text-muted-foreground">
-                {t("thinkingLab.execution.recommendedPillar", "Recommended pillar")}
+                {t("thinkingLab.execution.pillarPassed", "Pillars that can carry this Idea")}
               </p>
-              <p className="text-sm font-medium text-foreground">{facts.recommendation.pillarName}</p>
-              <p className="text-sm leading-relaxed text-muted-foreground">{facts.recommendation.reason}</p>
-              <Button type="button" size="sm" onClick={onUseRecommendation} disabled={pending}>
-                {t("thinkingLab.execution.useRecommendation", "Write with this pillar")}
-              </Button>
+              {offeredPillars.map((choice) => (
+                <div key={choice.pillarName} className="space-y-2">
+                  <p className="text-sm font-medium text-foreground">{choice.pillarName}</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{choice.reason}</p>
+                  <Button type="button" size="sm" onClick={() => onUseRecommendation(choice.pillarName)} disabled={pending}>
+                    {t("thinkingLab.execution.useThisPillar", "Use {{pillar}}", { pillar: choice.pillarName })}
+                  </Button>
+                </div>
+              ))}
             </div>
           ) : onChangePillar ? (
             <div>
@@ -697,7 +943,9 @@ export function ExecutionScriptPanel({
               ) : null}
             </div>
           ) : null}
-          {script ? (
+          {progress ? (
+            reading ? <SpokenReading script={reading} /> : null
+          ) : script ? (
             <>
               <LockedChoices script={script} />
               <PostPack title={script.title} caption={script.caption} />
@@ -735,6 +983,7 @@ export function ExecutionScriptPanel({
                 pending={pending || Boolean(progress)}
                 fixingLineId={fixingLineId}
                 onFixLine={onFixLine}
+                onRegenerateLine={script.medium === "image" ? undefined : onRegenerateLine}
                 fixable={fixable}
                 reasonFor={(lineId) =>
                   productionIssues.find((issue) => issue.lineId === lineId)?.reason ??
@@ -749,7 +998,7 @@ export function ExecutionScriptPanel({
       ) : (
         <div className="space-y-3 rounded-lg border border-border bg-muted/40 px-3 py-3 text-sm leading-relaxed">
           <p className="font-medium">{t("thinkingLab.execution.statusTitle", "Check result")}</p>
-          <p>{t(`thinkingLab.execution.relation.${facts.relationToParent}`, RELATION_COPY[facts.relationToParent])}</p>
+          <p>{relationCopy}</p>
           {facts.whatItSays ? <p className="text-muted-foreground">{facts.whatItSays}</p> : null}
           <ul className="space-y-1 text-muted-foreground">
             <li>
@@ -788,6 +1037,9 @@ export function ExecutionScriptTable({
   pillarName,
   script,
   onClose,
+  pending = false,
+  fixingLineId = null,
+  onRegenerateLine,
   onDelete,
   onSaveToPlan,
   onGenerateCharacter,
@@ -800,6 +1052,9 @@ export function ExecutionScriptTable({
   pillarName: string;
   script: VoiceOverScript;
   onClose: () => void;
+  pending?: boolean;
+  fixingLineId?: string | null;
+  onRegenerateLine?: (lineId: string) => void;
   onDelete?: () => void;
   onSaveToPlan?: () => void;
   onGenerateCharacter?: (handle: string) => void;
@@ -861,7 +1116,14 @@ export function ExecutionScriptTable({
         deleting={deletingCharacterVisual}
         saving={savingCharacterVisual}
       />
-      <SceneTables script={script} failing={failing} fill />
+      <SceneTables
+        script={script}
+        failing={failing}
+        fill
+        pending={pending}
+        fixingLineId={fixingLineId}
+        onRegenerateLine={script.medium === "image" ? undefined : onRegenerateLine}
+      />
     </div>
   );
 }

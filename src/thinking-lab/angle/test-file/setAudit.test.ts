@@ -117,6 +117,51 @@ describe("angle audit lessons", () => {
     );
     expect(lessons.map((lesson) => lesson.statement)).toEqual(["Porsi kecil", "Menu harian"]);
   });
+
+  it("keeps a readable gate failure and the rest of the audit when lessons are added", () => {
+    const stored = readAngleSetRecord({
+      schema: "thinking-lab/angle-set/v1",
+      siblingSet: { fingerprint: "set", resolution: "RESOLVED" },
+      audit: {
+        fingerprint: "fp",
+        items: [
+          {
+            code: "AN01",
+            verdict: "AUDIT_FAIL",
+            statementFingerprint: "sentence",
+            gateFailure: { gate: "stakeHolds", reason: "The sentence still stands without the Territory." },
+          },
+          { code: "AN02", verdict: "AUDIT_PASS", gateFailure: { gate: "nope", reason: "bad" } },
+          { code: "AN03", verdict: "AUDIT_FAIL", gateFailure: { gate: "clearBoundary" } },
+        ],
+      },
+      challenger: null,
+      auditLessons: [
+        {
+          code: "AN01",
+          statement: "Old sentence",
+          reason: "stakeHolds: The sentence still stands without the Territory.",
+        },
+      ],
+    });
+    expect(stored.audit?.fingerprint).toBe("fp");
+    expect(stored.audit?.items).toEqual([
+      {
+        code: "AN01",
+        verdict: "AUDIT_FAIL",
+        statementFingerprint: "sentence",
+        gateFailure: { gate: "stakeHolds", reason: "The sentence still stands without the Territory." },
+      },
+      { code: "AN02", verdict: "AUDIT_PASS" },
+      { code: "AN03", verdict: "AUDIT_FAIL" },
+    ]);
+    expect(stored.siblingSet?.fingerprint).toBe("set");
+    const merged = mergeAngleAuditLessons(stored.auditLessons, [
+      { code: "AN04", statement: "Another sentence", reason: "observationShape: Too narrow." },
+    ]);
+    expect(stored.audit?.items).toHaveLength(3);
+    expect(merged.map((lesson) => lesson.statement)).toEqual(["Old sentence", "Another sentence"]);
+  });
 });
 
 describe("selectAngleStage", () => {

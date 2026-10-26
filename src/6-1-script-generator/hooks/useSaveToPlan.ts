@@ -38,7 +38,7 @@ export interface SaveToPlanParams {
   saveConcept?: boolean;
   newPlanData?: NewPlanData;
   preserveTableColumns?: boolean;
-  identity?: { title: string; contentPillarId: string | null };
+  identity?: { title: string; contentPillarId: string | null; contentTypeId?: string | null };
 }
 
 function isNewPlanDataComplete(data: NewPlanData | undefined): data is NewPlanData {
@@ -181,6 +181,7 @@ export function useSaveToPlan() {
             status?: string;
             title?: string;
             content_pillar_id?: string;
+            content_type_id?: string;
           } = {};
           if (saveBrief) {
             patch.brief = brief.trim();
@@ -189,6 +190,7 @@ export function useSaveToPlan() {
           }
           if (identity?.title.trim()) patch.title = identity.title.trim();
           if (identity?.contentPillarId) patch.content_pillar_id = identity.contentPillarId;
+          if (identity?.contentTypeId) patch.content_type_id = identity.contentTypeId;
           if (Object.keys(patch).length > 0) {
             const { error: updateError } = await supabase
               .from('social_media_plans')

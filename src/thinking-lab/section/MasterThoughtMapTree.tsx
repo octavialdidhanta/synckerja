@@ -19,6 +19,12 @@ export type MasterMapExecution = {
   passed: boolean;
 };
 
+export type MasterMapPillar = {
+  id: string;
+  label: string;
+  executions?: MasterMapExecution[];
+};
+
 export type MasterMapIdea = {
   id: string;
   code: string;
@@ -26,6 +32,7 @@ export type MasterMapIdea = {
   subject?: string;
   recommended?: boolean;
   childCount?: number;
+  pillars?: MasterMapPillar[];
   executions?: MasterMapExecution[];
 };
 
@@ -55,24 +62,26 @@ export type MasterMapChild = {
   territories?: MasterMapTerritory[];
 };
 
-type PillTone = "master" | "bigThought" | "territory" | "angle" | "idea" | "execution";
+type PillTone = "master" | "bigThought" | "territory" | "angle" | "idea" | "pillar" | "execution";
 
 const SOLID: Record<"master" | "bigThought", string> = {
   master: "border border-[#16365c] bg-[#1b3a6b] text-white",
   bigThought: "border border-[#3d6cb5] bg-[#3d6cb5] text-white",
 };
 
-const ACCENT: Record<"territory" | "angle" | "idea" | "execution", string> = {
+const ACCENT: Record<"territory" | "angle" | "idea" | "pillar" | "execution", string> = {
   territory: "border border-[#c9a24a] bg-[#3a342c] text-white",
   angle: "border border-amber-700/80 bg-[#3a342c] text-white",
   idea: "border border-rose-400/80 bg-[#3a342c] text-white",
+  pillar: "border border-sky-400/80 bg-[#3a342c] text-white",
   execution: "border border-violet-400/80 bg-[#3a342c] text-white",
 };
 
-const ACCENT_BAR: Record<"territory" | "angle" | "idea" | "execution", string> = {
+const ACCENT_BAR: Record<"territory" | "angle" | "idea" | "pillar" | "execution", string> = {
   territory: "bg-[#e8b84a]",
   angle: "bg-amber-500",
   idea: "bg-rose-400",
+  pillar: "bg-sky-400",
   execution: "bg-violet-400",
 };
 
@@ -339,9 +348,11 @@ function Pill({
           ? t("thinkingLab.tree.territory", "Territory")
           : tone === "angle"
             ? t("thinkingLab.tree.angle", "Angle")
-            : tone === "execution"
-              ? t("thinkingLab.execution.label", "Execution")
-              : t("thinkingLab.idea.list", "Idea");
+            : tone === "pillar"
+              ? t("thinkingLab.tree.pillar", "Pillar")
+              : tone === "execution"
+                ? t("thinkingLab.execution.label", "Execution")
+                : t("thinkingLab.idea.list", "Idea");
   const badge = code?.trim();
   return (
     <div className={cn("relative col-start-1 row-start-1", stretch && "w-full")} data-map-node={nodeId}>
@@ -403,6 +414,7 @@ type MasterThoughtMapTreeProps = {
   inspectedTerritoryId: string | null;
   inspectedAngleId: string | null;
   inspectedIdeaId: string | null;
+  inspectedPillarId?: string | null;
   inspectedExecutionId?: string | null;
   childrenByMasterId: ReadonlyMap<string, MasterMapChild[]>;
   deleteDisabled?: boolean;
@@ -411,6 +423,7 @@ type MasterThoughtMapTreeProps = {
   onSelectTerritory: (masterId: string, thoughtId: string, territoryId: string) => void;
   onSelectAngle: (masterId: string, thoughtId: string, territoryId: string, angleId: string) => void;
   onSelectIdea: (masterId: string, thoughtId: string, territoryId: string, angleId: string, ideaId: string) => void;
+  onSelectPillar?: (masterId: string, thoughtId: string, territoryId: string, angleId: string, ideaId: string, contentPillarId: string) => void;
   onSelectExecution?: (masterId: string, thoughtId: string, territoryId: string, angleId: string, ideaId: string, executionId: string) => void;
   onRequestEdit: (id: string) => void;
   onRequestDelete: (id: string) => void;
@@ -427,6 +440,7 @@ export function MasterThoughtMapTree({
   inspectedTerritoryId,
   inspectedAngleId,
   inspectedIdeaId,
+  inspectedPillarId = null,
   inspectedExecutionId = null,
   childrenByMasterId,
   deleteDisabled,
@@ -435,6 +449,7 @@ export function MasterThoughtMapTree({
   onSelectTerritory,
   onSelectAngle,
   onSelectIdea,
+  onSelectPillar,
   onSelectExecution,
   onRequestEdit,
   onRequestDelete,
@@ -475,7 +490,15 @@ export function MasterThoughtMapTree({
         (territorySum, territory) =>
           territorySum +
           (territory.angles ?? []).reduce(
-            (angleSum, angle) => angleSum + (angle.ideas ?? []).reduce((ideaSum, idea) => ideaSum + (idea.executions?.length ?? 0), 0),
+            (angleSum, angle) =>
+              angleSum +
+              (angle.ideas ?? []).reduce(
+                (ideaSum, idea) =>
+                  ideaSum +
+                  (idea.executions?.length ?? 0) +
+                  (idea.pillars ?? []).reduce((pillarSum, pillar) => pillarSum + 1 + (pillar.executions?.length ?? 0), 0),
+                0,
+              ),
             0,
           ),
         0,
@@ -675,11 +698,18 @@ export function MasterThoughtMapTree({
                   angleLink,
                   ...(angle.ideas ?? []).flatMap((idea) => {
                     const ideaLink = { from: `an:${angle.id}`, to: `idea:${idea.id}` };
+                    const pillarLinks = (idea.pillars ?? []).flatMap((pillar) => [
+                      { from: `idea:${idea.id}`, to: `pl:${idea.id}:${pillar.id}` },
+                      ...(pillar.executions ?? []).map((execution) => ({
+                        from: `pl:${idea.id}:${pillar.id}`,
+                        to: `ex:${execution.id}`,
+                      })),
+                    ]);
                     const executionLinks = (idea.executions ?? []).map((execution) => ({
                       from: `idea:${idea.id}`,
                       to: `ex:${execution.id}`,
                     }));
-                    return [ideaLink, ...executionLinks];
+                    return [ideaLink, ...pillarLinks, ...executionLinks];
                   }),
                 ];
               }),
@@ -695,6 +725,7 @@ export function MasterThoughtMapTree({
     inspectedTerritoryId == null &&
     inspectedAngleId == null &&
     inspectedIdeaId == null &&
+    inspectedPillarId == null &&
     inspectedExecutionId == null;
 
   return (
@@ -925,34 +956,14 @@ export function MasterThoughtMapTree({
                                               codes={(angle.ideas ?? []).map((idea) => idea.code)}
                                               star={(angle.ideas ?? []).some((idea) => idea.recommended)}
                                               labels={(angle.ideas ?? []).map((idea) => ideaLabel(idea.statement, idea.subject))}
-                                              rows={(angle.ideas ?? []).map((idea) => ({
-                                                key: idea.id,
-                                                pill: (
-                                                  <Pill
-                                                    nodeId={`idea:${idea.id}`}
-                                                    tone="idea"
-                                                    stretch
-                                                    code={idea.code}
-                                                    title={ideaLabel(idea.statement, idea.subject)}
-                                                    fullTitle={idea.statement}
-                                                    selected={inspectedIdeaId === idea.id}
-                                                    recommended={idea.recommended}
-                                                    childCount={Math.max(idea.childCount ?? 0, idea.executions?.length ?? 0)}
-                                                    onClick={() => {
-                                                      centerNode(`idea:${idea.id}`);
-                                                      startTransition(() =>
-                                                        onSelectIdea(selected.id, child.id, territory.id, angle.id, idea.id),
-                                                      );
-                                                    }}
-                                                  />
-                                                ),
-                                                branch:
-                                                  (idea.executions?.length ?? 0) > 0 ? (
+                                              rows={(angle.ideas ?? []).map((idea) => {
+                                                const executionBranch = (rows: MasterMapExecution[]) =>
+                                                  rows.length > 0 ? (
                                                     <EqualBranch
                                                       levelLabel={t("thinkingLab.execution.label", "Execution")}
                                                       accent
-                                                      labels={(idea.executions ?? []).map((execution) => execution.label)}
-                                                      rows={(idea.executions ?? []).map((execution) => ({
+                                                      labels={rows.map((execution) => execution.label)}
+                                                      rows={rows.map((execution) => ({
                                                         key: execution.id,
                                                         pill: (
                                                           <Pill
@@ -979,8 +990,74 @@ export function MasterThoughtMapTree({
                                                         ),
                                                       }))}
                                                     />
-                                                  ) : undefined,
-                                              }))}
+                                                  ) : null;
+                                                const pillars = idea.pillars ?? [];
+                                                const pillarBranch =
+                                                  pillars.length > 0 ? (
+                                                    <EqualBranch
+                                                      levelLabel={t("thinkingLab.tree.pillar", "Pillar")}
+                                                      accent
+                                                      labels={pillars.map((pillar) => pillar.label)}
+                                                      rows={pillars.map((pillar) => ({
+                                                        key: pillar.id,
+                                                        pill: (
+                                                          <Pill
+                                                            nodeId={`pl:${idea.id}:${pillar.id}`}
+                                                            tone="pillar"
+                                                            stretch
+                                                            title={pillar.label}
+                                                            selected={inspectedPillarId === pillar.id}
+                                                            childCount={pillar.executions?.length ?? 0}
+                                                            onClick={() => {
+                                                              centerNode(`pl:${idea.id}:${pillar.id}`);
+                                                              startTransition(() =>
+                                                                onSelectPillar?.(
+                                                                  selected.id,
+                                                                  child.id,
+                                                                  territory.id,
+                                                                  angle.id,
+                                                                  idea.id,
+                                                                  pillar.id,
+                                                                ),
+                                                              );
+                                                            }}
+                                                          />
+                                                        ),
+                                                        branch: executionBranch(pillar.executions ?? []) ?? undefined,
+                                                      }))}
+                                                    />
+                                                  ) : null;
+                                                const looseExecutions = executionBranch(idea.executions ?? []);
+                                                return {
+                                                  key: idea.id,
+                                                  pill: (
+                                                    <Pill
+                                                      nodeId={`idea:${idea.id}`}
+                                                      tone="idea"
+                                                      stretch
+                                                      code={idea.code}
+                                                      title={ideaLabel(idea.statement, idea.subject)}
+                                                      fullTitle={idea.statement}
+                                                      selected={inspectedIdeaId === idea.id}
+                                                      recommended={idea.recommended}
+                                                      childCount={Math.max(idea.childCount ?? 0, pillars.length, idea.executions?.length ?? 0)}
+                                                      onClick={() => {
+                                                        centerNode(`idea:${idea.id}`);
+                                                        startTransition(() =>
+                                                          onSelectIdea(selected.id, child.id, territory.id, angle.id, idea.id),
+                                                        );
+                                                      }}
+                                                    />
+                                                  ),
+                                                  branch:
+                                                    pillarBranch || looseExecutions ? (
+                                                      <div className="flex flex-col gap-3">
+                                                        {pillarBranch}
+                                                        {looseExecutions}
+                                                      </div>
+                                                    ) : undefined,
+                                                };
+                                              })}
                                             />
                                           ) : undefined,
                                         };

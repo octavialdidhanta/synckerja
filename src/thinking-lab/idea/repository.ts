@@ -6,6 +6,9 @@ import { evaluateIdeaParent, type IdeaParentDenial } from "@/thinking-lab/idea/e
 import { emptyIdeaSetRecord, readIdeaSetRecord, type IdeaSetRecord } from "@/thinking-lab/idea/setAudit";
 import { normalizeIdeaFacts } from "@/thinking-lab/idea/semantic";
 import type { IdeaSemanticFacts } from "@/thinking-lab/idea/types";
+import { readDevelopmentPaths } from "@/thinking-lab/creative-idea/paths";
+import type { DevelopmentPath } from "@/thinking-lab/creative-idea/types";
+import { readIdeaValidation, withAuditHistory, type IdeaValidation } from "@/thinking-lab/idea/validation";
 import { ideaFingerprint } from "@/thinking-lab/shared/fingerprint";
 
 export type LabIdea = {
@@ -16,10 +19,14 @@ export type LabIdea = {
   statement: string;
   sortOrder: number;
   parentAngleFingerprint: string;
+  parentIdeaId: string | null;
   canonicalSemantic: IdeaSemanticFacts;
+  validation: IdeaValidation | null;
   admission: IndividualAdmission;
   status: "candidate" | "locked";
   semanticFingerprint: string | null;
+  createdAt: string | null;
+  developmentPaths: DevelopmentPath[];
 };
 
 export type IdeaParentGate =
@@ -34,10 +41,14 @@ type IdeaRow = {
   statement: string;
   sort_order: number;
   parent_angle_fingerprint: string;
+  parent_idea_id?: string | null;
   canonical_semantic: unknown;
+  validation?: unknown;
   admission: string;
   status?: string;
   semantic_fingerprint?: string | null;
+  created_at?: string | null;
+  development_paths?: unknown;
 };
 
 type BigThoughtJoin = {
@@ -84,10 +95,14 @@ function mapIdea(row: IdeaRow): LabIdea {
     statement: row.statement,
     sortOrder: row.sort_order ?? 0,
     parentAngleFingerprint: row.parent_angle_fingerprint,
+    parentIdeaId: row.parent_idea_id ?? null,
     canonicalSemantic: normalizeIdeaFacts(row.canonical_semantic, row.code),
+    validation: readIdeaValidation(row.validation),
     admission: asAdmission(row.admission),
     status: row.status === "locked" ? "locked" : "candidate",
     semanticFingerprint: row.semantic_fingerprint ?? null,
+    createdAt: row.created_at ?? null,
+    developmentPaths: readDevelopmentPaths(row.development_paths),
   };
 }
 
@@ -189,6 +204,86 @@ export async function listLabIdeas(organizationId: string, angleIds: string[]): 
   return ((data ?? []) as IdeaRow[]).map(mapIdea);
 }
 
+export async function listIdeaFailureMemory(organizationId: string, angleId: string): Promise<LabIdea[]> {
+  const { data: angle, error } = await supabase
+    .from("thinking_lab_angles")
+    .select("territory_id")
+    .eq("id", angleId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (error) throw error;
+  const territoryId = (angle as { territory_id?: string } | null)?.territory_id;
+  if (!territoryId) return [];
+  const { data: angles, error: angleError } = await supabase
+    .from("thinking_lab_angles")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("territory_id", territoryId);
+  if (angleError) throw angleError;
+  const ids = ((angles ?? []) as Array<{ id: string }>).map((row) => row.id);
+  if (ids.length === 0) return [];
+  const { data, error: ideaError } = await supabase
+    .from("thinking_lab_ideas")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .in("angle_id", ids)
+    .order("created_at", { ascending: false });
+  if (ideaError) throw ideaError;
+  return ((data ?? []) as IdeaRow[]).map(mapIdea);
+}
+
+export async function loadIdeaComparisonHistory(
+  organizationId: string,
+  angleId: string,
+): Promise<{ historyAvailable: boolean; ideas: LabIdea[] }> {
+  try {
+    return { historyAvailable: true, ideas: await listIdeaFailureMemory(organizationId, angleId) };
+  } catch {
+    return { historyAvailable: false, ideas: [] };
+  }
+}
+
+async function validationWithHistory(input: {
+  organizationId: string;
+  angleId: string;
+  id: string;
+  validation: IdeaValidation;
+  statement?: string;
+}): Promise<IdeaValidation> {
+  const { data, error } = await supabase
+    .from("thinking_lab_ideas")
+    .select("validation, statement")
+    .eq("id", input.id)
+    .eq("organization_id", input.organizationId)
+    .eq("angle_id", input.angleId)
+    .maybeSingle();
+  if (error) throw error;
+  const row = data as { validation?: unknown; statement?: string } | null;
+  const previous = readIdeaValidation(row?.validation);
+  const statement = input.validation.statement || input.statement || row?.statement || "";
+  return withAuditHistory(previous, { ...input.validation, statement });
+}
+
+export async function saveIdeaValidation(input: {
+  organizationId: string;
+  angleId: string;
+  id: string;
+  validation: IdeaValidation;
+  admission: IndividualAdmission;
+}): Promise<void> {
+  const validation = await validationWithHistory(input);
+  const { error } = await supabase
+    .from("thinking_lab_ideas")
+    .update({
+      validation,
+      admission: input.admission,
+    })
+    .eq("id", input.id)
+    .eq("organization_id", input.organizationId)
+    .eq("angle_id", input.angleId);
+  if (error) throw error;
+}
+
 export async function insertLabIdea(input: {
   organizationId: string;
   angleId: string;
@@ -199,6 +294,8 @@ export async function insertLabIdea(input: {
   sortOrder: number;
   facts: IdeaSemanticFacts;
   admission: IndividualAdmission;
+  validation?: IdeaValidation | null;
+  parentIdeaId?: string | null;
 }): Promise<LabIdea> {
   const gate = await loadIdeaParentGate({
     organizationId: input.organizationId,
@@ -224,6 +321,8 @@ export async function insertLabIdea(input: {
       admission: input.admission,
       status: "candidate",
       semantic_fingerprint: null,
+      parent_idea_id: input.parentIdeaId ?? null,
+      validation: input.validation ?? null,
     })
     .select("*")
     .single();
@@ -238,7 +337,12 @@ export async function replaceLabIdea(input: {
   statement: string;
   facts: IdeaSemanticFacts;
   admission: IndividualAdmission;
+  validation?: IdeaValidation | null;
 }): Promise<void> {
+  const validation =
+    input.validation === undefined
+      ? undefined
+      : await validationWithHistory({ ...input, statement: input.statement });
   const { error } = await supabase
     .from("thinking_lab_ideas")
     .update({
@@ -247,6 +351,7 @@ export async function replaceLabIdea(input: {
       admission: input.admission,
       status: "candidate",
       semantic_fingerprint: null,
+      ...(validation !== undefined ? { validation } : {}),
     })
     .eq("id", input.id)
     .eq("organization_id", input.organizationId)

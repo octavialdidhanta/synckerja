@@ -6,7 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
-import type { ExecutionConfirmQuestion, ScriptConfirmation } from "@/thinking-lab/execution/confirm";
+import type { DiscoveryMode, ScriptConfirmation } from "@/thinking-lab/execution/confirm";
 
 const WRITE_OWN = "\u0000write-own";
 const ANSWER_LIMIT = 160;
@@ -17,6 +17,13 @@ export function ExecutionConfirmDialog({
   failed,
   questions,
   pending = false,
+  title,
+  hint,
+  loadingText,
+  failedText,
+  confirmText,
+  choosingMode = false,
+  onChooseMode,
   onOpenChange,
   onRetry,
   onConfirm,
@@ -24,8 +31,15 @@ export function ExecutionConfirmDialog({
   open: boolean;
   loading: boolean;
   failed: boolean;
-  questions: ExecutionConfirmQuestion[] | null;
+  questions: Array<{ id: string; category: string; prompt: string; options: string[] }> | null;
   pending?: boolean;
+  title?: string;
+  hint?: string;
+  loadingText?: string;
+  failedText?: string;
+  confirmText?: string;
+  choosingMode?: boolean;
+  onChooseMode?: (mode: DiscoveryMode) => void;
   onOpenChange: (open: boolean) => void;
   onRetry: () => void;
   onConfirm: (answers: ScriptConfirmation[]) => void;
@@ -49,24 +63,40 @@ export function ExecutionConfirmDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-4 p-5 sm:max-w-lg">
         <DialogHeader className="space-y-1">
-          <DialogTitle className="text-base">{t("thinkingLab.execution.confirmTitle", "Confirm before writing")}</DialogTitle>
+          <DialogTitle className="text-base">{title ?? t("thinkingLab.execution.confirmTitle", "Confirm before writing")}</DialogTitle>
           <DialogDescription>
-            {t(
-              "thinkingLab.execution.confirmHint",
-              "The script does not yet say whose point of view it uses. Answer first, then it is written.",
-            )}
+            {choosingMode
+              ? t(
+                  "thinkingLab.execution.discoveryModeHint",
+                  "The locked pillar already carries this idea. Follow that script, or sharpen it with discovery questions.",
+                )
+              : (hint ??
+                t(
+                  "thinkingLab.execution.confirmHint",
+                  "The script does not yet say whose point of view it uses. Answer first, then it is written.",
+                ))}
           </DialogDescription>
         </DialogHeader>
+        {choosingMode ? (
+          <div className="flex flex-col gap-2">
+            <Button type="button" size="sm" disabled={pending} onClick={() => onChooseMode?.("follow")}>
+              {t("thinkingLab.execution.followPillar", "Follow the pillar script")}
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => onChooseMode?.("sharpen")}>
+              {t("thinkingLab.execution.sharpenDiscovery", "Sharpen with discovery questions")}
+            </Button>
+          </div>
+        ) : null}
         {loading ? (
           <p className="flex items-center gap-2 text-sm text-foreground">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            {t("thinkingLab.execution.confirmLoading", "Reading the idea to lock the point of view...")}
+            {loadingText ?? t("thinkingLab.execution.confirmLoading", "Reading the idea to lock the point of view...")}
           </p>
         ) : null}
         {failed && !loading ? (
           <div className="space-y-3">
             <p className="text-sm text-foreground">
-              {t("thinkingLab.execution.confirmFailed", "The confirmation questions could not be read. Try again.")}
+              {failedText ?? t("thinkingLab.execution.confirmFailed", "The confirmation questions could not be read. Try again.")}
             </p>
             <Button type="button" size="sm" variant="outline" disabled={pending} onClick={onRetry}>
               {t("thinkingLab.execution.confirmRetry", "Try again")}
@@ -137,17 +167,19 @@ export function ExecutionConfirmDialog({
           <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             {t("thinkingLab.execution.cancel", "Cancel")}
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={!ready || pending || loading}
-            onClick={() => {
-              if (!questions) return;
-              onConfirm(questions.map((question) => ({ question: question.prompt, answer: answerFor(question.id) })));
-            }}
-          >
-            {t("thinkingLab.execution.confirmWrite", "Write the script")}
-          </Button>
+          {choosingMode ? null : (
+            <Button
+              type="button"
+              size="sm"
+              disabled={!ready || pending || loading}
+              onClick={() => {
+                if (!questions) return;
+                onConfirm(questions.map((question) => ({ question: question.prompt, answer: answerFor(question.id) })));
+              }}
+            >
+              {confirmText ?? t("thinkingLab.execution.confirmWrite", "Write the script")}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

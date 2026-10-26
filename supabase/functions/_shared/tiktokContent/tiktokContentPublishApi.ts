@@ -1,4 +1,8 @@
 import { TIKTOK_CONTENT_API_BASE } from "../tiktokContentAuth.ts";
+import {
+  isFetchAbortError,
+  PLATFORM_BYTE_UPLOAD_TIMEOUT_MS,
+} from "../scheduledPosts/fetchTimeout.ts";
 import { sleepMs } from "../scheduledPosts/scheduledPostRetry.ts";
 
 export const TIKTOK_PUBLISH_SCOPES = ["video.upload", "video.publish"] as const;
@@ -128,6 +132,22 @@ export function isValidTikTokPublicVideoId(id: string | null | undefined): boole
   if (!trimmed) return false;
   if (trimmed.startsWith("v_pub_")) return false;
   return /^\d+$/.test(trimmed);
+}
+
+export type TikTokPublishProgress = "complete" | "failed" | "uploaded" | "awaiting_bytes";
+
+/**
+ * Distinguish a TikTok init that already has the file from one that never received bytes.
+ * awaiting_bytes is safe to re-init when the upload URL was lost.
+ */
+export function classifyTikTokPublishProgress(status: TikTokPublishStatus): TikTokPublishProgress {
+  const state = String(status.status ?? "").toUpperCase();
+  if (state === "FAILED") return "failed";
+  if (state === "PUBLISH_COMPLETE" || extractTikTokPublicPostId(status)) return "complete";
+  const uploaded = Number(status.uploaded_bytes ?? 0);
+  if (Number.isFinite(uploaded) && uploaded > 0) return "uploaded";
+  if (state === "PROCESSING_DOWNLOAD" || state === "SEND_TO_USER_INBOX") return "uploaded";
+  return "awaiting_bytes";
 }
 
 export function extractTikTokPublicPostId(status: TikTokPublishStatus): string | null {
@@ -280,24 +300,38 @@ export async function uploadTikTokVideoChunks(
   videoBytes: Uint8Array,
   chunkPlan: { chunkSize: number; totalChunkCount: number },
   mimeType = "video/mp4",
+  options?: { onChunk?: () => Promise<void> | void },
 ): Promise<void> {
   const totalSize = videoBytes.byteLength;
+  const started = Date.now();
   for (let chunkIndex = 0; chunkIndex < chunkPlan.totalChunkCount; chunkIndex++) {
+    if (options?.onChunk) await options.onChunk();
     const start = chunkIndex * chunkPlan.chunkSize;
     const end = chunkIndex === chunkPlan.totalChunkCount - 1
       ? totalSize - 1
       : Math.min(start + chunkPlan.chunkSize - 1, totalSize - 1);
     const chunk = videoBytes.subarray(start, end + 1);
 
-    const res = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: {
-        "Content-Type": mimeType,
-        "Content-Length": String(chunk.byteLength),
-        "Content-Range": `bytes ${start}-${end}/${totalSize}`,
-      },
-      body: chunk,
-    });
+    let res: Response;
+    try {
+      res = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": mimeType,
+          "Content-Length": String(chunk.byteLength),
+          "Content-Range": `bytes ${start}-${end}/${totalSize}`,
+        },
+        body: chunk,
+        signal: AbortSignal.timeout(PLATFORM_BYTE_UPLOAD_TIMEOUT_MS),
+      });
+    } catch (err) {
+      if (isFetchAbortError(err)) {
+        throw new Error(
+          `tiktok_upload_timeout: chunk ${chunkIndex + 1}/${chunkPlan.totalChunkCount} did not finish in ${PLATFORM_BYTE_UPLOAD_TIMEOUT_MS}ms`,
+        );
+      }
+      throw err;
+    }
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new Error(
@@ -305,6 +339,9 @@ export async function uploadTikTokVideoChunks(
       );
     }
   }
+  console.info(
+    `tiktok_upload_ok bytes=${totalSize} chunks=${chunkPlan.totalChunkCount} ms=${Date.now() - started}`,
+  );
 }
 
 export async function initTikTokVideoPublishPullFromUrl(
@@ -390,13 +427,14 @@ export async function pollTikTokPublishUntilComplete(
 export async function pollTikTokPublishUntilPublicPostId(
   accessToken: string,
   publishId: string,
-  options?: { maxAttempts?: number; delayMs?: number },
+  options?: { maxAttempts?: number; delayMs?: number; onTick?: () => Promise<void> | void },
 ): Promise<{ status: TikTokPublishStatus; publicPostId: string }> {
   const maxAttempts = options?.maxAttempts ?? 45;
   const delayMs = options?.delayMs ?? 2000;
   let lastComplete: TikTokPublishStatus | null = null;
 
   for (let i = 0; i < maxAttempts; i++) {
+    if (options?.onTick) await options.onTick();
     const status = await fetchTikTokPublishStatus(accessToken, publishId);
     const s = String(status.status ?? "").toUpperCase();
     if (s === "FAILED") {

@@ -56,6 +56,8 @@ export type IdeaCreativeMechanism =
 
 export type IdeaResolution = "RESOLVED" | "UNRESOLVED";
 
+export type IdeaGeneratePass = "sentenceForm" | "mechanismShape";
+
 export type IdeaSemanticFacts = {
   code: string;
   whatItSays: string;
@@ -73,6 +75,8 @@ export type IdeaSemanticFacts = {
   situationForm: IdeaSituationForm;
   resolution: IdeaResolution;
   unresolvedReasons: string[];
+  /** Present only when this exact sentence passed both Generate checks. */
+  generatePasses?: IdeaGeneratePass[];
   confidence?: number;
 };
 

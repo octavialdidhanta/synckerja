@@ -109,6 +109,39 @@ describe("idea lock", () => {
     ).toBeNull();
   });
 
+  it("drops a broken gate failure and keeps the audit when lessons are merged", () => {
+    const record = readIdeaSetRecord({
+      schema: "thinking-lab/idea-set/v1",
+      repairCount: 2,
+      siblingSet: null,
+      audit: {
+        fingerprint: "fp",
+        items: [
+          { code: "ID01", verdict: "AUDIT_FAIL", statementFingerprint: "s1", gateFailure: { gate: "not-a-gate", reason: "x" } },
+          { code: "ID02", verdict: "AUDIT_FAIL", gateFailure: { id: "sentenceForm", reason: "Wrong key" } },
+          { code: "ID03", verdict: "AUDIT_FAIL", gateFailure: { gate: "sentenceForm", reason: "The act is missing." } },
+        ],
+      },
+      downTop: { fingerprint: "down", items: [{ code: "ID01" }] },
+      auditLessons: [{ code: "ID01", statement: "Old sentence", reason: "sentenceForm: The act is missing." }],
+    });
+    expect(record.audit?.items.find((item) => item.code === "ID01")?.gateFailure).toBeUndefined();
+    expect(record.audit?.items.find((item) => item.code === "ID02")?.gateFailure).toBeUndefined();
+    expect(record.audit?.items.find((item) => item.code === "ID03")?.gateFailure).toEqual({
+      gate: "sentenceForm",
+      reason: "The act is missing.",
+    });
+    const next = {
+      ...record,
+      auditLessons: mergeIdeaAuditLessons(record.auditLessons, [
+        { code: "ID04", statement: "New sentence", reason: "mechanismShape: This is still an observation." },
+      ]),
+    };
+    expect(next.audit).toBe(record.audit);
+    expect(next.downTop).toEqual({ fingerprint: "down", items: [{ code: "ID01" }] });
+    expect(next.auditLessons.map((lesson) => lesson.statement)).toEqual(["Old sentence", "New sentence"]);
+  });
+
   it("reads an older record without lessons as an empty lesson list", () => {
     const record = readIdeaSetRecord({
       schema: "thinking-lab/idea-set/v1",
@@ -120,6 +153,47 @@ describe("idea lock", () => {
     expect(record.auditLessons).toEqual([]);
     expect(record.repairCount).toBe(1);
     expect(record.downTop).toBeNull();
+    expect(record.discovery).toBeNull();
+  });
+
+  it("keeps a stored discovery and drops a broken answer", () => {
+    const record = readIdeaSetRecord({
+      schema: "thinking-lab/idea-set/v1",
+      repairCount: 0,
+      siblingSet: null,
+      audit: null,
+      downTop: null,
+      auditLessons: [],
+      discovery: {
+        angleFingerprint: "angle-fp",
+        decisions: [
+          { category: "Situation", question: "Di mana mekanisme ini terjadi?", answer: "Serah terima sif perawat" },
+          { category: "", question: "Kosong", answer: "Tidak dipakai" },
+          { category: "Extra", question: "Pertanyaan keempat", answer: "Tidak diambil" },
+          { category: "Extra", question: "Pertanyaan kelima", answer: "Tidak diambil" },
+        ],
+      },
+    });
+    expect(record.discovery).toEqual({
+      angleFingerprint: "angle-fp",
+      decisions: [
+        { category: "Situation", question: "Di mana mekanisme ini terjadi?", answer: "Serah terima sif perawat" },
+        { category: "Extra", question: "Pertanyaan keempat", answer: "Tidak diambil" },
+        { category: "Extra", question: "Pertanyaan kelima", answer: "Tidak diambil" },
+      ],
+    });
+    expect(
+      readIdeaSetRecord({
+        schema: "thinking-lab/idea-set/v1",
+        discovery: { angleFingerprint: "", decisions: [] },
+      }).discovery,
+    ).toBeNull();
+    expect(
+      readIdeaSetRecord({
+        schema: "thinking-lab/idea-set/v1",
+        discovery: { angleFingerprint: "angle-fp", decisions: [{ question: "Tanpa jawaban" }] },
+      }).discovery,
+    ).toBeNull();
   });
 
   it("keeps one copy of the same statement and reason", () => {

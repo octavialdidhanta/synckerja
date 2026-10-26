@@ -1,4 +1,5 @@
 import { BECAUSE_RESULT_LINES } from "@/thinking-lab/big-thought/because";
+import { individualChecklistPassed, readGateFailure, readGeneratePasses } from "@/thinking-lab/big-thought/checklist";
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import type { Resolution, TriState } from "@/thinking-lab/shared/verdict";
 import type {
@@ -117,6 +118,11 @@ export function normalizeBigThoughtFacts(raw: unknown, fallbackCode = ""): BigTh
   if (typeof answeredQuestionVersion === "number" && Number.isFinite(answeredQuestionVersion)) {
     facts.answeredQuestionVersion = answeredQuestionVersion;
   }
+  const gateFailure = readGateFailure(row.gateFailure);
+  if (gateFailure) facts.gateFailure = gateFailure;
+  else if (row.passConfirmed === true) facts.passConfirmed = true;
+  const generatePasses = readGeneratePasses(row.generatePasses);
+  if (generatePasses.length > 0) facts.generatePasses = generatePasses;
   if (legacyPositive) {
     facts.resolution = "UNRESOLVED";
     if (!facts.unresolvedReasons.includes("LEGACY_POSITIVE_RELATION")) {
@@ -473,7 +479,7 @@ export async function judgeBigThought(
 ): Promise<BigThoughtFacts> {
   const script = await ask(buildBigThoughtJudgePrompt(input));
   const first = parseBigThoughtJudge(script, input.candidate.code);
-  if (first.relationToParent !== "DISTINCT_MATERIAL_SUPPORT") return first;
+  if (!individualChecklistPassed(first)) return first;
   const verification = await ask(
     buildAdversarialVerifierPrompt({
       parentStatement: input.parentStatement,

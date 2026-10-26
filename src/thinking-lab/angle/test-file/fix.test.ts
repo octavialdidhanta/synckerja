@@ -5,6 +5,8 @@ import {
   parseAngleFixOptions,
   parseAngleFixReplacements,
 } from "@/thinking-lab/angle/fix";
+import { fixPriorForNextAngleStatement } from "@/thinking-lab/angle/passChecklist";
+import { fixScopeFromChecks } from "@/thinking-lab/shared/fixScope";
 import type { AngleSetFacts } from "@/thinking-lab/angle/types";
 
 describe("angle fix", () => {
@@ -68,5 +70,34 @@ describe("angle fix", () => {
     expect(angleReplacementPasses(distinct, "AN04")).toBe(true);
     expect(angleReplacementPasses(overlap, "AN04")).toBe(false);
     expect(angleReplacementPasses(null, "AN04")).toBe(false);
+  });
+
+  it("reopens the two Generate checks for a new sentence and drops a check that just failed", () => {
+    const prior = fixPriorForNextAngleStatement(
+      [
+        { id: "stakeHolds", state: "pass" },
+        { id: "observationShape", state: "pass" },
+        { id: "severalIdeas", state: "pass" },
+        { id: "clearBoundary", state: "pass" },
+        { id: "observationJob", state: "pass" },
+        { id: "ownSubject", state: "pass" },
+        { id: "livedExample", state: "fail", reason: "The example is too thin to picture." },
+        { id: "siblingsDistinct", state: "pending" },
+      ],
+      "Porsi kecil membuat harga terlihat hemat",
+      "Dapur menghitung porsi sebagai harga",
+    );
+    expect(prior.find((check) => check.id === "observationJob")?.state).toBe("pending");
+    expect(prior.find((check) => check.id === "observationShape")?.state).toBe("pending");
+    expect(prior.find((check) => check.id === "stakeHolds")?.state).toBe("pass");
+    expect(prior.find((check) => check.id === "livedExample")?.state).toBe("fail");
+    const scope = fixScopeFromChecks([
+      { id: "observationJob", state: "pass" },
+      { id: "observationShape", state: "fail", reason: "Too narrow." },
+      { id: "stakeHolds", state: "pass" },
+      { id: "severalIdeas", state: "pass" },
+    ]);
+    expect(scope.preserve).toEqual(["observationJob", "stakeHolds", "severalIdeas"]);
+    expect(scope.repair).toEqual([{ id: "observationShape", reason: "Too narrow." }]);
   });
 });

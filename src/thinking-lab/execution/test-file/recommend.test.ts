@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { normalizeExecutionFacts } from "@/thinking-lab/execution/semantic";
 import {
+  buildPillarFitChoicePrompt,
   buildPillarRecommendationPrompt,
+  limitPillarChoices,
+  parsePillarFitChoice,
   parsePillarRecommendation,
   pillarNeedsRecommendation,
   pillarWasRecommended,
@@ -50,6 +53,23 @@ describe("pillar recommendation", () => {
     expect(pillarWasRecommended("Story Telling - The Lowest Point", ["Letter to Younger Self"])).toBe(false);
   });
 
+  it("keeps a pillar only when its format can carry the Idea", () => {
+    const prompt = buildPillarFitChoicePrompt({
+      masterStatement: "Dokumentasi pernikahan saya siap dalam tiga hari.",
+      ideaStatement: "Pasangan pengantin baru membesarkan foto buram dari ponsel tamu.",
+      failedPillar: "B-Roll Storytelling",
+      explanation: "Format ini memaksa solusi di luar Idea.",
+      pillar: { name: "Behind The Scene", category: "Story", description: "Proses kerja yang penonton bisa lihat." },
+    });
+    expect(prompt).toContain("A sentence in a script can be rewritten");
+    expect(prompt).toContain("Behind The Scene");
+    expect(parsePillarFitChoice({ pass: true, reason: "Format ini menunjukkan proses tanpa menambah pesan." }, "Behind The Scene")).toEqual({
+      pillarName: "Behind The Scene",
+      reason: "Format ini menunjukkan proses tanpa menambah pesan.",
+    });
+    expect(parsePillarFitChoice({ pass: false, reason: "Format ini memaksa solusi." }, "Behind The Scene")).toBeNull();
+  });
+
   it("stores the recommendation only when the pillar itself is the problem", () => {
     const kept = normalizeExecutionFacts({
       pillar: "B-Roll Storytelling",
@@ -79,5 +99,10 @@ describe("pillar recommendation", () => {
     });
     expect(dropped.relationToParent).toBe("VALID_EXECUTION");
     expect(dropped.recommendation).toBeUndefined();
+  });
+
+  it("keeps only three pillar choices", () => {
+    expect(limitPillarChoices(["A", "B", "C", "D"])).toEqual(["A", "B", "C"]);
+    expect(limitPillarChoices(["A", "B"])).toEqual(["A", "B"]);
   });
 });

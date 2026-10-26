@@ -9,7 +9,6 @@ type StageActionBarProps = {
   showSpinner?: boolean;
   onGenerate: () => void;
   onAudit: () => void;
-  onFix: () => void;
   onChallenger: () => void;
   onLock: () => void;
 };
@@ -20,7 +19,6 @@ export function StageActionBar({
   showSpinner = true,
   onGenerate,
   onAudit,
-  onFix,
   onChallenger,
   onLock,
 }: StageActionBarProps) {
@@ -28,17 +26,15 @@ export function StageActionBar({
   if (!action) return null;
 
   const label =
-    action === "fix"
-      ? t("thinkingLab.action.fix", "Fix")
-      : action === "generate"
-        ? t("thinkingLab.action.generate", "Generate")
-        : action === "audit"
-          ? t("thinkingLab.action.audit", "Audit")
-          : action === "challenger"
-            ? t("thinkingLab.action.challenger", "Challenger")
-            : t("thinkingLab.action.lock", "Lock");
+    action === "generate"
+      ? t("thinkingLab.action.generate", "Generate")
+      : action === "audit"
+        ? t("thinkingLab.action.audit", "Audit")
+        : action === "challenger"
+          ? t("thinkingLab.action.challenger", "Challenger")
+          : t("thinkingLab.action.lock", "Lock");
   const onClick =
-    action === "fix" ? onFix : action === "generate" ? onGenerate : action === "audit" ? onAudit : action === "challenger" ? onChallenger : onLock;
+    action === "generate" ? onGenerate : action === "audit" ? onAudit : action === "challenger" ? onChallenger : onLock;
 
   return (
     <div className="flex flex-wrap gap-2">

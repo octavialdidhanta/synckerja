@@ -1,3 +1,4 @@
+import { readAngleGeneratePasses } from "@/thinking-lab/angle/passChecklist";
 import { normalizeAngleExample } from "@/thinking-lab/angle/example";
 import { normalizeAngleSubject } from "@/thinking-lab/angle/subject";
 import { parseModelJson } from "@/thinking-lab/shared/ai";
@@ -214,6 +215,8 @@ export function normalizeAngleFacts(raw: unknown, fallbackCode = ""): AngleSeman
     example: normalizeAngleExample(asText(row.example)),
   };
   if (confidence !== undefined) facts.confidence = confidence;
+  const generatePasses = readAngleGeneratePasses(row.generatePasses);
+  if (generatePasses.length > 0) facts.generatePasses = generatePasses;
   return facts;
 }
 

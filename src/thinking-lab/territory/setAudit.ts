@@ -1,6 +1,7 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { fingerprintsMatch } from "@/thinking-lab/shared/fingerprint";
 import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
+import { TERRITORY_PASS_CHECK_IDS, type TerritoryPassCheckId } from "@/thinking-lab/territory/passChecklist";
 import type {
   TerritoryChallengerResult,
   TerritoryContainment,
@@ -11,10 +12,16 @@ import type {
   TerritoryTriState,
 } from "@/thinking-lab/territory/types";
 
+export type TerritoryGateFailure = {
+  gate: TerritoryPassCheckId;
+  reason: string;
+};
+
 export type TerritoryAuditItem = {
   code: string;
   verdict: AuditVerdict;
   statementFingerprint?: string;
+  gateFailure?: TerritoryGateFailure;
 };
 
 /** Locked Territories and rows that already passed stay passed when a later sibling is audited. */
@@ -328,6 +335,40 @@ export function buildTerritorySiblingPrompt(input: {
   ].join("\n");
 }
 
+const AUDIT_VERDICTS = new Set<AuditVerdict>(["AUDIT_PASS", "AUDIT_FAIL", "UNRESOLVED", "STALE"]);
+
+export function readTerritoryGateFailure(value: unknown): TerritoryGateFailure | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as { gate?: unknown; reason?: unknown };
+  const gate = asText(row.gate);
+  const reason = asText(row.reason);
+  if (!TERRITORY_PASS_CHECK_IDS.includes(gate as TerritoryPassCheckId) || !reason) return null;
+  return { gate: gate as TerritoryPassCheckId, reason };
+}
+
+function readTerritoryAuditItems(value: unknown): TerritoryAuditItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const row = entry as { code?: unknown; verdict?: unknown; statementFingerprint?: unknown; gateFailure?: unknown };
+    const code = asText(row.code);
+    const verdict = typeof row.verdict === "string" && AUDIT_VERDICTS.has(row.verdict as AuditVerdict)
+      ? (row.verdict as AuditVerdict)
+      : null;
+    if (!code || !verdict) return [];
+    const statementFingerprint = asText(row.statementFingerprint);
+    const gateFailure = readTerritoryGateFailure(row.gateFailure);
+    return [
+      {
+        code,
+        verdict,
+        ...(statementFingerprint ? { statementFingerprint } : {}),
+        ...(gateFailure ? { gateFailure } : {}),
+      },
+    ];
+  });
+}
+
 export function readTerritorySetRecord(raw: unknown): TerritorySetRecord {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return emptyTerritorySetRecord();
   const row = raw as Record<string, unknown>;
@@ -341,9 +382,7 @@ export function readTerritorySetRecord(raw: unknown): TerritorySetRecord {
     auditRaw && typeof auditRaw === "object" && !Array.isArray(auditRaw)
       ? {
           fingerprint: asText((auditRaw as { fingerprint?: unknown }).fingerprint),
-          items: Array.isArray((auditRaw as { items?: unknown }).items)
-            ? ((auditRaw as { items: TerritoryAuditItem[] }).items ?? [])
-            : [],
+          items: readTerritoryAuditItems((auditRaw as { items?: unknown }).items),
         }
       : null;
   const challengerRaw = row.challenger;

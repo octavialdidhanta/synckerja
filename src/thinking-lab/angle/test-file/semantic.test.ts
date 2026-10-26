@@ -215,4 +215,14 @@ describe("normalizeAngleFacts", () => {
     );
     expect(narrow.relationToParent).toBe("INSUFFICIENT_IDEA_GENERATIVITY");
   });
+
+  it("stores Generate passes only when both checks are present", () => {
+    const both = normalizeAngleFacts({
+      ...positive(),
+      generatePasses: ["observationShape", "observationJob", "stakeHolds"],
+    });
+    expect(both.generatePasses).toEqual(["observationJob", "observationShape"]);
+    const one = normalizeAngleFacts({ ...positive(), generatePasses: ["observationJob"] });
+    expect(one.generatePasses).toBeUndefined();
+  });
 });

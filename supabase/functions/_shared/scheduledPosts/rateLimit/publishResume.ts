@@ -1,12 +1,7 @@
-function isTruthyFlag(value: unknown): boolean {
-  return value === true || value === "true";
-}
-
 export function isTikTokResumeRow(providerConfig: Record<string, unknown>): boolean {
   return (
     typeof providerConfig.tiktok_publish_id === "string" &&
-    providerConfig.tiktok_publish_id.length > 0 &&
-    isTruthyFlag(providerConfig.tiktok_upload_completed)
+    providerConfig.tiktok_publish_id.length > 0
   );
 }
 
@@ -67,6 +62,7 @@ export function stripPublishResumeFlags(
     case "TikTok":
       delete next.tiktok_publish_id;
       delete next.tiktok_upload_completed;
+      delete next.tiktok_upload_url;
       break;
     case "YouTube":
       delete next.youtube_upload_url;
@@ -92,5 +88,6 @@ export function stripPublishResumeFlags(
     default:
       break;
   }
+  delete next.publish_step;
   return next;
 }

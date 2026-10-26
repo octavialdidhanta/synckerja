@@ -202,7 +202,13 @@ export function PlatformAutoScheduleSection({
     <section className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
       <header className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/30 px-3 py-2">
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-        {schedule ? <ScheduleStatusBadge status={schedule.status} /> : null}
+        {schedule ? (
+          <ScheduleStatusBadge
+            status={schedule.status}
+            publishStep={schedule.provider_config?.publish_step}
+            errorMessage={schedule.error_message}
+          />
+        ) : null}
       </header>
 
       {!publishScopesOk && reconnectHint ? (

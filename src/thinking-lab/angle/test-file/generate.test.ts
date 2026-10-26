@@ -138,6 +138,43 @@ describe("runAngleGenerate", () => {
     expect(result.incumbents.some((row) => row.admission === "GENERATE_REJECT")).toBe(true);
     expect(result.generateValid).toBe(0);
   });
+
+  it("does not spend an active slot when persist returns GENERATE_REJECT", async () => {
+    const incumbents: Array<{
+      code: string;
+      statement: string;
+      admission: IndividualAdmission;
+      territoryId: string;
+    }> = Array.from({ length: 5 }, (_, index) => ({
+      code: `AN0${index + 1}`,
+      statement: `View ${index + 1}`,
+      admission: "UNRESOLVED",
+      territoryId: "tr-1",
+    }));
+    const propose = vi.fn(async () => ["Good sentence"]);
+    propose.mockResolvedValueOnce(["Bad sentence"]);
+    const result = await runAngleGenerate({
+      loadParent: async () => ({
+        ok: true,
+        parent: { id: "tr-1", code: "TR01", statement: "A space", territoryFingerprint: "fp-1" },
+      }),
+      incumbents,
+      propose,
+      judge: async (_parent, code, statement) =>
+        statement === "Bad sentence" ? rejectedFacts(code) : validFacts(code),
+      persist: async (input) => ({
+        code: input.code,
+        statement: input.statement,
+        admission: input.admission,
+        territoryId: input.parent.id,
+      }),
+    });
+    expect(propose).toHaveBeenCalledTimes(2);
+    expect(result.generateValid).toBe(1);
+    expect(result.incumbents.some((row) => row.admission === "GENERATE_REJECT" && row.statement === "Bad sentence")).toBe(
+      true,
+    );
+  });
 });
 
 describe("buildAngleGeneratePrompt", () => {

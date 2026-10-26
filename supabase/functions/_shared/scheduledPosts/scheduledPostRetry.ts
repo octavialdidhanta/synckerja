@@ -22,9 +22,15 @@ export function isTransientScheduledPublishError(message: string): boolean {
     /\bhttp\s*503\b/.test(m) ||
     /\bhttp\s*502\b/.test(m) ||
     /\bhttp\s*504\b/.test(m) ||
+    /\bhttp\s*500\b/.test(m) ||
     /\bhttp\s*429\b/.test(m) ||
     m.includes("publish_timeout") ||
     m.includes("tiktok_public_post_id_timeout") ||
+    m.includes("tiktok_upload_timeout") ||
+    m.includes("fb_upload_timeout") ||
+    m.includes("fb_file_url_timeout") ||
+    m.includes("fb_file_url_processing_error") ||
+    m.includes("drive_download_timeout") ||
     m.includes("econnreset") ||
     m.includes("network error")
   );
@@ -51,6 +57,7 @@ export function isTransientMetaPublishError(message: string): boolean {
     m.includes("(#613)") ||
     m.includes("media_not_ready") ||
     m.includes("ig_upload_timeout") ||
+    m.includes("fb_upload_timeout") ||
     m.includes("media id is not available") ||
     m.includes("media is not ready") ||
     m.includes("not ready for publishing") ||
@@ -75,6 +82,7 @@ export function isTransientPublishErrorForPlatform(platform: string, message: st
     case "YouTube":
       return isTransientYouTubePublishError(message);
     case "Instagram":
+    case "Facebook":
       return isTransientMetaPublishError(message);
     case "LinkedIn":
       return isTransientLinkedInPublishError(message);

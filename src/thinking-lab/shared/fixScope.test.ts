@@ -81,12 +81,16 @@ describe("fix scope", () => {
     expect(lines).toContain("observationJob: the sentence explains why eating out feels cheaper");
   });
 
-  it("tells a stake failure to keep the act and depend on that stake", () => {
+  it("tells a stake failure to replace the scene and depend on that stake", () => {
     const lines = fixScopeLines({
       preserve: ["sentenceForm"],
       repair: [{ id: "stakeHolds", reason: "the idea still stands without the Angle" }],
     }).join("\n");
-    expect(lines).toContain("Tie the sentence to the distinctive stake named in the failed check.");
+    expect(lines).toContain("Replace the scene.");
+    expect(lines).toContain("Naming that stake inside the sentence is not enough.");
+    expect(lines).toContain("A different situation is allowed.");
+    expect(lines).not.toContain("Keep the act that already passed.");
+    expect(lines).not.toContain("Keep the meaning that made those passed checks true.");
     expect(lines).toContain("stakeHolds: the idea still stands without the Angle");
   });
 

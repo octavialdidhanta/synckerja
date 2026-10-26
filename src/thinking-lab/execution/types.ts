@@ -24,20 +24,38 @@ export type ExecutionRelation =
   | "CLIMB_MISSED"
   | "SUBJECT_MISMATCH"
   | "CAUSE_BROKEN"
-  | "CONCLUSION_MISSED"
+  | "PERSON_MISSED"
+  | "HOOK_MISSED"
+  | "SPEECH_STIFF"
+  | "SLANG_MISSED"
+  | "FORMAT_MISSED"
   | "UNRESOLVED";
 
 export type ExecutionPassCheckId =
+  | "hookHolds"
+  | "soundsSpoken"
+  | "usesSlang"
   | "pillarFits"
-  | "sellingFits"
+  | "formatHolds"
   | "mechanismVisible"
   | "messageStays"
   | "causeChain"
   | "viewerClimb"
-  | "subjectMatch"
-  | "conclusionLands";
+  | "emotionalTone"
+  | "imageShape"
+  | "imageCopy"
+  | "imagePrompt"
+  | "imageCaption";
 
 export type ExecutionMeaningAudit = { cleared: true } | { id: ExecutionPassCheckId; reason: string; lineIds: string[] };
+
+export type ExecutionStoredPassCheck = {
+  id: ExecutionPassCheckId;
+  enabled: boolean;
+  state: "pending" | "pass" | "fail";
+  reason?: string;
+  lineIds?: string[];
+};
 
 export function isFailedMeaningAudit(
   audit: ExecutionMeaningAudit | null | undefined,
@@ -54,6 +72,7 @@ export type ExecutionAuditLesson = {
 export type PillarRecommendation = {
   pillarName: string;
   reason: string;
+  choices?: Array<{ pillarName: string; reason: string }>;
 };
 
 export type ExecutionSemanticFacts = {
@@ -71,6 +90,7 @@ export type ExecutionSemanticFacts = {
   unresolvedReasons: string[];
   meaningAudit?: ExecutionMeaningAudit;
   auditLessons?: ExecutionAuditLesson[];
+  passChecks?: ExecutionStoredPassCheck[];
 };
 
 export function executionPillarLabel(id: string, name?: string | null): string {

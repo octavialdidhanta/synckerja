@@ -18,6 +18,7 @@ import {
   resolveScheduleStatusAfterFailure,
 } from "./scheduledPostRetry.ts";
 import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
+import { touchPublishingHeartbeat } from "./publishingHeartbeat.ts";
 import type { SharedPublishContext } from "./sharedPublishContext.ts";
 import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 
@@ -195,6 +196,7 @@ export async function runScheduledPostJob(
   }
 
   try {
+    await touchPublishingHeartbeat(admin, [scheduleId]);
     const result = await executeScheduledPost(admin, row, options?.sharedPublishContext);
     // Executors persist publish metadata mid-run, so strip from the latest row, not the stale one.
     const { data: latest } = await admin
@@ -206,7 +208,7 @@ export async function runScheduledPostJob(
       platform,
       (latest?.provider_config as Record<string, unknown> | null) ?? row.provider_config ?? {},
     );
-    await admin
+    const { data: publishedRows, error: publishError } = await admin
       .from("social_media_scheduled_posts")
       .update({
         status: "published",
@@ -220,7 +222,18 @@ export async function runScheduledPostJob(
         provider_config: cleanedConfig,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", scheduleId);
+      .eq("id", scheduleId)
+      .eq("status", "publishing")
+      .select("id");
+    if (publishError) throw publishError;
+    if (!publishedRows?.length) {
+      return {
+        id: scheduleId,
+        ok: false,
+        platform,
+        error: "publish_superseded",
+      };
+    }
 
     // Link upsert syncs while this row is still "publishing", which does not count as done.
     await syncPlanCompletionStateForPlan(admin, row.social_media_plan_id);
@@ -258,7 +271,8 @@ export async function runScheduledPostJob(
         locked_at: null,
         updated_at: now,
       })
-      .eq("id", scheduleId);
+      .eq("id", scheduleId)
+      .eq("status", "publishing");
 
     return {
       id: scheduleId,

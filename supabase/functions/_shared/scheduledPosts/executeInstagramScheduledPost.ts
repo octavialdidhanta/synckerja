@@ -15,6 +15,7 @@ import {
   shouldCancelScheduleDueToDriveMismatch,
 } from "./scheduledPostEligibility.ts";
 import { sleepMs } from "./scheduledPostRetry.ts";
+import { touchPublishingHeartbeat } from "./publishingHeartbeat.ts";
 import { resolveVideoBytesForUpload, type SharedPublishContext } from "./sharedPublishContext.ts";
 import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import type { InstagramProviderConfig, ScheduledPostRow } from "./scheduledPostTypes.ts";
@@ -66,9 +67,10 @@ async function persistInstagramProviderConfig(
   patch: Partial<InstagramProviderConfig>,
 ): Promise<Record<string, unknown>> {
   const next = { ...base, ...patch };
+  const now = new Date().toISOString();
   await admin
     .from("social_media_scheduled_posts")
-    .update({ provider_config: next, updated_at: new Date().toISOString() })
+    .update({ provider_config: next, locked_at: now, updated_at: now })
     .eq("id", scheduleId);
   return next;
 }
@@ -155,7 +157,12 @@ async function publishInstagramContainerWhenReady(
   },
 ): Promise<{ mediaId: string }> {
   try {
-    await waitForInstagramReelsContainerReady(args.containerId, args.pageAccessToken);
+    await persistInstagramProviderConfig(admin, scheduleId, providerConfig, {
+      publish_step: "processing",
+    });
+    await waitForInstagramReelsContainerReady(args.containerId, args.pageAccessToken, {
+      onTick: () => touchPublishingHeartbeat(admin, [scheduleId]),
+    });
     return await publishInstagramReelsContainer(
       args.igAccountId,
       args.pageAccessToken,
@@ -323,6 +330,7 @@ export async function executeInstagramScheduledPost(
     ig_container_id: container.containerId,
     ig_upload_session_id: container.uploadUri,
     ig_upload_phase: "created",
+    publish_step: "uploading",
   });
   const uploaded = await uploadInstagramVideoOrReplaceContainer(
     admin,

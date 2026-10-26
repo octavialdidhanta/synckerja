@@ -70,12 +70,13 @@ describe("stage action priority", () => {
   };
 
   it("shows only the current priority", () => {
-    expect(selectStageAction({ ...base, anyFail: true, generateValidCount: 1, auditPassCount: 0 })).toBe("fix");
+    expect(selectStageAction({ ...base, anyFail: true, generateValidCount: 1, auditPassCount: 0 })).toBe("generate");
+    expect(selectStageAction({ ...base, anyFail: true, awaitingVerdict: true })).toBe("audit");
     expect(selectStageAction({ ...base, generateValidCount: 2, activeCount: 2, auditPassCount: 0 })).toBe("audit");
     expect(selectStageAction({ ...base, generateValidCount: 2, activeCount: 2, auditPassCount: 2 })).toBe("generate");
     expect(selectStageAction({ ...base, generateValidCount: 0, activeCount: 0, auditPassCount: 0 })).toBe("generate");
     expect(selectStageAction({ ...base, missingWhy: true, activeCount: 3 })).toBe("generate");
-    expect(selectStageAction({ ...base, missingWhy: true, activeCount: 6, auditPassCount: 6, lockOk: true })).toBe("lock");
+    expect(selectStageAction({ ...base, missingWhy: true, activeCount: 6, auditPassCount: 6, lockOk: true })).toBe("generate");
     expect(selectStageAction({ ...base, auditPassCount: 2 })).toBe("audit");
     expect(selectStageAction(base)).toBeNull();
     expect(selectStageAction({ ...base, challengerComplete: false, lockOk: true })).toBe("lock");

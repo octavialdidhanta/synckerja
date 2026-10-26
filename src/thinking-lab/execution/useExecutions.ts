@@ -8,6 +8,7 @@ import {
   updateLabExecutionScript,
   type LabExecution,
 } from "@/thinking-lab/execution/repository";
+import type { CreativeExecutionLink } from "@/thinking-lab/creative-idea/types";
 import type { VoiceOverScript } from "@/thinking-lab/execution/script";
 import type { ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
 
@@ -30,6 +31,7 @@ export function useLabExecutions(ideaId: string | null) {
       statement: string;
       script?: VoiceOverScript | null;
       facts: ExecutionSemanticFacts;
+      creativeLink?: CreativeExecutionLink | null;
     }) => saveLabExecution({ organizationId: organizationId as string, ...input }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["thinking-lab-executions", organizationId] });

@@ -185,4 +185,43 @@ describe("territory sibling audit", () => {
     expect(lessons.map((lesson) => lesson.statement)).toEqual(["Kepuasan pelanggan", "Uji coba produk"]);
     expect(lessons[0]?.reason).toContain("TR03 · TR04");
   });
+
+  it("keeps a readable gate failure and the rest of the audit when lessons are added", () => {
+    const stored = readTerritorySetRecord({
+      schema: "thinking-lab/territory-set/v1",
+      siblingSet: { fingerprint: "set", resolution: "RESOLVED" },
+      audit: {
+        fingerprint: "fp",
+        items: [
+          {
+            code: "TR01",
+            verdict: "AUDIT_FAIL",
+            statementFingerprint: "name",
+            gateFailure: { gate: "questionArises", reason: "The question does not come up." },
+          },
+          { code: "TR02", verdict: "AUDIT_PASS", gateFailure: { gate: "nope", reason: "bad" } },
+          { code: "TR03", verdict: "AUDIT_FAIL", gateFailure: { gate: "wideEnough" } },
+        ],
+      },
+      challenger: null,
+      auditLessons: [{ code: "TR01", statement: "Old name", reason: "questionArises: The question does not come up." }],
+    });
+    expect(stored.audit?.fingerprint).toBe("fp");
+    expect(stored.audit?.items).toEqual([
+      {
+        code: "TR01",
+        verdict: "AUDIT_FAIL",
+        statementFingerprint: "name",
+        gateFailure: { gate: "questionArises", reason: "The question does not come up." },
+      },
+      { code: "TR02", verdict: "AUDIT_PASS" },
+      { code: "TR03", verdict: "AUDIT_FAIL" },
+    ]);
+    expect(stored.siblingSet?.fingerprint).toBe("set");
+    const merged = mergeTerritoryAuditLessons(stored.auditLessons, [
+      { code: "TR04", statement: "Another name", reason: "audienceLanguage: Internal." },
+    ]);
+    expect(stored.audit?.items).toHaveLength(3);
+    expect(merged.map((lesson) => lesson.statement)).toEqual(["Old name", "Another name"]);
+  });
 });

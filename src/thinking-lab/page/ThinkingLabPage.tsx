@@ -40,7 +40,12 @@ import {
   territoryFingerprint,
   territorySetFingerprint,
 } from "@/thinking-lab/shared/fingerprint";
-import { fixAttemptCap, nextFixScope, scopeFromHistory, type FixScope } from "@/thinking-lab/shared/fixScope";
+import {
+  fixAttemptCap,
+  fixScopeFromChecks,
+  scopeFromHistory,
+  type FixScope,
+} from "@/thinking-lab/shared/fixScope";
 import {
   acceptChosenBelief,
   acceptPlantedBelief,
@@ -62,11 +67,16 @@ import { masterBeliefDescription } from "@/thinking-lab/master-thought/descripti
 import { territoryDescriptions, writeTerritoryAreaSentence } from "@/thinking-lab/territory/description";
 import {
   beginSiblingCheck,
-  emptyPassChecklist,
   finishSiblingCheck,
+  fixPriorForNextTerritoryName,
+  readTerritoryGeneratePasses,
+  runTerritoryAdmissionChecks,
   runTerritoryIndividualChecks,
   runTerritoryOpenChecks,
+  territoryAdmissionChecks,
+  territoryChecksFromStored,
   type TerritoryPassCheck,
+  type TerritoryPassCheckId,
 } from "@/thinking-lab/territory/passChecklist";
 import { ANSWERED_QUESTION_VERSION, resolveAnsweredQuestion } from "@/thinking-lab/big-thought/answeredQuestion";
 import type { ConfirmationSource, LabMasterThought } from "@/thinking-lab/master-thought/types";
@@ -74,21 +84,17 @@ import { useMasterThought } from "@/thinking-lab/master-thought/useMasterThought
 import {
   clearSetConclusions,
   displayedAuditVerdict,
-  holdPassingAuditVerdicts,
-  heldAuditAfterFix,
   keptPassingAuditItems,
   emptySetRecord,
-  exclusionsForParent,
-  exclusionsFromSiblingSet,
-  mergeExclusionEntries,
-  mergeExclusionHistory,
   nextAuthoritativeSetRecord,
   parseLabSetRecord,
-  persistedSetRecordAfterFix,
-  scoreAudit,
-  siblingSetBelongsToParent,
+  mergeFixLessons,
+  mergeGenerateLessons,
+  dropFixLessons,
+  auditSiblingGate,
+  scoreAuditRow,
   siblingSetIsCurrent,
-  siblingSetNeedsFreshJudgment,
+  siblingReasonProofReady,
 } from "@/thinking-lab/big-thought/audit";
 import {
   buildChallengerPrompt,
@@ -104,7 +110,31 @@ import {
   nextBigThoughtCode,
   parseGeneratedBigThoughts,
   runGenerateRounds,
+  shownBigThoughtFacts,
 } from "@/thinking-lab/big-thought/generate";
+import {
+  checkingSiblingFrame,
+  checklistFrame,
+  attachLesson,
+  checklistFromFailure,
+  completeChecklist,
+  bigThoughtListed,
+  readGateFailure,
+  readGeneratePasses,
+  waitForChecklistReport,
+  type GateLesson,
+  type PassChecklist,
+} from "@/thinking-lab/big-thought/checklist";
+import {
+  buildBigThoughtFixPrompt,
+  factsForGenerateAdmission,
+  fixPriorForNextSentence,
+  generateDuplicateFailure,
+  parseBigThoughtFixStatement,
+  runBigThoughtIndividualChecks,
+  runBigThoughtOpenChecks,
+  runGenerateAdmissionChecks,
+} from "@/thinking-lab/big-thought/passChecks";
 import { asBecauseClause, becauseSentence } from "@/thinking-lab/big-thought/because";
 import {
   bigThoughtLabelIsOpen,
@@ -115,19 +145,12 @@ import {
   parseKeyBeliefChoice,
   readBigThoughtLabel,
 } from "@/thinking-lab/big-thought/label";
-import {
-  precheckReplacementCandidate,
-  presentFixModelResponse,
-  runFixReplacements,
-  type FixModelResponse,
-  type FixOffer,
-} from "@/thinking-lab/big-thought/fix";
 import { evaluateLock, selectStageAction } from "@/thinking-lab/big-thought/lock";
 import { individualAdmission } from "@/thinking-lab/big-thought/policy";
 import { manualRejection, ManualStatementForm } from "@/thinking-lab/section/ManualStatementForm";
 import { activeBigThoughts } from "@/thinking-lab/big-thought/repository";
 import { judgeSiblingSet } from "@/thinking-lab/big-thought/semantic";
-import type { BigThoughtFacts, LabBigThought, LabSetRecord, SemanticExclusion } from "@/thinking-lab/big-thought/types";
+import type { BigThoughtFacts, GateFailure, LabBigThought, LabSetRecord } from "@/thinking-lab/big-thought/types";
 import { useBigThoughts, useLockedLabTree } from "@/thinking-lab/big-thought/useBigThoughts";
 import { canShowGenerateAngle } from "@/thinking-lab/angle/eligibility";
 import { angleChallengerCanRun, buildAngleChallengerPrompt, coverageFromAngleChallenger, parseAngleChallenger } from "@/thinking-lab/angle/challenger";
@@ -141,9 +164,13 @@ import {
   parseAngleSubjectScript,
 } from "@/thinking-lab/angle/fix";
 import {
+  angleAdmissionChecks,
+  angleChecksFromStored,
   beginAngleSiblingCheck,
-  emptyAnglePassChecklist,
   finishAngleSiblingCheck,
+  fixPriorForNextAngleStatement,
+  readAngleGeneratePasses,
+  runAngleAdmissionChecks,
   runAngleIndividualChecks,
   runAngleOpenChecks,
   type AnglePassCheck,
@@ -169,7 +196,6 @@ import {
   angleCodesHeldPass,
   buildAngleSiblingPrompt,
   emptyAngleSetRecord,
-  holdPassingAngleVerdicts,
   mergeAngleAuditLessons,
   parseAngleSet,
   scoreAngleAudit,
@@ -178,25 +204,59 @@ import {
 import { useAngleSet, useLabAngles } from "@/thinking-lab/angle/useAngles";
 import { canShowGenerateIdea } from "@/thinking-lab/idea/eligibility";
 import { ideaLabel } from "@/thinking-lab/idea/subject";
+import {
+  buildIdeaDiscoveryPrompt,
+  ideaDiscoveryMatches,
+  parseIdeaDiscoveryQuestions,
+  type IdeaDiscoveryQuestion,
+} from "@/thinking-lab/idea/discover";
 import { buildIdeaFixOptionsPrompt, ideaReplacementPasses, parseIdeaFixDraftScript } from "@/thinking-lab/idea/fix";
 import { sameIdeaConcept } from "@/thinking-lab/idea/conceptIdentity";
 import {
   IDEA_ACTIVE_CAP,
-  judgeAndSealIdea,
+  ideaFactsForValidation,
   nextIdeaCode,
+  parseGeneratedIdeaDrafts,
   proposeIdeaStatements,
   runIdeaGenerate,
   shownIdeaFacts,
 } from "@/thinking-lab/idea/generate";
 import { evaluateIdeaLock, selectIdeaStage } from "@/thinking-lab/idea/lock";
-import { loadIdeaParentGate, loadIdeaSet, saveIdeaSet } from "@/thinking-lab/idea/repository";
-import { admitIdea, visibleIdeas } from "@/thinking-lab/idea/policy";
+import { loadIdeaComparisonHistory, loadIdeaParentGate, loadIdeaSet, saveIdeaSet, saveIdeaValidation, type LabIdea } from "@/thinking-lab/idea/repository";
+import { developmentForPillar, latestPathReviews, lockedPillarCards, mergeLockedPillar } from "@/thinking-lab/creative-idea/paths";
+import { reviewContentPillars, reviewsToStore } from "@/thinking-lab/creative-idea/recommend";
+import { saveDevelopmentPath } from "@/thinking-lab/creative-idea/repository";
+import type { CreativeExecutionLink, CreativeFormat, DevelopmentPath, StoredPillarReview } from "@/thinking-lab/creative-idea/types";
+import { readIdeaGeneratePasses } from "@/thinking-lab/idea/generatePasses";
+import {
+  admissionForDecision,
+  applyCrossStatus,
+  auditVerdictForValidation,
+  buildIdeaRevisionPrompt,
+  canReviseIdea,
+  checksFromValidation,
+  classifyLegacyIdea,
+  crossPeersFromIdeas,
+  failureItemsFromIdeas,
+  failureMemoryFromValidation,
+  ideaHistorySummary,
+  judgeCrossIdeas,
+  lessonSentence,
+  relevantFromPeer,
+  revisionCount,
+  runIdeaPassChecks,
+  withComparedIdeaId,
+  type CrossIdeaCandidate,
+  type CrossIdeaPeer,
+  type FailureMemoryItem,
+  type IdeaValidation,
+  type RelevantIdea,
+} from "@/thinking-lab/idea/validation";
 import {
   beginIdeaSiblingCheck,
-  emptyIdeaPassChecklist,
   finishIdeaSiblingCheck,
-  ideaChecklistPassed,
-  ideaVerdictForStage,
+  fixPriorForNextIdeaStatement,
+  ideaChecksFromStored,
   runIdeaIndividualChecks,
   runIdeaOpenChecks,
   type IdeaPassCheck,
@@ -204,7 +264,6 @@ import {
 import {
   buildIdeaSiblingPrompt,
   emptyIdeaSetRecord,
-  holdPassingIdeaVerdicts,
   ideaCodesHeldPass,
   ideaFailureLessons,
   ideaSetIsCurrent,
@@ -212,34 +271,72 @@ import {
   parseIdeaSet,
   scoreIdeaAudit,
   usableIdeaFixLessons,
+  type IdeaAuditItem,
+  type IdeaDiscovery,
 } from "@/thinking-lab/idea/setAudit";
 import type { IdeaSemanticFacts } from "@/thinking-lab/idea/types";
 import { useIdeaSet, useLabIdeas } from "@/thinking-lab/idea/useIdeas";
 import { buildExecutionGeneratePrompt, judgeAndSealExecution } from "@/thinking-lab/execution/generate";
+import { buildImageGeneratePrompt } from "@/thinking-lab/execution/imageGenerate";
 import {
+  buildImageSlideRepairPrompt,
+  buildImageSpeechRepairPrompt,
+  imageChecksAfterSlideRewrite,
+  imageChecksFromAudit,
+  imageFailureMoved,
+  imageLessons,
+  imageRecheckClaim,
+  imageRewriteFromFailure,
+  imageSlideRepairLine,
+  imageSlideRepairReady,
+  imageSpeechRepairLines,
+  ensureImageLegacySwitches,
+  mergeImageSlideRepair,
+  parseImageSlideRepair,
+  parseImageSpeechRepairs,
+  runImageMeaningChecks,
+  runImageOpenChecks,
+} from "@/thinking-lab/execution/imageChecklist";
+import { savePillarMediumDefault, usePillarMediumDefaults } from "@/thinking-lab/execution/pillarDefaults";
+import {
+  applyPassSwitchScript,
   buildExecutionMeaningRepairPrompt,
+  buildNarrationLineRegeneratePrompt,
+  buildPassSwitchRewritePrompt,
+  checksImplementedBySwitch,
+  emptyExecutionPassChecklist,
+  ensureVideoPassChecks,
   executionChecklistPassed,
   executionChecksFromAudit,
   executionFactsFromChecks,
   executionFailureMoved,
+  factsForPassChecks,
+  openPassResume,
+  regeneratePassPrior,
+  togglePassCheck,
   lessonFromMeaningAudit,
   meaningLineRepairReady,
   mergeExecutionAuditLessons,
+  narrationChangeRows,
   parseExecutionNarrationReplacements,
+  passSwitchOutcome,
+  switchRewriteLines,
   runExecutionMeaningChecks,
   runExecutionOpenChecks,
   EXECUTION_LINE_REPAIR_IDS,
   type ExecutionPassCheck,
+  type NarrationChange,
 } from "@/thinking-lab/execution/passChecklist";
 import {
   buildExecutionConfirmPrompt,
   parseDiscoveredQuestions,
+  type DiscoveryMode,
   type ExecutionConfirmQuestion,
   type ScriptDecision,
 } from "@/thinking-lab/execution/confirm";
 import { useOrgContentPillars, type LabContentPillar } from "@/thinking-lab/execution/pillars";
-import { buildPillarRecommendationPrompt, parsePillarRecommendation, pillarNeedsRecommendation, pillarWasRecommended } from "@/thinking-lab/execution/recommend";
-import { isFailedMeaningAudit, type ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
+import { buildPillarFitChoicePrompt, limitPillarChoices, parsePillarFitChoice, PILLAR_CHOICE_LIMIT, pillarNeedsRecommendation, pillarWasRecommended } from "@/thinking-lab/execution/recommend";
+import { isFailedMeaningAudit, type ExecutionAuditLesson, type ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
 import {
   buildContinuityAuditPrompt,
   buildLineAuditPrompt,
@@ -251,6 +348,7 @@ import {
   buildPlanScript,
   buildSpeechRepairPrompt,
   flattenVoiceOver,
+  imageContentTypeName,
   keepCharacterVisuals,
   mergeRepairedLines,
   mergeSpeechRepairs,
@@ -271,12 +369,14 @@ import {
   scriptLineRepairReady,
   scriptMentionsBrand,
   speechNeedsRepair,
+  stampImageScript,
   withCharacterVisuals,
   withSpeech,
   withoutCharacterVisual,
   type CharacterVisualKind,
   type ScriptAudio,
   type ScriptLook,
+  type ImageSettings,
   type ScriptSpeech,
   type VoiceOverScript,
 } from "@/thinking-lab/execution/script";
@@ -298,6 +398,7 @@ import {
   TERRITORY_NAME_LENGTH_REASON,
   territoryNameIsActivity,
   territoryNameTooLong,
+  territoryRejectionReason,
 } from "@/thinking-lab/territory/generate";
 import { admitTerritory } from "@/thinking-lab/territory/policy";
 import { loadTerritoryParentGate, loadTerritorySet, saveTerritorySet } from "@/thinking-lab/territory/repository";
@@ -308,7 +409,6 @@ import {
   buildTerritorySiblingPrompt,
   emptyTerritorySetRecord,
   parseTerritorySet,
-  holdPassingTerritoryVerdicts,
   territoryCodesHeldPass,
   mergeTerritoryAuditLessons,
   scoreTerritoryAudit,
@@ -332,12 +432,13 @@ import {
 import { BigThoughtSection, type AuditProgress } from "@/thinking-lab/section/BigThoughtSection";
 import { buildLockedMapChildren } from "@/thinking-lab/section/lockedMapChildren";
 import { LabNodeInspector, NodeDefinitionInfo } from "@/thinking-lab/section/LabNodeInspector";
+import { LockedPillarSection } from "@/thinking-lab/section/LockedPillarSection";
 import { ExecutionScriptPanel, ExecutionScriptTable, type CharacterGenerateState } from "@/thinking-lab/section/ExecutionScriptPanel";
 import type { CharacterStudioTab } from "@/thinking-lab/section/CharacterVisualStudio";
 import { CharacterSheetError, copyStoredCharacterVisual, generateCharacterVisuals, removeCharacterVisual, storeCharacterVisual } from "@/thinking-lab/execution/generateCharacterVisual";
 import { invalidateContentPillarQueries } from "@/6-1-dashboard/lib/contentPillarTracker";
 import { SaveToPlanModal } from "@/6-1-script-generator/components/SaveToPlanModal";
-import { PillarPickerSheet } from "@/thinking-lab/section/PillarPickerSheet";
+import { PillarPickerSheet, type ExecutionSettingsDirect } from "@/thinking-lab/section/PillarPickerSheet";
 import { ExecutionConfirmDialog } from "@/thinking-lab/section/ExecutionConfirmDialog";
 import { MasterThoughtMapTree } from "@/thinking-lab/section/MasterThoughtMapTree";
 import { ContentUsageAudit } from "@/6-1-dashboard/modal/ContentUsageAudit";
@@ -360,6 +461,22 @@ function parentIsReady(master: LabMasterThought): boolean {
   });
 }
 
+function ideaLiveReport(
+  checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>,
+  previous: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>,
+): { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" | "unverified" } | null {
+  const changed = checks.find((check, index) => check.state !== previous[index]?.state || check.reason !== previous[index]?.reason);
+  if (changed?.state === "running") return { gate: changed.id, phase: "checking", outcome: "pass" };
+  if (changed?.state === "pass") return { gate: changed.id, phase: "checked", outcome: "pass" };
+  if (changed?.state === "fail") return { gate: changed.id, phase: "checked", outcome: "fail" };
+  if (changed?.reason?.trim()) return { gate: changed.id, phase: "checked", outcome: "unverified" };
+  const latest = [...checks].reverse().find((check) => check.state === "pass" || check.state === "fail" || Boolean(check.reason?.trim()));
+  if (!latest) return null;
+  if (latest.state === "fail") return { gate: latest.id, phase: "checked", outcome: "fail" };
+  if (latest.state === "pass") return { gate: latest.id, phase: "checked", outcome: "pass" };
+  return { gate: latest.id, phase: "checked", outcome: "unverified" };
+}
+
 export function ThinkingLabPage() {
   const { t } = useAppTranslation();
   const queryClient = useQueryClient();
@@ -375,9 +492,11 @@ export function ThinkingLabPage() {
   const [proposalDraft, setProposalDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const labRunRef = useRef(false);
   const generatingTerritoryIdsRef = useRef(new Set<string>());
   const [generatingTerritoryIds, setGeneratingTerritoryIds] = useState<ReadonlySet<string>>(() => new Set());
   const fixingIdeaCodesRef = useRef(new Set<string>());
+  const legacyIdeaSaveRef = useRef(new Set<string>());
   const [fixingIdeaCodes, setFixingIdeaCodes] = useState<ReadonlySet<string>>(() => new Set());
   const fixingAngleCodesRef = useRef(new Set<string>());
   const [fixingAngleCodes, setFixingAngleCodes] = useState<ReadonlySet<string>>(() => new Set());
@@ -386,6 +505,11 @@ export function ThinkingLabPage() {
   const [territoryChecklists, setTerritoryChecklists] = useState<
     Record<string, { checks: TerritoryPassCheck[]; note?: string }>
   >({});
+  const [territoryGenerateRun, setTerritoryGenerateRun] = useState<{
+    thoughtId: string;
+    checks: TerritoryPassCheck[];
+    report: { gate: TerritoryPassCheck["id"]; phase: "checking" | "checked"; outcome: "pass" | "fail" } | null;
+  } | null>(null);
   const publishTerritoryChecklist = (code: string, checks: TerritoryPassCheck[], note?: string) => {
     const key = code.trim().toUpperCase();
     setTerritoryChecklists((current) => ({
@@ -396,6 +520,11 @@ export function ThinkingLabPage() {
   const [angleChecklists, setAngleChecklists] = useState<
     Record<string, { checks: AnglePassCheck[]; note?: string }>
   >({});
+  const [angleGenerateRun, setAngleGenerateRun] = useState<{
+    territoryId: string;
+    checks: AnglePassCheck[];
+    report: { gate: AnglePassCheck["id"]; phase: "checking" | "checked"; outcome: "pass" | "fail" } | null;
+  } | null>(null);
   const publishAngleChecklist = (code: string, checks: AnglePassCheck[], note?: string) => {
     const key = code.trim().toUpperCase();
     setAngleChecklists((current) => ({
@@ -404,6 +533,25 @@ export function ThinkingLabPage() {
     }));
   };
   const [ideaChecklists, setIdeaChecklists] = useState<Record<string, { checks: IdeaPassCheck[]; note?: string }>>({});
+  const [ideaGenerateRun, setIdeaGenerateRun] = useState<{
+    angleId: string;
+    checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>;
+    report: { gate: string; phase: "checking" | "checked"; outcome: "pass" | "fail" | "unverified" } | null;
+  } | null>(null);
+  const [ideaRevisionTarget, setIdeaRevisionTarget] = useState<{
+    nonce: number;
+    decision: "LOLOS" | "DITOLAK" | "BELUM_TERVERIFIKASI";
+  } | null>(null);
+  const ideaPassPrevious = useRef<Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>>([]);
+  const publishLiveIdea = (
+    angleId: string,
+    checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>,
+  ) => {
+    const previous = ideaPassPrevious.current;
+    const next = checks.map((check) => ({ ...check }));
+    ideaPassPrevious.current = next;
+    setIdeaGenerateRun({ angleId, checks: next, report: ideaLiveReport(next, previous) });
+  };
   const publishIdeaChecklist = (code: string, checks: IdeaPassCheck[], note?: string) => {
     const key = code.trim().toUpperCase();
     setIdeaChecklists((current) => ({
@@ -411,11 +559,7 @@ export function ThinkingLabPage() {
       [key]: note ? { checks, note } : { checks },
     }));
   };
-  const fixingBigThoughtCodesRef = useRef(new Set<string>());
-  const [fixingBigThoughtCodes, setFixingBigThoughtCodes] = useState<ReadonlySet<string>>(() => new Set());
   const [notice, setNotice] = useState<string | null>(null);
-  const [fixResponses, setFixResponses] = useState<FixModelResponse[]>([]);
-  const [fixOffers, setFixOffers] = useState<Array<FixOffer & { failedCode: string; label: string }>>([]);
   const [territoryFixOffers, setTerritoryFixOffers] = useState<
     Array<{ thoughtId: string; failedCode: string; statement: string; facts: TerritorySemanticFacts }>
   >([]);
@@ -426,6 +570,11 @@ export function ThinkingLabPage() {
     Array<{ angleId: string; failedCode: string; statement: string; facts: IdeaSemanticFacts }>
   >([]);
   const [auditProgress, setAuditProgress] = useState<AuditProgress | null>(null);
+  const [bigThoughtChecklists, setBigThoughtChecklists] = useState<Record<string, PassChecklist>>({});
+  const fixingBigThoughtRef = useRef(new Set<string>());
+  const bigThoughtFixLessonsRef = useRef(new Map<string, Array<{ statement: string; reason: string }>>());
+  const [fixingBigThoughtCodes, setFixingBigThoughtCodes] = useState<string[]>([]);
+  const [generateChecklist, setGenerateChecklist] = useState<PassChecklist | null>(null);
   const [pendingDelete, setPendingDelete] = useState<
     | { kind: "master"; id: string }
     | { kind: "bigThought"; id: string }
@@ -444,6 +593,7 @@ export function ThinkingLabPage() {
     | { kind: "territory"; masterId: string; thoughtId: string; territoryId: string }
     | { kind: "angle"; masterId: string; thoughtId: string; territoryId: string; angleId: string }
     | { kind: "idea"; masterId: string; thoughtId: string; territoryId: string; angleId: string; ideaId: string }
+    | { kind: "pillar"; masterId: string; thoughtId: string; territoryId: string; angleId: string; ideaId: string; contentPillarId: string }
     | { kind: "execution"; masterId: string; thoughtId: string; territoryId: string; angleId: string; ideaId: string; executionId: string }
     | null
   >(null);
@@ -481,8 +631,6 @@ export function ThinkingLabPage() {
   useEffect(() => {
     setNotice(null);
     setAuditProgress(null);
-    setFixResponses([]);
-    setFixOffers([]);
     setTerritoryFixOffers([]);
     setAngleFixOffers([]);
     setIdeaFixOffers([]);
@@ -592,8 +740,16 @@ export function ThinkingLabPage() {
   const labIdeas = useLabIdeas(ideaParentIds);
   const executionCountIdeaIds = useMemo(() => {
     if (!focus || !("angleId" in focus)) return [];
-    return visibleIdeas(labIdeas.data ?? [], focus.angleId).map((idea) => idea.id);
-  }, [focus, labIdeas.data]);
+    const angle = (labAngles.data ?? []).find((row) => row.id === focus.angleId);
+    if (!angle) return [];
+    return (labIdeas.data ?? [])
+      .filter(
+        (idea) =>
+          idea.angleId === focus.angleId &&
+          (idea.validation ?? classifyLegacyIdea(idea.statement, angle.statement)).decision === "LOLOS",
+      )
+      .map((idea) => idea.id);
+  }, [focus, labAngles.data, labIdeas.data]);
   const executionCounts = useLabExecutionCounts(executionCountIdeaIds);
   const lockedChildren = useMemo(
     () =>
@@ -649,6 +805,18 @@ export function ThinkingLabPage() {
           : null,
         reasonContribution,
         siblingUnresolvedReasons: sibling?.unresolvedReasons ?? null,
+        gateFailure: row.canonicalSemantic?.gateFailure ?? null,
+        auditGatesChecked:
+          audit === "AUDIT_PASS" &&
+          setRecord?.audit?.items?.some(
+            (item) => item.code.toUpperCase() === code && item.gatesChecked === true,
+          ) === true,
+        auditGateFailure:
+          audit === "AUDIT_PASS"
+            ? null
+            : readGateFailure(
+                setRecord?.audit?.items?.find((item) => item.code.toUpperCase() === code)?.gateFailure,
+              ),
         canGenerateTerritory: canGenerateTerritory(
           {
             status: row.status,
@@ -692,10 +860,11 @@ export function ThinkingLabPage() {
       };
     });
   }, [active, parentFp, setRecord, labTerritories.data, labAngles.data]);
+  const shownRowViews = useMemo(() => rowViews.filter((row) => bigThoughtListed(row)), [rowViews]);
 
   const focusedThought =
     locked && focus && focus.kind !== "master" && focus.masterId === selected?.id
-      ? (rowViews.find((row) => row.id === focus.thoughtId) ?? null)
+      ? (shownRowViews.find((row) => row.id === focus.thoughtId) ?? null)
       : null;
   const territorySet = useTerritorySet(focusedThought?.id ?? null);
   const focusedTerritory =
@@ -711,6 +880,11 @@ export function ThinkingLabPage() {
     : null;
   const angleSet = useAngleSet(focusedTerritory?.id ?? null);
   const masterStatement = (selected?.statement || selected?.originalInput || "").trim();
+  const ideaAudience = {
+    audience: selected?.audience ?? "",
+    priorBelief: selected?.priorBelief ?? "",
+    rootBelief: selected?.rootBelief ?? "",
+  };
   const becauseParent = (masterSubject || masterStatement).trim();
   const answeredQuestion = (
     focusedThought?.facts?.answeredQuestionVersion === ANSWERED_QUESTION_VERSION
@@ -912,42 +1086,22 @@ export function ThinkingLabPage() {
     const liveChecks = angleChecklists[row.code.toUpperCase()]?.checks;
     const liveSettled = (id: string) =>
       (liveChecks ?? []).some((check) => check.id === id && check.state !== "pending");
-    const passedSeed = (ids: readonly string[]) => ids.map((id) => ({ id, state: "pass" as const }));
-    let checklist: typeof liveChecks = liveChecks;
-    if (subjectProblem && !liveSettled("ownSubject")) {
-      checklist = [
-        ...(liveChecks && liveChecks.some((check) => check.state !== "pending")
-          ? liveChecks.filter((check) => check.id !== "ownSubject")
-          : angleVerdicts[index] === "AUDIT_PASS"
-            ? passedSeed([
-                "stakeHolds",
-                "observationShape",
-                "severalIdeas",
-                "clearBoundary",
-                "observationJob",
-                "siblingsDistinct",
-              ])
-            : []),
-        { id: "ownSubject", state: "fail" as const, reason: subjectProblem },
-      ];
-    } else if (exampleProblem && !liveSettled("livedExample")) {
-      checklist = [
-        ...(liveChecks && liveChecks.some((check) => check.state !== "pending")
-          ? liveChecks.filter((check) => check.id !== "livedExample")
-          : angleVerdicts[index] === "AUDIT_PASS"
-            ? passedSeed([
-                "stakeHolds",
-                "observationShape",
-                "severalIdeas",
-                "clearBoundary",
-                "observationJob",
-                "ownSubject",
-                "siblingsDistinct",
-              ])
-            : []),
-        { id: "livedExample", state: "fail" as const, reason: exampleProblem },
-      ];
-    }
+    const storedItem = angleSet.data?.audit?.items.find(
+      (item) => item.code.toUpperCase() === row.code.toUpperCase(),
+    );
+    const storedChecks = angleChecksFromStored({
+      generatePasses: row.canonicalSemantic.generatePasses,
+      gateFailure: angleVerdicts[index] === "AUDIT_FAIL" ? (storedItem?.gateFailure ?? null) : null,
+      passed: angleVerdicts[index] === "AUDIT_PASS",
+    });
+    const base = liveChecks && liveChecks.length > 0 ? liveChecks : storedChecks;
+    const markFailed = (id: "ownSubject" | "livedExample", reason: string) =>
+      base.some((check) => check.id === id)
+        ? base.map((check) => (check.id === id ? { id, state: "fail" as const, reason } : check))
+        : [...base, { id, state: "fail" as const, reason }];
+    let checklist: AnglePassCheck[] = base;
+    if (subjectProblem && !liveSettled("ownSubject")) checklist = markFailed("ownSubject", subjectProblem);
+    else if (exampleProblem && !liveSettled("livedExample")) checklist = markFailed("livedExample", exampleProblem);
     const liveOwn = (liveChecks ?? []).find((check) => check.id === "ownSubject");
     return {
       checklist,
@@ -997,9 +1151,49 @@ export function ThinkingLabPage() {
       ? territoryFingerprint({ statement: focusedTerritory.statement, bigThoughtFingerprint: focusedBigThoughtFingerprint })
       : "";
   const showGenerateIdea = canShowGenerateIdea(focusedAngle, focusedTerritoryFingerprint || null);
-  const admittedIdeas = visibleIdeas(labIdeas.data ?? [], focusedAngle?.id ?? "");
+  const angleIdeaRows = (labIdeas.data ?? []).filter((row) => focusedAngle && row.angleId === focusedAngle.id);
+  const validationForIdea = (row: (typeof angleIdeaRows)[number]) =>
+    row.validation ?? classifyLegacyIdea(row.statement, focusedAngle?.statement ?? "");
+  const admittedIdeas = angleIdeaRows.filter((row) => validationForIdea(row).decision === "LOLOS");
   const openIdeas = admittedIdeas.filter((row) => row.status !== "locked");
   const lockedIdeas = admittedIdeas.filter((row) => row.status === "locked");
+  useEffect(() => {
+    if (!masters.organizationId || !focusedAngle) return;
+    const angleId = focusedAngle.id;
+    const angleStatement = focusedAngle.statement;
+    const pending = (labIdeas.data ?? []).filter(
+      (row) => row.angleId === angleId && !row.validation && !legacyIdeaSaveRef.current.has(row.id),
+    );
+    if (pending.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      let failed = false;
+      for (const row of pending) {
+        legacyIdeaSaveRef.current.add(row.id);
+        const validation = classifyLegacyIdea(row.statement, angleStatement);
+        try {
+          await saveIdeaValidation({
+            organizationId: masters.organizationId as string,
+            angleId: row.angleId,
+            id: row.id,
+            validation,
+            admission: admissionForDecision(validation.decision),
+          });
+        } catch {
+          failed = true;
+        }
+      }
+      if (cancelled) return;
+      if (failed) {
+        setNotice(t("thinkingLab.idea.historyUnsaved", "This history could not be saved."));
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["thinking-lab-ideas", masters.organizationId] });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [focusedAngle, labIdeas.data, masters.organizationId, queryClient, t]);
   const parentAngleFingerprint =
     focusedAngle && focusedTerritoryFingerprint
       ? angleFingerprint({ statement: focusedAngle.statement, territoryFingerprint: focusedTerritoryFingerprint })
@@ -1035,9 +1229,10 @@ export function ThinkingLabPage() {
     }
     return rescoredIdeaAudit?.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict ?? null;
   });
-  const shownIdeaVerdicts = openIdeas.map((row, index) =>
-    ideaVerdictForStage(ideaVerdicts[index] ?? null, ideaChecklists[row.code.toUpperCase()]?.checks),
-  );
+  const shownIdeaVerdicts = openIdeas.map((row) => {
+    const verdict = auditVerdictForValidation(validationForIdea(row));
+    return verdict === "AUDIT_PASS" ? ("AUDIT_PASS" as const) : null;
+  });
   const ideaLock = evaluateIdeaLock({
     admittedCount: openIdeas.length,
     verdicts: shownIdeaVerdicts,
@@ -1064,36 +1259,74 @@ export function ThinkingLabPage() {
   ];
   const ideaSetLocked = admittedIdeas.length > 0 && admittedIdeas.every((row) => row.status === "locked");
   const focusedIdea =
-    focus?.kind === "idea" || focus?.kind === "execution"
+    focus?.kind === "idea" || focus?.kind === "pillar" || focus?.kind === "execution"
       ? ((labIdeas.data ?? []).find((row) => row.id === focus.ideaId) ?? null)
       : null;
-  const labExecutions = useLabExecutions(focusedIdea?.status === "locked" ? focusedIdea.id : null);
+  const focusedIdeaAngle = focusedIdea
+    ? ((labAngles.data ?? []).find((row) => row.id === focusedIdea.angleId) ?? null)
+    : null;
+  const focusedIdeaPassed = Boolean(
+    focusedIdea &&
+      focusedIdeaAngle &&
+      (focusedIdea.validation ?? classifyLegacyIdea(focusedIdea.statement, focusedIdeaAngle.statement)).decision === "LOLOS",
+  );
+  const labExecutions = useLabExecutions(focusedIdeaPassed && focusedIdea?.status === "locked" ? focusedIdea.id : null);
   const contentPillars = useOrgContentPillars(masters.organizationId, locked);
+  const pillarMediums = usePillarMediumDefaults(masters.organizationId);
   const [pillarPickerOpen, setPillarPickerOpen] = useState(false);
+  const [executionDirect, setExecutionDirect] = useState<ExecutionSettingsDirect | null>(null);
+  const [creativeReviews, setCreativeReviews] = useState<StoredPillarReview[] | null>(null);
+  const [creativeReviewReady, setCreativeReviewReady] = useState(false);
+  const [creativePillarId, setCreativePillarId] = useState<string | null>(null);
+  const [creativeFormat, setCreativeFormat] = useState<CreativeFormat | null>(null);
+  const creativePathSave = useRef<Promise<void>>(Promise.resolve());
+  useEffect(() => {
+    const latest = [...(focusedIdea?.developmentPaths ?? [])].sort((left, right) => right.savedAt.localeCompare(left.savedAt))[0];
+    setCreativePillarId(latest?.contentPillarId ?? null);
+    setCreativeFormat(latest?.format ?? null);
+    setCreativeReviews(latest && latest.reviews.length > 0 ? latest.reviews : null);
+    setCreativeReviewReady(Boolean(latest && latest.reviews.length > 0));
+  }, [focusedIdea?.id]);
   const [scriptConfirm, setScriptConfirm] = useState<{
     pillars: LabContentPillar[];
     audio: ScriptAudio;
-    look: ScriptLook;
-    speech: ScriptSpeech;
+    look?: ScriptLook;
+    speech?: ScriptSpeech;
     durationSeconds: number | null;
     brandName: string | null;
     cta: string | null;
+    image: ImageSettings | null;
+    pillarDevelopment: string | null;
+    phase: "mode" | "questions";
+    discovery: DiscoveryMode | null;
     questions: ExecutionConfirmQuestion[] | null;
     loading: boolean;
     failed: boolean;
   } | null>(null);
   const [masterSells, setMasterSells] = useState<true | false | "unresolved" | "unknown">("unknown");
   const [executionChecklists, setExecutionChecklists] = useState<Record<string, ExecutionPassCheck[]>>({});
+  const [executionRunChecks, setExecutionRunChecks] = useState<ExecutionPassCheck[] | null>(null);
   const [executionLineOffer, setExecutionLineOffer] = useState<{
     executionId: string;
     script: VoiceOverScript;
     facts: ExecutionSemanticFacts;
   } | null>(null);
-  const [executionRepairNote, setExecutionRepairNote] = useState<string | null>(null);
-  const [executionProgress, setExecutionProgress] = useState<{
-    phase: "write" | "audit" | "repair" | "recommend";
-    pillarName: string;
+  const [executionPassProposal, setExecutionPassProposal] = useState<{
+    executionId: string;
+    checks: ExecutionPassCheck[];
+    script: VoiceOverScript;
+    changes: NarrationChange[];
+    previousChecks: ExecutionPassCheck[] | null;
+    implemented: boolean;
   } | null>(null);
+  const [executionRepairNote, setExecutionRepairNote] = useState<string | null>(null);
+  const [executionDraft, setExecutionDraft] = useState<VoiceOverScript | null>(null);
+  const [executionProgress, setExecutionProgress] = useState<{
+    phase: "write" | "audit" | "repair" | "line" | "recommend" | "switch";
+    pillarName: string;
+    medium?: "image";
+  } | null>(null);
+  const [pillarChoices, setPillarChoices] = useState<Array<{ pillarName: string; reason: string }>>([]);
   const [fixingLineId, setFixingLineId] = useState<string | null>(null);
   const [scriptTableOpen, setScriptTableOpen] = useState(false);
   const [planSaveOpen, setPlanSaveOpen] = useState(false);
@@ -1101,7 +1334,16 @@ export function ThinkingLabPage() {
   const [characterVisualDelete, setCharacterVisualDelete] = useState<{ handle: string; kind: CharacterVisualKind } | null>(null);
   const [characterVisualSave, setCharacterVisualSave] = useState<{ handle: string; kind: CharacterStudioTab } | null>(null);
   const executionCancel = useRef(0);
+  const pillarUseWait = useRef<number | null>(null);
   const confirmToken = useRef(0);
+  const ideaDiscoverToken = useRef(0);
+  const [ideaDiscover, setIdeaDiscover] = useState<{
+    angleId: string;
+    angleFingerprint: string;
+    questions: IdeaDiscoveryQuestion[] | null;
+    loading: boolean;
+    failed: boolean;
+  } | null>(null);
   const recommendationAttempt = useRef(new Set<string>());
   useEffect(() => {
     setMasterSells("unknown");
@@ -1115,12 +1357,20 @@ export function ThinkingLabPage() {
     setFixingLineId(null);
   }, [focus?.kind === "execution" ? focus.executionId : null]);
 
-  const generateValidCount = countGenerateValid(rowViews);
-  const auditPassCount = rowViews.filter((row) => row.audit === "AUDIT_PASS").length;
-  const anyFail = rowViews.some((row) => row.audit === "AUDIT_FAIL");
-  const anyStale = rowViews.some((row) => row.admission === "STALE" || row.audit === "STALE");
-  const anyUnresolved = rowViews.some((row) => row.admission === "UNRESOLVED" || row.audit === "UNRESOLVED");
+  const generateValidCount = countGenerateValid(shownRowViews);
+  const auditPassCount = shownRowViews.filter((row) => row.audit === "AUDIT_PASS").length;
+  const anyFail = shownRowViews.some((row) => row.audit === "AUDIT_FAIL");
+  const anyStale = shownRowViews.some((row) => row.admission === "STALE" || row.audit === "STALE");
+  const anyUnresolved = shownRowViews.some((row) => row.admission === "UNRESOLVED" || row.audit === "UNRESOLVED");
   const setFingerprint = parentFp
+    ? incumbentSetFingerprint({
+        masterThoughtFingerprint: parentFp,
+        bigThoughtFingerprints: shownRowViews.map((row) =>
+          bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
+        ),
+      })
+    : "";
+  const siblingFingerprint = parentFp
     ? incumbentSetFingerprint({
         masterThoughtFingerprint: parentFp,
         bigThoughtFingerprints: active.map((row) =>
@@ -1128,18 +1378,23 @@ export function ThinkingLabPage() {
         ),
       })
     : "";
-  const siblingCurrent = siblingSetIsCurrent(setRecord?.siblingSet ?? null, setFingerprint);
+  const listedAllPass =
+    shownRowViews.length > 0 && shownRowViews.every((row) => row.audit === "AUDIT_PASS");
+  const siblingCurrent =
+    listedAllPass ||
+    siblingSetIsCurrent(setRecord?.siblingSet ?? null, siblingFingerprint) ||
+    siblingSetIsCurrent(setRecord?.siblingSet ?? null, setFingerprint);
   const missingWhy = currentMissingWhy(setRecord?.challenger ?? null, setFingerprint);
   const challengerReady = challengerCanRun({
     auditPassCount,
-    activeCount: rowViews.length,
+    activeCount: shownRowViews.length,
     anyFail,
     anyStale,
     anyUnresolved,
   });
   const lockDecision = evaluateLock({
     auditPassCount,
-    activeCount: rowViews.length,
+    activeCount: shownRowViews.length,
     anyFail,
     anyStale,
     anyUnresolved,
@@ -1155,10 +1410,14 @@ export function ThinkingLabPage() {
       challenger.resolution === "RESOLVED" &&
       challenger.unresolvedReasons.length === 0,
   );
+  const awaitingVerdict = shownRowViews.some(
+    (row) => row.audit == null || row.audit === "STALE" || row.audit === "UNRESOLVED",
+  );
   const stageAction = selectStageAction({
     anyFail,
+    awaitingVerdict,
     generateValidCount,
-    activeCount: rowViews.length,
+    activeCount: shownRowViews.length,
     missingWhy: Boolean(missingWhy),
     auditPassCount,
     anyStale,
@@ -1168,9 +1427,9 @@ export function ThinkingLabPage() {
     lockOk: lockDecision.ok,
   });
   const showGenerateBigThought = Boolean(
-    ready && masterSubject && !locked && rowViews.length < ACTIVE_SET_CAP && stageAction !== "generate",
+    ready && masterSubject && !locked && stageAction !== "generate",
   );
-  const masterMenuStage = stageAction === "fix" ? null : stageAction;
+  const masterMenuStage = stageAction;
   const admission = selected
     ? assessMasterThought(
         selected.canonicalSemantic,
@@ -1210,18 +1469,19 @@ export function ThinkingLabPage() {
   };
 
   const run = async (work: () => Promise<void>, action?: string, target?: string) => {
-    if (!masters.organizationId) return;
+    if (!masters.organizationId || labRunRef.current) return;
+    labRunRef.current = true;
     const masterThoughtId = selected?.id ?? focus?.masterId ?? null;
     bindUsage(action, masterThoughtId, target);
     setBusy(true);
     setBusyAction(action ?? null);
     setNotice(null);
-    setFixResponses([]);
     try {
       await work();
     } catch (error) {
       reportStepError(error);
     } finally {
+      labRunRef.current = false;
       setBusy(false);
       setBusyAction(null);
       if (masterThoughtId) void queryClient.invalidateQueries({ queryKey: ["content-ai-usage", "master", masterThoughtId] });
@@ -1230,11 +1490,17 @@ export function ThinkingLabPage() {
 
   const reportStepError = (error: unknown) => {
     if (isGeminiSpendCapError(error)) return;
+    const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code) : "";
+    if (code === "23505") {
+      toast.error(t("thinkingLab.error.duplicateCode", "That Big Thought code is already saved. Run Generate again."));
+      return;
+    }
     toast.error(error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));
   };
 
   const runManual = async (action: string, work: () => Promise<string | null>, target?: string): Promise<string | null> => {
-    if (!masters.organizationId) return null;
+    if (!masters.organizationId || labRunRef.current) return null;
+    labRunRef.current = true;
     const masterThoughtId = selected?.id ?? focus?.masterId ?? null;
     bindUsage(action, masterThoughtId, target);
     setBusy(true);
@@ -1244,10 +1510,14 @@ export function ThinkingLabPage() {
       return await work();
     } catch (error) {
       if (isGeminiSpendCapError(error)) return null;
-      const message = error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step.");
+      const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code) : "";
+      const message = code === "23505"
+        ? t("thinkingLab.error.duplicateCode", "That Big Thought code is already saved. Run Generate again.")
+        : error instanceof Error ? error.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step.");
       toast.error(message);
       return message;
     } finally {
+      labRunRef.current = false;
       setBusy(false);
       setBusyAction(null);
       if (masterThoughtId) void queryClient.invalidateQueries({ queryKey: ["content-ai-usage", "master", masterThoughtId] });
@@ -1308,8 +1578,20 @@ export function ThinkingLabPage() {
       return;
     }
     if (target.kind === "bigThought") {
+      const removed = (thoughts.data ?? []).find((item) => item.id === target.id);
       void run(async () => {
         await thoughts.remove.mutateAsync(target.id);
+        if (removed && selected) {
+          bigThoughtFixLessonsRef.current.delete(removed.code.toUpperCase());
+          const current = parseLabSetRecord(selected.lastAudit);
+          const fixLessons = dropFixLessons(current?.fixLessons, [removed.code]);
+          if (current && fixLessons.length !== (current.fixLessons ?? []).length) {
+            await masters.saveSet.mutateAsync({
+              id: selected.id,
+              lastAudit: { ...current, fixLessons },
+            });
+          }
+        }
         setFocus((current) =>
           current && current.kind !== "master" && current.thoughtId === target.id
             ? { kind: "master", masterId: current.masterId }
@@ -1533,7 +1815,7 @@ export function ThinkingLabPage() {
       const known = [...(thoughts.data ?? [])];
       const codes = known.map((row) => row.code);
       let sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0);
-      let record = parseLabSetRecord(selected.lastAudit);
+      let record = parseLabSetRecord(selected.lastAudit) ?? emptySetRecord();
       const pool = selected.productReasonPool;
       if (pool && pool.items.length === 0) {
         setNotice(
@@ -1544,16 +1826,48 @@ export function ThinkingLabPage() {
         );
         return;
       }
-      const started = rowViews.length;
-      const generated = await runGenerateRounds({
+      const started = shownRowViews.length;
+      const beforeValid = countGenerateValid(shownRowViews);
+      const lessons: GateLesson[] = (record.generateLessons ?? []).map((lesson) => ({ ...lesson }));
+      const seededLessonCount = lessons.length;
+      let blockedKnownSentence = false;
+      const rememberGenerateLesson = async (lesson: GateLesson) => {
+        const statement = lesson.statement.trim();
+        const reason = lesson.reason.trim();
+        if (!statement || !reason) return;
+        const key = `${statement.toLocaleLowerCase()}\n${lesson.gate}`;
+        const index = lessons.findIndex(
+          (item) => `${item.statement.trim().toLocaleLowerCase()}\n${item.gate}` === key,
+        );
+        if (index >= 0) lessons[index] = { gate: lesson.gate, statement, reason };
+        else lessons.push({ gate: lesson.gate, statement, reason });
+        const next = mergeGenerateLessons(record.generateLessons, [{ gate: lesson.gate, statement, reason }]);
+        const previous = record.generateLessons ?? [];
+        const same =
+          next.length === previous.length &&
+          next.every((item, itemIndex) => {
+            const stored = previous[itemIndex];
+            return stored?.gate === item.gate && stored.statement === item.statement && stored.reason === item.reason;
+          });
+        if (same) return;
+        record = { ...record, generateLessons: next };
+        await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: record });
+      };
+      let generated: Awaited<ReturnType<typeof runGenerateRounds>> | null = null;
+      const showGenerateChecklist = async (checklist: PassChecklist) => {
+        setGenerateChecklist(checklist);
+        await waitForChecklistReport(checklist);
+      };
+      try {
+      generated = await runGenerateRounds({
         parentStatement: becauseParent,
-        incumbents: rowViews.map((row) => ({
+        incumbents: shownRowViews.map((row) => ({
           code: row.code,
           statement: row.statement,
           label: row.label,
           admission: row.admission,
         })),
-        activeCount: rowViews.length,
+        activeCount: shownRowViews.length,
         missingWhy,
         topUp: true,
         propose: async (plan, incumbents) => {
@@ -1567,22 +1881,52 @@ export function ThinkingLabPage() {
                 .map((row) => ({ code: row.code, statement: row.statement, label: row.label })),
               needed: plan.needed,
               missingWhy: plan.missingWhy,
+              lessons,
               reasonPool: pool,
             }),
             0.2,
           );
           const parsed = parseGeneratedBigThoughts(script ? parseModelJson(script) : null, becauseParent, pool);
-          return keepGroundedBigThoughts(parsed, pool);
+          const learned = new Set(lessons.map((lesson) => lesson.statement.trim().toLowerCase()));
+          const grounded = keepGroundedBigThoughts(parsed, pool);
+          const fresh = grounded.filter((item) => !learned.has(item.statement.trim().toLowerCase()));
+          if (fresh.length < grounded.length) blockedKnownSentence = true;
+          return fresh;
         },
-        judge: (statement, siblings) =>
-          judgeCandidateWithAsk({
-            parentStatement: becauseParent,
+        onRepeat: async (candidate, repeated) => {
+          const checklist = attachLesson(
+            generateDuplicateFailure(`Same Big Thought as ${repeated.code}.`),
+            candidate.statement,
+          );
+          const reason = checklist.failure?.reason ?? "";
+          if (reason) await rememberGenerateLesson({ gate: "duplicate", statement: candidate.statement, reason });
+          await showGenerateChecklist(checklist);
+        },
+        judge: async (statement) => {
+          const checklist = await runGenerateAdmissionChecks({
             statement,
-            code: "NEW",
-            siblings,
+            parentStatement: becauseParent,
             ask: (prompt) => askScoped("generate", "Big Thought", prompt, 0),
-          }),
+            onStep: (step) => showGenerateChecklist(attachLesson(step, statement)),
+          });
+          if (!checklist.passed && checklist.failure) {
+            await rememberGenerateLesson({
+              gate: checklist.failure.gate,
+              statement,
+              reason: checklist.failure.reason,
+            });
+          }
+          return factsForGenerateAdmission(statement, checklist);
+        },
         persist: async (candidate, facts) => {
+          if (individualAdmission({ facts, factsCurrent: true }) !== "GENERATE_VALID") {
+            return {
+              code: "SKIP",
+              statement: candidate.statement,
+              label: candidate.label,
+              admission: "GENERATE_REJECT" as const,
+            };
+          }
           const code = nextBigThoughtCode(codes);
           codes.push(code);
           sort += 1;
@@ -1597,7 +1941,21 @@ export function ThinkingLabPage() {
             facts: { ...facts, code },
             masterFingerprint: parentFp,
           });
-          record = clearSetConclusions(record);
+          if (!codes.includes(saved.code)) codes.push(saved.code);
+          const keptPasses = keptPassingAuditItems({
+            items: record?.audit?.items,
+            rows: known.map((row) => ({
+              code: row.code,
+              statementFingerprint: bigThoughtFingerprint({
+                statement: row.statement,
+                masterThoughtFingerprint: parentFp,
+              }),
+            })),
+          });
+          record = {
+            ...clearSetConclusions(record),
+            audit: keptPasses.length > 0 ? { setFingerprint: record?.audit?.setFingerprint ?? "", items: keptPasses } : null,
+          };
           await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: record });
           return {
             code: saved.code,
@@ -1607,13 +1965,27 @@ export function ThinkingLabPage() {
           };
         },
       });
-      if (pool && generated.incumbents.length === started) {
+      if (pool && generated && generated.incumbents.length === started) {
         setNotice(
           t(
             "thinkingLab.product.noSupport",
             "Produk ini tidak menopang Master Thought. Tidak ada alasan tersimpan yang menyelesaikan keyakinan ini.",
           ),
         );
+      } else if (
+        generated &&
+        countGenerateValid(generated.incumbents) === beforeValid &&
+        (lessons.length > seededLessonCount || blockedKnownSentence)
+      ) {
+        setNotice(
+          t(
+            "thinkingLab.bt.generateNoneAdmitted",
+            "No new Big Thought passed the generate checks.",
+          ),
+        );
+      }
+      } finally {
+        setGenerateChecklist(null);
       }
     }, "generate");
 
@@ -1632,7 +2004,59 @@ export function ThinkingLabPage() {
         storedFacts?.answeredQuestionVersion === ANSWERED_QUESTION_VERSION
           ? storedFacts.answeredQuestion?.trim() ?? ""
           : "";
-      const result = await runTerritoryGenerate({
+      const learned = [...auditLessons];
+      let setRecord = storedSet ?? emptyTerritorySetRecord();
+      const bannedNames = new Set(
+        [
+          ...learned.map((lesson) => lesson.statement.trim().toLowerCase()),
+          ...known
+            .filter((row) => row.admission === "GENERATE_REJECT")
+            .map((row) => row.statement.trim().toLowerCase()),
+        ].filter(Boolean),
+      );
+      const rememberGenerateLesson = async (lesson: { code: string; statement: string; reason: string }) => {
+        const statement = lesson.statement.trim();
+        const reason = lesson.reason.trim();
+        if (!statement || !reason) return;
+        const key = statement.toLowerCase();
+        if (!learned.some((item) => item.statement.trim().toLowerCase() === key && item.reason === reason)) {
+          learned.push({ code: lesson.code, statement, reason });
+        }
+        bannedNames.add(key);
+        const next = mergeTerritoryAuditLessons(setRecord.auditLessons, [{ code: lesson.code, statement, reason }]);
+        const same =
+          next.length === setRecord.auditLessons.length &&
+          next.every((item, index) => {
+            const stored = setRecord.auditLessons[index];
+            return stored?.statement === item.statement && stored.reason === item.reason && stored.code === item.code;
+          });
+        if (same) return;
+        setRecord = { ...setRecord, auditLessons: next };
+        await saveTerritorySet({
+          organizationId: masters.organizationId as string,
+          bigThoughtId,
+          record: setRecord,
+        });
+      };
+      let answered = question;
+      let shownChecks: TerritoryPassCheck[] = [];
+      const publishLive = (checks: TerritoryPassCheck[]) => {
+        const previous = shownChecks;
+        shownChecks = checks.map((check) => ({ ...check }));
+        const changed = checks.find((check, index) => check.state !== previous[index]?.state);
+        const report =
+          changed?.state === "running" || changed?.state === "pass" || changed?.state === "fail"
+            ? {
+                gate: changed.id,
+                phase: changed.state === "running" ? ("checking" as const) : ("checked" as const),
+                outcome: changed.state === "fail" ? ("fail" as const) : ("pass" as const),
+              }
+            : null;
+        setTerritoryGenerateRun({ thoughtId: bigThoughtId, checks: shownChecks, report });
+      };
+      let result: Awaited<ReturnType<typeof runTerritoryGenerate>> | null = null;
+      try {
+      result = await runTerritoryGenerate({
         loadParent: () =>
           loadTerritoryParentGate({
             organizationId: masters.organizationId as string,
@@ -1647,28 +2071,112 @@ export function ThinkingLabPage() {
           relationToParent: row.canonicalSemantic.relationToParent,
         })),
         topUp: true,
-        propose: (plan, parent, incumbents) =>
-          proposeTerritoryStatements({
+        carryLessons: true,
+        propose: async (plan, parent, incumbents) => {
+          const statements = await proposeTerritoryStatements({
             parentStatement: parent.statement,
             ancestors: parent.ancestors,
             audience: parent.audience || selected?.audience,
-            answeredQuestion: question,
-            incumbents: incumbents.map((row) => ({
-              code: row.code,
-              statement: row.statement,
-              admission: row.admission,
-              relationToParent: row.relationToParent,
-            })),
-            lessons: auditLessons,
+            answeredQuestion: answered,
+            incumbents: incumbents
+              .filter((row) => row.admission === "GENERATE_VALID")
+              .map((row) => ({
+                code: row.code,
+                statement: row.statement,
+                admission: row.admission,
+                relationToParent: row.relationToParent,
+              })),
+            lessons: [
+              ...learned,
+              ...known
+                .filter(
+                  (row) =>
+                    row.admission === "GENERATE_REJECT" &&
+                    !learned.some((lesson) => lesson.statement.trim().toLowerCase() === row.statement.trim().toLowerCase()),
+                )
+                .map((row) => ({
+                  code: row.code,
+                  statement: row.statement,
+                  reason:
+                    territoryRejectionReason(row.canonicalSemantic.relationToParent) ??
+                    "partOfBigThought: This name already failed.",
+                })),
+            ],
             needed: plan.needed,
             ask: async (prompt) => {
               const script = await askScoped("generate", "Territory", prompt, 0.2);
               if (!script) throw new Error(t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));
               return script;
             },
-          }),
-        judge: (_parent, code, statement) => Promise.resolve(shownTerritoryFacts(code, statement)),
+          });
+          return statements.filter((item) => !bannedNames.has(item.trim().toLowerCase()));
+        },
+        judge: async (parent, code, statement) => {
+          const failFacts = async (
+            relation: TerritorySemanticFacts["relationToParent"],
+            reason: string,
+          ): Promise<TerritorySemanticFacts> => {
+            await rememberGenerateLesson({ code, statement, reason });
+            return {
+              ...shownTerritoryFacts(code, statement),
+              relationToParent: relation,
+              whatItSays: statement,
+            };
+          };
+          if (bannedNames.has(statement.trim().toLowerCase())) {
+            const repeated = learned.find((lesson) => lesson.statement.trim().toLowerCase() === statement.trim().toLowerCase());
+            const gate = repeated?.reason.split(":")[0]?.trim();
+            publishLive(
+              territoryAdmissionChecks(
+                gate === "audienceLanguage"
+                  ? { id: "audienceLanguage", reason: repeated?.reason ?? "" }
+                  : { id: "partOfBigThought", reason: repeated?.reason || "This name already failed." },
+              ),
+            );
+            const relation = gate === "audienceLanguage" ? "INTERNAL_LANGUAGE" : "OUT_OF_PARENT_SCOPE";
+            return failFacts(relation, repeated?.reason || "partOfBigThought: This name already failed.");
+          }
+          if (territoryNameTooLong(statement) || territoryNameIsActivity(statement)) {
+            const reason = territoryNameTooLong(statement) ? TERRITORY_NAME_LENGTH_REASON : TERRITORY_ACTIVITY_REASON;
+            publishLive(territoryAdmissionChecks({ id: "partOfBigThought", reason }));
+            return failFacts(
+              territoryNameTooLong(statement) ? "UNBOUNDED_SPACE" : "OUT_OF_PARENT_SCOPE",
+              `partOfBigThought: ${reason}`,
+            );
+          }
+          const checked = await runTerritoryAdmissionChecks({
+            statement,
+            parentStatement: parent.statement,
+            audience: parent.audience || selected?.audience,
+            ask: (prompt) => askScoped("generate", code, prompt, 0),
+            onStep: publishLive,
+          });
+          if (!checked.passed) {
+            const failedCheck = checked.checks.find((check) => check.state === "fail");
+            const gate = failedCheck?.id === "audienceLanguage" ? "audienceLanguage" : "partOfBigThought";
+            const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
+            return failFacts(
+              gate === "audienceLanguage" ? "INTERNAL_LANGUAGE" : "OUT_OF_PARENT_SCOPE",
+              `${gate}: ${reason}`,
+            );
+          }
+          const passed: TerritorySemanticFacts = {
+            ...shownTerritoryFacts(code, statement),
+            generatePasses: ["partOfBigThought", "audienceLanguage"],
+          };
+          publishTerritoryChecklist(code, checked.checks);
+          return passed;
+        },
         persist: async ({ parent, code, statement, facts, admission }) => {
+          if (admission !== "GENERATE_VALID") {
+            return {
+              code,
+              statement,
+              admission: "GENERATE_REJECT" as const,
+              bigThoughtId: parent.id,
+              relationToParent: facts.relationToParent,
+            };
+          }
           sort += 1;
           const saved = await labTerritories.insert.mutateAsync({
             bigThoughtId: parent.id,
@@ -1676,7 +2184,10 @@ export function ThinkingLabPage() {
             code,
             statement,
             sortOrder: sort,
-            facts,
+            facts: {
+              ...facts,
+              generatePasses: ["partOfBigThought", "audienceLanguage"],
+            },
             admission,
           });
           return {
@@ -1693,6 +2204,7 @@ export function ThinkingLabPage() {
         return;
       }
       if (
+        learned.length !== auditLessons.length ||
         admittedTerritorySetChanged(
           known.map((row) => ({ code: row.code, admission: row.admission })),
           result.incumbents,
@@ -1701,14 +2213,16 @@ export function ThinkingLabPage() {
         await saveTerritorySet({
           organizationId: masters.organizationId,
           bigThoughtId,
-          record: {
-            ...emptyTerritorySetRecord(),
-            audit: storedSet?.audit ?? null,
-            auditLessons,
-          },
+          record: setRecord,
         });
         await queryClient.invalidateQueries({
           queryKey: ["thinking-lab-territory-set", masters.organizationId, bigThoughtId],
+        });
+      }
+      } finally {
+        setTerritoryGenerateRun((current) => {
+          if (!current || current.thoughtId !== bigThoughtId) return current;
+          return current.checks.some((check) => check.state === "fail") ? current : null;
         });
       }
   };
@@ -1746,9 +2260,65 @@ export function ThinkingLabPage() {
           ids: [territory.id],
         });
       }
+      const storedSet =
+        territoryId === focusedTerritory?.id
+          ? (angleSet.data ?? null)
+          : await loadAngleSet(masters.organizationId, territoryId);
+      const auditLessons = storedSet?.auditLessons ?? [];
       const known = (labAngles.data ?? []).filter((row) => row.territoryId === territoryId);
       let sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0);
-      const result = await runAngleGenerate({
+      const learned = [...auditLessons];
+      let setRecord = storedSet ?? emptyAngleSetRecord();
+      const bannedNames = new Set(
+        [
+          ...learned.map((lesson) => lesson.statement.trim().toLowerCase()),
+          ...known
+            .filter((row) => row.admission === "GENERATE_REJECT")
+            .map((row) => row.statement.trim().toLowerCase()),
+        ].filter(Boolean),
+      );
+      const rememberGenerateLesson = async (lesson: { code: string; statement: string; reason: string }) => {
+        const statement = lesson.statement.trim();
+        const reason = lesson.reason.trim();
+        if (!statement || !reason) return;
+        const key = statement.toLowerCase();
+        if (!learned.some((item) => item.statement.trim().toLowerCase() === key && item.reason === reason)) {
+          learned.push({ code: lesson.code, statement, reason });
+        }
+        bannedNames.add(key);
+        const next = mergeAngleAuditLessons(setRecord.auditLessons, [{ code: lesson.code, statement, reason }]);
+        const same =
+          next.length === setRecord.auditLessons.length &&
+          next.every((item, index) => {
+            const stored = setRecord.auditLessons[index];
+            return stored?.statement === item.statement && stored.reason === item.reason && stored.code === item.code;
+          });
+        if (same) return;
+        setRecord = { ...setRecord, auditLessons: next };
+        await saveAngleSet({
+          organizationId: masters.organizationId as string,
+          territoryId,
+          record: setRecord,
+        });
+      };
+      let shownChecks: AnglePassCheck[] = [];
+      const publishLive = (checks: AnglePassCheck[]) => {
+        const previous = shownChecks;
+        shownChecks = checks.map((check) => ({ ...check }));
+        const changed = checks.find((check, index) => check.state !== previous[index]?.state);
+        const report =
+          changed?.state === "running" || changed?.state === "pass" || changed?.state === "fail"
+            ? {
+                gate: changed.id,
+                phase: changed.state === "running" ? ("checking" as const) : ("checked" as const),
+                outcome: changed.state === "fail" ? ("fail" as const) : ("pass" as const),
+              }
+            : null;
+        setAngleGenerateRun({ territoryId, checks: shownChecks, report });
+      };
+      let result: Awaited<ReturnType<typeof runAngleGenerate>> | null = null;
+      try {
+      result = await runAngleGenerate({
         loadParent: () =>
           loadAngleParentGate({
             organizationId: masters.organizationId as string,
@@ -1763,16 +2333,83 @@ export function ThinkingLabPage() {
           territoryId: row.territoryId,
         })),
         topUp: true,
-        propose: (plan, parent, incumbents) =>
-          proposeAngleStatements({
+        carryLessons: true,
+        propose: async (plan, parent, incumbents) => {
+          const drafts = await proposeAngleStatements({
             parentStatement: parent.statement,
             ancestors: parent.ancestors,
-            incumbents: incumbents.map((row) => ({ code: row.code, statement: row.statement })),
+            incumbents: incumbents
+              .filter((row) => row.admission === "GENERATE_VALID")
+              .map((row) => ({ code: row.code, statement: row.statement })),
+            lessons: [
+              ...learned,
+              ...known
+                .filter(
+                  (row) =>
+                    row.admission === "GENERATE_REJECT" &&
+                    !learned.some((lesson) => lesson.statement.trim().toLowerCase() === row.statement.trim().toLowerCase()),
+                )
+                .map((row) => ({
+                  code: row.code,
+                  statement: row.statement,
+                  reason: "observationJob: This sentence already failed.",
+                })),
+            ],
             needed: plan.needed,
             ask: (prompt) => askThinkingLab(prompt, 0.2),
-          }),
-        judge: (_parent, code, statement) => Promise.resolve(shownAngleFacts(code, statement)),
+          });
+          return drafts.filter((draft) => !bannedNames.has(draft.statement.trim().toLowerCase()));
+        },
+        judge: async (parent, code, statement) => {
+          const failFacts = async (relation: "BIG_THOUGHT_LIKE" | "IDEA_LIKE", reason: string) => {
+            await rememberGenerateLesson({ code, statement, reason });
+            return { ...shownAngleFacts(code, statement), relationToParent: relation };
+          };
+          if (bannedNames.has(statement.trim().toLowerCase())) {
+            const repeated = learned.find(
+              (lesson) => lesson.statement.trim().toLowerCase() === statement.trim().toLowerCase(),
+            );
+            const gate = repeated?.reason.split(":")[0]?.trim();
+            publishLive(
+              angleAdmissionChecks(
+                gate === "observationShape"
+                  ? { id: "observationShape", reason: repeated?.reason ?? "" }
+                  : { id: "observationJob", reason: repeated?.reason || "This sentence already failed." },
+              ),
+            );
+            return failFacts(
+              gate === "observationShape" ? "IDEA_LIKE" : "BIG_THOUGHT_LIKE",
+              repeated?.reason || "observationJob: This sentence already failed.",
+            );
+          }
+          const checked = await runAngleAdmissionChecks({
+            statement,
+            parentStatement: parent.statement,
+            ancestors: parent.ancestors,
+            ask: (prompt) => askThinkingLab(prompt, 0),
+            onStep: publishLive,
+          });
+          if (!checked.passed) {
+            const failedCheck = checked.checks.find((check) => check.state === "fail");
+            const gate = failedCheck?.id === "observationShape" ? "observationShape" : "observationJob";
+            const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
+            return failFacts(gate === "observationShape" ? "IDEA_LIKE" : "BIG_THOUGHT_LIKE", `${gate}: ${reason}`);
+          }
+          publishAngleChecklist(code, checked.checks);
+          return {
+            ...shownAngleFacts(code, statement),
+            generatePasses: ["observationJob", "observationShape"],
+          };
+        },
         persist: async ({ parent, code, statement, facts, admission }) => {
+          if (admission !== "GENERATE_VALID") {
+            return {
+              code,
+              statement,
+              admission: "GENERATE_REJECT" as const,
+              territoryId: parent.id,
+            };
+          }
           sort += 1;
           const saved = await labAngles.insert.mutateAsync({
             territoryId: parent.id,
@@ -1781,7 +2418,10 @@ export function ThinkingLabPage() {
             code,
             statement,
             sortOrder: sort,
-            facts,
+            facts: {
+              ...facts,
+              generatePasses: ["observationJob", "observationShape"],
+            },
             admission,
           });
           return {
@@ -1804,31 +2444,35 @@ export function ThinkingLabPage() {
           }),
         );
       }
-      const keptAngleAudit = angleSet.data?.audit ?? null;
-      if (territoryId === focusedTerritory?.id) {
-        await angleSet.save.mutateAsync({
-          ...emptyAngleSetRecord(),
-          audit: keptAngleAudit,
-          auditLessons: angleSet.data?.auditLessons ?? [],
-        });
-      } else {
-        const storedAngleRecord = await loadAngleSet(masters.organizationId, territoryId);
+      const beforeValid = known
+        .filter((row) => row.admission === "GENERATE_VALID")
+        .map((row) => row.code.toUpperCase())
+        .sort()
+        .join("\0");
+      const afterValid = result.incumbents
+        .filter((row) => row.admission === "GENERATE_VALID")
+        .map((row) => row.code.toUpperCase())
+        .sort()
+        .join("\0");
+      if (learned.length !== auditLessons.length || beforeValid !== afterValid) {
         await saveAngleSet({
           organizationId: masters.organizationId,
           territoryId,
-          record: {
-            ...emptyAngleSetRecord(),
-            audit: storedAngleRecord?.audit ?? null,
-            auditLessons: storedAngleRecord?.auditLessons ?? [],
-          },
+          record: setRecord,
         });
         await queryClient.invalidateQueries({
           queryKey: ["thinking-lab-angle-set", masters.organizationId, territoryId],
         });
       }
+      } finally {
+        setAngleGenerateRun((current) => {
+          if (!current || current.territoryId !== territoryId) return current;
+          return current.checks.some((check) => check.state === "fail") ? current : null;
+        });
+      }
     }, "generate-angle");
 
-  const onGenerateIdea = (angleId: string) =>
+  const writeGeneratedIdeas = (angleId: string, discovery: IdeaDiscovery) =>
     run(async () => {
       if (!masters.organizationId || !parentFp) return;
       const angle =
@@ -1851,9 +2495,101 @@ export function ThinkingLabPage() {
           ids: [angle.id],
         });
       }
+      const storedSet =
+        angleId === focusedAngle?.id && ideaSet.data
+          ? ideaSet.data
+          : await loadIdeaSet(masters.organizationId, angleId);
+      const auditLessons = storedSet?.auditLessons ?? [];
       const known = (labIdeas.data ?? []).filter((row) => row.angleId === angleId);
       let sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0);
-      const result = await runIdeaGenerate({
+      const learned = [...auditLessons];
+      let setRecord = storedSet ?? emptyIdeaSetRecord();
+      if (discovery.angleFingerprint) {
+        const storedDiscovery = setRecord.discovery;
+        const unchanged =
+          storedDiscovery?.angleFingerprint === discovery.angleFingerprint &&
+          storedDiscovery.decisions.length === discovery.decisions.length &&
+          storedDiscovery.decisions.every(
+            (row, index) =>
+              row.category === discovery.decisions[index]?.category &&
+              row.question === discovery.decisions[index]?.question &&
+              row.answer === discovery.decisions[index]?.answer,
+          );
+        setRecord = { ...setRecord, discovery };
+        if (!unchanged) {
+          await saveIdeaSet({
+            organizationId: masters.organizationId as string,
+            angleId,
+            record: setRecord,
+          });
+          queryClient.setQueryData(["thinking-lab-idea-set", masters.organizationId, angleId], setRecord);
+          await queryClient.invalidateQueries({
+            queryKey: ["thinking-lab-idea-set", masters.organizationId, angleId],
+          });
+        }
+      }
+      const prepared = known.map((row) => {
+        if (row.validation) return row;
+        return { ...row, admission: admissionForDecision(classifyLegacyIdea(row.statement, angle.statement).decision) };
+      });
+      let historyUnsaved = false;
+      for (const row of known) {
+        if (row.validation || legacyIdeaSaveRef.current.has(row.id)) continue;
+        legacyIdeaSaveRef.current.add(row.id);
+        const validation = classifyLegacyIdea(row.statement, angle.statement);
+        try {
+          await saveIdeaValidation({
+            organizationId: masters.organizationId as string,
+            angleId: row.angleId,
+            id: row.id,
+            validation,
+            admission: admissionForDecision(validation.decision),
+          });
+        } catch {
+          historyUnsaved = true;
+        }
+      }
+      if (historyUnsaved) {
+        setNotice(t("thinkingLab.idea.historyUnsaved", "This history could not be saved."));
+      }
+      let memory: FailureMemoryItem[] = [];
+      let relevant: RelevantIdea[] = [];
+      let storedPeers: CrossIdeaPeer[] = [];
+      const loadedHistory = await loadIdeaComparisonHistory(masters.organizationId, angleId);
+      const historyAvailable = loadedHistory.historyAvailable;
+      const storedIdeas = loadedHistory.ideas;
+      memory = failureItemsFromIdeas(storedIdeas, angleId);
+      storedPeers = crossPeersFromIdeas(storedIdeas);
+      relevant = storedPeers.map((peer) => relevantFromPeer(peer, angleId));
+      const blockedStatements = new Set(memory.map((item) => item.statement.trim().toLowerCase()));
+      const draftByStatement = new Map<string, Awaited<ReturnType<typeof proposeIdeaStatements>>[number]>();
+      const pendingValidation = new Map<string, IdeaValidation>();
+      const staged: Array<{
+        id: string;
+        angleId: string;
+        code: string;
+        statement: string;
+        sortOrder: number;
+        facts: Awaited<ReturnType<typeof ideaFactsForValidation>>;
+        validation: IdeaValidation;
+      }> = [];
+      const comparedIds = new Map(storedPeers.map((peer) => [peer.code.toUpperCase(), peer.id]));
+      let savedPassed = prepared.filter((row) => {
+        const decision = row.validation?.decision ?? classifyLegacyIdea(row.statement, angle.statement).decision;
+        return decision === "LOLOS";
+      }).length;
+      let shownDecision: "LOLOS" | "DITOLAK" | "BELUM_TERVERIFIKASI" | null = null;
+      let shownChecks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }> = [];
+      const publishLive = (
+        checks: Array<{ id: string; state: "pending" | "running" | "pass" | "fail"; reason?: string }>,
+      ) => {
+        const previous = shownChecks;
+        shownChecks = checks.map((check) => ({ ...check }));
+        setIdeaGenerateRun({ angleId, checks: shownChecks, report: ideaLiveReport(checks, previous) });
+      };
+      let result: Awaited<ReturnType<typeof runIdeaGenerate>>;
+      try {
+      result = await runIdeaGenerate({
         loadParent: () =>
           loadIdeaParentGate({
             organizationId: masters.organizationId as string,
@@ -1861,45 +2597,168 @@ export function ThinkingLabPage() {
             expectedTerritoryId: angle.territoryId,
             masterThoughtFingerprint: parentFp,
           }),
-        incumbents: known.map((row) => ({
+        incumbents: prepared.map((row) => ({
           code: row.code,
           statement: row.statement,
           admission: row.admission,
           angleId: row.angleId,
           locked: row.status === "locked",
         })),
-        propose: (plan, parent, incumbents) =>
-          proposeIdeaStatements({
+        carryLessons: true,
+        propose: async (plan, parent, incumbents) => {
+          const drafts = await proposeIdeaStatements({
             parentStatement: parent.statement,
             masterSubject,
             ancestors: ancestorsWithMaster(parent.ancestors ?? []),
-            incumbents: incumbents.map((row) => ({
-              code: row.code,
-              statement: row.statement,
-              locked: row.locked === true,
-            })),
+            incumbents: incumbents
+              .filter((row) => row.admission === "GENERATE_VALID")
+              .map((row) => ({
+                code: row.code,
+                statement: row.statement,
+                locked: row.locked === true,
+              })),
+            failures: memory,
+            decisions: discovery.decisions,
             needed: plan.needed,
             ask: (prompt) => askThinkingLab(prompt, 0.2),
-          }),
-        judge: (_parent, code, statement, mechanismKeys) =>
-          Promise.resolve(shownIdeaFacts(code, statement, mechanismKeys)),
+          });
+          for (const draft of drafts) draftByStatement.set(draft.statement.trim().toLowerCase(), draft);
+          return drafts.filter((draft) => !blockedStatements.has(draft.statement.trim().toLowerCase()));
+        },
+        judge: async (_parent, code, statement, mechanismKeys) => {
+          const draft = draftByStatement.get(statement.trim().toLowerCase());
+          let validation = await runIdeaPassChecks({
+            statement,
+            title: draft?.subject ?? "",
+            concept: draft?.concept ?? "",
+            mechanism: draft?.mechanism ?? "",
+            value: draft?.value ?? "",
+            angle: angle.statement,
+            territory: focusedTerritory?.statement ?? "",
+            bigThought: focusedThought?.statement ?? "",
+            masterThought: masterStatement,
+            ...ideaAudience,
+            failures: memory,
+            peers: relevant,
+            historyAvailable,
+            ask: (prompt) => askThinkingLab(prompt, 0),
+            onStep: publishLive,
+          });
+          if (validation.decision === "LOLOS") {
+            const batchPeers = [
+              ...storedPeers,
+              ...staged.map((row) => ({
+                id: row.id,
+                code: row.code,
+                statement: row.statement,
+                concept: row.validation.concept,
+                mechanism: row.validation.mechanism,
+                value: row.validation.value,
+                validation: row.validation,
+              })),
+            ];
+            try {
+              const [settled] = await judgeCrossIdeas({
+                candidates: [
+                  {
+                    code,
+                    statement,
+                    concept: draft?.concept || validation.concept,
+                    mechanism: draft?.mechanism || validation.mechanism,
+                    value: draft?.value || validation.value,
+                    validation,
+                  },
+                ],
+                peers: batchPeers,
+                historyAvailable,
+                ask: (prompt) => askThinkingLab(prompt, 0),
+              });
+              validation = settled?.validation ?? applyCrossStatus(validation, "BELUM_TERVERIFIKASI");
+            } catch {
+              validation = applyCrossStatus(validation, "BELUM_TERVERIFIKASI");
+            }
+          }
+          pendingValidation.set(code, validation);
+          relevant = [
+            ...relevant,
+            {
+              code,
+              statement,
+              concept: draft?.concept ?? validation.concept,
+              mechanism: draft?.mechanism ?? validation.mechanism,
+              value: draft?.value ?? validation.value,
+              decision: validation.decision,
+              sameAngle: true,
+            },
+          ];
+          return ideaFactsForValidation(code, statement, validation.decision, mechanismKeys, draft?.subject || validation.title);
+        },
         persist: async ({ parent, code, statement, facts, admission }) => {
+          const validation = pendingValidation.get(code) ?? null;
           sort += 1;
-          const saved = await labIdeas.insert.mutateAsync({
-            angleId: parent.id,
-            expectedTerritoryId: angle.territoryId,
-            masterThoughtFingerprint: parentFp,
+          if (validation) {
+            const settled = withComparedIdeaId(validation, comparedIds);
+            try {
+              const saved = await labIdeas.insert.mutateAsync({
+                angleId: parent.id,
+                expectedTerritoryId: angle.territoryId,
+                masterThoughtFingerprint: parentFp,
+                code,
+                statement,
+                sortOrder: sort,
+                facts: ideaFactsForValidation(
+                  code,
+                  statement,
+                  settled.decision,
+                  facts.mechanismKeys,
+                  settled.title || facts.subject,
+                ),
+                admission: admissionForDecision(settled.decision),
+                validation: settled,
+                parentIdeaId: null,
+              });
+              if (saved.id) comparedIds.set(saved.code.toUpperCase(), saved.id);
+              staged.push({
+                id: saved.id,
+                angleId: parent.id,
+                code,
+                statement,
+                sortOrder: sort,
+                facts,
+                validation: settled,
+              });
+              queryClient.setQueriesData<LabIdea[]>(
+                { queryKey: ["thinking-lab-ideas", masters.organizationId] },
+                (current) => (current && !current.some((row) => row.id === saved.id) ? [...current, saved] : current),
+              );
+              if (settled.decision === "LOLOS") {
+                savedPassed += 1;
+                shownDecision = "LOLOS";
+                setIdeaRevisionTarget({ nonce: Date.now(), decision: "LOLOS" });
+              } else if (shownDecision !== "LOLOS") {
+                shownDecision = settled.decision;
+              }
+            } catch {
+              historyUnsaved = true;
+            }
+            if (validation.decision !== "LOLOS") {
+              const lesson = failureMemoryFromValidation({
+                code,
+                statement,
+                angleId: parent.id,
+                validation: settled,
+              });
+              if (lesson) {
+                memory = [lesson, ...memory.filter((item) => item.statement.trim().toLowerCase() !== statement.trim().toLowerCase())];
+                blockedStatements.add(statement.trim().toLowerCase());
+              }
+            }
+          }
+          return {
             code,
             statement,
-            sortOrder: sort,
-            facts,
             admission,
-          });
-          return {
-            code: saved.code,
-            statement: saved.statement,
-            admission: saved.admission,
-            angleId: saved.angleId,
+            angleId: parent.id,
             locked: false,
           };
         },
@@ -1908,35 +2767,42 @@ export function ThinkingLabPage() {
         toast.error(result.reason);
         return;
       }
-      if (result.outcome === "INSUFFICIENT_VALID_IDEAS") {
+      if (historyUnsaved) {
+        setNotice(t("thinkingLab.idea.historyUnsaved", "This history could not be saved."));
+      } else if (savedPassed < result.target) {
         setNotice(
           t("thinkingLab.idea.insufficient", "INSUFFICIENT_VALID_IDEAS {{count}}/{{target}}", {
-            count: result.generateValid,
+            count: savedPassed,
             target: result.target,
           }),
         );
       }
-      if (angleId === focusedAngle?.id) {
-        await ideaSet.save.mutateAsync({
-          ...emptyIdeaSetRecord(),
-          audit: ideaSet.data?.audit ?? null,
-          downTop: ideaSet.data?.downTop ?? null,
-          auditLessons: ideaSet.data?.auditLessons ?? [],
-        });
-      } else {
-        const storedIdeaRecord = await loadIdeaSet(masters.organizationId, angleId);
+      const beforeValid = known
+        .filter((row) => row.admission === "GENERATE_VALID")
+        .map((row) => row.code.toUpperCase())
+        .sort()
+        .join("\0");
+      const afterValid = result.incumbents
+        .filter((row) => row.admission === "GENERATE_VALID")
+        .map((row) => row.code.toUpperCase())
+        .sort()
+        .join("\0");
+      if (learned.length !== auditLessons.length || beforeValid !== afterValid) {
         await saveIdeaSet({
           organizationId: masters.organizationId,
           angleId,
-          record: {
-            ...emptyIdeaSetRecord(),
-            audit: storedIdeaRecord.audit,
-            downTop: storedIdeaRecord.downTop,
-            auditLessons: storedIdeaRecord.auditLessons,
-          },
+          record: setRecord,
         });
         await queryClient.invalidateQueries({
           queryKey: ["thinking-lab-idea-set", masters.organizationId, angleId],
+        });
+      }
+      if (shownDecision) setIdeaRevisionTarget({ nonce: Date.now(), decision: shownDecision });
+      } finally {
+        setIdeaGenerateRun((current) => {
+          if (!current || current.angleId !== angleId) return current;
+          const hasResult = current.checks.some((check) => check.state !== "pending" || Boolean(check.reason?.trim()));
+          return hasResult ? current : null;
         });
       }
     }, "generate-idea");
@@ -1960,13 +2826,77 @@ export function ThinkingLabPage() {
       ...openIdeas.filter((_, index) => ideaVerdicts[index] === "AUDIT_PASS"),
     ];
     const applied = new Map<string, string>();
-    const learnedDuringFix: Array<{ code: string; statement: string; reason: string }> = [];
+    let setRecord = {
+      schema: "thinking-lab/idea-set/v1" as const,
+      repairCount: ideaSet.data?.repairCount ?? 0,
+      siblingSet: storedIdeaSet,
+      audit: ideaSet.data?.audit ?? null,
+      downTop: ideaSet.data?.downTop ?? null,
+      auditLessons: [...(ideaSet.data?.auditLessons ?? [])],
+      discovery: ideaSet.data?.discovery ?? null,
+    };
     for (const row of failed) {
-      const learned = [...usableIdeaFixLessons(ideaSet.data?.auditLessons ?? [], row.code)];
-      const refused = new Set(learned.map((lesson) => lesson.statement.trim().toLowerCase()));
+      const learned = [...usableIdeaFixLessons(setRecord.auditLessons, row.code)];
+      const refused = new Set(setRecord.auditLessons.map((lesson) => lesson.statement.trim().toLowerCase()));
       refused.add(row.statement.trim().toLowerCase());
+      const storedFailure = setRecord.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
+      const alreadyPassed =
+        storedFailure?.verdict === "AUDIT_PASS" ||
+        ideaVerdicts[openIdeas.findIndex((item) => item.id === row.id)] === "AUDIT_PASS";
       let shown = ideaChecklists[row.code.toUpperCase()]?.checks ?? [];
+      if (shown.length === 0) {
+        shown = ideaChecksFromStored({
+          generatePasses: row.canonicalSemantic.generatePasses,
+          gateFailure: alreadyPassed || storedFailure?.verdict !== "AUDIT_FAIL" ? null : (storedFailure.gateFailure ?? null),
+          passed: alreadyPassed,
+        });
+      }
       let scope: FixScope = scopeFromHistory(shown, learned);
+      const rememberFixLesson = async (lesson: { code: string; statement: string; reason: string }) => {
+        learned.push(lesson);
+        refused.add(lesson.statement.trim().toLowerCase());
+        setRecord = {
+          ...setRecord,
+          auditLessons: mergeIdeaAuditLessons(setRecord.auditLessons, [lesson]),
+        };
+        await ideaSet.save.mutateAsync(setRecord);
+      };
+      const sealIdeaPass = async (
+        statement: string,
+        mechanismKeys: typeof row.canonicalSemantic.mechanismKeys,
+        subject: string,
+      ) => {
+        await labIdeas.replace.mutateAsync({
+          angleId: focusedAngle.id,
+          id: row.id,
+          statement,
+          facts: {
+            ...row.canonicalSemantic,
+            ...shownIdeaFacts(row.code, statement, mechanismKeys, subject),
+            generatePasses: ["sentenceForm", "mechanismShape"],
+          },
+          admission: "GENERATE_VALID",
+        });
+        const codeKey = row.code.toUpperCase();
+        const statementFingerprint = ideaFingerprint({
+          statement,
+          angleFingerprint: parentAngleFingerprint,
+        });
+        const previousItems = setRecord.audit?.items ?? [];
+        const items = previousItems.some((item) => item.code.toUpperCase() === codeKey)
+          ? previousItems.map((item) =>
+              item.code.toUpperCase() === codeKey
+                ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }
+                : item,
+            )
+          : [...previousItems, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }];
+        setRecord = {
+          ...setRecord,
+          audit: { fingerprint: setRecord.audit?.fingerprint ?? "", items },
+        };
+        await ideaSet.save.mutateAsync(setRecord);
+        applied.set(codeKey, statement);
+      };
       let offered = false;
       for (let attempt = 0; attempt < fixAttemptCap() && !offered; attempt += 1) {
         const script = await askThinkingLab(
@@ -1975,9 +2905,14 @@ export function ThinkingLabPage() {
             masterSubject,
             ancestors,
             failed: { code: row.code, statement: row.statement },
-            keepers: keepers.map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
+            keepers: keepers
+              .filter((keeper) => keeper.code.toUpperCase() !== row.code.toUpperCase())
+              .map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
             conflicts: ideaNotes,
             lessons: learned,
+            decisions: ideaDiscoveryMatches(setRecord.discovery, focusedAngle.semanticFingerprint)
+              ? setRecord.discovery.decisions
+              : [],
             scope,
           }),
           0.2,
@@ -1989,19 +2924,15 @@ export function ThinkingLabPage() {
             !keepers.some((keeper) => sameIdeaConcept(keeper.statement, candidate.statement)),
         );
         if (!draft) {
-          const repeated = drafts.map((candidate) => candidate.statement.trim()).filter(Boolean);
-          if (repeated.length === 0) {
-            const reason = "No replacement came back.";
-            const lesson = { code: row.code, statement: row.statement, reason };
-            learned.push(lesson);
-            learnedDuringFix.push(lesson);
+          if (drafts.length === 0) {
+            await rememberFixLesson({ code: row.code, statement: row.statement, reason: "No replacement came back." });
           } else {
-            for (const candidate of repeated) {
-              const reason = "This sentence was offered again after it already failed.";
-              const lesson = { code: row.code, statement: candidate, reason };
-              learned.push(lesson);
-              learnedDuringFix.push(lesson);
-              refused.add(candidate.toLowerCase());
+            for (const candidate of drafts) {
+              await rememberFixLesson({
+                code: row.code,
+                statement: candidate.statement,
+                reason: "This sentence was offered again after it already failed.",
+              });
             }
           }
           continue;
@@ -2019,74 +2950,71 @@ export function ThinkingLabPage() {
           ancestors,
           masterSubject,
           mechanismKeys,
-          prior: shown,
+          prior: fixPriorForNextIdeaStatement(shown, row.statement, draft.statement),
           ask: (prompt) => askThinkingLab(prompt, 0),
           onStep: (checks) => publishIdeaChecklist(row.code, checks),
         });
         if (!checked.passed) {
           const failedCheck = checked.checks.find((check) => check.state === "fail");
           const reason = failedCheck ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim() : "This check could not be decided.";
-          const lesson = { code: row.code, statement: draft.statement, reason };
-          learned.push(lesson);
-          learnedDuringFix.push(lesson);
-          refused.add(draft.statement.trim().toLowerCase());
+          await rememberFixLesson({ code: row.code, statement: draft.statement, reason });
           shown = checked.checks;
-          scope = nextFixScope(scope, checked.checks);
+          scope = fixScopeFromChecks(checked.checks);
           continue;
         }
         publishIdeaChecklist(row.code, beginIdeaSiblingCheck(checked.checks));
-        const rows = openIdeas.map((item) => ({
-          code: item.code,
-          statement: item.code.toUpperCase() === row.code.toUpperCase() ? draft.statement : item.statement,
-        }));
-        const fingerprint = ideaSetFingerprint({
-          angleFingerprint: parentAngleFingerprint,
-          ideaFingerprints: [
-            ...rows.map((item) => ideaFingerprint({ statement: item.statement, angleFingerprint: parentAngleFingerprint })),
-            ...lockedIdeas.map((item) =>
+        const openKeepers = keepers.filter(
+          (item) => item.code.toUpperCase() !== row.code.toUpperCase() && item.status !== "locked",
+        );
+        const siblingRows = [
+          ...openKeepers.map((item) => ({ code: item.code, statement: item.statement })),
+          { code: row.code, statement: draft.statement },
+        ];
+        const sealed = lockedIdeas
+          .filter((item) => item.code.toUpperCase() !== row.code.toUpperCase())
+          .map((item) => ({ code: item.code, statement: item.statement }));
+        let siblingPass = siblingRows.length + sealed.length < 2;
+        let siblingReason = "";
+        if (!siblingPass) {
+          const fingerprint = ideaSetFingerprint({
+            angleFingerprint: parentAngleFingerprint,
+            ideaFingerprints: [...siblingRows, ...sealed].map((item) =>
               ideaFingerprint({ statement: item.statement, angleFingerprint: parentAngleFingerprint }),
             ),
-          ],
-        });
-        const siblingScript = await askThinkingLab(
-          buildIdeaSiblingPrompt({
-            parentStatement: focusedAngle.statement,
-            rows,
-            sealed: lockedIdeas.map((item) => ({ code: item.code, statement: item.statement })),
-          }),
-          0,
-        );
-        const siblingSet = parseIdeaSet(siblingScript, fingerprint);
-        if (!ideaReplacementPasses(siblingSet, row.code)) {
-          const reason =
-            ideaFailureLessons({
-              rows: [{ code: row.code, statement: draft.statement }],
-              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-              siblingSet,
-            })[0]?.reason ?? "Sibling audit failed this Idea.";
-          const lesson = { code: row.code, statement: draft.statement, reason: `siblingsDistinct: ${reason}` };
-          learned.push(lesson);
-          learnedDuringFix.push(lesson);
-          refused.add(draft.statement.trim().toLowerCase());
-          const failedSibling = finishIdeaSiblingCheck(checked.checks, false, reason);
+          });
+          const siblingScript = await askThinkingLab(
+            buildIdeaSiblingPrompt({
+              parentStatement: focusedAngle.statement,
+              rows: siblingRows,
+              sealed,
+            }),
+            0,
+          );
+          const siblingSet = parseIdeaSet(siblingScript, fingerprint);
+          siblingPass = ideaReplacementPasses(siblingSet, row.code);
+          siblingReason = siblingPass
+            ? ""
+            : ideaFailureLessons({
+                rows: [{ code: row.code, statement: draft.statement }],
+                items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+                siblingSet,
+              })[0]?.reason ?? "Sibling audit failed this Idea.";
+        }
+        if (!siblingPass) {
+          await rememberFixLesson({ code: row.code, statement: draft.statement, reason: `siblingsDistinct: ${siblingReason}` });
+          const failedSibling = finishIdeaSiblingCheck(checked.checks, false, siblingReason);
           shown = failedSibling;
           publishIdeaChecklist(row.code, failedSibling);
-          scope = nextFixScope(scope, failedSibling);
+          scope = fixScopeFromChecks(failedSibling);
           continue;
         }
         const passedChecks = finishIdeaSiblingCheck(checked.checks, true, "");
         publishIdeaChecklist(row.code, passedChecks);
-        await labIdeas.replace.mutateAsync({
-          angleId: focusedAngle.id,
-          id: row.id,
-          statement: draft.statement,
-          facts: {
-            ...row.canonicalSemantic,
-            ...shownIdeaFacts(row.code, draft.statement, mechanismKeys, subject),
-          },
-          admission: "GENERATE_VALID",
-        });
-        applied.set(row.code.toUpperCase(), draft.statement);
+        await sealIdeaPass(draft.statement, mechanismKeys, subject);
+        const passedKeeper = { ...row, statement: draft.statement };
+        const keeperIndex = keepers.findIndex((keeper) => keeper.code.toUpperCase() === row.code.toUpperCase());
+        if (keeperIndex >= 0) keepers[keeperIndex] = passedKeeper;
+        else keepers.push(passedKeeper);
         offered = true;
       }
     }
@@ -2095,25 +3023,12 @@ export function ThinkingLabPage() {
       current.filter((offer) => offer.angleId !== focusedAngle.id || !replaced.has(offer.failedCode.toUpperCase())),
     );
     const covered = applied.size;
-    if (covered === 0) {
-      if (learnedDuringFix.length > 0) {
-        await ideaSet.save.mutateAsync({
-          schema: "thinking-lab/idea-set/v1",
-          repairCount: ideaSet.data?.repairCount ?? 0,
-          siblingSet: storedIdeaSet,
-          audit: ideaSet.data?.audit ?? null,
-          downTop: ideaSet.data?.downTop ?? null,
-          auditLessons: mergeIdeaAuditLessons(ideaSet.data?.auditLessons ?? [], learnedDuringFix),
-        });
-      }
-    } else {
+    if (covered > 0) {
       const items = openIdeas.flatMap((row, index) => {
         const code = row.code.toUpperCase();
+        const previous = setRecord.audit?.items.find((item) => item.code.toUpperCase() === code);
         const statement = applied.get(code) ?? row.statement;
-        const verdict =
-          applied.has(code) || ideaChecklistPassed(ideaChecklists[code]?.checks)
-            ? ("AUDIT_PASS" as const)
-            : ideaVerdicts[index];
+        const verdict = applied.has(code) ? ("AUDIT_PASS" as const) : ideaVerdicts[index];
         if (verdict !== "AUDIT_PASS" && verdict !== "AUDIT_FAIL") return [];
         return [
           {
@@ -2123,16 +3038,16 @@ export function ThinkingLabPage() {
               statement,
               angleFingerprint: parentAngleFingerprint,
             }),
+            ...(verdict === "AUDIT_FAIL" && previous?.gateFailure ? { gateFailure: previous.gateFailure } : {}),
           },
         ];
       });
       await ideaSet.save.mutateAsync({
-        schema: "thinking-lab/idea-set/v1",
-        repairCount: (ideaSet.data?.repairCount ?? 0) + 1,
+        ...setRecord,
+        repairCount: setRecord.repairCount + 1,
         siblingSet: null,
-        audit: items.length > 0 ? { fingerprint: "", items } : null,
+        audit: items.length > 0 ? { fingerprint: "", items } : setRecord.audit,
         downTop: null,
-        auditLessons: mergeIdeaAuditLessons(ideaSet.data?.auditLessons ?? [], learnedDuringFix),
       });
     }
     if (covered < failed.length) {
@@ -2185,6 +3100,7 @@ export function ThinkingLabPage() {
       },
       downTop: ideaSet.data?.downTop ?? null,
       auditLessons: ideaSet.data?.auditLessons ?? [],
+      discovery: ideaSet.data?.discovery ?? null,
     });
   };
 
@@ -2201,108 +3117,125 @@ export function ThinkingLabPage() {
           ...angleAncestors,
         ];
         const heldPass = new Set(ideaCodesHeldPass(openIdeas, shownIdeaVerdicts).map((code) => code.toUpperCase()));
-        const eligible: typeof openIdeas = [];
-        const checked = new Map<string, IdeaPassCheck[]>();
-        const individualFailures: Array<{ code: string; statement: string; reason: string }> = [];
+        const passedCodes = new Set<string>([
+          ...heldPass,
+          ...lockedIdeas.map((row) => row.code.toUpperCase()),
+        ]);
+        const lessons: Array<{ code: string; statement: string; reason: string }> = [];
+        const failures = new Map<string, { gate: IdeaPassCheck["id"]; reason: string }>();
+        let siblingSet = storedIdeaSet;
+        const siblingCache = new Map<string, NonNullable<typeof storedIdeaSet>>();
+        let judgedEveryOpenIdea = false;
         for (const row of openIdeas) {
-          if (heldPass.has(row.code.toUpperCase())) {
-            eligible.push(row);
-            continue;
-          }
+          const codeKey = row.code.toUpperCase();
+          if (heldPass.has(codeKey)) continue;
+          const carried = readIdeaGeneratePasses(row.canonicalSemantic.generatePasses);
           const run = await runIdeaIndividualChecks({
             statement: row.statement,
             parentStatement: focusedAngle.statement,
             ancestors,
             masterSubject,
             mechanismKeys: row.canonicalSemantic.mechanismKeys,
+            carried,
             ask: (prompt) => askThinkingLab(prompt, 0),
             onStep: (checks) => publishIdeaChecklist(row.code, checks),
           });
           if (!run.passed) {
             const failedCheck = run.checks.find((check) => check.state === "fail");
-            individualFailures.push({
-              code: row.code,
-              statement: row.statement,
-              reason: failedCheck
-                ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim()
-                : "This check could not be decided.",
-            });
+            const gate = failedCheck?.id ?? "sentenceForm";
+            const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
+            failures.set(codeKey, { gate, reason });
+            lessons.push({ code: row.code, statement: row.statement, reason: `${gate}: ${reason}` });
             continue;
           }
-          checked.set(row.code.toUpperCase(), run.checks);
-          eligible.push(row);
-          publishIdeaChecklist(row.code, beginIdeaSiblingCheck(run.checks));
-        }
-        const siblingRows = eligible.map((row) => ({ code: row.code, statement: row.statement }));
-        const sealed = lockedIdeas.map((row) => ({ code: row.code, statement: row.statement }));
-        const siblingScript =
-          siblingRows.length === 0
-            ? null
-            : await askThinkingLab(
-                buildIdeaSiblingPrompt({ parentStatement: focusedAngle.statement, rows: siblingRows, sealed }),
+          const siblingRows = [
+            ...openIdeas
+              .filter((item) => passedCodes.has(item.code.toUpperCase()))
+              .map((item) => ({ code: item.code, statement: item.statement })),
+            { code: row.code, statement: row.statement },
+          ];
+          const sealed = lockedIdeas.map((item) => ({ code: item.code, statement: item.statement }));
+          let siblingPass = siblingRows.length + sealed.length < 2;
+          if (!siblingPass) {
+            publishIdeaChecklist(row.code, beginIdeaSiblingCheck(run.checks));
+            const fingerprint = ideaSetFingerprint({
+              angleFingerprint: parentAngleFingerprint,
+              ideaFingerprints: [...siblingRows, ...sealed].map((item) =>
+                ideaFingerprint({ statement: item.statement, angleFingerprint: parentAngleFingerprint }),
+              ),
+            });
+            let judged = siblingCache.get(fingerprint) ?? null;
+            if (!judged) {
+              const siblingScript = await askThinkingLab(
+                buildIdeaSiblingPrompt({
+                  parentStatement: focusedAngle.statement,
+                  rows: siblingRows,
+                  sealed,
+                }),
                 0,
               );
-        const siblingSet = siblingScript ? parseIdeaSet(siblingScript, ideaFingerprintNow) : storedIdeaSet;
-        const siblingScores =
-          siblingRows.length === 0 || !siblingSet
-            ? []
-            : scoreIdeaAudit({
-                codes: siblingRows.map((row) => row.code),
-                siblingSet,
-                siblingSetCurrent: true,
-              });
-        for (const row of eligible) {
-          const prior = checked.get(row.code.toUpperCase());
-          if (!prior) continue;
-          const verdict = siblingScores.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict;
-          const reason =
-            ideaFailureLessons({
-              rows: [{ code: row.code, statement: row.statement }],
-              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-              siblingSet,
-            })[0]?.reason ?? "Sibling audit failed this Idea.";
-          publishIdeaChecklist(
-            row.code,
-            finishIdeaSiblingCheck(
-              prior,
-              verdict === "AUDIT_PASS",
-              verdict === "AUDIT_PASS" ? "" : reason || "This check could not be decided.",
-            ),
-          );
-        }
-        const items = holdPassingIdeaVerdicts(
-          openIdeas.map((row) => {
-            const statementFingerprint = ideaFingerprint({
-              statement: row.statement,
-              angleFingerprint: parentAngleFingerprint,
-            });
-            if (individualFailures.some((failure) => failure.code.toUpperCase() === row.code.toUpperCase())) {
-              return { code: row.code, verdict: "AUDIT_FAIL" as const, statementFingerprint };
+              judged = parseIdeaSet(siblingScript, fingerprint);
+              if (judged) siblingCache.set(fingerprint, judged);
             }
-            const scored = siblingScores.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-            return {
-              code: row.code,
-              verdict: scored?.verdict === "AUDIT_PASS" ? ("AUDIT_PASS" as const) : ("AUDIT_FAIL" as const),
-              statementFingerprint,
-            };
-          }),
-          [...heldPass],
-        );
-        const siblingLessons = ideaFailureLessons({
-          rows: siblingRows,
-          items,
-          siblingSet,
-        }).filter((lesson) => !individualFailures.some((failure) => failure.code.toUpperCase() === lesson.code.toUpperCase()));
+            if (siblingRows.length === openIdeas.length && judged) {
+              siblingSet = judged;
+              judgedEveryOpenIdea = true;
+            }
+            siblingPass = Boolean(judged && ideaReplacementPasses(judged, row.code));
+            if (!siblingPass) {
+              const reason =
+                ideaFailureLessons({
+                  rows: [{ code: row.code, statement: row.statement }],
+                  items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+                  siblingSet: judged,
+                })[0]?.reason ?? "Sibling audit failed this Idea.";
+              failures.set(codeKey, { gate: "siblingsDistinct", reason });
+              lessons.push({ code: row.code, statement: row.statement, reason: `siblingsDistinct: ${reason}` });
+              publishIdeaChecklist(row.code, finishIdeaSiblingCheck(run.checks, false, reason));
+              continue;
+            }
+          }
+          publishIdeaChecklist(row.code, finishIdeaSiblingCheck(run.checks, true, ""));
+          passedCodes.add(codeKey);
+        }
+        const items: IdeaAuditItem[] = openIdeas.flatMap((row): IdeaAuditItem[] => {
+          const codeKey = row.code.toUpperCase();
+          const statementFingerprint = ideaFingerprint({
+            statement: row.statement,
+            angleFingerprint: parentAngleFingerprint,
+          });
+          if (heldPass.has(codeKey)) {
+            const previous = ideaSet.data?.audit?.items.find((item) => item.code.toUpperCase() === codeKey);
+            return [
+              {
+                code: row.code,
+                verdict: "AUDIT_PASS" as const,
+                statementFingerprint: previous?.statementFingerprint ?? statementFingerprint,
+              },
+            ];
+          }
+          const failed = failures.get(codeKey);
+          if (failed) {
+            return [
+              {
+                code: row.code,
+                verdict: "AUDIT_FAIL" as const,
+                statementFingerprint,
+                gateFailure: failed,
+              },
+            ];
+          }
+          if (!passedCodes.has(codeKey)) return [];
+          return [{ code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }];
+        });
         await ideaSet.save.mutateAsync({
           schema: "thinking-lab/idea-set/v1",
-          repairCount: items.some((item) => item.verdict === "AUDIT_FAIL") ? (ideaSet.data?.repairCount ?? 0) : 0,
-          siblingSet,
+          repairCount: failures.size > 0 ? (ideaSet.data?.repairCount ?? 0) : 0,
+          siblingSet: judgedEveryOpenIdea ? siblingSet : storedIdeaSet,
           audit: { fingerprint: ideaFingerprintNow, items },
           downTop: null,
-          auditLessons: mergeIdeaAuditLessons(ideaSet.data?.auditLessons ?? [], [
-            ...individualFailures,
-            ...siblingLessons,
-          ]),
+          auditLessons: mergeIdeaAuditLessons(ideaSet.data?.auditLessons ?? [], lessons),
+          discovery: ideaSet.data?.discovery ?? null,
         });
         return;
       }
@@ -2363,6 +3296,7 @@ export function ThinkingLabPage() {
         audit: { fingerprint: "", items },
         downTop: ideaSet.data?.downTop ?? null,
         auditLessons: ideaSet.data?.auditLessons ?? [],
+        discovery: ideaSet.data?.discovery ?? null,
       });
       setIdeaFixOffers((current) =>
         current.filter(
@@ -2390,7 +3324,7 @@ export function ThinkingLabPage() {
           "The Master Thought subject is not sealed yet. New Big Thoughts wait for that subject.",
         );
       }
-      if (active.length >= ACTIVE_SET_CAP) return t("thinkingLab.manual.cap", "This set is full.");
+      if (shownRowViews.length >= ACTIVE_SET_CAP) return t("thinkingLab.manual.cap", "This set is full.");
       const read = readBigThoughtLabel(raw);
       if (read.ok === false) {
         return read.reason === "TOO_LONG" ? t("thinkingLab.manual.labelTooLong", "A label stays within 12 words.") : null;
@@ -2511,11 +3445,14 @@ export function ThinkingLabPage() {
         })),
         editedCode: row.code,
       });
+      const current = clearSetConclusions(parseLabSetRecord(selected.lastAudit));
+      bigThoughtFixLessonsRef.current.delete(row.code.toUpperCase());
       await masters.saveSet.mutateAsync({
         id: selected.id,
         lastAudit: {
-          ...clearSetConclusions(parseLabSetRecord(selected.lastAudit)),
+          ...current,
           audit: kept.length > 0 ? { setFingerprint: "held", items: kept } : null,
+          fixLessons: dropFixLessons(current.fixLessons, [row.code]),
         },
       });
       return null;
@@ -2601,11 +3538,120 @@ export function ThinkingLabPage() {
     return { angle, ancestors };
   };
 
+  const onGenerateIdea = (angleId: string) => {
+    if (!masters.organizationId || !parentFp) return;
+    const angle =
+      (labAngles.data ?? []).find((row) => row.id === angleId) ??
+      (focusedAngle?.id === angleId ? focusedAngle : null);
+    if (!angle || !focusedTerritory || angle.territoryId !== focusedTerritory.id) return;
+    if (focus?.kind === "territory" && focus.territoryId === angle.territoryId) {
+      setFocus({
+        kind: "angle",
+        masterId: focus.masterId,
+        thoughtId: focus.thoughtId,
+        territoryId: focus.territoryId,
+        angleId,
+      });
+    }
+    const fingerprint = angle.semanticFingerprint?.trim() ?? "";
+    const knownDiscovery = angleId === focusedAngle?.id ? (ideaSet.data?.discovery ?? null) : null;
+    if (ideaDiscoveryMatches(knownDiscovery, fingerprint)) {
+      writeGeneratedIdeas(angleId, knownDiscovery);
+      return;
+    }
+    if (labRunRef.current) return;
+    const token = ++ideaDiscoverToken.current;
+    setIdeaDiscover({
+      angleId,
+      angleFingerprint: fingerprint,
+      questions: null,
+      loading: true,
+      failed: false,
+    });
+    let pending: IdeaDiscovery | null = null;
+    void run(async () => {
+      try {
+        const storedSet =
+          angleId === focusedAngle?.id && ideaSet.data
+            ? ideaSet.data
+            : await loadIdeaSet(masters.organizationId as string, angleId);
+        if (ideaDiscoverToken.current !== token) return;
+        const matched = storedSet?.discovery;
+        if (ideaDiscoveryMatches(matched, fingerprint)) {
+          pending = matched;
+          setIdeaDiscover(null);
+          return;
+        }
+        const { ancestors } = ideaParentFor(angleId);
+        const raw = await askThinkingLab(
+          buildIdeaDiscoveryPrompt({
+            masterStatement,
+            masterSubject,
+            priorBelief: selected?.priorBelief,
+            angleStatement: angle.statement,
+            ancestors,
+          }),
+          0.2,
+        );
+        if (ideaDiscoverToken.current !== token) return;
+        const discovered = parseIdeaDiscoveryQuestions(raw ? parseModelJson(raw) : null);
+        if (!discovered.ok) {
+          setIdeaDiscover((current) => {
+            if (!current || ideaDiscoverToken.current !== token) return current;
+            return { ...current, loading: false, questions: null, failed: true };
+          });
+          return;
+        }
+        if (discovered.questions.length === 0) {
+          pending = { angleFingerprint: fingerprint, decisions: [] };
+          setIdeaDiscover(null);
+          return;
+        }
+        setIdeaDiscover((current) => {
+          if (!current || ideaDiscoverToken.current !== token) return current;
+          return { ...current, loading: false, questions: discovered.questions, failed: false };
+        });
+      } catch (error) {
+        if (ideaDiscoverToken.current === token) {
+          setIdeaDiscover((current) => {
+            if (!current || ideaDiscoverToken.current !== token) return current;
+            return { ...current, loading: false, questions: null, failed: true };
+          });
+        }
+        throw error;
+      }
+    }, "idea-discover").then(() => {
+      if (!pending || ideaDiscoverToken.current !== token) return;
+      writeGeneratedIdeas(angleId, pending);
+    });
+  };
+
+  const settleAgainstStored = async (
+    candidate: CrossIdeaCandidate,
+    peers: CrossIdeaPeer[],
+    historyAvailable: boolean,
+  ): Promise<IdeaValidation> => {
+    try {
+      const [settled] = await judgeCrossIdeas({
+        candidates: [candidate],
+        peers,
+        historyAvailable,
+        ask: (prompt) => askThinkingLab(prompt, 0),
+      });
+      return settled?.validation ?? applyCrossStatus(candidate.validation, "BELUM_TERVERIFIKASI");
+    } catch {
+      return applyCrossStatus(candidate.validation, "BELUM_TERVERIFIKASI");
+    }
+  };
+
   const onManualIdea = (statement: string) =>
     runManual("manual-idea", async () => {
       if (!focusedAngle || !focusedTerritory || !masters.organizationId || !parentFp) return null;
       const known = (labIdeas.data ?? []).filter((row) => row.angleId === focusedAngle.id);
-      if (known.length >= IDEA_ACTIVE_CAP) return t("thinkingLab.manual.cap", "This set is full.");
+      const active = known.filter(
+        (row) => (row.validation ?? classifyLegacyIdea(row.statement, focusedAngle.statement)).decision !== "DITOLAK",
+      );
+      if (active.length >= IDEA_ACTIVE_CAP) return t("thinkingLab.manual.cap", "This set is full.");
       if (known.some((row) => sameIdeaConcept(row.statement, statement))) {
         return t(
           "thinkingLab.idea.repeatLocked",
@@ -2613,22 +3659,34 @@ export function ThinkingLabPage() {
         );
       }
       const code = nextIdeaCode(known.map((row) => row.code));
-      const { ancestors } = ideaParentFor(focusedAngle.id);
-      const facts = await judgeAndSealIdea({
-        parentStatement: focusedAngle.statement,
-        masterSubject,
-        ancestors,
-        code,
+      const loaded = await loadIdeaComparisonHistory(masters.organizationId, focusedAngle.id);
+      const failures = failureItemsFromIdeas(loaded.ideas, focusedAngle.id);
+      const peers = crossPeersFromIdeas(loaded.ideas);
+      const checked = await runIdeaPassChecks({
         statement,
+        angle: focusedAngle.statement,
+        territory: focusedTerritory.statement,
+        bigThought: focusedThought?.statement ?? "",
+        masterThought: masterStatement,
+        ...ideaAudience,
+        failures,
+        peers: peers.map((peer) => relevantFromPeer(peer, focusedAngle.id)),
+        historyAvailable: loaded.historyAvailable,
         ask: (prompt) => askThinkingLab(prompt, 0),
+        onStep: (checks) => publishLiveIdea(focusedAngle.id, checks),
       });
-      const admission = admitIdea(facts);
-      const rejection = manualRejection({
-        admission,
-        relation: facts.relationToParent,
-        reasons: facts.unresolvedReasons,
-      });
-      if (rejection) return rejection;
+      const validation = await settleAgainstStored(
+        {
+          code,
+          statement,
+          concept: checked.concept,
+          mechanism: checked.mechanism,
+          value: checked.value,
+          validation: checked,
+        },
+        peers,
+        loaded.historyAvailable,
+      );
       await labIdeas.insert.mutateAsync({
         angleId: focusedAngle.id,
         expectedTerritoryId: focusedAngle.territoryId,
@@ -2636,22 +3694,20 @@ export function ThinkingLabPage() {
         code,
         statement,
         sortOrder: known.reduce((max, row) => Math.max(max, row.sortOrder), 0) + 1,
-        facts,
-        admission,
-      });
-      await ideaSet.save.mutateAsync({
-        ...emptyIdeaSetRecord(),
-        downTop: ideaSet.data?.downTop ?? null,
-        auditLessons: ideaSet.data?.auditLessons ?? [],
+        facts: ideaFactsForValidation(code, statement, validation.decision, [], validation.title),
+        admission: admissionForDecision(validation.decision),
+        validation,
       });
       return null;
     });
 
   const onEditIdea = (id: string, statement: string) =>
     runManual("manual-idea", async () => {
-      if (!parentFp) return null;
+      if (!parentFp || !masters.organizationId) return null;
       const idea = (labIdeas.data ?? []).find((row) => row.id === id);
       if (!idea || idea.status !== "candidate") return null;
+      const angle = (labAngles.data ?? []).find((row) => row.id === idea.angleId);
+      if (!angle) return null;
       const siblings = (labIdeas.data ?? []).filter((row) => row.angleId === idea.angleId && row.id !== id);
       if (siblings.some((row) => sameIdeaConcept(row.statement, statement))) {
         return t(
@@ -2659,48 +3715,183 @@ export function ThinkingLabPage() {
           "This repeats an idea that is already saved. Locked ideas count, so write a different situation.",
         );
       }
-      const { angle, ancestors } = ideaParentFor(idea.angleId);
-      if (!angle) return null;
-      const facts = await judgeAndSealIdea({
-        parentStatement: angle.statement,
-        masterSubject,
-        ancestors,
-        code: idea.code,
+      const loaded = await loadIdeaComparisonHistory(masters.organizationId, idea.angleId);
+      const failures = failureItemsFromIdeas(loaded.ideas, idea.angleId);
+      const peers = crossPeersFromIdeas(loaded.ideas.filter((row) => row.id !== idea.id));
+      const checked = await runIdeaPassChecks({
         statement,
+        angle: angle.statement,
+        territory: focusedTerritory?.statement ?? "",
+        bigThought: focusedThought?.statement ?? "",
+        masterThought: masterStatement,
+        ...ideaAudience,
+        failures,
+        peers: peers.map((peer) => relevantFromPeer(peer, idea.angleId)),
+        historyAvailable: loaded.historyAvailable,
         ask: (prompt) => askThinkingLab(prompt, 0),
+        onStep: (checks) => publishLiveIdea(angle.id, checks),
       });
-      const admission = admitIdea(facts);
-      const rejection = manualRejection({
-        admission,
-        relation: facts.relationToParent,
-        reasons: facts.unresolvedReasons,
-      });
-      if (rejection) return rejection;
+      const validation = await settleAgainstStored(
+        {
+          code: idea.code,
+          statement,
+          concept: checked.concept,
+          mechanism: checked.mechanism,
+          value: checked.value,
+          validation: checked,
+        },
+        peers,
+        loaded.historyAvailable,
+      );
+      if (validation.decision !== "LOLOS") {
+        return (
+          validation.decisionReason ||
+          t("thinkingLab.idea.editKept", "This wording did not pass, so the saved idea was left as it was.")
+        );
+      }
+      const facts = ideaFactsForValidation(idea.code, statement, validation.decision, idea.canonicalSemantic.mechanismKeys, validation.title);
       await labIdeas.replace.mutateAsync({
         angleId: idea.angleId,
         id,
         statement,
         facts,
-        admission,
+        admission: admissionForDecision(validation.decision),
+        validation,
       });
-      if (idea.angleId === focusedAngle?.id) {
-        await ideaSet.save.mutateAsync({
-          ...emptyIdeaSetRecord(),
-          downTop: ideaSet.data?.downTop ?? null,
-          auditLessons: ideaSet.data?.auditLessons ?? [],
-        });
-        setIdeaChecklists({});
-      }
+      if (idea.angleId === focusedAngle?.id) setIdeaChecklists({});
       return null;
     });
+
+  const onReviseIdea = (id: string) => {
+    void run(async () => {
+      const angleId = focusedAngle?.id;
+      try {
+        if (!focusedAngle || !masters.organizationId || !parentFp) {
+          toast.error(t("thinkingLab.idea.reviseBlocked", "Revise could not start."));
+          return;
+        }
+        const rows = (labIdeas.data ?? []).filter((row) => row.angleId === focusedAngle.id);
+        const idea = rows.find((row) => row.id === id);
+        if (!idea) return;
+        const current = idea.validation ?? classifyLegacyIdea(idea.statement, focusedAngle.statement);
+        const repairsUsed = Math.max(revisionCount(idea.id, rows), current.auditHistory.length);
+        if (!canReviseIdea(idea, rows, current.decision, repairsUsed)) {
+          setNotice(
+            t("thinkingLab.idea.revisionClosed", "This idea stays rejected. It has already been revised three times."),
+          );
+          toast.error(t("thinkingLab.idea.revisionClosed", "This idea stays rejected. It has already been revised three times."));
+          return;
+        }
+        const loaded = await loadIdeaComparisonHistory(masters.organizationId, focusedAngle.id);
+        const ownStatement = idea.statement.trim().toLowerCase();
+        const failures = failureItemsFromIdeas(loaded.ideas, focusedAngle.id).filter(
+          (item) => item.statement.trim().toLowerCase() !== ownStatement,
+        );
+        const peers = crossPeersFromIdeas(loaded.ideas.filter((row) => row.id !== idea.id));
+        const failed = current.criteria
+          .filter((criterion) => criterion.status === "FAIL" || (criterion.status === "BELUM_TERVERIFIKASI" && Boolean(lessonSentence(criterion))))
+          .map((criterion) => ({ id: criterion.id, reason: lessonSentence(criterion) || criterion.reason }));
+        const passed = current.criteria
+          .filter((criterion) => criterion.status === "PASS")
+          .map((criterion) => ({ id: criterion.id, reason: lessonSentence(criterion) || criterion.reason }));
+        const script = await askThinkingLab(
+          buildIdeaRevisionPrompt({
+            angle: focusedAngle.statement,
+            statement: idea.statement,
+            failed,
+            passed,
+            revision: repairsUsed + 1,
+          }),
+          0.2,
+        );
+        const draft = parseGeneratedIdeaDrafts(script ? parseModelJson(script) : null)[0];
+        if (!draft?.statement.trim()) {
+          toast.error(t("thinkingLab.idea.reviseEmpty", "The revision did not repair this card."));
+          return;
+        }
+        const checked = await runIdeaPassChecks({
+          statement: draft.statement,
+          title: draft.subject || current.title,
+          concept: draft.concept || current.concept,
+          mechanism: draft.mechanism || current.mechanism,
+          value: draft.value || current.value,
+          angle: focusedAngle.statement,
+          territory: focusedTerritory?.statement ?? "",
+          bigThought: focusedThought?.statement ?? "",
+          masterThought: masterStatement,
+          ...ideaAudience,
+          failures,
+          peers: peers.map((peer) => relevantFromPeer(peer, focusedAngle.id)),
+          historyAvailable: loaded.historyAvailable,
+          keptPasses: current.criteria.filter((criterion) => criterion.status === "PASS"),
+          ask: (prompt) => askThinkingLab(prompt, 0),
+          onStep: (checks) => publishLiveIdea(focusedAngle.id, checks),
+        });
+        const validation = await settleAgainstStored(
+          {
+            code: idea.code,
+            statement: draft.statement,
+            concept: draft.concept || checked.concept,
+            mechanism: draft.mechanism || checked.mechanism,
+            value: draft.value || checked.value,
+            validation: checked,
+          },
+          peers,
+          loaded.historyAvailable,
+        );
+        const facts = ideaFactsForValidation(
+          idea.code,
+          draft.statement,
+          validation.decision,
+          draft.mechanismKeys,
+          draft.subject || validation.title,
+        );
+        await labIdeas.replace.mutateAsync({
+          angleId: focusedAngle.id,
+          id: idea.id,
+          statement: draft.statement,
+          facts,
+          admission: admissionForDecision(validation.decision),
+          validation,
+        });
+        queryClient.setQueriesData<LabIdea[]>(
+          { queryKey: ["thinking-lab-ideas", masters.organizationId] },
+          (cached) =>
+            cached?.map((row) =>
+              row.id === idea.id
+                ? {
+                    ...row,
+                    statement: draft.statement,
+                    admission: admissionForDecision(validation.decision),
+                    validation,
+                    canonicalSemantic: facts,
+                  }
+                : row,
+            ) ?? cached,
+        );
+        setIdeaRevisionTarget({ nonce: Date.now(), decision: validation.decision });
+        toast.success(
+          t("thinkingLab.idea.reviseSaved", "{{code}} stayed on this card as {{decision}}.", {
+            code: idea.code,
+            decision: t(`thinkingLab.idea.decision.${validation.decision}`, validation.decision),
+          }),
+        );
+      } finally {
+        setIdeaGenerateRun((current) => (current?.angleId === angleId ? null : current));
+      }
+    }, "revise-idea");
+  };
 
   const onStopExecution = () => {
     executionCancel.current += 1;
     setExecutionProgress(null);
+    setExecutionDraft(null);
+    setExecutionRunChecks(null);
     setFixingLineId(null);
   };
 
   const onOpenPillarPicker = () => {
+    setExecutionDirect(null);
     setPillarPickerOpen(true);
     if (masterSells !== "unknown" || !masterStatement) return;
     void (async () => {
@@ -2712,19 +3903,67 @@ export function ThinkingLabPage() {
   const loadScriptConfirm = (settings: {
     pillars: LabContentPillar[];
     audio: ScriptAudio;
-    look: ScriptLook;
-    speech: ScriptSpeech;
+    look?: ScriptLook;
+    speech?: ScriptSpeech;
     durationSeconds: number | null;
     brandName: string | null;
     cta: string | null;
+    image: ImageSettings | null;
+    pillarDevelopment?: string | null;
   }) => {
+    if (!focusedIdea || focusedIdea.status !== "locked") return;
+    const pillarDevelopment = settings.pillarDevelopment?.trim() || null;
+    confirmToken.current += 1;
+    setPillarPickerOpen(false);
+    setExecutionDirect(null);
+    setScriptConfirm({
+      ...settings,
+      pillarDevelopment,
+      phase: "mode",
+      discovery: null,
+      questions: null,
+      loading: false,
+      failed: false,
+    });
+  };
+
+  const askScriptDiscovery = (
+    settings: {
+      pillars: LabContentPillar[];
+      audio: ScriptAudio;
+      look?: ScriptLook;
+      speech?: ScriptSpeech;
+      durationSeconds: number | null;
+      brandName: string | null;
+      cta: string | null;
+      image: ImageSettings | null;
+      pillarDevelopment: string | null;
+    },
+    discovery: DiscoveryMode,
+  ) => {
     if (!focusedIdea || focusedIdea.status !== "locked") return;
     const idea = focusedIdea;
     const token = ++confirmToken.current;
-    setPillarPickerOpen(false);
-    setScriptConfirm({ ...settings, questions: null, loading: true, failed: false });
+    const pillarDevelopment = settings.pillarDevelopment;
+    setScriptConfirm({
+      ...settings,
+      pillarDevelopment,
+      phase: "questions",
+      discovery,
+      questions: null,
+      loading: true,
+      failed: false,
+    });
     if (!masters.organizationId) {
-      setScriptConfirm({ ...settings, questions: null, loading: false, failed: true });
+      setScriptConfirm({
+        ...settings,
+        pillarDevelopment,
+        phase: "questions",
+        discovery,
+        questions: null,
+        loading: false,
+        failed: true,
+      });
       return;
     }
     let writeNow = false;
@@ -2749,6 +3988,8 @@ export function ThinkingLabPage() {
             durationSeconds: settings.durationSeconds,
             brandName: settings.brandName,
             cta: settings.cta,
+            pillarDevelopment,
+            discovery,
           }),
           0.2,
         );
@@ -2761,14 +4002,15 @@ export function ThinkingLabPage() {
           });
           return;
         }
-        if (discovered.questions.length === 0) {
+        const questions = discovery === "follow" ? discovered.questions.filter((question) => question.binds !== "story") : discovered.questions;
+        if (questions.length === 0) {
           writeNow = true;
           setScriptConfirm(null);
           return;
         }
         setScriptConfirm((current) => {
           if (!current || confirmToken.current !== token) return current;
-          return { ...current, loading: false, questions: discovered.questions, failed: false };
+          return { ...current, phase: "questions", loading: false, questions, failed: false };
         });
       } catch {
         if (confirmToken.current !== token) return;
@@ -2790,8 +4032,25 @@ export function ThinkingLabPage() {
         settings.cta,
         null,
         [],
+        false,
+        null,
+        settings.image,
+        false,
+        null,
+        null,
+        pillarDevelopment,
       );
     });
+  };
+
+  const pillarFormat = (name: string) => {
+    const match = (contentPillars.data ?? []).find(
+      (pillar) => pillar.name.trim().toLowerCase() === name.trim().toLowerCase(),
+    );
+    return {
+      pillarCategory: match?.category ?? null,
+      pillarDescription: match?.description ?? null,
+    };
   };
 
   const withPillarRecommendation = async (
@@ -2807,29 +4066,36 @@ export function ThinkingLabPage() {
     );
     if (options.length === 0) return facts;
     setExecutionProgress({ phase: "recommend", pillarName: failedPillar });
-    const raw = await askThinkingLab(
-      buildPillarRecommendationPrompt({
-        masterStatement,
-        ideaStatement,
-        failedPillar,
-        explanation: facts.whatItSays,
-        ancestors,
-        pillars: options.map((pillar) => ({
-          name: pillar.name,
-          funnel: pillar.funnel === "middle" ? "Consideration" : pillar.funnel === "bottom" ? "Conversion" : "Awareness",
-          category: pillar.category,
-          description: pillar.description,
-        })),
-      }),
-      0.2,
-    );
-    if (executionCancel.current !== token) return facts;
-    const recommendation = parsePillarRecommendation(
-      raw ? parseModelJson(raw) : null,
-      options.map((pillar) => pillar.name),
-      failedPillar,
-    );
-    return recommendation ? { ...facts, recommendation } : facts;
+    setPillarChoices([]);
+    const choices: Array<{ pillarName: string; reason: string }> = [];
+    for (const pillar of options) {
+      if (choices.length >= PILLAR_CHOICE_LIMIT) break;
+      if (executionCancel.current !== token) return facts;
+      const raw = await askThinkingLab(
+        buildPillarFitChoicePrompt({
+          masterStatement,
+          ideaStatement,
+          failedPillar,
+          explanation: facts.whatItSays,
+          ancestors,
+          pillar: {
+            name: pillar.name,
+            funnel: pillar.funnel === "middle" ? "Consideration" : pillar.funnel === "bottom" ? "Conversion" : "Awareness",
+            category: pillar.category,
+            description: pillar.description,
+          },
+        }),
+        0,
+      );
+      if (executionCancel.current !== token) return facts;
+      const choice = parsePillarFitChoice(raw ? parseModelJson(raw) : null, pillar.name);
+      if (!choice) continue;
+      choices.push(choice);
+      setPillarChoices(limitPillarChoices(choices));
+    }
+    const offered = limitPillarChoices(choices);
+    const first = offered[0];
+    return first ? { ...facts, recommendation: { pillarName: first.pillarName, reason: first.reason, choices: offered } } : facts;
   };
 
   const pillarHopStopped = (pillarName: string, script?: { followedRecommendation?: boolean } | null, exceptId?: string) =>
@@ -2853,8 +4119,25 @@ export function ThinkingLabPage() {
     pointOfView?: string | null,
     decisions?: ScriptDecision[] | null,
     fromRecommendation = false,
+    carriedLessons?: readonly ExecutionAuditLesson[] | null,
+    image: ImageSettings | null = null,
+    fresh = false,
+    keptSwitches?: readonly ExecutionPassCheck[] | null,
+    creativeLink?: CreativeExecutionLink | null,
+    pillarDevelopment?: string | null,
   ) => {
-    if (!focus || (focus.kind !== "idea" && focus.kind !== "execution") || !focusedIdea || focusedIdea.status !== "locked") return;
+    if (!focus || (focus.kind !== "idea" && focus.kind !== "pillar" && focus.kind !== "execution") || !focusedIdea || focusedIdea.status !== "locked") return;
+    if (executionPassProposal) {
+      const proposal = executionPassProposal;
+      setExecutionPassProposal(null);
+      setExecutionChecklists((lists) => {
+        if (proposal.previousChecks) return { ...lists, [proposal.executionId]: proposal.previousChecks };
+        if (!(proposal.executionId in lists)) return lists;
+        const next = { ...lists };
+        delete next[proposal.executionId];
+        return next;
+      });
+    }
     const origin = focus;
     const idea = focusedIdea;
     const resolvedAudio: ScriptAudio = speech === "mix" || speech === "dialog" ? { ...audio, sound: true } : audio;
@@ -2871,8 +4154,117 @@ export function ThinkingLabPage() {
     void run(async () => {
       let lastId: string | null = null;
       const { ancestors } = ideaParentFor(idea.angleId);
+      const creativePrompt = creativeLink
+        ? {
+            creativeIdea: {
+              statement: creativeLink.statement,
+              concept: creativeLink.concept,
+              mechanism: creativeLink.mechanism,
+              value: creativeLink.value,
+            },
+          }
+        : {};
       for (const pillar of chosen) {
         if (executionCancel.current !== token) return;
+        setExecutionDraft(null);
+        const existing = creativeLink
+          ? undefined
+          : (labExecutions.data ?? []).find((row) => {
+              if (row.ideaId !== idea.id || row.creativeIdeaId) return false;
+              if (pillar.id && (row.contentPillarId === pillar.id || row.pillar === pillar.id)) return true;
+              return row.pillarName.trim().toLowerCase() === pillar.name.trim().toLowerCase();
+            });
+        const priorLessons = fresh
+          ? []
+          : mergeExecutionAuditLessons(existing?.canonicalSemantic.auditLessons ?? [], carriedLessons ?? []);
+        const trackedId = existing?.id ?? null;
+        const imageSettings = image ?? (previousScript?.medium === "image" ? previousScript.image ?? null : null);
+        const enabled = (keptSwitches ?? []).flatMap((check) => (check.enabled === false ? [] : [check.id]));
+        if (imageSettings) {
+          setExecutionProgress({ phase: "write", pillarName: pillar.name, medium: "image" });
+          const imageRaw = await askThinkingLab(
+            buildImageGeneratePrompt({
+              masterStatement,
+              ideaStatement: idea.statement,
+              pillar: pillar.name,
+              pillarCategory: pillar.category,
+              pillarDescription: pillar.description,
+              ancestors,
+              image: imageSettings,
+              pointOfView: lockedView || null,
+              decisions: lockedDecisions,
+              lessons: imageLessons(priorLessons),
+              pillarDevelopment,
+              enabled,
+              ...creativePrompt,
+            }),
+            0.2,
+          );
+          if (executionCancel.current !== token) return;
+          const imageParsed = parseVoiceOverScript(imageRaw ? parseModelJson(imageRaw) : null);
+          if (!imageParsed) continue;
+          const current = stampImageScript(
+            {
+              ...imageParsed,
+              ...(lockedView ? { pointOfView: lockedView } : {}),
+              ...(lockedDecisions.length > 0 ? { decisions: lockedDecisions } : {}),
+              ...(fromRecommendation ? { followedRecommendation: true } : {}),
+            },
+            imageSettings,
+          );
+          if (!current.scenes.some((scene) => scene.lines.some((line) => line.narration.trim()))) continue;
+          setExecutionDraft(current);
+          setExecutionProgress({ phase: "audit", pillarName: pillar.name, medium: "image" });
+          let liveChecks: ExecutionPassCheck[] = [];
+          const imageCheckInput = {
+            pillar: pillar.name,
+            pillarCategory: pillar.category,
+            pillarDescription: pillar.description,
+            masterStatement,
+            ideaStatement: idea.statement,
+            ancestors,
+            pillarDevelopment,
+            script: current,
+            image: imageSettings,
+            masterSells: masterSells === "unknown" ? "unresolved" : masterSells,
+            auditLessons: imageLessons(priorLessons),
+            ask: (prompt: string) => askThinkingLab(prompt, 0),
+            onStep: (checks: ExecutionPassCheck[]) => {
+              liveChecks = checks;
+              setExecutionRunChecks(checks);
+              if (!trackedId) return;
+              setExecutionChecklists((lists) => ({ ...lists, [trackedId]: checks }));
+            },
+          };
+          const checked = await (keptSwitches
+            ? runImageOpenChecks({ ...imageCheckInput, prior: keptSwitches })
+            : runImageMeaningChecks(imageCheckInput));
+          if (executionCancel.current !== token) return;
+          const lesson = lessonFromMeaningAudit(checked.facts, current);
+          const withLesson = lesson
+            ? { ...checked.facts, auditLessons: mergeExecutionAuditLessons(checked.facts.auditLessons ?? [], [lesson]) }
+            : checked.facts;
+          const recommended =
+            fromRecommendation || pillarHopStopped(pillar.name, current)
+              ? withLesson
+              : await withPillarRecommendation(withLesson, pillar.name, idea.statement, ancestors, token);
+          if (executionCancel.current !== token) return;
+          const saved = await labExecutions.save.mutateAsync({
+            ideaId: idea.id,
+            pillar: pillar.id,
+            contentPillarId: pillar.id,
+            pillarName: pillar.name,
+            statement: flattenVoiceOver(current),
+            script: current,
+            facts: recommended,
+            ...(creativeLink ? { creativeLink } : {}),
+          });
+          setExecutionChecklists((currentLists) => ({ ...currentLists, [saved.id]: liveChecks }));
+          setExecutionLineOffer(null);
+          setExecutionRepairNote(null);
+          lastId = saved.id;
+          continue;
+        }
         setExecutionProgress({ phase: "write", pillarName: pillar.name });
         const raw = await askThinkingLab(
           buildExecutionGeneratePrompt({
@@ -2881,6 +4273,8 @@ export function ThinkingLabPage() {
             priorBelief: selected?.priorBelief,
             ideaStatement: idea.statement,
             pillar: pillar.name,
+            pillarCategory: pillar.category,
+            pillarDescription: pillar.description,
             ancestors,
             speech,
             durationSeconds: targetSeconds,
@@ -2888,6 +4282,10 @@ export function ThinkingLabPage() {
             cta: cta ?? previousScript?.cta ?? null,
             pointOfView: lockedView || null,
             decisions: lockedDecisions,
+            lessons: priorLessons,
+            pillarDevelopment,
+            enabled,
+            ...creativePrompt,
           }),
           0.2,
         );
@@ -2953,6 +4351,7 @@ export function ThinkingLabPage() {
         if (targetSeconds) current = { ...current, durationSeconds: targetSeconds };
         const narrationLines = () =>
           current.scenes.flatMap((scene) => scene.lines.map((line) => ({ id: line.id, narration: line.narration })));
+        setExecutionDraft(current);
         let viewpointIssues: Array<{ lineId: string; reason: string }> = [];
         if (lockedView) {
           setExecutionProgress({ phase: "audit", pillarName: pillar.name });
@@ -3020,34 +4419,37 @@ export function ThinkingLabPage() {
         };
         const statement = storyVoiceOver(current);
         if (!statement) continue;
-        const trackedId =
-          (labExecutions.data ?? []).find((row) => {
-            if (row.ideaId !== idea.id) return false;
-            if (pillar.id && (row.contentPillarId === pillar.id || row.pillar === pillar.id)) return true;
-            return row.pillarName.trim().toLowerCase() === pillar.name.trim().toLowerCase();
-          })?.id ?? null;
+        setExecutionDraft(current);
         let liveChecks: ExecutionPassCheck[] = [];
-        const checked = await runExecutionMeaningChecks({
+        const videoCheckInput = {
           pillar: pillar.name,
+          pillarCategory: pillar.category,
+          pillarDescription: pillar.description,
           masterStatement,
           masterSubject,
           ideaStatement: idea.statement,
           ancestors,
+          pillarDevelopment,
           script: current,
           masterSells,
-          ask: (prompt) => askThinkingLab(prompt, 0),
+          auditLessons: priorLessons,
+          ask: (prompt: string) => askThinkingLab(prompt, 0),
           resolveSelling: async () => {
             const raw = await askThinkingLab(buildMasterSellsPrompt(masterStatement), 0);
             const value = parseMasterSells(raw ? parseModelJson(raw) : null);
             setMasterSells(value);
             return value;
           },
-          onStep: (checks) => {
+          onStep: (checks: ExecutionPassCheck[]) => {
             liveChecks = checks;
+            setExecutionRunChecks(checks);
             if (!trackedId) return;
             setExecutionChecklists((lists) => ({ ...lists, [trackedId]: checks }));
           },
-        });
+        };
+        const checked = await (keptSwitches
+          ? runExecutionOpenChecks({ ...videoCheckInput, prior: keptSwitches })
+          : runExecutionMeaningChecks(videoCheckInput));
         if (executionCancel.current !== token) return;
         const lesson = lessonFromMeaningAudit(checked.facts, current);
         const withLesson = lesson
@@ -3067,6 +4469,7 @@ export function ThinkingLabPage() {
           statement: flattenVoiceOver(script),
           script,
           facts: recommended,
+          ...(creativeLink ? { creativeLink } : {}),
         });
         setExecutionChecklists((currentLists) => ({ ...currentLists, [saved.id]: liveChecks }));
         setExecutionLineOffer(null);
@@ -3088,8 +4491,512 @@ export function ThinkingLabPage() {
         executionId: lastId,
       });
     }, "execution").finally(() => {
-      if (executionCancel.current === token) setExecutionProgress(null);
+      if (executionCancel.current === token) {
+        setExecutionProgress(null);
+        setExecutionDraft(null);
+        setExecutionRunChecks(null);
+      }
     });
+  };
+
+  const creativeContextFor = (idea: LabIdea) => {
+    const { angle, ancestors } = ideaParentFor(idea.angleId);
+    const named = (label: string) => ancestors.find((item) => item.label === label)?.statement ?? "";
+    return {
+      parentCode: idea.code,
+      parentStatement: idea.statement,
+      parentConcept: idea.validation?.concept ?? "",
+      parentMechanism: idea.validation?.mechanism ?? "",
+      parentValue: idea.validation?.value ?? "",
+      masterThought: masterStatement,
+      audience: selected?.audience ?? "",
+      priorBelief: selected?.priorBelief ?? "",
+      rootBelief: selected?.rootBelief ?? "",
+      bigThought: named("Big Thought"),
+      territory: named("Territory"),
+      angle: angle?.statement ?? "",
+    };
+  };
+
+  const onReviewCreativePillars = () => {
+    if (!focusedIdea || focusedIdea.status !== "locked") return;
+    const idea = focusedIdea;
+    void run(async () => {
+      const context = creativeContextFor(idea);
+      const locked = pillarCardsFor(idea);
+      const reviews = await reviewContentPillars({
+        pillars: contentPillars.data ?? [],
+        excludeIds: locked.map((card) => card.contentPillarId),
+        keep: 3,
+        context: [context.masterThought, context.bigThought, context.territory, context.angle, context.parentStatement]
+          .filter(Boolean)
+          .join("\n"),
+        ask: (prompt) => askThinkingLab(prompt, 0),
+      });
+      setCreativeReviews(reviewsToStore(reviews));
+      setCreativeReviewReady(true);
+    }, "creative-review");
+  };
+
+  const rememberedDevelopment = (contentPillarId: string | null | undefined) => {
+    if (!focusedIdea || !contentPillarId) return null;
+    const text = developmentForPillar(focusedIdea.developmentPaths, contentPillarId, creativeReviews ?? undefined);
+    return text || null;
+  };
+
+  const rememberCreativePath = (ideaId: string, organizationId: string, path: DevelopmentPath) => {
+    creativePathSave.current = creativePathSave.current
+      .catch(() => undefined)
+      .then(() => saveDevelopmentPath({ organizationId, ideaId, path }))
+      .then((paths) => {
+        queryClient.setQueriesData<LabIdea[]>({ queryKey: ["thinking-lab-ideas", organizationId] }, (current) =>
+          current?.map((row) => (row.id === ideaId ? { ...row, developmentPaths: paths } : row)),
+        );
+      })
+      .catch(reportStepError);
+  };
+
+  const onLockCreativePillar = (contentPillarId: string) => {
+    if (!focusedIdea || !masters.organizationId) return;
+    const reviews = creativeReviews ?? latestPathReviews(focusedIdea.developmentPaths);
+    const review = reviews.find((item) => item.contentPillarId === contentPillarId);
+    if (!review?.development.trim() || !review.reason.trim() || review.status !== "RECOMMENDED") return;
+    setCreativePillarId(contentPillarId);
+    setCreativeFormat(null);
+    if (focus?.kind === "idea" && focus.ideaId === focusedIdea.id) {
+      setFocus({
+        kind: "pillar",
+        masterId: focus.masterId,
+        thoughtId: focus.thoughtId,
+        territoryId: focus.territoryId,
+        angleId: focus.angleId,
+        ideaId: focus.ideaId,
+        contentPillarId,
+      });
+    }
+    rememberCreativePath(focusedIdea.id, masters.organizationId, {
+      contentPillarId,
+      pillarName: review.pillarName,
+      format: null,
+      status: "RECOMMENDED",
+      reason: review.reason,
+      reviews,
+      savedAt: new Date().toISOString(),
+    });
+  };
+
+  const onOpenExecutionSettings = (format: CreativeFormat) => {
+    if (!focusedIdea || !masters.organizationId || !creativePillarId) return;
+    const pillar = (contentPillars.data ?? []).find((item) => item.id === creativePillarId);
+    if (!pillar) return;
+    const idea = focusedIdea;
+    const organizationId = masters.organizationId;
+    const reviews = creativeReviews ?? latestPathReviews(idea.developmentPaths);
+    const review = reviews.find((item) => item.contentPillarId === pillar.id);
+    setCreativeFormat(format);
+    setExecutionDirect({
+      token: Date.now(),
+      pillarId: pillar.id,
+      medium: format === "video" ? "video" : "image",
+      imageFormat: format === "carousel" ? "carousel" : "single",
+    });
+    rememberCreativePath(idea.id, organizationId, {
+      contentPillarId: pillar.id,
+      pillarName: pillar.name,
+      format,
+      status: review?.status ?? "NOT_REVIEWED",
+      reason: review?.reason ?? "",
+      reviews,
+      savedAt: new Date().toISOString(),
+    });
+  };
+
+  const listedExecutionChecks = (execution: {
+    id: string;
+    script: VoiceOverScript | null;
+    canonicalSemantic: ExecutionSemanticFacts;
+  }): ExecutionPassCheck[] => {
+    const live = executionChecklists[execution.id];
+    if (live?.length) return execution.script?.medium === "image" ? ensureImageLegacySwitches(live) : ensureVideoPassChecks(live);
+    const stored = execution.canonicalSemantic.passChecks;
+    if (stored?.length) {
+      const checks = stored.map((check) => ({
+        id: check.id,
+        state: check.state,
+        enabled: check.enabled,
+        reason: check.reason,
+        lineIds: check.lineIds,
+      }));
+      return execution.script?.medium === "image" ? ensureImageLegacySwitches(checks) : ensureVideoPassChecks(checks);
+    }
+    if (execution.script?.medium === "image") return ensureImageLegacySwitches(imageChecksFromAudit(execution.canonicalSemantic.meaningAudit));
+    return execution.canonicalSemantic.meaningAudit ? executionChecksFromAudit(execution.canonicalSemantic.meaningAudit) : [];
+  };
+
+  const saveExecutionFacts = (
+    execution: {
+      id: string;
+      ideaId: string;
+      pillar: string;
+      contentPillarId: string | null;
+      pillarName: string;
+      script: VoiceOverScript | null;
+    },
+    facts: ExecutionSemanticFacts,
+  ) => {
+    const scriptNow = execution.script;
+    if (!scriptNow) return Promise.resolve();
+    return labExecutions.save.mutateAsync({
+      ideaId: execution.ideaId,
+      pillar: execution.contentPillarId ?? execution.pillar,
+      contentPillarId: execution.contentPillarId,
+      pillarName: execution.pillarName,
+      statement: flattenVoiceOver(scriptNow),
+      script: scriptNow,
+      facts,
+    });
+  };
+
+  const onResumeOpenExecution = () => {
+    if (focus?.kind !== "execution" || !focusedIdea) return;
+    const execution = (labExecutions.data ?? []).find((row) => row.id === focus.executionId);
+    if (!execution?.script) return;
+    const idea = focusedIdea;
+    const current = execution;
+    const scriptNow = current.script;
+    if (!scriptNow) return;
+    const prior = listedExecutionChecks(current);
+    if (!openPassResume(prior)) return;
+    const token = executionCancel.current;
+    void run(async () => {
+      const { ancestors } = ideaParentFor(idea.angleId);
+      setExecutionDraft(scriptNow);
+      setExecutionProgress({ phase: "audit", pillarName: current.pillarName, medium: scriptNow.medium === "image" ? "image" : undefined });
+      const imageSettings = scriptNow.medium === "image" ? scriptNow.image : null;
+      let liveChecks: ExecutionPassCheck[] = [];
+      const checked = imageSettings
+        ? await runImageOpenChecks({
+            pillar: current.pillarName,
+            ...pillarFormat(current.pillarName),
+            masterStatement,
+            ideaStatement: idea.statement,
+            ancestors,
+            pillarDevelopment: rememberedDevelopment(current.contentPillarId),
+            script: scriptNow,
+            image: imageSettings,
+            masterSells: masterSells === "unknown" ? "unresolved" : masterSells,
+            auditLessons: imageLessons(current.canonicalSemantic.auditLessons ?? []),
+            prior,
+            ask: (prompt) => askThinkingLab(prompt, 0),
+            onStep: (checks) => {
+              liveChecks = checks;
+              setExecutionRunChecks(checks);
+              setExecutionChecklists((lists) => ({ ...lists, [current.id]: checks }));
+            },
+          })
+        : await runExecutionOpenChecks({
+            pillar: current.pillarName,
+            ...pillarFormat(current.pillarName),
+            masterStatement,
+            masterSubject,
+            ideaStatement: idea.statement,
+            ancestors,
+            pillarDevelopment: rememberedDevelopment(current.contentPillarId),
+            script: scriptNow,
+            masterSells,
+            auditLessons: current.canonicalSemantic.auditLessons,
+            prior,
+            ask: (prompt) => askThinkingLab(prompt, 0),
+            onStep: (checks) => {
+              liveChecks = checks;
+              setExecutionRunChecks(checks);
+              setExecutionChecklists((lists) => ({ ...lists, [current.id]: checks }));
+            },
+          });
+      if (executionCancel.current !== token) return;
+      const recommended = pillarHopStopped(current.pillarName, scriptNow, current.id)
+        ? checked.facts
+        : await withPillarRecommendation(checked.facts, current.pillarName, idea.statement, ancestors, token);
+      if (executionCancel.current !== token) return;
+      await saveExecutionFacts(current, {
+        ...current.canonicalSemantic,
+        ...recommended,
+        recommendation: recommended.recommendation ?? current.canonicalSemantic.recommendation,
+      });
+      setExecutionChecklists((lists) => ({ ...lists, [current.id]: liveChecks.length > 0 ? liveChecks : checked.checks }));
+    }, "execution-pass").finally(() => {
+      if (executionCancel.current === token) {
+        setExecutionProgress(null);
+        setExecutionDraft(null);
+        setExecutionRunChecks(null);
+      }
+    });
+  };
+
+  const restorePassChecks = (executionId: string, previous: ExecutionPassCheck[] | null) => {
+    setExecutionChecklists((lists) => {
+      if (previous) return { ...lists, [executionId]: previous };
+      if (!(executionId in lists)) return lists;
+      const next = { ...lists };
+      delete next[executionId];
+      return next;
+    });
+  };
+
+  const auditCommittedScript = async (
+    current: {
+      id: string;
+      ideaId: string;
+      pillar: string;
+      contentPillarId: string | null;
+      pillarName: string;
+      canonicalSemantic: ExecutionSemanticFacts;
+    },
+    idea: { statement: string; angleId: string },
+    script: VoiceOverScript,
+    checks: ExecutionPassCheck[],
+    rerunOn: boolean,
+    token: number,
+  ) => {
+    const { ancestors } = ideaParentFor(idea.angleId);
+    setExecutionDraft(script);
+    setExecutionProgress({
+      phase: "audit",
+      pillarName: current.pillarName,
+      medium: script.medium === "image" ? "image" : undefined,
+    });
+    const prior = rerunOn
+      ? checks.map((check) =>
+          check.enabled === false
+            ? { ...check, state: "pass" as const, enabled: false }
+            : { ...check, state: "pending" as const, enabled: true },
+        )
+      : checks;
+    const imageSettings = script.medium === "image" ? script.image : null;
+    let liveChecks: ExecutionPassCheck[] = [];
+    const checked = imageSettings
+      ? await runImageOpenChecks({
+          pillar: current.pillarName,
+          ...pillarFormat(current.pillarName),
+          masterStatement,
+          ideaStatement: idea.statement,
+          ancestors,
+          pillarDevelopment: rememberedDevelopment(current.contentPillarId),
+          script,
+          image: imageSettings,
+          masterSells: masterSells === "unknown" ? "unresolved" : masterSells,
+          auditLessons: imageLessons(current.canonicalSemantic.auditLessons ?? []),
+          prior,
+          ask: (prompt) => askThinkingLab(prompt, 0),
+          onStep: (next) => {
+            liveChecks = next;
+            setExecutionRunChecks(next);
+            setExecutionChecklists((lists) => ({ ...lists, [current.id]: next }));
+          },
+        })
+      : await runExecutionOpenChecks({
+          pillar: current.pillarName,
+          ...pillarFormat(current.pillarName),
+          masterStatement,
+          masterSubject,
+          ideaStatement: idea.statement,
+          ancestors,
+          pillarDevelopment: rememberedDevelopment(current.contentPillarId),
+          script,
+          masterSells,
+          auditLessons: current.canonicalSemantic.auditLessons,
+          prior,
+          ask: (prompt) => askThinkingLab(prompt, 0),
+          onStep: (next) => {
+            liveChecks = next;
+            setExecutionRunChecks(next);
+            setExecutionChecklists((lists) => ({ ...lists, [current.id]: next }));
+          },
+        });
+    if (executionCancel.current !== token) return;
+    const recommended = pillarHopStopped(current.pillarName, script, current.id)
+      ? checked.facts
+      : await withPillarRecommendation(checked.facts, current.pillarName, idea.statement, ancestors, token);
+    if (executionCancel.current !== token) return;
+    await labExecutions.save.mutateAsync({
+      ideaId: current.ideaId,
+      pillar: current.contentPillarId ?? current.pillar,
+      contentPillarId: current.contentPillarId,
+      pillarName: current.pillarName,
+      statement: flattenVoiceOver(script),
+      script,
+      facts: {
+        ...current.canonicalSemantic,
+        ...recommended,
+        recommendation: recommended.recommendation ?? current.canonicalSemantic.recommendation,
+      },
+    });
+    setExecutionChecklists((lists) => ({ ...lists, [current.id]: liveChecks.length > 0 ? liveChecks : checked.checks }));
+  };
+
+  const onToggleExecutionPass = (id: string, enabled: boolean) => {
+    if (focus?.kind !== "execution" || !focusedIdea || executionProgress || executionPassProposal) return;
+    const execution = (labExecutions.data ?? []).find((row) => row.id === focus.executionId);
+    if (!execution?.script) return;
+    const toggled = togglePassCheck(listedExecutionChecks(execution), id, enabled);
+    const switched = toggled.checks.find((check) => check.id === id);
+    if (!switched) return;
+    const idea = focusedIdea;
+    const current = execution;
+    const scriptNow = current.script;
+    if (!scriptNow) return;
+    const previousChecks = executionChecklists[current.id] ?? null;
+    const token = executionCancel.current;
+    void run(async () => {
+      const lines = switchRewriteLines(scriptNow, switched.id);
+      let committed = false;
+      let proposed = false;
+      const commitSwitch = async (checks: ExecutionPassCheck[]) => {
+        setExecutionChecklists((lists) => ({ ...lists, [current.id]: checks }));
+        await saveExecutionFacts(current, factsForPassChecks(current.canonicalSemantic, checks));
+        committed = true;
+      };
+      try {
+        if (lines.length === 0) {
+          await commitSwitch(enabled ? checksImplementedBySwitch(toggled.checks) : toggled.checks);
+          return;
+        }
+        setExecutionChecklists((lists) => ({
+          ...lists,
+          [current.id]: toggled.checks.map((check) => (check.id === switched.id ? { ...check, state: "running" } : check)),
+        }));
+        setExecutionDraft(scriptNow);
+        setExecutionProgress({
+          phase: "switch",
+          pillarName: current.pillarName,
+          medium: scriptNow.medium === "image" ? "image" : undefined,
+        });
+        const raw = await askThinkingLab(
+          buildPassSwitchRewritePrompt({
+            checkId: switched.id,
+            enabled,
+            enabledIds: toggled.checks.flatMap((check) => (check.enabled === false ? [] : [check.id])),
+            surface: scriptNow.medium === "image" ? "image" : "video",
+            ideaStatement: idea.statement,
+            masterStatement,
+            pillarName: current.pillarName,
+            ...pillarFormat(current.pillarName),
+            pillarDevelopment: rememberedDevelopment(current.contentPillarId),
+            ancestors: ideaParentFor(idea.angleId).ancestors,
+            lines,
+          }),
+          0.2,
+        );
+        if (executionCancel.current !== token) return;
+        const allowed = new Set(lines.map((line) => line.id));
+        const nextScript = applyPassSwitchScript(
+          scriptNow,
+          parseExecutionNarrationReplacements(raw ? parseModelJson(raw) : null).filter((row) => allowed.has(row.lineId)),
+        );
+        const changes = narrationChangeRows(lines, switchRewriteLines(nextScript, switched.id));
+        if (passSwitchOutcome(changes) === "save-switch") {
+          await commitSwitch(enabled ? checksImplementedBySwitch(toggled.checks) : toggled.checks);
+          return;
+        }
+        proposed = true;
+        setExecutionPassProposal({
+          executionId: current.id,
+          checks: toggled.checks,
+          script: nextScript,
+          changes,
+          previousChecks,
+          implemented: enabled,
+        });
+        setExecutionChecklists((lists) => ({ ...lists, [current.id]: toggled.checks }));
+      } catch (error) {
+        if (!committed) restorePassChecks(current.id, previousChecks);
+        throw error;
+      } finally {
+        if (executionCancel.current === token) {
+          setExecutionProgress(null);
+          setExecutionDraft(null);
+          setExecutionRunChecks(null);
+        } else if (!committed && !proposed) {
+          restorePassChecks(current.id, previousChecks);
+        }
+      }
+    }, "execution-pass");
+  };
+
+  const onAcceptPassProposal = () => {
+    const proposal = executionPassProposal;
+    if (!proposal || focus?.kind !== "execution" || !focusedIdea || focus.executionId !== proposal.executionId || executionProgress) return;
+    const execution = (labExecutions.data ?? []).find((row) => row.id === proposal.executionId);
+    if (!execution) return;
+    const idea = focusedIdea;
+    const token = executionCancel.current;
+    void run(async () => {
+      const checks = proposal.implemented ? checksImplementedBySwitch(proposal.checks) : proposal.checks;
+      await labExecutions.save.mutateAsync({
+        ideaId: execution.ideaId,
+        pillar: execution.contentPillarId ?? execution.pillar,
+        contentPillarId: execution.contentPillarId,
+        pillarName: execution.pillarName,
+        statement: flattenVoiceOver(proposal.script),
+        script: proposal.script,
+        facts: factsForPassChecks(execution.canonicalSemantic, checks),
+      });
+      if (executionCancel.current !== token) return;
+      setExecutionPassProposal(null);
+      setExecutionChecklists((lists) => ({ ...lists, [proposal.executionId]: checks }));
+      if (!proposal.implemented) {
+        await auditCommittedScript(execution, idea, proposal.script, proposal.checks, true, token);
+      }
+    }, "execution-pass").finally(() => {
+      if (executionCancel.current === token) {
+        setExecutionProgress(null);
+        setExecutionDraft(null);
+        setExecutionRunChecks(null);
+      }
+    });
+  };
+
+  const onDeclinePassProposal = () => {
+    const proposal = executionPassProposal;
+    if (!proposal) return;
+    restorePassChecks(proposal.executionId, proposal.previousChecks);
+    setExecutionPassProposal(null);
+  };
+
+  const onRegenerateExecution = () => {
+    if (focus?.kind !== "execution") return;
+    const execution = (labExecutions.data ?? []).find((row) => row.id === focus.executionId);
+    if (!execution) return;
+    const match = (contentPillars.data ?? []).find(
+      (pillar) => pillar.id === execution.contentPillarId || pillar.id === execution.pillar || pillar.name === execution.pillarName,
+    );
+    const pillar: LabContentPillar = match ?? {
+      id: execution.contentPillarId ?? execution.pillar,
+      name: execution.pillarName,
+      funnel: "top",
+      category: null,
+      isDefault: false,
+    };
+    const switches = regeneratePassPrior(listedExecutionChecks(execution));
+    onGenerateExecutions(
+      [pillar],
+      execution.script?.audio ?? { sound: false, music: false },
+      execution.script?.look,
+      execution.script?.speech,
+      execution.script,
+      execution.script?.durationSeconds,
+      execution.script?.brandName,
+      execution.script?.cta,
+      undefined,
+      undefined,
+      false,
+      null,
+      execution.script?.medium === "image" ? execution.script.image ?? null : null,
+      true,
+      switches,
+      null,
+      rememberedDevelopment(pillar.id),
+    );
   };
 
   const onRewriteExecution = () => {
@@ -3106,38 +5013,225 @@ export function ThinkingLabPage() {
       category: null,
       isDefault: false,
     };
-    onGenerateExecutions(
-      [pillar],
-      execution.script?.audio ?? { sound: false, music: false },
-      execution.script?.look,
-      execution.script?.speech,
-      execution.script,
-      execution.script?.durationSeconds,
-      execution.script?.brandName,
-      execution.script?.cta,
-    );
+    if (execution.script?.medium === "image" && imageRewriteFromFailure(execution.canonicalSemantic.meaningAudit)) {
+      onRepairExecution();
+      return;
+    }
+    if (
+      execution.script?.medium !== "image" &&
+      isFailedMeaningAudit(execution.canonicalSemantic.meaningAudit) &&
+      (execution.canonicalSemantic.meaningAudit.id === "soundsSpoken" ||
+        execution.canonicalSemantic.meaningAudit.id === "usesSlang") &&
+      meaningLineRepairReady(execution.canonicalSemantic)
+    ) {
+      onRepairExecution();
+      return;
+    }
+    if (openPassResume(listedExecutionChecks(execution))) {
+      onResumeOpenExecution();
+      return;
+    }
+    loadScriptConfirm({
+      pillars: [pillar],
+      audio: execution.script?.audio ?? { sound: false, music: false },
+      look: execution.script?.look,
+      speech: execution.script?.speech,
+      durationSeconds: execution.script?.durationSeconds ?? null,
+      brandName: execution.script?.brandName ?? null,
+      cta: execution.script?.cta ?? null,
+      image: execution.script?.medium === "image" ? execution.script.image ?? null : null,
+      pillarDevelopment: rememberedDevelopment(pillar.id),
+    });
   };
 
-  const onUseRecommendation = () => {
+  const onUseRecommendation = (pillarName?: string) => {
     if (focus?.kind !== "execution") return;
     const execution = (labExecutions.data ?? []).find((row) => row.id === focus.executionId);
-    const name = execution?.canonicalSemantic.recommendation?.pillarName.trim();
+    const name = (pillarName ?? execution?.canonicalSemantic.recommendation?.pillarName ?? "").trim();
     if (!execution || !name) return;
     const match = (contentPillars.data ?? []).find((pillar) => pillar.name.trim().toLowerCase() === name.toLowerCase());
     if (!match) return;
-    onGenerateExecutions(
-      [match],
-      execution.script?.audio ?? { sound: false, music: false },
-      execution.script?.look,
-      execution.script?.speech,
-      execution.script,
-      execution.script?.durationSeconds,
-      execution.script?.brandName,
-      execution.script?.cta,
-      execution.script?.pointOfView,
-      execution.script?.decisions,
-      true,
-    );
+    executionCancel.current += 1;
+    const start = () => {
+      if (pillarUseWait.current !== null) {
+        window.clearInterval(pillarUseWait.current);
+        pillarUseWait.current = null;
+      }
+      onGenerateExecutions(
+        [match],
+        execution.script?.audio ?? { sound: false, music: false },
+        execution.script?.look,
+        execution.script?.speech,
+        execution.script,
+        execution.script?.durationSeconds,
+        execution.script?.brandName,
+        execution.script?.cta,
+        execution.script?.pointOfView,
+        execution.script?.decisions,
+        true,
+        execution.canonicalSemantic.auditLessons,
+        execution.script?.medium === "image" ? execution.script.image ?? null : null,
+        false,
+        null,
+        null,
+        rememberedDevelopment(match.id),
+      );
+    };
+    if (!labRunRef.current) {
+      start();
+      return;
+    }
+    if (pillarUseWait.current !== null) window.clearInterval(pillarUseWait.current);
+    pillarUseWait.current = window.setInterval(() => {
+      if (labRunRef.current) return;
+      start();
+    }, 100);
+  };
+
+  const onRegenerateLine = (lineId: string) => {
+    if (focus?.kind !== "execution" || !focusedIdea || executionProgress) return;
+    const execution = (labExecutions.data ?? []).find((row) => row.id === focus.executionId);
+    if (!execution?.script || execution.script.medium === "image") return;
+    const line = execution.script.scenes.flatMap((scene) => scene.lines).find((row) => row.id === lineId);
+    if (!line?.narration.trim()) return;
+    const idea = focusedIdea;
+    const current = execution;
+    const scriptNow = current.script;
+    const token = executionCancel.current;
+    void run(async () => {
+      setFixingLineId(lineId);
+      const previousChecks = listedExecutionChecks(current).map((check) => ({ ...check }));
+      try {
+        const { ancestors } = ideaParentFor(idea.angleId);
+        const format = pillarFormat(current.pillarName);
+        const listed = previousChecks.length > 0 ? previousChecks : emptyExecutionPassChecklist();
+        const enabled = listed.filter((check) => check.enabled !== false).map((check) => check.id);
+        const refused = new Set<string>([line.narration.trim().toLowerCase()]);
+        const learned = [...(current.canonicalSemantic.auditLessons ?? [])];
+        const learnedDuring: typeof learned = [];
+        let working = scriptNow;
+        let failure: { id: ExecutionPassCheck["id"]; reason: string } | null = null;
+        let kept: ExecutionPassCheck["id"][] = [];
+        let passed = false;
+        for (let attempt = 0; attempt < fixAttemptCap() && !passed; attempt += 1) {
+          if (executionCancel.current !== token) return;
+          setExecutionProgress({ phase: "line", pillarName: current.pillarName });
+          const raw = await askThinkingLab(
+            failure
+              ? buildExecutionMeaningRepairPrompt({
+                  ideaStatement: idea.statement,
+                  masterStatement,
+                  masterSubject,
+                  ancestors,
+                  pillarName: current.pillarName,
+                  ...format,
+                  pillarDevelopment: rememberedDevelopment(current.contentPillarId),
+                  checkId: failure.id,
+                  reason: failure.reason,
+                  script: working,
+                  lineIds: [lineId],
+                  lessons: learned,
+                  scope: {
+                    preserve: kept,
+                    repair: [{ id: failure.id, reason: failure.reason }],
+                  },
+                })
+              : buildNarrationLineRegeneratePrompt({
+                  lineId,
+                  enabled,
+                  ideaStatement: idea.statement,
+                  masterStatement,
+                  masterSubject,
+                  ancestors,
+                  pillarName: current.pillarName,
+                  ...format,
+                  pillarDevelopment: rememberedDevelopment(current.contentPillarId),
+                  script: working,
+                  refused: [...refused],
+                }),
+            0.2,
+          );
+          if (executionCancel.current !== token) return;
+          const replacement = parseExecutionNarrationReplacements(raw ? parseModelJson(raw) : null).find((row) => row.lineId === lineId);
+          const narration = replacement?.narration.trim() ?? "";
+          if (!narration || refused.has(narration.toLowerCase())) {
+            failure = failure ?? { id: enabled[0] ?? "soundsSpoken", reason: "The new line repeated a narration that already failed." };
+            continue;
+          }
+          refused.add(narration.toLowerCase());
+          working = mergeNarrationRepairs(working, [{ lineId, narration }]);
+          setExecutionDraft(working);
+          setExecutionProgress({ phase: "audit", pillarName: current.pillarName });
+          let liveChecks: ExecutionPassCheck[] = [];
+          const checked = await runExecutionOpenChecks({
+            pillar: current.pillarName,
+            ...format,
+            masterStatement,
+            masterSubject,
+            ideaStatement: idea.statement,
+            ancestors,
+            pillarDevelopment: rememberedDevelopment(current.contentPillarId),
+            script: working,
+            masterSells,
+            auditLessons: learned,
+            prior: regeneratePassPrior(listed),
+            ask: (prompt) => askThinkingLab(prompt, 0),
+            onStep: (checks) => {
+              liveChecks = checks;
+              setExecutionRunChecks(checks);
+              setExecutionChecklists((lists) => ({ ...lists, [current.id]: checks }));
+            },
+          });
+          if (executionCancel.current !== token) return;
+          if (checked.passed) {
+            const lessons = mergeExecutionAuditLessons(learned, learnedDuring);
+            await labExecutions.save.mutateAsync({
+              ideaId: idea.id,
+              pillar: current.contentPillarId ?? current.pillar,
+              contentPillarId: current.contentPillarId,
+              pillarName: current.pillarName,
+              statement: flattenVoiceOver(working),
+              script: working,
+              facts: {
+                ...current.canonicalSemantic,
+                ...checked.facts,
+                recommendation: current.canonicalSemantic.recommendation,
+                auditLessons: lessons,
+              },
+            });
+            setExecutionChecklists((lists) => ({ ...lists, [current.id]: liveChecks.length > 0 ? liveChecks : checked.checks }));
+            setExecutionRepairNote(null);
+            setExecutionLineOffer(null);
+            passed = true;
+            return;
+          }
+          const failedCheck = checked.checks.find((check) => check.enabled !== false && check.state === "fail");
+          if (!failedCheck) break;
+          failure = { id: failedCheck.id, reason: failedCheck.reason ?? "This line no longer passes." };
+          kept = checked.checks.filter((check) => check.enabled !== false && check.state === "pass").map((check) => check.id);
+          const lesson = lessonFromMeaningAudit(checked.facts, working);
+          if (lesson) {
+            learned.push(lesson);
+            learnedDuring.push(lesson);
+          }
+        }
+        if (executionCancel.current !== token || passed) return;
+        setExecutionChecklists((lists) => ({ ...lists, [current.id]: previousChecks }));
+        setExecutionRunChecks(null);
+        setExecutionRepairNote(
+          failure?.reason
+            ? `${t("thinkingLab.execution.lineKept", "This line was left as it was. The new wording did not pass the requirements that are switched on.")} ${failure.reason}`
+            : t("thinkingLab.execution.lineKept", "This line was left as it was. The new wording did not pass the requirements that are switched on."),
+        );
+      } finally {
+        setFixingLineId((currentId) => (currentId === lineId ? null : currentId));
+        if (executionCancel.current === token) {
+          setExecutionProgress(null);
+          setExecutionDraft(null);
+          setExecutionRunChecks(null);
+        }
+      }
+    }, "execution-regenerate-line");
   };
 
   const onFixLine = (lineId: string) => {
@@ -3267,7 +5361,11 @@ export function ThinkingLabPage() {
       });
       } finally {
         setFixingLineId((currentId) => (currentId === lineId ? null : currentId));
-        if (executionCancel.current === token) setExecutionProgress(null);
+        if (executionCancel.current === token) {
+        setExecutionProgress(null);
+        setExecutionDraft(null);
+        setExecutionRunChecks(null);
+      }
       }
     }, "execution-fix-line");
   };
@@ -3307,19 +5405,25 @@ export function ThinkingLabPage() {
       const selling = parseMasterSells(raw ? parseModelJson(raw) : null);
       setMasterSells(selling);
       const scriptNow = current.script as NonNullable<typeof current.script>;
+      setExecutionDraft(scriptNow);
       let liveChecks: ExecutionPassCheck[] = [];
       const checked = await runExecutionMeaningChecks({
         pillar: current.pillarName,
+        ...pillarFormat(current.pillarName),
         masterStatement,
         masterSubject,
         ideaStatement: idea.statement,
         ancestors,
+        pillarDevelopment: rememberedDevelopment(current.contentPillarId),
         script: scriptNow,
         masterSells: selling,
         auditLessons: current.canonicalSemantic.auditLessons,
+        prior: listedExecutionChecks(current),
         ask: (prompt) => askThinkingLab(prompt, 0),
         onStep: (checks) => {
           liveChecks = checks;
+          setExecutionRunChecks(checks);
+          setExecutionChecklists((lists) => ({ ...lists, [current.id]: checks }));
         },
       });
       if (executionCancel.current !== token) return;
@@ -3342,7 +5446,11 @@ export function ThinkingLabPage() {
       });
       setExecutionChecklists((lists) => ({ ...lists, [current.id]: liveChecks }));
     }, "execution-selling").finally(() => {
-      if (executionCancel.current === token) setExecutionProgress(null);
+      if (executionCancel.current === token) {
+        setExecutionProgress(null);
+        setExecutionDraft(null);
+        setExecutionRunChecks(null);
+      }
     });
   };
 
@@ -3350,6 +5458,278 @@ export function ThinkingLabPage() {
     if (focus?.kind !== "execution" || !focusedIdea) return;
     const execution = (labExecutions.data ?? []).find((row) => row.id === focus.executionId);
     if (!execution?.script) return;
+    if (execution.script.medium === "image") {
+      if (!execution.script.image || !isFailedMeaningAudit(execution.canonicalSemantic.meaningAudit)) return;
+      const idea = focusedIdea;
+      const current = execution;
+      const audit = current.canonicalSemantic.meaningAudit;
+      const settings = execution.script.image;
+      if (!isFailedMeaningAudit(audit)) return;
+      const token = executionCancel.current;
+      void run(async () => {
+        const { ancestors } = ideaParentFor(idea.angleId);
+        const scriptNow = current.script as NonNullable<typeof current.script>;
+        setExecutionRepairNote(null);
+        setExecutionLineOffer(null);
+        const startingChecks = imageRecheckClaim(listedExecutionChecks(current));
+        let script = scriptNow;
+        let shown = startingChecks;
+        const learned = imageLessons(current.canonicalSemantic.auditLessons ?? []);
+        const learnedDuring: typeof learned = [];
+        const refused = new Set(learned.flatMap((lesson) => lesson.lines.map((line) => line.trim().toLowerCase())));
+        let passed = false;
+        let latestChecks = startingChecks;
+        let latestScript = scriptNow;
+        let latestFacts = current.canonicalSemantic;
+        const format = pillarFormat(current.pillarName);
+        const saveScript = async (
+          nextScript: typeof scriptNow,
+          facts: ExecutionSemanticFacts,
+          checks: ExecutionPassCheck[],
+        ) => {
+          const recommended = pillarHopStopped(current.pillarName, nextScript, current.id)
+            ? facts
+            : await withPillarRecommendation(facts, current.pillarName, idea.statement, ancestors, token);
+          if (executionCancel.current !== token) return false;
+          await labExecutions.save.mutateAsync({
+            ideaId: idea.id,
+            pillar: current.contentPillarId ?? current.pillar,
+            contentPillarId: current.contentPillarId,
+            pillarName: current.pillarName,
+            statement: flattenVoiceOver(nextScript),
+            script: nextScript,
+            facts: {
+              ...current.canonicalSemantic,
+              ...recommended,
+              recommendation: recommended.recommendation ?? current.canonicalSemantic.recommendation,
+            },
+          });
+          setExecutionChecklists((lists) => ({ ...lists, [current.id]: checks }));
+          return true;
+        };
+        for (let attempt = 0; attempt < fixAttemptCap() + 1 && !passed; attempt += 1) {
+          if (attempt > 0) {
+            const failedCheck = shown.find((check) => check.state === "fail");
+            if (failedCheck?.id === "soundsSpoken") {
+              const speechLines = imageSpeechRepairLines(script, failedCheck.lineIds);
+              if (speechLines.length === 0) break;
+              const speechLessons = learned.filter(
+                (lesson) => lesson.checkId === failedCheck.id || !shown.some((check) => check.id === lesson.checkId && check.state === "pass"),
+              );
+              for (const speechLineId of speechLines) {
+                const line = script.scenes.flatMap((scene) => scene.lines).find((row) => row.id === speechLineId);
+                if (line?.narration.trim()) refused.add(line.narration.trim().toLowerCase());
+              }
+              setExecutionProgress({ phase: "repair", pillarName: current.pillarName, medium: "image" });
+              const rawSpeech = await askThinkingLab(
+                buildImageSpeechRepairPrompt({
+                  pillar: current.pillarName,
+                  ...format,
+                  masterStatement,
+                  ideaStatement: idea.statement,
+                  ancestors,
+                  script,
+                  image: settings,
+                  lineIds: speechLines,
+                  reason: failedCheck.reason ?? "",
+                  lessons: speechLessons,
+                }),
+                0.2,
+              );
+              if (executionCancel.current !== token) return;
+              const freshSpeech = parseImageSpeechRepairs(rawSpeech ? parseModelJson(rawSpeech) : null).filter(
+                (row) => speechLines.includes(row.lineId) && row.narration.trim() && !refused.has(row.narration.trim().toLowerCase()),
+              );
+              if (freshSpeech.length === 0) {
+                const lesson = {
+                  checkId: failedCheck.id,
+                  reason: "No replacement came back.",
+                  lines: speechLines.flatMap((id) => {
+                    const line = script.scenes.flatMap((scene) => scene.lines).find((row) => row.id === id);
+                    return line?.narration.trim() ? [line.narration.trim()] : [];
+                  }),
+                };
+                learned.push(lesson);
+                learnedDuring.push(lesson);
+                continue;
+              }
+              for (const row of freshSpeech) script = mergeImageSlideRepair(script, row, settings);
+              shown = imageChecksAfterSlideRewrite(shown, failedCheck.id);
+            } else {
+            const captionRepair =
+              failedCheck?.id === "emotionalTone" &&
+              failedCheck.lineIds?.length === 1 &&
+              failedCheck.lineIds[0] === "caption" &&
+              settings.format === "single";
+            const lineId = captionRepair
+              ? "caption"
+              : failedCheck
+                ? imageSlideRepairLine(script, failedCheck.lineIds, failedCheck.reason)
+                : null;
+            const ready = captionRepair
+              ? true
+              : failedCheck && lineId
+                ? imageSlideRepairReady(
+                    {
+                      ...current.canonicalSemantic,
+                      meaningAudit: { id: failedCheck.id, reason: failedCheck.reason ?? "", lineIds: [lineId] },
+                    },
+                    { ...script, medium: "image", image: settings },
+                  )
+                : false;
+            if (!failedCheck || !lineId || !ready) break;
+            if (captionRepair) {
+              const oldCaption = script.caption.trim();
+              refused.add(oldCaption.toLowerCase());
+              setExecutionProgress({ phase: "repair", pillarName: current.pillarName, medium: "image" });
+              const rawCaption = await askThinkingLab(
+                buildImageSlideRepairPrompt({
+                  id: failedCheck.id,
+                  pillar: current.pillarName,
+                  ...format,
+                  masterStatement,
+                  ideaStatement: idea.statement,
+                  ancestors,
+                  pillarDevelopment: rememberedDevelopment(current.contentPillarId),
+                  script,
+                  image: settings,
+                  lineId,
+                  reason: failedCheck.reason ?? "",
+                  lessons: learned.filter((lesson) => lesson.checkId === failedCheck.id || !shown.some((check) => check.id === lesson.checkId && check.state === "pass")),
+                }),
+                0.2,
+              );
+              if (executionCancel.current !== token) return;
+              const captionReplacement = parseImageSlideRepair(rawCaption ? parseModelJson(rawCaption) : null);
+              const caption = captionReplacement?.narration.trim() ?? "";
+              if (!captionReplacement || captionReplacement.lineId !== "caption" || !caption || caption.toLowerCase() === oldCaption.toLowerCase() || refused.has(caption.toLowerCase())) {
+                const lesson = {
+                  checkId: failedCheck.id,
+                  reason: "No replacement came back.",
+                  lines: [oldCaption],
+                };
+                learned.push(lesson);
+                learnedDuring.push(lesson);
+                continue;
+              }
+              script = { ...script, caption };
+              shown = imageChecksAfterSlideRewrite(shown, failedCheck.id);
+            } else {
+            const line = script.scenes.flatMap((scene) => scene.lines).find((row) => row.id === lineId);
+            if (!line) break;
+            const oldNarration = line.narration.trim();
+            const oldPrompt = line.shots.find((shot) => shot.prompt.trim())?.prompt.trim() ?? "";
+            refused.add(oldNarration.toLowerCase());
+            setExecutionProgress({ phase: "repair", pillarName: current.pillarName, medium: "image" });
+            const raw = await askThinkingLab(
+              buildImageSlideRepairPrompt({
+                id: failedCheck.id,
+                pillar: current.pillarName,
+                ...format,
+                masterStatement,
+                ideaStatement: idea.statement,
+                ancestors,
+                pillarDevelopment: rememberedDevelopment(current.contentPillarId),
+                script,
+                image: settings,
+                lineId,
+                reason: failedCheck.reason ?? "",
+                lessons: learned.filter((lesson) => lesson.checkId === failedCheck.id || !shown.some((check) => check.id === lesson.checkId && check.state === "pass")),
+              }),
+              0.2,
+            );
+            if (executionCancel.current !== token) return;
+            const replacement = parseImageSlideRepair(raw ? parseModelJson(raw) : null);
+            const narration = failedCheck.id === "imagePrompt" ? oldNarration : replacement?.narration ?? "";
+            const prompt = replacement?.prompt.trim() ?? "";
+            const repeated =
+              failedCheck.id === "imagePrompt"
+                ? !prompt || prompt.toLowerCase() === oldPrompt.toLowerCase()
+                : !narration || narration.toLowerCase() === oldNarration.toLowerCase() || refused.has(narration.toLowerCase());
+            if (!replacement || replacement.lineId !== lineId || repeated) {
+              const lesson = {
+                checkId: failedCheck.id,
+                reason: "No replacement came back.",
+                lines: [oldNarration],
+              };
+              learned.push(lesson);
+              learnedDuring.push(lesson);
+              continue;
+            }
+            script = mergeImageSlideRepair(script, { lineId, narration, prompt }, settings);
+            shown = imageChecksAfterSlideRewrite(shown, failedCheck.id);
+            }
+            }
+          }
+          setExecutionDraft(script);
+          setExecutionProgress({ phase: "audit", pillarName: current.pillarName, medium: "image" });
+          let liveChecks: ExecutionPassCheck[] = [];
+          const checked = await runImageOpenChecks({
+            pillar: current.pillarName,
+            ...format,
+            masterStatement,
+            ideaStatement: idea.statement,
+            ancestors,
+            pillarDevelopment: rememberedDevelopment(current.contentPillarId),
+            script,
+            image: settings,
+            masterSells: masterSells === "unknown" ? "unresolved" : masterSells,
+            auditLessons: learned,
+            prior: shown,
+            ask: (prompt) => askThinkingLab(prompt, 0),
+            onStep: (checks) => {
+              liveChecks = checks;
+              setExecutionRunChecks(checks);
+              setExecutionChecklists((lists) => ({ ...lists, [current.id]: checks }));
+            },
+          });
+          if (executionCancel.current !== token) return;
+          latestChecks = liveChecks.length > 0 ? liveChecks : checked.checks;
+          latestScript = script;
+          latestFacts = checked.facts;
+          if (!checked.passed) {
+            const lesson = lessonFromMeaningAudit(checked.facts, script);
+            if (lesson) {
+              learned.push(lesson);
+              learnedDuring.push(lesson);
+              for (const line of lesson.lines) refused.add(line.trim().toLowerCase());
+            }
+            shown = checked.checks;
+            continue;
+          }
+          const saved = await saveScript(script, {
+            ...checked.facts,
+            auditLessons: mergeExecutionAuditLessons(learned, learnedDuring),
+          }, checked.checks);
+          if (!saved) return;
+          setExecutionLineOffer(null);
+          passed = true;
+        }
+        if (passed || executionCancel.current !== token) return;
+        const lessons = mergeExecutionAuditLessons(current.canonicalSemantic.auditLessons ?? [], learnedDuring);
+        if (latestScript !== scriptNow || imageFailureMoved(audit.id, latestChecks)) {
+          await saveScript(latestScript, { ...latestFacts, auditLessons: lessons }, latestChecks);
+          return;
+        }
+        await labExecutions.save.mutateAsync({
+          ideaId: idea.id,
+          pillar: current.contentPillarId ?? current.pillar,
+          contentPillarId: current.contentPillarId,
+          pillarName: current.pillarName,
+          statement: flattenVoiceOver(scriptNow),
+          script: scriptNow,
+          facts: { ...current.canonicalSemantic, auditLessons: lessons },
+        });
+        setExecutionChecklists((lists) => ({ ...lists, [current.id]: startingChecks }));
+      }, "execution-repair").finally(() => {
+        if (executionCancel.current === token) {
+          setExecutionProgress(null);
+          setExecutionDraft(null);
+          setExecutionRunChecks(null);
+        }
+      });
+      return;
+    }
     if (meaningLineRepairReady(execution.canonicalSemantic)) {
       const idea = focusedIdea;
       const current = execution;
@@ -3394,6 +5774,8 @@ export function ThinkingLabPage() {
               masterSubject,
               ancestors,
               pillarName: current.pillarName,
+              ...pillarFormat(current.pillarName),
+              pillarDevelopment: rememberedDevelopment(current.contentPillarId),
               checkId: failedCheck.id,
               reason: failedCheck.reason ?? "",
               script,
@@ -3408,7 +5790,8 @@ export function ThinkingLabPage() {
             lineIds.includes(row.lineId),
           );
           const fresh = replacements.filter((row) => !refused.has(row.narration.trim().toLowerCase()));
-          if (fresh.length === 0 || fresh.length !== replacements.length) {
+          const speechRepair = failedCheck.id === "soundsSpoken" || failedCheck.id === "usesSlang";
+          if (fresh.length === 0 || (!speechRepair && fresh.length !== replacements.length)) {
             const lesson = {
               checkId: failedCheck.id,
               reason: replacements.length === 0 ? "No replacement came back." : "This narration was offered again after it already failed.",
@@ -3419,14 +5802,17 @@ export function ThinkingLabPage() {
             continue;
           }
           const merged = mergeNarrationRepairs(script, fresh);
+          setExecutionDraft(merged);
           setExecutionProgress({ phase: "audit", pillarName: current.pillarName });
           let liveChecks: ExecutionPassCheck[] = [];
           const checked = await runExecutionOpenChecks({
             pillar: current.pillarName,
+        ...pillarFormat(current.pillarName),
             masterStatement,
             masterSubject,
             ideaStatement: idea.statement,
             ancestors,
+            pillarDevelopment: rememberedDevelopment(current.contentPillarId),
             script: merged,
             masterSells,
             auditLessons: learned,
@@ -3440,6 +5826,7 @@ export function ThinkingLabPage() {
             },
             onStep: (checks) => {
               liveChecks = checks;
+              setExecutionRunChecks(checks);
               setExecutionChecklists((lists) => ({ ...lists, [current.id]: checks }));
             },
           });
@@ -3476,7 +5863,9 @@ export function ThinkingLabPage() {
           passed = true;
         }
         if (passed || executionCancel.current !== token) return;
-        const moved = latestScript !== scriptNow && executionFailureMoved(audit.id, latestChecks);
+        const moved =
+          (audit.id === "soundsSpoken" && latestScript !== scriptNow) ||
+          (latestScript !== scriptNow && executionFailureMoved(audit.id, latestChecks));
         const lessons = mergeExecutionAuditLessons(current.canonicalSemantic.auditLessons ?? [], learnedDuring);
         if (moved) {
           const carriedFacts = executionFactsFromChecks({
@@ -3515,7 +5904,11 @@ export function ThinkingLabPage() {
         });
         setExecutionChecklists((lists) => ({ ...lists, [current.id]: startingChecks }));
       }, "execution-repair").finally(() => {
-        if (executionCancel.current === token) setExecutionProgress(null);
+        if (executionCancel.current === token) {
+        setExecutionProgress(null);
+        setExecutionDraft(null);
+        setExecutionRunChecks(null);
+      }
       });
       return;
     }
@@ -3527,6 +5920,7 @@ export function ThinkingLabPage() {
       const { ancestors } = ideaParentFor(idea.angleId);
       const scriptNow = current.script as NonNullable<typeof current.script>;
       const lines = chainNarrationLines(scriptNow);
+      setExecutionDraft(scriptNow);
       setExecutionProgress({ phase: "audit", pillarName: current.pillarName });
       const firstRaw = await askThinkingLab(
         buildLineAuditPrompt({
@@ -3590,6 +5984,7 @@ export function ThinkingLabPage() {
       );
       const statement = storyVoiceOver(merged);
       if (!statement) return;
+      setExecutionDraft(merged);
       setExecutionProgress({ phase: "audit", pillarName: current.pillarName });
       const facts = await judgeAndSealExecution({
         masterStatement,
@@ -3627,7 +6022,11 @@ export function ThinkingLabPage() {
         facts: recommended,
       });
     }, "execution-repair").finally(() => {
-      if (executionCancel.current === token) setExecutionProgress(null);
+      if (executionCancel.current === token) {
+        setExecutionProgress(null);
+        setExecutionDraft(null);
+        setExecutionRunChecks(null);
+      }
     });
   };
 
@@ -3649,18 +6048,114 @@ export function ThinkingLabPage() {
       (row, index) => angleVerdicts[index] === "AUDIT_PASS" && !subjectOpen(row) && !exampleOpen(row),
     );
     const applied = new Map<string, string>();
-    const learnedDuringFix: Array<{ code: string; statement: string; reason: string }> = [];
+    let setRecord = {
+      schema: "thinking-lab/angle-set/v1" as const,
+      repairCount: angleSet.data?.repairCount ?? 0,
+      siblingSet: storedAngleSet,
+      audit: angleSet.data?.audit ?? null,
+      challenger: angleSet.data?.challenger ?? null,
+      auditLessons: [...(angleSet.data?.auditLessons ?? [])],
+    };
     for (const row of failed) {
-      const learned = [...usableAngleFixLessons(angleSet.data?.auditLessons ?? [], row.code)];
-      const refused = new Set(learned.map((lesson) => lesson.statement.trim().toLowerCase()));
+      const learned = [...usableAngleFixLessons(setRecord.auditLessons, row.code)];
+      const refused = new Set(setRecord.auditLessons.map((lesson) => lesson.statement.trim().toLowerCase()));
       refused.add(row.statement.trim().toLowerCase());
+      const storedFailure = setRecord.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
+      const alreadyPassed =
+        storedFailure?.verdict === "AUDIT_PASS" ||
+        angleVerdicts[admittedAngles.findIndex((item) => item.id === row.id)] === "AUDIT_PASS";
       let shown = angleChecklists[row.code.toUpperCase()]?.checks ?? [];
+      if (shown.length === 0) {
+        shown = angleChecksFromStored({
+          generatePasses: row.canonicalSemantic.generatePasses,
+          gateFailure: alreadyPassed || storedFailure?.verdict !== "AUDIT_FAIL" ? null : (storedFailure.gateFailure ?? null),
+          passed: alreadyPassed,
+        });
+      }
       let scope: FixScope = scopeFromHistory(shown, learned);
+      const rememberFixLesson = async (lesson: { code: string; statement: string; reason: string }) => {
+        learned.push(lesson);
+        refused.add(lesson.statement.trim().toLowerCase());
+        setRecord = {
+          ...setRecord,
+          auditLessons: mergeAngleAuditLessons(setRecord.auditLessons, [lesson]),
+        };
+        await angleSet.save.mutateAsync(setRecord);
+      };
+      const sealAnglePass = async (statement: string, subject: string, example: string) => {
+        await labAngles.replace.mutateAsync({
+          territoryId: focusedTerritory.id,
+          id: row.id,
+          statement,
+          facts: {
+            ...row.canonicalSemantic,
+            ...shownAngleFacts(row.code, statement, subject, example),
+            code: row.code,
+            generatePasses: ["observationJob", "observationShape"],
+          },
+          admission: "GENERATE_VALID",
+        });
+        const codeKey = row.code.toUpperCase();
+        const statementFingerprint = angleFingerprint({
+          statement,
+          territoryFingerprint: parentTerritoryFingerprint,
+        });
+        const previousItems = setRecord.audit?.items ?? [];
+        const items = previousItems.some((item) => item.code.toUpperCase() === codeKey)
+          ? previousItems.map((item) =>
+              item.code.toUpperCase() === codeKey
+                ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }
+                : item,
+            )
+          : [...previousItems, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }];
+        setRecord = {
+          ...setRecord,
+          audit: { fingerprint: setRecord.audit?.fingerprint ?? "", items },
+        };
+        await angleSet.save.mutateAsync(setRecord);
+        applied.set(codeKey, statement);
+      };
+      const judgeFixSibling = async (statement: string, checks: AnglePassCheck[]) => {
+        const siblingRows = [
+          ...keepers
+            .filter((item) => item.code.toUpperCase() !== row.code.toUpperCase())
+            .map((item) => ({ code: item.code, statement: item.statement })),
+          { code: row.code, statement },
+        ];
+        if (siblingRows.length < 2) {
+          return { pass: true, reason: "", settled: finishAngleSiblingCheck(checks, true, "") };
+        }
+        const siblingFingerprint = angleSetFingerprint({
+          territoryFingerprint: parentTerritoryFingerprint,
+          angleFingerprints: siblingRows.map((item) =>
+            angleFingerprint({ statement: item.statement, territoryFingerprint: parentTerritoryFingerprint }),
+          ),
+        });
+        const siblingScript = await askThinkingLab(
+          buildAngleSiblingPrompt({ parentStatement: focusedTerritory.statement, rows: siblingRows }),
+          0,
+        );
+        const siblingSet = parseAngleSet(siblingScript, siblingFingerprint);
+        const pass = angleReplacementPasses(siblingSet, row.code);
+        const reason = pass
+          ? ""
+          : (angleFailureLessons({
+              rows: [{ code: row.code, statement }],
+              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+              siblingSet,
+            })[0]?.reason ?? "Sibling audit failed this Angle.");
+        return { pass, reason, settled: finishAngleSiblingCheck(checks, pass, reason) };
+      };
       const subjectProblem = angleSubjectProblem(row.canonicalSemantic.subject ?? "", focusedTerritory.statement);
       const exampleProblem = angleExampleProblem(row.canonicalSemantic.example ?? "", row.statement);
       const otherFail = shown.some((check) => check.state === "fail" && check.id !== "ownSubject");
-      const storedPass = angleVerdicts[admittedAngles.findIndex((item) => item.id === row.id)] === "AUDIT_PASS";
+      const storedPass = alreadyPassed;
       if (subjectProblem && !otherFail) {
+        shown = shown.some((check) => check.id === "ownSubject")
+          ? shown.map((check) =>
+              check.id === "ownSubject" ? { id: "ownSubject", state: "fail" as const, reason: subjectProblem } : check,
+            )
+          : [...shown, { id: "ownSubject", state: "fail" as const, reason: subjectProblem }];
         const livePassed = shown.filter((check) => check.state === "pass").map((check) => check.id);
         const passed =
           livePassed.length > 0
@@ -3673,6 +6168,11 @@ export function ThinkingLabPage() {
           repair: [{ id: "ownSubject", reason: subjectProblem }],
         };
       } else if (exampleProblem && !shown.some((check) => check.state === "fail" && check.id !== "livedExample")) {
+        shown = shown.some((check) => check.id === "livedExample")
+          ? shown.map((check) =>
+              check.id === "livedExample" ? { id: "livedExample", state: "fail" as const, reason: exampleProblem } : check,
+            )
+          : [...shown, { id: "livedExample", state: "fail" as const, reason: exampleProblem }];
         const livePassed = shown.filter((check) => check.state === "pass").map((check) => check.id);
         const passed =
           livePassed.length > 0
@@ -3707,17 +6207,18 @@ export function ThinkingLabPage() {
           const problem = angleSubjectProblem(subject, focusedTerritory.statement);
           if (!subject || problem) {
             const reason = problem || "No subject came back.";
-            const lesson = { code: row.code, statement: subject || currentStatement, reason: `ownSubject: ${reason}` };
-            learned.push(lesson);
-            learnedDuringFix.push(lesson);
-            if (subject) refused.add(subject.trim().toLowerCase());
+            await rememberFixLesson({
+              code: row.code,
+              statement: subject || currentStatement,
+              reason: `ownSubject: ${reason}`,
+            });
             continue;
           }
           currentSubject = subject;
-          const prior =
+          const prior: AnglePassCheck[] =
             shown.length > 0
               ? shown
-              : scope.preserve.map((id) => ({ id, state: "pass" as const }));
+              : scope.preserve.map((id) => ({ id: id as AnglePassCheck["id"], state: "pass" as const }));
           const checked = await runAngleOpenChecks({
             statement: currentStatement,
             parentStatement: focusedTerritory.statement,
@@ -3733,11 +6234,9 @@ export function ThinkingLabPage() {
             const reason = failedCheck
               ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim()
               : "This check could not be decided.";
-            const lesson = { code: row.code, statement: currentStatement, reason };
-            learned.push(lesson);
-            learnedDuringFix.push(lesson);
+            await rememberFixLesson({ code: row.code, statement: currentStatement, reason });
             shown = checked.checks;
-            scope = nextFixScope(scope, checked.checks);
+            scope = fixScopeFromChecks(checked.checks);
             continue;
           }
           const siblingPassed = scope.preserve.includes("siblingsDistinct");
@@ -3746,66 +6245,25 @@ export function ThinkingLabPage() {
               check.id === "siblingsDistinct" ? { id: check.id, state: "pass" as const } : check,
             );
             publishAngleChecklist(row.code, passedChecks);
-            await labAngles.replace.mutateAsync({
-              territoryId: focusedTerritory.id,
-              id: row.id,
-              statement: currentStatement,
-              facts: {
-                ...row.canonicalSemantic,
-                ...shownAngleFacts(row.code, currentStatement, subject, currentExample),
-                code: row.code,
-              },
-              admission: "GENERATE_VALID",
-            });
-            applied.set(row.code.toUpperCase(), currentStatement);
+            await sealAnglePass(currentStatement, subject, currentExample);
             offered = true;
             continue;
           }
           publishAngleChecklist(row.code, beginAngleSiblingCheck(checked.checks));
-          const siblingRows = admittedAngles.map((item) => ({
-            code: item.code,
-            statement: item.code.toUpperCase() === row.code.toUpperCase() ? currentStatement : item.statement,
-          }));
-          const siblingFingerprint = angleSetFingerprint({
-            territoryFingerprint: parentTerritoryFingerprint,
-            angleFingerprints: siblingRows.map((item) =>
-              angleFingerprint({ statement: item.statement, territoryFingerprint: parentTerritoryFingerprint }),
-            ),
-          });
-          const siblingScript = await askThinkingLab(
-            buildAngleSiblingPrompt({ parentStatement: focusedTerritory.statement, rows: siblingRows }),
-            0,
-          );
-          const siblingSet = parseAngleSet(siblingScript, siblingFingerprint);
-          if (!angleReplacementPasses(siblingSet, row.code)) {
-            const reason =
-              angleFailureLessons({
-                rows: [{ code: row.code, statement: currentStatement }],
-                items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-                siblingSet,
-              })[0]?.reason ?? "Sibling audit failed this Angle.";
-            const lesson = { code: row.code, statement: currentStatement, reason: `siblingsDistinct: ${reason}` };
-            learned.push(lesson);
-            learnedDuringFix.push(lesson);
-            const failedSibling = finishAngleSiblingCheck(checked.checks, false, reason);
-            shown = failedSibling;
-            publishAngleChecklist(row.code, failedSibling);
-            scope = nextFixScope(scope, failedSibling);
+          const sibling = await judgeFixSibling(currentStatement, checked.checks);
+          if (!sibling.pass) {
+            await rememberFixLesson({
+              code: row.code,
+              statement: currentStatement,
+              reason: `siblingsDistinct: ${sibling.reason}`,
+            });
+            shown = sibling.settled;
+            publishAngleChecklist(row.code, sibling.settled);
+            scope = fixScopeFromChecks(sibling.settled);
             continue;
           }
-          publishAngleChecklist(row.code, finishAngleSiblingCheck(checked.checks, true, ""));
-          await labAngles.replace.mutateAsync({
-            territoryId: focusedTerritory.id,
-            id: row.id,
-            statement: currentStatement,
-            facts: {
-              ...row.canonicalSemantic,
-              ...shownAngleFacts(row.code, currentStatement, subject, currentExample),
-              code: row.code,
-            },
-            admission: "GENERATE_VALID",
-          });
-          applied.set(row.code.toUpperCase(), currentStatement);
+          publishAngleChecklist(row.code, sibling.settled);
+          await sealAnglePass(currentStatement, subject, currentExample);
           offered = true;
           continue;
         }
@@ -3822,17 +6280,18 @@ export function ThinkingLabPage() {
           const problem = angleExampleProblem(example, currentStatement);
           if (!example || problem || refused.has(example.trim().toLowerCase())) {
             const reason = problem || "No example came back.";
-            const lesson = { code: row.code, statement: example || currentStatement, reason: `livedExample: ${reason}` };
-            learned.push(lesson);
-            learnedDuringFix.push(lesson);
-            if (example) refused.add(example.trim().toLowerCase());
+            await rememberFixLesson({
+              code: row.code,
+              statement: example || currentStatement,
+              reason: `livedExample: ${reason}`,
+            });
             continue;
           }
           currentExample = example;
-          const prior =
+          const prior: AnglePassCheck[] =
             shown.length > 0
               ? shown
-              : scope.preserve.map((id) => ({ id, state: "pass" as const }));
+              : scope.preserve.map((id) => ({ id: id as AnglePassCheck["id"], state: "pass" as const }));
           const checked = await runAngleOpenChecks({
             statement: currentStatement,
             parentStatement: focusedTerritory.statement,
@@ -3848,12 +6307,9 @@ export function ThinkingLabPage() {
             const reason = failedCheck
               ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim()
               : "This check could not be decided.";
-            const lesson = { code: row.code, statement: currentStatement, reason };
-            learned.push(lesson);
-            learnedDuringFix.push(lesson);
-            refused.add(example.trim().toLowerCase());
+            await rememberFixLesson({ code: row.code, statement: currentStatement, reason });
             shown = checked.checks;
-            scope = nextFixScope(scope, checked.checks);
+            scope = fixScopeFromChecks(checked.checks);
             continue;
           }
           const siblingPassed = scope.preserve.includes("siblingsDistinct");
@@ -3862,67 +6318,25 @@ export function ThinkingLabPage() {
               check.id === "siblingsDistinct" ? { id: check.id, state: "pass" as const } : check,
             );
             publishAngleChecklist(row.code, passedChecks);
-            await labAngles.replace.mutateAsync({
-              territoryId: focusedTerritory.id,
-              id: row.id,
-              statement: currentStatement,
-              facts: {
-                ...row.canonicalSemantic,
-                ...shownAngleFacts(row.code, currentStatement, currentSubject, example),
-                code: row.code,
-              },
-              admission: "GENERATE_VALID",
-            });
-            applied.set(row.code.toUpperCase(), currentStatement);
+            await sealAnglePass(currentStatement, currentSubject, example);
             offered = true;
             continue;
           }
           publishAngleChecklist(row.code, beginAngleSiblingCheck(checked.checks));
-          const siblingRows = admittedAngles.map((item) => ({
-            code: item.code,
-            statement: item.code.toUpperCase() === row.code.toUpperCase() ? currentStatement : item.statement,
-          }));
-          const siblingFingerprint = angleSetFingerprint({
-            territoryFingerprint: parentTerritoryFingerprint,
-            angleFingerprints: siblingRows.map((item) =>
-              angleFingerprint({ statement: item.statement, territoryFingerprint: parentTerritoryFingerprint }),
-            ),
-          });
-          const siblingScript = await askThinkingLab(
-            buildAngleSiblingPrompt({ parentStatement: focusedTerritory.statement, rows: siblingRows }),
-            0,
-          );
-          const siblingSet = parseAngleSet(siblingScript, siblingFingerprint);
-          if (!angleReplacementPasses(siblingSet, row.code)) {
-            const reason =
-              angleFailureLessons({
-                rows: [{ code: row.code, statement: currentStatement }],
-                items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-                siblingSet,
-              })[0]?.reason ?? "Sibling audit failed this Angle.";
-            const lesson = { code: row.code, statement: currentStatement, reason: `siblingsDistinct: ${reason}` };
-            learned.push(lesson);
-            learnedDuringFix.push(lesson);
-            refused.add(example.trim().toLowerCase());
-            const failedSibling = finishAngleSiblingCheck(checked.checks, false, reason);
-            shown = failedSibling;
-            publishAngleChecklist(row.code, failedSibling);
-            scope = nextFixScope(scope, failedSibling);
+          const sibling = await judgeFixSibling(currentStatement, checked.checks);
+          if (!sibling.pass) {
+            await rememberFixLesson({
+              code: row.code,
+              statement: currentStatement,
+              reason: `siblingsDistinct: ${sibling.reason}`,
+            });
+            shown = sibling.settled;
+            publishAngleChecklist(row.code, sibling.settled);
+            scope = fixScopeFromChecks(sibling.settled);
             continue;
           }
-          publishAngleChecklist(row.code, finishAngleSiblingCheck(checked.checks, true, ""));
-          await labAngles.replace.mutateAsync({
-            territoryId: focusedTerritory.id,
-            id: row.id,
-            statement: currentStatement,
-            facts: {
-              ...row.canonicalSemantic,
-              ...shownAngleFacts(row.code, currentStatement, currentSubject, example),
-              code: row.code,
-            },
-            admission: "GENERATE_VALID",
-          });
-          applied.set(row.code.toUpperCase(), currentStatement);
+          publishAngleChecklist(row.code, sibling.settled);
+          await sealAnglePass(currentStatement, currentSubject, example);
           offered = true;
           continue;
         }
@@ -3931,7 +6345,9 @@ export function ThinkingLabPage() {
             parentStatement: focusedTerritory.statement,
             ancestors: angleAncestors,
             failed: { code: row.code, statement: currentStatement },
-            keepers: keepers.map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
+            keepers: keepers
+              .filter((keeper) => keeper.code.toUpperCase() !== row.code.toUpperCase())
+              .map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
             conflicts: angleNotes,
             lessons: learned,
             scope,
@@ -3946,17 +6362,14 @@ export function ThinkingLabPage() {
         const statement = candidates.find((candidate) => !refused.has(candidate.trim().toLowerCase()));
         if (!statement) {
           if (candidates.length === 0) {
-            const reason = "No replacement came back.";
-            const lesson = { code: row.code, statement: row.statement, reason };
-            learned.push(lesson);
-            learnedDuringFix.push(lesson);
+            await rememberFixLesson({ code: row.code, statement: row.statement, reason: "No replacement came back." });
           } else {
             for (const candidate of candidates) {
-              const reason = "This sentence was offered again after it already failed.";
-              const lesson = { code: row.code, statement: candidate, reason };
-              learned.push(lesson);
-              learnedDuringFix.push(lesson);
-              refused.add(candidate.trim().toLowerCase());
+              await rememberFixLesson({
+                code: row.code,
+                statement: candidate,
+                reason: "This sentence was offered again after it already failed.",
+              });
             }
           }
           continue;
@@ -3967,74 +6380,30 @@ export function ThinkingLabPage() {
           ancestors: angleAncestors,
           subject: subjectForCheck,
           example: exampleForCheck,
-          prior: shown,
+          prior: fixPriorForNextAngleStatement(shown, currentStatement, statement),
           ask: (prompt) => askThinkingLab(prompt, 0),
           onStep: (checks) => publishAngleChecklist(row.code, checks),
         });
         if (!checked.passed) {
           const failedCheck = checked.checks.find((check) => check.state === "fail");
           const reason = failedCheck ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim() : "This check could not be decided.";
-          const lesson = { code: row.code, statement, reason };
-          learned.push(lesson);
-          learnedDuringFix.push(lesson);
-          refused.add(statement.trim().toLowerCase());
+          await rememberFixLesson({ code: row.code, statement, reason });
           if (exampleForCheck) refused.add(exampleForCheck.trim().toLowerCase());
-          if (failedCheck?.id === "ownSubject" || failedCheck?.id === "livedExample") {
-            currentStatement = statement;
-            if (subjectForCheck) currentSubject = subjectForCheck;
-            if (exampleForCheck) currentExample = exampleForCheck;
-          }
           shown = checked.checks;
-          scope = nextFixScope(scope, checked.checks);
+          scope = fixScopeFromChecks(checked.checks);
           continue;
         }
         publishAngleChecklist(row.code, beginAngleSiblingCheck(checked.checks));
-        const rows = admittedAngles.map((item) => ({
-          code: item.code,
-          statement: item.code.toUpperCase() === row.code.toUpperCase() ? statement : item.statement,
-        }));
-        const fingerprint = angleSetFingerprint({
-          territoryFingerprint: parentTerritoryFingerprint,
-          angleFingerprints: rows.map((item) =>
-            angleFingerprint({ statement: item.statement, territoryFingerprint: parentTerritoryFingerprint }),
-          ),
-        });
-        const siblingScript = await askThinkingLab(
-          buildAngleSiblingPrompt({ parentStatement: focusedTerritory.statement, rows }),
-          0,
-        );
-        const siblingSet = parseAngleSet(siblingScript, fingerprint);
-        if (!angleReplacementPasses(siblingSet, row.code)) {
-          const reason =
-            angleFailureLessons({
-              rows: [{ code: row.code, statement }],
-              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-              siblingSet,
-            })[0]?.reason ?? "Sibling audit failed this Angle.";
-          const lesson = { code: row.code, statement, reason: `siblingsDistinct: ${reason}` };
-          learned.push(lesson);
-          learnedDuringFix.push(lesson);
-          refused.add(statement.trim().toLowerCase());
-          const failedSibling = finishAngleSiblingCheck(checked.checks, false, reason);
-          shown = failedSibling;
-          publishAngleChecklist(row.code, failedSibling);
-          scope = nextFixScope(scope, failedSibling);
+        const sibling = await judgeFixSibling(statement, checked.checks);
+        if (!sibling.pass) {
+          await rememberFixLesson({ code: row.code, statement, reason: `siblingsDistinct: ${sibling.reason}` });
+          shown = sibling.settled;
+          publishAngleChecklist(row.code, sibling.settled);
+          scope = fixScopeFromChecks(sibling.settled);
           continue;
         }
-        const passedChecks = finishAngleSiblingCheck(checked.checks, true, "");
-        publishAngleChecklist(row.code, passedChecks);
-        await labAngles.replace.mutateAsync({
-          territoryId: focusedTerritory.id,
-          id: row.id,
-          statement,
-          facts: {
-            ...row.canonicalSemantic,
-            ...shownAngleFacts(row.code, statement, subjectForCheck, exampleForCheck),
-            code: row.code,
-          },
-          admission: "GENERATE_VALID",
-        });
-        applied.set(row.code.toUpperCase(), statement);
+        publishAngleChecklist(row.code, sibling.settled);
+        await sealAnglePass(statement, subjectForCheck, exampleForCheck);
         offered = true;
       }
     }
@@ -4045,20 +6414,10 @@ export function ThinkingLabPage() {
       ),
     );
     const covered = applied.size;
-    if (covered === 0) {
-      if (learnedDuringFix.length > 0) {
-        await angleSet.save.mutateAsync({
-          schema: "thinking-lab/angle-set/v1",
-          repairCount: angleSet.data?.repairCount ?? 0,
-          siblingSet: storedAngleSet,
-          audit: angleSet.data?.audit ?? null,
-          challenger: angleSet.data?.challenger ?? null,
-          auditLessons: mergeAngleAuditLessons(angleSet.data?.auditLessons ?? [], learnedDuringFix),
-        });
-      }
-    } else {
+    if (covered > 0) {
       const items = admittedAngles.flatMap((row, index) => {
         const code = row.code.toUpperCase();
+        const previous = setRecord.audit?.items.find((item) => item.code.toUpperCase() === code);
         const statement = applied.get(code) ?? row.statement;
         const verdict = applied.has(code) ? ("AUDIT_PASS" as const) : angleVerdicts[index];
         if (verdict !== "AUDIT_PASS" && verdict !== "AUDIT_FAIL") return [];
@@ -4070,16 +6429,16 @@ export function ThinkingLabPage() {
               statement,
               territoryFingerprint: parentTerritoryFingerprint,
             }),
+            ...(verdict === "AUDIT_FAIL" && previous?.gateFailure ? { gateFailure: previous.gateFailure } : {}),
           },
         ];
       });
       await angleSet.save.mutateAsync({
-        schema: "thinking-lab/angle-set/v1",
-        repairCount: (angleSet.data?.repairCount ?? 0) + 1,
+        ...setRecord,
+        repairCount: setRecord.repairCount + 1,
         siblingSet: null,
-        audit: items.length > 0 ? { fingerprint: "", items } : null,
+        audit: items.length > 0 ? { fingerprint: "", items } : setRecord.audit,
         challenger: null,
-        auditLessons: mergeAngleAuditLessons(angleSet.data?.auditLessons ?? [], learnedDuringFix),
       });
     }
     if (covered < failed.length) {
@@ -4117,19 +6476,79 @@ export function ThinkingLabPage() {
       if (angleStage === "generate" && angleChallenger?.materialGapDescription) {
         const known = (labAngles.data ?? []).filter((row) => row.territoryId === focusedTerritory.id);
         if (admittedAngles.length >= ACTIVE_SET_CAP) return;
+        const setRecord = angleSet.data ?? emptyAngleSetRecord();
+        const learned = [...setRecord.auditLessons];
+        const bannedNames = new Set(
+          [
+            ...learned.map((lesson) => lesson.statement.trim().toLowerCase()),
+            ...known
+              .filter((row) => row.admission === "GENERATE_REJECT")
+              .map((row) => row.statement.trim().toLowerCase()),
+          ].filter(Boolean),
+        );
         const script = await askThinkingLab(
           buildAngleGapPrompt({
             parentStatement: focusedTerritory.statement,
             ancestors: angleAncestors,
-            incumbents: known.map((row) => ({ code: row.code, statement: row.statement })),
+            incumbents: known
+              .filter((row) => row.admission === "GENERATE_VALID")
+              .map((row) => ({ code: row.code, statement: row.statement })),
+            lessons: [
+              ...learned,
+              ...known
+                .filter(
+                  (row) =>
+                    row.admission === "GENERATE_REJECT" &&
+                    !learned.some((lesson) => lesson.statement.trim().toLowerCase() === row.statement.trim().toLowerCase()),
+                )
+                .map((row) => ({
+                  code: row.code,
+                  statement: row.statement,
+                  reason: "observationJob: This sentence already failed.",
+                })),
+            ],
             gap: angleChallenger.materialGapDescription,
           }),
           0.2,
         );
         const draft = parseGeneratedAngleDrafts(parseModelJson(script))[0];
-        if (!draft?.statement) return;
+        if (!draft?.statement || bannedNames.has(draft.statement.trim().toLowerCase())) return;
         const code = nextAngleCode(known.map((row) => row.code));
-        const facts = shownAngleFacts(code, draft.statement, draft.subject, draft.example);
+        const checked = await runAngleAdmissionChecks({
+          statement: draft.statement,
+          parentStatement: focusedTerritory.statement,
+          ancestors: angleAncestors,
+          ask: (prompt) => askThinkingLab(prompt, 0),
+          onStep: (checks) =>
+            setAngleGenerateRun({
+              territoryId: focusedTerritory.id,
+              checks,
+              report: null,
+            }),
+        });
+        if (!checked.passed) {
+          const failedCheck = checked.checks.find((check) => check.state === "fail");
+          const gate = failedCheck?.id === "observationShape" ? "observationShape" : "observationJob";
+          const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
+          await saveAngleSet({
+            organizationId: masters.organizationId,
+            territoryId: focusedTerritory.id,
+            record: {
+              ...setRecord,
+              auditLessons: mergeAngleAuditLessons(setRecord.auditLessons, [
+                { code, statement: draft.statement, reason: `${gate}: ${reason}` },
+              ]),
+            },
+          });
+          await queryClient.invalidateQueries({
+            queryKey: ["thinking-lab-angle-set", masters.organizationId, focusedTerritory.id],
+          });
+          return;
+        }
+        const facts: AngleSemanticFacts = {
+          ...shownAngleFacts(code, draft.statement, draft.subject, draft.example),
+          generatePasses: ["observationJob", "observationShape"],
+        };
         const sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0) + 1;
         await labAngles.insert.mutateAsync({
           territoryId: focusedTerritory.id,
@@ -4141,11 +6560,8 @@ export function ThinkingLabPage() {
           facts,
           admission: admitAngle(facts),
         });
-        await angleSet.save.mutateAsync({
-          ...emptyAngleSetRecord(),
-          audit: angleSet.data?.audit ?? null,
-          auditLessons: angleSet.data?.auditLessons ?? [],
-        });
+        publishAngleChecklist(code, checked.checks);
+        setAngleGenerateRun(null);
         return;
       }
       if (angleStage === "fix") {
@@ -4156,107 +6572,116 @@ export function ThinkingLabPage() {
         const heldPass = new Set(
           angleCodesHeldPass(admittedAngles, angleVerdicts).map((code) => code.toUpperCase()),
         );
-        const eligible: typeof admittedAngles = [];
-        const checked = new Map<string, AnglePassCheck[]>();
-        const individualFailures: Array<{ code: string; statement: string; reason: string }> = [];
+        const lessons = [...(angleSet.data?.auditLessons ?? [])];
+        const passedCodes = new Set<string>(heldPass);
+        const failedByCode = new Map<string, { gate: AnglePassCheck["id"]; reason: string }>();
+        let siblingSet = storedAngleSet;
+        let resolvedSibling: { fingerprint: string; set: NonNullable<typeof siblingSet> } | null = null;
         for (const row of admittedAngles) {
-          if (heldPass.has(row.code.toUpperCase())) {
-            eligible.push(row);
-            continue;
-          }
+          const codeKey = row.code.toUpperCase();
+          if (heldPass.has(codeKey)) continue;
           const run = await runAngleIndividualChecks({
             statement: row.statement,
             parentStatement: focusedTerritory.statement,
             ancestors: angleAncestors,
             subject: row.canonicalSemantic.subject,
             example: row.canonicalSemantic.example,
+            carried: readAngleGeneratePasses(row.canonicalSemantic.generatePasses),
             ask: (prompt) => askThinkingLab(prompt, 0),
             onStep: (checks) => publishAngleChecklist(row.code, checks),
           });
           if (!run.passed) {
             const failedCheck = run.checks.find((check) => check.state === "fail");
-            individualFailures.push({
-              code: row.code,
-              statement: row.statement,
-              reason: failedCheck
-                ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim()
-                : "This check could not be decided.",
-            });
+            const gate = failedCheck?.id ?? "stakeHolds";
+            const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
+            failedByCode.set(codeKey, { gate, reason });
+            lessons.push({ code: row.code, statement: row.statement, reason: `${gate}: ${reason}` });
             continue;
           }
-          checked.set(row.code.toUpperCase(), run.checks);
-          eligible.push(row);
+          const siblingRows = [
+            ...admittedAngles
+              .filter((item) => passedCodes.has(item.code.toUpperCase()))
+              .map((item) => ({ code: item.code, statement: item.statement })),
+            { code: row.code, statement: row.statement },
+          ];
           publishAngleChecklist(row.code, beginAngleSiblingCheck(run.checks));
-        }
-        const siblingRows = eligible.map((row) => ({ code: row.code, statement: row.statement }));
-        const siblingScript =
-          siblingRows.length === 0
-            ? null
-            : await askThinkingLab(
-                buildAngleSiblingPrompt({ parentStatement: focusedTerritory.statement, rows: siblingRows }),
-                0,
-              );
-        const siblingSet = siblingScript ? parseAngleSet(siblingScript, angleFingerprintNow) : storedAngleSet;
-        const siblingScores =
-          siblingRows.length === 0 || !siblingSet
-            ? []
-            : scoreAngleAudit({
-                codes: siblingRows.map((row) => row.code),
-                siblingSet,
-                siblingSetCurrent: true,
-              });
-        for (const row of eligible) {
-          const prior = checked.get(row.code.toUpperCase());
-          if (!prior) continue;
-          const verdict = siblingScores.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict;
-          const reason =
-            angleFailureLessons({
-              rows: [{ code: row.code, statement: row.statement }],
-              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-              siblingSet,
-            })[0]?.reason ?? "Sibling audit failed this Angle.";
-          publishAngleChecklist(
-            row.code,
-            finishAngleSiblingCheck(
-              prior,
-              verdict === "AUDIT_PASS",
-              verdict === "AUDIT_PASS" ? "" : reason || "This check could not be decided.",
-            ),
-          );
-        }
-        const items = holdPassingAngleVerdicts(
-          admittedAngles.map((row) => {
-            const statementFingerprint = angleFingerprint({
-              statement: row.statement,
+          let siblingPass = siblingRows.length < 2;
+          let siblingReason = "";
+          if (!siblingPass) {
+            const fingerprint = angleSetFingerprint({
               territoryFingerprint: parentTerritoryFingerprint,
+              angleFingerprints: siblingRows.map((item) =>
+                angleFingerprint({ statement: item.statement, territoryFingerprint: parentTerritoryFingerprint }),
+              ),
             });
-            if (individualFailures.some((failure) => failure.code.toUpperCase() === row.code.toUpperCase())) {
-              return { code: row.code, verdict: "AUDIT_FAIL" as const, statementFingerprint };
+            const judged =
+              resolvedSibling?.fingerprint === fingerprint &&
+              resolvedSibling.set.resolution === "RESOLVED" &&
+              resolvedSibling.set.unresolvedReasons.length === 0
+                ? resolvedSibling.set
+                : await (async () => {
+                    const siblingScript = await askThinkingLab(
+                      buildAngleSiblingPrompt({ parentStatement: focusedTerritory.statement, rows: siblingRows }),
+                      0,
+                    );
+                    const parsed = parseAngleSet(siblingScript, fingerprint);
+                    if (parsed.resolution === "RESOLVED" && parsed.unresolvedReasons.length === 0) {
+                      resolvedSibling = { fingerprint, set: parsed };
+                    }
+                    return parsed;
+                  })();
+            if (siblingRows.length === admittedAngles.length) siblingSet = judged;
+            siblingPass = angleReplacementPasses(judged, row.code);
+            siblingReason = siblingPass
+              ? ""
+              : angleFailureLessons({
+                  rows: [{ code: row.code, statement: row.statement }],
+                  items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+                  siblingSet: judged,
+                })[0]?.reason || "Sibling audit failed this Angle.";
+          }
+          const settled = finishAngleSiblingCheck(run.checks, siblingPass, siblingReason);
+          publishAngleChecklist(row.code, settled);
+          if (!siblingPass) {
+            failedByCode.set(codeKey, { gate: "siblingsDistinct", reason: siblingReason });
+            lessons.push({ code: row.code, statement: row.statement, reason: `siblingsDistinct: ${siblingReason}` });
+            continue;
+          }
+          passedCodes.add(codeKey);
+        }
+        const previousItems = angleSet.data?.audit?.items ?? [];
+        const items = admittedAngles.map((row) => {
+          const codeKey = row.code.toUpperCase();
+          const statementFingerprint = angleFingerprint({
+            statement: row.statement,
+            territoryFingerprint: parentTerritoryFingerprint,
+          });
+          if (heldPass.has(codeKey)) {
+            const previous = previousItems.find((item) => item.code.toUpperCase() === codeKey);
+            if (previous?.verdict === "AUDIT_PASS") {
+              return {
+                code: row.code,
+                verdict: "AUDIT_PASS" as const,
+                statementFingerprint: previous.statementFingerprint ?? statementFingerprint,
+              };
             }
-            const scored = siblingScores.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-            return {
-              code: row.code,
-              verdict: scored?.verdict === "AUDIT_PASS" ? ("AUDIT_PASS" as const) : ("AUDIT_FAIL" as const),
-              statementFingerprint,
-            };
-          }),
-          [...heldPass],
-        );
-        const siblingLessons = angleFailureLessons({
-          rows: siblingRows,
-          items,
-          siblingSet,
-        }).filter((lesson) => !individualFailures.some((failure) => failure.code.toUpperCase() === lesson.code.toUpperCase()));
+          }
+          if (passedCodes.has(codeKey)) return { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint };
+          const failure = failedByCode.get(codeKey);
+          return {
+            code: row.code,
+            verdict: "AUDIT_FAIL" as const,
+            statementFingerprint,
+            ...(failure ? { gateFailure: failure } : {}),
+          };
+        });
         await angleSet.save.mutateAsync({
           schema: "thinking-lab/angle-set/v1",
-          repairCount: items.some((item) => item.verdict === "AUDIT_FAIL") ? (angleSet.data?.repairCount ?? 0) : 0,
+          repairCount: failedByCode.size > 0 ? (angleSet.data?.repairCount ?? 0) : 0,
           siblingSet,
           audit: { fingerprint: angleFingerprintNow, items },
           challenger: null,
-          auditLessons: mergeAngleAuditLessons(angleSet.data?.auditLessons ?? [], [
-            ...individualFailures,
-            ...siblingLessons,
-          ]),
+          auditLessons: mergeAngleAuditLessons(angleSet.data?.auditLessons ?? [], lessons),
         });
         return;
       }
@@ -4421,7 +6846,9 @@ export function ThinkingLabPage() {
       return !onlyCode || row.code.toUpperCase() === onlyCode.toUpperCase();
     });
     if (failed.length === 0) return;
-    const keepers = admittedTerritories.filter((_, index) => territoryVerdicts[index] === "AUDIT_PASS");
+    const keepers = admittedTerritories.filter(
+      (item, index) => item.status === "locked" || territoryVerdicts[index] === "AUDIT_PASS",
+    );
     const conflicts = territoryNotes.flatMap((note) =>
       note.kind === "overlap"
         ? [`${note.a} · ${note.b}: ${note.explanation}`]
@@ -4430,14 +6857,40 @@ export function ThinkingLabPage() {
           : [],
     );
     const applied = new Map<string, string>();
-    const learnedDuringFix: Array<{ code: string; statement: string; reason: string }> = [];
+    let setRecord = {
+      schema: "thinking-lab/territory-set/v1" as const,
+      repairCount: territorySet.data?.repairCount ?? 0,
+      siblingSet: storedTerritorySet,
+      audit: territorySet.data?.audit ?? null,
+      challenger: territorySet.data?.challenger ?? null,
+      auditLessons: [...(territorySet.data?.auditLessons ?? [])],
+    };
     for (const row of failed) {
-      const learned = [...usableTerritoryFixLessons(territorySet.data?.auditLessons ?? [], row.code)];
-      const refused = new Set(learned.map((lesson) => lesson.statement.trim().toLowerCase()));
+      const learned = [...usableTerritoryFixLessons(setRecord.auditLessons, row.code)];
+      const refused = new Set(setRecord.auditLessons.map((lesson) => lesson.statement.trim().toLowerCase()));
       refused.add(row.statement.trim().toLowerCase());
+      const storedFailure = setRecord.audit?.items.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
       let shown = territoryChecklists[row.code.toUpperCase()]?.checks ?? [];
+      if (shown.length === 0) {
+        shown = territoryChecksFromStored({
+          generatePasses: row.canonicalSemantic.generatePasses,
+          gateFailure: storedFailure?.verdict === "AUDIT_FAIL" ? storedFailure.gateFailure ?? null : null,
+        });
+      }
       const checklistAtStart = shown.map((check) => ({ ...check }));
-      let scope: FixScope = scopeFromHistory(shown, learned);
+      const liveScope = fixScopeFromChecks(shown);
+      let scope: FixScope =
+        liveScope.preserve.length > 0 || liveScope.repair.length > 0 ? liveScope : scopeFromHistory(shown, learned);
+      const rememberFixLesson = async (lesson: { code: string; statement: string; reason: string }) => {
+        learned.push(lesson);
+        refused.add(lesson.statement.trim().toLowerCase());
+        setRecord = {
+          ...setRecord,
+          auditLessons: mergeTerritoryAuditLessons(setRecord.auditLessons, [lesson]),
+        };
+        await territorySet.save.mutateAsync(setRecord);
+      };
+      let draft = row.statement;
       let offered = false;
       for (let attempt = 0; attempt < fixAttemptCap() && !offered; attempt += 1) {
         const script = await askThinkingLab(
@@ -4446,8 +6899,10 @@ export function ThinkingLabPage() {
             ancestors: territoryAncestors,
             audience: selected?.audience,
             answeredQuestion,
-            failed: { code: row.code, statement: row.statement },
-            keepers: keepers.map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
+            failed: { code: row.code, statement: draft },
+            keepers: keepers
+              .filter((keeper) => keeper.code.toUpperCase() !== row.code.toUpperCase())
+              .map((keeper) => ({ code: keeper.code, statement: keeper.statement })),
             conflicts,
             lessons: learned,
             scope,
@@ -4458,106 +6913,99 @@ export function ThinkingLabPage() {
         const statement = candidates.find((candidate) => !refused.has(candidate.trim().toLowerCase()));
         if (!statement) {
           if (candidates.length === 0) {
-            const reason = "No replacement came back.";
-            const lesson = { code: row.code, statement: row.statement, reason };
-            learned.push(lesson);
-            learnedDuringFix.push(lesson);
+            await rememberFixLesson({ code: row.code, statement: draft, reason: "No replacement came back." });
           } else {
             for (const candidate of candidates) {
-              const reason = "This name was offered again after it already failed.";
-              const lesson = { code: row.code, statement: candidate, reason };
-              learned.push(lesson);
-              learnedDuringFix.push(lesson);
-              refused.add(candidate.trim().toLowerCase());
+              await rememberFixLesson({
+                code: row.code,
+                statement: candidate,
+                reason: "This name was offered again after it already failed.",
+              });
             }
           }
           continue;
         }
         if (territoryNameTooLong(statement) || territoryNameIsActivity(statement)) {
           const reason = territoryNameTooLong(statement) ? TERRITORY_NAME_LENGTH_REASON : TERRITORY_ACTIVITY_REASON;
-          const lesson = { code: row.code, statement, reason };
-          learned.push(lesson);
-          learnedDuringFix.push(lesson);
-          refused.add(statement.trim().toLowerCase());
+          await rememberFixLesson({ code: row.code, statement, reason: `partOfBigThought: ${reason}` });
           continue;
         }
-        let livedSentence = "";
-        let freshQuestion = "";
+        const prior = fixPriorForNextTerritoryName(shown, draft, statement);
         const checked = await runTerritoryOpenChecks({
           statement,
           parentStatement: focusedThought.statement,
           audience: selected?.audience,
           question: questionForCheck,
-          prior: shown,
+          prior,
           ask: (prompt) => askThinkingLab(prompt, 0),
           onStep: (checks) => publishTerritoryChecklist(row.code, checks),
         });
         if (!checked.passed) {
           const failedCheck = checked.checks.find((check) => check.state === "fail");
           const reason = failedCheck ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim() : "This check could not be decided.";
-          const lesson = { code: row.code, statement, reason };
-          learned.push(lesson);
-          learnedDuringFix.push(lesson);
-          refused.add(statement.trim().toLowerCase());
+          await rememberFixLesson({ code: row.code, statement, reason });
           shown = checked.checks;
-          scope = nextFixScope(scope, checked.checks);
+          draft = statement;
+          scope = fixScopeFromChecks(shown);
           continue;
         }
         publishTerritoryChecklist(row.code, beginSiblingCheck(checked.checks));
-        const rows = admittedTerritories.map((item) => ({
-          code: item.code,
-          statement: item.code.toUpperCase() === row.code.toUpperCase() ? statement : item.statement,
-        }));
-        const fingerprint = territorySetFingerprint({
-          bigThoughtFingerprint: focusedBigThoughtFingerprint,
-          territoryFingerprints: rows.map((item) =>
-            territoryFingerprint({ statement: item.statement, bigThoughtFingerprint: focusedBigThoughtFingerprint }),
-          ),
-        });
-        const siblingScript = await askThinkingLab(
-          buildTerritorySiblingPrompt({ parentStatement: focusedThought.statement, rows }),
-          0,
-        );
-        const siblingSet = parseTerritorySet(siblingScript, fingerprint);
-        if (!territoryReplacementPasses(siblingSet, row.code)) {
-          const reason =
-            territoryFailureLessons({
-              rows: [{ code: row.code, statement }],
-              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-              siblingSet,
-            })[0]?.reason ?? "Sibling audit failed this Territory.";
-          const lesson = { code: row.code, statement, reason: `siblingsDistinct: ${reason}` };
-          learned.push(lesson);
-          learnedDuringFix.push(lesson);
-          refused.add(statement.trim().toLowerCase());
-          const failedSibling = finishSiblingCheck(checked.checks, false, reason);
+        const siblingRows = [
+          ...keepers
+            .filter((item) => item.code.toUpperCase() !== row.code.toUpperCase())
+            .map((item) => ({ code: item.code, statement: item.statement })),
+          { code: row.code, statement },
+        ];
+        let siblingPass = siblingRows.length < 2;
+        let siblingReason = "";
+        if (!siblingPass) {
+          const fingerprint = territorySetFingerprint({
+            bigThoughtFingerprint: focusedBigThoughtFingerprint,
+            territoryFingerprints: siblingRows.map((item) =>
+              territoryFingerprint({ statement: item.statement, bigThoughtFingerprint: focusedBigThoughtFingerprint }),
+            ),
+          });
+          const siblingScript = await askThinkingLab(
+            buildTerritorySiblingPrompt({ parentStatement: focusedThought.statement, rows: siblingRows }),
+            0,
+          );
+          const siblingSet = parseTerritorySet(siblingScript, fingerprint);
+          siblingPass = territoryReplacementPasses(siblingSet, row.code);
+          siblingReason = siblingPass
+            ? ""
+            : territoryFailureLessons({
+                rows: [{ code: row.code, statement }],
+                items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+                siblingSet,
+              })[0]?.reason ?? "Sibling audit failed this Territory.";
+        }
+        if (!siblingPass) {
+          await rememberFixLesson({ code: row.code, statement, reason: `siblingsDistinct: ${siblingReason}` });
+          const failedSibling = finishSiblingCheck(checked.checks, false, siblingReason);
           shown = failedSibling;
+          draft = statement;
           publishTerritoryChecklist(row.code, failedSibling);
-          scope = nextFixScope(scope, failedSibling);
+          scope = fixScopeFromChecks(shown);
           continue;
         }
         const passedChecks = finishSiblingCheck(checked.checks, true, "");
         publishTerritoryChecklist(row.code, passedChecks);
         const sameArea =
           scope.preserve.includes("questionArises") && scope.repair.every((item) => item.id === "audienceLanguage");
-        if (!freshQuestion || !livedSentence) {
-          const written = await writeTerritoryAreaSentence({
-            territory: statement,
-            parentStatement: focusedThought.statement,
-            masterStatement: selected?.statement,
-            audience: selected?.audience,
-            answeredQuestion: questionForCheck || answeredQuestion,
-            siblings: admittedTerritories
-              .filter((item) => item.code.toUpperCase() !== row.code.toUpperCase())
-              .map((item) => item.statement),
-            ask: (prompt) => askThinkingLab(prompt, 0.2),
-          });
-          if (!livedSentence) livedSentence = written.sentence;
-          if (!freshQuestion) freshQuestion = written.question;
-        }
+        const written = await writeTerritoryAreaSentence({
+          territory: statement,
+          parentStatement: focusedThought.statement,
+          masterStatement: selected?.statement,
+          audience: selected?.audience,
+          answeredQuestion: questionForCheck || answeredQuestion,
+          siblings: keepers
+            .filter((item) => item.code.toUpperCase() !== row.code.toUpperCase())
+            .map((item) => item.statement),
+          ask: (prompt) => askThinkingLab(prompt, 0.2),
+        });
         const areaQuestion = sameArea
-          ? row.canonicalSemantic.areaQuestion || freshQuestion || checked.question
-          : freshQuestion || checked.question || row.canonicalSemantic.areaQuestion;
+          ? row.canonicalSemantic.areaQuestion || written.question || checked.question
+          : written.question || checked.question || row.canonicalSemantic.areaQuestion;
         await labTerritories.replace.mutateAsync({
           bigThoughtId: focusedThought.id,
           id: row.id,
@@ -4565,12 +7013,31 @@ export function ThinkingLabPage() {
           facts: {
             ...row.canonicalSemantic,
             ...shownTerritoryFacts(row.code, statement),
+            generatePasses: ["partOfBigThought", "audienceLanguage"],
             areaQuestion,
-            whatItSays: livedSentence.trim() || (sameArea ? row.canonicalSemantic.whatItSays : statement),
+            whatItSays: written.sentence.trim() || (sameArea ? row.canonicalSemantic.whatItSays : statement),
           },
           admission: "GENERATE_VALID",
         });
-        applied.set(row.code.toUpperCase(), statement);
+        const codeKey = row.code.toUpperCase();
+        const statementFingerprint = territoryFingerprint({
+          statement,
+          bigThoughtFingerprint: focusedBigThoughtFingerprint,
+        });
+        const previousItems = setRecord.audit?.items ?? [];
+        const items = previousItems.some((item) => item.code.toUpperCase() === codeKey)
+          ? previousItems.map((item) =>
+              item.code.toUpperCase() === codeKey
+                ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }
+                : item,
+            )
+          : [...previousItems, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint }];
+        setRecord = {
+          ...setRecord,
+          audit: { fingerprint: setRecord.audit?.fingerprint ?? "", items },
+        };
+        await territorySet.save.mutateAsync(setRecord);
+        applied.set(codeKey, statement);
         offered = true;
       }
       if (!offered && checklistAtStart.length > 0) publishTerritoryChecklist(row.code, checklistAtStart);
@@ -4580,20 +7047,10 @@ export function ThinkingLabPage() {
       current.filter((offer) => offer.thoughtId !== focusedThought.id || !replaced.has(offer.failedCode.toUpperCase())),
     );
     const covered = applied.size;
-    if (covered === 0) {
-      if (learnedDuringFix.length > 0) {
-        await territorySet.save.mutateAsync({
-          schema: "thinking-lab/territory-set/v1",
-          repairCount: territorySet.data?.repairCount ?? 0,
-          siblingSet: storedTerritorySet,
-          audit: territorySet.data?.audit ?? null,
-          challenger: territorySet.data?.challenger ?? null,
-          auditLessons: mergeTerritoryAuditLessons(territorySet.data?.auditLessons ?? [], learnedDuringFix),
-        });
-      }
-    } else {
+    if (covered > 0) {
       const items = admittedTerritories.flatMap((row, index) => {
         const code = row.code.toUpperCase();
+        const previous = setRecord.audit?.items.find((item) => item.code.toUpperCase() === code);
         const statement = applied.get(code) ?? row.statement;
         const verdict = applied.has(code) ? ("AUDIT_PASS" as const) : territoryVerdicts[index];
         if (verdict !== "AUDIT_PASS" && verdict !== "AUDIT_FAIL") return [];
@@ -4605,17 +7062,18 @@ export function ThinkingLabPage() {
               statement,
               bigThoughtFingerprint: focusedBigThoughtFingerprint,
             }),
+            ...(verdict === "AUDIT_FAIL" && previous?.gateFailure ? { gateFailure: previous.gateFailure } : {}),
           },
         ];
       });
-      await territorySet.save.mutateAsync({
-        schema: "thinking-lab/territory-set/v1",
-        repairCount: (territorySet.data?.repairCount ?? 0) + 1,
+      setRecord = {
+        ...setRecord,
+        repairCount: setRecord.repairCount + 1,
         siblingSet: null,
         audit: items.length > 0 ? { fingerprint: "", items } : null,
         challenger: null,
-        auditLessons: mergeTerritoryAuditLessons(territorySet.data?.auditLessons ?? [], learnedDuringFix),
-      });
+      };
+      await territorySet.save.mutateAsync(setRecord);
     }
     if (covered < failed.length) {
       setNotice(
@@ -4662,125 +7120,181 @@ export function ThinkingLabPage() {
         const heldPass = new Set(
           territoryCodesHeldPass(admittedTerritories, territoryVerdicts).map((code) => code.toUpperCase()),
         );
-        const eligible: typeof admittedTerritories = [];
-        const checked = new Map<string, TerritoryPassCheck[]>();
-        const individualFailures: Array<{ code: string; statement: string; reason: string }> = [];
+        const lessons = [...(territorySet.data?.auditLessons ?? [])];
+        const passedCodes = new Set<string>(heldPass);
+        const failedByCode = new Map<string, { gate: TerritoryPassCheckId; reason: string }>();
+        let siblingSet = storedTerritorySet;
+        let resolvedSibling: { fingerprint: string; set: NonNullable<typeof siblingSet> } | null = null;
+        let shownAuditChecks: TerritoryPassCheck[] = [];
+        const publishAudit = (code: string, checks: TerritoryPassCheck[]) => {
+          const previous = shownAuditChecks;
+          shownAuditChecks = checks.map((check) => ({ ...check }));
+          const changed = checks.find((check, index) => check.state !== previous[index]?.state);
+          const report =
+            changed?.state === "running" || changed?.state === "pass" || changed?.state === "fail"
+              ? {
+                  gate: changed.id,
+                  phase: changed.state === "running" ? ("checking" as const) : ("checked" as const),
+                  outcome: changed.state === "fail" ? ("fail" as const) : ("pass" as const),
+                }
+              : null;
+          setTerritoryGenerateRun({ thoughtId: focusedThought.id, checks: shownAuditChecks, report });
+          publishTerritoryChecklist(code, checks);
+        };
         for (const row of admittedTerritories) {
-          if (heldPass.has(row.code.toUpperCase())) {
-            eligible.push(row);
-            continue;
-          }
+          const codeKey = row.code.toUpperCase();
+          if (heldPass.has(codeKey)) continue;
+          shownAuditChecks = [];
+          let gloss: { sentence: string; question: string } | null = null;
+          const passedSiblings = () =>
+            admittedTerritories
+              .filter((item) => item.id !== row.id && passedCodes.has(item.code.toUpperCase()))
+              .map((item) => item.statement);
           const run = await runTerritoryIndividualChecks({
             statement: row.statement,
             parentStatement: focusedThought.statement,
             audience: selected?.audience,
             question: questionForAudit || row.canonicalSemantic.areaQuestion,
+            carried: readTerritoryGeneratePasses(row.canonicalSemantic.generatePasses),
             ensureQuestion: async () => {
+              if (questionForAudit) return questionForAudit;
               const written = await writeTerritoryAreaSentence({
                 territory: row.statement,
                 parentStatement: focusedThought.statement,
                 masterStatement: selected?.statement,
                 audience: selected?.audience,
-              answeredQuestion: questionForAudit || answeredQuestion,
-              siblings: admittedTerritories
-                .filter((item) => item.id !== row.id)
-                  .map((item) => item.statement),
+                answeredQuestion: questionForAudit || answeredQuestion,
+                siblings: passedSiblings(),
                 ask: (prompt) => askThinkingLab(prompt, 0.2),
               });
-              if (written.sentence && written.question) {
-                await labTerritories.saveGloss.mutateAsync({
-                  bigThoughtId: row.bigThoughtId,
-                  id: row.id,
-                  facts: { ...row.canonicalSemantic, whatItSays: written.sentence, areaQuestion: written.question },
-                });
-              }
+              if (written.sentence && written.question) gloss = written;
               return written.question;
             },
             ask: (prompt) => askThinkingLab(prompt, 0),
-            onStep: (checks) => publishTerritoryChecklist(row.code, checks),
+            onStep: (checks) => publishAudit(row.code, checks),
           });
           if (!run.passed) {
             const failedCheck = run.checks.find((check) => check.state === "fail");
-            individualFailures.push({
-              code: row.code,
-              statement: row.statement,
-              reason: failedCheck
-                ? `${failedCheck.id}: ${failedCheck.reason ?? ""}`.trim()
-                : "This check could not be decided.",
-            });
+            const gate = failedCheck?.id ?? "partOfBigThought";
+            const reason = failedCheck?.reason?.trim() || "This check could not be decided.";
+            failedByCode.set(codeKey, { gate, reason });
+            lessons.push({ code: row.code, statement: row.statement, reason: `${gate}: ${reason}` });
             continue;
           }
-          checked.set(row.code.toUpperCase(), run.checks);
-          eligible.push(row);
-          publishTerritoryChecklist(row.code, beginSiblingCheck(run.checks));
-        }
-        const siblingRows = eligible.map((row) => ({ code: row.code, statement: row.statement }));
-        const siblingScript =
-          siblingRows.length === 0
-            ? null
-            : await askThinkingLab(
-                buildTerritorySiblingPrompt({ parentStatement: focusedThought.statement, rows: siblingRows }),
-                0,
-              );
-        const siblingSet = siblingScript ? parseTerritorySet(siblingScript, territoryFingerprintNow) : storedTerritorySet;
-        const siblingScores =
-          siblingRows.length === 0 || !siblingSet
-            ? []
-            : scoreTerritoryAudit({
-                codes: siblingRows.map((row) => row.code),
-                siblingSet,
-                siblingSetCurrent: true,
-              });
-        for (const row of eligible) {
-          const prior = checked.get(row.code.toUpperCase());
-          if (!prior) continue;
-          const verdict = siblingScores.find((item) => item.code.toUpperCase() === row.code.toUpperCase())?.verdict;
-          const reason =
-            territoryFailureLessons({
-              rows: [{ code: row.code, statement: row.statement }],
-              items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
-              siblingSet,
-            })[0]?.reason ?? "Sibling audit failed this Territory.";
-          publishTerritoryChecklist(
-            row.code,
-            finishSiblingCheck(prior, verdict === "AUDIT_PASS", verdict === "AUDIT_PASS" ? "" : reason || "This check could not be decided."),
-          );
-        }
-        const items = holdPassingTerritoryVerdicts(
-          admittedTerritories.map((row) => {
-            const statementFingerprint = territoryFingerprint({
-              statement: row.statement,
+          const siblingRows = [
+            ...admittedTerritories
+              .filter((item) => passedCodes.has(item.code.toUpperCase()))
+              .map((item) => ({ code: item.code, statement: item.statement })),
+            { code: row.code, statement: row.statement },
+          ];
+          publishAudit(row.code, beginSiblingCheck(run.checks));
+          let siblingPass = siblingRows.length < 2;
+          let siblingReason = "";
+          if (!siblingPass) {
+            const fingerprint = territorySetFingerprint({
               bigThoughtFingerprint: focusedBigThoughtFingerprint,
+              territoryFingerprints: siblingRows.map((item) =>
+                territoryFingerprint({ statement: item.statement, bigThoughtFingerprint: focusedBigThoughtFingerprint }),
+              ),
             });
-            if (individualFailures.some((failure) => failure.code.toUpperCase() === row.code.toUpperCase())) {
-              return { code: row.code, verdict: "AUDIT_FAIL" as const, statementFingerprint };
+            const judged =
+              resolvedSibling?.fingerprint === fingerprint &&
+              resolvedSibling.set.resolution === "RESOLVED" &&
+              resolvedSibling.set.unresolvedReasons.length === 0
+                ? resolvedSibling.set
+                : await (async () => {
+                    const siblingScript = await askThinkingLab(
+                      buildTerritorySiblingPrompt({ parentStatement: focusedThought.statement, rows: siblingRows }),
+                      0,
+                    );
+                    const parsed = parseTerritorySet(siblingScript, fingerprint);
+                    if (parsed.resolution === "RESOLVED" && parsed.unresolvedReasons.length === 0) {
+                      resolvedSibling = { fingerprint, set: parsed };
+                    }
+                    return parsed;
+                  })();
+            if (siblingRows.length === admittedTerritories.length) siblingSet = judged;
+            siblingPass = territoryReplacementPasses(judged, row.code);
+            siblingReason = siblingPass
+              ? ""
+              : territoryFailureLessons({
+                  rows: [{ code: row.code, statement: row.statement }],
+                  items: [{ code: row.code, verdict: "AUDIT_FAIL" }],
+                  siblingSet: judged,
+                })[0]?.reason || "This Territory overlaps another.";
+          }
+          const settled = finishSiblingCheck(run.checks, siblingPass, siblingReason);
+          publishAudit(row.code, settled);
+          if (!siblingPass) {
+            failedByCode.set(codeKey, { gate: "siblingsDistinct", reason: siblingReason });
+            lessons.push({ code: row.code, statement: row.statement, reason: `siblingsDistinct: ${siblingReason}` });
+            continue;
+          }
+          const hasGloss =
+            Boolean(row.canonicalSemantic.areaQuestion?.trim()) &&
+            row.canonicalSemantic.whatItSays.trim().toLowerCase() !== row.statement.trim().toLowerCase();
+          if (gloss || !hasGloss) {
+            const written =
+              gloss ??
+              (await writeTerritoryAreaSentence({
+                territory: row.statement,
+                parentStatement: focusedThought.statement,
+                masterStatement: selected?.statement,
+                audience: selected?.audience,
+                answeredQuestion: questionForAudit || answeredQuestion,
+                siblings: passedSiblings(),
+                ask: (prompt) => askThinkingLab(prompt, 0.2),
+              }));
+            if (written.sentence && written.question) {
+              await labTerritories.saveGloss.mutateAsync({
+                bigThoughtId: row.bigThoughtId,
+                id: row.id,
+                facts: { ...row.canonicalSemantic, whatItSays: written.sentence, areaQuestion: written.question },
+              });
             }
-            const scored = siblingScores.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
-            return {
-              code: row.code,
-              verdict: scored?.verdict === "AUDIT_PASS" ? ("AUDIT_PASS" as const) : ("AUDIT_FAIL" as const),
-              statementFingerprint,
-            };
-          }),
-          [...heldPass],
-        );
-        const siblingLessons = territoryFailureLessons({
-          rows: siblingRows,
-          items,
-          siblingSet,
-        }).filter((lesson) => !individualFailures.some((failure) => failure.code.toUpperCase() === lesson.code.toUpperCase()));
+          }
+          passedCodes.add(codeKey);
+        }
+        const previousItems = territorySet.data?.audit?.items ?? [];
+        const items = admittedTerritories.map((row) => {
+          const codeKey = row.code.toUpperCase();
+          const statementFingerprint = territoryFingerprint({
+            statement: row.statement,
+            bigThoughtFingerprint: focusedBigThoughtFingerprint,
+          });
+          if (heldPass.has(codeKey)) {
+            const previous = previousItems.find((item) => item.code.toUpperCase() === codeKey);
+            if (previous?.verdict === "AUDIT_PASS") {
+              return {
+                code: row.code,
+                verdict: "AUDIT_PASS" as const,
+                statementFingerprint: previous.statementFingerprint ?? statementFingerprint,
+              };
+            }
+          }
+          if (passedCodes.has(codeKey)) return { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint };
+          const failure = failedByCode.get(codeKey);
+          return {
+            code: row.code,
+            verdict: "AUDIT_FAIL" as const,
+            statementFingerprint,
+            ...(failure ? { gateFailure: failure } : {}),
+          };
+        });
         await territorySet.save.mutateAsync({
           schema: "thinking-lab/territory-set/v1",
-          repairCount: items.some((item) => item.verdict === "AUDIT_FAIL") ? (territorySet.data?.repairCount ?? 0) : 0,
+          repairCount: failedByCode.size > 0 ? (territorySet.data?.repairCount ?? 0) : 0,
           siblingSet,
           audit: { fingerprint: territoryFingerprintNow, items },
           challenger: null,
-          auditLessons: mergeTerritoryAuditLessons(territorySet.data?.auditLessons ?? [], [
-            ...individualFailures,
-            ...siblingLessons,
-          ]),
+          auditLessons: mergeTerritoryAuditLessons(territorySet.data?.auditLessons ?? [], lessons),
+        });
+        setTerritoryGenerateRun((current) => {
+          if (!current || current.thoughtId !== focusedThought.id) return current;
+          return current.checks.some((check) => check.state === "fail") ? current : null;
         });
         return;
+
       }
       if (territoryStage === "challenger") {
         if (!territoryChallengerCanRun(territoryVerdicts.flatMap((verdict) => (verdict ? [verdict] : [])))) return;
@@ -4871,362 +7385,373 @@ export function ThinkingLabPage() {
       setNotice(null);
     }, "pick-territory-fix");
 
+  const publishBigThoughtChecklist = async (code: string, statement: string, checklist: PassChecklist, done: number, total: number) => {
+    setBigThoughtChecklists((current) => ({ ...current, [code.toUpperCase()]: checklist }));
+    setAuditProgress({ done, total, current: { code, statement }, checklist });
+    await waitForChecklistReport(checklist);
+  };
+
+  const repairFailedBigThought = async (code: string) => {
+    if (!selected || !parentFp) return;
+    const row = active.find((item) => item.code.toUpperCase() === code.toUpperCase());
+    if (!row || row.status === "locked") return;
+    const key = row.code.toUpperCase();
+    const storedFailure = readGateFailure(
+      setRecord?.audit?.items?.find((item) => item.code.toUpperCase() === key)?.gateFailure,
+    );
+    let shown = bigThoughtChecklists[key] ?? (storedFailure ? checklistFromFailure(storedFailure) : null);
+    if (!shown) return;
+    const keepers = shownRowViews
+      .filter((item) => item.code.toUpperCase() !== key && (item.status === "locked" || item.audit === "AUDIT_PASS"))
+      .map((item) => ({ code: item.code, statement: item.statement, label: item.label }));
+    let record = setRecord ?? emptySetRecord();
+    const seeded = mergeFixLessons(record.fixLessons, [
+      ...(bigThoughtFixLessonsRef.current.get(key) ?? []).map((lesson) => ({ code: row.code, ...lesson })),
+      ...(shown.failure
+        ? [{ code: row.code, statement: row.statement, reason: `${shown.failure.gate}: ${shown.failure.reason}` }]
+        : []),
+    ]);
+    if (seeded.length !== (record.fixLessons ?? []).length) {
+      record = { ...record, fixLessons: seeded };
+      await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: record });
+    }
+    const learned = seeded
+      .filter((lesson) => lesson.code.toUpperCase() === key)
+      .map((lesson) => ({ statement: lesson.statement, reason: lesson.reason }));
+    bigThoughtFixLessonsRef.current.set(key, learned);
+    const remember = async (lesson: { statement: string; reason: string }) => {
+      const alreadyKnown = learned.some(
+        (item) =>
+          item.statement.trim().toLowerCase() === lesson.statement.trim().toLowerCase() && item.reason === lesson.reason,
+      );
+      if (alreadyKnown) return;
+      learned.push(lesson);
+      bigThoughtFixLessonsRef.current.set(key, [...learned]);
+      record = { ...record, fixLessons: mergeFixLessons(record.fixLessons, [{ code: row.code, ...lesson }]) };
+      await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: record });
+    };
+    const refused = new Set<string>(learned.map((lesson) => lesson.statement.trim().toLowerCase()));
+    refused.add(row.statement.trim().toLowerCase());
+    let statement = row.statement;
+    let scope = fixScopeFromChecks(shown.items);
+    let replaced = false;
+    const publishFixChecklist = async (checklist: PassChecklist) => {
+      setBigThoughtChecklists((current) => ({ ...current, [key]: checklist }));
+      await waitForChecklistReport(checklist);
+    };
+    for (let attempt = 0; attempt < 8 && !replaced; attempt += 1) {
+      const script = await askScoped(
+        "fix",
+        row.code,
+        buildBigThoughtFixPrompt({
+          parentStatement: becauseParent,
+          failed: { code: row.code, statement },
+          keepers,
+          scope,
+          lessons: learned,
+        }),
+        0.2,
+      );
+      const next = parseBigThoughtFixStatement(script, becauseParent);
+      if (!next || refused.has(next.trim().toLowerCase())) {
+        await remember({ statement: next || statement, reason: "No replacement came back." });
+        continue;
+      }
+      const checked = await runBigThoughtOpenChecks({
+        statement: next,
+        parentStatement: becauseParent,
+        others: keepers,
+        prior: fixPriorForNextSentence(shown.items, statement, next),
+        ask: (prompt) => askScoped("fix", row.code, prompt, 0),
+        onStep: (checklist) => publishFixChecklist(checklist),
+      });
+      if (!checked.passed) {
+        const reason = checked.failure ? `${checked.failure.gate}: ${checked.failure.reason}` : "This check could not be decided.";
+        await remember({ statement: next, reason });
+        refused.add(next.trim().toLowerCase());
+        statement = next;
+        shown = checked;
+        scope = fixScopeFromChecks(shown.items);
+        continue;
+      }
+      const siblingRows = [
+        ...keepers.map((item) => ({ code: item.code, statement: item.statement })),
+        { code: row.code, statement: next },
+      ];
+      let siblingPass = siblingRows.length < 2;
+      let siblingReason = "";
+      if (!siblingPass) {
+        const fingerprint = incumbentSetFingerprint({
+          masterThoughtFingerprint: parentFp,
+          bigThoughtFingerprints: siblingRows.map((item) =>
+            bigThoughtFingerprint({ statement: item.statement, masterThoughtFingerprint: parentFp }),
+          ),
+        });
+        const checking = checkingSiblingFrame(checked);
+        await publishFixChecklist(checking);
+        const sibling = await judgeSiblingSet(
+          { parentStatement: selected.statement, rows: siblingRows, fingerprint },
+          (prompt) => askScoped("fix", row.code, prompt, 0),
+        );
+        const gate = auditSiblingGate({
+          code: row.code,
+          siblingSet: sibling,
+          siblingSetCurrent: true,
+          activeCodes: siblingRows.map((item) => item.code),
+        });
+        siblingPass = gate.passed;
+        siblingReason = gate.reason;
+        const settled = completeChecklist(checked, gate);
+        await publishFixChecklist(checklistFrame(settled, "sibling", "checked"));
+        if (!siblingPass) {
+          await remember({ statement: next, reason: `sibling: ${siblingReason}` });
+          refused.add(next.trim().toLowerCase());
+          statement = next;
+          shown = settled;
+          scope = fixScopeFromChecks(shown.items);
+          continue;
+        }
+      } else {
+        const settled = completeChecklist(checked, { passed: true, reason: "" });
+        await publishFixChecklist(checklistFrame(settled, "sibling", "checked"));
+      }
+      const facts: BigThoughtFacts = {
+        ...shownBigThoughtFacts(row.code, next),
+        generatePasses: ["resolved", "relation"],
+        answeredQuestion: row.canonicalSemantic?.answeredQuestion,
+        answeredQuestionVersion: row.canonicalSemantic?.answeredQuestionVersion,
+      };
+      await thoughts.updateFacts.mutateAsync({
+        id: row.id,
+        statement: next,
+        facts,
+        masterFingerprint: parentFp,
+      });
+      const statementFingerprint = bigThoughtFingerprint({
+        statement: next,
+        masterThoughtFingerprint: parentFp,
+      });
+      const previous = record.audit?.items ?? [];
+      const items = previous.some((item) => item.code.toUpperCase() === key)
+        ? previous.map((item) =>
+            item.code.toUpperCase() === key
+              ? { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, gatesChecked: true as const }
+              : item,
+          )
+        : [...previous, { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, gatesChecked: true as const }];
+      const nextRecord = nextAuthoritativeSetRecord({
+        record,
+        parentFingerprint: parentFp,
+        siblingSet: record.siblingSet,
+        audit: { setFingerprint: record.audit?.setFingerprint ?? "", items },
+        challenger: record.challenger,
+      });
+      await masters.saveSet.mutateAsync({
+        id: selected.id,
+        lastAudit: { ...nextRecord, fixLessons: dropFixLessons(nextRecord.fixLessons, [key]) },
+      });
+      bigThoughtFixLessonsRef.current.delete(key);
+      replaced = true;
+    }
+    if (!replaced) {
+      setNotice(
+        t(
+          "thinkingLab.bt.fixStillOpen",
+          "This Big Thought is still failing. Fix stays on this card, and the failures stay as lessons for the next round.",
+        ),
+      );
+    }
+  };
+
+  const onFixBigThought = (code: string) => {
+    const key = code.trim().toUpperCase();
+    if (!key || labRunRef.current || fixingBigThoughtRef.current.has(key)) return;
+    labRunRef.current = true;
+    fixingBigThoughtRef.current.add(key);
+    setFixingBigThoughtCodes([...fixingBigThoughtRef.current]);
+    void (async () => {
+      try {
+        await repairFailedBigThought(key);
+      } catch (error) {
+        reportStepError(error);
+      } finally {
+        fixingBigThoughtRef.current.delete(key);
+        setFixingBigThoughtCodes([...fixingBigThoughtRef.current]);
+        setAuditProgress(null);
+        labRunRef.current = false;
+      }
+    })();
+  };
+
   const onAudit = () =>
     run(async () => {
       if (!selected || !parentFp) return;
-      const local: LabBigThought[] = active.map((row) => ({ ...row }));
-      const total = local.length;
-      let done = 0;
-      setAuditProgress({ done, total, current: null });
-      try {
-      for (const row of local) {
-        const current = bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp });
-        const fresh =
-          fingerprintsMatch(row.semanticFingerprint, current) &&
-          row.canonicalSemantic?.resolution === "RESOLVED" &&
-          row.canonicalSemantic.unresolvedReasons.length === 0;
-        if (!fresh) {
-          setAuditProgress({ done, total, current: { code: row.code, statement: row.statement } });
-          const facts = await judgeCandidateWithAsk({
-            parentStatement: selected.statement,
-            statement: row.statement,
-            code: row.code,
-            siblings: local
-              .filter((item) => item.code !== row.code)
-              .map((item) => ({ code: item.code, statement: item.statement })),
-            ask: (prompt) => askScoped("audit", row.code, prompt, 0),
-          });
-          await thoughts.updateFacts.mutateAsync({
-            id: row.id,
-            statement: row.statement,
-            facts: { ...facts, code: row.code },
-            masterFingerprint: parentFp,
-          });
-          row.canonicalSemantic = { ...facts, code: row.code };
-          row.semanticFingerprint = current;
-        }
-        done += 1;
-        setAuditProgress({ done, total, current: null });
-      }
-      const fingerprints = local.map((row) =>
-        bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
-      );
-      const nextSetFingerprint = incumbentSetFingerprint({
-        masterThoughtFingerprint: parentFp,
-        bigThoughtFingerprints: fingerprints,
-      });
-      let sibling = setRecord?.siblingSet ?? null;
-      if (siblingSetNeedsFreshJudgment(sibling, nextSetFingerprint, local.map((row) => row.code))) {
-        setAuditProgress({
-          done,
-          total,
-          current: { code: "", statement: t("thinkingLab.bt.auditingSet", "Sibling set") },
+      const listed = active.flatMap((row) => {
+        const fingerprint = bigThoughtFingerprint({
+          statement: row.statement,
+          masterThoughtFingerprint: parentFp,
         });
-        sibling = await judgeSiblingSet(
-          {
-            parentStatement: selected.statement,
-            rows: local.map((row) => ({ code: row.code, statement: row.statement })),
-            fingerprint: nextSetFingerprint,
-          },
-          (prompt) => askScoped("audit", "Big Thought", prompt, 0),
-        );
-        setAuditProgress({ done, total, current: null });
-      }
-      const held = keptPassingAuditItems({
-        items: setRecord?.audit?.items,
-        rows: local.map((row) => ({
-          code: row.code,
-          statementFingerprint: bigThoughtFingerprint({
+        const admission = individualAdmission({
+          facts: row.canonicalSemantic,
+          factsCurrent: fingerprintsMatch(row.semanticFingerprint, fingerprint),
+        });
+        if (admission !== "GENERATE_VALID" || row.canonicalSemantic?.gateFailure || row.status === "locked") return [];
+        return [{ ...row }];
+      });
+      if (listed.length === 0) return;
+      const heldPass = new Set(
+        listed.flatMap((row) => {
+          const fingerprint = bigThoughtFingerprint({
             statement: row.statement,
             masterThoughtFingerprint: parentFp,
-          }),
-        })),
+          });
+          const stored = setRecord?.audit?.items?.find((item) => item.code.toUpperCase() === row.code.toUpperCase());
+          return stored?.verdict === "AUDIT_PASS" &&
+            stored.statementFingerprint &&
+            fingerprintsMatch(stored.statementFingerprint, fingerprint)
+            ? [row.code.toUpperCase()]
+            : [];
+        }),
+      );
+      const total = listed.length;
+      let done = heldPass.size;
+      setBigThoughtChecklists((current) => {
+        const next = { ...current };
+        for (const code of heldPass) delete next[code];
+        return next;
       });
-      const items = holdPassingAuditVerdicts(
-        scoreAudit({
-        rows: local.map((row) => ({
-          code: row.code,
-          admission: individualAdmission({
-            facts: row.canonicalSemantic,
-            factsCurrent: fingerprintsMatch(
-              row.semanticFingerprint,
+      setAuditProgress({ done, total, current: null, checklist: null });
+      const failures = new Map<string, NonNullable<PassChecklist["failure"]>>();
+      const passedIndividual = new Map<string, PassChecklist>();
+      try {
+        for (const row of listed) {
+          const codeKey = row.code.toUpperCase();
+          if (heldPass.has(codeKey)) continue;
+          const fingerprint = bigThoughtFingerprint({
+            statement: row.statement,
+            masterThoughtFingerprint: parentFp,
+          });
+          const carried = readGeneratePasses(
+            fingerprintsMatch(row.semanticFingerprint, fingerprint) ? row.canonicalSemantic?.generatePasses : undefined,
+          );
+          const others = listed
+            .filter((item) => {
+              const other = item.code.toUpperCase();
+              return other !== codeKey && (heldPass.has(other) || passedIndividual.has(other));
+            })
+            .map((item) => ({ code: item.code, statement: item.statement, label: item.label }));
+          const checked = await runBigThoughtIndividualChecks({
+            statement: row.statement,
+            parentStatement: becauseParent,
+            others,
+            carried,
+            ask: (prompt) => askScoped("audit", row.code, prompt, 0),
+            onStep: (checklist) => publishBigThoughtChecklist(row.code, row.statement, checklist, done, total),
+          });
+          if (!checked.passed) {
+            if (checked.failure) failures.set(codeKey, checked.failure);
+            continue;
+          }
+          passedIndividual.set(codeKey, checked);
+          done += 1;
+        }
+        const siblingRows = listed.filter(
+          (row) => heldPass.has(row.code.toUpperCase()) || passedIndividual.has(row.code.toUpperCase()),
+        );
+        let sibling = setRecord?.siblingSet ?? null;
+        if (passedIndividual.size > 0 && siblingRows.length >= 2) {
+          const fingerprint = incumbentSetFingerprint({
+            masterThoughtFingerprint: parentFp,
+            bigThoughtFingerprints: siblingRows.map((row) =>
               bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
             ),
-          }),
-        })),
-        siblingSet: sibling,
-        siblingSetCurrent: siblingSetIsCurrent(sibling, nextSetFingerprint),
-        }),
-        held.map((item) => item.code),
-      ).map((item) => {
-        const row = local.find((candidate) => candidate.code.toUpperCase() === item.code.toUpperCase());
-        const kept = held.find((candidate) => candidate.code.toUpperCase() === item.code.toUpperCase());
-        return {
-          ...item,
-          statementFingerprint:
-            kept?.statementFingerprint ??
-            (row
-              ? bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp })
-              : undefined),
-        };
-      });
-      const next: LabSetRecord = nextAuthoritativeSetRecord({
-        record: setRecord,
-        parentFingerprint: parentFp,
-        siblingSet: sibling,
-        audit: { setFingerprint: nextSetFingerprint, items },
-        challenger:
-          setRecord?.challenger?.setFingerprint === nextSetFingerprint ? setRecord.challenger : null,
-      });
-      await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: next });
-      if (sibling?.unresolvedReasons.includes("JUDGE_UNPARSEABLE")) {
-        setNotice(
-          t(
-            "thinkingLab.bt.judgeUnparseable",
-            "Audit finished, but the sibling judgment could not be read. Every Big Thought stays UNRESOLVED until Audit can read it.",
+          });
+          for (const row of listed) {
+            const prior = passedIndividual.get(row.code.toUpperCase());
+            if (!prior) continue;
+            await publishBigThoughtChecklist(row.code, row.statement, checkingSiblingFrame(prior), done, total);
+          }
+          sibling = await judgeSiblingSet(
+            {
+              parentStatement: selected.statement,
+              rows: siblingRows.map((row) => ({ code: row.code, statement: row.statement })),
+              fingerprint,
+            },
+            (prompt) => askScoped("audit", "Big Thought", prompt, 0),
+          );
+          for (const row of listed) {
+            const prior = passedIndividual.get(row.code.toUpperCase());
+            if (!prior) continue;
+            const gate = auditSiblingGate({
+              code: row.code,
+              siblingSet: sibling,
+              siblingSetCurrent: true,
+              activeCodes: siblingRows.map((item) => item.code),
+            });
+            const settled = completeChecklist(prior, gate);
+            await publishBigThoughtChecklist(row.code, row.statement, checklistFrame(settled, "sibling", "checked"), done, total);
+            if (!settled.passed && settled.failure) {
+              failures.set(row.code.toUpperCase(), settled.failure);
+              passedIndividual.delete(row.code.toUpperCase());
+            } else {
+              passedIndividual.set(row.code.toUpperCase(), settled);
+            }
+          }
+        } else {
+          for (const row of listed) {
+            const prior = passedIndividual.get(row.code.toUpperCase());
+            if (!prior) continue;
+            const settled = completeChecklist(prior, { passed: true, reason: "" });
+            await publishBigThoughtChecklist(row.code, row.statement, checklistFrame(settled, "sibling", "checked"), done, total);
+            passedIndividual.set(row.code.toUpperCase(), settled);
+          }
+        }
+        const items = listed.map((row) => {
+          const codeKey = row.code.toUpperCase();
+          const statementFingerprint = bigThoughtFingerprint({
+            statement: row.statement,
+            masterThoughtFingerprint: parentFp,
+          });
+          if (heldPass.has(codeKey) || passedIndividual.has(codeKey)) {
+            return { code: row.code, verdict: "AUDIT_PASS" as const, statementFingerprint, gatesChecked: true as const };
+          }
+          const failure = failures.get(codeKey);
+          return {
+            code: row.code,
+            verdict: "AUDIT_FAIL" as const,
+            statementFingerprint,
+            ...(failure ? { gateFailure: failure } : {}),
+          };
+        });
+        const nextSetFingerprint = incumbentSetFingerprint({
+          masterThoughtFingerprint: parentFp,
+          bigThoughtFingerprints: listed.map((row) =>
+            bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
           ),
-        );
-      } else if ((sibling?.unresolvedReasons.length ?? 0) > 0) {
-        setNotice(sibling?.unresolvedReasons.join(", ") ?? null);
-      }
+        });
+        const saved = nextAuthoritativeSetRecord({
+          record: setRecord,
+          parentFingerprint: parentFp,
+          siblingSet: sibling,
+          audit: { setFingerprint: nextSetFingerprint, items },
+          challenger: setRecord?.challenger?.setFingerprint === nextSetFingerprint ? setRecord.challenger : null,
+        });
+        const passedCodes = items.filter((item) => item.verdict === "AUDIT_PASS").map((item) => item.code);
+        for (const code of passedCodes) bigThoughtFixLessonsRef.current.delete(code.toUpperCase());
+        await masters.saveSet.mutateAsync({
+          id: selected.id,
+          lastAudit: { ...saved, fixLessons: dropFixLessons(saved.fixLessons, passedCodes) },
+        });
       } finally {
         setAuditProgress(null);
       }
     }, "audit", "Big Thought");
 
-  const repairFailedBigThoughts = async (onlyCode?: string) => {
-      setAuditProgress(null);
-      if (onlyCode) {
-        const key = onlyCode.trim().toUpperCase();
-        setFixResponses((current) => current.filter((item) => item.code?.toUpperCase() !== key));
-        setFixOffers((current) => current.filter((offer) => offer.failedCode.toUpperCase() !== key));
-      } else {
-        setFixResponses([]);
-        setFixOffers([]);
-      }
-      if (!selected || !parentFp) return;
-      const fixTarget = onlyCode?.trim().toUpperCase() || "Big Thought";
-      const askFix = (prompt: string, temperature: 0 | 0.2 = 0) => askScoped("fix", fixTarget, prompt, temperature);
-      const siblingForParent = siblingSetBelongsToParent(setRecord?.siblingSet ?? null, parentFp)
-        ? setRecord?.siblingSet ?? null
-        : null;
-      const contributionFor = (code: string) =>
-        siblingForParent?.reasonContributions?.find((item) => item.code.toUpperCase() === code.toUpperCase())
-          ?.reasonContribution ?? null;
-      const failureRows = active.filter((row) => {
-        if (rowViews.find((view) => view.id === row.id)?.audit !== "AUDIT_FAIL") return false;
-        return !onlyCode || row.code.toUpperCase() === onlyCode.trim().toUpperCase();
-      });
-      if (failureRows.length === 0) return;
-      const failureCodesInRun = new Set(failureRows.map((row) => row.code.toUpperCase()));
-      const incumbents = active
-        .filter((row) => !failureCodesInRun.has(row.code.toUpperCase()))
-        .map((row) => ({
-          code: row.code,
-          statement: row.statement,
-          reasonContribution: contributionFor(row.code),
-        }));
-      const exclusions = mergeExclusionEntries(
-        exclusionsForParent(setRecord?.semanticExclusions, parentFp),
-        exclusionsFromSiblingSet(siblingForParent),
-      );
-      const labelsByStatement = new Map<string, string>();
-      let subjectCode = "";
-      const { results, exclusions: discovered } = await runFixReplacements({
-        failures: failureRows.map((row) => ({
-          code: row.code,
-          statement: row.statement,
-          reasonContribution: contributionFor(row.code),
-          audit: "AUDIT_FAIL" as const,
-        })),
-        incumbents,
-        exclusions,
-        propose: async () => null,
-        listProposals: async ({ failure, incumbents: currentIncumbents, exclusions: currentExclusions }) => {
-          subjectCode = failure.code;
-          const pool = selected.productReasonPool;
-          if (pool && pool.items.length === 0) return [];
-          const script = await askFix(
-            buildGeneratePrompt({
-              parentStatement: selected.statement,
-              incumbents: currentIncumbents,
-              needed: 3,
-              missingWhy: null,
-              exclusions: currentExclusions,
-              failed: failure,
-              reasonPool: pool,
-            }),
-            0.2,
-          );
-          setFixResponses((current) => [
-            ...current,
-            { ...presentFixModelResponse("proposal", script), code: failure.code },
-          ]);
-          const items = keepGroundedBigThoughts(
-            parseGeneratedBigThoughts(script ? parseModelJson(script) : null, selected.statement, pool),
-            pool,
-          );
-          for (const item of items) {
-            if (item.label) labelsByStatement.set(item.statement, item.label);
-          }
-          return items
-            .map((item) => item.statement)
-            .filter((statement) => statement !== failure.statement)
-            .slice(0, 3);
-        },
-        judge: (statement, judgedSiblings) => {
-          let pass = 0;
-          return judgeCandidateWithAsk({
-            parentStatement: selected.statement,
-            statement,
-            code: "NEW",
-            siblings: judgedSiblings,
-            ask: async (prompt) => {
-              const script = await askFix(prompt, 0);
-              pass += 1;
-              const kind = pass === 1 ? "individual" : "adversarial";
-              setFixResponses((current) => [
-                ...current,
-                { ...presentFixModelResponse(kind, script), code: subjectCode },
-              ]);
-              return script;
-            },
-          });
-        },
-        precheck: ({ statement, incumbents: currentIncumbents }) =>
-          precheckReplacementCandidate(
-            {
-              parentStatement: selected.statement,
-              candidateStatement: statement,
-              incumbents: currentIncumbents,
-              fingerprint: incumbentSetFingerprint({
-                masterThoughtFingerprint: parentFp,
-                bigThoughtFingerprints: [...currentIncumbents, { code: "NEW", statement }].map((row) =>
-                  bigThoughtFingerprint({ statement: row.statement, masterThoughtFingerprint: parentFp }),
-                ),
-              }),
-            },
-            async (prompt) => {
-              const script = await askFix(prompt, 0);
-              setFixResponses((current) => [
-                ...current,
-                {
-                  ...presentFixModelResponse("sibling", script, [
-                  ...currentIncumbents.map((row) => row.code),
-                  "NEW",
-                ]),
-                  code: subjectCode,
-                },
-              ]);
-              return script;
-            },
-          ),
-      });
-      const semanticExclusions = mergeExclusionHistory(null, discovered, parentFp);
-      const persisted = persistedSetRecordAfterFix(parseLabSetRecord(selected.lastAudit), 0, semanticExclusions);
-      if (persisted.write) {
-        await masters.saveSet.mutateAsync({
-          id: selected.id,
-          lastAudit: persisted.lastAudit,
-        });
-      }
-      const offers = results.flatMap((result) =>
-        result.result === "OFFERS"
-          ? result.offers.map((offer) => ({
-              ...offer,
-              failedCode: result.code,
-              label: labelsByStatement.get(offer.statement) ?? "",
-            }))
-          : [],
-      );
-      if (onlyCode) {
-        const key = onlyCode.trim().toUpperCase();
-        setFixOffers((current) => [...current.filter((offer) => offer.failedCode.toUpperCase() !== key), ...offers]);
-      } else {
-        setFixOffers(offers);
-      }
-      const unsafe = results.filter((result) => result.result === "NO_SAFE_REPLACEMENT").map((result) => result.code);
-      if (offers.length > 0) setNotice(null);
-      else setNotice(t("thinkingLab.bt.noSafeReplacement", "NO_SAFE_REPLACEMENT {{codes}}", { codes: unsafe.join(", ") }));
-  };
-
-  const onFixBigThought = (code: string) => {
-    const key = code.trim().toUpperCase();
-    if (!key || fixingBigThoughtCodesRef.current.has(key)) return;
-    fixingBigThoughtCodesRef.current.add(key);
-    setFixingBigThoughtCodes(new Set(fixingBigThoughtCodesRef.current));
-    void (async () => {
-      try {
-        await repairFailedBigThoughts(code);
-      } catch (error) {
-        reportStepError(error);
-      } finally {
-        fixingBigThoughtCodesRef.current.delete(key);
-        setFixingBigThoughtCodes(new Set(fixingBigThoughtCodesRef.current));
-        if (selected?.id) void queryClient.invalidateQueries({ queryKey: ["content-ai-usage", "master", selected.id] });
-      }
-    })();
-  };
-
-  const onPickFixOffer = (failedCode: string, statement: string) =>
-    run(async () => {
-      if (!selected || !parentFp) return;
-      const offer = fixOffers.find(
-        (row) => row.failedCode.toUpperCase() === failedCode.toUpperCase() && row.statement === statement,
-      );
-      const previous = active.find((row) => row.code.toUpperCase() === failedCode.toUpperCase());
-      if (!offer || !previous) return;
-        await thoughts.reject.mutateAsync(previous.id);
-      const known = thoughts.data ?? [];
-      const code = nextBigThoughtCode(known.map((row) => row.code));
-      const sort = known.reduce((max, row) => Math.max(max, row.sortOrder), 0) + 1;
-      const facts: BigThoughtFacts = { ...offer.facts, code };
-        await thoughts.insert.mutateAsync({
-          code,
-        statement: offer.statement,
-        label: offer.label,
-          sortOrder: sort,
-          facts,
-          masterFingerprint: parentFp,
-        });
-      const held = heldAuditAfterFix({
-        items: parseLabSetRecord(selected.lastAudit)?.audit?.items,
-        rows: active
-          .filter((row) => row.id !== previous.id)
-          .map((row) => ({
-            code: row.code,
-            statementFingerprint: bigThoughtFingerprint({
-              statement: row.statement,
-              masterThoughtFingerprint: parentFp,
-            }),
-          })),
-        replacedCodes: [previous.code],
-      });
-      held.push({
-        code,
-        verdict: "AUDIT_PASS",
-        statementFingerprint: bigThoughtFingerprint({
-          statement: offer.statement,
-          masterThoughtFingerprint: parentFp,
-        }),
-      });
-      const persisted = persistedSetRecordAfterFix(
-        parseLabSetRecord(selected.lastAudit),
-        1,
-        parseLabSetRecord(selected.lastAudit)?.semanticExclusions,
-        held,
-      );
-      if (persisted.write) {
-        await masters.saveSet.mutateAsync({ id: selected.id, lastAudit: persisted.lastAudit });
-      }
-      setFixOffers((current) => current.filter((row) => row.failedCode.toUpperCase() !== failedCode.toUpperCase()));
-        setNotice(null);
-    });
 
   const onChallenger = () =>
     run(async () => {
       if (!selected || !parentFp || !challengerReady) return;
-      const passing = rowViews.filter((row) => row.audit === "AUDIT_PASS");
+      const passing = shownRowViews.filter((row) => row.audit === "AUDIT_PASS");
       const script = await askThinkingLab(
         buildChallengerPrompt({
           parentStatement: selected.statement,
@@ -5249,7 +7774,7 @@ export function ThinkingLabPage() {
         setNotice(lockDecision.reason);
         return;
       }
-      const ids = rowViews
+      const ids = shownRowViews
         .filter((row) => row.audit === "AUDIT_PASS")
         .map((row) => row.id);
       await thoughts.lockMany.mutateAsync(ids);
@@ -5400,12 +7925,34 @@ export function ThinkingLabPage() {
     })();
   };
 
+  const pillarCardsFor = (idea: LabIdea) => {
+    const live = focusedIdea?.id === idea.id;
+    const cards = lockedPillarCards(idea.developmentPaths, live ? creativeReviews : null);
+    if (!live || !creativePillarId) return cards;
+    const review =
+      (creativeReviews ?? []).find((item) => item.contentPillarId === creativePillarId) ??
+      idea.developmentPaths.flatMap((path) => path.reviews).find((item) => item.contentPillarId === creativePillarId);
+    const saved = cards.find((card) => card.contentPillarId === creativePillarId);
+    if (!review && !saved) return cards;
+    return mergeLockedPillar(cards, {
+      contentPillarId: creativePillarId,
+      pillarName:
+        review?.pillarName ||
+        saved?.pillarName ||
+        (contentPillars.data ?? []).find((pillar) => pillar.id === creativePillarId)?.name ||
+        "",
+      development: review?.development || saved?.development || "",
+      reason: review?.reason || saved?.reason || "",
+      format: creativeFormat,
+    });
+  };
+
   const pathUp = (() => {
     if (!selected || !locked || !focus || focus.masterId !== selected.id || focus.kind === "master") return undefined;
     const masterTitle = (masterStatement || masterSubject || selected.originalInput).trim();
     const masterItem = { label: t("thinkingLab.tree.masterThought", "Master Thought"), title: masterTitle };
     const thought =
-      rowViews.find((row) => row.id === focus.thoughtId) ??
+      shownRowViews.find((row) => row.id === focus.thoughtId) ??
       lockedChildren.get(selected.id)?.find((row) => row.id === focus.thoughtId);
     const thoughtItem = {
       label: t("thinkingLab.tree.bigThought", "Big Thought"),
@@ -5424,8 +7971,24 @@ export function ThinkingLabPage() {
       title: angle ? angleListSubject(angle.canonicalSemantic.subject ?? "", territory?.statement ?? "") : "",
     };
     if (focus.kind === "angle") return [territoryItem, thoughtItem, masterItem];
+    if (focus.kind === "pillar") {
+      return [
+        {
+          label: t("thinkingLab.idea.list", "Idea"),
+          title: ideaLabel(focusedIdea?.statement ?? "", focusedIdea?.canonicalSemantic.subject),
+        },
+        angleItem,
+        territoryItem,
+        thoughtItem,
+        masterItem,
+      ];
+    }
     return [angleItem, territoryItem, thoughtItem, masterItem];
   })();
+  const focusedPillarCard =
+    focus?.kind === "pillar" && focusedIdea
+      ? (pillarCardsFor(focusedIdea).find((card) => card.contentPillarId === focus.contentPillarId) ?? null)
+      : null;
 
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
@@ -5456,6 +8019,9 @@ export function ThinkingLabPage() {
                       pillarName={focusedExecution.pillarName}
                       script={focusedExecution.script}
                       onClose={() => setScriptTableOpen(false)}
+                      pending={busy}
+                      fixingLineId={fixingLineId}
+                      onRegenerateLine={onRegenerateLine}
                       onDelete={
                         focus?.kind === "execution"
                           ? () => setPendingDelete({ kind: "execution", id: focus.executionId })
@@ -5575,6 +8141,7 @@ export function ThinkingLabPage() {
                             inspectedTerritoryId={focus?.kind === "territory" ? focus.territoryId : null}
                             inspectedAngleId={focus?.kind === "angle" ? focus.angleId : null}
                             inspectedIdeaId={focus?.kind === "idea" ? focus.ideaId : null}
+                            inspectedPillarId={focus?.kind === "pillar" ? focus.contentPillarId : null}
                             inspectedExecutionId={focus?.kind === "execution" ? focus.executionId : null}
                             childrenByMasterId={(() => {
                               const territoryCountFor = (thoughtId: string) =>
@@ -5603,7 +8170,7 @@ export function ThinkingLabPage() {
                                 }
                                 next.set(
                                   selected.id,
-                                  rowViews.map((row) => ({
+                                  shownRowViews.map((row) => ({
                                     id: row.id,
                                     code: row.code,
                                     label: row.label,
@@ -5618,11 +8185,12 @@ export function ThinkingLabPage() {
                                 focus.kind === "territory" ||
                                 focus.kind === "angle" ||
                                 focus.kind === "idea" ||
+                                focus.kind === "pillar" ||
                                 focus.kind === "execution"
                                   ? focus.territoryId
                                   : null;
                               const ideasOpen =
-                                focus.kind === "angle" || focus.kind === "idea" || focus.kind === "execution"
+                                focus.kind === "angle" || focus.kind === "idea" || focus.kind === "pillar" || focus.kind === "execution"
                                   ? focus.angleId
                                   : null;
                               const lockedAnglesFor = (territoryId: string) => {
@@ -5632,7 +8200,12 @@ export function ThinkingLabPage() {
                                     (angle) => angle.territoryId === territoryId && angle.admission === "GENERATE_VALID",
                                   )
                                   .map((angle) => {
-                                    const ideas = visibleIdeas(labIdeas.data ?? [], angle.id);
+                                    const ideas = (labIdeas.data ?? []).filter(
+                                      (idea) =>
+                                        idea.angleId === angle.id &&
+                                        (idea.validation ?? classifyLegacyIdea(idea.statement, angle.statement)).decision ===
+                                          "LOLOS",
+                                    );
                                     const territoryName =
                                       (labTerritories.data ?? []).find((item) => item.id === territoryId)?.statement ?? "";
                                     const ownSubject = angleChecklists[angle.code.toUpperCase()]?.checks.find(
@@ -5650,29 +8223,54 @@ export function ThinkingLabPage() {
                                       childCount: ideas.length,
                                       ideas:
                                         ideasOpen === angle.id
-                                          ? ideas.map((idea) => ({
-                                              id: idea.id,
-                                              code: idea.code,
-                                              statement: idea.statement,
-                                              subject: idea.canonicalSemantic.subject,
-                                              recommended: idea.canonicalSemantic.causeLock === "LOCKED",
-                                              childCount: executionCounts[idea.id] ?? 0,
-                                              executions:
-                                                focus?.kind !== "master" &&
-                                                focus?.kind !== "bigThought" &&
-                                                (focus?.kind === "idea" || focus?.kind === "execution") &&
-                                                focus.ideaId === idea.id
-                                                  ? (labExecutions.data ?? []).map((row) => ({
-                                                      id: row.id,
-                                                      label: row.pillarName,
-                                                      passed: executionChecklistPassed(
-                                                        row.canonicalSemantic,
-                                                        row.admission,
-                                                        row.script?.lineIssues.length ?? 0,
-                                                      ),
+                                          ? ideas.map((idea) => {
+                                              const open =
+                                                focus?.kind === "idea" || focus?.kind === "pillar" || focus?.kind === "execution"
+                                                  ? focus.ideaId === idea.id
+                                                  : false;
+                                              const cards = pillarCardsFor(idea);
+                                              const rows = open ? (labExecutions.data ?? []) : [];
+                                              const lockedIds = new Set(cards.map((card) => card.contentPillarId));
+                                              const executionNode = (row: (typeof rows)[number], underPillar: boolean) => ({
+                                                id: row.id,
+                                                label: underPillar
+                                                  ? row.format === "carousel"
+                                                    ? t("thinkingLab.creative.format.carousel", "Carousel")
+                                                    : row.format === "post"
+                                                      ? t("thinkingLab.creative.format.post", "Static Post")
+                                                      : row.format === "video"
+                                                        ? t("thinkingLab.creative.format.video", "Video")
+                                                        : row.pillarName
+                                                  : row.pillarName,
+                                                passed: executionChecklistPassed(
+                                                  row.canonicalSemantic,
+                                                  row.admission,
+                                                  row.script?.lineIssues.length ?? 0,
+                                                ),
+                                              });
+                                              return {
+                                                id: idea.id,
+                                                code: idea.code,
+                                                statement: idea.statement,
+                                                subject: idea.canonicalSemantic.subject,
+                                                recommended: idea.canonicalSemantic.causeLock === "LOCKED",
+                                                childCount: cards.length > 0 ? cards.length : (executionCounts[idea.id] ?? 0),
+                                                pillars: open
+                                                  ? cards.map((card) => ({
+                                                      id: card.contentPillarId,
+                                                      label: card.pillarName,
+                                                      executions: rows
+                                                        .filter((row) => row.contentPillarId === card.contentPillarId)
+                                                        .map((row) => executionNode(row, true)),
                                                     }))
                                                   : [],
-                                            }))
+                                                executions: open
+                                                  ? rows
+                                                      .filter((row) => !row.contentPillarId || !lockedIds.has(row.contentPillarId))
+                                                      .map((row) => executionNode(row, false))
+                                                  : [],
+                                              };
+                                            })
                                           : [],
                                     };
                                   });
@@ -5724,6 +8322,15 @@ export function ThinkingLabPage() {
                               setSelectedId(masterId);
                               setFocus({ kind: "idea", masterId, thoughtId, territoryId, angleId, ideaId });
                             }}
+                            onSelectPillar={(masterId, thoughtId, territoryId, angleId, ideaId, contentPillarId) => {
+                              skipAutoSelect.current = false;
+                              setSelectedId(masterId);
+                              const idea = (labIdeas.data ?? []).find((row) => row.id === ideaId);
+                              const card = idea ? pillarCardsFor(idea).find((item) => item.contentPillarId === contentPillarId) : null;
+                              setCreativePillarId(contentPillarId);
+                              setCreativeFormat(card?.format ?? null);
+                              setFocus({ kind: "pillar", masterId, thoughtId, territoryId, angleId, ideaId, contentPillarId });
+                            }}
                             onSelectExecution={(masterId, thoughtId, territoryId, angleId, ideaId, executionId) => {
                               skipAutoSelect.current = false;
                               setSelectedId(masterId);
@@ -5770,13 +8377,21 @@ export function ThinkingLabPage() {
                                 script={focusedExecution.script}
                                 admission={focusedExecution.admission}
                                 facts={focusedExecution.canonicalSemantic}
+                                reading={executionDraft}
                                 progress={executionProgress}
                                 pending={busy}
+                                passProposal={
+                                  executionPassProposal?.executionId === focusedExecution.id ? executionPassProposal.changes : null
+                                }
+                                onAcceptPassProposal={onAcceptPassProposal}
+                                onDeclinePassProposal={onDeclinePassProposal}
                                 fixingLineId={fixingLineId}
                                 onStop={onStopExecution}
                                 onRepair={() => void onRepairExecution()}
                                 onFixLine={onFixLine}
+                                onRegenerateLine={onRegenerateLine}
                                 onRewrite={onRewriteExecution}
+                                onRegenerate={onRegenerateExecution}
                                 onChangePillar={
                                   pillarHopStopped(focusedExecution.pillarName, focusedExecution.script, focusedExecution.id)
                                     ? undefined
@@ -5787,9 +8402,11 @@ export function ThinkingLabPage() {
                                     ? undefined
                                     : onUseRecommendation
                                 }
+                                pillarChoices={executionProgress?.phase === "recommend" ? pillarChoices : undefined}
                                 onUseOffer={onUseExecutionOffer}
                                 onRetrySelling={onRetrySelling}
-                                checks={executionChecklists[focusedExecution.id]}
+                                checks={executionChecklists[focusedExecution.id] ?? executionRunChecks ?? undefined}
+                                onTogglePass={onToggleExecutionPass}
                                 offerNote={executionRepairNote}
                                 offer={
                                   executionLineOffer?.executionId === focusedExecution.id
@@ -5822,6 +8439,24 @@ export function ThinkingLabPage() {
                                 {t("thinkingLab.execution.loading", "Loading the script...")}
                               </p>
                             )
+                          ) : selected && locked && focus?.masterId === selected.id && focus.kind === "pillar" ? (
+                            <LockedPillarSection
+                              name={
+                                focusedPillarCard?.pillarName ||
+                                (contentPillars.data ?? []).find((pillar) => pillar.id === focus.contentPillarId)?.name ||
+                                t("thinkingLab.tree.pillar", "Pillar")
+                              }
+                              development={focusedPillarCard?.development ?? ""}
+                              reason={focusedPillarCard?.reason ?? ""}
+                              format={focusedPillarCard?.format ?? creativeFormat}
+                              pending={busy}
+                              pathUp={pathUp}
+                              progress={executionProgress}
+                              checks={executionProgress ? executionRunChecks : null}
+                              reading={executionProgress ? executionDraft : null}
+                              onStop={onStopExecution}
+                              onSelectFormat={onOpenExecutionSettings}
+                            />
                           ) : selected && locked ? (
                             focus?.masterId === selected.id ? (
                               <LabNodeInspector
@@ -5973,6 +8608,16 @@ export function ThinkingLabPage() {
                                 onEditTerritory={onEditTerritory}
                                 onEditAngle={onEditAngle}
                                 onEditIdea={onEditIdea}
+                                onDeleteIdea={
+                                  focus.kind === "angle" && !ideaSetLocked
+                                    ? (id) =>
+                                        setPendingDelete({
+                                          kind: "idea",
+                                          id,
+                                          angleId: focus.angleId,
+                                        })
+                                    : undefined
+                                }
                                 onGenerateAngle={
                                   focus.kind === "territory" || (focus.kind === "bigThought" && !territoriesPanelClosed)
                                     ? (territoryId) => void onGenerateAngle(territoryId)
@@ -5986,19 +8631,37 @@ export function ThinkingLabPage() {
                                     : undefined
                                 }
                                 ideas={
-                                  focus.kind === "angle" && openIdeas.length > 0
-                                    ? openIdeas.map((row, index) => ({
-                                        id: row.id,
-                                        code: row.code,
-                                        statement: row.statement,
-                                        mechanismKeys: row.canonicalSemantic.mechanismKeys,
-                                        editable: row.status === "candidate",
-                                        verdict: shownIdeaVerdicts[index] ?? null,
-                                        checklist: ideaChecklists[row.code.toUpperCase()]?.checks,
-                                        checklistNote: ideaChecklists[row.code.toUpperCase()]?.note,
-                                      }))
+                                  focus.kind === "angle" && angleIdeaRows.length > 0
+                                    ? angleIdeaRows.map((row) => {
+                                        const validation = validationForIdea(row);
+                                        return {
+                                          id: row.id,
+                                          code: row.code,
+                                          statement: row.statement,
+                                          decision: validation.decision,
+                                          listed: row.status !== "locked",
+                                          title: validation.title || row.canonicalSemantic.subject,
+                                          concept: validation.concept,
+                                          mechanism: validation.mechanism,
+                                          value: validation.value,
+                                          mechanismKeys: row.canonicalSemantic.mechanismKeys,
+                                          editable: row.status === "candidate" && validation.decision === "LOLOS",
+                                          verdict: auditVerdictForValidation(validation) === "AUDIT_PASS" ? "AUDIT_PASS" : null,
+                                          checklist: checksFromValidation(validation),
+                                          showChecklistPending: false,
+                                          canRevise: canReviseIdea(row, angleIdeaRows, validation.decision),
+                                          checklistNote: ideaChecklists[row.code.toUpperCase()]?.note,
+                                        };
+                                      })
                                     : undefined
                                 }
+                                ideaHistory={
+                                  focus.kind === "angle" && angleIdeaRows.length > 0
+                                    ? ideaHistorySummary(angleIdeaRows.map((row) => validationForIdea(row)))
+                                    : null
+                                }
+                                ideaRevisionTarget={focus.kind === "angle" ? ideaRevisionTarget : null}
+                                onReviseIdea={focus.kind === "angle" ? onReviseIdea : undefined}
                                 ideaStage={focus.kind === "angle" && !ideaSetLocked ? ideaStage : null}
                                 onIdeaStage={() => void onIdeaStage()}
                                 onLockIdeas={
@@ -6036,22 +8699,34 @@ export function ThinkingLabPage() {
                                     ? (code, statement) => void onPickIdeaFixOffer(code, statement)
                                     : undefined
                                 }
-                                executionReady={focus.kind === "idea" && focusedIdea?.status === "locked"}
-                                executions={
-                                  focus.kind === "idea"
-                                    ? (labExecutions.data ?? []).map((row) => ({
-                                        id: row.id,
-                                        pillar: row.pillar,
-                                        label: row.pillarName,
-                                        statement: row.statement,
-                                        admission: row.admission,
-                                      }))
-                                    : undefined
+                                ideaGenerateChecklist={
+                                  focus.kind === "angle" && ideaGenerateRun?.angleId === focusedAngle?.id
+                                    ? { checks: ideaGenerateRun.checks, report: ideaGenerateRun.report }
+                                    : null
                                 }
-                                onChoosePillar={
-                                  focus.kind === "idea" && focusedIdea?.status === "locked" ? onOpenPillarPicker : undefined
+                                executionReady={focus.kind === "idea" && focusedIdeaPassed && focusedIdea?.status === "locked"}
+                                creativePath={
+                                  focus.kind === "idea" && focusedIdeaPassed && focusedIdea?.status === "locked"
+                                    ? (() => {
+                                        const lockedIds = pillarCardsFor(focusedIdea).map((card) => card.contentPillarId);
+                                        return {
+                                          reviews: (creativeReviewReady ? (creativeReviews ?? []) : latestPathReviews(focusedIdea.developmentPaths)).filter(
+                                            (review) => review.status === "RECOMMENDED" && review.development.trim() && !lockedIds.includes(review.contentPillarId),
+                                          ),
+                                          reviewReady: creativeReviewReady && lockedIds.length === 0,
+                                          selectedPillarId: null,
+                                          selectedPillarName: "",
+                                          selectedFormat: null,
+                                          lockedPillarIds: lockedIds,
+                                          onReview: onReviewCreativePillars,
+                                          onSelectPillar: onLockCreativePillar,
+                                          onSelectFormat: onOpenExecutionSettings,
+                                        };
+                                      })()
+                                    : null
                                 }
                                 executionProgress={focus.kind === "idea" ? executionProgress : null}
+                                executionChecklist={focus.kind === "idea" && executionProgress ? executionRunChecks : null}
                                 onStopExecution={focus.kind === "idea" ? onStopExecution : undefined}
                                 angleReady={
                                   focus.kind === "territory" &&
@@ -6079,6 +8754,11 @@ export function ThinkingLabPage() {
                                     : undefined
                                 }
                                 angleStage={focus.kind === "territory" && !angleSetLocked ? angleStage : null}
+                                angleGenerateChecklist={
+                                  focus.kind === "territory" && angleGenerateRun?.territoryId === focus.territoryId
+                                    ? { checks: angleGenerateRun.checks, report: angleGenerateRun.report }
+                                    : null
+                                }
                                 onAngleStage={() => void onAngleStage()}
                                 onFixAngle={
                                   focus.kind === "territory" && !angleSetLocked ? onFixAngle : undefined
@@ -6128,15 +8808,27 @@ export function ThinkingLabPage() {
                                 territories={
                                   focus.kind === "bigThought" && !territoriesPanelClosed
                                     ? (focusedThought?.territories ?? []).map((row) => {
+                                        const liveChecks = territoryChecklists[row.code.toUpperCase()]?.checks;
+                                        const storedRow = (labTerritories.data ?? []).find((item) => item.id === row.id);
+                                        const verdictIndex = admittedTerritories.findIndex((item) => item.id === row.id);
+                                        const verdict = territoryVerdicts[verdictIndex] ?? null;
+                                        const storedItem = territorySet.data?.audit?.items.find(
+                                          (item) => item.code.toUpperCase() === row.code.toUpperCase(),
+                                        );
                                         return {
                                           ...row,
                                           editable: row.status === "candidate",
-                                          checklist: territoryChecklists[row.code.toUpperCase()]?.checks,
+                                          checklist:
+                                            liveChecks && liveChecks.length > 0
+                                              ? liveChecks
+                                              : territoryChecksFromStored({
+                                                  generatePasses: storedRow?.canonicalSemantic.generatePasses,
+                                                  gateFailure:
+                                                    verdict === "AUDIT_FAIL" ? storedItem?.gateFailure ?? null : null,
+                                                  passed: verdict === "AUDIT_PASS",
+                                                }),
                                           checklistNote: territoryChecklists[row.code.toUpperCase()]?.note,
-                                          verdict:
-                                            territoryVerdicts[
-                                              admittedTerritories.findIndex((item) => item.id === row.id)
-                                            ] ?? null,
+                                          verdict,
                                         };
                                       })
                                     : undefined
@@ -6176,6 +8868,11 @@ export function ThinkingLabPage() {
                                   admittedTerritories.length < ACTIVE_SET_CAP
                                     ? () => void onGenerateTerritory(focus.thoughtId)
                                     : undefined
+                                }
+                                territoryGenerateChecklist={
+                                  focus.kind === "bigThought" && territoryGenerateRun?.thoughtId === focus.thoughtId
+                                    ? { checks: territoryGenerateRun.checks, report: territoryGenerateRun.report }
+                                    : null
                                 }
                                 onAcceptGap={
                                   focus.kind === "bigThought" &&
@@ -6463,25 +9160,24 @@ export function ThinkingLabPage() {
                                   }}
                                 />
                               ) : null}
-                                  {(ready || locked || rowViews.length > 0) && !editingBelief ? (
+                                  {(ready || locked || shownRowViews.length > 0) && !editingBelief ? (
                                     <BigThoughtSection
                                   parentStatement={becauseParent}
-                                      rows={rowViews}
+                                      rows={shownRowViews}
                                       missingWhy={missingWhy}
                                       notice={notice}
                                       auditProgress={auditProgress}
-                                      fixResponses={fixResponses}
-                                  fixOffers={fixOffers}
-                                  onPickFixOffer={(code, statement) => void onPickFixOffer(code, statement)}
                                       generateBusy={busy}
                                       generating={busyAction === "generate"}
+                                      generateChecklist={generateChecklist}
                                       onGenerateTerritory={(bigThoughtId) => void onGenerateTerritory(bigThoughtId)}
                                   onEditBigThought={onEditBigThought}
                                       onDeleteBigThought={(bigThoughtId) =>
                                     setPendingDelete({ kind: "bigThought", id: bigThoughtId })
                                   }
                                       onFixBigThought={onFixBigThought}
-                                      fixingCodes={[...fixingBigThoughtCodes]}
+                                      checklists={bigThoughtChecklists}
+                                      fixingCodes={fixingBigThoughtCodes}
                                     />
                                   ) : null}
                             </>
@@ -6511,10 +9207,29 @@ export function ThinkingLabPage() {
         pillars={contentPillars.data ?? []}
         masterSells={masterSells}
         pending={busy}
+        mediumByPillar={pillarMediums.data ?? {}}
+        direct={executionDirect}
         onOpenChange={setPillarPickerOpen}
-        onConfirm={(pillars, audio, look, speech, durationSeconds, brandName, cta) =>
-          loadScriptConfirm({ pillars, audio, look, speech, durationSeconds, brandName, cta })
-        }
+        onConfirm={(pillars, audio, look, speech, durationSeconds, brandName, cta, image) => {
+          const pillar = pillars[0];
+          const organizationId = masters.organizationId;
+          if (pillar && organizationId) {
+            void savePillarMediumDefault(organizationId, pillar.id, image ? "image" : "video").then(() => {
+              void queryClient.invalidateQueries({ queryKey: ["thinking-lab-pillar-defaults", organizationId] });
+            });
+          }
+          loadScriptConfirm({
+            pillars,
+            audio,
+            look,
+            speech,
+            durationSeconds,
+            brandName,
+            cta,
+            image,
+            pillarDevelopment: pillar ? rememberedDevelopment(pillar.id) : null,
+          });
+        }}
       />
       <ExecutionConfirmDialog
         open={scriptConfirm !== null}
@@ -6522,14 +9237,19 @@ export function ThinkingLabPage() {
         failed={scriptConfirm?.failed ?? false}
         questions={scriptConfirm?.questions ?? null}
         pending={busy}
+        choosingMode={scriptConfirm?.phase === "mode"}
+        onChooseMode={(mode) => {
+          if (!scriptConfirm) return;
+          askScriptDiscovery(scriptConfirm, mode);
+        }}
         onOpenChange={(open) => {
           if (open) return;
           confirmToken.current += 1;
           setScriptConfirm(null);
         }}
         onRetry={() => {
-          if (!scriptConfirm) return;
-          loadScriptConfirm(scriptConfirm);
+          if (!scriptConfirm?.discovery) return;
+          askScriptDiscovery(scriptConfirm, scriptConfirm.discovery);
         }}
         onConfirm={(answers) => {
           if (!scriptConfirm) return;
@@ -6553,7 +9273,51 @@ export function ThinkingLabPage() {
             settings.cta,
             chosenDecisions.find((row) => row.binds === "viewpoint")?.answer ?? null,
             chosenDecisions,
+            false,
+            null,
+            settings.image,
+            false,
+            null,
+            null,
+            settings.pillarDevelopment,
           );
+        }}
+      />
+      <ExecutionConfirmDialog
+        open={ideaDiscover !== null}
+        loading={ideaDiscover?.loading ?? false}
+        failed={ideaDiscover?.failed ?? false}
+        questions={ideaDiscover?.questions ?? null}
+        pending={busy}
+        title={t("thinkingLab.idea.discoverTitle", "Confirm the situation")}
+        hint={t(
+          "thinkingLab.idea.discoverHint",
+          "The chain is read first. Choose the situation these Ideas live in, then the sentences are written.",
+        )}
+        loadingText={t("thinkingLab.idea.discoverLoading", "Reading the chain from the Master Thought through the Angle...")}
+        failedText={t("thinkingLab.idea.discoverFailed", "The situation questions could not be read. Try again.")}
+        confirmText={t("thinkingLab.idea.discoverWrite", "Write the Ideas")}
+        onOpenChange={(open) => {
+          if (open) return;
+          ideaDiscoverToken.current += 1;
+          setIdeaDiscover(null);
+        }}
+        onRetry={() => {
+          if (!ideaDiscover) return;
+          onGenerateIdea(ideaDiscover.angleId);
+        }}
+        onConfirm={(answers) => {
+          if (!ideaDiscover) return;
+          const pending = ideaDiscover;
+          ideaDiscoverToken.current += 1;
+          setIdeaDiscover(null);
+          const questions = pending.questions ?? [];
+          const decisions = questions.flatMap((question) => {
+            const answer = answers.find((item) => item.question === question.prompt)?.answer.trim() ?? "";
+            if (!answer) return [];
+            return [{ category: question.category, question: question.prompt, answer }];
+          });
+          writeGeneratedIdeas(pending.angleId, { angleFingerprint: pending.angleFingerprint, decisions });
         }}
       />
       <SaveToPlanModal
@@ -6565,6 +9329,11 @@ export function ThinkingLabPage() {
         }
         lockedTitle={focusedExecution?.script?.title ?? ""}
         lockedPillarId={focusedExecution?.contentPillarId}
+        lockedContentTypeName={
+          focusedExecution?.script?.medium === "image"
+            ? imageContentTypeName(focusedExecution.script.image?.format ?? "single")
+            : null
+        }
         preserveTableColumns
         syncPlanIdentity
         onSuccess={() => {

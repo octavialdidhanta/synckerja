@@ -1,9 +1,10 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { fixScopeLines, openMistakeLines, type FixScope } from "@/thinking-lab/shared/fixScope";
 import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
+import { ideaWorldLines } from "@/thinking-lab/idea/discover";
 import { parseGeneratedIdeaDrafts, type IdeaDraft } from "@/thinking-lab/idea/generate";
 import { scoreIdeaAudit } from "@/thinking-lab/idea/setAudit";
-import type { IdeaSetFacts } from "@/thinking-lab/idea/setAudit";
+import type { IdeaDecision, IdeaSetFacts } from "@/thinking-lab/idea/setAudit";
 
 export function buildIdeaFixOptionsPrompt(input: {
   parentStatement: string;
@@ -13,6 +14,7 @@ export function buildIdeaFixOptionsPrompt(input: {
   keepers: Array<{ code: string; statement: string }>;
   conflicts: string[];
   lessons?: Array<{ code: string; statement: string; reason: string }>;
+  decisions?: IdeaDecision[] | null;
   scope?: FixScope;
 }): string {
   const keeperLines =
@@ -28,7 +30,7 @@ export function buildIdeaFixOptionsPrompt(input: {
     "Write the statement and every key in the same language as the Angle.",
     "When the Angle is not English, do not write the statement or the keys in English.",
     "The replacement is a concrete mechanism that makes the Angle happen, become visible, or be proved, through a demonstration, an experiment, a comparison, or a situation.",
-    "Write one sentence in the Angle's language. Name what is made, invited, shown, or created, then what that makes true. It proves the Angle and does not explain the Big Thought in words.",
+    "Write one sentence in the Angle's language. Name what is made, invited, shown, or created, then what that makes true. It proves the Angle. Do not explain the Big Thought in words instead of naming what the mechanism makes true.",
     "Keep what becomes true in the sentence so the mechanism can be understood.",
     "Do not announce that result with menunjukkan bahwa, membuktikan bahwa, menyoroti bahwa, shows that, proves that, or highlights that.",
     "Do not write a plot. Do not use namun, tiba-tiba, lalu, or kita mengamati bagaimana.",
@@ -46,7 +48,7 @@ export function buildIdeaFixOptionsPrompt(input: {
     ...(input.scope?.preserve.includes("causeLock")
       ? ["The cause lock already passed. Keep those mechanism keys."]
       : []),
-    "Do not use examples from any specific industry, belief system, or brand.",
+    ...ideaWorldLines(input.decisions),
     "Return JSON only: {\"ideas\":[{\"subject\":\"...\",\"statement\":\"...\",\"keys\":[{\"otherExplanation\":\"...\",\"close\":\"...\"}]}]}",
     "",
     "Direct Angle:",
@@ -87,7 +89,14 @@ export function parseIdeaFixDrafts(raw: unknown): IdeaDraft[] {
   if (raw && typeof raw === "object" && !Array.isArray(raw) && Array.isArray((raw as { ideas?: unknown }).ideas)) {
     return parseGeneratedIdeaDrafts(raw).slice(0, 3);
   }
-  return parseIdeaFixOptions(raw).map((statement) => ({ subject: "", statement, mechanismKeys: [] }));
+  return parseIdeaFixOptions(raw).map((statement) => ({
+    subject: "",
+    statement,
+    mechanismKeys: [],
+    concept: "",
+    mechanism: "",
+    value: "",
+  }));
 }
 
 export function parseIdeaFixDraftScript(script: string | null): IdeaDraft[] {

@@ -181,10 +181,106 @@ export function confirmedDecisionRules(decisions: ScriptDecision[] | null | unde
     lines.push(
       `Locked choice — ${row.category}: "${row.answer}".`,
       `The question was: ${row.question}`,
-      "Write that choice. Do not use one of the other options.",
+      "Use that choice as the concrete instance of a step the locked pillar communication already contains.",
+      "Keep it inside that step. Do not add a scene for this choice.",
+      "Keep the time and the status of that step. Advice stays advice. A step that has not happened yet does not become a memory of it already having happened.",
+      "Do not state that desire before the question the pillar communication already asks.",
+      "Do not replace the method the pillar communication already gives.",
     );
   }
   return lines;
+}
+
+export function claimMaterialLines(input: {
+  pillarDevelopment?: string | null;
+  decisions?: ScriptDecision[] | null;
+}): string[] {
+  const development = input.pillarDevelopment?.trim() ?? "";
+  const stories = (input.decisions ?? []).filter((row) => row.binds === "story" && row.answer.trim());
+  if (!development && stories.length === 0) return [];
+  return [
+    "Locked material may be written. A detail from this material is not a new claim.",
+    ...(development ? ["Locked pillar communication:", development] : []),
+    ...stories.flatMap((row) => [
+      `Locked story answer — ${row.category}: "${row.answer.trim()}".`,
+      `The question was: ${row.question.trim()}`,
+    ]),
+    "A situation, a desire, a need, or a consequence that is not in the Idea and not in this locked material is a new claim.",
+    "A specific desire the Idea leaves unnamed is a new claim unless a locked story answer names it.",
+    ...pillarFidelityLines(development),
+  ];
+}
+
+export function pillarFidelityLines(development?: string | null): string[] {
+  if (!development?.trim()) return [];
+  return [
+    "Keep the time and the status of every step in the locked pillar communication.",
+    "Advice, a reminder, or a step that is not yet known or not yet done stays in that status.",
+    "A later line fails when it tells that step as a memory of it already having happened.",
+    "If the communication exists to remind someone to do a step, a later line that says the step was already done removes the reason for the reminder and fails.",
+    "A line that says andai saja aku tahu, followed by a line that says saat itu aku mulai bertanya, is that failure.",
+    "A feeling, a result, or a slogan taken from the Master Thought that the locked pillar communication does not state is a new claim.",
+    "A smile, or the words ibu yang baik sedunia, is a new claim when the locked pillar communication does not state them.",
+  ];
+}
+
+export function pillarDevelopmentLines(development?: string | null): string[] {
+  const text = development?.trim() ?? "";
+  if (!text) return [];
+  return [
+    "Pillar development. Realize this communication. Do not replace the conceptual idea, and do not invent a different communication.",
+    text,
+  ];
+}
+
+export type DiscoveryMode = "follow" | "sharpen";
+
+function discoveryInstructions(mode: DiscoveryMode): string[] {
+  if (mode === "follow") {
+    return [
+      "Before a script is written, read the locked pillar communication.",
+      "Do not write the script.",
+      "Return no story question.",
+      "A story question asks for a moment, a desire, a method, or how one beat becomes the next.",
+      "Ask who tells the story only when the locked pillar communication does not already say who is speaking.",
+      "Ask who the camera stays with only when that person can differ from the speaker and the locked pillar communication does not already say who the picture stays with.",
+      "If the teller and the person in frame are the same choice, return only the viewpoint question.",
+      "Do not offer an abstract option such as third person, brand, narrator, or someone, unless the option names who that is.",
+      "Do not ask about duration, look, speech mode, brand spelling, the call to action, or which pillar. Those are already chosen.",
+      "If the communication already names the speaker, return an empty question list.",
+      'binds is "viewpoint" when the answer is who tells the story.',
+      'binds is "frame" when the answer is who the camera stays with.',
+    ];
+  }
+  return [
+    "Before a video script is written, find every choice that is still open.",
+    "A choice is open when two different answers would make two different scripts.",
+    "Do not write the script.",
+    "Read the chain from the Master Thought through the selected pillar.",
+    "Name each open choice yourself. Do not limit the list to point of view.",
+    "Ask who tells the story when more than one person could tell it.",
+    "Ask who the camera stays with only when that person can differ from the person who tells the story.",
+    "Ask any other open choice the chain does not already settle, such as which moment, or whose experience is shown.",
+    "When the chain does not already say how one situation becomes the next, that join is an open choice.",
+    "Ask how the viewer gets from the last moment of one beat to the first moment of the next.",
+    "That question binds story. Its options are concrete steps already present in the chain.",
+    "Do not leave the join to an unexplained discovery, a sudden meeting, or a promise the previous beat did not set up.",
+    "A story question is allowed only when the locked pillar communication names a step and leaves its concrete instance open.",
+    "Each story option is a concrete instance of that step already written in the locked pillar communication.",
+    "Do not ask for a desire the communication leaves unnamed on purpose. The script asks that desire. It does not know the answer first.",
+    "Do not ask for a method when the communication already states how the step is carried out.",
+    "When the locked pillar communication already says how one step becomes the next, that join is closed. Do not ask it.",
+    "The chosen instance fills the step that is already written. It does not become its own scene, a situation before the pillar's question, or a different method.",
+    "Return as many questions as there are open choices. Zero is allowed. Five or six are allowed when each one changes the script.",
+    "Each question has a short category, a prompt in the Idea's language, binds, and two to four concrete options already implied by the chain.",
+    'binds is "viewpoint" when the answer is who tells the story.',
+    'binds is "frame" when the answer is who the camera stays with.',
+    'binds is "story" for every other open choice.',
+    "If the teller and the person in frame are the same choice, return only the viewpoint question.",
+    "Do not offer an abstract option such as third person, brand, narrator, or someone, unless the option names who that is.",
+    "Do not ask about duration, look, speech mode, brand spelling, the call to action, or which pillar. Those are already chosen.",
+    "If nothing is open, return an empty question list.",
+  ];
 }
 
 export function buildExecutionConfirmPrompt(input: {
@@ -200,6 +296,8 @@ export function buildExecutionConfirmPrompt(input: {
   durationSeconds?: number | null;
   brandName?: string | null;
   cta?: string | null;
+  pillarDevelopment?: string | null;
+  discovery?: DiscoveryMode;
 }): string {
   const brandName = input.brandName?.trim() ?? "";
   const cta = input.cta?.trim() ?? "";
@@ -212,27 +310,7 @@ export function buildExecutionConfirmPrompt(input: {
     })
     .filter(Boolean);
   return [
-    "Before a video script is written, find every choice that is still open.",
-    "A choice is open when two different answers would make two different scripts.",
-    "Do not write the script.",
-    "Read the chain from the Master Thought through the selected pillar.",
-    "Name each open choice yourself. Do not limit the list to point of view.",
-    "Ask who tells the story when more than one person could tell it.",
-    "Ask who the camera stays with only when that person can differ from the person who tells the story.",
-    "Ask any other open choice the chain does not already settle, such as which moment, or whose experience is shown.",
-    "When the chain does not already say how one situation becomes the next, that join is an open choice.",
-    "Ask how the viewer gets from the last moment of one beat to the first moment of the next.",
-    "That question binds story. Its options are concrete steps already present in the chain.",
-    "Do not leave the join to an unexplained discovery, a sudden meeting, or a promise the previous beat did not set up.",
-    "Return as many questions as there are open choices. Zero is allowed. Five or six are allowed when each one changes the script.",
-    "Each question has a short category, a prompt in the Idea's language, binds, and two to four concrete options already implied by the chain.",
-    'binds is "viewpoint" when the answer is who tells the story.',
-    'binds is "frame" when the answer is who the camera stays with.',
-    'binds is "story" for every other open choice.',
-    "If the teller and the person in frame are the same choice, return only the viewpoint question.",
-    "Do not offer an abstract option such as third person, brand, narrator, or someone, unless the option names who that is.",
-    "Do not ask about duration, look, speech mode, brand spelling, the call to action, or which pillar. Those are already chosen.",
-    "If nothing is open, return an empty question list.",
+    ...discoveryInstructions(input.discovery ?? "sharpen"),
     "Already chosen:",
     pillars.length > 0 ? `Pillars:\n${pillars.join("\n")}` : "Pillars: (none)",
     input.speech ? `Speech mode: ${input.speech}.` : "",
@@ -252,6 +330,7 @@ export function buildExecutionConfirmPrompt(input: {
     "",
     "Idea:",
     input.ideaStatement.trim(),
+    ...pillarDevelopmentLines(input.pillarDevelopment),
   ]
     .filter((line) => line !== "")
     .join("\n");

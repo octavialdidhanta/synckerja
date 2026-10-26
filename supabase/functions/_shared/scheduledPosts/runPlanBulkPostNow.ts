@@ -3,13 +3,20 @@ import {
   insertPostNowScheduleForTarget,
   type PlanPublishTargetInput,
 } from "./createPlatformScheduleRow.ts";
+import { touchPublishingHeartbeat } from "./publishingHeartbeat.ts";
 import { runScheduledPostJob } from "./runScheduledPostJob.ts";
+import {
+  computeNextRetryAt,
+  isTransientPublishErrorForPlatform,
+  resolveScheduleStatusAfterFailure,
+} from "./scheduledPostRetry.ts";
 import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
 import {
   buildSharedPublishContext,
   cloneSharedPublishContext,
   instagramPublishShouldFollowPeers,
   isPlanPublishSequential,
+  planPublishNeedsPreloadedVideo,
   type SharedPublishContext,
 } from "./sharedPublishContext.ts";
 
@@ -23,6 +30,7 @@ export type PlanBulkPostNowTargetResult = {
   published_url?: string;
   external_post_id?: string;
   tiktok_publish_path?: "pull" | "file_upload";
+  duration_ms?: number;
 };
 
 export type RunPlanBulkPostNowArgs = {
@@ -49,11 +57,16 @@ async function publishScheduleWithContext(
   row: ScheduledPostRow,
   sharedCtx: SharedPublishContext,
 ): Promise<PlanBulkPostNowTargetResult> {
+  const started = Date.now();
   const job = await runScheduledPostJob(admin, scheduleId, {
     skipPublishingTransition: true,
     preloadedRow: row,
     sharedPublishContext: sharedCtx,
   });
+  const durationMs = Date.now() - started;
+  console.info(
+    `plan_bulk_publish platform_done scheduleId=${scheduleId} platform=${row.platform} ms=${durationMs} ok=${job.ok} error=${job.error ?? ""}`,
+  );
 
   return {
     platform: row.platform,
@@ -65,6 +78,7 @@ async function publishScheduleWithContext(
     published_url: job.published_url,
     external_post_id: job.external_post_id,
     tiktok_publish_path: job.tiktok_publish_path,
+    duration_ms: durationMs,
   };
 }
 
@@ -74,7 +88,10 @@ export async function runPlanBulkPostNowJob(
   schedules: ScheduledPostRow[],
 ): Promise<PlanBulkPostNowTargetResult[]> {
   const platforms = schedules.map((s) => s.platform);
+  const scheduleIds = schedules.map((row) => row.id);
   const downloadStart = Date.now();
+  const willDownload = planPublishNeedsPreloadedVideo(platforms);
+  await markPublishStep(admin, schedules, willDownload ? "downloading" : "queued");
 
   let sharedCtx: SharedPublishContext;
   try {
@@ -82,35 +99,16 @@ export async function runPlanBulkPostNowJob(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "drive_download_failed";
     console.error(
-      `plan_bulk_publish drive_download_failed planId=${args.planId} error=${msg}`,
+      `plan_bulk_publish drive_download_failed planId=${args.planId} ms=${Date.now() - downloadStart} error=${msg}`,
     );
-    const results: PlanBulkPostNowTargetResult[] = [];
-    for (const row of schedules) {
-      await admin
-        .from("social_media_scheduled_posts")
-        .update({
-          status: "failed",
-          error_message: msg,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", row.id);
-      results.push({
-        platform: row.platform,
-        account_label: String(
-          (row.provider_config as { account_label?: string })?.account_label ?? "",
-        ),
-        schedule_id: row.id,
-        ok: false,
-        error: msg,
-      });
-    }
-    return results;
+    return await failSchedulesAfterDriveError(admin, schedules, msg);
   }
 
   const downloadMs = Date.now() - downloadStart;
   console.info(
     `plan_bulk_publish download_ok planId=${args.planId} platforms=${platforms.join(",")} download_ms=${downloadMs} preloaded_bytes=${sharedCtx.preloadedVideo?.bytes.byteLength ?? 0}`,
   );
+  await touchPublishingHeartbeat(admin, scheduleIds);
 
   const instagramAfterPeers = schedules.filter((row) => instagramPublishShouldFollowPeers(row));
   const withPeers = schedules.filter((row) => !instagramPublishShouldFollowPeers(row));
@@ -124,12 +122,22 @@ export async function runPlanBulkPostNowJob(
       row,
       instagramCopies.get(row.id) ?? sharedCtx,
     );
-  const sequential = isPlanPublishSequential();
+  // Shared video bytes uploaded in parallel detach the buffer or exhaust isolate memory.
+  // One platform at a time still downloads once, and a killed worker can resume the rest.
+  const sequential = Boolean(sharedCtx.preloadedVideo) || isPlanPublishSequential();
   const results: PlanBulkPostNowTargetResult[] = [];
+  console.info(
+    `plan_bulk_publish upload_mode=${sequential ? "sequential" : "parallel"} planId=${args.planId}`,
+  );
+
+  const runOne = async (row: ScheduledPostRow) => {
+    await touchPublishingHeartbeat(admin, scheduleIds);
+    return publishRowSettled(row, publishRow);
+  };
 
   if (sequential) {
     for (const row of withPeers) {
-      results.push(await publishRowSettled(row, publishRow));
+      results.push(await runOne(row));
     }
   } else if (withPeers.length > 0) {
     const settled = await Promise.allSettled(withPeers.map((row) => publishRow(row)));
@@ -137,7 +145,7 @@ export async function runPlanBulkPostNowJob(
   }
 
   for (const row of instagramAfterPeers) {
-    results.push(await publishRowSettled(row, publishRow));
+    results.push(await runOne(row));
   }
 
   logPlanBulkSummary(args.planId, platforms, downloadMs, results);
@@ -180,6 +188,67 @@ function settlePublishResults(
       error: "publish_failed",
     };
   });
+}
+
+async function markPublishStep(
+  admin: SupabaseClient,
+  rows: ScheduledPostRow[],
+  step: "queued" | "downloading" | "uploading" | "processing",
+): Promise<void> {
+  const now = new Date().toISOString();
+  await Promise.all(rows.map(async (row) => {
+    const next = { ...(row.provider_config ?? {}), publish_step: step };
+    row.provider_config = next;
+    const { error } = await admin
+      .from("social_media_scheduled_posts")
+      .update({ provider_config: next, locked_at: now, updated_at: now })
+      .eq("id", row.id)
+      .eq("status", "publishing");
+    if (error) console.warn(`publish_step_failed scheduleId=${row.id}: ${error.message}`);
+  }));
+}
+
+async function failSchedulesAfterDriveError(
+  admin: SupabaseClient,
+  schedules: ScheduledPostRow[],
+  msg: string,
+): Promise<PlanBulkPostNowTargetResult[]> {
+  const results: PlanBulkPostNowTargetResult[] = [];
+  const now = new Date().toISOString();
+  for (const row of schedules) {
+    const transient = isTransientPublishErrorForPlatform(row.platform, msg);
+    const retryCount = transient
+      ? Number(row.retry_count ?? 0) + 1
+      : Number(row.retry_count ?? 0);
+    const nextStatus = transient
+      ? resolveScheduleStatusAfterFailure(retryCount, msg, row.platform)
+      : "failed";
+    const nextRetryAt = nextStatus === "pending"
+      ? computeNextRetryAt(retryCount, msg, row.platform)
+      : null;
+    await admin
+      .from("social_media_scheduled_posts")
+      .update({
+        status: nextStatus,
+        error_message: msg,
+        retry_count: retryCount,
+        next_retry_at: nextRetryAt,
+        last_error_at: transient ? now : null,
+        locked_at: null,
+        updated_at: now,
+      })
+      .eq("id", row.id);
+    results.push({
+      platform: row.platform,
+      account_label: String(
+        (row.provider_config as { account_label?: string })?.account_label ?? "",
+      ),
+      schedule_id: row.id,
+      ok: false,
+      error: msg,
+    });
+  }
+  return results;
 }
 
 function logPlanBulkSummary(

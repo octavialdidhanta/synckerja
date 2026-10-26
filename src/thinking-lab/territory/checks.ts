@@ -47,9 +47,9 @@ export function buildTerritoryLivedFitPrompt(input: { statement: string; questio
   return [
     "Decide one fact. Do not write a sentence.",
     `The question is: "${input.question.trim()}"`,
-    "lived is true only when that question often comes up in this named area in real life.",
-    "lived is false when that question would not come up there.",
-    "A place can still be true when other questions also come up there.",
+    "lived is true only when that question actually comes up in this named area in real life.",
+    "lived is false when a different question comes up there, or when the question only restates the Big Thought.",
+    "Other questions coming up in that area do not make lived false.",
     "Choose true or false.",
     "Return JSON only: {\"lived\":true} or {\"lived\":false}",
     "",

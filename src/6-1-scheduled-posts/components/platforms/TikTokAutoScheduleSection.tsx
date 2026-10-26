@@ -175,7 +175,13 @@ export function TikTokAutoScheduleSection({
         <h3 className="text-sm font-semibold text-foreground">
           {t('digitalMarketing.scheduledPosts.tiktokAutoPost')}
         </h3>
-        {tiktokSchedule ? <ScheduleStatusBadge status={tiktokSchedule.status} /> : null}
+        {tiktokSchedule ? (
+          <ScheduleStatusBadge
+            status={tiktokSchedule.status}
+            publishStep={tiktokSchedule.provider_config?.publish_step}
+            errorMessage={tiktokSchedule.error_message}
+          />
+        ) : null}
       </header>
 
       {!publishScopesOk ? (

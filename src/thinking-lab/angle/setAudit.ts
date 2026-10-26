@@ -1,5 +1,6 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { fingerprintsMatch } from "@/thinking-lab/shared/fingerprint";
+import { ANGLE_PASS_CHECK_IDS, type AnglePassCheckId } from "@/thinking-lab/angle/passChecklist";
 import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
 import type {
   AngleChallengerResult,
@@ -11,10 +12,16 @@ import type {
   AngleTriState,
 } from "@/thinking-lab/angle/types";
 
+export type AngleGateFailure = {
+  gate: AnglePassCheckId;
+  reason: string;
+};
+
 export type AngleAuditItem = {
   code: string;
   verdict: AuditVerdict;
   statementFingerprint?: string;
+  gateFailure?: AngleGateFailure;
 };
 
 /** Locked Angles and rows that already passed stay passed when a later sibling is audited. */
@@ -318,6 +325,41 @@ export function buildAngleSiblingPrompt(input: {
   ].join("\n");
 }
 
+const AUDIT_VERDICTS = new Set<AuditVerdict>(["AUDIT_PASS", "AUDIT_FAIL", "UNRESOLVED", "STALE"]);
+
+export function readAngleGateFailure(value: unknown): AngleGateFailure | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as { gate?: unknown; reason?: unknown };
+  const gate = asText(row.gate);
+  const reason = asText(row.reason);
+  if (!ANGLE_PASS_CHECK_IDS.includes(gate as AnglePassCheckId) || !reason) return null;
+  return { gate: gate as AnglePassCheckId, reason };
+}
+
+function readAngleAuditItems(value: unknown): AngleAuditItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const row = entry as { code?: unknown; verdict?: unknown; statementFingerprint?: unknown; gateFailure?: unknown };
+    const code = asText(row.code);
+    const verdict =
+      typeof row.verdict === "string" && AUDIT_VERDICTS.has(row.verdict as AuditVerdict)
+        ? (row.verdict as AuditVerdict)
+        : null;
+    if (!code || !verdict) return [];
+    const statementFingerprint = asText(row.statementFingerprint);
+    const gateFailure = readAngleGateFailure(row.gateFailure);
+    return [
+      {
+        code,
+        verdict,
+        ...(statementFingerprint ? { statementFingerprint } : {}),
+        ...(gateFailure ? { gateFailure } : {}),
+      },
+    ];
+  });
+}
+
 export function readAngleSetRecord(raw: unknown): AngleSetRecord {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return emptyAngleSetRecord();
   const row = raw as Record<string, unknown>;
@@ -331,9 +373,7 @@ export function readAngleSetRecord(raw: unknown): AngleSetRecord {
     auditRaw && typeof auditRaw === "object" && !Array.isArray(auditRaw)
       ? {
           fingerprint: asText((auditRaw as { fingerprint?: unknown }).fingerprint),
-          items: Array.isArray((auditRaw as { items?: unknown }).items)
-            ? ((auditRaw as { items: AngleAuditItem[] }).items ?? [])
-            : [],
+          items: readAngleAuditItems((auditRaw as { items?: unknown }).items),
         }
       : null;
   const challengerRaw = row.challenger;

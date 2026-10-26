@@ -5,6 +5,7 @@ import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
 import { deleteLabIdea, insertLabIdea, listLabIdeas, loadIdeaSet, lockLabIdeas, replaceLabIdea, saveIdeaSet } from "@/thinking-lab/idea/repository";
 import type { IdeaSetRecord } from "@/thinking-lab/idea/setAudit";
 import type { IdeaSemanticFacts } from "@/thinking-lab/idea/types";
+import type { IdeaValidation } from "@/thinking-lab/idea/validation";
 
 export function useLabIdeas(angleIds: string[]) {
   const { organizationId } = useCurrentOrg();
@@ -27,6 +28,8 @@ export function useLabIdeas(angleIds: string[]) {
       sortOrder: number;
       facts: IdeaSemanticFacts;
       admission: IndividualAdmission;
+      validation?: IdeaValidation | null;
+      parentIdeaId?: string | null;
     }) => insertLabIdea({ organizationId: organizationId as string, ...input }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["thinking-lab-ideas", organizationId] });
@@ -51,6 +54,7 @@ export function useLabIdeas(angleIds: string[]) {
       statement: string;
       facts: IdeaSemanticFacts;
       admission: IndividualAdmission;
+      validation?: IdeaValidation | null;
     }) => replaceLabIdea({ organizationId: organizationId as string, ...input }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["thinking-lab-ideas", organizationId] });

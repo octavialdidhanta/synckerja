@@ -1,5 +1,6 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
+import { readIdeaGeneratePasses } from "@/thinking-lab/idea/generatePasses";
 import { ideaNodeSummary } from "@/thinking-lab/idea/subject";
 import type {
   IdeaBoundedness,
@@ -316,6 +317,8 @@ export function normalizeIdeaFacts(raw: unknown, fallbackCode = ""): IdeaSemanti
           : [...new Set([...asReasons(row.unresolvedReasons), ...unresolvedFactReasons(canonical)])],
   };
   if (confidence !== undefined) facts.confidence = confidence;
+  const generatePasses = readIdeaGeneratePasses(row.generatePasses);
+  if (generatePasses.length > 0) facts.generatePasses = generatePasses;
   return facts;
 }
 
@@ -386,24 +389,23 @@ export function buildIdeaJudgePrompt(input: {
   return [
     "You are the canonical semantic judge for one Idea under one direct Angle.",
     "An Idea is a concrete mechanism that makes the Angle happen, become visible, or be proved, through a demonstration, an experiment, a comparison, or a situation.",
-    "The sentence names what is made, invited, shown, or created, then what that makes true. It proves the Angle and does not jump to the Big Thought.",
+    "The sentence names what is made, invited, shown, or created, then what that makes true. It proves the Angle. Naming what the mechanism makes true does not jump to the Big Thought.",
     "The statement and the keys must stay in the Angle's language. Do not treat an English wording as more valid.",
     "subject is the short name of the mechanism, at most six words, in the Angle's language. It keeps the meaning of the mechanism. It is not a cut-off sentence.",
     "Each mechanism key is two short clauses. otherExplanation names one other cause. close names how this Idea shuts that cause. A key that says this shows, proves, or highlights a conclusion is not a key.",
-    "It must not verbally explain the Big Thought. A sentence that says this shows or highlights a conclusion is the Big Thought's job.",
+    "It must not verbally explain the Big Thought instead of naming what the mechanism makes true. A sentence that says this shows or highlights a conclusion is the Big Thought's job.",
     "The mechanism keys are written apart from the sentence. Each key names one other explanation a viewer might reach, and how this Idea closes it, so the named Master Thought subject is the only plausible cause.",
     "Angle determines the observation. Idea determines the mechanism. A later pillar chooses the finished form. A pillar that would force a message outside this Idea is refused later.",
     "Judge only this candidate against this direct Angle. Do not compare sibling Ideas. Do not judge overlap, set distinctness, coverage, or challenger completeness.",
     "Judge semantic fit, not keyword overlap. Do not decide relationToParent. Any relation you include is ignored.",
     "parentFit is false when the candidate does not materially express this direct Angle, or when it would still be coherent after the distinctive stake of this Angle or an ancestor is removed. Otherwise true, or unresolved when fit cannot be decided.",
     "A new framing is allowed. Do not copy the Angle or the ancestors.",
-    "conceptualForm is IDEA_CONCEPT when the candidate is a mechanism that makes the Angle happen, become visible, or be proved. ANGLE_LIKE when it is still an observation, contradiction, or tension. TERRITORY_LIKE when it is a noun or life area. BIG_THOUGHT_LIKE when it is a reason or a verbal explanation of why the parent belief is true. EXECUTION_LIKE when it is a finished story, a lesson, a chart, a shot list, dialogue, or any other chosen pillar. UNRESOLVED when the role cannot be decided.",
+    "conceptualForm is IDEA_CONCEPT when the candidate is a mechanism that makes the Angle happen, become visible, or be proved. Naming what the mechanism makes true keeps it IDEA_CONCEPT. ANGLE_LIKE when it is still an observation, contradiction, or tension. TERRITORY_LIKE when it is a noun or life area. BIG_THOUGHT_LIKE when it is a reason or a verbal explanation of why the parent belief is true instead of naming the mechanism and what the mechanism makes true. EXECUTION_LIKE when it is a finished story, a lesson, a chart, a shot list, dialogue, or any other chosen pillar. UNRESOLVED when the role cannot be decided.",
     "creativeMechanism names the vehicle. COMPARISON or CONTRAST is a comparison. EXPERIMENT is an experiment. DEMONSTRATION is a demonstration. SIMULATION is a situation. NARRATIVE is a finished story and is not a valid Idea vehicle. OBSERVATION is still an Angle. METAPHOR, CHALLENGE, TRANSFORMATION, REVEAL, ROLE_REVERSAL, and OTHER are not Idea vehicles. UNRESOLVED when the vehicle cannot be decided. The vehicle decides whether the Idea can pass.",
     "conceptualCompleteness is SUFFICIENT when another person can tell which mechanism is set up. INSUFFICIENT when the creative mechanism is missing. UNRESOLVED when that cannot be decided.",
     "executionIndependence is INDEPENDENT when the mechanism does not require one finished pillar. EXECUTION_BOUND when the concept requires one finished form, such as a chart, a lesson script, a storytelling script, a platform, a duration, a camera, or a shot list. UNRESOLVED when that cannot be decided.",
     "boundedness is BOUNDED when the concept has a recognizable boundary. UNBOUNDED when it does not define a mechanism or boundary. UNRESOLVED when that cannot be decided.",
-    "situationForm is SITUATION when the candidate states the mechanism and the situation is where the reason happens. Naming what the mechanism makes true is still SITUATION. VERBAL when it explains the Big Thought in words, or announces the conclusion with shows that, proves that, highlights that, menunjukkan bahwa, membuktikan bahwa, or menyoroti bahwa, even when a mechanism is also present. UNRESOLVED when that cannot be decided.",
-    "A finished story, lesson, or chart is not SITUATION. A mechanism that names what is compared, and what that comparison makes true, is still SITUATION.",
+    "situationForm is SITUATION when a comparison, a contrast, an experiment, a demonstration, or a situation names the mechanism and what the mechanism makes true, so the reason happens there. VERBAL when the sentence explains the Big Thought in words instead of naming what the mechanism makes true, or announces the conclusion with shows that, proves that, highlights that, menunjukkan bahwa, membuktikan bahwa, or menyoroti bahwa, even when the sentence also names what the mechanism makes true. A finished story, lesson, or chart is not SITUATION. UNRESOLVED when that cannot be decided.",
     "causeLock is LOCKED only when mechanismKeys names each other explanation and how this Idea closes it, so the named Master Thought subject is the only plausible cause. OPEN when a key is missing or another explanation remains. UNRESOLVED when that cannot be decided, or when no subject is named.",
     "Return the confirmed keys in mechanismKeys. Do not leave a lock only inside the sentence.",
     "confidence is optional debug metadata. It does not decide any fact.",

@@ -1,8 +1,13 @@
 import type { AuditVerdict, IndividualAdmission } from "@/thinking-lab/shared/verdict";
 import { fingerprintsMatch } from "@/thinking-lab/shared/fingerprint";
+import { PASS_GATE_IDS } from "@/thinking-lab/big-thought/checklist";
 import type {
   AuditItem,
+  GateFailure,
+  BigThoughtFixLesson,
+  BigThoughtGenerateLesson,
   LabSetRecord,
+  PassGateId,
   SemanticExclusion,
   SemanticExclusionHistory,
   SiblingSetFacts,
@@ -51,6 +56,55 @@ export function scoreAuditRow(input: {
   if (duplicated) return "AUDIT_FAIL";
   if (input.admission === "GENERATE_VALID") return "AUDIT_PASS";
   return "UNRESOLVED";
+}
+
+/** A failed gate retries the same Big Thought. The next Big Thought starts only after this one passes. */
+export function auditRowContinuation(input: {
+  passed: boolean;
+  attempt: number;
+  maxAttempts: number;
+}): "next" | "retry" | "stop" {
+  if (input.passed) return "next";
+  if (input.attempt + 1 < input.maxAttempts) return "retry";
+  return "stop";
+}
+
+/** Sibling pass gate for one Big Thought. Individual gates are checked separately. */
+export function auditSiblingGate(input: {
+  code: string;
+  siblingSet: SiblingSetFacts | null;
+  siblingSetCurrent: boolean;
+  activeCodes: string[];
+}): { passed: boolean; reason: string } {
+  const verdict = scoreAuditRow({
+    code: input.code,
+    admission: "GENERATE_VALID",
+    siblingSet: input.siblingSet,
+    siblingSetCurrent: input.siblingSetCurrent,
+    activeCodes: input.activeCodes,
+  });
+  if (verdict === "AUDIT_PASS") return { passed: true, reason: "" };
+  const pair = input.siblingSet?.duplicatePairs.find(
+    (item) => item.a.toUpperCase() === input.code.toUpperCase() || item.b.toUpperCase() === input.code.toUpperCase(),
+  );
+  if (verdict === "AUDIT_FAIL") {
+    return { passed: false, reason: pair?.explanation?.trim() || "This Big Thought repeats another reasoning job." };
+  }
+  if (!input.siblingSetCurrent) return { passed: false, reason: "The sibling set is out of date." };
+  return { passed: false, reason: input.siblingSet?.unresolvedReasons[0] || "The sibling set is not finished." };
+}
+
+export function withAuditConfirmation(
+  items: AuditItem[],
+  confirmations: ReadonlyMap<string, { gatesChecked?: true; gateFailure?: GateFailure }>,
+): AuditItem[] {
+  return items.map((item) => {
+    const extra = confirmations.get(item.code.toUpperCase());
+    if (!extra) return item;
+    if (item.verdict === "AUDIT_PASS" && extra.gatesChecked) return { ...item, gatesChecked: true as const };
+    if (item.verdict !== "AUDIT_PASS" && extra.gateFailure) return { ...item, gateFailure: extra.gateFailure };
+    return item;
+  });
 }
 
 export function scoreAudit(input: {
@@ -108,7 +162,12 @@ export function keptPassingAuditItems(input: {
     const fingerprint = fingerprints.get(item.code.toUpperCase());
     if (!fingerprint) return [];
     if (item.statementFingerprint && !fingerprintsMatch(item.statementFingerprint, fingerprint)) return [];
-    return [{ code: item.code, verdict: "AUDIT_PASS" as const, statementFingerprint: item.statementFingerprint ?? fingerprint }];
+    return [{
+      code: item.code,
+      verdict: "AUDIT_PASS" as const,
+      statementFingerprint: item.statementFingerprint ?? fingerprint,
+      ...(item.gatesChecked ? { gatesChecked: true as const } : {}),
+    }];
   });
 }
 
@@ -143,7 +202,15 @@ export function displayedAuditVerdict(
 }
 
 export function emptySetRecord(): LabSetRecord {
-  return { schema: "thinking-lab/v1", siblingSet: null, audit: null, challenger: null, semanticExclusions: null };
+  return {
+    schema: "thinking-lab/v1",
+    siblingSet: null,
+    audit: null,
+    challenger: null,
+    semanticExclusions: null,
+    fixLessons: [],
+    generateLessons: [],
+  };
 }
 
 export function clearSetConclusions(record: LabSetRecord | null): LabSetRecord {
@@ -153,6 +220,8 @@ export function clearSetConclusions(record: LabSetRecord | null): LabSetRecord {
     audit: null,
     challenger: null,
     semanticExclusions: record?.semanticExclusions ?? null,
+    fixLessons: record?.fixLessons ?? [],
+    generateLessons: record?.generateLessons ?? [],
   };
 }
 
@@ -253,7 +322,13 @@ export function heldAuditAfterFix(input: {
     const fingerprint = fingerprints.get(item.code.toUpperCase());
     if (!fingerprint) return [];
     if (item.statementFingerprint && !fingerprintsMatch(item.statementFingerprint, fingerprint)) return [];
-    return [{ code: item.code, verdict: item.verdict, statementFingerprint: item.statementFingerprint ?? fingerprint }];
+    return [{
+      code: item.code,
+      verdict: item.verdict,
+      statementFingerprint: item.statementFingerprint ?? fingerprint,
+      ...(item.gatesChecked ? { gatesChecked: true as const } : {}),
+      ...(item.gateFailure ? { gateFailure: item.gateFailure } : {}),
+    }];
   });
 }
 
@@ -305,6 +380,8 @@ export function nextAuthoritativeSetRecord(input: {
       exclusionsFromSiblingSet(outgoing),
       input.parentFingerprint,
     ),
+    fixLessons: input.record?.fixLessons ?? [],
+    generateLessons: input.record?.generateLessons ?? [],
   };
 }
 
@@ -328,6 +405,72 @@ function parseSemanticExclusions(raw: unknown): SemanticExclusionHistory | null 
   return { parentFingerprint: row.parentFingerprint, entries };
 }
 
+function fixLessonKey(lesson: BigThoughtFixLesson): string {
+  return `${lesson.code.toUpperCase()}\n${lesson.statement.trim().toLocaleLowerCase()}\n${lesson.reason.trim()}`;
+}
+
+export function readFixLessons(value: unknown): BigThoughtFixLesson[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const lessons: BigThoughtFixLesson[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const row = entry as { code?: unknown; statement?: unknown; reason?: unknown };
+    const code = typeof row.code === "string" ? row.code.trim() : "";
+    const statement = typeof row.statement === "string" ? row.statement.trim() : "";
+    const reason = typeof row.reason === "string" ? row.reason.trim() : "";
+    if (!code || !statement || !reason) continue;
+    const lesson = { code, statement, reason };
+    const key = fixLessonKey(lesson);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    lessons.push(lesson);
+  }
+  return lessons;
+}
+
+export function mergeFixLessons(
+  existing: readonly BigThoughtFixLesson[] | null | undefined,
+  incoming: readonly BigThoughtFixLesson[],
+): BigThoughtFixLesson[] {
+  return readFixLessons([...(existing ?? []), ...incoming]);
+}
+
+function generateLessonKey(lesson: BigThoughtGenerateLesson): string {
+  return `${lesson.statement.trim().toLocaleLowerCase()}\n${lesson.gate}`;
+}
+
+export function readGenerateLessons(value: unknown): BigThoughtGenerateLesson[] {
+  if (!Array.isArray(value)) return [];
+  const byKey = new Map<string, BigThoughtGenerateLesson>();
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const row = entry as { gate?: unknown; statement?: unknown; reason?: unknown };
+    const gate = typeof row.gate === "string" ? row.gate.trim() : "";
+    const statement = typeof row.statement === "string" ? row.statement.trim() : "";
+    const reason = typeof row.reason === "string" ? row.reason.trim() : "";
+    if (!PASS_GATE_IDS.includes(gate as PassGateId) || !statement || !reason) continue;
+    const lesson = { gate: gate as PassGateId, statement, reason };
+    byKey.set(generateLessonKey(lesson), lesson);
+  }
+  return [...byKey.values()];
+}
+
+export function mergeGenerateLessons(
+  existing: readonly BigThoughtGenerateLesson[] | null | undefined,
+  incoming: readonly BigThoughtGenerateLesson[],
+): BigThoughtGenerateLesson[] {
+  return readGenerateLessons([...(existing ?? []), ...incoming]);
+}
+
+export function dropFixLessons(
+  existing: readonly BigThoughtFixLesson[] | null | undefined,
+  codes: readonly string[],
+): BigThoughtFixLesson[] {
+  const dropped = new Set(codes.map((code) => code.trim().toUpperCase()).filter(Boolean));
+  return (existing ?? []).filter((lesson) => !dropped.has(lesson.code.toUpperCase()));
+}
+
 export function parseLabSetRecord(raw: unknown): LabSetRecord | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const row = raw as Partial<LabSetRecord>;
@@ -338,5 +481,7 @@ export function parseLabSetRecord(raw: unknown): LabSetRecord | null {
     audit: row.audit ?? null,
     challenger: row.challenger ?? null,
     semanticExclusions: parseSemanticExclusions(row.semanticExclusions),
+    fixLessons: readFixLessons(row.fixLessons),
+    generateLessons: readGenerateLessons(row.generateLessons),
   };
 }

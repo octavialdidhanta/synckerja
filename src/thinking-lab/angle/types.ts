@@ -25,6 +25,8 @@ export type AngleBoundedness = "BOUNDED" | "UNBOUNDED" | "UNRESOLVED";
 
 export type AngleJobForm = "OBSERVATION" | "REASON" | "TERRITORY_SUMMARY" | "UNRESOLVED";
 
+export type AngleGeneratePass = "observationJob" | "observationShape";
+
 export type AngleResolution = "RESOLVED" | "UNRESOLVED";
 
 export type AngleSemanticFacts = {
@@ -39,6 +41,8 @@ export type AngleSemanticFacts = {
   resolution: AngleResolution;
   unresolvedReasons: string[];
   confidence?: number;
+  /** Present only when this exact sentence passed both Generate checks. */
+  generatePasses?: AngleGeneratePass[];
   /** Short name for the list. It is not the Territory's name. */
   subject?: string;
   /** One concrete situation that shows the observation. */

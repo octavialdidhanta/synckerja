@@ -1,4 +1,5 @@
 import { supabase } from "@/shared/lib/supabaseClient";
+import { nextBigThoughtCode } from "@/thinking-lab/big-thought/generate";
 import { normalizeBigThoughtLabel } from "@/thinking-lab/big-thought/label";
 import { bigThoughtFingerprint } from "@/thinking-lab/shared/fingerprint";
 import { LAB_WORKSPACE } from "@/thinking-lab/shared/verdict";
@@ -91,6 +92,10 @@ export async function listLabBigThoughts(
   return ((data ?? []) as BigThoughtRow[]).map(mapBigThought);
 }
 
+function uniqueCodeViolation(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && String((error as { code?: unknown }).code) === "23505");
+}
+
 export async function insertLabBigThought(input: {
   organizationId: string;
   masterThoughtId: string;
@@ -102,38 +107,47 @@ export async function insertLabBigThought(input: {
   masterFingerprint: string;
 }): Promise<LabBigThought> {
   await requireLabMaster(input.organizationId, input.masterThoughtId);
-  const fingerprint = bigThoughtFingerprint({
-    statement: input.statement,
-    masterThoughtFingerprint: input.masterFingerprint,
-  });
-  const facts = { ...input.facts, code: input.code };
-  const { data, error } = await supabase
-    .from("thinking_big_thoughts")
-    .insert({
-      organization_id: input.organizationId,
-      master_thought_id: input.masterThoughtId,
-      code: input.code,
-      title: input.label?.trim() ?? "",
-      statement: input.statement.trim(),
-      core_belief: "",
-      boundary: "",
-      axis: "",
-      meaning: "",
-      ownership_label: "",
-      ownership_statement: "",
-      reason_slot_label: "",
-      reason_slot_explanation: "",
-      function_type: "",
-      claim_type: "",
-      sort_order: input.sortOrder,
-      status: "candidate",
-      canonical_semantic: facts,
-      semantic_fingerprint: fingerprint,
-    })
-    .select("*")
-    .single();
-  if (error) throw error;
-  return mapBigThought(data as BigThoughtRow);
+  const taken = new Set<string>();
+  let code = input.code.trim();
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const fingerprint = bigThoughtFingerprint({
+      statement: input.statement,
+      masterThoughtFingerprint: input.masterFingerprint,
+    });
+    const facts = { ...input.facts, code };
+    const { data, error } = await supabase
+      .from("thinking_big_thoughts")
+      .insert({
+        organization_id: input.organizationId,
+        master_thought_id: input.masterThoughtId,
+        code,
+        title: input.label?.trim() ?? "",
+        statement: input.statement.trim(),
+        core_belief: "",
+        boundary: "",
+        axis: "",
+        meaning: "",
+        ownership_label: "",
+        ownership_statement: "",
+        reason_slot_label: "",
+        reason_slot_explanation: "",
+        function_type: "",
+        claim_type: "",
+        sort_order: input.sortOrder,
+        status: "candidate",
+        canonical_semantic: facts,
+        semantic_fingerprint: fingerprint,
+      })
+      .select("*")
+      .single();
+    if (!error) return mapBigThought(data as BigThoughtRow);
+    if (!uniqueCodeViolation(error) || attempt === 3) throw error;
+    taken.add(code);
+    const existing = await listLabBigThoughts(input.organizationId, input.masterThoughtId);
+    for (const row of existing) taken.add(row.code);
+    code = nextBigThoughtCode([...taken]);
+  }
+  throw new Error("BIG_THOUGHT_CODE_EXHAUSTED");
 }
 
 export async function updateLabBigThoughtFacts(input: {

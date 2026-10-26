@@ -1,0 +1,22 @@
+---
+description: Kunci jalur publish Facebook, Instagram, dan TikTok yang sudah terbukti. Jangan kembalikan unggahan byte paralel atau preload video untuk ketiga platform itu.
+globs: supabase/functions/_shared/scheduledPosts/**/*.ts,supabase/functions/_shared/metaContent/metaFacebookReelsPublishApi.ts,supabase/functions/_shared/tiktokContent/tiktokContentPublishApi.ts,supabase/functions/social-media-plan-publish/**/*.ts,supabase/functions/social-media-scheduler/**/*.ts
+alwaysApply: false
+---
+
+# Kunci jalur publish sosial
+
+Publish plan Facebook + Instagram + TikTok sudah selesai lewat tautan publik Google Drive. Jangan ubah urutan ini saat memperbaiki fitur lain.
+
+## Wajib dipertahankan
+
+- Facebook memanggil `uploadFacebookReelsFromUrl` (`file_url`) lebih dulu. `uploadFacebookReelsVideo` hanya fallback setelah `facebook_file_url_fallback`.
+- Instagram membuat container dengan `videoUrl` lebih dulu. Byte upload hanya setelah `instagram_video_url_fallback`.
+- TikTok memakai `initTikTokVideoPublishPullFromUrl` saat `pullEnabled && pullUrl`.
+- `PLATFORMS_NEEDING_BYTES` hanya `"YouTube"` dan `"LinkedIn"`. Jangan masukkan Facebook, Instagram, atau TikTok.
+- Saat video di-preload, unggah satu platform pada satu waktu (`sharedCtx.preloadedVideo`). Jangan `Promise.all` atas buffer yang sama.
+- `resolveVideoBytesForUpload` dan `cloneSharedPublishContext` mengembalikan `bytes.slice()`.
+- Platform yang belum giliran memakai `publish_step` `"queued"`, bukan `"downloading"`.
+- Download Drive dan unggah byte tetap memakai `AbortSignal.timeout`.
+
+Tes pengunci: `src/6-1-scheduled-posts/lib/publishPathLock.test.ts`. Jalankan tes itu setelah menyentuh file di atas. Jangan melemahkan assertion agar perubahan lolos.

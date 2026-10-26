@@ -171,6 +171,54 @@ describe("runTerritoryGenerate", () => {
     expect(result.incumbents).toHaveLength(6);
   });
 
+  it("proposes the next name only after the previous failure is available", async () => {
+    let step = 0;
+    const propose = vi.fn(async () => {
+      step += 1;
+      if (step === 1) return ["Pengalaman Rapat", "Nama yang tidak boleh diperiksa"];
+      if (step === 2) return ["Rapat tim"];
+      return [];
+    });
+    const judge = vi.fn(async (_parent: unknown, code: string, statement: string) =>
+      statement === "Pengalaman Rapat"
+        ? { ...validFacts(code), relationToParent: "INTERNAL_LANGUAGE" as const, audienceLanguage: "INTERNAL" as const }
+        : validFacts(code),
+    );
+    const result = await runTerritoryGenerate({
+      loadParent: async () => ({ ok: true, parent: { id: "bt-1", code: "BT01", statement: "Parent" } }),
+      incumbents: [],
+      carryLessons: true,
+      propose,
+      judge,
+      persist: async (input) => ({
+        code: input.code,
+        statement: input.statement,
+        admission: input.admission,
+        bigThoughtId: input.parent.id,
+        relationToParent: input.facts.relationToParent,
+      }),
+    });
+    expect(propose.mock.calls[0]?.[0].needed).toBe(1);
+    expect(judge.mock.calls.map((call) => call[2])).toEqual(["Pengalaman Rapat", "Rapat tim"]);
+    expect(propose.mock.calls[1]?.[2].map((row: { statement: string }) => row.statement)).toEqual(["Pengalaman Rapat"]);
+    expect(propose.mock.calls[1]?.[2][0]?.relationToParent).toBe("INTERNAL_LANGUAGE");
+    const prompt = buildTerritoryGeneratePrompt({
+      parentStatement: "Parent",
+      incumbents: propose.mock.calls[1]?.[2] ?? [],
+      lessons: [
+        {
+          code: "TR01",
+          statement: "Pengalaman Rapat",
+          reason: "audienceLanguage: Pengalaman Rapat lebih terdengar seperti deskripsi internal.",
+        },
+      ],
+      needed: 1,
+    });
+    expect(prompt).toContain("Why it failed: audienceLanguage: Pengalaman Rapat lebih terdengar seperti deskripsi internal.");
+    expect(prompt).not.toContain("These are internal strategy words.");
+    expect(result.incumbents.some((row) => row.statement === "Nama yang tidak boleh diperiksa")).toBe(false);
+  });
+
   it("adds one Territory beside an already locked set and keeps those incumbents", async () => {
     const propose = vi.fn(async () => ["A further space", "Ignored"]);
     const locked = ["TR01", "TR02", "TR03"].map((code) => ({
@@ -245,6 +293,40 @@ describe("runTerritoryGenerate", () => {
     expect(byName.get("Serah Terima Tugas")).toBe("GENERATE_VALID");
     expect(result.generateValid).toBe(1);
   });
+
+  it("does not spend an active slot when persist returns GENERATE_REJECT", async () => {
+    const incumbents: Array<{
+      code: string;
+      statement: string;
+      admission: IndividualAdmission;
+      bigThoughtId: string;
+    }> = Array.from({ length: 5 }, (_, index) => ({
+      code: `TR0${index + 1}`,
+      statement: `Space ${index + 1}`,
+      admission: "UNRESOLVED",
+      bigThoughtId: "bt-1",
+    }));
+    const propose = vi.fn(async () => ["Good name"]);
+    propose.mockResolvedValueOnce(["Bad name"]);
+    const result = await runTerritoryGenerate({
+      loadParent: async () => ({ ok: true, parent: { id: "bt-1", code: "BT01", statement: "Parent" } }),
+      incumbents,
+      propose,
+      judge: async (_parent, code, statement) =>
+        statement === "Bad name"
+          ? { ...validFacts(code), relationToParent: "INTERNAL_LANGUAGE" as const, audienceLanguage: "INTERNAL" as const }
+          : validFacts(code),
+      persist: async (input) => ({
+        code: input.code,
+        statement: input.statement,
+        admission: input.admission,
+        bigThoughtId: input.parent.id,
+      }),
+    });
+    expect(propose).toHaveBeenCalledTimes(2);
+    expect(result.generateValid).toBe(1);
+    expect(result.incumbents.some((row) => row.admission === "GENERATE_REJECT" && row.statement === "Bad name")).toBe(true);
+  });
 });
 
 describe("buildTerritoryGeneratePrompt", () => {
@@ -299,7 +381,8 @@ describe("buildTerritoryGeneratePrompt", () => {
     expect(prompt).toContain("not an internal strategy term");
     expect(prompt).toContain("This is a test of words, not of topic.");
     expect(prompt).toContain("this audience's real life");
-    expect(prompt).toContain("only fits a different audience");
+    expect(prompt).toContain("the question only restates the Big Thought");
+    expect(prompt).not.toContain("only fits a different audience");
     expect(prompt).toContain("wide enough for several different Angles");
     expect(prompt).toContain("Audience: anak muda hobi motor");
     expect(prompt).toContain("once the Master Thought stake is removed");

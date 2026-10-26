@@ -1,5 +1,6 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
+import { readTerritoryGeneratePasses } from "@/thinking-lab/territory/passChecklist";
 import type {
   TerritoryAudienceLanguage,
   TerritoryBoundedness,
@@ -246,6 +247,8 @@ export function normalizeTerritoryFacts(raw: unknown, fallbackCode = ""): Territ
           : [...new Set([...asReasons(row.unresolvedReasons), ...unresolvedFactReasons(canonical)])],
   };
   if (confidence !== undefined) facts.confidence = confidence;
+  const generatePasses = readTerritoryGeneratePasses(row.generatePasses);
+  if (generatePasses.length > 0) facts.generatePasses = generatePasses;
   return facts;
 }
 
@@ -260,7 +263,7 @@ export const TERRITORY_STAKE_LINES = [
   "Name an area in the audience's world: a phenomenon, a habit, a life moment, a culture, or an everyday problem. The name is a noun or a noun phrase with no claim, no lack, and no evaluation. Kurir paket is this kind of name.",
   "Do not put the Big Thought's reason into the name. A name that would stop making sense once the Master Thought stake is removed, including the part of the belief that is not in the subject, has copied that stake.",
   "A noun the audience would use is not rejected only because that name can still be said.",
-  "The question this Big Thought answers must come up in the area. The name itself stays an area after that stake is removed. A broad topic where this question would not particularly come up is too wide.",
+  "The question this Big Thought answers must come up in the area. The name itself stays an area after that stake is removed. A wide area stays valid when that question comes up there.",
   "The name is at most three words. A requirement is a claim, not an area. A keyword of the Big Thought is not an area.",
 ];
 
@@ -270,8 +273,8 @@ export function territoryPassLines(audience?: string): string[] {
     "It is part of the Big Thought, not a keyword of the Big Thought.",
     "Use the audience's words, not an internal strategy term. This is a test of words, not of topic.",
     named
-      ? "The question answered by the Big Thought must actually show up in that area of this audience's real life. An area that only fits a different audience fails, even when the Big Thought's broader topic could still be discussed there."
-      : "The question answered by the Big Thought must actually show up in that area of real life.",
+      ? "The question answered by the Big Thought must actually show up in that area of this audience's real life. It fails when a different question comes up there, or when the question only restates the Big Thought. Other questions coming up in that area do not make it fail. An area where this Big Thought can still be discussed stays valid when that question shows up."
+      : "The question answered by the Big Thought must actually show up in that area of real life. It fails when a different question comes up there, or when the question only restates the Big Thought. Other questions coming up in that area do not make it fail.",
     "It must be wide enough for several different Angles.",
     ...(named ? [`Audience: ${named}`] : []),
   ];
@@ -295,7 +298,7 @@ export function buildTerritoryJudgePrompt(input: {
     "It is specific enough that its boundary is recognizable.",
     "Judge only this candidate against this direct parent. Do not compare sibling Territories. Do not judge overlap, containment, set distinctness, coverage, or challenger completeness.",
     "Judge semantic fit, not keyword overlap. A child Territory may introduce a new framing that the parent sentence does not already say.",
-    "parentFit is false when this area is only a broad topic, so the question this Big Thought answers would not particularly come up there after the distinctive stake of the direct Big Thought or an ancestor is removed, including the Master Thought and the part of that belief that is not in the subject. Putting that stake into the name does not make parentFit true. A noun the audience would use is not rejected only because that name can still be said. Otherwise true, or unresolved when that cannot be decided.",
+    "parentFit is false when the name is not an area in the audience's world where this Big Thought can be discussed, or when the name is only a keyword copied from the Big Thought: its title, its reason, or a short restatement of its words. A word that also appears in the Big Thought does not make parentFit false when the name still names a different area. Being able to discuss other subjects in that area does not make parentFit false. A wide area stays true when this Big Thought can be discussed there. Putting that stake into the name does not make parentFit true. A name that would stop making sense after the distinctive stake of the direct Big Thought or an ancestor is removed, including the Master Thought and the part of that belief that is not in the subject, has copied that stake and parentFit is false. A noun the audience would use is not rejected only because that name can still be said. Otherwise true, or unresolved when that cannot be decided.",
     "Do not copy the parent or the ancestors.",
     "Return facts only. Do not decide relationToParent. Any relation you include is ignored.",
     "conceptualForm is TERRITORY_SPACE when the candidate names an area where several Angles could live.",
@@ -305,7 +308,7 @@ export function buildTerritoryJudgePrompt(input: {
     "conceptualForm is UNRESOLVED when the role cannot be decided.",
     "parentScopeDuplication is true when the candidate is space-like but substantially repeats the parent's conceptual scope instead of opening a meaningful child space. It is also true when the noun restates the parent's reason, lack, evaluation, or conclusion. Writing the reason as a shorter noun is not a child space. It is false for a real child space, or unresolved when that cannot be decided.",
     "generativity is SUFFICIENT when the space can hold several substantively different Angles, not paraphrases. A narrow space can still be sufficient. INSUFFICIENT means it cannot. UNRESOLVED means that cannot be decided.",
-    "boundedness is BOUNDED when it is reasonably clear what belongs inside and what does not. UNBOUNDED means the boundary is too broad, vague, diffuse, or unstable. UNRESOLVED means that cannot be decided.",
+    "boundedness is BOUNDED when it is reasonably clear what belongs inside and what does not. A wide area that can hold several Angles stays BOUNDED. UNBOUNDED means the boundary is vague, diffuse, or unstable. Width alone does not make it UNBOUNDED. UNRESOLVED means that cannot be decided.",
     "nominalForm is NOMINAL when the candidate is a noun or a noun phrase that names an area without asserting a belief. CLAIM when it asserts a belief, reason, evaluation, or proposition, when it states the parent's reason or the lack the parent already asserts, and also when its main job is an impact, a requirement, or an evaluation, even when the grammar is still a noun phrase. UNRESOLVED when that cannot be decided. A one-word or short noun phrase can be NOMINAL.",
     named
       ? "audienceLanguage is AUDIENCE when the words are how the audience would name that area. INTERNAL when the words are an internal strategy term, a brand framework, or jargon the audience would not use. Judge the words of the named audience. This is a test of words, not of topic. UNRESOLVED when that cannot be decided."
@@ -314,8 +317,8 @@ export function buildTerritoryJudgePrompt(input: {
       ? `The question this Big Thought answers is: "${question}".`
       : "The question is the one this Big Thought answers.",
     named
-      ? "livedQuestion is true when that question actually shows up in this area of this audience's real life. false when the area does not host that question for this audience, including when the area only fits a different audience. unresolved when that cannot be decided."
-      : "livedQuestion is true when that question actually shows up in this area of real life. false when the area does not host that question. unresolved when that cannot be decided.",
+      ? "livedQuestion is true when that question actually shows up in this area of this audience's real life. false when a different question comes up there, or when the question only restates the Big Thought. Other questions coming up in that area do not make it false. An area where this Big Thought can still be discussed stays true when that question shows up. unresolved when that cannot be decided."
+      : "livedQuestion is true when that question actually shows up in this area of real life. false when a different question comes up there, or when the question only restates the Big Thought. Other questions coming up in that area do not make it false. unresolved when that cannot be decided.",
     "Judge whether the candidate names a claim-free audience area where the question this Big Thought answers comes up. The name does not become fit by repeating the parent's reason.",
     "confidence is optional debug metadata. It does not decide any fact.",
     "whatItSays repeats the Territory name. Do not write a situation. Do not state the parent's reason, lack, or conclusion.",

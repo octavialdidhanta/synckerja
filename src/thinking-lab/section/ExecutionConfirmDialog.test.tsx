@@ -54,5 +54,28 @@ describe("ExecutionConfirmDialog", () => {
       { question: "Siapa yang menceritakan kisah ini?", answer: "Anggota tim manajemen" },
       { question: "Keputusan strategis spesifik apa yang tertunda?", answer: "Menunda peluncuran di kota yang sama" },
     ]);
+    expect(screen.queryByRole("button", { name: "Follow the pillar script" })).toBeNull();
+  });
+
+  it("asks the execution dialog to follow the pillar or sharpen before any question", () => {
+    const onChooseMode = vi.fn();
+    render(
+      <ExecutionConfirmDialog
+        open
+        loading={false}
+        failed={false}
+        questions={null}
+        choosingMode
+        onChooseMode={onChooseMode}
+        onOpenChange={vi.fn()}
+        onRetry={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Write the script" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Follow the pillar script" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sharpen with discovery questions" }));
+    expect(onChooseMode).toHaveBeenNthCalledWith(1, "follow");
+    expect(onChooseMode).toHaveBeenNthCalledWith(2, "sharpen");
   });
 });

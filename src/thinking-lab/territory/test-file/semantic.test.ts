@@ -249,7 +249,9 @@ describe("normalizeTerritoryFacts", () => {
     expect(prompt).toContain("this audience's real life");
     expect(prompt).toContain('The question this Big Thought answers is: "uangnya habis ke mana?"');
     expect(prompt).toContain("shows up in this area of this audience's real life");
-    expect(prompt).toContain("only fits a different audience");
+    expect(prompt).toContain("the question only restates the Big Thought");
+    expect(prompt).toContain("can still be discussed stays true when that question shows up");
+    expect(prompt).not.toContain("only fits a different audience");
     expect(prompt).toContain("wide enough for several different Angles");
     expect(prompt).toContain("Audience: anak muda hobi motor");
     expect(prompt).toContain("including the Master Thought and the part of that belief that is not in the subject");
@@ -378,5 +380,15 @@ describe("normalizeTerritoryFacts", () => {
     expect(unresolved.relationToParent).toBe("UNRESOLVED");
     expect(unresolved.resolution).toBe("UNRESOLVED");
     expect(unresolved.unresolvedReasons).toContain("PARENT_FIT_UNRESOLVED");
+  });
+
+  it("stores Generate passes only when both checks are present", () => {
+    const both = normalizeTerritoryFacts({
+      ...positive(),
+      generatePasses: ["audienceLanguage", "partOfBigThought", "questionArises"],
+    });
+    expect(both.generatePasses).toEqual(["partOfBigThought", "audienceLanguage"]);
+    const one = normalizeTerritoryFacts({ ...positive(), generatePasses: ["partOfBigThought"] });
+    expect(one.generatePasses).toBeUndefined();
   });
 });

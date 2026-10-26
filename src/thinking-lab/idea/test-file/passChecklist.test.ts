@@ -1,14 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
+import { readIdeaGeneratePasses } from "@/thinking-lab/idea/generatePasses";
 import {
   buildIdeaPassPrompt,
   finishIdeaSiblingCheck,
+  fixPriorForNextIdeaStatement,
   ideaChecklistPassed,
+  ideaChecksFromStored,
   ideaVerdictForStage,
   parseIdeaPassCheck,
+  runIdeaAdmissionChecks,
   runIdeaIndividualChecks,
   runIdeaOpenChecks,
   type IdeaPassCheck,
 } from "@/thinking-lab/idea/passChecklist";
+import { fixScopeFromChecks } from "@/thinking-lab/shared/fixScope";
 
 const parent = "Porsi kecil membuat harga terlihat hemat";
 const keys = [{ otherExplanation: "Porsi memang kecil", close: "Bandingkan harga per ons" }];
@@ -109,7 +114,7 @@ describe("idea pass checklist", () => {
 
   it("re-asks only the failed check and the checks that have not run", async () => {
     const ask = vi.fn(async (prompt: string) => {
-      if (prompt.includes("the situation is where the reason happens")) return '{"pass":true,"reason":""}';
+      if (prompt.includes("so the reason happens there")) return '{"pass":true,"reason":""}';
       if (prompt.includes("separate keys")) return '{"pass":true,"reason":""}';
       return '{"pass":false,"reason":"should not be asked"}';
     });
@@ -141,7 +146,7 @@ describe("idea pass checklist", () => {
 
   it("fails an announced conclusion in code and still allows the result to be stated", async () => {
     const ask = vi.fn(async (prompt: string) => {
-      if (prompt.includes("the situation is where the reason happens")) return '{"pass":true,"reason":""}';
+      if (prompt.includes("so the reason happens there")) return '{"pass":true,"reason":""}';
       return '{"pass":true,"reason":""}';
     });
     const announced =
@@ -162,7 +167,7 @@ describe("idea pass checklist", () => {
       reason: "Kalimat ini mengumumkan kesimpulannya. Tetap tulis apa yang menjadi benar, tanpa menunjukkan, membuktikan, atau menyoroti bahwa.",
     });
     expect(failed.checks.find((check) => check.id === "causeLock")?.state).toBe("pending");
-    expect(ask.mock.calls.some(([prompt]) => String(prompt).includes("the situation is where the reason happens"))).toBe(false);
+    expect(ask.mock.calls.some(([prompt]) => String(prompt).includes("so the reason happens there"))).toBe(false);
     expect(ask).toHaveBeenCalledTimes(5);
 
     const kept = await runIdeaIndividualChecks({
@@ -175,9 +180,11 @@ describe("idea pass checklist", () => {
     });
     expect(ask.mock.calls.some(([prompt]) => String(prompt).includes(stated))).toBe(true);
     expect(kept.checks.find((check) => check.id === "situationFelt")?.state).toBe("pass");
-    expect(
-      buildIdeaPassPrompt({ id: "situationFelt", statement: stated, parentStatement: parent }),
-    ).toContain("what the mechanism makes true");
+    const situationPrompt = buildIdeaPassPrompt({ id: "situationFelt", statement: stated, parentStatement: parent });
+    expect(situationPrompt).toContain("what the mechanism makes true");
+    expect(situationPrompt).toContain("a comparison, a contrast, an experiment, a demonstration, or a situation");
+    expect(situationPrompt).not.toContain("only when the situation");
+    expect(situationPrompt).not.toContain("still passes");
   });
 
   it("overturns a passed situation check when the sentence still announces the conclusion", async () => {
@@ -203,6 +210,106 @@ describe("idea pass checklist", () => {
     expect(ask).not.toHaveBeenCalled();
     expect(result.passed).toBe(false);
     expect(result.checks.find((check) => check.id === "situationFelt")?.reason).toContain("announces the conclusion");
+  });
+
+  it("asks only the two Generate checks and stops at the first failure", async () => {
+    const ask = vi.fn(async (prompt: string) => {
+      if (prompt.includes("what is made, invited, shown, or created")) {
+        return '{"pass":false,"reason":"Ini belum menamai apa yang dibuat."}';
+      }
+      return '{"pass":true,"reason":""}';
+    });
+    const result = await runIdeaAdmissionChecks({
+      statement: "Harga terlihat hemat",
+      parentStatement: parent,
+      ask,
+      onStep: () => undefined,
+    });
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(result.passed).toBe(false);
+    expect(result.checks.map((check) => check.id)).toEqual(["sentenceForm", "mechanismShape"]);
+    expect(result.checks.find((check) => check.id === "sentenceForm")).toMatchObject({
+      state: "fail",
+      reason: "Ini belum menamai apa yang dibuat.",
+    });
+    expect(result.checks.find((check) => check.id === "mechanismShape")?.state).toBe("pending");
+  });
+
+  it("does not ask the two Generate checks again when that sentence already passed them", async () => {
+    const ask = vi.fn(async () => '{"pass":true,"reason":""}');
+    const result = await runIdeaIndividualChecks({
+      statement: "Kita bandingkan harga per ons sehingga hematnya terlihat",
+      parentStatement: parent,
+      masterSubject: "Skala bahan",
+      mechanismKeys: keys,
+      carried: readIdeaGeneratePasses(["sentenceForm", "mechanismShape"]),
+      ask,
+      onStep: () => undefined,
+    });
+    expect(result.passed).toBe(true);
+    expect(ask).toHaveBeenCalledTimes(5);
+    expect(JSON.stringify(ask.mock.calls)).not.toContain("what is made, invited, shown, or created");
+    expect(JSON.stringify(ask.mock.calls)).not.toContain("still an observation");
+    expect(result.checks.find((check) => check.id === "sentenceForm")?.state).toBe("pass");
+    expect(result.checks.find((check) => check.id === "mechanismShape")?.state).toBe("pass");
+  });
+
+  it("starts from sentence form when only one Generate pass is stored", async () => {
+    const ask = vi.fn(async () => '{"pass":true,"reason":""}');
+    const result = await runIdeaIndividualChecks({
+      statement: "Kita bandingkan harga per ons sehingga hematnya terlihat",
+      parentStatement: parent,
+      masterSubject: "Skala bahan",
+      mechanismKeys: keys,
+      carried: readIdeaGeneratePasses(["mechanismShape"]),
+      ask,
+      onStep: () => undefined,
+    });
+    expect(readIdeaGeneratePasses(["mechanismShape"])).toEqual([]);
+    expect(ask).toHaveBeenCalledTimes(7);
+    expect(JSON.stringify(ask.mock.calls)).toContain("what is made, invited, shown, or created");
+    expect(result.checks.find((check) => check.id === "sentenceForm")?.state).toBe("pass");
+  });
+
+  it("asks the two Generate checks again when the sentence changes", () => {
+    const prior: IdeaPassCheck[] = [
+      { id: "sentenceForm", state: "pass" },
+      { id: "stakeHolds", state: "pass" },
+      { id: "mechanismShape", state: "pass" },
+      { id: "vehicle", state: "pass" },
+      { id: "recognizable", state: "fail", reason: "The mechanism is missing." },
+      { id: "situationFelt", state: "pending" },
+      { id: "causeLock", state: "pending" },
+      { id: "siblingsDistinct", state: "pending" },
+    ];
+    const next = fixPriorForNextIdeaStatement(prior, "Kita bandingkan harga per ons", "Kita timbang sisa kemasan");
+    expect(next.find((check) => check.id === "sentenceForm")?.state).toBe("pending");
+    expect(next.find((check) => check.id === "mechanismShape")?.state).toBe("pending");
+    expect(next.find((check) => check.id === "stakeHolds")?.state).toBe("pass");
+    expect(next.find((check) => check.id === "recognizable")?.state).toBe("fail");
+    const failed = next.map((check) =>
+      check.id === "stakeHolds" ? { ...check, state: "fail" as const, reason: "Lost the stake." } : check,
+    );
+    const scope = fixScopeFromChecks(failed);
+    expect(scope.preserve).not.toContain("sentenceForm");
+    expect(scope.preserve).not.toContain("mechanismShape");
+    expect(scope.preserve).not.toContain("stakeHolds");
+    expect(scope.repair.map((check) => check.id)).toEqual(["stakeHolds", "recognizable"]);
+  });
+
+  it("keeps mechanism shape visible when a check between the two Generate passes failed", () => {
+    const checks = ideaChecksFromStored({
+      generatePasses: ["mechanismShape", "extra", "sentenceForm"],
+      gateFailure: { gate: "stakeHolds", reason: "Masih berdiri tanpa Angle." },
+    });
+    expect(checks.find((check) => check.id === "sentenceForm")?.state).toBe("pass");
+    expect(checks.find((check) => check.id === "mechanismShape")?.state).toBe("pass");
+    expect(checks.find((check) => check.id === "stakeHolds")).toMatchObject({
+      state: "fail",
+      reason: "Masih berdiri tanpa Angle.",
+    });
+    expect(checks.find((check) => check.id === "vehicle")?.state).toBe("pending");
+    expect(ideaChecksFromStored({ generatePasses: ["sentenceForm"] })).toEqual([]);
   });
 
   it("treats a finished checklist as a pass so the stage can lock", () => {

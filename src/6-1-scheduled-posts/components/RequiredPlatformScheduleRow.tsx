@@ -161,7 +161,11 @@ export function RequiredPlatformScheduleRow({
       <div className={SCHEDULE_TABLE_MIDDLE_GROUP_CLASS}>
         <div className={cn(SCHEDULE_TABLE_STATUS_CELL_CLASS, 'whitespace-nowrap')}>
           {schedule ? (
-            <ScheduleStatusBadge status={schedule.status} />
+            <ScheduleStatusBadge
+              status={schedule.status}
+              publishStep={schedule.provider_config?.publish_step}
+              errorMessage={schedule.error_message}
+            />
           ) : (
             <span className="text-xs text-muted-foreground">—</span>
           )}

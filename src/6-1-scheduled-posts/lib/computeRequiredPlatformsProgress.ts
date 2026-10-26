@@ -1,3 +1,4 @@
+import { scheduleStatusLabel } from './scheduleStatusLabel';
 import type { ScheduledPost } from '../types/scheduled-post';
 import {
   pickAccountScheduleForModal,
@@ -37,6 +38,7 @@ export type RequiredPlatformProgressItem = {
   status: RequiredPlatformItemStatus;
   url?: string | null;
   completedAtIso?: string | null;
+  activityLabel?: string;
 };
 
 export function filterRequiredPlatformsForContentType(
@@ -132,6 +134,12 @@ export function computeRequiredPlatformProgressItems(
       status,
       url,
       completedAtIso,
+      activityLabel: schedule
+        ? scheduleStatusLabel(schedule.status, {
+            publishStep: schedule.provider_config?.publish_step,
+            errorMessage: schedule.error_message,
+          })
+        : undefined,
     };
   });
 }

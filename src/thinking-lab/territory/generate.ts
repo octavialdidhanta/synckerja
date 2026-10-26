@@ -87,7 +87,7 @@ export function territoryRejectionReason(relation: TerritoryRelation): string | 
     case "INSUFFICIENT_GENERATIVITY":
       return "This space can hold only one observation. Widen it enough for several Angles.";
     case "UNBOUNDED_SPACE":
-      return "The boundary is too broad. Name a recognizable area.";
+      return "The boundary is unclear. Name a recognizable area.";
     case "CLAIM_BEARING":
       return "This name states a claim, a lack, or an evaluation. Write only the area. The reason stays out of the name.";
     case "INTERNAL_LANGUAGE":
@@ -163,10 +163,14 @@ function combineTerritoryLessons(
   explicit: TerritoryGenerateLesson[],
   fromAdmission: TerritoryGenerateLesson[],
 ): TerritoryGenerateLesson[] {
+  const covered = new Set(explicit.map((lesson) => `${lesson.code.toUpperCase()}\n${lesson.statement.trim()}`));
   const seen = new Set<string>();
   const combined: TerritoryGenerateLesson[] = [];
-  for (const lesson of [...explicit, ...fromAdmission]) {
-    const key = `${lesson.code}\n${lesson.statement}\n${lesson.reason}`;
+  for (const lesson of [
+    ...explicit,
+    ...fromAdmission.filter((lesson) => !covered.has(`${lesson.code.toUpperCase()}\n${lesson.statement.trim()}`)),
+  ]) {
+    const key = `${lesson.code.toUpperCase()}\n${lesson.statement.trim()}\n${lesson.reason}`;
     if (seen.has(key)) continue;
     seen.add(key);
     combined.push(lesson);
@@ -367,6 +371,8 @@ export async function runTerritoryGenerate<
   topUp?: boolean;
   propose: (plan: PlannedTerritoryGenerate, parent: TerritoryGenerateParent, incumbents: T[]) => Promise<string[]>;
   judge: (parent: TerritoryGenerateParent, code: string, statement: string) => Promise<TerritorySemanticFacts>;
+  /** Propose one name, judge it, then propose the next name with that failure available. */
+  carryLessons?: boolean;
   persist: (input: {
     parent: TerritoryGenerateParent;
     code: string;
@@ -388,15 +394,18 @@ export async function runTerritoryGenerate<
   }
   let incumbents = [...input.incumbents];
   let activeCount = incumbents.filter((row) => row.admission !== "GENERATE_REJECT").length;
-  for (let round = 1; round <= MAX_GENERATE_ROUNDS; round += 1) {
+  const attemptLimit = input.carryLessons ? MAX_GENERATE_ROUNDS * TARGET_GENERATE_VALID : MAX_GENERATE_ROUNDS;
+  for (let attempt = 1; attempt <= attemptLimit; attempt += 1) {
     const plan = planTerritoryGenerate({
       activeCount,
       generateValidCount: countAdmittedTerritories(incumbents),
-      round,
+      round: input.carryLessons ? 1 : attempt,
       topUp: input.topUp,
     });
     if (plan.needed === 0) break;
-    const statements = (await input.propose(plan, gate.parent, incumbents)).slice(0, plan.needed);
+    const askFor = input.carryLessons ? 1 : plan.needed;
+    const statements = (await input.propose({ ...plan, needed: askFor }, gate.parent, incumbents)).slice(0, askFor);
+    if (input.carryLessons && statements.length === 0) break;
     const room = Math.max(0, ACTIVE_SET_CAP - activeCount);
     const reserved = incumbents.map((row) => row.code);
     const planned = statements.slice(0, room).map((statement) => {
@@ -404,33 +413,28 @@ export async function runTerritoryGenerate<
       reserved.push(code);
       return { code, statement };
     });
-    const judged = await Promise.all(
-      planned.map(async ({ code, statement }) => {
-        const raw = await input.judge(gate.parent, code, statement);
-        const tooLong = territoryNameTooLong(statement);
-        const activity = territoryNameIsActivity(statement);
-        const admitted = admitTerritory(raw) === "GENERATE_VALID";
-        const facts =
-          admitted && tooLong
-            ? { ...raw, relationToParent: "UNBOUNDED_SPACE" as const, boundedness: "UNBOUNDED" as const }
-            : admitted && activity
-              ? { ...raw, relationToParent: "OUT_OF_PARENT_SCOPE" as const }
-              : raw;
-        return { code, statement, facts };
-      }),
-    );
-    for (const item of judged) {
-      const admission = admitTerritory(item.facts);
+    for (const plannedItem of planned) {
+      const raw = await input.judge(gate.parent, plannedItem.code, plannedItem.statement);
+      const tooLong = territoryNameTooLong(plannedItem.statement);
+      const activity = territoryNameIsActivity(plannedItem.statement);
+      const admitted = admitTerritory(raw) === "GENERATE_VALID";
+      const facts =
+        admitted && tooLong
+          ? { ...raw, relationToParent: "UNBOUNDED_SPACE" as const, boundedness: "UNBOUNDED" as const }
+          : admitted && activity
+            ? { ...raw, relationToParent: "OUT_OF_PARENT_SCOPE" as const }
+            : raw;
+      const admission = admitTerritory(facts);
       const saved = await input.persist({
         parent: gate.parent,
-        code: item.code,
-        statement: item.statement,
-        facts: item.facts,
+        code: plannedItem.code,
+        statement: plannedItem.statement,
+        facts,
         admission,
       });
       incumbents = [
         ...incumbents,
-        { ...saved, admission, bigThoughtId: gate.parent.id, relationToParent: item.facts.relationToParent },
+        { ...saved, admission, bigThoughtId: gate.parent.id, relationToParent: facts.relationToParent },
       ];
       if (admission !== "GENERATE_REJECT") activeCount += 1;
     }

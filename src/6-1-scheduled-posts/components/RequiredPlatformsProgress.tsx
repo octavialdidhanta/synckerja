@@ -38,10 +38,16 @@ const STATUS_CLASS: Record<RequiredPlatformItemStatus, string> = {
   link_ready: 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300',
 };
 
-function PlatformStatusBadge({ status }: { status: RequiredPlatformItemStatus }) {
+function PlatformStatusBadge({
+  status,
+  label,
+}: {
+  status: RequiredPlatformItemStatus;
+  label?: string;
+}) {
   return (
     <Badge variant="outline" className={cn('border-0 text-[10px] font-medium', STATUS_CLASS[status])}>
-      {STATUS_LABEL[status]}
+      {label ?? STATUS_LABEL[status]}
     </Badge>
   );
 }
@@ -107,7 +113,7 @@ export function RequiredPlatformsProgress({
               {item.status === 'publishing' && (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-600" aria-hidden />
               )}
-              <PlatformStatusBadge status={item.status} />
+              <PlatformStatusBadge status={item.status} label={item.activityLabel} />
               {item.url && (item.status === 'published' || item.status === 'link_ready') && (
                 <a
                   href={item.url}

@@ -1,3 +1,4 @@
+import { IDEA_PASS_CHECK_IDS, type IdeaPassCheckId } from "@/thinking-lab/idea/passChecklist";
 import { parseModelJson } from "@/thinking-lab/shared/ai";
 import { fingerprintsMatch } from "@/thinking-lab/shared/fingerprint";
 import type { AuditVerdict } from "@/thinking-lab/shared/verdict";
@@ -27,16 +28,33 @@ export type IdeaSetFacts = {
   confidence?: number;
 };
 
+export type IdeaGateFailure = {
+  gate: IdeaPassCheckId;
+  reason: string;
+};
+
 export type IdeaAuditItem = {
   code: string;
   verdict: AuditVerdict;
   statementFingerprint?: string;
+  gateFailure?: IdeaGateFailure;
 };
 
 export type IdeaAuditLesson = {
   code: string;
   statement: string;
   reason: string;
+};
+
+export type IdeaDecision = {
+  category: string;
+  question: string;
+  answer: string;
+};
+
+export type IdeaDiscovery = {
+  angleFingerprint: string;
+  decisions: IdeaDecision[];
 };
 
 export type IdeaSetRecord = {
@@ -46,6 +64,7 @@ export type IdeaSetRecord = {
   audit: { fingerprint: string; items: IdeaAuditItem[] } | null;
   downTop: { fingerprint: string; items: unknown[] } | null;
   auditLessons: IdeaAuditLesson[];
+  discovery: IdeaDiscovery | null;
 };
 
 /** Open Ideas that already passed stay passed when a later sibling is audited. */
@@ -66,6 +85,32 @@ export function holdPassingIdeaVerdicts(scored: IdeaAuditItem[], passingCodes: s
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function clip(value: unknown, limit: number): string {
+  const text = asText(value).replace(/\s+/g, " ");
+  if (!text || text.length > limit) return "";
+  return text;
+}
+
+function readIdeaDiscovery(value: unknown): IdeaDiscovery | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const angleFingerprint = asText(row.angleFingerprint);
+  if (!angleFingerprint || !Array.isArray(row.decisions)) return null;
+  const decisions: IdeaDecision[] = [];
+  for (const item of row.decisions) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const decision = item as Record<string, unknown>;
+    const category = clip(decision.category, 80);
+    const question = clip(decision.question, 240);
+    const answer = clip(decision.answer, 160);
+    if (!category || !question || !answer) continue;
+    decisions.push({ category, question, answer });
+    if (decisions.length === 3) break;
+  }
+  if (row.decisions.length > 0 && decisions.length === 0) return null;
+  return { angleFingerprint, decisions };
 }
 
 function repairCount(value: unknown): number {
@@ -129,6 +174,7 @@ export function emptyIdeaSetRecord(): IdeaSetRecord {
     audit: null,
     downTop: null,
     auditLessons: [],
+    discovery: null,
   };
 }
 
@@ -336,6 +382,41 @@ export function buildIdeaSiblingPrompt(input: {
   ].join("\n");
 }
 
+const AUDIT_VERDICTS = new Set<AuditVerdict>(["AUDIT_PASS", "AUDIT_FAIL", "UNRESOLVED", "STALE"]);
+
+export function readIdeaGateFailure(value: unknown): IdeaGateFailure | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as { gate?: unknown; reason?: unknown };
+  const gate = asText(row.gate);
+  const reason = asText(row.reason);
+  if (!IDEA_PASS_CHECK_IDS.includes(gate as IdeaPassCheckId) || !reason) return null;
+  return { gate: gate as IdeaPassCheckId, reason };
+}
+
+function readIdeaAuditItems(value: unknown): IdeaAuditItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const row = entry as { code?: unknown; verdict?: unknown; statementFingerprint?: unknown; gateFailure?: unknown };
+    const code = asText(row.code);
+    const verdict =
+      typeof row.verdict === "string" && AUDIT_VERDICTS.has(row.verdict as AuditVerdict)
+        ? (row.verdict as AuditVerdict)
+        : null;
+    if (!code || !verdict) return [];
+    const statementFingerprint = asText(row.statementFingerprint);
+    const gateFailure = readIdeaGateFailure(row.gateFailure);
+    return [
+      {
+        code,
+        verdict,
+        ...(statementFingerprint ? { statementFingerprint } : {}),
+        ...(gateFailure ? { gateFailure } : {}),
+      },
+    ];
+  });
+}
+
 export function readIdeaSetRecord(raw: unknown): IdeaSetRecord {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return emptyIdeaSetRecord();
   const row = raw as Record<string, unknown>;
@@ -349,9 +430,7 @@ export function readIdeaSetRecord(raw: unknown): IdeaSetRecord {
     auditRaw && typeof auditRaw === "object" && !Array.isArray(auditRaw)
       ? {
           fingerprint: asText((auditRaw as { fingerprint?: unknown }).fingerprint),
-          items: Array.isArray((auditRaw as { items?: unknown }).items)
-            ? ((auditRaw as { items: IdeaAuditItem[] }).items ?? [])
-            : [],
+          items: readIdeaAuditItems((auditRaw as { items?: unknown }).items),
         }
       : null;
   const downTopRaw = row.downTop;
@@ -382,5 +461,6 @@ export function readIdeaSetRecord(raw: unknown): IdeaSetRecord {
     audit,
     downTop,
     auditLessons,
+    discovery: readIdeaDiscovery(row.discovery),
   };
 }

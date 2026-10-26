@@ -1,8 +1,10 @@
-import { confirmedDecisionRules, type ScriptDecision } from "@/thinking-lab/execution/confirm";
+import { creativeIdeaPromptLines } from "@/thinking-lab/creative-idea/generate";
+import { confirmedDecisionRules, pillarDevelopmentLines, pillarFidelityLines, type ScriptDecision } from "@/thinking-lab/execution/confirm";
+import { everydaySpeechWriterRules, slangWriterRules } from "@/thinking-lab/execution/passChecklist";
 import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { judgeExecution } from "@/thinking-lab/execution/semantic";
 import { durationWordBudget, type ScriptSpeech } from "@/thinking-lab/execution/script";
-import { executionPillarLabel, type ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
+import { executionPillarLabel, type ExecutionAuditLesson, type ExecutionPassCheckId, type ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
 
 const SAID_SHAPE = '@character_example said: "the narration sentence, unchanged"';
 
@@ -81,7 +83,7 @@ function callToActionRules(cta: string, speech?: ScriptSpeech): string[] {
     "That label names the action. It is not the scene.",
     "After the conclusion scene, add one new scene whose only job is this call to action.",
     "Do not put the call to action in the conclusion or in any earlier scene.",
-    "The conclusion still lands the Master Thought, with no invitation glued onto it.",
+    "Do not glue the invitation onto the conclusion scene.",
     "Write the new scene as one or two sentences in the Idea's language, from the locked point of view.",
     "Show why this viewer would take that action now. Do not make the scene only the settings label.",
     "Do not title that scene Conclusion, Kesimpulan, CTA, or Call to Action.",
@@ -105,6 +107,8 @@ export function buildExecutionGeneratePrompt(input: {
   priorBelief?: string;
   ideaStatement: string;
   pillar: string;
+  pillarCategory?: string | null;
+  pillarDescription?: string | null;
   ancestors?: AncestorStake[];
   speech?: ScriptSpeech;
   durationSeconds?: number | null;
@@ -112,39 +116,118 @@ export function buildExecutionGeneratePrompt(input: {
   cta?: string | null;
   pointOfView?: string | null;
   decisions?: ScriptDecision[] | null;
+  lessons?: readonly ExecutionAuditLesson[] | null;
+  creativeIdea?: { statement?: string | null; concept?: string | null; mechanism?: string | null; value?: string | null } | null;
+  pillarDevelopment?: string | null;
+  enabled?: readonly ExecutionPassCheckId[] | null;
 }): string {
   const pillarLabel = executionPillarLabel(input.pillar);
   const brandName = input.brandName?.trim() ?? "";
   const cta = input.cta?.trim() ?? "";
+  const enabled = new Set(input.enabled ?? []);
+  const on = (id: ExecutionPassCheckId) => enabled.has(id);
+  const lessons = (input.lessons ?? []).filter((lesson) => enabled.has(lesson.checkId));
   return [
     "Write one voice-over script for one locked Idea and one content pillar.",
     "The pillar is a format. It is not a new belief, territory, angle, or idea.",
     `Pillar: ${pillarLabel}.`,
+    ...(input.pillarCategory?.trim() ? [`Pillar category: ${input.pillarCategory.trim()}.`] : []),
+    ...(input.pillarDescription?.trim() ? [`Pillar description: ${input.pillarDescription.trim()}`] : []),
+    "Write what this pillar says, the way someone would speak it out loud.",
+    "Keep the order and the steps already written in the locked pillar communication.",
+    "Narration uses the same language as the Idea.",
     ...confirmedDecisionRules(input.decisions, input.pointOfView),
     "The default deliverable is the Script VO: scenes, spoken narration, shots, and prompts.",
-    "Do not add a claim the Idea does not already carry.",
-    "A viewer must be able to see the Idea's mechanism and climb to the named Master Thought subject.",
-    "The viewer must see the Big Thought's stake happen, then see that stake, not an advertisement, move the outcome named by the Master Thought.",
-    "End every script with its own conclusion scene, after the scene that shows the mechanism.",
-    "The conclusion is one or two sentences. A viewer who hears only those sentences must be able to say the Master Thought.",
-    "Say the Master Thought as what just happened in this situation, and leave the old belief behind.",
-    "Do not stop at the mechanism. The mechanism scene comes before the conclusion.",
-    "The first sentence of each story scene follows from the last sentence of the previous story scene.",
-    "A viewer who hears those two sentences in order can say what just happened that makes the next sentence possible.",
-    "Do not open a scene on a discovery, a meeting, or a promise the previous scene did not show.",
-    "The call-to-action scene is not this join.",
-    "Do not title that scene Conclusion, Kesimpulan, or THE REAL REASON.",
-    "Do not explain a new theory. Do not paste the Master Thought unchanged as a slogan, and do not hide it.",
-    ...(input.durationSeconds && input.durationSeconds > 0
+    ...(brandName ? [] : ["Do not say a brand name. The video settings did not ask for one."]),
+    ...(on("formatHolds")
       ? [
-          `Fit the narration to about ${Math.round(input.durationSeconds)} seconds, about ${durationWordBudget(input.durationSeconds)} words.`,
-          "Do not make the script much shorter or much longer than that.",
+          "Write the spoken lines in this pillar's format.",
+          "Read the pillar name, its category, and its description.",
+          "A list format is a list. A story format is a story. Do not swap them.",
+          "A list is distinct items. Each spoken item says a different part of the Idea.",
+          "Repeating one point in new words fails. The format's opening word may stay the same.",
+          "The scene title is not the format. The spoken lines are.",
         ]
       : []),
-    `Master Thought subject: ${input.masterSubject?.trim() || "(not sealed)"}`,
-    "Do not force a message outside the Idea.",
-    "Use a selling format only when the Master Thought is actually selling something. Otherwise do not invent a sale.",
-    "Narration uses the same language as the Idea.",
+    ...(on("messageStays")
+      ? [
+          "Do not add a claim the Idea does not already carry.",
+          "One spoken line may carry one part of the Idea. The script together keeps the experiment, the condition, and the consequence.",
+          "Do not change the only measure into the main measure, and do not turn the result into a broader claim.",
+          "The pillar's image, label, and way of speaking may say that same Idea.",
+          ...pillarFidelityLines(input.pillarDevelopment),
+        ]
+      : []),
+    ...(on("mechanismVisible") ? ["A viewer must be able to see the Idea's mechanism."] : []),
+    ...(on("viewerClimb")
+      ? [
+          "A viewer must be able to climb from that mechanism to the Master Thought.",
+          "End every script with its own conclusion scene, after the scene that shows the mechanism.",
+          "Do not stop at the mechanism. The mechanism scene comes before the conclusion.",
+          "Do not title that scene Conclusion, Kesimpulan, or THE REAL REASON.",
+          "Do not explain a new theory. Do not paste the Master Thought unchanged as a slogan, and do not hide it.",
+        ]
+      : []),
+    ...(on("causeChain")
+      ? [
+          "The viewer must see the Big Thought's stake happen, then see that stake, not an advertisement, move the outcome named by the Master Thought.",
+          ...ANCESTOR_STAKE_RULES,
+        ]
+      : []),
+    ...(on("emotionalTone")
+      ? [
+          "On the line where we see what happens to someone, put the person it happens to. That is the person living what the Idea already says. Someone who only asks how it works is not that person. The opening does not have to be that person. They do not need a name. Do not invent a product, a brand, a company, or a fix the Idea does not already have.",
+        ]
+      : []),
+    ...(input.pillarDevelopment?.trim()
+      ? [
+          "The locked pillar communication sets the order and the content.",
+          "A shorter script is right when that communication is already complete.",
+          "Do not add a situation, a desire, a method, or a consequence the locked pillar communication does not contain in order to fill the duration.",
+        ]
+      : []),
+    ...(input.durationSeconds && input.durationSeconds > 0
+      ? input.pillarDevelopment?.trim()
+        ? [`The duration setting is about ${Math.round(input.durationSeconds)} seconds. The locked pillar communication comes first.`]
+        : [
+            `Fit the narration to about ${Math.round(input.durationSeconds)} seconds, about ${durationWordBudget(input.durationSeconds)} words.`,
+            "Do not make the script much shorter or much longer than that.",
+          ]
+      : []),
+    ...(on("pillarFits")
+      ? [
+          "Do not force a message outside the Idea.",
+          "Use a selling format only when the Master Thought is actually selling something. Otherwise do not invent a sale.",
+        ]
+      : []),
+    ...(on("hookHolds")
+      ? [
+          "The first narration sentence of the first story scene is the opening.",
+          "A stranger who hears only that sentence must know what situation they are in.",
+          "The opening uses this pillar's format. A list format opens as a list. A story format opens as a story.",
+          "A question or a what-if is allowed only when that shape is this pillar's format. Do not force one.",
+          "Leave the problem unanswered.",
+          "The problem is the one running from the Master Thought through the Big Thought, Territory, and Angle into this Idea.",
+          "Do not invent a sharper problem.",
+          "The sentence must stop making sense if that problem is removed.",
+          "Do not use a sales question such as tahu nggak, did you know, or pernah merasa, unless that question is this pillar's format.",
+          "Do not open with a greeting, a pillar label, a number, the brand name, or the conclusion.",
+          "Title, caption, later sentences, the conclusion scene, and the call-to-action scene are not the opening.",
+        ]
+      : []),
+    ...(on("soundsSpoken") && input.speech !== "silent"
+      ? [
+          "Every spoken narration line, including the opening and the call to action, is everyday speech.",
+          "A stranger who does not work in this field can read it out loud.",
+          "Say what the Idea says in everyday words. Do not copy the Idea's special terms.",
+          ...everydaySpeechWriterRules("video"),
+          "Do not write a report, a definition, or a brochure.",
+          "Keep this pillar's format. A list stays a list. A story stays a story.",
+          "Each list item says a different part of the Idea. Do not restate one point in new words.",
+          "Do not force a question or a what-if.",
+        ]
+      : []),
+    ...(on("usesSlang") && input.speech !== "silent" ? slangWriterRules() : []),
     "Also write the single best post title and the single best caption for this pillar.",
     "The title is one short line a viewer reads before opening.",
     "Write the title the way someone would actually say it. It should feel spoken, not like a headline.",
@@ -161,9 +244,11 @@ export function buildExecutionGeneratePrompt(input: {
     "Reuse a location already listed in assets. Prefer the location already used with that character in the scene when the shot stays in that place.",
     "A prompt with no @character does not need a location.",
     "Every token you use in a prompt must appear once in assets with a short description.",
-    input.speech === "silent" || input.speech === "dialog"
+    input.speech === "silent"
       ? "Each scene has a title and narration lines. One narration line is one sentence, not a paragraph."
-      : "Each scene has a title and narration lines. One narration line is one spoken sentence, not a paragraph.",
+      : input.speech === "dialog"
+        ? "Each scene has a title and narration lines. One narration line is one sentence, or two short sentences about the same thing. It is not a paragraph."
+        : "Each scene has a title and narration lines. One narration line is one spoken sentence, or two short spoken sentences about the same thing. It is not a paragraph.",
     ...speechGenerateRules(input.speech),
     ...brandMentionRules(brandName, input.speech),
     ...callToActionRules(cta, input.speech),
@@ -184,7 +269,6 @@ export function buildExecutionGeneratePrompt(input: {
     "Each shot has its own angle and its own English prompt. Do not reuse the same angle or the same prompt inside that sentence.",
     "Vary the angles across wide, medium, close-up, insert, over-the-shoulder, and graphic overlay.",
     "Do not cover several sentences with only one or two shots.",
-    ...ANCESTOR_STAKE_RULES,
     brandName
       ? `Do not use examples from any specific industry or belief system. The only brand name allowed is "${brandName}".`
       : "Do not use examples from any specific industry, belief system, or brand.",
@@ -245,6 +329,12 @@ export function buildExecutionGeneratePrompt(input: {
           : []),
       ],
     }),
+    ...(lessons.length > 0
+      ? [
+          "Earlier failures. Do not repeat these narrations or this mistake:",
+          ...lessons.map((lesson) => `${lesson.checkId}: ${lesson.lines.join(" / ")}\nWhy it failed: ${lesson.reason}`),
+        ]
+      : []),
     "",
     "Master Thought:",
     input.masterStatement.trim(),
@@ -253,6 +343,8 @@ export function buildExecutionGeneratePrompt(input: {
     "",
     "Idea:",
     input.ideaStatement.trim(),
+    ...pillarDevelopmentLines(input.pillarDevelopment),
+    ...creativeIdeaPromptLines(input.creativeIdea),
   ].join("\n");
 }
 
