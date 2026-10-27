@@ -37,7 +37,7 @@ export function SubscriptionSectionLayout({ children }: { children: React.ReactN
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-gray-100 font-sans">
       <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="shrink-0 px-4">
+        <div className="shrink-0 px-2 sm:px-3">
           <div className="px-1 py-3">
             <div className="mb-3">
               <h1 className="mb-0.5 text-xl font-bold text-foreground">{t("subscription.layout.title")}</h1>

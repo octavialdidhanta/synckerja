@@ -407,7 +407,7 @@ export const PlanCard = memo(
           </div>
         )}
 
-        <CardHeader className="space-y-2 text-center">
+        <CardHeader className="space-y-2 px-3 py-4 text-center sm:px-4">
           <div className="flex justify-center">
             <div
               className={`rounded-full p-3 ${
@@ -457,7 +457,7 @@ export const PlanCard = memo(
           </div>
         </CardHeader>
 
-        <CardContent className="flex h-full flex-col space-y-6">
+        <CardContent className="flex h-full flex-col space-y-6 px-3 pb-4 pt-0 sm:px-4">
           <div className="space-y-3">
             <Label className="text-sm font-medium">
               {t("subscription.plans.memberCount.label", { count: memberCount })}

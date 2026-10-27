@@ -104,7 +104,7 @@ export const PlanAddOnsPanel = memo(
         <div
           className={cn(
             "mt-auto flex-shrink-0 space-y-2 border-t pt-3 text-sm",
-            embeddedInSidebar ? "border-border px-4 pb-4" : "border-primary/15",
+            embeddedInSidebar ? "border-border px-2 pb-3 sm:px-3 sm:pb-4" : "border-primary/15",
           )}
         >
           {selectionSummaryRows.length > 0 && (
@@ -144,7 +144,7 @@ export const PlanAddOnsPanel = memo(
 
     if (embeddedInSidebar) {
       return (
-        <div className="flex min-h-0 flex-1 flex-col px-4 pt-4">{body}</div>
+        <div className="flex min-h-0 flex-1 flex-col px-2 pt-3 sm:px-3 sm:pt-4">{body}</div>
       );
     }
 

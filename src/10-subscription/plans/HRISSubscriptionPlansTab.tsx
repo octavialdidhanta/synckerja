@@ -76,7 +76,7 @@ const HRISSubscriptionPlansTab = () => {
       <div className="col-span-12 flex min-h-0 flex-col md:col-span-9">
         <div className="flex max-md:min-h-[360px] min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
             {/* Content Header */}
-            <div className="flex-shrink-0 border-b border-border px-4 py-2">
+            <div className="flex-shrink-0 border-b border-border px-3 py-2 sm:px-4">
               <div className="flex items-center justify-between">
                 <div className="flex flex-col">
                   <h2 className="text-sm font-semibold text-foreground">{t("subscription.plans.title")}</h2>
@@ -87,7 +87,7 @@ const HRISSubscriptionPlansTab = () => {
 
             {/* Scrollable Content - single scroll per panel (rule 3.1) */}
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="p-4 space-y-4">
+              <div className="space-y-4 px-2 py-3 sm:px-3 sm:py-4">
                 {/* Pending Changes Card */}
                 <PendingChangesCard />
 
@@ -238,7 +238,7 @@ const HRISSubscriptionPlansTab = () => {
       {/* Add-ons Sidebar */}
       <div className="col-span-12 flex min-h-0 flex-col md:col-span-3">
         <div className="flex max-md:min-h-[280px] min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
-          <div className="flex-shrink-0 border-b border-border px-4 py-2">
+          <div className="flex-shrink-0 border-b border-border px-3 py-2 sm:px-4">
             <h3 className="text-sm font-semibold text-foreground">
               {t("subscription.plans.sidebar.addOns.title")}
             </h3>

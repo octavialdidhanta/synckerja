@@ -159,7 +159,7 @@ export const PlanAddOnCatalogRows = memo(
           return (
             <div
               key={code}
-              className="space-y-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-left text-xs"
+              className="space-y-3 rounded-md border border-primary/20 bg-primary/5 p-2.5 text-left text-xs sm:p-3"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 space-y-1">
