@@ -883,10 +883,10 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
               <SelectContent>
                 <SelectItem value="none">No Status</SelectItem>
                 <SelectItem value="Need Review">Need Review</SelectItem>
-                {showApprovalOptions.status && <>
-                    <SelectItem value="Request Revision">Request Revision</SelectItem>
-                    <SelectItem value="Approved">Approved</SelectItem>
-                  </>}
+                {/* Always mount Approved/Request Revision so Radix can display them when approved=true;
+                    only users with approval access can choose those values. */}
+                <SelectItem value="Request Revision" disabled={!showApprovalOptions.status}>Request Revision</SelectItem>
+                <SelectItem value="Approved" disabled={!showApprovalOptions.status}>Approved</SelectItem>
               </SelectContent>
             </Select>
         </td>
@@ -997,10 +997,8 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
               <SelectContent>
                 <SelectItem value="none">No Status</SelectItem>
                 <SelectItem value="Need Review">Need Review</SelectItem>
-                {showApprovalOptions.production_status && <>
-                    <SelectItem value="Request Revision">Request Revision</SelectItem>
-                    <SelectItem value="Approved">Approved</SelectItem>
-                  </>}
+                <SelectItem value="Request Revision" disabled={!showApprovalOptions.production_status}>Request Revision</SelectItem>
+                <SelectItem value="Approved" disabled={!showApprovalOptions.production_status}>Approved</SelectItem>
               </SelectContent>
             </Select>
         </td>

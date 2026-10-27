@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronRight, Check, Circle, Copy, Loader2, MoreVertical, RefreshCw, Trash2, X } from "lucide-react";
+import { ChevronRight, Check, Circle, Copy, Loader2, MoreVertical, RefreshCw, Trash2, Wrench, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Switch } from "@/shared/components/ui/switch";
 import {
@@ -505,35 +505,43 @@ function SceneTables({
                             </p>
                           ) : null}
                           {onFixLine || onRegenerateLine ? (
-                            <div className="mt-2 flex flex-wrap gap-2">
+                            <div className="mt-2 flex flex-wrap items-center gap-1">
                               {failing.has(line.id) && onFixLine && (!fixable || fixable.has(line.id)) ? (
                                 <Button
                                   type="button"
-                                  size="sm"
+                                  size="icon"
                                   variant="outline"
+                                  className="h-6 w-6 shrink-0"
                                   disabled={pending}
                                   aria-busy={fixingLineId === line.id}
+                                  aria-label={t("thinkingLab.execution.fixLine", "Fix this line")}
+                                  title={t("thinkingLab.execution.fixLine", "Fix this line")}
                                   onClick={() => onFixLine(line.id)}
                                 >
-                                  {fixingLineId === line.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                                  {t("thinkingLab.execution.fixLine", "Fix this line")}
+                                  {fixingLineId === line.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                                  ) : (
+                                    <Wrench className="h-3 w-3" aria-hidden />
+                                  )}
                                 </Button>
                               ) : null}
                               {onRegenerateLine ? (
                                 <Button
                                   type="button"
-                                  size="sm"
+                                  size="icon"
                                   variant="outline"
+                                  className="h-6 w-6 shrink-0"
                                   disabled={pending}
                                   aria-busy={fixingLineId === line.id}
+                                  aria-label={t("thinkingLab.execution.regenerateLine", "Regenerate this line")}
+                                  title={t("thinkingLab.execution.regenerateLine", "Regenerate this line")}
                                   onClick={() => onRegenerateLine(line.id)}
                                 >
                                   {fixingLineId === line.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                                   ) : (
-                                    <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                                    <RefreshCw className="h-3 w-3" aria-hidden />
                                   )}
-                                  {t("thinkingLab.execution.regenerateLine", "Regenerate this line")}
                                 </Button>
                               ) : null}
                             </div>
