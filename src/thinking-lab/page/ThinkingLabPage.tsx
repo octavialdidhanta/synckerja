@@ -7462,6 +7462,7 @@ export function ThinkingLabPage() {
         parentStatement: becauseParent,
         others: keepers,
         prior: fixPriorForNextSentence(shown.items, statement, next),
+        lessons: learned,
         ask: (prompt) => askScoped("fix", row.code, prompt, 0),
         onStep: (checklist) => publishFixChecklist(checklist),
       });
@@ -7640,11 +7641,18 @@ export function ThinkingLabPage() {
               return other !== codeKey && (heldPass.has(other) || passedIndividual.has(other));
             })
             .map((item) => ({ code: item.code, statement: item.statement, label: item.label }));
+          const lessons = [
+            ...(bigThoughtFixLessonsRef.current.get(codeKey) ?? []),
+            ...(setRecord?.fixLessons ?? [])
+              .filter((lesson) => lesson.code.toUpperCase() === codeKey)
+              .map((lesson) => ({ statement: lesson.statement, reason: lesson.reason })),
+          ];
           const checked = await runBigThoughtIndividualChecks({
             statement: row.statement,
             parentStatement: becauseParent,
             others,
             carried,
+            lessons,
             ask: (prompt) => askScoped("audit", row.code, prompt, 0),
             onStep: (checklist) => publishBigThoughtChecklist(row.code, row.statement, checklist, done, total),
           });
@@ -8231,17 +8239,9 @@ export function ThinkingLabPage() {
                                               const cards = pillarCardsFor(idea);
                                               const rows = open ? (labExecutions.data ?? []) : [];
                                               const lockedIds = new Set(cards.map((card) => card.contentPillarId));
-                                              const executionNode = (row: (typeof rows)[number], underPillar: boolean) => ({
+                                              const executionNode = (row: (typeof rows)[number]) => ({
                                                 id: row.id,
-                                                label: underPillar
-                                                  ? row.format === "carousel"
-                                                    ? t("thinkingLab.creative.format.carousel", "Carousel")
-                                                    : row.format === "post"
-                                                      ? t("thinkingLab.creative.format.post", "Static Post")
-                                                      : row.format === "video"
-                                                        ? t("thinkingLab.creative.format.video", "Video")
-                                                        : row.pillarName
-                                                  : row.pillarName,
+                                                label: row.script?.title.trim() ?? "",
                                                 passed: executionChecklistPassed(
                                                   row.canonicalSemantic,
                                                   row.admission,
@@ -8261,13 +8261,13 @@ export function ThinkingLabPage() {
                                                       label: card.pillarName,
                                                       executions: rows
                                                         .filter((row) => row.contentPillarId === card.contentPillarId)
-                                                        .map((row) => executionNode(row, true)),
+                                                        .map((row) => executionNode(row)),
                                                     }))
                                                   : [],
                                                 executions: open
                                                   ? rows
                                                       .filter((row) => !row.contentPillarId || !lockedIds.has(row.contentPillarId))
-                                                      .map((row) => executionNode(row, false))
+                                                      .map((row) => executionNode(row))
                                                   : [],
                                               };
                                             })

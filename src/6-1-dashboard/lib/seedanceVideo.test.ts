@@ -11,6 +11,7 @@ import {
   masterGroupRows,
   missingConceptImages,
   readLook,
+  ugcLookDetail,
   promptSlideForImage,
   activeShotBriefs,
   briefForStoredScene,
@@ -75,19 +76,28 @@ describe("seedance video settings", () => {
       ["0:05", "", "", ""],
     ];
     expect(masterGroupRows(rows, headers, 0)).toEqual([0, 1]);
-    expect(buildVideoPrompt({
+    const ugcPrompt = buildVideoPrompt({
       scope: "master",
       rows,
       headers,
       rowIndexes: [0, 1],
       ugcType: "Product Demo",
-    })).toContain("UGC type: Product Demo");
-    expect(buildVideoPrompt({
+    });
+    expect(ugcPrompt).toContain(`LOOK (required camera and grade — follow every line): ${ugcLookDetail()}`);
+    expect(ugcPrompt).toContain("UGC look components:");
+    expect(ugcPrompt).toContain("- UGC style handheld phone footage shot on iPhone 17 Pro Max");
+    expect(ugcPrompt).toContain("- super high contrast, punchy shadows, bright subject");
+    expect(ugcPrompt).toContain("- advertisement lighting / hard practical light, not soft cinematic window light");
+    expect(ugcPrompt).toContain("Forbidden: cinematic soft window light");
+    expect(ugcPrompt).toContain("UGC type: Product Demo");
+    const shotPrompt = buildVideoPrompt({
       scope: "shot",
       rows,
       headers,
       rowIndexes: [1],
-    })).toContain("Master prompt:");
+    });
+    expect(shotPrompt).toContain(ugcLookDetail());
+    expect(shotPrompt).not.toContain("Master prompt:");
   });
 
   it("reads the shot, angle, visual function, and Veo 3 prompt from the photo row", () => {
@@ -159,7 +169,7 @@ describe("seedance video settings", () => {
     expect(veoColumnUsesSlides([{ prompt_override: null }, { prompt_override: null }])).toBe(true);
   });
 
-  it("drops a mention that remains only in the stored master prompt after the open shot was edited", () => {
+  it("keeps Master Prompt mentions off a single-shot generate", () => {
     const headers = ["Shot", "Angle", "Visual function", "Veo 3 prompt", "Master prompt"];
     const master = [
       "Audio : no sound",
@@ -169,7 +179,7 @@ describe("seedance video settings", () => {
       "Angle : Medium Shot",
       "Visual function : Establishing POV",
       "",
-      "looking at @character_husband and @character_wife at @location_newlywed_home",
+      "looking at @character_aunt and @character_wife at @location_newlywed_home",
       "",
       "Shot : Shot 2 — Supporting Shot",
       "Angle : Graphic Overlay",
@@ -179,9 +189,9 @@ describe("seedance video settings", () => {
     ].join("\n");
     const scene = {
       shot: "Shot 1 — Main Shot",
-      angle: "Medium Shot",
-      visualFunction: "Establishing POV",
-      veoPrompt: "looking at Suami and Istri laughing on a sofa",
+      angle: "Wide Shot",
+      visualFunction: "Context",
+      veoPrompt: "Aunt enters and warmly hugs Wife and husband at home.",
     };
     const prompt = buildVideoPrompt({
       scope: "shot",
@@ -190,9 +200,12 @@ describe("seedance video settings", () => {
       rowIndexes: [0],
       sceneByRow: { 0: scene },
     });
-    expect(prompt).toContain("looking at Suami and Istri laughing on a sofa");
-    expect(prompt).toContain("Text overlay appears.");
-    expect(prompt).not.toContain("@character_husband");
+    expect(prompt).toContain("Aunt enters and warmly hugs Wife and husband at home.");
+    expect(prompt).toContain(ugcLookDetail());
+    expect(prompt).not.toContain("Master prompt:");
+    expect(prompt).not.toContain("@character_aunt");
+    expect(prompt).not.toContain("@location_newlywed_home");
+    expect(prompt).not.toContain("Text overlay appears.");
     expect(missingConceptImages(prompt, null)).toEqual([]);
   });
 
@@ -214,8 +227,9 @@ describe("seedance video settings", () => {
       veoByRow: { 0: "Medium shot of @character_reviewer looking thoughtful." },
       endVeo: "Medium shot of @character_reviewer doing a selfie.",
     });
-    expect(prompt).toContain("Master prompt:\nLook : UGC");
-    expect(prompt).toContain("The reviewer sits in the kitchen.");
+    expect(prompt).toContain(ugcLookDetail());
+    expect(prompt).not.toContain("Master prompt:");
+    expect(prompt).not.toContain("The reviewer sits in the kitchen.");
     expect(prompt).toContain("Opening frame:\nShot: Shot 1 — Main Shot");
     expect(prompt).toContain("Veo 3 prompt: Medium shot of @character_reviewer looking thoughtful.");
     expect(prompt).toContain("Voice: Tahukah Anda");

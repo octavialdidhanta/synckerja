@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AudioLines, ChevronDown, Download, Loader2, Pause, Play, SlidersHorizontal } from "lucide-react";
+import { AudioLines, ChevronDown, Download, Loader2, Pause, Play, SlidersHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
@@ -16,7 +16,7 @@ import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { BRIEF_STORYBOARD_IMAGES_BUCKET } from "@/6-1-dashboard/hook/useBriefStoryboardImages";
 import { useBriefVideo } from "@/6-1-dashboard/modal/briefVideoContext";
-import { VOICE_LANGUAGES, voiceModelLabel, voiceModelUsesLanguage, voiceModelUsesSpeed } from "@/6-1-dashboard/lib/voiceModels";
+import { VOICE_LANGUAGES, VOICE_STS_MODEL_LABEL, voiceModelLabel, voiceModelUsesLanguage } from "@/6-1-dashboard/lib/voiceModels";
 import { clipForNarration } from "@/6-1-dashboard/modal/briefVoVersions";
 
 type VoiceSettings = {
@@ -173,46 +173,157 @@ function ClipPlayer({ clip }: { clip: VoiceClip }) {
   );
 }
 
-export function BriefDubbedVideo({ videoUrl, voiceUrl, videoName, framed = false }: { videoUrl: string; voiceUrl: string | null; videoName: string; framed?: boolean }) {
+export function BriefVoiceSourceBar({
+  voiceUrl,
+  voiceClipId = null,
+  useOriginal,
+  onUseOriginal,
+}: {
+  voiceUrl: string | null;
+  voiceClipId?: string | null;
+  useOriginal: boolean;
+  onUseOriginal: (next: boolean) => void;
+}) {
   const { t } = useAppTranslation();
+  const voice = useBriefVoice();
+  const [removing, setRemoving] = useState(false);
+  if (!voiceUrl) return null;
+  const removeVoice = async () => {
+    if (!voiceClipId || removing) return;
+    setRemoving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-brief-voice", {
+        body: { action: "delete_clip", clipId: voiceClipId },
+      });
+      const message = await readEdgeFunctionError(data, error);
+      if (message) {
+        notifyVoice("error", message);
+        return;
+      }
+      await voice?.refresh();
+      onUseOriginal(true);
+      notifyVoice("success", t("voiceAi.cell.voiceRemoved", "Organization voice removed."));
+    } catch (error) {
+      notifyVoice("error", error instanceof Error ? error.message : t("voiceAi.cell.voiceRemoveFailed", "The organization voice could not be removed."));
+    } finally {
+      setRemoving(false);
+    }
+  };
+  const canRemove = Boolean(voiceClipId && voice?.canGenerate);
   return (
     <div
-      className={framed ? "relative w-full" : "mt-2"}
+      className="mt-1.5 grid w-full grid-cols-2 gap-1"
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <Button
+        type="button"
+        size="sm"
+        variant={useOriginal ? "default" : "outline"}
+        className="h-7 min-w-0 px-2 text-[11px]"
+        aria-pressed={useOriginal}
+        onClick={() => onUseOriginal(true)}
+      >
+        <span className="truncate">{t("voiceAi.cell.playOriginal", "Original sound")}</span>
+      </Button>
+      <div className="flex min-w-0">
+        <Button
+          type="button"
+          size="sm"
+          variant={!useOriginal ? "default" : "outline"}
+          className={cn(
+            "h-7 min-w-0 flex-1 px-2 text-[11px]",
+            canRemove && "rounded-r-none border-r-0",
+          )}
+          aria-pressed={!useOriginal}
+          onClick={() => onUseOriginal(false)}
+        >
+          <span className="truncate">{t("voiceAi.cell.playOrganization", "Organization voice")}</span>
+        </Button>
+        {canRemove ? (
+          <Button
+            type="button"
+            size="sm"
+            variant={!useOriginal ? "default" : "outline"}
+            className={cn(
+              "h-7 w-7 shrink-0 rounded-l-none px-0",
+              !useOriginal
+                ? "border-l border-l-primary-foreground/25 bg-primary text-primary-foreground hover:bg-primary/90"
+                : "text-red-600 hover:bg-red-50 hover:text-red-700",
+            )}
+            disabled={removing}
+            title={t("voiceAi.cell.removeVoice", "Remove organization voice")}
+            aria-label={t("voiceAi.cell.removeVoice", "Remove organization voice")}
+            onClick={() => void removeVoice()}
+          >
+            {removing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export function BriefDubbedVideo({
+  videoUrl,
+  voiceUrl,
+  videoName,
+  framed = false,
+  useOriginal: useOriginalProp,
+}: {
+  videoUrl: string;
+  voiceUrl: string | null;
+  videoName: string;
+  framed?: boolean;
+  /** When set (storyboard frame), parent owns Original vs organization toggle outside overflow. */
+  useOriginal?: boolean;
+}) {
+  const { t } = useAppTranslation();
+  const [useOriginalLocal, setUseOriginalLocal] = useState(useOriginalProp ?? !voiceUrl);
+  const voiceRef = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    if (useOriginalProp != null) return;
+    if (!voiceUrl) setUseOriginalLocal(true);
+  }, [voiceUrl, useOriginalProp]);
+  const useOriginal = useOriginalProp ?? useOriginalLocal;
+  const dubbed = Boolean(voiceUrl) && !useOriginal;
+
+  return (
+    <div
+      className={framed ? "relative h-full w-full" : "mt-2"}
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
     >
       <video
-        key={`${videoUrl}:${voiceUrl ?? ""}`}
+        key={`${videoUrl}:${voiceUrl ?? ""}:${dubbed ? "dub" : "orig"}`}
         src={videoUrl}
         controls
         playsInline
         preload="metadata"
-        muted={Boolean(voiceUrl)}
-        className={framed ? "pointer-events-auto block w-full bg-black" : "w-full rounded-md bg-black"}
+        muted={dubbed}
+        className={framed ? "pointer-events-auto block h-full w-full bg-black object-contain" : "w-full rounded-md bg-black"}
         onVolumeChange={(event) => {
-          if (voiceUrl) event.currentTarget.muted = true;
+          if (dubbed) event.currentTarget.muted = true;
         }}
-        onEnded={(event) => {
-          const audio = event.currentTarget.nextElementSibling;
-          if (audio instanceof HTMLAudioElement) audio.pause();
+        onEnded={() => {
+          voiceRef.current?.pause();
         }}
         onPlay={(event) => {
-          const audio = event.currentTarget.nextElementSibling;
-          if (!(audio instanceof HTMLAudioElement)) return;
+          const audio = voiceRef.current;
+          if (!audio || !dubbed) return;
           audio.currentTime = event.currentTarget.currentTime;
           void audio.play().catch(() => undefined);
         }}
-        onPause={(event) => {
-          const audio = event.currentTarget.nextElementSibling;
-          if (audio instanceof HTMLAudioElement) audio.pause();
+        onPause={() => {
+          voiceRef.current?.pause();
         }}
         onSeeked={(event) => {
-          const audio = event.currentTarget.nextElementSibling;
-          if (audio instanceof HTMLAudioElement) audio.currentTime = event.currentTarget.currentTime;
+          const audio = voiceRef.current;
+          if (audio && dubbed) audio.currentTime = event.currentTarget.currentTime;
         }}
       />
-      {voiceUrl ? <audio src={voiceUrl} preload="none" /> : null}
+      {dubbed && voiceUrl ? <audio ref={voiceRef} src={voiceUrl} preload="auto" /> : null}
       <div className={framed ? "absolute right-1.5 top-1.5 z-[3] flex gap-1" : "mt-1 flex justify-end gap-1"}>
         {voiceUrl ? (
           <Button
@@ -222,7 +333,10 @@ export function BriefDubbedVideo({ videoUrl, voiceUrl, videoName, framed = false
             className={framed ? "h-6 w-6 rounded-full bg-black/55 p-0 text-white hover:bg-black/75 hover:text-white" : "h-7 px-2 text-[11px]"}
             title={t("voiceAi.cell.downloadVoice", "Download voice")}
             aria-label={t("voiceAi.cell.downloadVoice", "Download voice")}
-            onClick={() => void downloadFile(voiceUrl, "organization-voice.mp3")}
+            onClick={() => {
+              const ext = /\.wav(?:\?|$)/i.test(voiceUrl) ? "wav" : "mp3";
+              void downloadFile(voiceUrl, `organization-voice.${ext}`);
+            }}
           >
             {framed ? <Download className="h-3.5 w-3.5" /> : t("voiceAi.cell.downloadVoice", "Download voice")}
           </Button>
@@ -239,6 +353,13 @@ export function BriefDubbedVideo({ videoUrl, voiceUrl, videoName, framed = false
           {framed ? <Download className="h-3.5 w-3.5" /> : t("voiceAi.cell.downloadVideo", "Download original video")}
         </Button>
       </div>
+      {!framed && voiceUrl ? (
+        <BriefVoiceSourceBar
+          voiceUrl={voiceUrl}
+          useOriginal={useOriginal}
+          onUseOriginal={setUseOriginalLocal}
+        />
+      ) : null}
     </div>
   );
 }
@@ -247,9 +368,28 @@ export function BriefVideoPlayback({ rowIndex }: { rowIndex: number }) {
   const video = useBriefVideo();
   const voice = useBriefVoice();
   const status = video?.statusFor(rowIndex);
+  const clip = status?.videoId ? voice?.seedanceClip(status.videoId) ?? null : null;
+  const [useOriginal, setUseOriginal] = useState(!clip?.url);
+  useEffect(() => {
+    if (!clip?.url) setUseOriginal(true);
+  }, [clip?.url]);
   if (!status?.url) return null;
-  const voiceUrl = status.videoId ? voice?.seedanceClip(status.videoId)?.url ?? null : null;
-  return <BriefDubbedVideo videoUrl={status.url} voiceUrl={voiceUrl} videoName={`seedance-${rowIndex + 1}.mp4`} />;
+  return (
+    <>
+      <BriefDubbedVideo
+        videoUrl={status.url}
+        voiceUrl={clip?.url ?? null}
+        videoName={`seedance-${rowIndex + 1}.mp4`}
+        useOriginal={useOriginal}
+      />
+      <BriefVoiceSourceBar
+        voiceUrl={clip?.url ?? null}
+        voiceClipId={clip?.id ?? null}
+        useOriginal={useOriginal}
+        onUseOriginal={setUseOriginal}
+      />
+    </>
+  );
 }
 
 function VoiceDialog({
@@ -387,14 +527,38 @@ function VoiceDialog({
             {ready
               ? mode === "vo"
                 ? t("voiceAi.confirm.settingsBody", "These settings are used the next time you generate VO from the scene.")
-                : t("voiceAi.confirm.videoBody", "The spoken audio from this Seedance video is sent to the organization voice. Pauses stay with the mouth movement. The original video file is kept.")
+                : t(
+                    "voiceAi.confirm.videoBody",
+                    "Audio from this video is restyled to the organization Voice ID. Ambience from the source is kept. Timing stays with the mouth movement. The original video file is kept.",
+                  )
               : t("voiceAi.confirm.missing", "Save an ElevenLabs API key and Voice ID in Settings > Voice AI first.")}
           </p>
         </div>
         {ready ? (
           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 text-sm [touch-action:pan-y]" data-vaul-no-drag="">
-            <p><span className="text-muted-foreground">{t("voiceAi.confirm.voice", "Voice")}: </span>{settings?.voice_name || settings?.voice_id}</p>
-            <p><span className="text-muted-foreground">{t("voiceAi.settings.model", "Model")}: </span>{voiceModelLabel(settings?.tts_model ?? "")}</p>
+            {mode === "seedance" ? (
+              <>
+                {settings?.voice_name ? (
+                  <p><span className="text-muted-foreground">{t("voiceAi.confirm.voice", "Voice")}: </span>{settings.voice_name}</p>
+                ) : null}
+                <p>
+                  <span className="text-muted-foreground">{t("voiceAi.settings.voiceId", "Voice ID")}: </span>
+                  <span className="break-all font-mono text-xs">{settings?.voice_id}</span>
+                </p>
+                <p><span className="text-muted-foreground">{t("voiceAi.settings.model", "Model")}: </span>{VOICE_STS_MODEL_LABEL}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t(
+                    "voiceAi.confirm.stsToneNote",
+                    "WAV only (48/44.1 kHz when allowed), peak-normalized for louder playback. No MP3, isolation, noise removal, or speaker boost.",
+                  )}
+                </p>
+              </>
+            ) : (
+              <>
+                <p><span className="text-muted-foreground">{t("voiceAi.confirm.voice", "Voice")}: </span>{settings?.voice_name || settings?.voice_id}</p>
+                <p><span className="text-muted-foreground">{t("voiceAi.settings.model", "Model")}: </span>{voiceModelLabel(settings?.tts_model ?? "")}</p>
+              </>
+            )}
             {mode === "vo" && voiceModelUsesLanguage(settings?.tts_model ?? "") ? (
               <p>
                 <span className="text-muted-foreground">{t("voiceAi.settings.language", "Language")}: </span>
@@ -435,12 +599,7 @@ function VoiceDialog({
                   </div>
                 </div>
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {t("voiceAi.settings.stability", "Stability")} {settings?.stability} · {t("voiceAi.settings.similarity", "Similarity")} {settings?.similarity_boost}
-                {voiceModelUsesSpeed(settings?.tts_model ?? "") ? ` · ${t("voiceAi.settings.speed", "Speed")} ${settings?.speed}` : ""}
-              </p>
-            )}
+            ) : null}
           </div>
         ) : null}
         <div className={cn(
@@ -465,7 +624,7 @@ function VoiceDialog({
               {pending === "generate" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {pending === "generate"
                 ? t("voiceAi.confirm.generating", "Generating...")
-                : t("voiceAi.confirm.generate", "Generate")}
+                : t("voiceAi.cell.restyle", "Speech to speech")}
             </Button>
           )}
           {isMobile ? (
@@ -672,29 +831,42 @@ export function BriefVoiceOverActions({
   );
 }
 
-export function BriefSeedanceVoiceButton({ rowIndex, scope }: { rowIndex: number; scope: "shot" | "master" }) {
+export function BriefSeedanceVoiceButton({
+  rowIndex,
+  scope,
+  preferredVideoId = null,
+  labeled = false,
+}: {
+  rowIndex: number;
+  scope: "shot" | "master";
+  /** Video currently shown in the strip; STS targets this clip when it is ready. */
+  preferredVideoId?: string | null;
+  /** Show text next to the icon so Speech-to-Speech is easy to find. */
+  labeled?: boolean;
+}) {
   const { t } = useAppTranslation();
   const voice = useBriefVoice();
   const video = useBriefVideo();
   const [open, setOpen] = useState(false);
-  const videoId = video?.readyVoiceVideo(rowIndex, scope) ?? null;
-  const shownId = video?.statusFor(rowIndex).videoId ?? null;
-  if (!voice?.canGenerate || !videoId || videoId !== shownId) return null;
+  const videoId = video?.readyVoiceVideo(rowIndex, scope, preferredVideoId) ?? null;
+  if (!voice?.canGenerate || !videoId) return null;
+  const label = t("voiceAi.cell.restyle", "Use organization voice");
   return (
     <>
       <Button
         type="button"
         size="sm"
-        variant="ghost"
-        className="h-7 w-7 shrink-0 bg-white p-0"
-        title={t("voiceAi.cell.restyle", "Use organization voice")}
-        aria-label={t("voiceAi.cell.restyle", "Use organization voice")}
+        variant={labeled ? "outline" : "ghost"}
+        className={labeled ? "mt-2 h-7 w-full gap-1 bg-white text-xs" : "h-7 w-7 shrink-0 bg-white p-0"}
+        title={label}
+        aria-label={label}
         onClick={(event) => {
           event.stopPropagation();
           setOpen(true);
         }}
       >
-        <AudioLines className="h-3.5 w-3.5" />
+        <AudioLines className="h-3.5 w-3.5 shrink-0" />
+        {labeled ? label : null}
       </Button>
       <VoiceDialog open={open} mode="seedance" text="" videoId={videoId} rowIndex={rowIndex} onClose={() => setOpen(false)} />
     </>

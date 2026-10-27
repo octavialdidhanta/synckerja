@@ -1,4 +1,4 @@
-import { Fragment, startTransition, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
 import { AlertCircle, MoreVertical, Pencil, Star, Trash2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -101,7 +101,7 @@ function longestLabel(labels: string[]): string {
 function WidthSizer({ label, accent = false, star = false }: { label: string; accent?: boolean; star?: boolean }) {
   if (!label) return null;
   return (
-    <div className="invisible col-start-1 row-start-1 h-0 min-h-0 w-max min-w-max overflow-hidden" aria-hidden>
+    <div className="invisible col-start-1 row-start-1 h-0 w-max min-w-max" aria-hidden>
       <div
         className={cn(
           "flex w-max items-center whitespace-nowrap border border-transparent text-xs font-medium",
@@ -118,6 +118,7 @@ function WidthSizer({ label, accent = false, star = false }: { label: string; ac
 
 function EqualBranch({
   labels,
+  widthLabel,
   accent = false,
   star = false,
   levelLabel,
@@ -125,6 +126,8 @@ function EqualBranch({
   rows,
 }: {
   labels: string[];
+  /** When set, every node in the branch uses this width instead of its own text. */
+  widthLabel?: string;
   accent?: boolean;
   star?: boolean;
   levelLabel?: string;
@@ -132,10 +135,13 @@ function EqualBranch({
   rows: Array<{ key: string; leading?: ReactNode; pill: ReactNode; branch?: ReactNode }>;
 }) {
   const open = rows.some((row) => row.branch);
-  const measured = labels.map((label, index) => {
-    const header = [levelLabel, codes?.[index]?.trim()].filter(Boolean).join(" - ");
-    return header.length > label.length ? header : label;
-  });
+  const locked = widthLabel?.trim() ?? "";
+  const measured = locked
+    ? [locked]
+    : labels.map((label, index) => {
+        const header = [levelLabel, codes?.[index]?.trim()].filter(Boolean).join(" - ");
+        return header.length > label.length ? header : label;
+      });
   return (
     <div
       className={cn(
@@ -145,7 +151,7 @@ function EqualBranch({
     >
       {rows.map((row, index) => (
         <Fragment key={row.key}>
-          <div className="relative grid w-full">
+          <div className="relative grid min-w-full">
             {index === 0 ? (
               <WidthSizer label={longestLabel(measured)} accent={accent} star={star} />
             ) : null}
@@ -320,6 +326,7 @@ function Pill({
   recommended,
   warning = false,
   stretch = false,
+  truncateTitle = false,
   accessory,
   onClick,
 }: {
@@ -333,6 +340,8 @@ function Pill({
   recommended?: boolean;
   warning?: boolean;
   stretch?: boolean;
+  /** Ellipsize the title inside the shared node width. */
+  truncateTitle?: boolean;
   accessory?: ReactNode;
   onClick: () => void;
 }) {
@@ -355,18 +364,18 @@ function Pill({
                 : t("thinkingLab.idea.list", "Idea");
   const badge = code?.trim();
   return (
-    <div className={cn("relative col-start-1 row-start-1", stretch && "w-full")} data-map-node={nodeId}>
+    <div className={cn("relative col-start-1 row-start-1 min-w-0", stretch && "w-full")} data-map-node={nodeId}>
       <button
         type="button"
         onClick={onClick}
-        title={fullTitle && fullTitle.trim() !== title.trim() ? fullTitle.trim() : undefined}
+        title={fullTitle && (truncateTitle || fullTitle.trim() !== title.trim()) ? fullTitle.trim() : undefined}
         aria-label={title.trim() || (badge ? `${level} - ${badge}` : level)}
         aria-current={selected ? "true" : undefined}
         className={cn(
           "items-stretch rounded-[4px] px-2 py-0.5 text-left text-xs font-medium",
           tone === "master" ? "max-w-[22rem] whitespace-normal" : "whitespace-nowrap",
           accessory && "pl-6",
-          stretch ? "flex w-full" : "inline-flex w-max",
+          truncateTitle ? "flex w-full min-w-0 overflow-hidden" : stretch ? "flex w-full" : "inline-flex w-max",
           solid ? SOLID[tone] : cn("gap-1.5 pl-1", ACCENT[tone]),
           tone === "bigThought" && selected && "border-[#16365c] bg-[#1e4a86]",
           tone === "territory" && selected && "border-[#f0c14b]",
@@ -374,12 +383,12 @@ function Pill({
         )}
       >
         {solid ? null : <span className={cn("my-0.5 w-0.5 shrink-0 self-stretch rounded-[1px]", ACCENT_BAR[tone])} aria-hidden />}
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5 py-0.5">
-          <span className="text-[10px] font-medium leading-none text-white/90">
+        <span className={cn("flex flex-col gap-0.5 py-0.5", stretch ? "min-w-0 flex-1" : "w-max")}>
+          <span className={cn("text-[10px] font-medium leading-none text-white/90", truncateTitle && "truncate")}>
             {badge ? `${level} - ${badge}` : level}
           </span>
           {title ? (
-            <span className={tone === "master" ? "whitespace-normal break-words leading-snug" : "leading-none"}>{title}</span>
+            <span className={truncateTitle ? "block truncate leading-none" : tone === "master" ? "whitespace-normal break-words leading-snug" : "leading-none"}>{title}</span>
           ) : null}
         </span>
         {recommended ? (
@@ -680,6 +689,25 @@ export function MasterThoughtMapTree({
   if (masters.length === 0) return null;
 
   const children = selected ? (childrenByMasterId.get(selected.id) ?? []) : [];
+  const nodeWidth = longestLabel(
+    children.flatMap((child) => [
+      pillTitle(child.label, child.statement),
+      `${t("thinkingLab.tree.bigThought", "Big Thought")} - ${child.code}`,
+      ...(child.territories ?? []).flatMap((territory) => [
+        territory.statement.trim(),
+        `${t("thinkingLab.tree.territory", "Territory")} - ${territory.code}`,
+        ...(territory.angles ?? []).flatMap((angle) => [
+          angleListSubject(angle.subject ?? "", territory.statement),
+          `${t("thinkingLab.tree.angle", "Angle")} - ${angle.code}`,
+          ...(angle.ideas ?? []).flatMap((idea) => [
+            ideaLabel(idea.statement, idea.subject),
+            `${t("thinkingLab.idea.list", "Idea")} - ${idea.code}`,
+            ...(idea.pillars ?? []).map((pillar) => pillar.label),
+          ]),
+        ]),
+      ]),
+    ]),
+  );
   const visibleChildren = expanded.master ? children : [];
   const links = selected
     ? [
@@ -806,13 +834,14 @@ export function MasterThoughtMapTree({
                           return { master: false, thoughts: new Set(), territories: new Set(), angles: new Set() };
                         });
                         centerNode(`master:${selected.id}`);
-                        if (!masterSelected) startTransition(() => onSelect(selected.id));
+                        if (!masterSelected) onSelect(selected.id);
                       }}
                     />
             </div>
                   {expanded.master && children.length > 0 ? (
                     <EqualBranch
                       levelLabel={t("thinkingLab.tree.bigThought", "Big Thought")}
+                      widthLabel={nodeWidth}
                       codes={children.map((child) => child.code)}
                       labels={children.map((child) => pillTitle(child.label, child.statement))}
                       rows={children.map((child) => {
@@ -870,7 +899,7 @@ export function MasterThoughtMapTree({
                                   };
                                 });
                                 centerNode(`bt:${child.id}`);
-                                if (!already) startTransition(() => onSelectChild(selected.id, child.id));
+                                if (!already) onSelectChild(selected.id, child.id);
                               }}
                             />
                           ),
@@ -878,6 +907,7 @@ export function MasterThoughtMapTree({
                             <EqualBranch
                               levelLabel={t("thinkingLab.tree.territory", "Territory")}
                               accent
+                              widthLabel={nodeWidth}
                               codes={(child.territories ?? []).map((territory) => territory.code)}
                               labels={(child.territories ?? []).map((territory) => territory.statement.trim())}
                               rows={(child.territories ?? []).map((territory) => {
@@ -909,7 +939,7 @@ export function MasterThoughtMapTree({
                                           };
                                         });
                                         centerNode(`tr:${territory.id}`);
-                                        if (!already) startTransition(() => onSelectTerritory(selected.id, child.id, territory.id));
+                                        if (!already) onSelectTerritory(selected.id, child.id, territory.id);
                                       }}
                                     />
                                   ),
@@ -917,6 +947,7 @@ export function MasterThoughtMapTree({
                                     <EqualBranch
                                       levelLabel={t("thinkingLab.tree.angle", "Angle")}
                                       accent
+                                      widthLabel={nodeWidth}
                                       codes={(territory.angles ?? []).map((angle) => angle.code)}
                                       labels={(territory.angles ?? []).map((angle) =>
                                         angleListSubject(angle.subject ?? "", territory.statement),
@@ -945,7 +976,7 @@ export function MasterThoughtMapTree({
                                                   return { ...current, angles: withId(current.angles, angle.id, false) };
                                                 });
                                                 centerNode(`an:${angle.id}`);
-                                                if (!already) startTransition(() => onSelectAngle(selected.id, child.id, territory.id, angle.id));
+                                                if (!already) onSelectAngle(selected.id, child.id, territory.id, angle.id);
                                               }}
                                             />
                                           ),
@@ -953,6 +984,7 @@ export function MasterThoughtMapTree({
                                             <EqualBranch
                                               levelLabel={t("thinkingLab.idea.list", "Idea")}
                                               accent
+                                              widthLabel={nodeWidth}
                                               codes={(angle.ideas ?? []).map((idea) => idea.code)}
                                               star={(angle.ideas ?? []).some((idea) => idea.recommended)}
                                               labels={(angle.ideas ?? []).map((idea) => ideaLabel(idea.statement, idea.subject))}
@@ -962,7 +994,8 @@ export function MasterThoughtMapTree({
                                                     <EqualBranch
                                                       levelLabel={t("thinkingLab.execution.label", "Execution")}
                                                       accent
-                                                      labels={rows.map((execution) => execution.label)}
+                                                      widthLabel={nodeWidth}
+                                                      labels={[nodeWidth]}
                                                       rows={rows.map((execution) => ({
                                                         key: execution.id,
                                                         pill: (
@@ -970,20 +1003,20 @@ export function MasterThoughtMapTree({
                                                             nodeId={`ex:${execution.id}`}
                                                             tone="execution"
                                                             stretch
+                                                            truncateTitle
                                                             title={execution.label}
+                                                            fullTitle={execution.label}
                                                             selected={inspectedExecutionId === execution.id}
                                                             warning={!execution.passed}
                                                             onClick={() => {
                                                               centerNode(`ex:${execution.id}`);
-                                                              startTransition(() =>
-                                                                onSelectExecution?.(
-                                                                  selected.id,
-                                                                  child.id,
-                                                                  territory.id,
-                                                                  angle.id,
-                                                                  idea.id,
-                                                                  execution.id,
-                                                                ),
+                                                              onSelectExecution?.(
+                                                                selected.id,
+                                                                child.id,
+                                                                territory.id,
+                                                                angle.id,
+                                                                idea.id,
+                                                                execution.id,
                                                               );
                                                             }}
                                                           />
@@ -997,6 +1030,7 @@ export function MasterThoughtMapTree({
                                                     <EqualBranch
                                                       levelLabel={t("thinkingLab.tree.pillar", "Pillar")}
                                                       accent
+                                                      widthLabel={nodeWidth}
                                                       labels={pillars.map((pillar) => pillar.label)}
                                                       rows={pillars.map((pillar) => ({
                                                         key: pillar.id,
@@ -1010,15 +1044,13 @@ export function MasterThoughtMapTree({
                                                             childCount={pillar.executions?.length ?? 0}
                                                             onClick={() => {
                                                               centerNode(`pl:${idea.id}:${pillar.id}`);
-                                                              startTransition(() =>
-                                                                onSelectPillar?.(
-                                                                  selected.id,
-                                                                  child.id,
-                                                                  territory.id,
-                                                                  angle.id,
-                                                                  idea.id,
-                                                                  pillar.id,
-                                                                ),
+                                                              onSelectPillar?.(
+                                                                selected.id,
+                                                                child.id,
+                                                                territory.id,
+                                                                angle.id,
+                                                                idea.id,
+                                                                pillar.id,
                                                               );
                                                             }}
                                                           />
@@ -1043,9 +1075,7 @@ export function MasterThoughtMapTree({
                                                       childCount={Math.max(idea.childCount ?? 0, pillars.length, idea.executions?.length ?? 0)}
                                                       onClick={() => {
                                                         centerNode(`idea:${idea.id}`);
-                                                        startTransition(() =>
-                                                          onSelectIdea(selected.id, child.id, territory.id, angle.id, idea.id),
-                                                        );
+                                                        onSelectIdea(selected.id, child.id, territory.id, angle.id, idea.id);
                                                       }}
                                                     />
                                                   ),

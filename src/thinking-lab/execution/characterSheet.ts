@@ -1,3 +1,5 @@
+import { lookStylePromptBlock } from "@/6-1-dashboard/lib/seedanceVideo";
+
 export function characterDisplayName(handle: string): string {
   const body = handle
     .replace(/^@character_/, "")
@@ -28,12 +30,16 @@ export function characterVisualPath(
   return `${organizationId}/thinking-lab/${executionId}/${characterStorageKey(handle)}-${kind}.${ext}`;
 }
 
-export function buildCharacterPortraitPrompt(name: string, description: string): string {
+export function buildCharacterPortraitPrompt(name: string, description: string, look?: string): string {
   const subject = description.trim() || name;
+  const lookBlock = lookStylePromptBlock(look ?? "");
   return [
     "Create ONE photorealistic studio portrait photograph of a single person.",
     `The person is ${name}. ${subject}`,
-    "Frame: head and upper chest, 4:5 portrait, plain seamless light-gray background, soft even studio light, sharp focus, looking toward the camera.",
+    "Frame: head and upper chest, 4:5 portrait, plain seamless light-gray background, sharp focus, looking toward the camera.",
+    lookBlock
+      ? `${lookBlock} Apply LOOK to camera and grade. Soft cinematic window light is forbidden when LOOK asks for UGC or commercial.`
+      : "Use soft even studio light.",
     "Use the expression, age, and clothing implied by the description. If clothing is not described, use simple everyday clothes that fit that person.",
     "One real human, photographed. Skin, hair, and cloth must look like a camera photo.",
     "Forbidden: cartoon, illustration, anime, manga, vector, comic, 3D render, pixar, drawing, sketch, cel shading, stylized character.",
@@ -41,14 +47,18 @@ export function buildCharacterPortraitPrompt(name: string, description: string):
   ].join(" ");
 }
 
-export function buildCharacterSheetPrompt(name: string, description: string): string {
+export function buildCharacterSheetPrompt(name: string, description: string, look?: string): string {
   const subject = description.trim() || "No further description.";
+  const lookBlock = lookStylePromptBlock(look ?? "");
   return [
     "The attached photograph is the character. Copy that exact face into every panel.",
     "Match the reference photo: same eyes, nose, mouth, jaw, skin tone, hair, and the exact clothes visible in the photo. A t-shirt stays a t-shirt. Do not invent a different face, a different outfit, or a different age.",
     "Keep the photographic medium of the reference. If the reference is a real person, every panel is a camera photo of that same person. Do not redraw them as a cartoon, illustration, anime, or 3D character.",
     "Create ONE live-action casting lookbook on a solid white canvas, landscape 16:9.",
     "Every person in every panel is a REAL photographed human, not a drawing. Use camera photos: real skin texture, real hair, real fabric, photographic lighting.",
+    ...(lookBlock
+      ? [lookBlock, "Apply LOOK to camera and grade on every photo panel. Keep the white canvas and layout."]
+      : []),
     "FORBIDDEN in every panel: cartoon, illustration, anime, manga, vector, comic, 3D render, pixar, clay, drawing, sketch, cel shading, flat character design, stylized character.",
     "Top-left portrait: the same person and the same shirt as the attached photo, not a new design.",
     "The white background reaches all four edges. Arrange photographs of that one person into the layout below.",

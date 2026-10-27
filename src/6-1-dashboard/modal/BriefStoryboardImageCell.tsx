@@ -25,7 +25,12 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { pickStoryboardNativePhoto } from '@/6-1-dashboard/lib/pickStoryboardImage';
 import { useBriefVideo } from '@/6-1-dashboard/modal/briefVideoContext';
-import { BriefDubbedVideo, BriefSeedanceVoiceButton, useBriefVoice } from '@/6-1-dashboard/modal/briefVoiceContext';
+import {
+  BriefDubbedVideo,
+  BriefSeedanceVoiceButton,
+  BriefVoiceSourceBar,
+  useBriefVoice,
+} from '@/6-1-dashboard/modal/briefVoiceContext';
 
 interface BriefStoryboardImageCellProps {
   rowIndex: number;
@@ -152,7 +157,12 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
   const imagePos = images.length === 0 ? 0 : Math.max(0, Math.min(activeIndex, images.length - 1));
   const slideIndex = videoSlide != null && videoSlide >= images.length && videoSlide < slideCount ? videoSlide : imagePos;
   const activeVideo = slideIndex >= images.length ? readyVideos[slideIndex - images.length] ?? null : null;
-  const activeVoiceUrl = activeVideo ? briefVoice?.seedanceClip(activeVideo.id)?.url ?? null : null;
+  const activeVoiceClip = activeVideo ? briefVoice?.seedanceClip(activeVideo.id) ?? null : null;
+  const activeVoiceUrl = activeVoiceClip?.url ?? null;
+  const [playOriginalSound, setPlayOriginalSound] = useState(!activeVoiceUrl);
+  useEffect(() => {
+    if (!activeVoiceUrl) setPlayOriginalSound(true);
+  }, [activeVoiceUrl, activeVideo?.id]);
   const knownReadyCount = useRef<number | null>(null);
   useEffect(() => {
     if (knownReadyCount.current == null) {
@@ -427,6 +437,7 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
             voiceUrl={activeVoiceUrl}
             videoName={`video-${rowIndex + 1}.mp4`}
             framed
+            useOriginal={playOriginalSound}
           />
         ) : activeImage ? (
           <div className={cn('w-full bg-gray-100', framed ? 'absolute inset-0 overflow-hidden' : '')}>
@@ -719,7 +730,22 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
       {videoStatus.error ? (
         <p className="mt-1 text-xs text-red-600">{videoStatus.error}</p>
       ) : null}
-      <BriefSeedanceVoiceButton rowIndex={rowIndex} scope="shot" />
+      {activeVideo && activeVoiceUrl ? (
+        <BriefVoiceSourceBar
+          voiceUrl={activeVoiceUrl}
+          voiceClipId={activeVoiceClip?.id ?? null}
+          useOriginal={playOriginalSound}
+          onUseOriginal={setPlayOriginalSound}
+        />
+      ) : null}
+      {activeVideo ? (
+        <BriefSeedanceVoiceButton
+          rowIndex={rowIndex}
+          scope="shot"
+          preferredVideoId={activeVideo.id}
+          labeled
+        />
+      ) : null}
 
       {phonePick && canOpenPicker ? (
         <div className="mt-2 grid grid-cols-2 gap-1.5" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>

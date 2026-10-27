@@ -616,8 +616,19 @@ export function readScriptLook(raw: unknown): ScriptLook | undefined {
   return raw === "ugc" || raw === "commercial" || raw === "cinematic" ? raw : undefined;
 }
 
+/** Visual components sent to the model whenever Look is UGC. */
+export const UGC_LOOK_COMPONENTS = [
+  "UGC style handheld phone footage shot on iPhone 17 Pro Max",
+  "super high contrast, punchy shadows, bright subject",
+  "advertisement lighting / hard practical light, not soft cinematic window light",
+] as const;
+
+export function ugcLookDetail(): string {
+  return ["UGC", ...UGC_LOOK_COMPONENTS].join(", ");
+}
+
 export function lookMasterLine(look?: ScriptLook | null): string {
-  if (look === "ugc") return "Look : UGC, handheld iPhone, natural light, no bokeh, no cinematic grade";
+  if (look === "ugc") return `Look : ${ugcLookDetail()}`;
   if (look === "commercial") return "Look : commercial ad, stable camera, clean even lighting, sharp product focus, polished but not a movie";
   if (look === "cinematic") return "Look : cinematic film, motivated lighting, shallow depth of field, camera on tripod or dolly, filmic color";
   return "";

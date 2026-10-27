@@ -1,14 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { buildLocationImagePrompt, buildPropertyImagePrompt } from "@/6-1-dashboard/modal/locationImagePrompt";
+import {
+  buildLocationImagePrompt,
+  buildPropertyImagePrompt,
+  lookFromBriefStoryboard,
+} from "@/6-1-dashboard/modal/locationImagePrompt";
+import { ugcLookDetail } from "@/thinking-lab/execution/script";
 
 const storyboard = [
-  "| Timing | Visual | VO (Voice Over) | Shot | Angle | Visual function | Veo 3 prompt |",
-  "| --- | --- | --- | --- | --- | --- | --- |",
-  "|  |  | Dia hitung sisa tabungan. | Shot 1 — Main Shot | Wide | show the unpaid city | wide night view of @location_city_skyline, wet roads, one empty bus |",
-  "|  |  |  | Shot 2 — Supporting Shot | Close-up | the bill | close-up of @property_bill on the table |",
+  "| Timing | Visual | VO (Voice Over) | Shot | Angle | Visual function | Veo 3 prompt | Master prompt |",
+  "| --- | --- | --- | --- | --- | --- | --- | --- |",
+  "|  |  | Dia hitung sisa tabungan. | Shot 1 — Main Shot | Wide | show the unpaid city | wide night view of @location_city_skyline, wet roads, one empty bus | Look : UGC, handheld iPhone |",
+  "|  |  |  | Shot 2 — Supporting Shot | Close-up | the bill | close-up of @property_bill on the table |  |",
 ].join("\n");
 
 describe("location image prompt", () => {
+  it("reads Look from the Master prompt column", () => {
+    expect(lookFromBriefStoryboard(storyboard)).toMatch(/UGC/i);
+  });
+
   it("uses the idea and the shots for that location, not only the place label", () => {
     const prompt = buildLocationImagePrompt({
       handle: "@location_city_skyline",
@@ -34,7 +43,29 @@ describe("location image prompt", () => {
     expect(prompt).toContain("No graphic overlays");
     expect(prompt).toContain("@character_budi");
     expect(prompt).toContain("Dia hitung sisa tabungan.");
+    expect(prompt).toContain("LOOK (required camera and grade");
+    expect(prompt).toContain(ugcLookDetail());
+    expect(prompt).toContain("UGC look components:");
     expect(prompt).not.toContain("close-up of @property_bill");
+  });
+
+  it("honors an explicit look override", () => {
+    const prompt = buildLocationImagePrompt({
+      handle: "@location_city_skyline",
+      description: "A view of a modern city skyline.",
+      aspect: "9:16",
+      title: "Sisa tabungan",
+      caption: "Satu bus kosong.",
+      idea: "Menunda bayar membuat kota terasa makin jauh.",
+      storyboard: "",
+      look: "commercial",
+      concept: {
+        locations: [{ handle: "@location_city_skyline", description: "A view of a modern city skyline." }],
+        characters: [],
+        properties: [],
+      },
+    });
+    expect(prompt).toContain("LOOK (required camera and grade — follow this): commercial");
   });
 
   it("builds a property still from the shot that uses it", () => {

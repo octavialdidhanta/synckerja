@@ -94,6 +94,19 @@ describe("fix scope", () => {
     expect(lines).toContain("stakeHolds: the idea still stands without the Angle");
   });
 
+  it("lets a premise-only fix change the supporting reason", () => {
+    const lines = fixScopeLines({
+      preserve: ["resolved", "relation", "role", "explains"],
+      repair: [{ id: "premise", reason: "the claim needs separate proof" }],
+    }).join("\n");
+    expect(lines).toContain("Replace the unsupported specific empirical claim");
+    expect(lines).toContain("A different supporting reason is allowed");
+    expect(lines).toContain("New material information that the Master Thought does not already state is allowed");
+    expect(lines).not.toContain("Keep the meaning that made those passed checks true");
+    expect(lines).not.toContain("Remove only the unsupported factual claim");
+    expect(lines).toContain("premise: the claim needs separate proof");
+  });
+
   it("tells a situation failure to drop the verbal conclusion", () => {
     const lines = fixScopeLines({
       preserve: ["sentenceForm", "stakeHolds", "mechanismShape", "vehicle", "recognizable"],

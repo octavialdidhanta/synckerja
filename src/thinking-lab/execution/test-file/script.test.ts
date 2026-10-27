@@ -256,7 +256,9 @@ describe("voice-over script", () => {
     expect(prompt).not.toContain("Speech :");
     expect(prompt).not.toContain("Delivery :");
     expect(prompt).not.toContain("Wide room");
-    expect(lookMasterLine("ugc")).toBe("Look : UGC, handheld iPhone, natural light, no bokeh, no cinematic grade");
+    expect(lookMasterLine("ugc")).toBe(
+      "Look : UGC, UGC style handheld phone footage shot on iPhone 17 Pro Max, super high contrast, punchy shadows, bright subject, advertisement lighting / hard practical light, not soft cinematic window light",
+    );
     expect(lookMasterLine("commercial")).toBe(
       "Look : commercial ad, stable camera, clean even lighting, sharp product focus, polished but not a movie",
     );

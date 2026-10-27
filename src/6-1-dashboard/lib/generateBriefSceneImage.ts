@@ -4,7 +4,14 @@ import { loadPoseReferencesForCharacters } from '@/6-1-social-media-settings/lib
 import type { BriefConceptDocument } from '@/6-1-dashboard/modal/briefConceptAssets';
 import { locationFrameForContentType } from '@/6-1-dashboard/modal/briefConceptAssets';
 import { loadLinkedIdeaStatement, readStoredCharacterVisual } from '@/thinking-lab/execution/generateCharacterVisual';
-import { isVeoPromptHeader } from '@/6-1-dashboard/lib/seedanceVideo';
+import {
+  coveringMasterRow,
+  isVeoPromptHeader,
+  lookIsUgc,
+  lookStylePromptBlock,
+  readLook,
+} from '@/6-1-dashboard/lib/seedanceVideo';
+import { parseMarkdownTable } from '@/6-1-dashboard/utils/markdownTableUtils';
 
 export type BriefSceneGenerateT = (
   key: string,
@@ -108,6 +115,23 @@ export type StoryboardFilmContext = {
   organizationId?: string;
 };
 
+/** Look from Master Prompt in the brief — same source as Video Settings / Generate Video. */
+export function lookFromStoryboardFilm(
+  film?: StoryboardFilmContext | null,
+  rowIndex = 0,
+): string {
+  const markdown = film?.storyboard?.trim() ?? '';
+  if (!markdown) return '';
+  const parsed = parseMarkdownTable(markdown);
+  const table = parsed?.table;
+  if (!table || table.length < 2) return '';
+  const headers = table[0] ?? [];
+  const body = table.slice(1);
+  const anchor = coveringMasterRow(body, headers, Math.max(0, Math.min(rowIndex, body.length - 1)));
+  const master = findCell(headers, body[anchor] ?? [], (header) => header === 'master prompt');
+  return readLook(master);
+}
+
 function findCell(headers: string[], row: string[], match: (header: string) => boolean): string {
   const index = headers.findIndex((header) => match(header.toLowerCase()));
   return index >= 0 ? String(row[index] ?? '').trim() : '';
@@ -139,11 +163,15 @@ export function buildStoryboardShotPrompt(input: {
   imageColumnIndex: number;
   context?: StoryboardFilmContext;
   hasPortrait?: boolean;
+  look?: string;
+  rowIndex?: number;
 }): string {
   const angle = findCell(input.headers, input.row, (header) => header === 'angle' || header.startsWith('angle'));
   const visualFunction = findCell(input.headers, input.row, (header) => header.includes('visual function'));
   const veo = findCell(input.headers, input.row, isVeoPromptHeader);
   const voice = findCell(input.headers, input.row, (header) => header.includes('voice') || header.includes('narasi'));
+  const look = (input.look ?? lookFromStoryboardFilm(input.context, input.rowIndex ?? 0)).trim();
+  const lookBlock = lookStylePromptBlock(look);
   const concept = input.context?.concept;
   const handles = mentionedHandles(veo);
   const characters = (concept?.characters ?? []).filter((item) => handles.includes(item.handle.toLowerCase()));
@@ -153,7 +181,10 @@ export function buildStoryboardShotPrompt(input: {
     'Create ONE photographic storyboard frame for this exact shot.',
     'ONE FRAME ONLY: a single continuous photograph. No split screen, no stacked photos, no diptych, no collage.',
     'NO WRITING: the picture is the photograph only. Do not add a headline, banner, subtitle, caption, lower third, sticker, or any letters on the top or bottom.',
-    'Follow the angle, the visual function, and the Veo prompt. They outrank every other note.',
+    lookBlock
+      ? 'Follow LOOK first for camera, contrast, and lighting. Then follow the angle, the visual function, and the Veo prompt for subject and action.'
+      : 'Follow the angle, the visual function, and the Veo prompt. They outrank every other note.',
+    lookBlock,
     `ANGLE: ${angle || '(not set)'}`,
     `VISUAL FUNCTION: ${visualFunction || '(not set)'}`,
     `VEO PROMPT: ${veo || '(not set)'}`,
@@ -308,6 +339,7 @@ export async function generateBriefSceneImageFile(params: {
   }
 
   const veo = findCell(headers, row, isVeoPromptHeader);
+  const look = lookFromStoryboardFilm(film, params.rowIndex ?? 0);
   const namedCharacters = (film?.concept?.characters ?? []).filter((item) =>
     mentionedHandles(veo).includes(item.handle.toLowerCase()),
   );
@@ -326,16 +358,19 @@ export async function generateBriefSceneImageFile(params: {
     row,
     imageColumnIndex,
     hasPortrait: Boolean(portraitImage),
+    look,
+    rowIndex: params.rowIndex,
     context: { ...film, title: [film?.title, idea].filter(Boolean).join('\n') },
   });
+  const refineGuide = lookIsUgc(look)
+    ? 'Make this the strongest single UGC phone photograph of that exact shot: iPhone 17 Pro Max capture, super high contrast, advertisement lighting, faithful to LOOK and the Veo prompt. Do not change the person, the place, or the action. Avoid cinematic soft light.'
+    : 'Make this the strongest single photograph of that exact shot: sharp, natural, and faithful to the Veo prompt and the reference images. Do not change the person, the place, or the action.';
   const prompt = [
     shotPrompt,
     buildBriefScenePrompt(headers, row, imageColumnIndex, {
       hasCharacterReferences: characterPoseReferences.length > 0 || Boolean(portraitImage),
     }),
-    refine
-      ? 'Make this the strongest single photograph of that exact shot: sharp, natural, and faithful to the Veo prompt and the reference images. Do not change the person, the place, or the action.'
-      : '',
+    refine ? refineGuide : '',
   ].filter(Boolean).join('\n\n');
 
   const { data: refreshed } = await supabase.auth.refreshSession();

@@ -1,5 +1,8 @@
 import type { BriefConceptDocument } from "@/6-1-dashboard/modal/briefConceptAssets";
 import { locationFrameForContentType, type LocationFrame } from "@/6-1-dashboard/modal/briefConceptAssets";
+import { UGC_LOOK_COMPONENTS, ugcLookDetail } from "@/thinking-lab/execution/script";
+
+export { UGC_LOOK_COMPONENTS, ugcLookDetail };
 
 export const SEEDANCE_MODELS = [
   { id: "dreamina-seedance-2-5-260628", label: "Seedance 2.5" },
@@ -104,6 +107,30 @@ export function readLook(masterPrompt: string): string {
 
 export function lookIsUgc(look: string): boolean {
   return /\bugc\b/i.test(look);
+}
+
+/** Canonical Look text for image and video prompts. One source for Video Settings / Master Prompt / generate. */
+export function lookStyleForPrompt(look: string): string {
+  const value = look.trim();
+  if (!value) return "";
+  if (lookIsUgc(value)) return ugcLookDetail();
+  return value;
+}
+
+/** Prompt block that forces camera and grade. Shared by Generate Image and Generate Video. */
+export function lookStylePromptBlock(look: string): string {
+  const style = lookStyleForPrompt(look);
+  if (!style) return "";
+  if (lookIsUgc(look)) {
+    return [
+      `LOOK (required camera and grade — follow every line): ${style}`,
+      "UGC look components:",
+      ...UGC_LOOK_COMPONENTS.map((item) => `- ${item}`),
+      "Treat any still as subject and framing only. Restyle the grade: handheld phone camera, super high contrast, advertisement lighting.",
+      "Forbidden: cinematic soft window light, filmic color grade, movie shallow depth of field, polished commercial bokeh.",
+    ].join("\n");
+  }
+  return `LOOK (required camera and grade — follow this): ${style}`;
 }
 
 export function audioForbidden(masterPrompt: string): boolean {
@@ -365,16 +392,12 @@ export function buildVideoPrompt(input: {
   const activeScenes = input.rowIndexes.map((index) =>
     input.sceneByRow?.[index] ?? readShotBrief(input.headers, input.rows[index] ?? []),
   );
-  const masterScenes = input.scope === "master"
-    ? activeScenes
-    : masterGroupRows(input.rows, input.headers, anchor).map((index) =>
-      input.sceneByRow?.[index] ?? readShotBrief(input.headers, input.rows[index] ?? []),
-    );
-  const masterText = input.sceneByRow
-    ? masterPromptWithActiveShots(master, masterScenes)
-    : master;
+  // Single-shot video uses the shot image + this shot's fields. Master Prompt mentions stay on master generate only.
+  const masterText = input.scope === "master"
+    ? (input.sceneByRow ? masterPromptWithActiveShots(master, activeScenes) : master)
+    : "";
   const lines = [
-    look ? `Look: ${look}` : "",
+    lookStylePromptBlock(look),
     input.ugcType?.trim() ? `UGC type: ${input.ugcType.trim()}` : "",
     masterText ? `Master prompt:\n${masterText}` : "",
   ];

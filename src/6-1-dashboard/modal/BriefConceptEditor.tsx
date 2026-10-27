@@ -16,6 +16,7 @@ import {
 } from "@/thinking-lab/execution/generateCharacterVisual";
 import { CharacterVisualSlots, type CharacterStudioTab } from "@/thinking-lab/section/CharacterVisualStudio";
 import { LocationVisualCard } from "@/6-1-dashboard/modal/LocationVisualCard";
+import { lookFromBriefStoryboard } from "@/6-1-dashboard/modal/locationImagePrompt";
 import {
   briefAssetHandle,
   locationContentShape,
@@ -249,6 +250,7 @@ export function BriefConceptEditor({
         caption: captionText,
         storyboard: briefText,
         concept: document,
+        look: lookFromBriefStoryboard(briefText),
       });
       updateLocation(handle, { locationPath: path });
       toast.success(t("briefDialog.conceptLocationGenerated", "Location image ready."));
@@ -333,6 +335,7 @@ export function BriefConceptEditor({
         caption: captionText,
         storyboard: briefText,
         concept: document,
+        look: lookFromBriefStoryboard(briefText),
       });
       updateProperty(handle, { propertyPath: path });
       toast.success(t("briefDialog.conceptPropertyGenerated", "Property image ready."));

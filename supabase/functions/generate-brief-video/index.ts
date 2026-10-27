@@ -391,7 +391,8 @@ async function createVideo(
   const concept = parseConcept(audience?.description);
   const mentions = [...new Set((prompt.match(MENTION) ?? []).map((handle) => handle.toLowerCase()))];
   const missingMentions = mentions.filter((handle) => !conceptPath(concept, handle, orgId));
-  if (!endImageId && missingMentions.length > 0) {
+  // Single-shot generate uses the storyboard still. Concept mentions are required only for master generate.
+  if (scope !== "shot" && !endImageId && missingMentions.length > 0) {
     return json({ error: `Gambar Concept belum ada untuk ${missingMentions.join(", ")}` }, 400);
   }
 
@@ -463,12 +464,18 @@ async function createVideo(
     });
   }
 
-  const useReference = !endImageId && signed.length > 1;
-  const matchLines = endImageId
-    ? "The opening frame must match the first image exactly. The ending frame must match the second image exactly."
-    : useReference
-      ? signed.map((item, index) => `@Image${index + 1} (${item.label}) must match that image exactly for the whole shot.`).join("\n")
-      : "The opening frame must match the supplied image exactly.";
+  const ugcLook = promptHasUgcLook(prompt);
+  // UGC Look must not lock the still as first_frame — that copies cinematic grade from the photo.
+  const useReference = !endImageId && (signed.length > 1 || ugcLook);
+  const matchLines = ugcLook
+    ? endImageId
+      ? "Use the first image for opening subject and framing, and the second for ending subject and framing. Restyle camera and lighting to UGC: iPhone 17 Pro Max handheld, super high contrast, advertisement lighting. Do not preserve cinematic soft lighting or filmic bokeh from the stills."
+      : signed.map((item, index) => `@Image${index + 1} (${item.label}) supplies subject and framing only. Restyle camera and lighting to UGC: iPhone 17 Pro Max handheld, super high contrast, advertisement lighting. Do not preserve cinematic soft lighting or filmic bokeh.`).join("\n")
+    : endImageId
+      ? "The opening frame must match the first image exactly. The ending frame must match the second image exactly."
+      : useReference
+        ? signed.map((item, index) => `@Image${index + 1} (${item.label}) must match that image exactly for the whole shot.`).join("\n")
+        : "The opening frame must match the supplied image exactly.";
   const content = [
     { type: "text", text: `${matchLines}\n\n${prompt}` },
     ...signed.map((item) => ({
@@ -711,6 +718,10 @@ function veoSupportsReferences(model: string): boolean {
   return model === "veo-3.1-generate-preview" || model === "veo-3.1-fast-generate-preview";
 }
 
+function promptHasUgcLook(prompt: string): boolean {
+  return /ugc look components|iphone 17 pro max|advertisement lighting|super high contrast/i.test(prompt);
+}
+
 function googleOperationUrl(name: string): string {
   if (name.startsWith("http")) return name;
   return `${GOOGLE_API}/${name.replace(/^\//, "")}`;
@@ -761,7 +772,12 @@ async function finishGeminiVideo(
     parts.push(part);
   }
   const endPair = input.images.length === 2 && input.images[0]?.role === "first_frame" && input.images[1]?.role === "last_frame";
-  const task = endPair ? "" : input.images.length > 1 ? "reference_to_video" : "image_to_video";
+  const ugcLook = promptHasUgcLook(input.prompt);
+  const task = endPair
+    ? ""
+    : input.images.length > 1 || ugcLook
+      ? "reference_to_video"
+      : "image_to_video";
   const payload: Record<string, unknown> = {
     model: input.model,
     background: true,
@@ -919,19 +935,23 @@ async function finishVeoVideo(
   },
 ) {
   const endPair = input.images.length === 2 && input.images[0]?.role === "first_frame" && input.images[1]?.role === "last_frame";
-  const references = !endPair && input.images.length > 1;
-  if (references && !veoSupportsReferences(input.model)) {
+  const ugcLook = promptHasUgcLook(input.prompt);
+  const wantReferences = !endPair && (input.images.length > 1 || (ugcLook && input.images.length === 1 && veoSupportsReferences(input.model)));
+  if (wantReferences && !veoSupportsReferences(input.model)) {
     return input.json({ error: "Model ini menerima satu gambar, atau gambar awal dan akhir." }, 400);
   }
-  if (references && input.duration !== 8) {
+  if (wantReferences && input.images.length > 1 && input.duration !== 8) {
     return input.json({ error: "Beberapa gambar pada Veo hanya untuk durasi 8 detik." }, 400);
   }
   const inline = async (item: GeminiImage) => {
     const part = await geminiImagePart(supabaseAdmin, item);
     return part ? { inlineData: { mimeType: part.mime_type, data: part.data } } : null;
   };
+  const ugcPromptTail = ugcLook
+    ? "\n\nRestyle camera and lighting to UGC: iPhone 17 Pro Max handheld, super high contrast, advertisement lighting. Do not preserve cinematic soft lighting or filmic bokeh from the still."
+    : "";
   const instance: Record<string, unknown> = {
-    prompt: input.generateAudio ? input.prompt : `${input.prompt}\n\nSilent video. No speech, music, or sound effects.`,
+    prompt: `${input.generateAudio ? input.prompt : `${input.prompt}\n\nSilent video. No speech, music, or sound effects.`}${ugcPromptTail}`,
   };
   if (endPair) {
     const first = await inline(input.images[0]);
@@ -939,7 +959,7 @@ async function finishVeoVideo(
     if (!first || !last) return input.json({ error: "Gambar brief tidak bisa dibaca" }, 500);
     instance.image = first;
     instance.lastFrame = last;
-  } else if (references) {
+  } else if (wantReferences) {
     const referenceImages = [];
     for (const item of input.images) {
       const image = await inline(item);
@@ -1096,14 +1116,18 @@ function veoFailure(body: unknown): string {
 
 function geminiPrompt(prompt: string, imageCount: number, endPair: boolean, generateAudio: boolean): string {
   const silent = generateAudio ? "" : "\n\nSilent video. No speech, music, or sound effects.";
+  const ugcLook = promptHasUgcLook(prompt);
+  const ugcRestyle = ugcLook
+    ? " Restyle camera and lighting to UGC: iPhone 17 Pro Max handheld, super high contrast, advertisement lighting. Use the still for subject and framing only. Do not keep cinematic soft lighting or filmic shallow depth of field from the still."
+    : "";
   if (endPair) {
-    return `[# Sources <FIRST_FRAME>@Image1 <LAST_FRAME>@Image2]\n${prompt}\nUse Image1 as the starting frame and Image2 as the ending frame.${silent}`;
+    return `[# Sources <FIRST_FRAME>@Image1 <LAST_FRAME>@Image2]\n${prompt}\nUse Image1 as the starting frame and Image2 as the ending frame.${ugcRestyle}${silent}`;
   }
-  if (imageCount <= 1) {
-    return `[# Sources <FIRST_FRAME>@Image1]\n${prompt}\nUse Image1 as the starting frame.${silent}`;
+  if (ugcLook || imageCount > 1) {
+    const refs = Array.from({ length: Math.max(1, imageCount) }, (_, index) => `<IMAGE_REF_${index}>@Image${index + 1}`).join(" ");
+    return `[# References ${refs}]\n${prompt}\nUse the given images as references for video generation. The images should not be used as literal initial frames.${ugcRestyle}${silent}`;
   }
-  const refs = Array.from({ length: imageCount }, (_, index) => `<IMAGE_REF_${index}>@Image${index + 1}`).join(" ");
-  return `[# References ${refs}]\n${prompt}\nUse the given images as references for video generation. The images should not be used as literal initial frames.${silent}`;
+  return `[# Sources <FIRST_FRAME>@Image1]\n${prompt}\nUse Image1 as the starting frame.${silent}`;
 }
 
 async function geminiImagePart(

@@ -11,7 +11,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import { monthFunnelStats, pillarsInFunnel } from "@/thinking-lab/execution/pillarUsage";
 import type { ContentPillarFunnel, LabContentPillar } from "@/thinking-lab/execution/pillars";
-import { pillarLessSuitable, type ImageSettings, type ScriptAudio, type ScriptLook, type ScriptMedium, type ScriptSpeech } from "@/thinking-lab/execution/script";
+import { pillarLessSuitable, UGC_LOOK_COMPONENTS, type ImageSettings, type ScriptAudio, type ScriptLook, type ScriptMedium, type ScriptSpeech } from "@/thinking-lab/execution/script";
 
 export type ExecutionSettingsDirect = {
   token: number;
@@ -355,6 +355,13 @@ export function PillarPickerSheet({
                   );
                 })}
               </div>
+              {look === "ugc" ? (
+                <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
+                  {UGC_LOOK_COMPONENTS.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              ) : null}
             </section>
             <section className="space-y-1.5">
               <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

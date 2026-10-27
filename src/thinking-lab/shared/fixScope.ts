@@ -105,6 +105,7 @@ export function fixScopeLines(scope: FixScope): string[] {
     .join("\n");
   const onlyRepair = scope.repair.length === 1 ? scope.repair[0]?.id : "";
   const stakeOnly = onlyRepair === "stakeHolds";
+  const premiseOnly = onlyRepair === "premise";
   return [
     "Change only the checks listed under Checks to repair.",
     "Every check listed under Checks that already passed must stay passed.",
@@ -113,7 +114,14 @@ export function fixScopeLines(scope: FixScope): string[] {
           "Replace the scene. If the distinctive stake named in the failed check is deleted, the sentence must stop making sense.",
           "Naming that stake inside the sentence is not enough. A different situation is allowed. Do not keep the old scene.",
         ]
-      : ["Keep the meaning that made those passed checks true. Do not replace it with a different kind of statement."]),
+      : premiseOnly
+        ? [
+            "Replace the unsupported specific empirical claim with an ordinary defensible premise, reason, or evidence.",
+            "A different supporting reason is allowed when the old one depends on invented certainty, exact quantities, universal guarantees, or facts that need separate proof.",
+            "New material information that the Master Thought does not already state is allowed.",
+            "Keep the because-clause job: the sentence must still explain why the Master Thought is true.",
+          ]
+        : ["Keep the meaning that made those passed checks true. Do not replace it with a different kind of statement."]),
     ...(onlyRepair === "resolved"
       ? ["Finish only the incomplete sentence. Keep the claim that already passed."]
       : []),
@@ -125,9 +133,6 @@ export function fixScopeLines(scope: FixScope): string[] {
       : []),
     ...(onlyRepair === "explains"
       ? ["Change only the part that does not show why the Master Thought is true. Keep the support that already passed."]
-      : []),
-    ...(onlyRepair === "premise"
-      ? ["Remove only the unsupported factual claim. Keep the reason that already passed."]
       : []),
     ...(onlyRepair === "duplicate"
       ? ["Move only the part that repeats a Big Thought that already passed."]

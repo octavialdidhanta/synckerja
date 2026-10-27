@@ -6,12 +6,62 @@ import {
   factsForGenerateAdmission,
   fixPriorForNextSentence,
   generateDuplicateFailure,
+  lessonsForPassGate,
   runBigThoughtIndividualChecks,
   runBigThoughtOpenChecks,
   runGenerateAdmissionChecks,
 } from "@/thinking-lab/big-thought/passChecks";
 
 describe("Big Thought pass checks", () => {
+  it("treats ordinary new material as allowed on the premise gate", () => {
+    const prompt = buildBigThoughtPassPrompt({
+      id: "premise",
+      statement: "Daging pilihan diolah khusus agar bebas bau prengus.",
+      parentStatement: "Sate kambing berkualitas tinggi dapat dinikmati tanpa bau prengus.",
+      others: [],
+    });
+    expect(prompt).toContain("New material information that the Master Thought does not already state is allowed");
+    expect(prompt).toContain("Do not fail merely because the parent does not contain or prove this sentence");
+    expect(prompt).toContain("unjustifiably specific empirical assertion");
+    expect(prompt).not.toContain("does not depend on a specific fact that would need separate evidence");
+  });
+
+  it("sends earlier premise failures into the premise pass prompt", () => {
+    const prompt = buildBigThoughtPassPrompt({
+      id: "premise",
+      statement: "A repaired clause",
+      parentStatement: "The master claim",
+      others: [],
+      lessons: [
+        {
+          statement: "Every batch is 100% free of smell within one day.",
+          reason: "premise: Klaim universal yang membutuhkan bukti terpisah.",
+        },
+        {
+          statement: "A different relation failure",
+          reason: "relation: It restates the Master Thought.",
+        },
+      ],
+    });
+    expect(prompt).toContain("Earlier premise failures for this Big Thought");
+    expect(prompt).toContain("Every batch is 100% free of smell within one day.");
+    expect(prompt).toContain("Klaim universal yang membutuhkan bukti terpisah.");
+    expect(prompt).not.toContain("It restates the Master Thought.");
+  });
+
+  it("keeps only matching gate lessons", () => {
+    expect(
+      lessonsForPassGate(
+        [
+          { statement: "A", reason: "premise: too specific" },
+          { statement: "B", reason: "relation: restates" },
+          { statement: "C", reason: "No replacement came back." },
+        ],
+        "premise",
+      ),
+    ).toEqual([{ statement: "A", reason: "too specific" }]);
+  });
+
   it("treats one result of the same cause as part of the reason", () => {
     const prompt = buildBigThoughtPassPrompt({
       id: "relation",
@@ -74,6 +124,33 @@ describe("Big Thought pass checks", () => {
     expect(result.passed).toBe(true);
     expect(ask.mock.calls.length).toBe(5);
     expect(result.items.find((item) => item.id === "resolved")?.state).toBe("pass");
+  });
+
+  it("feeds premise lessons into the open premise re-check", async () => {
+    const ask = vi.fn(async () => "{\"pass\":true,\"reason\":\"\"}");
+    await runBigThoughtOpenChecks({
+      statement: "An ordinary process reason",
+      parentStatement: "The master claim",
+      others: [],
+      prior: [
+        { id: "resolved", state: "pass", reason: "" },
+        { id: "relation", state: "pass", reason: "" },
+        { id: "role", state: "pass", reason: "" },
+        { id: "explains", state: "pass", reason: "" },
+        { id: "premise", state: "fail", reason: "too specific" },
+        { id: "duplicate", state: "pending", reason: "" },
+        { id: "sibling", state: "pending", reason: "" },
+      ],
+      lessons: [
+        {
+          statement: "Every batch is always 100% free of smell.",
+          reason: "premise: Klaim universal yang membutuhkan bukti terpisah.",
+        },
+      ],
+      ask,
+    });
+    expect(String(ask.mock.calls[0]?.[0])).toContain("Earlier premise failures for this Big Thought");
+    expect(String(ask.mock.calls[0]?.[0])).toContain("Every batch is always 100% free of smell.");
   });
 
   it("keeps the two generate passes and audits the remaining checks", async () => {

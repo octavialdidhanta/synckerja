@@ -234,7 +234,10 @@ export async function generateCharacterVisuals(input: {
   let portraitPath = character.portraitPath;
   if (!portrait || !portraitPath) {
     input.onPhase?.("portrait");
-    portrait = await generateDesignImage(buildCharacterPortraitPrompt(name, character.description), "4:5");
+    portrait = await generateDesignImage(
+      buildCharacterPortraitPrompt(name, character.description, input.script.look),
+      "4:5",
+    );
     const portraitExt = portrait.mimeType.includes("jpeg") || portrait.mimeType.includes("jpg") ? "jpg" : "png";
     portraitPath = characterVisualPath(input.organizationId, input.executionId, character.handle, "portrait", portraitExt);
     await uploadVisual(portraitPath, portrait.base64, portrait.mimeType);
@@ -246,7 +249,11 @@ export async function generateCharacterVisuals(input: {
   input.onPhase?.("sheet");
   try {
     const reference = await compressForReference(portrait.base64, portrait.mimeType);
-    const sheet = await generateDesignImage(buildCharacterSheetPrompt(name, character.description), "16:9", reference);
+    const sheet = await generateDesignImage(
+      buildCharacterSheetPrompt(name, character.description, input.script.look),
+      "16:9",
+      reference,
+    );
     const sheetExt = sheet.mimeType.includes("jpeg") || sheet.mimeType.includes("jpg") ? "jpg" : "png";
     const sheetPath = characterVisualPath(input.organizationId, input.executionId, character.handle, "sheet", sheetExt);
     await uploadVisual(sheetPath, sheet.base64, sheet.mimeType);
@@ -349,6 +356,7 @@ export async function generateBriefLocationVisual(input: {
   caption?: string;
   storyboard?: string;
   concept?: LocationImageBrief["concept"];
+  look?: string;
 }): Promise<string> {
   let idea = "";
   try {
@@ -365,6 +373,7 @@ export async function generateBriefLocationVisual(input: {
     idea,
     storyboard: input.storyboard ?? "",
     concept: input.concept ?? { locations: [], characters: [], properties: [] },
+    look: input.look,
   });
   const image = await generateDesignImage(prompt, input.aspect, undefined, {
     planId: input.planId,
@@ -385,6 +394,7 @@ export async function generateBriefPropertyVisual(input: {
   caption?: string;
   storyboard?: string;
   concept?: LocationImageBrief["concept"];
+  look?: string;
 }): Promise<string> {
   let idea = "";
   try {
@@ -401,6 +411,7 @@ export async function generateBriefPropertyVisual(input: {
     idea,
     storyboard: input.storyboard ?? "",
     concept: input.concept ?? { locations: [], characters: [], properties: [] },
+    look: input.look,
   });
   const image = await generateDesignImage(prompt, input.aspect, undefined, {
     planId: input.planId,

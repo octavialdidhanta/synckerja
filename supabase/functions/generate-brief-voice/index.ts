@@ -58,6 +58,7 @@ Deno.serve(async (req: Request) => {
     if (body.action === "tag") return await tagNarration(supabaseAdmin, orgId, userData.user.id, body, json);
     if (body.action === "tts") return await speakText(supabaseAdmin, orgId, userData.user.id, body, json);
     if (body.action === "sts") return await restyleVideo(supabaseAdmin, orgId, userData.user.id, body, json);
+    if (body.action === "delete_clip") return await deleteVoiceClip(supabaseAdmin, orgId, userData.user.id, body, json);
     return json({ error: "Permintaan suara tidak dikenal" }, 400);
   } catch (error) {
     console.error("generate-brief-voice", error);
@@ -414,6 +415,24 @@ async function askGemini(apiKey: string, model: string, prompt: string): Promise
   return { text, tokens: officialTokenCount(payload) };
 }
 
+async function deleteVoiceClip(supabaseAdmin: Admin, orgId: string, userId: string, body: Record<string, unknown>, json: Json) {
+  const clipId = String(body.clipId ?? "").trim();
+  if (!clipId) return json({ error: "Suara tidak ditemukan" }, 400);
+  const { data: clip } = await supabaseAdmin
+    .from("brief_voice_clips")
+    .select("id, organization_id, social_media_plan_id, storage_path")
+    .eq("id", clipId)
+    .maybeSingle();
+  if (!clip || clip.organization_id !== orgId) return json({ error: "Suara tidak ditemukan" }, 404);
+  const access = await assertPic(supabaseAdmin, orgId, userId, String(clip.social_media_plan_id), json);
+  if (access.error) return access.error;
+  const path = String(clip.storage_path ?? "").trim();
+  if (path) await supabaseAdmin.storage.from(BUCKET).remove([path]);
+  const { error } = await supabaseAdmin.from("brief_voice_clips").delete().eq("id", clipId).eq("organization_id", orgId);
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
+}
+
 async function restyleVideo(supabaseAdmin: Admin, orgId: string, userId: string, body: Record<string, unknown>, json: Json) {
   const videoId = String(body.videoId ?? "").trim();
   if (!videoId) return json({ error: "Video tidak ditemukan" }, 400);
@@ -423,8 +442,8 @@ async function restyleVideo(supabaseAdmin: Admin, orgId: string, userId: string,
     .eq("id", videoId)
     .maybeSingle();
   if (!video || video.organization_id !== orgId) return json({ error: "Video tidak ditemukan" }, 404);
-  if (video.status !== "succeeded" || !video.generate_audio || !video.storage_path) {
-    return json({ error: "Suara video baru bisa diubah setelah video bersuara selesai dibuat." }, 400);
+  if (video.status !== "succeeded" || !video.storage_path) {
+    return json({ error: "Suara video baru bisa diubah setelah video selesai dibuat." }, 400);
   }
   const access = await assertPic(supabaseAdmin, orgId, userId, String(video.social_media_plan_id), json);
   if (access.error) return access.error;
@@ -442,30 +461,23 @@ async function restyleVideo(supabaseAdmin: Admin, orgId: string, userId: string,
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Suara video tidak bisa dipisahkan." }, 400);
   }
-  const form = new FormData();
-  form.append("audio", new Blob([audio], { type: "audio/mp4" }), "speech.m4a");
-  form.append("model_id", STS_MODEL);
-  form.append("voice_settings", JSON.stringify({
-    stability: settings.stability,
-    similarity_boost: settings.similarity,
-    speed: settings.speed,
-  }));
-  const response = await fetch(`https://api.elevenlabs.io/v1/speech-to-speech/${encodeURIComponent(settings.voiceId)}?output_format=mp3_44100_128`, {
-    method: "POST",
-    headers: { "xi-api-key": settings.key, Accept: "audio/mpeg" },
-    body: form,
+  // Raw source audio only — no isolation, no remove_background_noise, no speaker boost.
+  const converted = await convertSpeechToSpeech(settings, {
+    bytes: audio,
+    mime: "audio/mp4",
+    fileName: "speech.m4a",
   });
-  if (!response.ok) return json({ error: await elevenError(response) }, response.status);
-  const creditCost = exactCreditCostFromHeader(response.headers.get("character-cost"));
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  if ("error" in converted) return json({ error: converted.error }, converted.status);
   const clip = await storeClip(supabaseAdmin, orgId, String(video.social_media_plan_id), {
     kind: "seedance",
     rowIndex: Number(video.row_index) || 0,
     videoId,
-    bytes,
-    creditCost,
+    bytes: converted.bytes,
+    creditCost: converted.creditCost,
+    audioFormat: converted.format,
   });
   if (clip.error) return json({ error: clip.error }, 500);
+  const response = converted.response;
   await recordContentUsage(supabaseAdmin, {
     organizationId: orgId,
     planId: String(video.social_media_plan_id),
@@ -474,26 +486,158 @@ async function restyleVideo(supabaseAdmin: Admin, orgId: string, userId: string,
     action: "sts",
     targetLabel: `Baris ${(Number(video.row_index) || 0) + 1}`,
     model: STS_MODEL,
-    usageAmount: creditCost,
-    usageUnit: creditCost == null ? null : "character",
+    usageAmount: converted.creditCost,
+    usageUnit: converted.creditCost == null ? null : "character",
     status: "succeeded",
     providerRef: response.headers.get("request-id"),
     sourceId: clip.row?.id ? String(clip.row.id) : null,
   });
   await usage.commit();
-  return json({ clip: clip.row });
+  return json({ clip: clip.row, outputFormat: converted.outputFormat });
+}
+
+type StsAudioFormat = { ext: "wav"; contentType: "audio/wav" };
+
+function pcmToWav(pcm: Uint8Array, sampleRate: number, channels = 1, bitsPerSample = 16): Uint8Array {
+  const dataSize = pcm.byteLength;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeStr = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
+  };
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * channels * (bitsPerSample / 8), true);
+  view.setUint16(32, channels * (bitsPerSample / 8), true);
+  view.setUint16(34, bitsPerSample, true);
+  writeStr(36, "data");
+  view.setUint32(40, dataSize, true);
+  new Uint8Array(buffer, 44).set(pcm);
+  return new Uint8Array(buffer);
+}
+
+/** Peak-normalize 16-bit PCM WAV so Organization Voice plays louder (target ~-1 dBFS). */
+function normalizeWavLoudness(wav: Uint8Array, targetPeak = 0.95): Uint8Array {
+  let offset = 12;
+  let dataStart = -1;
+  let dataSize = 0;
+  while (offset + 8 <= wav.byteLength) {
+    const id = String.fromCharCode(wav[offset]!, wav[offset + 1]!, wav[offset + 2]!, wav[offset + 3]!);
+    const size = new DataView(wav.buffer, wav.byteOffset + offset + 4, 4).getUint32(0, true);
+    if (id === "data") {
+      dataStart = offset + 8;
+      dataSize = size;
+      break;
+    }
+    offset += 8 + size + (size % 2);
+  }
+  if (dataStart < 0 || dataSize < 2) return wav;
+  const src = new DataView(wav.buffer, wav.byteOffset + dataStart, dataSize);
+  let peak = 1;
+  for (let i = 0; i + 1 < dataSize; i += 2) {
+    const sample = Math.abs(src.getInt16(i, true));
+    if (sample > peak) peak = sample;
+  }
+  const gain = (targetPeak * 32767) / peak;
+  if (gain <= 1.05) return wav;
+  const out = new Uint8Array(wav);
+  const dst = new DataView(out.buffer, out.byteOffset + dataStart, dataSize);
+  for (let i = 0; i + 1 < dataSize; i += 2) {
+    const sample = src.getInt16(i, true);
+    dst.setInt16(i, Math.max(-32768, Math.min(32767, Math.round(sample * gain))), true);
+  }
+  return out;
+}
+
+function buildStsForm(input: { bytes: Uint8Array; mime: string; fileName: string }): FormData {
+  const form = new FormData();
+  form.append("audio", new Blob([input.bytes], { type: input.mime }), input.fileName);
+  form.append("model_id", STS_MODEL);
+  // No compression-related processing: no isolation, noise removal, speaker boost, or tone overrides.
+  return form;
+}
+
+/** WAV only — never MP3. Prefer full-rate uncompressed; pcm_24000 only as last WAV fallback. */
+async function convertSpeechToSpeech(
+  settings: { key: string; voiceId: string },
+  audio: { bytes: Uint8Array; mime: string; fileName: string },
+): Promise<
+  | { bytes: Uint8Array; creditCost: number | null; format: StsAudioFormat; outputFormat: string; response: Response }
+  | { error: string; status: number }
+> {
+  const wavFormat: StsAudioFormat = { ext: "wav", contentType: "audio/wav" };
+  const attempts: Array<{
+    outputFormat: string;
+    accept: string;
+    wrapPcmHz?: number;
+  }> = [
+    { outputFormat: "wav_48000", accept: "audio/wav" },
+    { outputFormat: "wav_44100", accept: "audio/wav" },
+    { outputFormat: "pcm_48000", accept: "application/octet-stream", wrapPcmHz: 48000 },
+    { outputFormat: "pcm_44100", accept: "application/octet-stream", wrapPcmHz: 44100 },
+    // Last resort still WAV (no MP3). Prefer upgrading ElevenLabs plan for 44.1/48 kHz.
+    { outputFormat: "pcm_24000", accept: "application/octet-stream", wrapPcmHz: 24000 },
+  ];
+  let lastError = "Speech to speech gagal (WAV).";
+  let lastStatus = 500;
+  for (const attempt of attempts) {
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/speech-to-speech/${encodeURIComponent(settings.voiceId)}?output_format=${attempt.outputFormat}`,
+      {
+        method: "POST",
+        headers: { "xi-api-key": settings.key, Accept: attempt.accept },
+        body: buildStsForm(audio),
+      },
+    );
+    if (!response.ok) {
+      lastStatus = response.status;
+      lastError = await elevenError(response);
+      if (response.status === 400 || response.status === 403 || response.status === 422) continue;
+      return { error: lastError, status: lastStatus };
+    }
+    const raw = new Uint8Array(await response.arrayBuffer());
+    const wav = attempt.wrapPcmHz != null ? pcmToWav(raw, attempt.wrapPcmHz) : raw;
+    const bytes = normalizeWavLoudness(wav);
+    console.log("generate-brief-voice sts format", attempt.outputFormat, settings.voiceId);
+    return {
+      bytes,
+      creditCost: exactCreditCostFromHeader(response.headers.get("character-cost")),
+      format: wavFormat,
+      outputFormat: attempt.outputFormat,
+      response,
+    };
+  }
+  return { error: lastError, status: lastStatus };
 }
 
 async function storeClip(
   supabaseAdmin: Admin,
   orgId: string,
   planId: string,
-  input: { kind: "vo" | "seedance"; rowIndex: number; videoId: string | null; bytes: Uint8Array; spokenText?: string | null; creditCost?: number | null },
+  input: {
+    kind: "vo" | "seedance";
+    rowIndex: number;
+    videoId: string | null;
+    bytes: Uint8Array;
+    spokenText?: string | null;
+    creditCost?: number | null;
+    audioFormat?: StsAudioFormat;
+  },
 ) {
   const id = crypto.randomUUID();
-  const storagePath = `${orgId}/${planId}/voice/${id}.mp3`;
-  const fileName = input.kind === "vo" ? `vo-${input.rowIndex + 1}.mp3` : `video-voice.mp3`;
-  const uploaded = await supabaseAdmin.storage.from(BUCKET).upload(storagePath, input.bytes, { contentType: "audio/mpeg", upsert: true });
+  const format = input.audioFormat ?? { ext: "wav" as const, contentType: "audio/wav" as const };
+  const storagePath = `${orgId}/${planId}/voice/${id}.${format.ext}`;
+  const fileName = input.kind === "vo" ? `vo-${input.rowIndex + 1}.${format.ext}` : `video-voice.${format.ext}`;
+  const uploaded = await supabaseAdmin.storage.from(BUCKET).upload(storagePath, input.bytes, {
+    contentType: format.contentType,
+    upsert: true,
+  });
   if (uploaded.error) return { error: uploaded.error.message, row: null };
   const { data, error } = await supabaseAdmin.from("brief_voice_clips").insert({
     id,

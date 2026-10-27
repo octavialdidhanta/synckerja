@@ -38,6 +38,21 @@ describe("location frames", () => {
     expect(merged?.locations[0]?.description).toBe("A serene public park.");
   });
 
+  it("keeps spaces in a description while the concept is edited", () => {
+    const typed = serializeBriefConcept({
+      locations: [{ handle: "@location_warung_sate", description: "Warung sate " }],
+      characters: [],
+      properties: [],
+    });
+    expect(parseBriefConcept(typed)?.locations[0]?.description).toBe("Warung sate ");
+    const next = serializeBriefConcept({
+      locations: [{ handle: "@location_warung_sate", description: "Warung sate pinggir jalan" }],
+      characters: [],
+      properties: [],
+    });
+    expect(parseBriefConcept(next)?.locations[0]?.description).toBe("Warung sate pinggir jalan");
+  });
+
   it("keeps a property image when the concept is saved again", () => {
     const propertyPath = `${org}/brief/${plan}/property_bill-property.jpg`;
     const stored = serializeBriefConcept({

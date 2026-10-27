@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyVeoPrompt, buildStoryboardShotPrompt, storyboardShotAspect } from "@/6-1-dashboard/lib/generateBriefSceneImage";
+import { ugcLookDetail } from "@/6-1-dashboard/lib/seedanceVideo";
 
 const headers = ["Timing", "Visual", "VO (Voice Over)", "Shot", "Angle", "Visual function", "Veo 3 prompt"];
 const row = [
@@ -64,5 +65,20 @@ describe("storyboard shot prompt", () => {
     expect(prompt).toContain("VEO PROMPT: Close up of @character_budi_young standing near the window.");
     expect(prompt).toContain("A young man, early 20s.");
     expect(prompt).toContain("VOICE-OVER, mood only");
+  });
+
+  it("applies UGC Look from the shared Master Prompt source", () => {
+    const prompt = buildStoryboardShotPrompt({
+      headers,
+      row,
+      imageColumnIndex: 1,
+      look: "UGC, handheld iPhone",
+    });
+    expect(prompt).toContain(ugcLookDetail());
+    expect(prompt).toContain("UGC style handheld phone footage shot on iPhone 17 Pro Max");
+    expect(prompt).toContain("super high contrast, punchy shadows, bright subject");
+    expect(prompt).toContain("advertisement lighting / hard practical light, not soft cinematic window light");
+    expect(prompt).toContain("Follow LOOK first");
+    expect(prompt).toContain("Forbidden: cinematic soft window light");
   });
 });

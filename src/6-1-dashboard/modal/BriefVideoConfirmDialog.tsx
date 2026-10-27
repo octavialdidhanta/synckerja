@@ -24,6 +24,7 @@ import {
   isVideoProvider,
   modelsForProvider,
   resolutionsForModel,
+  UGC_LOOK_COMPONENTS,
   UGC_TYPES,
   briefForStoredScene,
   buildVideoPrompt,
@@ -32,6 +33,7 @@ import {
   lookIsUgc,
   mentionedConceptHandles,
   missingConceptImages,
+  ugcLookDetail,
   type VideoResolution,
   type ShotBrief,
   type UgcType,
@@ -248,7 +250,8 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onSelectImage
   const ratioWarning = draft ? imageRatioDiffers(warningImage?.width, warningImage?.height, draft.ratio) : false;
   const blocked = (!sceneActive && liveMissing.length > 0) || (draft?.missingShots.length ?? 0) > 0;
   const ugcOk = !draft?.needsUgcType || ugcType !== "";
-  const lookLabel = draft && lookIsUgc(draft.look) ? "UGC" : draft?.look ?? "";
+  const lookIsUgcLook = Boolean(draft && lookIsUgc(draft.look));
+  const lookLabel = lookIsUgcLook ? ugcLookDetail() : draft?.look ?? "";
   const shownMaster = draft
     ? masterPromptWithActiveShots(
       draft.masterPrompt,
@@ -541,9 +544,24 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onSelectImage
             </div>
             <div className="space-y-1">
               <Label>{t("videoAi.confirm.look", "Look")}</Label>
-              <p className="rounded-none border border-border bg-muted/40 px-3 py-2 text-sm">
-                {lookLabel || t("videoAi.confirm.lookEmpty", "Master Prompt tidak menulis Look.")}
-              </p>
+              <div className="rounded-none border border-border bg-muted/40 px-3 py-2 text-sm">
+                {lookLabel ? (
+                  lookIsUgcLook ? (
+                    <div className="space-y-1">
+                      <p className="font-medium">UGC</p>
+                      <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
+                        {UGC_LOOK_COMPONENTS.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <p>{lookLabel}</p>
+                  )
+                ) : (
+                  <p>{t("videoAi.confirm.lookEmpty", "Master Prompt tidak menulis Look.")}</p>
+                )}
+              </div>
             </div>
             {draft.needsUgcType ? (
               <div className="space-y-1">

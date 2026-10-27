@@ -221,6 +221,65 @@ describe("MasterThoughtMapTree pills", () => {
     expect(screen.getAllByLabelText("1 below").some((badge) => badge.textContent === "+1")).toBe(true);
   });
 
+  it("keeps an execution title short and the full Best Title on hover", () => {
+    const title = "Masa depan anak dimulai dari kebahagiaan hari ini.";
+    renderMap(
+      [
+        {
+          id: "bt1",
+          code: "BT01",
+          label: "Keinginan",
+          statement: "Alasan",
+          childCount: 1,
+          territories: [
+            {
+              id: "t1",
+              code: "TR01",
+              statement: "Mantan anak motor",
+              childCount: 1,
+              angles: [
+                {
+                  id: "a1",
+                  code: "AN01",
+                  statement: "Motor kebanggaan kini nganggur",
+                  subject: "Motor kebanggaan kini nganggur",
+                  childCount: 1,
+                  ideas: [
+                    {
+                      id: "i1",
+                      code: "ID01",
+                      statement: "Buka Terpal",
+                      childCount: 1,
+                      pillars: [
+                        {
+                          id: "pillar-1",
+                          label: "B-Roll Storytelling",
+                          executions: [{ id: "e1", label: title, passed: true }],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      { thoughtId: "bt1", territoryId: "t1", angleId: "a1", ideaId: "i1" },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Keinginan/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mantan anak motor/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Motor kebanggaan kini nganggur/ }));
+    const node = screen.getByRole("button", { name: title });
+    expect(node.getAttribute("title")).toBe(title);
+    expect(node.className).toContain("overflow-hidden");
+    expect(node.textContent).toContain(title);
+    const sizer = node.closest("[data-map-node]")?.parentElement?.querySelector("[aria-hidden]");
+    expect(sizer?.textContent).toContain("Motor kebanggaan kini nganggur");
+    expect(sizer?.textContent).not.toContain("Masa depan");
+    expect(screen.getAllByLabelText("1 below").some((badge) => badge.textContent === "+1")).toBe(true);
+  });
+
   it("shows the execution count on an Idea that has a branch", () => {
     renderMap(
       [

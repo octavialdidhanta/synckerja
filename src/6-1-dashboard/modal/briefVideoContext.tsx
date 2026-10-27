@@ -4,7 +4,7 @@ import { Clapperboard } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { readEdgeFunctionError } from "@/shared/ai/geminiSpendCap";
+import { presentGeminiSpendCap, readEdgeFunctionError } from "@/shared/ai/geminiSpendCap";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { BRIEF_STORYBOARD_IMAGES_BUCKET, type BriefStoryboardImageWithUrl } from "@/6-1-dashboard/hook/useBriefStoryboardImages";
 import type { StoryboardFilmContext } from "@/6-1-dashboard/lib/generateBriefSceneImage";
@@ -54,7 +54,7 @@ type BriefVideoContextValue = {
   openMaster: (rowIndex: number) => void;
   statusFor: (rowIndex: number) => VideoStatus;
   readyVideos: (rowIndex: number) => ReadyBriefVideo[];
-  readyVoiceVideo: (rowIndex: number, scope: "shot" | "master") => string | null;
+  readyVoiceVideo: (rowIndex: number, scope: "shot" | "master", preferredId?: string | null) => string | null;
 };
 
 const BriefVideoContext = createContext<BriefVideoContextValue | null>(null);
@@ -224,15 +224,21 @@ export function BriefVideoProvider({
         return url ? [{ id: video.id, url }] : [];
       });
 
-  const readyVoiceVideo = (rowIndex: number, scope: "shot" | "master") => {
-    const match = videos.find((video) =>
+  const readyVoiceVideo = (rowIndex: number, scope: "shot" | "master", preferredId?: string | null) => {
+    const candidates = videos.filter((video) =>
       video.scope === scope
       && video.status === "succeeded"
-      && video.generate_audio
       && Boolean(video.storage_path)
       && (video.row_indexes ?? []).includes(rowIndex)
     );
-    return match?.id ?? null;
+    if (candidates.length === 0) return null;
+    const preferred = preferredId?.trim();
+    if (preferred) {
+      const hit = candidates.find((video) => video.id === preferred);
+      if (hit) return hit.id;
+    }
+    const withAudioFlag = candidates.find((video) => video.generate_audio);
+    return (withAudioFlag ?? candidates[0])?.id ?? null;
   };
 
   const value = useMemo<BriefVideoContextValue>(() => ({
@@ -306,6 +312,7 @@ export function BriefVideoProvider({
       });
       const message = await readEdgeFunctionError(data, error);
       if (message && !data?.video) {
+        if (presentGeminiSpendCap(message)) return;
         toast.error(message);
         return;
       }

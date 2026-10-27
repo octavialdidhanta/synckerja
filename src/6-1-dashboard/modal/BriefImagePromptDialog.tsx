@@ -9,9 +9,16 @@ import { toast } from "sonner";
 import { useDigitalAssetCharactersListQuery } from "@/6-1-social-media-settings/hooks/useDigitalAssetsListQueries";
 import {
   generateBriefSceneImageFile,
+  lookFromStoryboardFilm,
   type StoryboardFilmContext,
 } from "@/6-1-dashboard/lib/generateBriefSceneImage";
-import { promptSlideForImage, readNarration, readShotBrief } from "@/6-1-dashboard/lib/seedanceVideo";
+import {
+  lookIsUgc,
+  promptSlideForImage,
+  readNarration,
+  readShotBrief,
+  UGC_LOOK_COMPONENTS,
+} from "@/6-1-dashboard/lib/seedanceVideo";
 import { briefAuditField } from "@/6-1-dashboard/modal/briefFieldVersions";
 import type { BriefImageSceneVersion } from "@/6-1-dashboard/hook/useBriefStoryboardImages";
 import { BriefMentionField } from "@/6-1-dashboard/modal/BriefMentionField";
@@ -66,6 +73,8 @@ export function BriefImagePromptDialog({
   const [session, setSession] = useState("");
   const brief = readShotBrief(headers, row);
   const narration = readNarration(headers, [row], [0]);
+  const look = lookFromStoryboardFilm(film, rowIndex);
+  const lookIsUgcLook = lookIsUgc(look);
   const seededShot = startingShot?.trim() || brief.shot;
   const seededAngle = startingAngle?.trim() || brief.angle;
   const seededVisual = startingVisual?.trim() || brief.visualFunction;
@@ -191,6 +200,25 @@ export function BriefImagePromptDialog({
       )}
     >
       <div className="space-y-3">
+        {look ? (
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold text-muted-foreground">{t("videoAi.confirm.look", "Look")}</p>
+            <div className="rounded-none border border-border bg-muted/40 px-3 py-2 text-sm">
+              {lookIsUgcLook ? (
+                <div className="space-y-1">
+                  <p className="font-medium">UGC</p>
+                  <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
+                    {UGC_LOOK_COMPONENTS.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p>{look}</p>
+              )}
+            </div>
+          </div>
+        ) : null}
         <div className="space-y-2 rounded-none border border-border bg-muted/40 px-3 py-2">
           {fields.map(([key, fallback, value, setValue]) => (
             <div key={key} className="space-y-1">

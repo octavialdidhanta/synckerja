@@ -33,3 +33,7 @@ export function voiceModelUsesLanguage(model: string) {
 export function voiceModelLabel(model: string) {
   return VOICE_TTS_MODELS.find((item) => item.id === model)?.label ?? model;
 }
+
+/** STS always uses this ElevenLabs voice-changer model (not the org TTS model). */
+export const VOICE_STS_MODEL_ID = "eleven_multilingual_sts_v2";
+export const VOICE_STS_MODEL_LABEL = "Speech to speech · Multilingual v2";

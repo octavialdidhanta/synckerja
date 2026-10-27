@@ -70,11 +70,29 @@ function checklistFrom(items: PassGateCheck[], report?: PassChecklist["report"])
   };
 }
 
+const GATE_REASON = /^([a-z][A-Za-z0-9]*):\s*([\s\S]+)$/;
+
+/** Earlier failures for this gate only. Unprefixed reasons stay out so other gates do not leak in. */
+export function lessonsForPassGate(
+  lessons: ReadonlyArray<{ statement: string; reason: string }> | undefined,
+  gate: string,
+): Array<{ statement: string; reason: string }> {
+  if (!lessons?.length) return [];
+  return lessons.flatMap((lesson) => {
+    const match = lesson.reason.trim().match(GATE_REASON);
+    if (!match || match[1] !== gate) return [];
+    const detail = match[2].trim();
+    if (!detail) return [];
+    return [{ statement: lesson.statement, reason: detail }];
+  });
+}
+
 export function buildBigThoughtPassPrompt(input: {
   id: (typeof INDIVIDUAL_GATE_IDS)[number];
   statement: string;
   parentStatement: string;
   others: Array<{ code: string; statement: string }>;
+  lessons?: Array<{ statement: string; reason: string }>;
 }): string {
   const rule =
     input.id === "resolved"
@@ -99,8 +117,10 @@ export function buildBigThoughtPassPrompt(input: {
               ]
             : input.id === "premise"
               ? [
-                  "pass is true only when the sentence does not depend on a specific fact that would need separate evidence.",
-                  "pass is false when it introduces an unsupported premise.",
+                  "pass is true when the sentence is an ordinary defensible premise, reason, or evidence for the Master Thought.",
+                  "New material information that the Master Thought does not already state is allowed. Do not fail merely because the parent does not contain or prove this sentence.",
+                  "pass is false only when the support depends on an unjustifiably specific empirical assertion that needs separate unstated evidence: invented factual certainty, universal or absolute guarantees, precise quantities or time horizons, or strong deterministic predictions that cannot stand without proof.",
+                  "Ordinary product, process, or causal reasons may pass when they function as a defensible premise without fabricated certainty. Warning signs are not automatic rejection.",
                 ]
               : [
                   "pass is true only when this is not the same Big Thought as one that already passed.",
@@ -110,6 +130,15 @@ export function buildBigThoughtPassPrompt(input: {
     input.others.length === 0
       ? "(none)"
       : input.others.map((row) => `${row.code}: ${row.statement}`).join("\n");
+  const gateLessons = lessonsForPassGate(input.lessons, input.id);
+  const lessonLines =
+    gateLessons.length === 0
+      ? []
+      : [
+          "",
+          `Earlier ${input.id} failures for this Big Thought. Do not pass a sentence that repeats this mistake:`,
+          ...gateLessons.map((lesson) => `${lesson.statement}\nWhy it failed: ${lesson.reason}`),
+        ];
   return [
     "Decide one Big Thought pass check. Do not rewrite the sentence.",
     ...rule,
@@ -121,6 +150,7 @@ export function buildBigThoughtPassPrompt(input: {
     "Master Thought:",
     input.parentStatement.trim(),
     ...(input.id === "duplicate" ? ["", "Big Thoughts that already passed:", others] : []),
+    ...lessonLines,
   ].join("\n");
 }
 
@@ -186,6 +216,7 @@ async function askGate(input: {
   statement: string;
   parentStatement: string;
   others: Array<{ code: string; statement: string; label?: string }>;
+  lessons?: Array<{ statement: string; reason: string }>;
   ask: (prompt: string) => Promise<string | null>;
 }): Promise<{ pass: boolean; reason: string }> {
   if (input.id === "duplicate") {
@@ -195,24 +226,17 @@ async function askGate(input: {
     if (repeated) return { pass: false, reason: `Same Big Thought as ${repeated.code}.` };
     if (input.others.length === 0) return { pass: true, reason: "" };
   }
-  const script = await input.ask(
-    buildBigThoughtPassPrompt({
-      id: input.id,
-      statement: input.statement,
-      parentStatement: input.parentStatement,
-      others: input.others,
-    }),
-  );
+  const prompt = buildBigThoughtPassPrompt({
+    id: input.id,
+    statement: input.statement,
+    parentStatement: input.parentStatement,
+    others: input.others,
+    lessons: input.lessons,
+  });
+  const script = await input.ask(prompt);
   const parsed = parseBigThoughtPassCheck(script);
   if (!parsed.pass && parsed.reason === UNDECIDED) {
-    const again = await input.ask(
-      buildBigThoughtPassPrompt({
-        id: input.id,
-        statement: input.statement,
-        parentStatement: input.parentStatement,
-        others: input.others,
-      }),
-    );
+    const again = await input.ask(prompt);
     return parseBigThoughtPassCheck(again);
   }
   return parsed;
@@ -333,6 +357,8 @@ export async function runBigThoughtIndividualChecks(input: {
   others: Array<{ code: string; statement: string; label?: string }>;
   /** Generate passes for this exact sentence. Audit does not ask these again. */
   carried?: readonly GeneratePassGate[];
+  /** Prior fix/audit failures for this card. Gate prompts keep only matching gate ids. */
+  lessons?: Array<{ statement: string; reason: string }>;
   ask: (prompt: string) => Promise<string | null>;
   onStep?: (checklist: PassChecklist) => void | Promise<void>;
 }): Promise<PassChecklist> {
@@ -351,7 +377,7 @@ export async function runBigThoughtIndividualChecks(input: {
     if (items[index]?.state === "pass") continue;
     items[index] = { id, state: "checking", reason: "" };
     await publish(id, "checking", "pass");
-    const parsed = await askGate({ ...input, id });
+    const parsed = await askGate({ ...input, id, lessons: input.lessons });
     if (!parsed.pass) {
       items[index] = { id, state: "fail", reason: parsed.reason };
       const checklist = checklistFrom(items, { gate: id, phase: "checked", outcome: "fail" });
@@ -370,6 +396,7 @@ export async function runBigThoughtOpenChecks(input: {
   parentStatement: string;
   others: Array<{ code: string; statement: string; label?: string }>;
   prior: readonly PassGateCheck[];
+  lessons?: Array<{ statement: string; reason: string }>;
   ask: (prompt: string) => Promise<string | null>;
   onStep?: (checklist: PassChecklist) => void | Promise<void>;
 }): Promise<PassChecklist> {
@@ -386,7 +413,7 @@ export async function runBigThoughtOpenChecks(input: {
     if (items[index]?.state === "pass") continue;
     items[index] = { id, state: "checking", reason: "" };
     await publish(id, "checking", "pass");
-    const parsed = await askGate({ ...input, id });
+    const parsed = await askGate({ ...input, id, lessons: input.lessons });
     if (!parsed.pass) {
       items[index] = { id, state: "fail", reason: parsed.reason };
       const checklist = checklistFrom(items, { gate: id, phase: "checked", outcome: "fail" });

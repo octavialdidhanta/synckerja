@@ -27,6 +27,7 @@ describe("character sheet", () => {
     expect(portrait).toContain("Budi Young");
     expect(portrait).toContain("slightly hesitant");
     expect(portrait).toContain("No text");
+    expect(portrait).toContain("soft even studio light");
 
     const sheet = buildCharacterSheetPrompt("Budi Young", "A young man, early 20s, slightly hesitant.");
     expect(sheet).toContain("KARAKTER UTAMA");
@@ -42,5 +43,16 @@ describe("character sheet", () => {
     expect(sheet).toContain("FORBIDDEN");
     expect(sheet).toContain("cartoon");
     expect(sheet).toContain("Budi Young");
+  });
+
+  it("applies the selected Look to portrait and sheet prompts", () => {
+    const portrait = buildCharacterPortraitPrompt("Budi Young", "A young man, early 20s.", "ugc");
+    expect(portrait).toContain("LOOK (required camera and grade");
+    expect(portrait).toContain("UGC look components:");
+    expect(portrait).not.toContain("soft even studio light");
+
+    const sheet = buildCharacterSheetPrompt("Budi Young", "A young man, early 20s.", "ugc");
+    expect(sheet).toContain("LOOK (required camera and grade");
+    expect(sheet).toContain("Apply LOOK to camera and grade on every photo panel");
   });
 });

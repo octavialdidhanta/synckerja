@@ -33,6 +33,12 @@ function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/** Keep spaces while typing. Trim only empty-only strings so JSON nullish text still clears. */
+function asDescription(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.trim() === "" ? "" : value;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, unknown>;
@@ -78,7 +84,7 @@ function readAssets(value: unknown, mode: "text" | "character" | "location" | "p
     const row = asRecord(item);
     if (!row) return [];
     const handle = asText(row.handle);
-    const description = asText(row.description);
+    const description = asDescription(row.description);
     if (!handle.startsWith("@")) return [];
     const asset: BriefConceptAsset = { handle, description };
     if (mode === "character") {
