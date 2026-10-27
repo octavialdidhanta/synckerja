@@ -63,6 +63,8 @@ export function ContentUsageAudit({
 }) {
   const { t } = useAppTranslation();
   const [syncing, setSyncing] = useState(false);
+  const [serviceFilter, setServiceFilter] = useState<"all" | UsageService>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "succeeded" | "failed">("all");
   const textAudit = Boolean(masterThoughtId);
   const query = useQuery({
     queryKey: textAudit ? ["content-ai-usage", "master", masterThoughtId] : ["content-ai-usage", planId],
@@ -90,6 +92,12 @@ export function ContentUsageAudit({
     },
   });
   const rows = query.data ?? [];
+  const filteredRows = rows.filter((row) => {
+    if (serviceFilter !== "all" && row.service !== serviceFilter) return false;
+    if (statusFilter === "succeeded" && row.status !== "succeeded") return false;
+    if (statusFilter === "failed" && row.status !== "failed") return false;
+    return true;
+  });
   const formatAmount = (value: number) => value.toLocaleString("id-ID");
   const formatIdr = (value: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
@@ -107,8 +115,10 @@ export function ContentUsageAudit({
   const actionLabel = (action: string) => t(`briefDialog.usage.action.${action}`, action);
   const statusLabel = (status: string) => t(`briefDialog.usage.status.${status}`, status);
   const unitLabel = (unit: string | null) => (unit ? t(`briefDialog.usage.unit.${unit}`, unit) : "");
+  const filterSelectClass =
+    "h-7 max-w-[9.5rem] rounded-md border border-gray-200 bg-white px-2 text-[11px] font-normal text-gray-700 outline-none focus:border-gray-300";
   const summary = SERVICES.flatMap((service) => {
-    const items = rows.filter((row) => row.service === service);
+    const items = filteredRows.filter((row) => row.service === service);
     if (items.length === 0) return [];
     const units = [...new Set(items.map((row) => row.usage_unit).filter((unit): unit is "character" | "token" => Boolean(unit)))];
     const totals = units.map((unit) => ({
@@ -129,6 +139,7 @@ export function ContentUsageAudit({
     }];
   });
   const totalIdr = summary.reduce((sum, item) => sum + (item.idr ?? 0), 0);
+  const presentServices = SERVICES.filter((service) => rows.some((row) => row.service === service));
 
   const refreshFromApi = async () => {
     if (textAudit) {
@@ -167,7 +178,16 @@ export function ContentUsageAudit({
   };
 
   return (
-    <AccordionItem value="usageAudit" className={`flex flex-col bg-white ${hidden ? "hidden" : expanded ? "min-h-0 flex-1 shrink border-0 px-0" : "flex-shrink-0 rounded-lg border border-gray-200 px-4"}`}>
+    <AccordionItem
+      value="usageAudit"
+      className={`flex flex-col bg-white ${
+        hidden
+          ? "hidden"
+          : expanded
+            ? "min-h-0 flex-1 shrink border-0 px-0"
+            : "flex-shrink-0 rounded-lg border border-gray-200 px-4 data-[state=open]:flex-1 data-[state=open]:min-h-0 data-[state=open]:overflow-hidden"
+      }`}
+    >
       <AccordionTrigger
         headerClassName={expanded ? "hidden" : undefined}
         className="flex-shrink-0 py-3 text-sm font-medium text-gray-800 hover:no-underline [&>svg]:ml-2"
@@ -213,8 +233,8 @@ export function ContentUsageAudit({
         </span>
       </AccordionTrigger>
       <AccordionContent
-        primitiveClassName={expanded ? "flex min-h-0 flex-1 flex-col overflow-hidden !h-auto data-[state=open]:!animate-none data-[state=closed]:!animate-none" : "data-[state=open]:!animate-none data-[state=closed]:!animate-none"}
-        className={`bg-white pt-0 ${expanded ? "flex h-full min-h-0 flex-1 flex-col overflow-hidden pb-0" : "pb-3"}`}
+        primitiveClassName="flex min-h-0 flex-1 flex-col overflow-hidden !h-auto data-[state=open]:!animate-none data-[state=closed]:!animate-none"
+        className={`flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white pt-0 ${expanded ? "pb-0" : "pb-3"}`}
       >
         {expanded ? (
           <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
@@ -242,6 +262,33 @@ export function ContentUsageAudit({
             </Button>
           </div>
         ) : null}
+        {(textAudit ? masterThoughtId : planId) && rows.length > 0 ? (
+          <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
+            <label className="sr-only" htmlFor="usage-filter-service">{t("briefDialog.usage.colService", "Service")}</label>
+            <select
+              id="usage-filter-service"
+              className={filterSelectClass}
+              value={serviceFilter}
+              onChange={(event) => setServiceFilter(event.target.value as "all" | UsageService)}
+            >
+              <option value="all">{t("briefDialog.usage.filterAllServices", "All services")}</option>
+              {presentServices.map((service) => (
+                <option key={service} value={service}>{serviceLabel(service)}</option>
+              ))}
+            </select>
+            <label className="sr-only" htmlFor="usage-filter-status">{t("briefDialog.usage.colStatus", "Status")}</label>
+            <select
+              id="usage-filter-status"
+              className={filterSelectClass}
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as "all" | "succeeded" | "failed")}
+            >
+              <option value="all">{t("briefDialog.usage.filterAllStatuses", "All statuses")}</option>
+              <option value="succeeded">{statusLabel("succeeded")}</option>
+              <option value="failed">{statusLabel("failed")}</option>
+            </select>
+          </div>
+        ) : null}
         {!(textAudit ? masterThoughtId : planId) ? null : query.isPending ? (
           <p className="text-sm text-gray-500">{t("briefDialog.usage.loading", "Loading usage")}</p>
         ) : query.isError ? (
@@ -253,13 +300,15 @@ export function ContentUsageAudit({
               : t("briefDialog.usage.empty", "No recorded usage for this content yet.")}
           </p>
         ) : (
-          <div className={expanded ? "scrollbar-hide seamless-scroll min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "space-y-3"}>
-            <p className="truncate font-mono text-[11px] text-gray-400" title={textAudit ? masterThoughtId : planId}>
-              {textAudit ? t("briefDialog.usage.masterThoughtId", "Master Thought ID") : t("briefDialog.usage.contentId", "Content ID")}{" "}
-              {textAudit ? masterThoughtId : planId}
-            </p>
+          <div className="scrollbar-hide seamless-scroll flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <TooltipProvider delayDuration={200}>
-            <div key="usage-summary" className="scrollbar-hide seamless-scroll relative z-[1] overflow-x-auto bg-white [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
+            {textAudit && masterThoughtId ? (
+              <p className="shrink-0 truncate font-mono text-[11px] text-gray-400" title={masterThoughtId}>
+                {t("briefDialog.usage.masterThoughtId", "Master Thought ID")} {masterThoughtId}
+              </p>
+            ) : null}
+            <div key="usage-summary" className="scrollbar-hide seamless-scroll relative z-[1] shrink-0 overflow-x-auto bg-white [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="min-w-[720px] bg-white text-left text-xs">
                 <div className="grid border-b border-gray-200 bg-gray-50 text-[11px] font-medium text-gray-500" style={{ gridTemplateColumns: summaryColumns }}>
                   <div className="px-2 py-1.5">{t("briefDialog.usage.colService", "Service")}</div>
@@ -305,7 +354,7 @@ export function ContentUsageAudit({
                 </div>
               </div>
             </div>
-            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain relative z-0 max-h-72 overflow-auto bg-white [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain relative z-0 min-h-0 flex-1 overflow-auto bg-white [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <table className="w-full min-w-[860px] border-collapse text-left text-xs">
                 <thead className="sticky top-0 z-[1] bg-gray-50">
                   <tr className="border-b border-gray-200 bg-gray-50 text-[11px] font-medium text-gray-500">
@@ -322,7 +371,13 @@ export function ContentUsageAudit({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => {
+                  {filteredRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="px-2 py-4 text-center text-gray-500">
+                        {t("briefDialog.usage.filterEmpty", "No rows match these filters.")}
+                      </td>
+                    </tr>
+                  ) : filteredRows.map((row) => {
                     const lines = rowLines(row);
                     const idr = lines ? usageCostIdr(costInput(row)) : null;
                     const detail = lines ? formatUsageCostDetail(lines) : "";
@@ -345,6 +400,7 @@ export function ContentUsageAudit({
                   })}
                 </tbody>
               </table>
+            </div>
             </div>
             </TooltipProvider>
           </div>

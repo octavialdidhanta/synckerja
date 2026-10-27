@@ -3,6 +3,8 @@ export const USAGE_USD_IDR = 18_006;
 
 const PER_MILLION = 1_000_000;
 const FLASH_IMAGE_OUTPUT_TOKENS = 1_290;
+/** Gemini 3 Pro Image 1K/2K output image token count (list price $120 / 1M). */
+const PRO_IMAGE_OUTPUT_TOKENS_1K = 1_120;
 const OMNI_VIDEO_TOKENS_PER_SECOND = 5_792;
 
 export type UsageCostLine = {
@@ -37,7 +39,8 @@ function resolution(label: string | null | undefined): string {
 function characterRate(model: string): { usdPerUnit: number; scale: number } | null {
   const id = model.trim().toLowerCase();
   if (id.includes("flash") || id.includes("turbo")) return { usdPerUnit: 0.04, scale: 1000 };
-  if (id === "eleven_v4" || id === "eleven_v3" || id === "eleven_multilingual_v2") return { usdPerUnit: 0.08, scale: 1000 };
+  // ElevenLabs TTS + STS (e.g. eleven_multilingual_sts_v2) share the same credit list price.
+  if (id.startsWith("eleven_")) return { usdPerUnit: 0.08, scale: 1000 };
   return null;
 }
 
@@ -61,6 +64,14 @@ function flashImageLines(amount: number): UsageCostLine[] {
   const lines: UsageCostLine[] = [];
   addLine(lines, Math.min(amount, FLASH_IMAGE_OUTPUT_TOKENS), 30, PER_MILLION);
   addLine(lines, amount - FLASH_IMAGE_OUTPUT_TOKENS, 0.3, PER_MILLION);
+  return lines;
+}
+
+/** Gemini 3 Pro Image: image output $120/1M (1120 tok for 1K/2K), remainder billed at input $2/1M when split is unknown. */
+function proImageLines(amount: number): UsageCostLine[] {
+  const lines: UsageCostLine[] = [];
+  addLine(lines, Math.min(amount, PRO_IMAGE_OUTPUT_TOKENS_1K), 120, PER_MILLION);
+  addLine(lines, amount - PRO_IMAGE_OUTPUT_TOKENS_1K, 2, PER_MILLION);
   return lines;
 }
 
@@ -112,6 +123,7 @@ export function usageCostLines(input: {
   }
   if (input.unit !== "token") return null;
   if (model === "gemini-2.5-flash-image") return flashImageLines(amount);
+  if (model === "gemini-3-pro-image-preview" || model === "gemini-3-pro-image") return proImageLines(amount);
   const textRates = geminiTextRates(model);
   if (textRates) return textTokenLines(amount, textRates, input.inputTokens, input.outputTokens);
   if (model === "gemini-omni-1.1-flash" || model === "gemini-omni-flash-preview") return omniVideoLines(amount, input.targetLabel);

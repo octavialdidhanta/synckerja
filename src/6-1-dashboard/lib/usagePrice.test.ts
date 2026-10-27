@@ -7,8 +7,24 @@ describe("usageCostIdr", () => {
     expect(formatUsageCostDetail([{ quantity: 691, usdPerUnit: 0.08, scale: 1000 }])).toBe("691 × $0.08/1.000 × Rp18.006");
   });
 
+  it("prices speech-to-speech credits the same as TTS list rate", () => {
+    expect(usageCostIdr({ model: "eleven_multilingual_sts_v2", amount: 80, unit: "character" })).toBe(115);
+    expect(usageCostIdr({ model: "eleven_multilingual_sts_v2", amount: 3088, unit: "character" })).toBe(4448);
+    expect(formatUsageCostDetail(usageCostLines({ model: "eleven_multilingual_sts_v2", amount: 48, unit: "character" }) ?? [])).toBe(
+      "48 × $0.08/1.000 × Rp18.006",
+    );
+  });
+
   it("prices one Flash Image call from its recorded tokens", () => {
     expect(usageCostIdr({ model: "gemini-2.5-flash-image", amount: 3312, unit: "token" })).toBe(708);
+  });
+
+  it("prices Gemini 3 Pro Image preview tokens at the list rates", () => {
+    // 1.120 image @ $120/1M + 2.007 remainder @ $2/1M → USD 0.138414 → Rp 2.492
+    expect(usageCostIdr({ model: "gemini-3-pro-image-preview", amount: 3127, unit: "token" })).toBe(2492);
+    expect(formatUsageCostDetail(usageCostLines({ model: "gemini-3-pro-image-preview", amount: 3127, unit: "token" }) ?? [])).toBe(
+      "1.120 × $120/1.000.000 + 2.007 × $2/1.000.000 × Rp18.006",
+    );
   });
 
   it("prices a 10 second 720p Omni video from recorded tokens", () => {

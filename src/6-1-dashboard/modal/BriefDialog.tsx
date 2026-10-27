@@ -776,7 +776,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
 
             {/* Right Section - Brief Content & Preview: full height dengan batas max-h, table punya batas tinggi dan bisa di-scroll */}
             <div className="flex-1 min-w-0 max-lg:w-full flex flex-col min-h-0 overflow-hidden">
-              <div className={`flex h-12 shrink-0 items-center justify-between border-b border-gray-100 bg-gray-50 px-4 ${workAreaExpanded ? 'hidden' : ''}`}>
+              <div className={`flex h-12 shrink-0 items-center justify-between gap-3 border-b border-gray-100 bg-gray-50 px-4 ${workAreaExpanded ? 'hidden' : ''}`}>
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <FileText className="h-4 w-4 shrink-0 text-gray-600" />
                   <span className="shrink-0 font-medium text-sm text-gray-800">
@@ -785,6 +785,14 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                   {briefTitle ? (
                     <span className="min-w-0 truncate text-sm font-semibold text-gray-900" title={briefTitle}>
                       {' - '}{briefTitle}
+                    </span>
+                  ) : null}
+                  {socialMediaPlanId ? (
+                    <span
+                      className="min-w-0 truncate font-mono text-[11px] text-gray-400"
+                      title={`${t('briefDialog.usage.contentId', 'Content ID')} ${socialMediaPlanId}`}
+                    >
+                      {t('briefDialog.usage.contentId', 'Content ID')} {socialMediaPlanId}
                     </span>
                   ) : null}
                 </div>
