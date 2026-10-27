@@ -43,6 +43,12 @@ import { ContentUsageAudit } from './ContentUsageAudit';
 import { briefConceptHasContent, parseBriefConcept, serializeBriefConcept } from './briefConceptAssets';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 
+function briefOverlayTarget(target: EventTarget | null) {
+  return target instanceof Element && Boolean(
+    target.closest("[data-brief-mention-menu], [data-vaul-drawer], [data-vaul-overlay], [data-radix-popper-content-wrapper], [data-radix-select-content]"),
+  );
+}
+
 interface BriefDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -676,16 +682,13 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
         overlayClassName="data-[state=open]:!animate-none data-[state=closed]:!animate-none"
         className="fixed left-0 right-0 top-0 z-50 flex h-dvh max-h-none min-h-0 w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-none data-[state=open]:!animate-none data-[state=closed]:!animate-none sm:rounded-none"
         onPointerDownOutside={(event) => {
-          const target = event.target as HTMLElement | null;
-          if (target?.closest?.("[data-brief-mention-menu]")) event.preventDefault();
+          if (briefOverlayTarget(event.target)) event.preventDefault();
         }}
         onFocusOutside={(event) => {
-          const target = event.target as HTMLElement | null;
-          if (target?.closest?.("[data-brief-mention-menu]")) event.preventDefault();
+          if (briefOverlayTarget(event.target)) event.preventDefault();
         }}
         onInteractOutside={(event) => {
-          const target = event.target as HTMLElement | null;
-          if (target?.closest?.("[data-brief-mention-menu]")) event.preventDefault();
+          if (briefOverlayTarget(event.target)) event.preventDefault();
         }}
       >
         <DialogTitle className="sr-only absolute">Content Brief</DialogTitle>
@@ -916,7 +919,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                           </div>
                         </AccordionContent>
                       </AccordionItem>
-                      <AccordionItem value="brief" className={`bg-white flex flex-col data-[state=open]:flex-1 ${conceptExpanded || usageExpanded ? 'hidden' : briefExpanded ? 'min-h-0 flex-1 shrink border-0 border-b-0 px-0 data-[state=open]:min-h-0' : 'flex-shrink-0 border border-gray-200 rounded-lg px-4 data-[state=open]:min-h-[max(56rem,calc(100dvh-4rem))]'}`}>
+                      <AccordionItem value="brief" className={`bg-white flex flex-col data-[state=open]:flex-1 data-[state=open]:min-h-0 data-[state=open]:overflow-hidden ${conceptExpanded || usageExpanded ? 'hidden' : briefExpanded ? 'min-h-0 flex-1 shrink border-0 border-b-0 px-0' : 'flex-shrink-0 border border-gray-200 rounded-lg px-4'}`}>
                         <AccordionTrigger
                           headerClassName={briefExpanded ? 'hidden' : undefined}
                           className="flex-shrink-0 py-3 text-sm font-medium text-gray-800 hover:no-underline [&>svg]:ml-2"
@@ -954,11 +957,11 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                           </div>
                         </AccordionTrigger>
                         <AccordionContent
-                          primitiveClassName={briefExpanded ? 'flex min-h-0 flex-1 flex-col overflow-hidden !h-auto data-[state=open]:!animate-none data-[state=closed]:!animate-none' : 'data-[state=open]:!flex-1 data-[state=open]:!min-h-0 data-[state=open]:!animate-none data-[state=closed]:!animate-none'}
-                          className={`flex-1 min-h-0 overflow-hidden flex flex-col pt-0 data-[state=open]:flex data-[state=open]:min-h-0 data-[state=open]:flex-1 ${briefExpanded ? 'h-full pb-0' : 'pb-3'}`}
+                          primitiveClassName="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden data-[state=open]:!animate-none data-[state=closed]:!animate-none"
+                          className={`flex h-full min-h-0 flex-1 flex-col overflow-hidden pt-0 ${briefExpanded ? 'pb-0' : 'pb-3'}`}
                         >
                           <div
-                            className={`scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${briefExpanded ? 'flex h-full flex-col overflow-hidden' : 'min-h-[52rem] overflow-y-auto'}`}
+                            className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 flex-1 flex-col overflow-hidden overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                             style={{ overflowAnchor: 'none' } as React.CSSProperties}
                           >
                             {thinkingLabParts.some((part) => part.kind === "table") ? (
@@ -993,7 +996,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                     </ReactMarkdown>
                                   </div>
                                 ) : null}
-                                <div className={`flex min-h-0 flex-col ${briefExpanded ? 'h-full min-h-0 flex-1' : 'flex-shrink-0'}`}>
+                                <div className="flex h-full min-h-0 flex-1 flex-col">
                                 <EditableBriefTable
                                   tableData={parsedTable.table}
                                   onSave={handleTableSave}
@@ -1021,7 +1024,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                   mediaBusy={isStoryboardImagesBusy}
                                   uploadingRowIndex={uploadingRowIndex}
                                   deletingImageId={deletingImageId}
-                                  className={briefExpanded ? '!my-0 h-full min-h-0 flex-1' : '!mt-1 !mb-2'}
+                                  className="!my-0 h-full min-h-0 flex-1"
                                 />
                                 </div>
                                 {briefProseAfterTable && !briefExpanded ? (

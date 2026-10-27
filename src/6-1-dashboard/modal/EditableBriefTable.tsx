@@ -91,7 +91,7 @@ import { findBriefImageColumnIndex, isBriefVoHeader } from './briefStoryboardCon
 import { activeShotBriefs, masterPromptWithActiveShots } from '@/6-1-dashboard/lib/seedanceVideo';
 import { masterPromptRowSpans } from './masterPromptRows';
 import { BriefMentionField, BriefMentionText } from './BriefMentionField';
-import type { StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
+import { storyboardShotAspect, type StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
 
 /** Fixed storyboard column widths (px). */
 const BRIEF_COLUMN_WIDTH_PX = {
@@ -171,6 +171,8 @@ interface EditableBriefTableProps {
   storyboardToolbar?: boolean;
   /** Mobile calendar: ~2 content columns / scene cards visible with horizontal scroll */
   density?: 'desktop' | 'mobile-2col';
+  /** Phone brief: Story Line keeps readable column widths and scrolls sideways, inset from the screen edge. */
+  phoneFrame?: boolean;
   /** Brief markdown used to hydrate Story Board sequences (HTML comment metadata). */
   sequencesSource?: string;
   /** Notified when inline edit mode toggles (e.g. disable dialog footer actions) */
@@ -211,6 +213,7 @@ function StoryLineVisualCell({
   activeImageId,
   onActiveImageIdChange,
   onEditPrompt,
+  phoneImageSource = false,
 }: {
   rowIndex: number;
   headers: string[];
@@ -230,6 +233,7 @@ function StoryLineVisualCell({
   activeImageId?: string | null;
   onActiveImageIdChange?: (imageId: string) => void;
   onEditPrompt?: () => void;
+  phoneImageSource?: boolean;
 }) {
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -247,7 +251,10 @@ function StoryLineVisualCell({
         activeImageId={activeImageId}
         onActiveImageIdChange={onActiveImageIdChange}
         onEditPrompt={onEditPrompt}
+        frame={film ? storyboardShotAspect(film) : undefined}
+        phoneImageSource={phoneImageSource}
       />
+      {images.length === 0 ? (
       <BriefSceneGenerateButton
         rowIndex={rowIndex}
         headers={headers}
@@ -262,6 +269,7 @@ function StoryLineVisualCell({
         isDeleting={isDeleting}
         onGeneratingChange={setIsGenerating}
       />
+      ) : null}
     </div>
   );
 }
@@ -275,6 +283,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   controlsPlacement = 'actionsColumn',
   storyboardToolbar = false,
   density = 'desktop',
+  phoneFrame = false,
   sequencesSource,
   onEditingChange,
   planId,
@@ -766,8 +775,11 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   const contentColumnCount = Math.max(headerRow.length - 1, 0);
   const totalVisibleColumns = headerRow.length + (showRowActionsColumn ? 1 : 0);
   const isMobile2Col = density === 'mobile-2col';
+  const phoneToolbar = isMobile2Col || phoneFrame;
   const useHorizontalScrollLayout =
-    isMobile2Col || totalVisibleColumns > BRIEF_COLUMN_WIDTH_PX.maxColumnsWithoutScroll;
+    isMobile2Col || phoneFrame || totalVisibleColumns > BRIEF_COLUMN_WIDTH_PX.maxColumnsWithoutScroll;
+  const storyLineColWidth = (header: string, index: number) =>
+    isTimingColumn(header, index) ? BRIEF_COLUMN_WIDTH_PX.timing : BRIEF_COLUMN_WIDTH_PX.content;
   const fixedSidesPx =
     BRIEF_COLUMN_WIDTH_PX.timing + (showRowActionsColumn ? BRIEF_COLUMN_WIDTH_PX.actions : 0);
   const sharedContentWidth =
@@ -791,11 +803,14 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
   const renderStoryboardToolbar = () => {
     if (!storyboardToolbar || alwaysEditable || !onSave) return null;
 
-    const toolbarBtnClass = cn('h-8 shrink-0 text-xs', isMobile2Col && 'whitespace-nowrap');
+    const toolbarBtnClass = cn(
+      'h-8 shrink-0 text-xs',
+      phoneToolbar && 'whitespace-nowrap [touch-action:pan-x]',
+    );
 
     const layoutToggle = (
       <div
-        className="flex shrink-0 items-center rounded-md border border-gray-200 bg-gray-50 p-0.5"
+        className="flex shrink-0 items-center rounded-md border border-gray-200 bg-gray-50 p-0.5 [touch-action:pan-x]"
         role="group"
         aria-label={t('briefDialog.layout.toggleLabel', 'Layout mode')}
       >
@@ -883,18 +898,22 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     return (
       <div
         className={cn(
-          'mb-2 flex items-center gap-2',
-          isMobile2Col
-            ? 'mb-0 border-y border-border bg-background'
+          'mb-2 flex shrink-0 items-center gap-2',
+          phoneToolbar
+            ? 'mb-0 min-w-0'
             : 'flex-wrap justify-between',
+          isMobile2Col && 'border-y border-border bg-background',
         )}
       >
         <div
+          data-vaul-no-drag={phoneToolbar ? '' : undefined}
+          style={phoneToolbar ? { touchAction: 'pan-x' } : undefined}
           className={cn(
             'flex items-center gap-1',
-            isMobile2Col
-              ? 'w-full min-w-0 flex-nowrap overflow-x-auto overflow-y-hidden pl-3 pr-4 py-1.5 scrollbar-hide [touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+            phoneToolbar
+              ? 'w-full min-w-0 flex-nowrap overflow-x-auto overflow-y-hidden py-1.5 scrollbar-hide [touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
               : 'flex-wrap',
+            isMobile2Col && 'pl-3 pr-4',
           )}
         >
           {isEditing ? (
@@ -1109,14 +1128,14 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
           })()}
           </>
           )}
-          {isMobile2Col ? (
+          {phoneToolbar ? (
             <>
               {readOnly ? null : editActions}
               {workAreaButton}
             </>
           ) : null}
         </div>
-        {isMobile2Col ? null : (
+        {phoneToolbar ? null : (
           <div className="flex items-center gap-1">
             {readOnly ? null : editActions}
             {workAreaButton}
@@ -1384,7 +1403,20 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             <td
               key={cellIdx}
               rowSpan={masterSpan}
-              className={cn(briefTableCellClass, isMasterPrompt && 'overflow-visible')}
+              className={cn(
+                briefTableCellClass,
+                phoneFrame && '[touch-action:pan-x_pan-y]',
+                isMasterPrompt && 'overflow-visible',
+              )}
+              style={
+                phoneFrame
+                  ? {
+                      width: storyLineColWidth(String(headerRow[cellIdx] ?? ''), cellIdx),
+                      minWidth: storyLineColWidth(String(headerRow[cellIdx] ?? ''), cellIdx),
+                      touchAction: 'pan-x pan-y',
+                    }
+                  : undefined
+              }
             >
               {cellIdx === imageColumnIndex ? (
                 <StoryLineVisualCell
@@ -1408,6 +1440,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                   onEditPrompt={
                     planId && film && uploadImages ? () => setImagePromptRow(rowIdx) : undefined
                   }
+                  phoneImageSource={phoneFrame}
                 />
               ) : auditView && auditField ? (
                 <div className="min-w-0">
@@ -1522,7 +1555,13 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             className={cn(
               briefTableCellClass,
               'overflow-hidden whitespace-nowrap border-l border-gray-300 px-2 align-middle',
+              phoneFrame && '[touch-action:pan-x_pan-y]',
             )}
+            style={
+              phoneFrame
+                ? { width: BRIEF_COLUMN_WIDTH_PX.actions, minWidth: BRIEF_COLUMN_WIDTH_PX.actions, touchAction: 'pan-x pan-y' }
+                : undefined
+            }
           >
             {onSave && (
               <DropdownMenu>
@@ -1623,16 +1662,17 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     <div
       className={cn(
         'relative flex min-h-0 flex-col overflow-hidden',
-        storyboardToolbar && workAreaExpanded && 'flex-1',
+        storyboardToolbar && 'h-full min-h-0 flex-1',
         className,
       )}
     >
       {renderStoryboardToolbar()}
       <div
         ref={scrollContainerRef}
+        data-vaul-no-drag={phoneFrame && !useStoryBoardLayout ? '' : undefined}
         className={cn(
           'min-h-0 scrollbar-hide seamless-scroll [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-          workAreaExpanded || useStoryBoardLayout ? 'flex-1' : 'flex-none',
+          storyboardToolbar || workAreaExpanded || useStoryBoardLayout ? 'min-h-0 flex-1' : 'flex-none',
           isMobile2Col
             ? cn(
                 '@container/brief my-0 w-full min-w-0 rounded-none border-x-0 border-y border-border',
@@ -1641,19 +1681,25 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                   ? 'flex min-h-0 flex-col overflow-hidden [overscroll-behavior-y:contain]'
                   : 'overflow-x-auto overflow-y-auto pb-14 [overscroll-behavior:contain]',
               )
+            : phoneFrame && useStoryBoardLayout
+              ? 'flex min-h-0 min-w-0 w-full max-h-full flex-1 flex-col overflow-hidden'
+            : phoneFrame && !useStoryBoardLayout
+              ? 'nested-scroll-touch-chain-xy min-h-0 min-w-0 w-full max-h-full flex-1 overflow-x-auto overflow-y-auto overscroll-x-contain rounded-lg border border-gray-300 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y]'
             : cn(
                 'overflow-x-auto overflow-y-auto nested-scroll-touch-chain rounded-lg border-2 border-gray-300',
                 useStoryBoardLayout && 'mt-1',
                 workAreaExpanded ? 'mb-0' : 'mb-2',
                 storyboardToolbar
-                  ? workAreaExpanded
-                    ? 'max-h-none min-h-0 flex-1'
-                    : 'min-h-[48rem] max-h-none'
+                  ? 'max-h-full min-h-0 flex-1'
                   : 'max-h-[min(720px,78vh)]',
               ),
-          useStoryBoardLayout && !isMobile2Col && 'flex min-h-0 flex-col overflow-y-auto overflow-x-hidden',
+          useStoryBoardLayout && !isMobile2Col && 'flex min-h-0 flex-col overflow-hidden',
         )}
-        style={{ overflowAnchor: 'none' } as React.CSSProperties}
+        style={{
+          overflowAnchor: 'none',
+          WebkitOverflowScrolling: 'touch',
+          ...(phoneFrame && !useStoryBoardLayout ? { touchAction: 'pan-x pan-y' as const } : {}),
+        }}
       >
         {useStoryBoardLayout ? (
           <BriefStoryBoardView
@@ -1686,6 +1732,9 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
             planId={planId}
             film={film}
             density={density}
+            bare={phoneFrame}
+            phoneImageSource={phoneFrame}
+            className={phoneFrame ? 'p-0' : undefined}
             mediaBusy={mediaBusy}
             uploadingRowIndex={uploadingRowIndex}
             deletingImageId={deletingImageId}
@@ -1707,14 +1756,20 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
         ) : (
           <div
             className={cn(
-              storyboardToolbar && 'flex flex-col',
-              useHorizontalScrollLayout && 'w-max min-w-full',
+              !phoneFrame && storyboardToolbar && 'flex flex-col',
+              useHorizontalScrollLayout && !phoneFrame && 'w-max min-w-full',
             )}
+            style={
+              phoneFrame && scrollTableWidthPx
+                ? { width: scrollTableWidthPx, minWidth: scrollTableWidthPx }
+                : undefined
+            }
           >
             <table
               key={tableLayoutKey}
               className={cn(
                 'table-fixed border-separate border-spacing-0 text-sm',
+                phoneFrame && '[touch-action:pan-x_pan-y]',
                 !useHorizontalScrollLayout && 'w-full',
               )}
               style={
@@ -1731,11 +1786,17 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                     key={j}
                     style={
                       isTimingColumn(header, j)
-                        ? { width: BRIEF_COLUMN_WIDTH_PX.timing }
+                        ? {
+                            width: BRIEF_COLUMN_WIDTH_PX.timing,
+                            minWidth: phoneFrame ? BRIEF_COLUMN_WIDTH_PX.timing : undefined,
+                          }
                         : useHorizontalScrollLayout
                           ? isMobile2Col
                             ? { width: mobileContentColCss, minWidth: mobileContentColCss }
-                            : { width: BRIEF_COLUMN_WIDTH_PX.content }
+                            : {
+                                width: BRIEF_COLUMN_WIDTH_PX.content,
+                                minWidth: phoneFrame ? BRIEF_COLUMN_WIDTH_PX.content : undefined,
+                              }
                           : { width: sharedContentWidth }
                     }
                   />
@@ -1751,7 +1812,22 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                       j === taggingHeaderIndex;
 
                     return (
-                      <th key={j} className={briefTableHeaderClass}>
+                      <th
+                        key={j}
+                        className={cn(
+                          briefTableHeaderClass,
+                          phoneFrame && '[touch-action:pan-x_pan-y]',
+                        )}
+                        style={
+                          phoneFrame
+                            ? {
+                                width: storyLineColWidth(cell, j),
+                                minWidth: storyLineColWidth(cell, j),
+                                touchAction: 'pan-x pan-y',
+                              }
+                            : undefined
+                        }
+                      >
                         {shouldRenderControlsInThisHeader ? (
                           <div className="flex items-center justify-between gap-2">
                             <span className="truncate">{cell}</span>
@@ -1770,7 +1846,13 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                       className={cn(
                         briefTableHeaderClass,
                         'overflow-hidden whitespace-nowrap border-l border-gray-300 px-2',
+                        phoneFrame && '[touch-action:pan-x_pan-y]',
                       )}
+                      style={
+                        phoneFrame
+                          ? { width: BRIEF_COLUMN_WIDTH_PX.actions, minWidth: BRIEF_COLUMN_WIDTH_PX.actions, touchAction: 'pan-x pan-y' }
+                          : undefined
+                      }
                     >
                       {showHeaderControls && controlsPlacement === 'actionsColumn'
                         ? renderHeaderControls()
@@ -1791,6 +1873,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
                         <td
                           colSpan={tableColSpan}
                           className="border-b border-gray-300 p-0"
+                          style={phoneFrame ? { touchAction: 'pan-x pan-y' } : undefined}
                         >
                           <BriefSequenceHeader
                             className="rounded-none border-x-0 border-t-0 border-b border-blue-100"

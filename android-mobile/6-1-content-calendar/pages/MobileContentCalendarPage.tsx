@@ -653,6 +653,9 @@ function MobileContentCalendarPageContent() {
                 brief: briefPlan.brief,
                 content_pillar_id: briefPlan.content_pillar_id,
                 content_pillar: briefPlan.content_pillar,
+                content_type_id: briefPlan.content_type_id,
+                content_type: briefPlan.content_type,
+                organization_id: briefPlan.organization_id,
                 service: briefPlan.service,
               }
             : null

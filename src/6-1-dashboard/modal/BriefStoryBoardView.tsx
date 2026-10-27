@@ -126,6 +126,10 @@ export interface BriefStoryBoardViewProps {
   onMoveToNextSequence?: (rowIndex: number) => void;
   density?: 'desktop' | 'mobile-2col';
   workAreaExpanded?: boolean;
+  /** Phone storyboard: no outer sequence panel around the cards. */
+  bare?: boolean;
+  /** Phone brief: image cell offers camera and gallery. */
+  phoneImageSource?: boolean;
   className?: string;
 }
 
@@ -170,6 +174,8 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
   onMoveToNextSequence,
   density = 'desktop',
   workAreaExpanded = false,
+  bare = false,
+  phoneImageSource = false,
   className,
 }) => {
   const { t } = useAppTranslation();
@@ -203,7 +209,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
   return (
     <div
       className={cn(
-        'relative flex min-h-0 min-w-0 flex-1 flex-col',
+        'relative flex h-full min-h-0 min-w-0 flex-1 flex-col',
         isMobile ? 'p-0' : 'p-2',
         className,
       )}
@@ -211,7 +217,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
       <div
         ref={scrollRef}
         className={cn(
-          'flex min-h-0 min-w-0 flex-1 flex-col justify-start gap-3 overflow-x-hidden overflow-y-auto pb-1',
+          'flex h-full min-h-0 min-w-0 flex-1 flex-col justify-start gap-3 overflow-x-hidden overflow-y-auto pb-1',
           'scrollbar-hide seamless-scroll nested-scroll-touch-chain',
           '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
           isMobile ? 'gap-4 pb-14' : '',
@@ -231,10 +237,12 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
           <section
             key={sequence.id}
             className={cn(
-              '@container/seq min-w-0 w-full shrink-0 border-dashed border-blue-200 bg-blue-50/20',
-              isMobile
-                ? 'rounded-none border-x-0 border-y px-2 py-3'
-                : 'rounded-lg border p-3',
+              '@container/seq flex h-full min-h-0 w-full shrink-0 flex-col',
+              bare
+                ? ''
+                : isMobile
+                  ? 'rounded-none border-x-0 border-y border-dashed border-blue-200 bg-blue-50/20 px-2 py-3'
+                  : 'rounded-lg border border-dashed border-blue-200 bg-blue-50/20 p-3',
             )}
           >
             <BriefSequenceHeader
@@ -252,7 +260,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
             />
             <div
               className={cn(
-                'flex min-w-0 w-full flex-nowrap gap-3 overflow-x-auto overflow-y-hidden pb-2',
+                'flex min-h-0 w-full flex-1 flex-nowrap items-stretch gap-3 overflow-x-auto overflow-y-hidden pb-2',
                 'scrollbar-hide [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y]',
                 '[overscroll-behavior-x:contain] [overscroll-behavior-y:auto]',
                 '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
@@ -299,6 +307,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
                       planId={planId}
                       film={film}
                       density={density}
+                      phoneImageSource={phoneImageSource}
                       characterIds={getSceneCharacterIds(sceneMeta, rowIdx)}
                       onCharacterIdsChange={onSceneCharacterIdsChange}
                       voVersions={voVersions}

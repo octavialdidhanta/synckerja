@@ -159,6 +159,43 @@ describe("seedance video settings", () => {
     expect(veoColumnUsesSlides([{ prompt_override: null }, { prompt_override: null }])).toBe(true);
   });
 
+  it("drops a mention that remains only in the stored master prompt after the open shot was edited", () => {
+    const headers = ["Shot", "Angle", "Visual function", "Veo 3 prompt", "Master prompt"];
+    const master = [
+      "Audio : no sound",
+      "Look : UGC",
+      "",
+      "Shot : Shot 1 — Main Shot",
+      "Angle : Medium Shot",
+      "Visual function : Establishing POV",
+      "",
+      "looking at @character_husband and @character_wife at @location_newlywed_home",
+      "",
+      "Shot : Shot 2 — Supporting Shot",
+      "Angle : Graphic Overlay",
+      "Visual function : Identify Speaker",
+      "",
+      "Text overlay appears.",
+    ].join("\n");
+    const scene = {
+      shot: "Shot 1 — Main Shot",
+      angle: "Medium Shot",
+      visualFunction: "Establishing POV",
+      veoPrompt: "looking at Suami and Istri laughing on a sofa",
+    };
+    const prompt = buildVideoPrompt({
+      scope: "shot",
+      rows: [[scene.shot, scene.angle, scene.visualFunction, scene.veoPrompt, master]],
+      headers,
+      rowIndexes: [0],
+      sceneByRow: { 0: scene },
+    });
+    expect(prompt).toContain("looking at Suami and Istri laughing on a sofa");
+    expect(prompt).toContain("Text overlay appears.");
+    expect(prompt).not.toContain("@character_husband");
+    expect(missingConceptImages(prompt, null)).toEqual([]);
+  });
+
   it("writes an opening and ending frame for one shot without rewriting the master prompt", () => {
     const briefHeaders = ["Shot", "Angle", "Visual function", "Veo 3 prompt", "VO (Voice Over)", "Master prompt"];
     const rows = [[

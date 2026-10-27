@@ -3,16 +3,23 @@ import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/shared/lib/utils"
 import { useMobileChromeReflowOnForeground } from "@/shared/mobile/useMobileChromeReflowOnForeground"
+import { DrawerNestingContext, useDrawerNestingDepth } from "@/shared/components/ui/drawerNesting"
 
 const Drawer = ({
   shouldScaleBackground = false,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
-  <DrawerPrimitive.Root
-    shouldScaleBackground={shouldScaleBackground}
-    {...props}
-  />
-)
+}: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
+  const depth = useDrawerNestingDepth()
+  const Primitive = (depth > 0 ? DrawerPrimitive.NestedRoot : DrawerPrimitive.Root) as typeof DrawerPrimitive.Root
+  return (
+    <DrawerNestingContext.Provider value={depth + 1}>
+      <Primitive
+        shouldScaleBackground={shouldScaleBackground}
+        {...props}
+      />
+    </DrawerNestingContext.Provider>
+  )
+}
 Drawer.displayName = "Drawer"
 
 const DrawerTrigger = DrawerPrimitive.Trigger

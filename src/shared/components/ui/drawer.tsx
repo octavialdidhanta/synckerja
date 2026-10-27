@@ -5,6 +5,7 @@ import { cn } from "@/shared/lib/utils";
 import { useDrawerVisualViewportPin } from "@/shared/hooks/useDrawerVisualViewportPin";
 import { useMobileChromeReflowOnForeground } from "@/shared/mobile/useMobileChromeReflowOnForeground";
 import { useRegisterMobileAppNavSuppression } from "@/shared/mobile/MobileAppNavSuppressionContext";
+import { DrawerNestingContext, useDrawerNestingDepth } from "@/shared/components/ui/drawerNesting";
 
 /** Vaul default close (~500ms); keep nav suppression until slide finishes. */
 const DRAWER_CLOSE_ANIMATION_MS = 500;
@@ -18,15 +19,21 @@ const Drawer = ({
   /** Android adjustResize already shrinks the WebView; Vaul's default shift double-lifts the sheet. */
   repositionInputs = false,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
-  <DrawerPrimitive.Root
-    shouldScaleBackground={shouldScaleBackground}
-    closeThreshold={closeThreshold}
-    scrollLockTimeout={scrollLockTimeout}
-    repositionInputs={repositionInputs}
-    {...props}
-  />
-);
+}: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
+  const depth = useDrawerNestingDepth();
+  const Primitive = (depth > 0 ? DrawerPrimitive.NestedRoot : DrawerPrimitive.Root) as typeof DrawerPrimitive.Root;
+  return (
+    <DrawerNestingContext.Provider value={depth + 1}>
+      <Primitive
+        shouldScaleBackground={shouldScaleBackground}
+        closeThreshold={closeThreshold}
+        scrollLockTimeout={scrollLockTimeout}
+        repositionInputs={repositionInputs}
+        {...props}
+      />
+    </DrawerNestingContext.Provider>
+  );
+};
 Drawer.displayName = "Drawer";
 
 const DrawerTrigger = DrawerPrimitive.Trigger;
@@ -73,11 +80,13 @@ const DrawerContent = React.forwardRef<
   onPointerDown,
   ...props
 }, ref) => {
+  const nestedSheet = useDrawerNestingDepth() > 1;
   const useFastClose = smoothFast ?? !aboveAppNav;
   const pinKeyboard = followKeyboard ?? !aboveAppNav;
   const keyboardPinStyle = useDrawerVisualViewportPin(pinKeyboard);
   const mergedClassName = cn(
     "fixed inset-x-0 z-20 flex flex-col rounded-t-[10px] border bg-background",
+    nestedSheet && "z-[120]",
     aboveAppNav
       ? "mt-24 h-auto modal-above-safe-area"
       : "bottom-0 mt-0 h-auto",
@@ -170,6 +179,7 @@ const DrawerContent = React.forwardRef<
         ref={overlayElRef}
         className={cn(
           useFastClose && "pos-smooth-drawer-overlay",
+          nestedSheet && "z-[120]",
           overlayClassName,
         )}
       />

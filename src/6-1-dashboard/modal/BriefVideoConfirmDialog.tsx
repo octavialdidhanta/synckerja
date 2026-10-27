@@ -2,14 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftRight, Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
+import { StoryboardActionShell } from "@/6-1-dashboard/modal/StoryboardActionShell";
 import { Label } from "@/shared/components/ui/label";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -292,19 +285,61 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onSelectImage
       : t("videoAi.confirm.veoHelp", "Memakai API key Script AI. Maksimum 3 gambar. 1080p, 4K, dan beberapa gambar hanya untuk 8 detik.");
   const shownGeminiRatio = draft ? geminiAspectRatio(draft.ratio) : "9:16";
 
+  const keepOpen = (event: { preventDefault: () => void; target: EventTarget | null }) => {
+    const target = event.target;
+    if (
+      target instanceof Element
+      && target.closest("[data-radix-popper-content-wrapper], [data-radix-select-content]")
+    ) {
+      event.preventDefault();
+    }
+  };
+
   return (
-    <Dialog open={Boolean(draft)} onOpenChange={(open) => { if (!open && !pending) onClose(); }}>
-      <DialogContent className="!flex aspect-square !h-auto !w-[min(32rem,88vmin)] !max-w-[88vmin] flex-col overflow-hidden rounded-none sm:rounded-none">
-        <DialogHeader className="shrink-0">
-          <DialogTitle>{t("videoAi.confirm.title", "Generate video")}</DialogTitle>
-          <div className="space-y-0.5 text-left">
-            <p className="text-[11px] font-semibold text-muted-foreground">{t("videoAi.confirm.narration", "Narasi")}</p>
-            <p className="max-h-24 overflow-y-auto whitespace-pre-wrap text-sm text-foreground [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {draft?.narration || "—"}
-            </p>
+    <StoryboardActionShell
+      open={Boolean(draft)}
+      onOpenChange={(open) => { if (!open && !pending) onClose(); }}
+      title={t("videoAi.confirm.title", "Generate video")}
+      keepOpen={keepOpen}
+      footerClassName="shrink-0 items-center sm:justify-between"
+      headerExtra={(
+        <div className="space-y-0.5 text-left">
+          <p className="text-[11px] font-semibold text-muted-foreground">{t("videoAi.confirm.narration", "Narasi")}</p>
+          <p className="max-h-24 overflow-y-auto whitespace-pre-wrap text-sm text-foreground [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {draft?.narration || "—"}
+          </p>
+        </div>
+      )}
+      footer={(
+        <>
+          <p className="text-left text-sm text-muted-foreground">
+            {draft?.scope === "master"
+              ? t("videoAi.confirm.master", "Satu video untuk {{count}} shot di Master Prompt ini.", { count: draft.rowIndexes.length })
+              : t("videoAi.confirm.shot", "Satu video dari gambar shot ini.")}
+          </p>
+          <div className="flex shrink-0 justify-end gap-2">
+            <Button type="button" variant="outline" className="rounded-none" disabled={pending} onClick={onClose}>{t("videoAi.confirm.cancel", "Batal")}</Button>
+            <Button
+              type="button"
+              className="rounded-none"
+              disabled={!draft || pending || blocked || !durationOk || !ugcOk || !sceneReady}
+              onClick={() => onConfirm({
+                provider,
+                model,
+                resolution,
+                duration,
+                ugcType: ugcType || null,
+                imageIds: selectedImages,
+                endImageId: sceneActive ? endImageId : null,
+              })}
+            >
+              {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {t("briefDialog.imagePrompt.regenerate", "Regenerate")}
+            </Button>
           </div>
-        </DialogHeader>
-        <div className="scrollbar-hide seamless-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        </>
+      )}
+    >
         {draft ? (
           <div className="space-y-3">
             {draft.scope === "master" ? (
@@ -499,7 +534,7 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onSelectImage
               <Label>{t("videoAi.confirm.model", "Model")}</Label>
               <Select value={model} onValueChange={(value) => selectModel(value as VideoModelId)}>
                 <SelectTrigger className="rounded-none"><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[200]">
                   {modelChoices.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -515,7 +550,7 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onSelectImage
                 <Label>{t("videoAi.confirm.ugc", "UGC Type")}</Label>
                 <Select value={ugcType || undefined} onValueChange={(value) => setUgcType(value as UgcType)}>
                   <SelectTrigger className="rounded-none"><SelectValue placeholder={t("videoAi.confirm.ugcPick", "Pilih tipe UGC")} /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[200]">
                     {UGC_TYPES.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -525,7 +560,7 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onSelectImage
               <Label>{t("videoAi.confirm.resolution", "Resolution")}</Label>
               <Select value={resolution} onValueChange={(value) => selectResolution(value as VideoResolution)}>
                 <SelectTrigger className="rounded-none"><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[200]">
                   {resolutionChoices.map((item) => <SelectItem key={item} value={item}>{item === "4k" ? "4K" : item}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -584,37 +619,13 @@ export function BriefVideoConfirmDialog({ draft, pending, onClose, onSelectImage
                 {t("videoAi.confirm.missingMentions", "Gambar Concept belum ada untuk {{handles}}.", { handles: liveMissing.join(", ") })}
               </p>
             ) : null}
+            {draft.needsUgcType && ugcType === "" ? (
+              <p className="text-xs text-destructive">
+                {t("videoAi.confirm.ugcRequired", "Pilih tipe UGC dulu.")}
+              </p>
+            ) : null}
           </div>
         ) : null}
-        </div>
-        <DialogFooter className="shrink-0 items-center sm:justify-between">
-          <DialogDescription className="text-left">
-            {draft?.scope === "master"
-              ? t("videoAi.confirm.master", "Satu video untuk {{count}} shot di Master Prompt ini.", { count: draft.rowIndexes.length })
-              : t("videoAi.confirm.shot", "Satu video dari gambar shot ini.")}
-          </DialogDescription>
-          <div className="flex shrink-0 gap-2">
-          <Button type="button" variant="outline" className="rounded-none" disabled={pending} onClick={onClose}>{t("videoAi.confirm.cancel", "Batal")}</Button>
-          <Button
-            type="button"
-            className="rounded-none"
-            disabled={!draft || pending || blocked || !durationOk || !ugcOk || !sceneReady}
-            onClick={() => onConfirm({
-              provider,
-              model,
-              resolution,
-              duration,
-              ugcType: ugcType || null,
-              imageIds: selectedImages,
-              endImageId: sceneActive ? endImageId : null,
-            })}
-          >
-            {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {t("videoAi.confirm.start", "Generate")}
-          </Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </StoryboardActionShell>
   );
 }

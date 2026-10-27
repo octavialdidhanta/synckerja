@@ -89,6 +89,7 @@ describe("brief VO versions", () => {
     const latest = { spoken_text: `${original.spoken_text} gw mah ngga percaya ya` };
     const clips = [latest, original];
     expect(clipForNarration(clips, original.spoken_text)).toBe(original);
+    expect(clipForNarration(clips, "Serius loo? makan enak di Pik itu harus keluar komplek?")).toBe(original);
     expect(clipForNarration(clips, latest.spoken_text)).toBe(latest);
     expect(clipForNarration(clips, "A line that was never generated")).toBeNull();
   });

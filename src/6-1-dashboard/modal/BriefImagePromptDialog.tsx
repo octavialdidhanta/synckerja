@@ -2,13 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
+import { StoryboardActionShell } from "@/6-1-dashboard/modal/StoryboardActionShell";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { isGeminiSpendCapError } from "@/shared/ai/geminiSpendCap";
 import { toast } from "sonner";
@@ -159,68 +153,69 @@ export function BriefImagePromptDialog({
     ["videoAi.confirm.visualFunction", "Visual function", visualFunction, setVisualFunction],
   ] as const;
 
+  const keepOpen = (event: { preventDefault: () => void; target: EventTarget | null }) => {
+    const target = event.target;
+    if (target instanceof Element && target.closest("[data-brief-mention-menu]")) event.preventDefault();
+  };
+
   return (
-      <Dialog open={open} onOpenChange={(next) => { if (!next && !busy) onClose(); }}>
-      <DialogContent className="!flex aspect-square !h-auto !w-[min(32rem,88vmin)] !max-w-[88vmin] flex-col overflow-hidden rounded-none sm:rounded-none">
-        <DialogHeader className="shrink-0">
-          <DialogTitle>{t("briefDialog.imagePrompt.title", "Generate image")}</DialogTitle>
-          <div className="space-y-0.5 text-left">
-            <p className="text-[11px] font-semibold text-muted-foreground">{t("videoAi.confirm.narration", "Narasi")}</p>
-            <p className="max-h-24 overflow-y-auto whitespace-pre-wrap text-sm text-foreground [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {narration || "—"}
-            </p>
-          </div>
-        </DialogHeader>
-        <div className="scrollbar-hide seamless-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="space-y-3">
-            <div className="space-y-2 rounded-none border border-border bg-muted/40 px-3 py-2">
-              {fields.map(([key, fallback, value, setValue]) => (
-                <div key={key} className="space-y-1">
-                  <p className="text-[11px] font-semibold text-muted-foreground">{t(key, fallback)}</p>
-                  <BriefMentionField
-                    value={value}
-                    concept={film?.concept}
-                    onChange={setValue}
-                    minRows={2}
-                    className="box-border w-full min-w-0 rounded-none border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-              ))}
-              <div className="space-y-1">
-                <p className="text-[11px] font-semibold text-muted-foreground">{t("videoAi.confirm.veo", "Veo 3 prompt")}</p>
-                <BriefMentionField
-                  value={text}
-                  concept={film?.concept}
-                  onChange={setText}
-                  minRows={4}
-                  className="box-border w-full min-w-0 rounded-none border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
+    <StoryboardActionShell
+      open={open}
+      onOpenChange={(next) => { if (!next && !busy) onClose(); }}
+      title={t("briefDialog.imagePrompt.title", "Generate image")}
+      keepOpen={keepOpen}
+      footerClassName="shrink-0 sm:justify-end"
+      headerExtra={(
+        <div className="space-y-0.5 text-left">
+          <p className="text-[11px] font-semibold text-muted-foreground">{t("videoAi.confirm.narration", "Narasi")}</p>
+          <p className="max-h-24 overflow-y-auto whitespace-pre-wrap text-sm text-foreground [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {narration || "—"}
+          </p>
+        </div>
+      )}
+      footer={(
+        <div className="flex w-full shrink-0 justify-end gap-2">
+          <Button type="button" variant="outline" className="rounded-none" disabled={Boolean(busy)} onClick={onClose}>
+            {t("videoAi.confirm.cancel", "Batal")}
+          </Button>
+          <Button
+            type="button"
+            className="rounded-none"
+            disabled={Boolean(busy) || !text.trim() || !onUploadImages}
+            onClick={() => void generate(true)}
+          >
+            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {t("briefDialog.imagePrompt.regenerate", "Regenerate")}
+          </Button>
+        </div>
+      )}
+    >
+      <div className="space-y-3">
+        <div className="space-y-2 rounded-none border border-border bg-muted/40 px-3 py-2">
+          {fields.map(([key, fallback, value, setValue]) => (
+            <div key={key} className="space-y-1">
+              <p className="text-[11px] font-semibold text-muted-foreground">{t(key, fallback)}</p>
+              <BriefMentionField
+                value={value}
+                concept={film?.concept}
+                onChange={setValue}
+                minRows={2}
+                className="box-border w-full min-w-0 rounded-none border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
             </div>
+          ))}
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold text-muted-foreground">{t("videoAi.confirm.veo", "Veo 3 prompt")}</p>
+            <BriefMentionField
+              value={text}
+              concept={film?.concept}
+              onChange={setText}
+              minRows={4}
+              className="box-border w-full min-w-0 rounded-none border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
           </div>
         </div>
-        <DialogFooter className="shrink-0 sm:justify-end">
-          <div className="flex shrink-0 gap-2">
-            <Button type="button" variant="outline" className="rounded-none" disabled={Boolean(busy)} onClick={onClose}>
-              {t("videoAi.confirm.cancel", "Batal")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-none"
-              disabled={Boolean(busy) || !text.trim() || !onUploadImages}
-              onClick={() => void generate(true)}
-            >
-              {busy === "regenerate" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {t("briefDialog.imagePrompt.regenerate", "Regenerate")}
-            </Button>
-            <Button type="button" className="rounded-none" disabled={Boolean(busy) || !text.trim() || !onUploadImages} onClick={() => void generate(false)}>
-              {busy === "generate" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {t("videoAi.confirm.start", "Generate")}
-            </Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </StoryboardActionShell>
   );
 }

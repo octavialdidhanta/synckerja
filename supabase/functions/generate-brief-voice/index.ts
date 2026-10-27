@@ -317,21 +317,24 @@ async function speakText(supabaseAdmin: Admin, orgId: string, userId: string, bo
     narration = existing.text;
   } else if (settings.autoTag && voiceModelSupportsAudioTags(settings.model)) {
     const tagged = await autoTagNarration(supabaseAdmin, orgId, plain);
-    if ("error" in tagged) return json({ error: tagged.error }, 400);
-    narration = tagged.text;
-    await recordContentUsage(supabaseAdmin, {
-      organizationId: orgId,
-      planId,
-      actorUserId: userId,
-      service: "script",
-      action: "auto_tag",
-      targetLabel: `Baris ${rowIndex + 1}`,
-      model: tagged.model,
-      usageAmount: tagged.tokens,
-      usageUnit: tagged.tokens == null ? null : "token",
-      status: "succeeded",
-      promptExcerpt: plain,
-    });
+    if (!("error" in tagged)) {
+      narration = tagged.text;
+      await recordContentUsage(supabaseAdmin, {
+        organizationId: orgId,
+        planId,
+        actorUserId: userId,
+        service: "script",
+        action: "auto_tag",
+        targetLabel: `Baris ${rowIndex + 1}`,
+        model: tagged.model,
+        usageAmount: tagged.tokens,
+        usageUnit: tagged.tokens == null ? null : "token",
+        status: "succeeded",
+        promptExcerpt: plain,
+      });
+    } else {
+      console.error("generate-brief-voice auto-tag skipped", tagged.error);
+    }
   }
   const usage = await reserveUsage(supabaseAdmin, orgId, settings.limit, json);
   if (usage.error) return usage.error;

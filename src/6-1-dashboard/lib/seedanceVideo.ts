@@ -365,8 +365,13 @@ export function buildVideoPrompt(input: {
   const activeScenes = input.rowIndexes.map((index) =>
     input.sceneByRow?.[index] ?? readShotBrief(input.headers, input.rows[index] ?? []),
   );
-  const masterText = input.scope === "master" && input.sceneByRow
-    ? masterPromptWithActiveShots(master, activeScenes)
+  const masterScenes = input.scope === "master"
+    ? activeScenes
+    : masterGroupRows(input.rows, input.headers, anchor).map((index) =>
+      input.sceneByRow?.[index] ?? readShotBrief(input.headers, input.rows[index] ?? []),
+    );
+  const masterText = input.sceneByRow
+    ? masterPromptWithActiveShots(master, masterScenes)
     : master;
   const lines = [
     look ? `Look: ${look}` : "",

@@ -126,18 +126,18 @@ export function savedVoSlides(history: BriefVoVersions[], row: number, cell: str
   return current ? [current] : [];
 }
 
-function sameNarration(left: string, right: string) {
-  return left.replace(/\s+/g, " ").trim() === right.replace(/\s+/g, " ").trim();
+function narrationKey(value: string) {
+  return value.replace(/\[[^\]\n]{0,80}\]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-/** The newest clip spoken from this exact line. A newer line must not reuse it. */
+/** The newest clip spoken from this line. Audio tags do not hide the player. */
 export function clipForNarration<T extends { spoken_text: string | null }>(
   clipsNewestFirst: T[],
   narration: string,
 ): T | null {
-  const wanted = narration.trim();
+  const wanted = narrationKey(narration);
   if (!wanted) return null;
-  return clipsNewestFirst.find((clip) => clip.spoken_text && sameNarration(clip.spoken_text, wanted)) ?? null;
+  return clipsNewestFirst.find((clip) => clip.spoken_text && narrationKey(clip.spoken_text) === wanted) ?? null;
 }
 
 export function activeVoSlide(selected: number | undefined, count: number): number {

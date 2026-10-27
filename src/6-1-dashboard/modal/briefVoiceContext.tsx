@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AudioLines, ChevronDown, Download, Loader2, Pause, Play, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
@@ -6,18 +7,12 @@ import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
 import { Slider } from "@/shared/components/ui/slider";
 import { Switch } from "@/shared/components/ui/switch";
-import { hasVoiceExpression, narrationWithoutTags, voiceModelSupportsAudioTags } from "../../../supabase/functions/_shared/voiceAudioTags.ts";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
+import { voiceModelSupportsAudioTags } from "../../../supabase/functions/_shared/voiceAudioTags.ts";
+import { cn } from "@/shared/lib/utils";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { readEdgeFunctionError } from "@/shared/ai/geminiSpendCap";
+import { isGeminiSpendCapMessage, readEdgeFunctionError } from "@/shared/ai/geminiSpendCap";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { BRIEF_STORYBOARD_IMAGES_BUCKET } from "@/6-1-dashboard/hook/useBriefStoryboardImages";
 import { useBriefVideo } from "@/6-1-dashboard/modal/briefVideoContext";
@@ -59,6 +54,17 @@ type BriefVoiceContextValue = {
 
 const EMPTY_CLIPS: VoiceClip[] = [];
 const BriefVoiceContext = createContext<BriefVoiceContextValue | null>(null);
+
+function notifyVoice(kind: "success" | "error", message: string) {
+  const text = message.replace(/\s+/g, " ").trim();
+  if (!text) return;
+  toast[kind](text, {
+    position: "top-center",
+    duration: kind === "error" ? 3600 : 2200,
+    className: "!px-3 !py-2 !text-[13px] !leading-5 !shadow-md",
+    style: { marginTop: "max(0px, env(safe-area-inset-top, 0px))" },
+  });
+}
 
 export function useBriefVoice() {
   return useContext(BriefVoiceContext);
@@ -264,96 +270,129 @@ function VoiceDialog({
   onClose: () => void;
 }) {
   const { t } = useAppTranslation();
+  const isMobile = useIsMobile();
   const { organizationId } = useCurrentOrg();
   const queryClient = useQueryClient();
   const voice = useBriefVoice();
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState<null | "save" | "generate">(null);
   const [stability, setStability] = useState(0.5);
   const [similarity, setSimilarity] = useState(0.75);
   const [autoTag, setAutoTag] = useState(true);
   const settings = voice?.settings ?? null;
   const ready = Boolean(settings?.api_key_configured && settings.voice_id);
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const node = anchorRef.current;
+    const next = node?.closest("[data-vaul-drawer], [role='dialog']");
+    setHost(next instanceof HTMLElement ? next : document.body);
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !pending) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, pending, onClose]);
   useEffect(() => {
     if (!open) return;
     setStability(Number(settings?.stability ?? 0.5));
     setSimilarity(Number(settings?.similarity_boost ?? 0.75));
     setAutoTag(settings?.auto_tag !== false && voiceModelSupportsAudioTags(settings?.tts_model ?? ""));
   }, [open, settings?.stability, settings?.similarity_boost, settings?.tts_model, settings?.auto_tag]);
+  const supportsTags = voiceModelSupportsAudioTags(settings?.tts_model ?? "");
+  const readTone = () => {
+    const nextStability = Math.min(1, Math.max(0, Number.isFinite(stability) ? stability : 0.5));
+    const nextSimilarity = Math.min(1, Math.max(0, Number.isFinite(similarity) ? similarity : 0.75));
+    const nextAutoTag = supportsTags && autoTag;
+    return { nextStability, nextSimilarity, nextAutoTag };
+  };
+  const saveTone = async () => {
+    if (!organizationId) throw new Error(t("voiceAi.confirm.toneSaveFailed", "The voice tone could not be saved."));
+    const tone = readTone();
+    const { data: savedTone, error: toneError } = await supabase
+      .from("organization_voice_ai_config")
+      .update({ stability: tone.nextStability, similarity_boost: tone.nextSimilarity, auto_tag: tone.nextAutoTag })
+      .eq("organization_id", organizationId)
+      .select("stability, similarity_boost, auto_tag")
+      .maybeSingle();
+    if (toneError) throw toneError;
+    if (!savedTone) throw new Error(t("voiceAi.confirm.toneSaveFailed", "The voice tone could not be saved."));
+    queryClient.setQueryData(["voice-ai-config", organizationId], (current: VoiceSettings | null | undefined) => (
+      current ? { ...current, stability: tone.nextStability, similarity_boost: tone.nextSimilarity, auto_tag: tone.nextAutoTag } : current
+    ));
+    return tone;
+  };
   const confirm = async () => {
     if (!ready || pending) return;
-    setPending(true);
+    setPending(mode === "vo" ? "save" : "generate");
     try {
       if (mode === "vo") {
-        if (!organizationId) return;
-        const nextStability = Math.min(1, Math.max(0, Number.isFinite(stability) ? stability : 0.5));
-        const nextSimilarity = Math.min(1, Math.max(0, Number.isFinite(similarity) ? similarity : 0.75));
-        const nextAutoTag = voiceModelSupportsAudioTags(settings?.tts_model ?? "") && autoTag;
-        const { data: savedTone, error: toneError } = await supabase
-          .from("organization_voice_ai_config")
-          .update({ stability: nextStability, similarity_boost: nextSimilarity, auto_tag: nextAutoTag })
-          .eq("organization_id", organizationId)
-          .select("stability, similarity_boost, auto_tag")
-          .maybeSingle();
-        if (toneError) throw toneError;
-        if (!savedTone) throw new Error(t("voiceAi.confirm.toneSaveFailed", "The voice tone could not be saved."));
-        queryClient.setQueryData(["voice-ai-config", organizationId], (current: VoiceSettings | null | undefined) => (
-          current ? { ...current, stability: nextStability, similarity_boost: nextSimilarity, auto_tag: nextAutoTag } : current
-        ));
-        if (nextAutoTag && voiceModelSupportsAudioTags(settings?.tts_model ?? "") && text.trim()) {
-          const { data, error } = await supabase.functions.invoke("generate-brief-voice", {
-            body: { action: "tag", planId: voice?.planId, rowIndex, text: narrationWithoutTags(text) },
-          });
-          const message = await readEdgeFunctionError(data, error);
-          const tagged = String(data?.text ?? "").trim();
-          if (message && !hasVoiceExpression(tagged)) {
-            toast.error(message);
-            return;
-          }
-          if (!hasVoiceExpression(tagged)) throw new Error(t("voiceAi.confirm.expressionFailed", "The expression could not be added."));
-          onChangeText?.(tagged);
-        } else if (hasVoiceExpression(text)) {
-          onChangeText?.(narrationWithoutTags(text));
-        }
+        await saveTone();
         await queryClient.invalidateQueries({ queryKey: ["voice-ai-config", organizationId] });
-        toast.success(t("voiceAi.settings.saved", "Voice configuration saved"));
+        notifyVoice("success", t("voiceAi.settings.saved", "Voice configuration saved"));
         onClose();
         return;
       }
       const { data, error } = await supabase.functions.invoke("generate-brief-voice", { body: { action: "sts", videoId } });
       const message = await readEdgeFunctionError(data, error);
       if (message && !data?.clip) {
-        toast.error(message);
+        notifyVoice("error", message);
         return;
       }
       await voice?.refresh();
-      toast.success(t("voiceAi.confirm.started", "Voice is ready."));
+      notifyVoice("success", t("voiceAi.confirm.started", "Voice is ready."));
       onClose();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("voiceAi.settings.saveFailed", "Could not save the voice configuration"));
+      notifyVoice("error", error instanceof Error ? error.message : t("voiceAi.settings.saveFailed", "Could not save the voice configuration"));
     } finally {
-      setPending(false);
+      setPending(null);
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next && !pending) onClose(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>
+  const sheet = open && host ? (
+    <div
+      className={cn(
+        "pointer-events-auto z-[80] flex",
+        isMobile ? "flex-col justify-end" : "items-center justify-center p-4",
+        host === document.body ? "fixed inset-0" : "absolute inset-0",
+      )}
+      data-vaul-no-drag=""
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/40"
+        aria-label={t("voiceAi.settings.cancel", "Cancel")}
+        disabled={pending != null}
+        onClick={() => { if (!pending) onClose(); }}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className={cn(
+          "relative z-10 flex max-h-[min(85dvh,40rem)] w-full flex-col overflow-hidden border bg-background shadow-lg",
+          isMobile ? "rounded-t-xl" : "max-w-[min(32rem,88vmin)]",
+        )}
+        data-vaul-no-drag=""
+      >
+        <div className="shrink-0 px-4 pb-2 pt-4 text-left">
+          <h2 className="text-lg font-semibold leading-none tracking-tight">
             {mode === "vo"
               ? t("voiceAi.cell.settings", "Settings")
               : t("voiceAi.confirm.videoTitle", "Match the video voice")}
-          </DialogTitle>
-          <DialogDescription>
+          </h2>
+          <p className="mt-1.5 text-sm text-muted-foreground">
             {ready
               ? mode === "vo"
-                ? t("voiceAi.confirm.settingsBody", "Save these settings first. Generate VO uses the saved stability, similarity, and auto-tag.")
+                ? t("voiceAi.confirm.settingsBody", "These settings are used the next time you generate VO from the scene.")
                 : t("voiceAi.confirm.videoBody", "The spoken audio from this Seedance video is sent to the organization voice. Pauses stay with the mouth movement. The original video file is kept.")
               : t("voiceAi.confirm.missing", "Save an ElevenLabs API key and Voice ID in Settings > Voice AI first.")}
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
         {ready ? (
-          <div className="space-y-2 text-sm">
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 text-sm [touch-action:pan-y]" data-vaul-no-drag="">
             <p><span className="text-muted-foreground">{t("voiceAi.confirm.voice", "Voice")}: </span>{settings?.voice_name || settings?.voice_id}</p>
             <p><span className="text-muted-foreground">{t("voiceAi.settings.model", "Model")}: </span>{voiceModelLabel(settings?.tts_model ?? "")}</p>
             {mode === "vo" && voiceModelUsesLanguage(settings?.tts_model ?? "") ? (
@@ -362,13 +401,13 @@ function VoiceDialog({
                 {t(`voiceAi.language.${settings?.language_code || "id"}`, VOICE_LANGUAGES.find((item) => item.id === settings?.language_code)?.fallback ?? settings?.language_code ?? "Indonesian")}
               </p>
             ) : null}
-            {mode === "vo" && voiceModelSupportsAudioTags(settings?.tts_model ?? "") ? (
+            {mode === "vo" && supportsTags ? (
               <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
                 <div>
                   <p className="text-sm font-medium">{t("voiceAi.confirm.autoTag", "Auto-tag")}</p>
-                  <p className="text-[11px] text-muted-foreground">{t("voiceAi.confirm.autoTagHelp", "Saving puts the expression on this VO line. Generate stays off until that expression is visible.")}</p>
+                  <p className="text-[11px] text-muted-foreground">{t("voiceAi.confirm.autoTagHelp", "Generating VO from the scene adds the expression to this line, then creates the audio.")}</p>
                 </div>
-                <Switch checked={autoTag} disabled={pending} onCheckedChange={setAutoTag} aria-label={t("voiceAi.confirm.autoTag", "Auto-tag")} />
+                <Switch checked={autoTag} disabled={pending != null} onCheckedChange={setAutoTag} aria-label={t("voiceAi.confirm.autoTag", "Auto-tag")} />
               </div>
             ) : null}
             {mode === "vo" ? (
@@ -378,7 +417,7 @@ function VoiceDialog({
                     <Label htmlFor="brief-voice-stability">{t("voiceAi.settings.stability", "Stability")}</Label>
                     <span className="text-xs text-muted-foreground">{stability.toFixed(2)}</span>
                   </div>
-                  <Slider id="brief-voice-stability" min={0} max={1} step={0.05} value={[stability]} disabled={pending} onValueChange={(value) => setStability(value[0] ?? 0.5)} />
+                  <Slider id="brief-voice-stability" min={0} max={1} step={0.05} value={[stability]} disabled={pending != null} onValueChange={(value) => setStability(value[0] ?? 0.5)} />
                   <div className="flex justify-between text-[11px] text-muted-foreground">
                     <span>{t("voiceAi.confirm.stabilityLow", "Creative · 0")}</span>
                     <span>{t("voiceAi.confirm.stabilityHigh", "Robust · 1")}</span>
@@ -389,7 +428,7 @@ function VoiceDialog({
                     <Label htmlFor="brief-voice-similarity">{t("voiceAi.settings.similarity", "Similarity")}</Label>
                     <span className="text-xs text-muted-foreground">{similarity.toFixed(2)}</span>
                   </div>
-                  <Slider id="brief-voice-similarity" min={0} max={1} step={0.05} value={[similarity]} disabled={pending} onValueChange={(value) => setSimilarity(value[0] ?? 0.75)} />
+                  <Slider id="brief-voice-similarity" min={0} max={1} step={0.05} value={[similarity]} disabled={pending != null} onValueChange={(value) => setSimilarity(value[0] ?? 0.75)} />
                   <div className="flex justify-between text-[11px] text-muted-foreground">
                     <span>{t("voiceAi.confirm.similarityLow", "Low · 0")}</span>
                     <span>{t("voiceAi.confirm.similarityHigh", "High · 1")}</span>
@@ -404,17 +443,44 @@ function VoiceDialog({
             )}
           </div>
         ) : null}
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={pending} onClick={onClose}>{t("voiceAi.settings.cancel", "Cancel")}</Button>
-          <Button type="button" disabled={!ready || pending || (mode === "seedance" && !videoId)} onClick={() => void confirm()}>
-            {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {pending
-              ? (mode === "vo" ? t("voiceAi.settings.saving", "Saving...") : t("voiceAi.confirm.generating", "Generating..."))
-              : (mode === "vo" ? t("voiceAi.settings.save", "Save") : t("voiceAi.confirm.generate", "Generate"))}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className={cn(
+          "mt-auto flex shrink-0 gap-2 px-4 pt-2",
+          isMobile ? "flex-col pb-[max(1rem,env(safe-area-inset-bottom))]" : "flex-row justify-end pb-4",
+        )}>
+          {!isMobile ? (
+            <Button type="button" variant="outline" className="order-1" disabled={pending != null} onClick={onClose}>{t("voiceAi.settings.cancel", "Cancel")}</Button>
+          ) : null}
+          {mode === "vo" ? (
+            <Button type="button" variant="outline" className={isMobile ? "order-1" : "order-2"} disabled={!ready || pending != null} onClick={() => void confirm()}>
+              {pending === "save" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {pending === "save" ? t("voiceAi.settings.saving", "Saving...") : t("voiceAi.settings.save", "Save")}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              className={isMobile ? "order-1" : "order-3"}
+              disabled={!ready || pending != null || !videoId}
+              onClick={() => void confirm()}
+            >
+              {pending === "generate" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {pending === "generate"
+                ? t("voiceAi.confirm.generating", "Generating...")
+                : t("voiceAi.confirm.generate", "Generate")}
+            </Button>
+          )}
+          {isMobile ? (
+            <Button type="button" variant="outline" className="order-3" disabled={pending != null} onClick={onClose}>{t("voiceAi.settings.cancel", "Cancel")}</Button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      <span ref={anchorRef} hidden />
+      {sheet && host ? createPortal(sheet, host) : null}
+    </>
   );
 }
 
@@ -529,41 +595,59 @@ export function BriefVoiceOverActions({
   if (!voice) return null;
   const clip = voice.voClip(rowIndex, text);
   const hasText = text.trim().length > 0;
-  const expressionRequired = voice.settings?.auto_tag !== false && voiceModelSupportsAudioTags(voice.settings?.tts_model ?? "");
-  const expressionReady = !expressionRequired || hasVoiceExpression(text);
-  const generate = async () => {
-    if (!voice.canGenerate || !hasText || !expressionReady || generating || !voice.planId) return;
+  if (!clip && !(voice.canGenerate && hasText)) return null;
+
+  const generateVo = async () => {
+    if (generating || !voice.canGenerate || !voice.planId || !text.trim()) return;
+    const settings = voice.settings;
+    if (!settings?.api_key_configured || !settings.voice_id) {
+      notifyVoice("error", t("voiceAi.confirm.missing", "Save an ElevenLabs API key and Voice ID in Settings > Voice AI first."));
+      return;
+    }
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-brief-voice", {
-        body: {
-          action: "tts",
-          planId: voice.planId,
-          rowIndex,
-          text,
-          autoTag: false,
-        },
-      });
-      const message = await readEdgeFunctionError(data, error);
+      const speak = async (spoken: string) => {
+        const result = await supabase.functions.invoke("generate-brief-voice", {
+          body: {
+            action: "tts",
+            planId: voice.planId,
+            rowIndex,
+            text: spoken,
+          },
+        });
+        return { data: result.data, message: await readEdgeFunctionError(result.data, result.error) };
+      };
+      let spoken = text;
+      let { data, message } = await speak(spoken);
+      const geminiBlocked = Boolean(message) && !data?.clip && (isGeminiSpendCapMessage(message) || /gemini/i.test(message));
+      if (geminiBlocked && !/\[[^\]\n]{1,40}\]/.test(text)) {
+        spoken = `[conversational] ${text.trim()}`;
+        ({ data, message } = await speak(spoken));
+      }
       if (message && !data?.clip) {
-        toast.error(message);
+        notifyVoice(
+          "error",
+          isGeminiSpendCapMessage(message) || /gemini/i.test(message)
+            ? t("voiceAi.confirm.elevenLabsFailed", "Voice could not be created with ElevenLabs.")
+            : message,
+        );
         return;
       }
       await voice.refresh();
-      toast.success(t("voiceAi.confirm.started", "Voice is ready."));
+      notifyVoice("success", t("voiceAi.confirm.started", "Voice is ready."));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("voiceAi.settings.saveFailed", "Could not save the voice configuration"));
+      notifyVoice("error", error instanceof Error ? error.message : t("voiceAi.settings.saveFailed", "Could not save the voice configuration"));
     } finally {
       setGenerating(false);
     }
   };
-  if (!clip && !(voice.canGenerate && hasText)) return null;
+
   return (
     <div className="mt-1" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
       {clip ? <ClipPlayer clip={clip} /> : null}
       {voice.canGenerate && hasText ? (
         <div className="mt-1 flex flex-wrap gap-1">
-          <Button type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-[11px]" disabled={generating} onClick={() => setOpen(true)}>
+          <Button type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-[11px]" onClick={() => setOpen(true)}>
             <SlidersHorizontal className="h-3.5 w-3.5" />
             {t("voiceAi.cell.settings", "Settings")}
           </Button>
@@ -572,12 +656,14 @@ export function BriefVoiceOverActions({
             variant="outline"
             size="sm"
             className="h-7 gap-1 px-2 text-[11px]"
-            disabled={generating || !expressionReady}
-            title={expressionReady ? t("voiceAi.cell.generate", "Generate VO") : t("voiceAi.cell.waitingExpression", "Save settings so the expression appears on this line")}
-            onClick={() => void generate()}
+            title={t("voiceAi.cell.generate", "Generate VO")}
+            disabled={generating}
+            onClick={() => void generateVo()}
           >
             {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AudioLines className="h-3.5 w-3.5" />}
-            {generating ? t("voiceAi.confirm.generating", "Generating...") : t("voiceAi.cell.generate", "Generate VO")}
+            {generating
+              ? t("voiceAi.confirm.generating", "Generating...")
+              : t("voiceAi.cell.generate", "Generate VO")}
           </Button>
         </div>
       ) : null}

@@ -23,7 +23,7 @@ import {
 import type { BriefImageSceneVersion } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
 import { isBriefVoHeader } from './briefStoryboardConstants';
 import type { BriefStoryboardImageWithUrl } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
-import type { StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
+import { storyboardShotAspect, type StoryboardFilmContext } from '@/6-1-dashboard/lib/generateBriefSceneImage';
 import type { BriefConceptDocument } from '@/6-1-dashboard/modal/briefConceptAssets';
 import {
   DropdownMenu,
@@ -101,6 +101,7 @@ export interface BriefStoryBoardSceneCardProps {
   canMoveToPreviousSequence?: boolean;
   canMoveToNextSequence?: boolean;
   density?: 'desktop' | 'mobile-2col';
+  phoneImageSource?: boolean;
 }
 
 export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> = ({
@@ -138,6 +139,7 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
   canMoveToPreviousSequence = false,
   canMoveToNextSequence = false,
   density = 'desktop',
+  phoneImageSource = false,
 }) => {
   const { t } = useAppTranslation();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -178,8 +180,8 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
       className={cn(
         'flex shrink-0 flex-col overflow-hidden rounded-lg border-2 border-gray-300 bg-white [touch-action:pan-x_pan-y]',
         density === 'mobile-2col'
-          ? 'w-[calc((100cqw-0.75rem)/1.25)] min-w-[calc((100cqw-0.75rem)/1.25)]'
-          : 'w-[360px] max-h-[max(85vh,46rem)]',
+          ? 'h-full max-h-full min-h-0 w-[calc((100cqw-0.75rem)/1.25)] min-w-[calc((100cqw-0.75rem)/1.25)]'
+          : 'h-full max-h-full min-h-0 w-[360px] self-stretch',
       )}
     >
       <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-1 border-b border-gray-200 bg-gray-50 px-2 py-1.5">
@@ -250,9 +252,7 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
       <div
         className={cn(
           'space-y-2 p-3',
-          density === 'mobile-2col'
-            ? 'min-w-0 overflow-x-hidden'
-            : 'min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto scrollbar-hide [touch-action:pan-x_pan-y] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          'min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto scrollbar-hide [touch-action:pan-x_pan-y] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         )}
       >
         <BriefStoryboardImageCell
@@ -273,10 +273,13 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
           activeImageId={activeImageId}
           onActiveImageIdChange={selectActiveImage}
           onEditPrompt={planId && film && onUploadImages ? () => setPromptOpen(true) : undefined}
+          frame={film ? storyboardShotAspect(film) : undefined}
           showUploadButton={Boolean(isEditing && planId)}
           uploadButtonLabel={t('briefDialog.layout.upload', 'Upload')}
+          phoneImageSource={phoneImageSource}
         />
 
+        {images.length === 0 ? (
         <BriefSceneGenerateButton
           rowIndex={rowIndex}
           headers={headers}
@@ -291,6 +294,7 @@ export const BriefStoryBoardSceneCard: React.FC<BriefStoryBoardSceneCardProps> =
           isDeleting={isDeleting}
           onGeneratingChange={setIsGenerating}
         />
+        ) : null}
 
         <div className="grid w-full min-w-0 max-w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-1.5">
           {textColumns.map(({ header, colIdx }) => {

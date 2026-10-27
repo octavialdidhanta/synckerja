@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, ChevronLeft, ChevronRight, Clapperboard, ImagePlus, Images, Loader2, Pencil, Trash2, Upload } from 'lucide-react';
+import { Camera, ChevronLeft, ChevronRight, Clapperboard, Download, ImagePlus, Images, Loader2, Pencil, Trash2, Upload } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { cn } from '@/shared/lib/utils';
 import type { BriefStoryboardImageWithUrl } from '@/6-1-dashboard/hook/useBriefStoryboardImages';
 import { Button } from '@/shared/components/ui/button';
+import { toast } from 'sonner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +15,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/shared/components/ui/alert-dialog';
-import { toast } from 'sonner';
 import {
   Drawer,
   DrawerContent,
@@ -39,14 +39,41 @@ interface BriefStoryboardImageCellProps {
   activeImageId?: string | null;
   onActiveImageIdChange?: (imageId: string) => void;
   onEditPrompt?: () => void;
-  /** 16:9 frame for Story Board cards */
-  aspectVideo?: boolean;
+  /** Output frame from the plan Content Type. */
+  frame?: '1:1' | '4:5' | '9:16' | '16:9';
   /** Explicit Upload button (Story Board discoverability) */
   showUploadButton?: boolean;
   uploadButtonLabel?: string;
+  /** Mobile brief: take a photo or choose from the gallery, even when the window is wide. */
+  phoneImageSource?: boolean;
 }
 
 const acceptedMimeTypes = ['image/png', 'image/jpeg', 'image/webp'];
+
+const frameClassName: Record<'1:1' | '4:5' | '9:16' | '16:9', string> = {
+  '1:1': 'aspect-square',
+  '4:5': 'aspect-[4/5]',
+  '9:16': 'aspect-[9/16]',
+  '16:9': 'aspect-video',
+};
+
+async function downloadImage(url: string, fileName: string) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('download');
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = fileName || 'storyboard-image.jpg';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+  } catch {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
 
 function normalizeImageMime(file: File): string {
   const type = String(file.type || '').toLowerCase();
@@ -77,15 +104,17 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
   isDeleting = false,
   onUploadFiles,
   onDeleteImage,
-  aspectVideo = false,
+  frame,
   showUploadButton = false,
   uploadButtonLabel = 'Upload',
+  phoneImageSource = false,
   activeImageId = null,
   onActiveImageIdChange,
   onEditPrompt,
 }) => {
   const { t } = useAppTranslation();
   const isMobile = useIsMobile();
+  const phonePick = isMobile || phoneImageSource;
   const briefVideo = useBriefVideo();
   const briefVoice = useBriefVoice();
   const videoStatus = briefVideo?.statusFor(rowIndex) ?? { phase: 'idle' as const, url: null, error: null };
@@ -172,6 +201,7 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
     };
   }, []);
 
+  const framed = Boolean(frame);
   const activeImage = images[activeIndex] ?? null;
   const canInteract = editable && !disabled;
   const canOpenPicker = Boolean(onUploadFiles) && !disabled && !isUploading;
@@ -215,7 +245,7 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
 
   const openFilePicker = () => {
     if (!canOpenPicker) return;
-    if (isMobile) {
+    if (phonePick) {
       setSourceOpen(true);
       return;
     }
@@ -262,7 +292,7 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
 
   const handleFrameClick: React.MouseEventHandler<HTMLDivElement> = (event) => {
     if (!activeImage && !activeVideo) {
-      if (isMobile && canOpenPicker) {
+      if (phonePick && canOpenPicker) {
         event.preventDefault();
         openFilePicker();
       }
@@ -386,9 +416,9 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
           'relative w-full overflow-hidden rounded-md border border-gray-200 bg-white [touch-action:pan-x_pan-y]',
           canInteract && 'cursor-pointer',
           slideCount > 1 && 'cursor-ew-resize',
-          aspectVideo && 'aspect-video',
-          !activeImage && !aspectVideo && 'flex min-h-[160px] items-center justify-center',
-          !activeImage && aspectVideo && 'flex items-center justify-center',
+          framed && frame && frameClassName[frame],
+          !activeImage && !framed && 'flex min-h-[160px] items-center justify-center',
+          !activeImage && framed && 'flex items-center justify-center',
         )}
       >
         {activeVideo ? (
@@ -399,13 +429,13 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
             framed
           />
         ) : activeImage ? (
-          <div className={cn('w-full bg-gray-100', aspectVideo ? 'absolute inset-0 overflow-hidden' : '')}>
+          <div className={cn('w-full bg-gray-100', framed ? 'absolute inset-0 overflow-hidden' : '')}>
             <img
               src={activeImage.publicUrl}
               alt={activeImage.file_name || `Storyboard image ${activeIndex + 1}`}
               className={cn(
                 'pointer-events-none block w-full select-none object-contain object-center',
-                aspectVideo ? 'h-full' : 'h-auto',
+                framed ? 'h-full' : 'h-auto',
               )}
               loading="eager"
               fetchPriority="high"
@@ -428,14 +458,14 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
           (() => {
             const emptyClassName = cn(
               'flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center text-sm text-gray-500',
-              aspectVideo ? 'py-3' : 'min-h-[160px] px-4 py-6',
-              isMobile && canOpenPicker && 'cursor-pointer',
+              framed ? 'py-3' : 'min-h-[160px] px-4 py-6',
+              phonePick && canOpenPicker && 'cursor-pointer',
             );
             const emptyBody = (
               <>
-                <ImagePlus className={cn('text-gray-400', aspectVideo ? 'h-5 w-5' : 'h-6 w-6')} />
-                <span className={cn(aspectVideo && 'text-xs leading-snug')}>
-                  {isMobile
+                <ImagePlus className={cn('text-gray-400', framed ? 'h-5 w-5' : 'h-6 w-6')} />
+                <span className={cn(framed && 'text-xs leading-snug')}>
+                  {phonePick
                     ? t(
                         'briefDialog.storyboard.imageHintMobile',
                         'Ketuk untuk ambil foto atau pilih dari galeri',
@@ -454,69 +484,75 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
           })()
         )}
 
-        {images.length > 0 && briefVideo?.enabled ? (
-          <button
-            type="button"
-            title={t('videoAi.cell.generate', 'Generate video')}
-            aria-label={t('videoAi.cell.generate', 'Generate video')}
-            onClick={(event) => {
-              event.stopPropagation();
-              event.preventDefault();
-              briefVideo?.openShot(rowIndex, activeImage?.id);
-            }}
+        {(activeVideo || onEditPrompt || (activeImage && !activeVideo) || (activeImage && !activeVideo && onDeleteImage)) ? (
+          <div
+            className="absolute left-1.5 top-1.5 z-[2] flex gap-1.5"
+            onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
             onDoubleClick={(event) => event.stopPropagation()}
-            className="absolute left-1.5 top-1.5 z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition-colors hover:bg-black/75"
           >
-            <Clapperboard className="h-3.5 w-3.5" />
-          </button>
-        ) : null}
-
-        {onEditPrompt ? (
-          <button
-            type="button"
-            title={t('briefDialog.imagePrompt.edit', 'Edit image prompt')}
-            aria-label={t('briefDialog.imagePrompt.edit', 'Edit image prompt')}
-            onClick={(event) => {
-              event.stopPropagation();
-              event.preventDefault();
-              onEditPrompt();
-            }}
-            onPointerDown={(event) => event.stopPropagation()}
-            onDoubleClick={(event) => event.stopPropagation()}
-            className={cn(
-              'absolute top-1.5 z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition-colors hover:bg-black/75',
-              images.length > 0 && briefVideo?.enabled ? 'left-9' : 'left-1.5',
-            )}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-        ) : null}
-
-        {activeImage && !activeVideo && onDeleteImage ? (
-          <button
-            type="button"
-            title={t('briefDialog.storyboard.deleteImage', 'Hapus gambar')}
-            aria-label={t('briefDialog.storyboard.deleteImage', 'Hapus gambar')}
-            onClick={(event) => {
-              event.stopPropagation();
-              event.preventDefault();
-              setConfirmDeleteId(activeImage.id);
-            }}
-            onPointerDown={(event) => event.stopPropagation()}
-            onDoubleClick={(event) => event.stopPropagation()}
-            disabled={disabled}
-            className={cn(
-              'absolute top-1.5 z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition-colors hover:bg-red-600 disabled:opacity-50',
-              (images.length > 0 && briefVideo?.enabled ? 1 : 0) + (onEditPrompt ? 1 : 0) === 0
-                ? 'left-1.5'
-                : (images.length > 0 && briefVideo?.enabled ? 1 : 0) + (onEditPrompt ? 1 : 0) === 1
-                  ? 'left-9'
-                  : 'left-[4.125rem]',
-            )}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+            {images.length > 0 && briefVideo?.enabled ? (
+              <button
+                type="button"
+                title={t('videoAi.cell.generate', 'Generate video')}
+                aria-label={t('videoAi.cell.generate', 'Generate video')}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  briefVideo?.openShot(rowIndex, activeImage?.id);
+                }}
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition-colors hover:bg-black/75"
+              >
+                <Clapperboard className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+            {onEditPrompt ? (
+              <button
+                type="button"
+                title={t('briefDialog.imagePrompt.edit', 'Edit image prompt')}
+                aria-label={t('briefDialog.imagePrompt.edit', 'Edit image prompt')}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  onEditPrompt();
+                }}
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition-colors hover:bg-black/75"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+            {activeImage && !activeVideo ? (
+              <button
+                type="button"
+                title={t('briefDialog.storyboard.downloadImage', 'Download image')}
+                aria-label={t('briefDialog.storyboard.downloadImage', 'Download image')}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  void downloadImage(activeImage.publicUrl, activeImage.file_name || `storyboard-${rowIndex + 1}.jpg`);
+                }}
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition-colors hover:bg-black/75"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+            {activeImage && !activeVideo && onDeleteImage ? (
+              <button
+                type="button"
+                title={t('briefDialog.storyboard.deleteImage', 'Hapus gambar')}
+                aria-label={t('briefDialog.storyboard.deleteImage', 'Hapus gambar')}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  setConfirmDeleteId(activeImage.id);
+                }}
+                disabled={disabled}
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition-colors hover:bg-red-600 disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
         ) : null}
 
         {slideCount > 1 ? (
@@ -685,7 +721,32 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
       ) : null}
       <BriefSeedanceVoiceButton rowIndex={rowIndex} scope="shot" />
 
-      {showUploadButton && canInteract ? (
+      {phonePick && canOpenPicker ? (
+        <div className="mt-2 grid grid-cols-2 gap-1.5" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1 px-2 text-xs"
+            disabled={disabled}
+            onClick={() => void pickFromCamera()}
+          >
+            <Camera className="h-3.5 w-3.5 shrink-0" />
+            {t('briefDialog.storyboard.imageSourceCamera', 'Take photo')}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1 px-2 text-xs"
+            disabled={disabled}
+            onClick={() => void pickFromGallery()}
+          >
+            <Images className="h-3.5 w-3.5 shrink-0" />
+            {t('briefDialog.storyboard.imageSourceGallery', 'Choose from gallery')}
+          </Button>
+        </div>
+      ) : showUploadButton && canInteract ? (
         <Button
           type="button"
           variant="outline"
@@ -702,6 +763,34 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
         </Button>
       ) : null}
 
+      {isMobile ? (
+      <Drawer open={Boolean(confirmDeleteId)} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
+        <DrawerContent className="z-[120] px-0" overlayClassName="z-[120]">
+          <DrawerHeader className="px-4 pb-2 text-left">
+            <DrawerTitle className="text-base">{t('briefDialog.storyboard.deleteImageTitle', 'Hapus gambar ini?')}</DrawerTitle>
+          </DrawerHeader>
+          <p className="px-4 text-sm text-muted-foreground">
+            {t('briefDialog.storyboard.deleteImageBody', 'Gambar ini akan dihapus dari shot. Prompt yang menempel pada gambar ini ikut terhapus.')}
+          </p>
+          <div className="mt-4 flex flex-col gap-2 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <Button
+              type="button"
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={() => {
+                const imageId = confirmDeleteId;
+                setConfirmDeleteId(null);
+                if (imageId) void handleDelete(imageId);
+              }}
+            >
+              {t('briefDialog.storyboard.deleteImageConfirm', 'Hapus')}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setConfirmDeleteId(null)}>
+              {t('common.cancel', 'Batal')}
+            </Button>
+          </div>
+        </DrawerContent>
+      </Drawer>
+      ) : (
       <AlertDialog open={Boolean(confirmDeleteId)} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
         <AlertDialogContent className="z-[1000005] rounded-none" overlayClassName="z-[1000004]">
           <AlertDialogHeader>
@@ -725,8 +814,9 @@ export const BriefStoryboardImageCell: React.FC<BriefStoryboardImageCellProps> =
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      )}
 
-      {isMobile ? (
+      {phonePick ? (
         <Drawer shouldScaleBackground={false} open={sourceOpen} onOpenChange={setSourceOpen}>
           <DrawerContent
             className="z-[1000003] px-0 pb-4"

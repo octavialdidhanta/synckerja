@@ -19,6 +19,9 @@ type PlanLike = {
   brief?: string | null;
   content_pillar_id?: string | null;
   content_pillar?: { name?: string | null } | null;
+  content_type_id?: string | null;
+  content_type?: { name?: string | null } | null;
+  organization_id?: string | null;
   service?: { name?: string | null } | null;
 };
 
@@ -161,7 +164,7 @@ export function MobilePlanBriefSheet({
   onBackToPicker,
 }: Props) {
   const { t } = useAppTranslation();
-  const { contentPillars } = useSocialMediaData();
+  const { contentPillars, contentTypes } = useSocialMediaData();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const drawerContentRef = useResetDrawerHeightAfterKeyboard(open);
 
@@ -182,6 +185,15 @@ export function MobilePlanBriefSheet({
     };
   }, [contentPillars, plan?.content_pillar_id, plan?.content_pillar?.name]);
 
+  const contentTypeName = useMemo(() => {
+    const direct = plan?.content_type?.name?.trim();
+    if (direct) return direct;
+    const match = (contentTypes as Array<{ id?: string; name?: string | null }>).find(
+      (item) => item.id && item.id === plan?.content_type_id,
+    );
+    return match?.name?.trim() || "";
+  }, [contentTypes, plan?.content_type?.name, plan?.content_type_id]);
+
   const serviceName = plan?.service?.name?.trim() || "";
   const planTitle = plan?.title?.trim() || t("contentCalendar.mobile.untitled", "Untitled");
   const subtitle = [serviceName, planTitle, pillar?.name].filter(Boolean).join(" · ");
@@ -196,7 +208,7 @@ export function MobilePlanBriefSheet({
     >
       <DrawerContent
         ref={drawerContentRef}
-        className="!mt-0 top-24 flex min-h-0 min-w-0 flex-col overflow-hidden px-0 pb-0"
+        className="!mt-0 top-24 h-[calc(100dvh-6rem)] max-h-[calc(100dvh-6rem)] flex min-h-0 min-w-0 flex-col overflow-hidden px-0 pb-0 ![touch-action:pan-x_pan-y]"
         style={{ overflow: "hidden" }}
       >
         <DrawerHeader className="min-w-0 w-full shrink-0 px-3 pb-2 pr-5 text-left">
@@ -213,36 +225,48 @@ export function MobilePlanBriefSheet({
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             ) : null}
-            <div className="min-w-0 flex-1 overflow-hidden pr-4">
-              <DrawerTitle className="truncate text-base">
-                {t("contentCalendar.mobile.storyboardTitle", "Storyboard")}
-              </DrawerTitle>
-              {subtitle ? (
-                <button
-                  type="button"
-                  className="mt-0.5 flex min-w-0 items-center gap-1"
-                  aria-label={t(
-                    "contentCalendar.mobile.planDetailsAria",
-                    "View service, title, and content pillar",
-                  )}
-                  aria-expanded={detailsOpen}
-                  onClick={() => setDetailsOpen((openDetails) => !openDetails)}
-                >
-                  <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-xs text-muted-foreground">
-                    {subtitle}
-                  </span>
-                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                    <Info className="h-3 w-3" />
-                  </span>
-                </button>
-              ) : null}
+            <div className="flex min-w-0 flex-1 items-center overflow-hidden pr-4">
+              <div
+                data-vaul-no-drag=""
+                className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overflow-y-hidden py-0.5 scrollbar-hide [touch-action:pan-x] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                style={{ touchAction: "pan-x" }}
+              >
+                <DrawerTitle className="shrink-0 whitespace-nowrap text-base">
+                  {t("contentCalendar.mobile.storyboardTitle", "Storyboard")}
+                </DrawerTitle>
+                {subtitle ? (
+                  <button
+                    type="button"
+                    className="inline-flex shrink-0 items-center gap-1"
+                    aria-label={t(
+                      "contentCalendar.mobile.planDetailsAria",
+                      "View service, title, and content pillar",
+                    )}
+                    aria-expanded={detailsOpen}
+                    onClick={() => setDetailsOpen((openDetails) => !openDetails)}
+                  >
+                    <span className="whitespace-nowrap text-left text-xs text-muted-foreground">
+                      {subtitle}
+                    </span>
+                    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                      <Info className="h-3 w-3" />
+                    </span>
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
         </DrawerHeader>
 
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-0">
           {plan?.id ? (
-            <MobileContentPlanBriefEditor planId={plan.id} brief={plan.brief} />
+            <MobileContentPlanBriefEditor
+              planId={plan.id}
+              brief={plan.brief}
+              title={plan.title}
+              contentTypeName={contentTypeName}
+              organizationId={plan.organization_id}
+            />
           ) : null}
           {detailsOpen ? (
             <div className="absolute inset-0 z-50 isolate">
