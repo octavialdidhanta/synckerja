@@ -76,28 +76,28 @@ export default function IngredientPage() {
     <IngredientModuleShell showContent={showContent}>
       <IngredientWorkspace count={panelCount}>
         {isLibrary ? (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 py-6">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-2 pb-1">
             <LibraryIngredientsManager
               selectedOutletId={selectedOutletId}
               onOutletChange={setSelectedOutletId}
             />
           </div>
         ) : isCategories ? (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 py-6">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-2 pb-1">
             <LibraryIngredientCategoriesManager
               selectedOutletId={selectedOutletId}
               onOutletChange={setSelectedOutletId}
             />
           </div>
         ) : isRecipes ? (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 py-6">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-2 pb-1">
             <ProductRecipesManager
               selectedOutletId={selectedOutletId}
               onOutletChange={setSelectedOutletId}
             />
           </div>
         ) : (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 py-6">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col px-3 pt-2 pb-1">
             <h2 className="mb-1 text-lg font-semibold">
               {t("ingredient.tab.recipes", "Recipes")}
             </h2>

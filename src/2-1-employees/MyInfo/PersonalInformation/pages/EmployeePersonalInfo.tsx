@@ -141,13 +141,13 @@ const EmployeePersonalInfo = () => {
   }
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-gray-100 font-sans">
-        <div className="flex flex-1 min-h-0">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
+        <div className="flex min-h-0 flex-1">
           {/* Main Content */}
-          <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
-            <div className="h-full flex flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-2">
+            <div className="flex h-full flex-col overflow-hidden">
               {/* Header with Actions */}
-              <div className="flex-shrink-0 mt-2 mb-2">
+              <div className="mt-1 mb-1 flex-shrink-0">
                 <Button 
                   variant="outline" 
                   onClick={handleBackToEmployees} 
@@ -235,59 +235,81 @@ const EmployeePersonalInfo = () => {
                 </div>
                 
                 {/* Right Column - Main Content - 9 columns */}
-                <div className="col-span-9 flex flex-col min-h-0">
-                  {/* Main Content Section */}
-                  <div className="flex-1 min-h-0">
-                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col h-full">
-                      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        <div className="p-6">
-                          {/* Header with Edit Button */}
-                          <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-semibold text-gray-900">Personal Information</h2>
-                            <div className="flex items-center space-x-2">
-                              {isEditMode ? (
-                                <>
-                                  <Button 
-                                    type="button"
-                                    variant="outline" 
-                                    onClick={() => setIsEditMode(false)} 
-                                    className="text-gray-600"
-                                  >
-                                    <X className="h-4 w-4 mr-2" />
-                                    Cancel
-                                  </Button>
-                                  <Button 
-                                    type="button"
-                                    onClick={handleSaveChanges}
-                                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                                  >
-                                    <Save className="h-4 w-4 mr-2" />
-                                    Save Changes
-                                  </Button>
-                                </>
-                              ) : (
-                                <Button 
-                                  type="button"
-                                  onClick={() => setIsEditMode(true)} 
-                                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                                >
-                                  <Edit className="h-4 w-4 mr-2" />
-                                  Edit Profile
-                                </Button>
-                              )}
+                <div className="col-span-9 flex min-h-0 flex-col">
+                  {/* Main Content Section — match /my-info/payroll footer shell */}
+                  <div className="min-h-0 flex-1">
+                    <div className="flex h-full flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
+                      {/* Header Section - Fixed (actions always mounted so layout never shifts) */}
+                      <div className="flex-shrink-0 border-b border-gray-200 px-6 pb-3 pt-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <h2 className="text-xl font-semibold text-gray-900">Personal Information</h2>
+                          <div className="relative flex items-center justify-end">
+                            <div
+                              className={`flex items-center space-x-2 ${
+                                isEditMode ? '' : 'invisible pointer-events-none'
+                              }`}
+                              aria-hidden={!isEditMode}
+                            >
+                              <Button 
+                                type="button"
+                                size="sm"
+                                variant="outline" 
+                                onClick={() => setIsEditMode(false)} 
+                                className="text-gray-600"
+                                tabIndex={isEditMode ? undefined : -1}
+                              >
+                                <X className="mr-2 h-4 w-4" />
+                                Cancel
+                              </Button>
+                              <Button 
+                                type="button"
+                                size="sm"
+                                onClick={handleSaveChanges}
+                                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                                tabIndex={isEditMode ? undefined : -1}
+                              >
+                                <Save className="mr-2 h-4 w-4" />
+                                Save Changes
+                              </Button>
+                            </div>
+                            <div
+                              className={`absolute inset-y-0 right-0 flex items-center ${
+                                isEditMode ? 'invisible pointer-events-none' : ''
+                              }`}
+                              aria-hidden={isEditMode}
+                            >
+                              <Button 
+                                type="button"
+                                size="sm"
+                                onClick={() => setIsEditMode(true)} 
+                                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                                tabIndex={isEditMode ? -1 : undefined}
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Profile
+                              </Button>
                             </div>
                           </div>
-                          
-                          <PersonalInfoTab
-                            employee={employee}
-                            isEditMode={isEditMode}
-                            onUpdate={() => void refetch()}
-                          />
                         </div>
                       </div>
 
-                      {/* Content Footer */}
-                      <MyInfoContentFooter section="Personal Information" />
+                      {/* Scrollable Content */}
+                      <div className="min-h-0 flex-1 overflow-hidden">
+                        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          <div className="p-4">
+                            <PersonalInfoTab
+                              employee={employee}
+                              isEditMode={isEditMode}
+                              onUpdate={() => void refetch()}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Content Footer - Fixed (same rhythm as payroll) */}
+                      <div className="flex-shrink-0">
+                        <MyInfoContentFooter section="Personal Information" />
+                      </div>
                     </div>
                   </div>
                 </div>

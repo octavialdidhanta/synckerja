@@ -19,6 +19,13 @@ interface InformalEducationInfoTabProps {
   onUpdate: () => void;
   /** When set, title and Add button share one header row (Informal Education page). */
   sectionTitle?: string;
+  /** Controlled add form (page header Add button). */
+  isAddingNew?: boolean;
+  onAddingNewChange?: (value: boolean) => void;
+  /** Notify page when a row is being edited (to hide header Add). */
+  onEditingChange?: (editing: boolean) => void;
+  /** Hide inline Add — use when Add lives in the page header. */
+  hideInlineAddButton?: boolean;
 }
 
 export const InformalEducationInfoTab = ({
@@ -26,11 +33,20 @@ export const InformalEducationInfoTab = ({
   isEditMode,
   onUpdate,
   sectionTitle,
+  isAddingNew: controlledIsAddingNew,
+  onAddingNewChange,
+  onEditingChange,
+  hideInlineAddButton = false,
 }: InformalEducationInfoTabProps) => {
   const { organizationId } = useCurrentOrg();
   const { informalEducations, isLoading, addInformalEducation, updateInformalEducation, deleteInformalEducation } = useInformalEducations(employee.id);
   
-  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [internalIsAddingNew, setInternalIsAddingNew] = useState(false);
+  const isAddingNew = controlledIsAddingNew ?? internalIsAddingNew;
+  const setIsAddingNew = (value: boolean) => {
+    onAddingNewChange?.(value);
+    if (controlledIsAddingNew === undefined) setInternalIsAddingNew(value);
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<InformalEducation>>({
     course_name: '',
@@ -69,6 +85,7 @@ export const InformalEducationInfoTab = ({
     if (editingId) {
       await updateInformalEducation.mutateAsync({ id: editingId, data: educationData });
       setEditingId(null);
+      onEditingChange?.(false);
     } else {
       await addInformalEducation.mutateAsync(educationData);
       setIsAddingNew(false);
@@ -87,6 +104,7 @@ export const InformalEducationInfoTab = ({
 
   const handleEdit = (education: InformalEducation) => {
     setEditingId(education.id);
+    onEditingChange?.(true);
     setFormData({
       course_name: education.course_name,
       provider: education.provider || '',
@@ -101,6 +119,7 @@ export const InformalEducationInfoTab = ({
   const handleCancel = () => {
     setIsAddingNew(false);
     setEditingId(null);
+    onEditingChange?.(false);
     setFormData({
       course_name: '',
       provider: '',
@@ -127,7 +146,7 @@ export const InformalEducationInfoTab = ({
   }
 
   const addInformalEducationButton =
-    isEditMode && !isAddingNew && !editingId ? (
+    !hideInlineAddButton && isEditMode && !isAddingNew && !editingId ? (
       <Button
         onClick={() => setIsAddingNew(true)}
         size="sm"

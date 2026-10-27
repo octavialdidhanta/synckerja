@@ -12,13 +12,10 @@ export const PasswordListFooter = ({
   const categoryText = selectedCategoryName ? ` in ${selectedCategoryName}` : "";
 
   return (
-    <div className="flex-shrink-0 border-t border-brand-blue/15 bg-brand-blue/5 px-4 py-2">
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>
-          Showing {filteredPasswords} of {totalPasswords} passwords{categoryText}
-        </span>
-        <span className="text-xs text-muted-foreground/80">Total: {totalPasswords} passwords</span>
-      </div>
+    <div className="flex h-9 flex-shrink-0 items-center border-t border-brand-blue/15 bg-brand-blue/5 px-4">
+      <p className="text-xs text-muted-foreground">
+        Showing {filteredPasswords} of {totalPasswords} passwords{categoryText}
+      </p>
     </div>
   );
 };

@@ -63,21 +63,25 @@ export function DefaultPricesTable({ rows, isLoading, onEdit, onDelete, onOpenSo
   };
 
   if (isLoading) {
-    return <div className="py-8 text-center text-muted-foreground">Loading...</div>;
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center py-8 text-muted-foreground">Loading...</div>
+    );
   }
   if (rows.length === 0) {
     return (
-      <div className="py-8 text-center text-muted-foreground">
+      <div className="flex min-h-0 flex-1 items-center justify-center py-8 text-center text-muted-foreground">
         No default prices yet. Add one to auto-fill amount on lead conversion.
       </div>
     );
   }
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <TooltipProvider delayDuration={200}>
-        <Table>
-        <TableHeader>
+        <Table
+          containerClassName="min-h-0 flex-1 overflow-auto rounded-md border border-border/60 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+        <TableHeader className="sticky top-0 z-[1] bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
           <TableRow>
             <TableHead className="max-w-[160px] w-[160px]">Service</TableHead>
             <TableHead className="min-w-[180px] w-[180px]">Category</TableHead>
@@ -168,6 +172,6 @@ export function DefaultPricesTable({ rows, isLoading, onEdit, onDelete, onOpenSo
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }

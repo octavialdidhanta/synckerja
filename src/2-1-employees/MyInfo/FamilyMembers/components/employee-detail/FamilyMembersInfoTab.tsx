@@ -8,7 +8,7 @@ import { Checkbox } from '@/shared/components/ui/checkbox';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
-import { Plus, Edit, Trash2, Save, X, MoreVertical, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, X, MoreVertical } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { useFamilyMembers, FamilyMember } from '@/shared/hooks/employees/useFamilyMembers';
 import { Employee } from '@/shared/hooks/employees/useEmployees';
@@ -20,6 +20,13 @@ interface FamilyMembersInfoTabProps {
   onUpdate: () => void;
   /** When set, title and Add button share one header row (Family Members page). */
   sectionTitle?: string;
+  /** Controlled add form (page header Add button). */
+  isAddingNew?: boolean;
+  onAddingNewChange?: (value: boolean) => void;
+  /** Notify page when a row is being edited (to hide header Add). */
+  onEditingChange?: (editing: boolean) => void;
+  /** Hide inline Add — use when Add lives in the page header. */
+  hideInlineAddButton?: boolean;
 }
 
 export const FamilyMembersInfoTab = ({
@@ -27,11 +34,20 @@ export const FamilyMembersInfoTab = ({
   isEditMode,
   onUpdate,
   sectionTitle,
+  isAddingNew: controlledIsAddingNew,
+  onAddingNewChange,
+  onEditingChange,
+  hideInlineAddButton = false,
 }: FamilyMembersInfoTabProps) => {
   const { organizationId } = useCurrentOrg();
   const { familyMembers, isLoading, addFamilyMember, updateFamilyMember, deleteFamilyMember } = useFamilyMembers(employee.id);
   
-  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [internalIsAddingNew, setInternalIsAddingNew] = useState(false);
+  const isAddingNew = controlledIsAddingNew ?? internalIsAddingNew;
+  const setIsAddingNew = (value: boolean) => {
+    onAddingNewChange?.(value);
+    if (controlledIsAddingNew === undefined) setInternalIsAddingNew(value);
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<FamilyMember>>({
     name: '',
@@ -89,6 +105,7 @@ export const FamilyMembersInfoTab = ({
     if (editingId) {
       await updateFamilyMember.mutateAsync({ id: editingId, data: familyMemberData });
       setEditingId(null);
+      onEditingChange?.(false);
     } else {
       await addFamilyMember.mutateAsync(familyMemberData);
       setIsAddingNew(false);
@@ -108,6 +125,7 @@ export const FamilyMembersInfoTab = ({
 
   const handleEdit = (familyMember: FamilyMember) => {
     setEditingId(familyMember.id);
+    onEditingChange?.(true);
     setFormData({
       name: familyMember.name,
       relationship: familyMember.relationship,
@@ -123,6 +141,7 @@ export const FamilyMembersInfoTab = ({
   const handleCancel = () => {
     setIsAddingNew(false);
     setEditingId(null);
+    onEditingChange?.(false);
     setFormData({
       name: '',
       relationship: '',
@@ -150,7 +169,7 @@ export const FamilyMembersInfoTab = ({
   }
 
   const addFamilyMemberButton =
-    isEditMode && !isAddingNew && !editingId ? (
+    !hideInlineAddButton && isEditMode && !isAddingNew && !editingId ? (
       <Button
         onClick={() => setIsAddingNew(true)}
         size="sm"
@@ -472,22 +491,12 @@ export const FamilyMembersInfoTab = ({
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="text-center py-12">
-            <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Family Members Yet</h3>
-            <p className="text-gray-600 mb-4">No family members have been added for this employee.</p>
-            {isEditMode && (
-              <Button
-                onClick={() => setIsAddingNew(true)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add First Family Member
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <div className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 py-8 text-center text-gray-500">
+          <p>No family member records found.</p>
+          {isEditMode && (
+            <p className="mt-2 text-sm">Click &quot;Add Family Member&quot; to get started.</p>
+          )}
+        </div>
       )}
     </div>
   );

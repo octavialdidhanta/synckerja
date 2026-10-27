@@ -747,7 +747,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
   };
 
   const sidebarTabBaseClass =
-    'flex min-h-11 flex-1 items-center justify-center border-b-2 px-2 py-0 text-sm font-medium transition-colors sm:px-4';
+    'flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap border-b-2 px-3 py-0 text-sm font-medium transition-colors sm:px-4';
   const sidebarTabActiveClass = 'border-primary bg-primary/10 text-primary';
   const sidebarTabInactiveClass =
     'border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground';
@@ -760,8 +760,8 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
     <div className="flex-1 min-h-0 flex flex-col bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-gray-200 bg-white">
-        {/* Tab Buttons */}
-        <div className="flex min-h-11 shrink-0 items-stretch border-b border-gray-200">
+        {/* Tab Buttons — horizontal scroll agar "Table" tidak terpotong */}
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-11 shrink-0 items-stretch overflow-x-auto overflow-y-hidden border-b border-gray-200 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             onClick={() => {
               setActiveTab('knowledge');
@@ -918,7 +918,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
                           : t('productKnowledge.sidebar.keywordsTitle', 'Keyword')
                         : selectedScriptBreakdownTemplate
                           ? t('productKnowledge.scriptTable.sidebar.detailTitle', 'Table template detail')
-                          : t('productKnowledge.scriptTable.sidebar.title', 'Script table templates')}
+                          : t('productKnowledge.scriptTable.sidebar.title', 'Script table')}
               </h2>
             </div>
             {activeTab === 'knowledge' && !selectedDetail && (
@@ -973,40 +973,43 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
                 {t('productKnowledge.keywords.sidebar.addButton', 'Add Keyword')}
               </Button>
             )}
-            {activeTab === 'table' && !selectedScriptBreakdownTemplate && (
-              <div className="flex flex-wrap items-center justify-end gap-1">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="h-8 px-2 text-xs sm:px-3 sm:text-sm"
-                  onClick={() => void handleSeedDefaultScriptBreakdownTemplate()}
-                  disabled={
-                    isCreatingScriptBreakdownTemplate ||
-                    isUpdatingScriptBreakdownTemplate ||
-                    isDeletingScriptBreakdownTemplate
-                  }
-                >
-                  {t('productKnowledge.scriptTable.sidebar.seedDefault', 'Add from default (10 cols)')}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditingScriptBreakdownTemplate(null);
-                    setIsScriptBreakdownTableModalOpen(true);
-                  }}
-                  className="h-8 px-3"
-                  disabled={
-                    isCreatingScriptBreakdownTemplate ||
-                    isUpdatingScriptBreakdownTemplate ||
-                    isDeletingScriptBreakdownTemplate
-                  }
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  {t('productKnowledge.scriptTable.sidebar.addButton', 'Add template')}
-                </Button>
-              </div>
-            )}
+            {activeTab === 'table' && !selectedScriptBreakdownTemplate ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingScriptBreakdownTemplate(null);
+                  setIsScriptBreakdownTableModalOpen(true);
+                }}
+                className="h-8 shrink-0 px-3"
+                disabled={
+                  isCreatingScriptBreakdownTemplate ||
+                  isUpdatingScriptBreakdownTemplate ||
+                  isDeletingScriptBreakdownTemplate
+                }
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                {t('productKnowledge.scriptTable.sidebar.addButton', 'Add template')}
+              </Button>
+            ) : null}
           </div>
+
+          {activeTab === 'table' && !selectedScriptBreakdownTemplate ? (
+            <div className="mb-3">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-8 w-full px-2 text-xs"
+                onClick={() => void handleSeedDefaultScriptBreakdownTemplate()}
+                disabled={
+                  isCreatingScriptBreakdownTemplate ||
+                  isUpdatingScriptBreakdownTemplate ||
+                  isDeletingScriptBreakdownTemplate
+                }
+              >
+                {t('productKnowledge.scriptTable.sidebar.seedDefault', 'Add from default (10 cols)')}
+              </Button>
+            </div>
+          ) : null}
 
           {/* Search Input - Only show in knowledge tab when not viewing detail */}
           {activeTab === 'knowledge' && !selectedDetail && (
@@ -1155,7 +1158,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
       </div>
 
       {/* Content Area - rule 3.1: satu scroll per panel, seamless-scroll, nested-scroll-touch-chain, min-h-0 */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden seamless-scroll nested-scroll-touch-chain">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {activeTab === 'keywords' ? (
           selectedKeyword ? (
           /* Keyword Detail View */
@@ -1903,14 +1906,14 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
               </div>
             </div>
           ) : (
-            <>
+            <div className="flex min-h-full flex-1 flex-col">
               {isScriptBreakdownTemplatesLoading ? (
-                <div className="flex items-center justify-center py-8">
+                <div className="flex flex-1 flex-col items-center justify-center py-8">
                   <LoadingDots />
                 </div>
               ) : filteredScriptBreakdownTemplates.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
-                  <Table2 className="h-12 w-12 text-gray-300 mb-2" />
+                <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
+                  <Table2 className="mb-2 h-12 w-12 text-gray-300" />
                   <p className="text-sm text-gray-500">
                     {scriptTableSearchTerm
                       ? t('productKnowledge.scriptTable.sidebar.noResults', 'No results')
@@ -1918,7 +1921,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
                   </p>
                 </div>
               ) : (
-                <div className="p-2 space-y-1">
+                <div className="space-y-1 p-2 pb-4">
                   {filteredScriptBreakdownTemplates.map((row) => (
                     <div
                       key={row.id}
@@ -2018,7 +2021,7 @@ export const ProductKnowledgeSidebar: React.FC<ProductKnowledgeSidebarProps> = (
                   ))}
                 </div>
               )}
-            </>
+            </div>
           )
         ) : selectedStyle ? (
           /* Style Detail View */

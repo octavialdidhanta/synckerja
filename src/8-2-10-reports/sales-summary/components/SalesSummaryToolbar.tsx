@@ -38,23 +38,15 @@ export function SalesSummaryToolbar({
   return (
     <ReportsSalesToolbarShell
       title={t("reports.salesNav.summary", "Sales Summary")}
-      description={
-        <p className="text-sm text-gray-500">
-          {t(
-            "reports.salesSummary.subtitle",
-            "Overview of gross sales, discounts, refunds, and collections for the selected period.",
-          )}
-        </p>
-      }
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-nowrap items-center gap-2">
         <div className="relative">
           <Home className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <OutletFilterSelect
             value={outletId || POS_OUTLET_FILTER_ALL}
             onChange={onOutletChange}
             includeAll
-            className="w-[200px] pl-8"
+            className="h-10 w-[200px] pl-8"
           />
         </div>
         <SalesSummaryDateRangePicker
@@ -65,7 +57,7 @@ export function SalesSummaryToolbar({
           onApplyFilters={onApplyFilters}
         />
       </div>
-      <Button type="button" size="sm" onClick={onExport} disabled={exportDisabled}>
+      <Button type="button" className="shrink-0" onClick={onExport} disabled={exportDisabled}>
         <Download className="mr-2 h-4 w-4" />
         {t("reports.actions.export", "Export")}
       </Button>

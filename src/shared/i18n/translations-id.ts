@@ -11352,7 +11352,7 @@ export const idTranslations: TranslationDictionary = {
   "contentCalendar.stats.totalContent": "Total konten",
   "contentCalendar.stats.allContentThisMonth": "Semua konten bulan ini",
   "contentCalendar.stats.notApprovedSubtitle": "Rencana konten belum disetujui",
-  "contentCalendar.stats.contentPlanApprovedSubtitle": "Rencana disetujui, produksi belum",
+  "contentCalendar.stats.contentPlanApprovedSubtitle": "Rencana konten disetujui",
   "contentCalendar.stats.productionApprovedSubtitle": "Tahap produksi disetujui",
   "contentCalendar.stats.completedSubtitle": "Terpublikasi tepat waktu",
   "contentCalendar.stats.completedLateSubtitle": "Terpublikasi tetapi terlambat",

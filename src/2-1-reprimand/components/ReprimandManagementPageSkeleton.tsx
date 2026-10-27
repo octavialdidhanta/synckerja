@@ -37,13 +37,13 @@ export function ReprimandManagementPageSkeleton() {
                     <div className="flex h-full min-h-0 min-w-0 flex-col">
                       <div className="mb-2 flex-shrink-0">
                         <div className="rounded-md border border-border bg-card p-2">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <Skeleton className="h-9 min-w-[150px] flex-1 sm:max-w-xs" />
-                            <Skeleton className="h-9 w-full sm:w-36 lg:w-40" />
-                            <Skeleton className="h-9 w-full sm:w-36 lg:w-40" />
-                            <Skeleton className="h-9 w-full sm:w-36 lg:w-40" />
-                            <Skeleton className="h-9 w-full sm:w-36 lg:w-40" />
-                            <Skeleton className="h-9 w-full sm:w-36 lg:w-40" />
+                          <div className="flex min-w-0 flex-nowrap items-center gap-1.5">
+                            <Skeleton className="h-9 min-w-0 flex-1" />
+                            <Skeleton className="h-9 w-[7.75rem] shrink-0" />
+                            <Skeleton className="h-9 w-[7.25rem] shrink-0" />
+                            <Skeleton className="h-9 w-[7.5rem] shrink-0" />
+                            <Skeleton className="h-9 w-[7rem] shrink-0" />
+                            <Skeleton className="h-9 w-[7rem] shrink-0" />
                             <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
                             <Skeleton className="h-9 w-32 shrink-0 rounded-md" />
                           </div>

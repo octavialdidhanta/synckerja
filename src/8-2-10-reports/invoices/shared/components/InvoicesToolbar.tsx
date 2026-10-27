@@ -66,23 +66,15 @@ export function InvoicesToolbar({
   return (
     <ReportsSalesToolbarShell
       title={t("reports.invoices.title", "Invoices")}
-      description={
-        <p className="text-xs text-muted-foreground">
-          {t(
-            "reports.invoices.subtitle",
-            "Track invoice status and outstanding balances.",
-          )}
-        </p>
-      }
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-nowrap items-center gap-2">
         <div className="relative">
           <Home className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <OutletFilterSelect
             value={outletId || POS_OUTLET_FILTER_ALL}
             onChange={onOutletChange}
             includeAll
-            className="w-[200px] pl-8"
+            className="h-10 w-[200px] pl-8"
           />
         </div>
         <ReportsSalesDateRangePicker
@@ -96,7 +88,7 @@ export function InvoicesToolbar({
           value={statusFilter}
           onValueChange={(v) => onStatusFilterChange(v as InvoiceStatusFilter)}
         >
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="h-10 w-[180px]">
             <SelectValue placeholder={t("reports.invoices.status.all", "All statuses")} />
           </SelectTrigger>
           <SelectContent>
@@ -120,13 +112,13 @@ export function InvoicesToolbar({
             value={searchQuery}
             onChange={(e) => onSearchQueryChange(e.target.value)}
             placeholder={t("reports.invoices.search", "Search invoice # or customer")}
-            className="w-[220px] pl-8"
+            className="h-10 w-[220px] pl-8"
           />
         </div>
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" size="sm" disabled={exportDisabled}>
+          <Button type="button" className="shrink-0" disabled={exportDisabled}>
             <Download className="mr-2 h-4 w-4" />
             {t("reports.actions.export", "Export")}
           </Button>

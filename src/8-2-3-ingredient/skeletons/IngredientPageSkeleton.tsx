@@ -8,23 +8,19 @@ export function IngredientPageSkeleton() {
 
   return (
     <IngredientPageSkeletonFrame ariaLabel={aria}>
-      <div className="flex min-h-0 flex-1 flex-col px-4 py-6">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <Skeleton className="h-7 w-48" />
-          <div className="flex gap-2">
-            <Skeleton className="h-9 w-36" />
-            <Skeleton className="h-9 w-40" />
-          </div>
-        </div>
-        <div className="mb-3 flex flex-wrap gap-2">
-          <Skeleton className="h-9 w-[180px]" />
-          <Skeleton className="h-9 w-[180px]" />
-          <Skeleton className="h-9 w-[160px]" />
-          <Skeleton className="h-9 w-[160px]" />
-          <Skeleton className="h-9 min-w-[160px] flex-1" />
+      <div className="flex min-h-0 flex-1 flex-col px-3 pt-2 pb-1">
+        <div className="mb-2 flex h-8 items-center gap-1.5">
+          <Skeleton className="h-8 w-36 shrink-0" />
+          <Skeleton className="h-8 w-[140px] shrink-0" />
+          <Skeleton className="h-8 w-[140px] shrink-0" />
+          <Skeleton className="h-8 w-[130px] shrink-0" />
+          <Skeleton className="h-8 w-[120px] shrink-0" />
+          <Skeleton className="h-8 min-w-[120px] flex-1" />
+          <Skeleton className="h-8 w-28 shrink-0" />
+          <Skeleton className="h-8 w-36 shrink-0" />
         </div>
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="mb-2 h-12 w-full" />
+          <Skeleton key={i} className="mb-2 h-10 w-full" />
         ))}
       </div>
     </IngredientPageSkeletonFrame>

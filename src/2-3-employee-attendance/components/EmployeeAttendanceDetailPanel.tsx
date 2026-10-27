@@ -77,7 +77,7 @@ export const EmployeeAttendanceDetailPanel = ({
           <X className="h-4 w-4" />
         </Button>
       </div>
-      <div className="scrollbar-hide min-h-0 flex-1 overflow-auto p-3">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <AttendanceTable
           searchTerm={searchTerm}
           status={status}

@@ -1,5 +1,4 @@
 import type React from "react";
-import { Card } from "@/shared/components/ui/card";
 import { Shield, Key, Star, AlertTriangle } from "lucide-react";
 
 interface PasswordStatsProps {
@@ -15,55 +14,56 @@ export const PasswordStats: React.FC<PasswordStatsProps> = ({
   weakPasswords,
   favorites,
 }) => {
+  const items = [
+    {
+      label: "Total",
+      value: totalPasswords,
+      icon: Key,
+      iconWrap: "bg-brand-blue/10 text-brand-blue",
+      card: "border-brand-blue/20 ring-1 ring-brand-blue/10",
+    },
+    {
+      label: "Strong",
+      value: strongPasswords,
+      icon: Shield,
+      iconWrap: "bg-emerald-500/15 text-emerald-600",
+      card: "",
+    },
+    {
+      label: "Weak",
+      value: weakPasswords,
+      icon: AlertTriangle,
+      iconWrap: "bg-destructive/10 text-destructive",
+      card: "",
+    },
+    {
+      label: "Favorites",
+      value: favorites,
+      icon: Star,
+      iconWrap: "bg-amber-500/15 text-amber-600",
+      card: "",
+    },
+  ] as const;
+
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <Card className="rounded-md border border-brand-blue/20 p-3 shadow-sm ring-1 ring-brand-blue/10">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">Total Passwords</p>
-            <h3 className="mt-0.5 text-xl font-bold">{totalPasswords}</h3>
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <div
+            key={item.label}
+            className={`flex h-10 items-center justify-between gap-2 rounded-md border bg-card px-3 shadow-sm ${item.card}`}
+          >
+            <div className="min-w-0 flex items-baseline gap-1.5">
+              <span className="truncate text-xs text-muted-foreground">{item.label}</span>
+              <span className="text-base font-bold leading-none tabular-nums">{item.value}</span>
+            </div>
+            <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${item.iconWrap}`}>
+              <Icon className="h-3.5 w-3.5" />
+            </div>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-blue/10">
-            <Key className="h-5 w-5 text-brand-blue" />
-          </div>
-        </div>
-      </Card>
-
-      <Card className="rounded-md border p-3 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">Strong Passwords</p>
-            <h3 className="mt-0.5 text-xl font-bold">{strongPasswords}</h3>
-          </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/15">
-            <Shield className="h-5 w-5 text-emerald-600" />
-          </div>
-        </div>
-      </Card>
-
-      <Card className="rounded-md border p-3 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">Weak Passwords</p>
-            <h3 className="mt-0.5 text-xl font-bold">{weakPasswords}</h3>
-          </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-          </div>
-        </div>
-      </Card>
-
-      <Card className="rounded-md border p-3 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">Favorites</p>
-            <h3 className="mt-0.5 text-xl font-bold">{favorites}</h3>
-          </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/15">
-            <Star className="h-5 w-5 text-amber-600" />
-          </div>
-        </div>
-      </Card>
+        );
+      })}
     </div>
   );
 };

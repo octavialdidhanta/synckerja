@@ -45,8 +45,8 @@ export function LinkedInContentSummaryBar({ summary, audienceCount, isLoading = 
   ];
 
   return (
-    <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {cards.map((card) => (
           <div
             key={card.label}

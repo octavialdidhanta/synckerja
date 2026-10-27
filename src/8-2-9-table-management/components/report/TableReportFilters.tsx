@@ -37,53 +37,48 @@ export function TableReportFilters({
   const { t } = useAppTranslation();
 
   return (
-    <div className="flex flex-wrap items-end gap-2">
-      <div className="min-w-[160px]">
-        <OutletFilterSelect value={outletId} onChange={onOutletChange} />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-[11px] font-medium text-muted-foreground">
-          {t("tableManagement.report.dateFrom", "From")}
-        </label>
-        <Input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => onDateFromChange(e.target.value)}
-          className="h-9 w-[150px] bg-white"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-[11px] font-medium text-muted-foreground">
-          {t("tableManagement.report.dateTo", "To")}
-        </label>
-        <Input
-          type="date"
-          value={dateTo}
-          onChange={(e) => onDateToChange(e.target.value)}
-          className="h-9 w-[150px] bg-white"
-        />
-      </div>
-      <div className="min-w-[160px]">
-        <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
-          {t("tableManagement.report.filterTable", "Table")}
-        </label>
-        <Select
-          value={tableKey ?? "all"}
-          onValueChange={(v) => onTableKeyChange(v === "all" ? null : v)}
+    <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <h2 className="flex h-10 shrink-0 items-center whitespace-nowrap text-lg font-semibold leading-none text-gray-900">
+        {t("tableManagement.report.title", "Table Report")}
+      </h2>
+      <OutletFilterSelect
+        value={outletId}
+        onChange={onOutletChange}
+        className="h-10 w-[180px] shrink-0"
+      />
+      <Input
+        type="date"
+        value={dateFrom}
+        onChange={(e) => onDateFromChange(e.target.value)}
+        className="h-10 w-[150px] shrink-0 bg-white"
+        aria-label={t("tableManagement.report.dateFrom", "From")}
+      />
+      <Input
+        type="date"
+        value={dateTo}
+        onChange={(e) => onDateToChange(e.target.value)}
+        className="h-10 w-[150px] shrink-0 bg-white"
+        aria-label={t("tableManagement.report.dateTo", "To")}
+      />
+      <Select
+        value={tableKey ?? "all"}
+        onValueChange={(v) => onTableKeyChange(v === "all" ? null : v)}
+      >
+        <SelectTrigger
+          className="h-10 w-[160px] shrink-0 bg-white"
+          aria-label={t("tableManagement.report.filterTable", "Table")}
         >
-          <SelectTrigger className="h-9 bg-white">
-            <SelectValue placeholder={t("tableManagement.report.allTables", "All")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("tableManagement.report.allTables", "All")}</SelectItem>
-            {tableOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+          <SelectValue placeholder={t("tableManagement.report.allTables", "All")} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{t("tableManagement.report.allTables", "All")}</SelectItem>
+          {tableOptions.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

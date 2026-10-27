@@ -86,38 +86,35 @@ export function ProductRecipesManager({ selectedOutletId, onOutletChange }: Prod
   };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-gray-900">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="mb-3 flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <h2 className="shrink-0 whitespace-nowrap text-lg font-semibold text-gray-900">
           {t("ingredient.productRecipe.heading", "Recipes")}
         </h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <ProductRecipeImportExportMenu />
-          <Button type="button" disabled={!selectedOutletId} onClick={openCreate}>
-            {t("ingredient.productRecipe.createButton", "Create Recipe")}
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {t("ingredient.productRecipe.total", "Total : {{count}}", { count: filteredRows.length })}
-          </span>
-        </div>
-      </div>
-
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <OutletFilterSelect value={selectedOutletId} onChange={onOutletChange} />
+        <OutletFilterSelect
+          value={selectedOutletId}
+          onChange={onOutletChange}
+          className="h-10 w-[180px] shrink-0"
+        />
         <div className="relative min-w-[160px] flex-1">
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("ingredient.library.search", "Search")}
-            className="h-9 pr-9"
+            className="h-10 pr-9"
           />
           <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         </div>
+        <ProductRecipeImportExportMenu />
+        <Button type="button" className="shrink-0" disabled={!selectedOutletId} onClick={openCreate}>
+          {t("ingredient.productRecipe.createButton", "Create Recipe")}
+        </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <Table>
-          <TableHeader>
+      <Table
+        containerClassName="min-h-0 flex-1 overflow-auto rounded-md border border-border/60 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+          <TableHeader className="sticky top-0 z-[1] bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
             <TableRow>
               <TableHead>{t("ingredient.productRecipe.columnItem", "Item name")}</TableHead>
               <TableHead>{t("ingredient.productRecipe.columnVariant", "Variant")}</TableHead>
@@ -164,7 +161,6 @@ export function ProductRecipesManager({ selectedOutletId, onOutletChange }: Prod
             )}
           </TableBody>
         </Table>
-      </div>
 
       <ProductRecipeFormSheet
         open={sheetOpen}

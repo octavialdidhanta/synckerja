@@ -54,32 +54,22 @@ export function DashboardComparisonPanel({
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-card p-3 shadow-sm">
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">
-            {t("operationsDashboard.filters.outlet", "Outlet")}
-          </p>
-          <Button type="button" variant="outline" onClick={() => setChooseOpen(true)}>
-            {compareOutletIds.length === 0
-              ? t("operationsDashboard.compare.chooseTitle", "Choose Outlet")
-              : t("operationsDashboard.compare.selectedCount", "Selected: {{count}}", {
-                  count: compareOutletIds.length,
-                })}
-          </Button>
-        </div>
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">
-            {t("operationsDashboard.filters.period", "Period")}
-          </p>
-          <SalesSummaryDateRangePicker
-            dateRange={dateRange}
-            onDateRangeChange={onDateRangeChange}
-            timeFilter={timeFilter}
-            onTimeFilterChange={() => undefined}
-            onApplyFilters={(range) => onDateRangeChange(range)}
-            hideTimeFilter
-          />
-        </div>
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3 shadow-sm">
+        <Button type="button" variant="outline" onClick={() => setChooseOpen(true)}>
+          {compareOutletIds.length === 0
+            ? t("operationsDashboard.compare.chooseTitle", "Choose Outlet")
+            : t("operationsDashboard.compare.selectedCount", "Selected: {{count}}", {
+                count: compareOutletIds.length,
+              })}
+        </Button>
+        <SalesSummaryDateRangePicker
+          dateRange={dateRange}
+          onDateRangeChange={onDateRangeChange}
+          timeFilter={timeFilter}
+          onTimeFilterChange={() => undefined}
+          onApplyFilters={(range) => onDateRangeChange(range)}
+          hideTimeFilter
+        />
       </div>
 
       {comparison.isError ? (

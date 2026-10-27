@@ -62,7 +62,7 @@ export function FeedbackDateRangePicker({ value, onChange }: Props) {
   const { t } = useAppTranslation();
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-nowrap items-center gap-2">
       <Select
         value={value.preset === 'custom' ? 'today' : value.preset}
         onValueChange={(preset) => {
@@ -70,7 +70,7 @@ export function FeedbackDateRangePicker({ value, onChange }: Props) {
           onChange({ preset: preset as FeedbackDatePresetId, ...next });
         }}
       >
-        <SelectTrigger className="h-9 w-[140px]">
+        <SelectTrigger className="h-10 w-[140px] shrink-0">
           <SelectValue placeholder={t('customers.feedback.preset.today', 'Today')} />
         </SelectTrigger>
         <SelectContent>
@@ -87,20 +87,20 @@ export function FeedbackDateRangePicker({ value, onChange }: Props) {
           type="button"
           variant="outline"
           size="icon"
-          className="h-9 w-9 shrink-0"
+          className="h-10 w-10 shrink-0"
           aria-label={t('customers.feedback.prevPeriod', 'Previous period')}
           onClick={() => onChange(shiftFeedbackRangeByDay(value, -1))}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <div className="flex h-9 min-w-[120px] items-center justify-center rounded-md border bg-background px-3 text-sm tabular-nums">
+        <div className="flex h-10 min-w-[120px] items-center justify-center rounded-md border bg-background px-3 text-sm tabular-nums">
           {formatRangeLabel(value)}
         </div>
         <Button
           type="button"
           variant="outline"
           size="icon"
-          className="h-9 w-9 shrink-0"
+          className="h-10 w-10 shrink-0"
           aria-label={t('customers.feedback.nextPeriod', 'Next period')}
           onClick={() => onChange(shiftFeedbackRangeByDay(value, 1))}
         >

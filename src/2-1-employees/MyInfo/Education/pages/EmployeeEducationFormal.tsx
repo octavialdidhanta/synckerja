@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
 import { EmployeeProfilePhoto } from '@/shared/components/EmployeeProfilePhoto';
-import { ArrowLeft, Edit, Save, X, User, GraduationCap, Users, FileText, Briefcase, Calendar, Clock, MapPin, DollarSign } from 'lucide-react';
+import { ArrowLeft, Edit, Save, X, User, GraduationCap, Users, FileText, Briefcase, Calendar, Clock, MapPin, DollarSign, Plus } from 'lucide-react';
 import { EducationInfoTab } from '../components/employee-detail/EducationInfoTab';
 import { useEmployeeDetail } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useEmployeeDetail';
 import { useAvatarSync } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useAvatarSync';
@@ -18,6 +18,8 @@ const EmployeeEducationFormal = () => {
   const [searchParams] = useSearchParams();
   const employeeId = id || searchParams.get('id');
   const isEditMode = true; // Always allow editing education records
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [isEditingRow, setIsEditingRow] = useState(false);
   const { syncAvatarAcrossApp } = useAvatarSync();
   
   const { data: employee, isLoading, error, refetch } = useEmployeeDetail(employeeId);
@@ -143,13 +145,13 @@ const EmployeeEducationFormal = () => {
   }
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-gray-100 font-sans">
-        <div className="flex flex-1 min-h-0">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
+        <div className="flex min-h-0 flex-1">
           {/* Main Content */}
-          <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
-            <div className="h-full flex flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-2">
+            <div className="flex h-full flex-col overflow-hidden">
               {/* Header with Actions */}
-              <div className="flex-shrink-0 mt-2 mb-2">
+              <div className="mt-1 mb-1 flex-shrink-0">
                 <Button 
                   variant="outline" 
                   onClick={handleBackToEmployees} 
@@ -237,26 +239,57 @@ const EmployeeEducationFormal = () => {
                 </div>
                 
                 {/* Right Column - Main Content - 9 columns */}
-                <div className="col-span-9 flex flex-col min-h-0">
-                  {/* Main Content Section */}
-                  <div className="flex-1 min-h-0">
-                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col h-full">
-                      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        <div className="p-6">
-                          <EducationInfoTab
-                            employee={employee}
-                            isEditMode={isEditMode}
-                            onUpdate={() => {}}
-                            sectionTitle="Formal Education"
-                          />
+                <div className="col-span-9 flex min-h-0 flex-col">
+                  {/* Main Content Section — match /my-info/payroll footer shell */}
+                  <div className="min-h-0 flex-1">
+                    <div className="flex h-full flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
+                      {/* Header Section - Fixed */}
+                      <div className="flex-shrink-0 border-b border-gray-200 px-6 pb-3 pt-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <h2 className="text-xl font-semibold text-gray-900">Formal Education</h2>
+                          {isEditMode && (
+                            <Button
+                              onClick={() => setIsAddingNew(true)}
+                              size="sm"
+                              className={`bg-primary text-primary-foreground hover:bg-primary/90 ${
+                                isAddingNew || isEditingRow
+                                  ? 'invisible pointer-events-none'
+                                  : ''
+                              }`}
+                              tabIndex={isAddingNew || isEditingRow ? -1 : undefined}
+                              aria-hidden={isAddingNew || isEditingRow}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add Education
+                            </Button>
+                          )}
                         </div>
                       </div>
 
-                      {/* Table Footer */}
-                      <EducationTableFooter 
-                        lastUpdated={lastUpdated}
-                        highestDegree={highestDegree}
-                      />
+                      {/* Scrollable Content */}
+                      <div className="min-h-0 flex-1 overflow-hidden">
+                        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          <div className="p-4">
+                            <EducationInfoTab
+                              employee={employee}
+                              isEditMode={isEditMode}
+                              onUpdate={() => {}}
+                              isAddingNew={isAddingNew}
+                              onAddingNewChange={setIsAddingNew}
+                              onEditingChange={setIsEditingRow}
+                              hideInlineAddButton
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Content Footer - Fixed (same rhythm as payroll) */}
+                      <div className="flex-shrink-0">
+                        <EducationTableFooter 
+                          lastUpdated={lastUpdated}
+                          highestDegree={highestDegree}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

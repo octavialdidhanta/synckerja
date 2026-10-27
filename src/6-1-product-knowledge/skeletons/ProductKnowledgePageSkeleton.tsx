@@ -20,33 +20,31 @@ function ProductKnowledgeTableSkeleton() {
   const colCount = 17;
   const rows = 5;
   return (
-    <div className="w-full max-w-full">
-      <div className="rounded-md border border-gray-200">
-        <div className="overflow-x-auto overflow-y-clip">
-          <div className="min-w-[4088px]">
-            <div className="flex h-10 border-b-2 border-gray-300 bg-gray-50">
-              {Array.from({ length: colCount }).map((_, i) => (
-                <div
-                  key={`th-${i}`}
-                  className="flex min-w-[5rem] flex-1 items-center justify-center border-r border-gray-200 px-2 py-2 last:border-r-0"
-                >
-                  <Skeleton className="h-3 w-[70%] max-w-[5rem] rounded-sm" />
-                </div>
-              ))}
-            </div>
-            {Array.from({ length: rows }).map((_, r) => (
-              <div key={`tr-${r}`} className="flex min-h-10 border-b border-gray-200">
-                {Array.from({ length: colCount }).map((_, i) => (
-                  <div
-                    key={`td-${r}-${i}`}
-                    className="flex min-w-[5rem] flex-1 items-center border-r border-gray-200 px-2 py-1 last:border-r-0"
-                  >
-                    <Skeleton className="h-8 w-[85%] rounded-md" />
-                  </div>
-                ))}
+    <div className="w-full min-w-0">
+      <div className="w-full min-w-0 overflow-x-auto overflow-y-clip">
+        <div className="min-w-[4088px]">
+          <div className="flex h-10 border-b-2 border-gray-300 bg-gray-50">
+            {Array.from({ length: colCount }).map((_, i) => (
+              <div
+                key={`th-${i}`}
+                className="flex min-w-[5rem] flex-1 items-center justify-center border-r border-gray-200 px-2 py-2 last:border-r-0"
+              >
+                <Skeleton className="h-3 w-[70%] max-w-[5rem] rounded-sm" />
               </div>
             ))}
           </div>
+          {Array.from({ length: rows }).map((_, r) => (
+            <div key={`tr-${r}`} className="flex min-h-10 border-b border-gray-200">
+              {Array.from({ length: colCount }).map((_, i) => (
+                <div
+                  key={`td-${r}-${i}`}
+                  className="flex min-w-[5rem] flex-1 items-center border-r border-gray-200 px-2 py-1 last:border-r-0"
+                >
+                  <Skeleton className="h-8 w-[85%] rounded-md" />
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -80,12 +78,12 @@ function ProductKnowledgeSidebarSkeleton() {
   const tabWidths = ['w-14', 'w-10', 'w-11', 'w-14', 'w-10'] as const;
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="flex min-h-11 shrink-0 items-stretch border-b border-gray-200">
+      <div className="scrollbar-hide flex min-h-11 shrink-0 items-stretch overflow-x-auto overflow-y-hidden border-b border-gray-200 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabWidths.map((w, i) => (
           <div
             key={i}
             className={cn(
-              'flex min-h-11 flex-1 items-center justify-center border-b-2 px-2 sm:px-4',
+              'flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap border-b-2 px-3 sm:px-4',
               i === 0 ? 'border-primary bg-primary/10' : 'border-transparent',
             )}
           >
@@ -121,15 +119,13 @@ function ProductKnowledgeSidebarSkeleton() {
 function MainBodySkeleton() {
   return (
     <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
-      <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col gap-0 overflow-hidden">
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-          <div className="z-20 flex min-h-11 shrink-0 items-center border-b-2 border-gray-300 bg-white px-4 py-2">
+      <div className="col-span-9 flex h-full min-h-0 w-full min-w-0 flex-col gap-0 overflow-hidden">
+        <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="z-20 flex min-h-11 w-full shrink-0 items-center border-b-2 border-gray-300 bg-white px-4 py-2">
             <ProductKnowledgeFiltersSkeleton />
           </div>
-          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="w-full min-w-0 p-6">
-              <ProductKnowledgeTableSkeleton />
-            </div>
+          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <ProductKnowledgeTableSkeleton />
           </div>
           <TableFooterStripSkeleton />
         </div>

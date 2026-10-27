@@ -448,7 +448,7 @@ export default function PayrollCalculationsPage() {
 
                       {!disbursePanelOpen ? (
                         <div className={PAYROLL_TABLE_SHELL_HEIGHT}>
-                          <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
+                          <div className="flex h-full min-h-0 w-full min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
                             <PayrollCalculationsTable
                               calculations={filteredCalculations}
                               totalUnfiltered={calculations.length}

@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
-import { Calendar, MapPin, ExternalLink, ClipboardList } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { MapPin, ExternalLink, ClipboardList } from "lucide-react";
+import { Card, CardContent } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { useOfficeLocations } from "@/features/2-3-settings/hooks/useLocationManagement";
 import { useReportAttendanceSettingsLoading } from "@/2-3-attendance/context/AttendancePageLoadContext";
+import { AttendanceSettingsHeaderActions } from "@/2-3-settings/components/AttendanceSettingsHeaderActions";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
 const JADWAL_KUNJUNGAN_PATH = "/operations/sales/jadwal-kunjungan";
@@ -24,41 +25,28 @@ export const VisitScheduling = () => {
 
   return (
     <div className="space-y-4">
+      <AttendanceSettingsHeaderActions>
+        <Button asChild size="sm" className="gap-2">
+          <Link to={JADWAL_KUNJUNGAN_PATH}>
+            <ExternalLink className="h-4 w-4" />
+            {t("attendanceSettings.visitScheduling.openJadwal", "Buka Jadwal Kunjungan")}
+          </Link>
+        </Button>
+        <Button asChild size="sm" variant="outline" className="gap-2">
+          <Link to={CLIENT_VISITS_PATH}>
+            <ClipboardList className="h-4 w-4" />
+            {t("attendanceSettings.visitScheduling.openClientVisits", "Lihat Client Visits")}
+          </Link>
+        </Button>
+      </AttendanceSettingsHeaderActions>
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Calendar className="h-5 w-5 shrink-0" />
-            {t("attendanceSettings.visitScheduling.title", "Visit Scheduling")}
-          </CardTitle>
-          <p className="text-muted-foreground text-sm">
+        <CardContent className="space-y-4 pt-6">
+          <p className="text-sm text-muted-foreground">
             {t(
               "attendanceSettings.visitScheduling.redirectDescription",
               "Jadwal kunjungan client dikelola di modul Sales Operations, bukan di halaman Attendance Settings.",
             )}
           </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-foreground">
-            {t(
-              "attendanceSettings.visitScheduling.redirectHint",
-              "Buat jadwal baru, lihat status kunjungan, dan kelola lokasi client site dari halaman Jadwal Kunjungan.",
-            )}
-          </p>
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button asChild className="gap-2">
-              <Link to={JADWAL_KUNJUNGAN_PATH}>
-                <ExternalLink className="h-4 w-4" />
-                {t("attendanceSettings.visitScheduling.openJadwal", "Buka Jadwal Kunjungan")}
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="gap-2">
-              <Link to={CLIENT_VISITS_PATH}>
-                <ClipboardList className="h-4 w-4" />
-                {t("attendanceSettings.visitScheduling.openClientVisits", "Lihat Client Visits")}
-              </Link>
-            </Button>
-          </div>
         </CardContent>
       </Card>
 

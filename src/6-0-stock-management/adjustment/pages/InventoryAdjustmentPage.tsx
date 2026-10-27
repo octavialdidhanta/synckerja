@@ -51,7 +51,7 @@ export function InventoryAdjustmentPage() {
     <>
       <StockManagementModuleShell>
         <InventoryWorkspace count={batches.length}>
-            <div className="border-b px-4 py-3">
+            <div className="border-b px-4 py-2">
               <InventoryAdjustmentToolbar
                 outletId={selectedOutletId}
                 onOutletChange={setSelectedOutletId}

@@ -81,11 +81,15 @@ export function DefaultProductsTable({
   };
 
   if (isLoading) {
-    return <div className="py-8 text-center text-muted-foreground">{t("defaultPrices.loading", "Loading...")}</div>;
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center py-8 text-muted-foreground">
+        {t("defaultPrices.loading", "Loading...")}
+      </div>
+    );
   }
   if (rows.length === 0) {
     return (
-      <div className="py-8 text-center text-muted-foreground">
+      <div className="flex min-h-0 flex-1 items-center justify-center py-8 text-center text-muted-foreground">
         {selectedOutletId
           ? t("defaultPrices.product.emptyOutlet", "No products assigned to this outlet.")
           : t("defaultPrices.product.empty", "No products yet. Add a retail or F&B item with a photo.")}
@@ -94,9 +98,11 @@ export function DefaultProductsTable({
   }
 
   return (
-    <>
-      <Table>
-        <TableHeader>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <Table
+        containerClassName="min-h-0 flex-1 overflow-auto rounded-md border border-border/60 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        <TableHeader className="sticky top-0 z-[1] bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
           <TableRow>
             <TableHead className="w-[72px]">{t("defaultPrices.product.photo", "Photo")}</TableHead>
             <TableHead>{t("defaultPrices.product.name", "Name")}</TableHead>
@@ -253,6 +259,6 @@ export function DefaultProductsTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }

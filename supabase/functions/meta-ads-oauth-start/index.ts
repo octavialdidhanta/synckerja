@@ -93,18 +93,31 @@ Deno.serve(async (req: Request) => {
 
   const redirectUri = metaAdsOAuthRedirectUri();
   const v = metaGraphVersion();
+  const configId = readMetaAdsOAuthConfigId();
+
+  // Facebook Login for Business apps ignore `scope` when a default/config is applied.
+  // Without a dedicated Ads configuration, Meta shows Page permissions (wrong for ads comments).
+  if (!configId) {
+    return metaAdsJson({
+      error: "META_ADS_OAUTH_CONFIG_ID_REQUIRED",
+      message:
+        "Set META_ADS_OAUTH_CONFIG_ID to a Facebook Login for Business configuration that includes ads permissions (ads_read, ads_management, pages_manage_ads). Do not reuse the Instagram/Facebook Page content config.",
+      redirect_uri: redirectUri,
+      required_scopes: META_ADS_OAUTH_SCOPES.split(","),
+    }, 503);
+  }
+
   const params = new URLSearchParams({
     client_id: oauth.appId,
     redirect_uri: redirectUri,
     state: stateToken,
-    scope: META_ADS_OAUTH_SCOPES,
+    // With config_id, Meta defines permissions from the configuration (not scope).
+    config_id: configId,
     response_type: "code",
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
   });
-  const configId = readMetaAdsOAuthConfigId();
-  if (configId) params.set("config_id", configId);
 
   const url = `https://www.facebook.com/${v}/dialog/oauth?${params.toString()}`;
-  return metaAdsJson({ url }, 200);
+  return metaAdsJson({ url, config_id: configId }, 200);
 });

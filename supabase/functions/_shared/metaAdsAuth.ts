@@ -7,7 +7,9 @@ export const metaAdsCorsHeaders: Record<string, string> = {
   "Access-Control-Max-Age": "86400",
 };
 
-export const META_ADS_OAUTH_SCOPES = "ads_read,ads_management,business_management";
+/** Includes Page scopes so ads user token can call /{page-id}/ads_posts + read comments. */
+export const META_ADS_OAUTH_SCOPES =
+  "ads_read,ads_management,business_management,pages_show_list,pages_manage_ads,pages_read_engagement,pages_manage_engagement";
 
 export function metaGraphVersion(): string {
   return Deno.env.get("META_GRAPH_API_VERSION")?.trim() || "v22.0";
@@ -20,12 +22,14 @@ export function metaAdsJson(body: object, status: number): Response {
   });
 }
 
-/** Facebook Login for Business configuration ID (same app as Instagram when unset). */
+/**
+ * Facebook Login for Business configuration for Meta Ads only.
+ * Do NOT fall back to META_OAUTH_CONFIG_ID (content/Pages login) — that config
+ * requests Page scopes and Meta ignores our ads `scope=` when config_id is set.
+ * If unset, meta-ads-oauth-start uses classic scope-based OAuth (META_ADS_OAUTH_SCOPES).
+ */
 export function readMetaAdsOAuthConfigId(): string | null {
-  const id =
-    Deno.env.get("META_ADS_OAUTH_CONFIG_ID")?.trim() ??
-    Deno.env.get("META_OAUTH_CONFIG_ID")?.trim() ??
-    "";
+  const id = Deno.env.get("META_ADS_OAUTH_CONFIG_ID")?.trim() ?? "";
   return id || null;
 }
 

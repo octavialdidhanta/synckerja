@@ -148,18 +148,6 @@ export function EmailNotificationsSettings() {
         </h2>
 
         <section className="space-y-4">
-          <div>
-            <p className="border-b pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {t("settings.emailNotifications.manageSection", "Manage Email Notification")}
-            </p>
-            <p className="mt-3 text-sm text-muted-foreground">
-              {t(
-                "settings.emailNotifications.manageDescription",
-                "Receive emails on new products or how your business is performing. Emails are automatically sent to your account email.",
-              )}
-            </p>
-          </div>
-
           <div className="rounded-md border border-border px-4">
             <NotificationToggleRow
               id="email-notif-daily-sales"

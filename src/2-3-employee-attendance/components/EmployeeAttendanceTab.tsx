@@ -32,15 +32,15 @@ const EmployeeAttendanceTab = () => {
   }, []);
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col">
-      <div className="grid min-h-0 flex-1 grid-cols-12 gap-2">
-        <div className="col-span-12 flex min-h-0 flex-col xl:col-span-9">
-          <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+      <div className="grid min-h-0 min-w-0 flex-1 grid-cols-12 items-stretch gap-2 [grid-template-rows:minmax(0,1fr)]">
+        <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch xl:col-span-9">
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
             <div className="mb-2 flex-shrink-0">
               <AttendanceFilters filters={filters} setFilters={setFilters} />
             </div>
-            <div className={ATTENDANCE_TABLE_SECTION}>
-              <div className="bg-card flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border shadow-sm">
+            <div className={`${ATTENDANCE_TABLE_SECTION} h-full`}>
+              <div className="bg-card flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border shadow-sm">
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                   {selectedEmployee ? (
                     <EmployeeAttendanceDetailPanel
@@ -69,8 +69,8 @@ const EmployeeAttendanceTab = () => {
           </div>
         </div>
 
-        <div className="col-span-12 flex min-h-0 flex-col xl:col-span-3">
-          <div className={ATTENDANCE_TABLE_SECTION}>
+        <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col self-stretch xl:col-span-3">
+          <div className={`${ATTENDANCE_TABLE_SECTION} h-full`}>
             <div className="bg-card flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border shadow-sm">
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <EnhancedAttendanceSidebar selectedRows={[]} />

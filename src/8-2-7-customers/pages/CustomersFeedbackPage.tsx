@@ -94,7 +94,7 @@ export default function CustomersFeedbackPage() {
       loadingSkeleton={<CustomersFeedbackPageSkeleton />}
     >
       <CustomersWorkspace count={feedbackQuery.data?.rows.length ?? 0}>
-          <div className="flex-shrink-0 border-b px-4 py-3">
+          <div className="flex-shrink-0 border-b px-3 py-2">
             <FeedbackToolbar
               outletId={filters.outletId}
               employeeId={filters.employeeId}

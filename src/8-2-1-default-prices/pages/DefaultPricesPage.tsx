@@ -311,67 +311,63 @@ export default function DefaultPricesPage() {
   return (
     <DefaultPricesModuleShell showContent={showContent}>
       <DefaultPricesWorkspace count={panelCount}>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
             <LibraryItemNav />
-            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-4 py-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {isLibraryConfigView ? null : (
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      {isProducts
-                        ? t("defaultPrices.product.heading", "Products")
-                        : t("defaultPrices.service.heading", "Services")}
-                    </h2>
-                    <p className="mt-0.5 text-sm text-gray-500">
-                      {isProducts
-                        ? t(
-                            "defaultPrices.product.subtitle",
-                            "Retail and F&B items with a photo. Tracked products use Stock Management SKUs.",
-                          )
-                        : t(
-                            "defaultPrices.service.subtitle",
-                            "Set default unit price per Service + Category for lead conversion.",
-                          )}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button onClick={handleAdd} disabled={!organizationId || isCreating}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      {t("common.add", "Add")}
-                    </Button>
-                  </div>
+            <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-2 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {isLibraryConfigView ? null : isProducts ? null : (
+                <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
+                  <h2 className="truncate text-lg font-semibold text-gray-900">
+                    {t("defaultPrices.service.heading", "Services")}
+                  </h2>
+                  <Button className="shrink-0" onClick={handleAdd} disabled={!organizationId || isCreating}>
+                    <Plus className="mr-1.5 h-4 w-4" />
+                    {t("common.add", "Add")}
+                  </Button>
                 </div>
                 )}
                 {isTaxes ? (
-                  <LibraryTaxesManager listClassName="max-h-[min(560px,calc(100vh-280px))]" />
+                  <LibraryTaxesManager listClassName="min-h-0 flex-1" />
                 ) : isSalesTypes ? (
-                  <LibrarySalesTypesManager listClassName="max-h-[min(560px,calc(100vh-280px))]" />
+                  <LibrarySalesTypesManager listClassName="min-h-0 flex-1" />
                 ) : isPromos ? (
-                  <LibraryPromosManager listClassName="max-h-[min(560px,calc(100vh-280px))]" />
+                  <LibraryPromosManager listClassName="min-h-0 flex-1" />
                 ) : isBundles ? (
-                  <LibraryBundlesManager listClassName="max-h-[min(560px,calc(100vh-280px))]" />
+                  <LibraryBundlesManager listClassName="min-h-0 flex-1" />
                 ) : isDiscounts ? (
-                  <LibraryDiscountsManager listClassName="max-h-[min(560px,calc(100vh-280px))]" />
+                  <LibraryDiscountsManager listClassName="min-h-0 flex-1" />
                 ) : isGratuity ? (
-                  <LibraryGratuityManager listClassName="max-h-[min(560px,calc(100vh-280px))]" />
+                  <LibraryGratuityManager listClassName="min-h-0 flex-1" />
                 ) : isModifiers ? (
-                  <LibraryModifiersManager listClassName="max-h-[min(560px,calc(100vh-280px))]" />
+                  <LibraryModifiersManager listClassName="min-h-0 flex-1" />
                 ) : isBrands ? (
-                  <LibraryBrandsManager listClassName="max-h-[min(560px,calc(100vh-280px))]" />
+                  <LibraryBrandsManager listClassName="min-h-0 flex-1" />
                 ) : isCategories ? (
-                  <ProductCategoriesManager listClassName="max-h-[min(560px,calc(100vh-280px))]" />
+                  <ProductCategoriesManager listClassName="min-h-0 flex-1" />
                 ) : isProducts ? (
-                  <>
-                    <div className="mb-3 flex flex-wrap gap-2">
-                      <OutletFilterSelect value={selectedOutletId} onChange={setSelectedOutletId} />
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <div className="mb-3 flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      <h2
+                        className="shrink-0 whitespace-nowrap text-lg font-semibold text-gray-900"
+                        title={t(
+                          "defaultPrices.product.subtitle",
+                          "Retail and F&B items with a photo. Tracked products use Stock Management SKUs.",
+                        )}
+                      >
+                        {t("defaultPrices.product.heading", "Products")}
+                      </h2>
+                      <OutletFilterSelect
+                        value={selectedOutletId}
+                        onChange={setSelectedOutletId}
+                        className="h-10 w-[180px] shrink-0"
+                      />
                       <Input
-                        className="h-9 min-w-[160px] flex-1"
+                        className="h-10 min-w-[160px] flex-1"
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
                         placeholder={t("defaultPrices.product.search", "Search name or SKU…")}
                       />
                       <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                        <SelectTrigger className="h-9 w-[160px]">
+                        <SelectTrigger className="h-10 w-[160px] shrink-0">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -385,7 +381,7 @@ export default function DefaultPricesPage() {
                         </SelectContent>
                       </Select>
                       <Select value={brandFilter} onValueChange={setBrandFilter}>
-                        <SelectTrigger className="h-9 w-[160px]">
+                        <SelectTrigger className="h-10 w-[140px] shrink-0">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -399,7 +395,7 @@ export default function DefaultPricesPage() {
                         </SelectContent>
                       </Select>
                       <Select value={stockFilter} onValueChange={(value) => setStockFilter(value as typeof stockFilter)}>
-                        <SelectTrigger className="h-9 w-[140px]">
+                        <SelectTrigger className="h-10 w-[130px] shrink-0">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -409,7 +405,7 @@ export default function DefaultPricesPage() {
                         </SelectContent>
                       </Select>
                       <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="h-9 w-[140px]">
+                        <SelectTrigger className="h-10 w-[130px] shrink-0">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -421,6 +417,14 @@ export default function DefaultPricesPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <Button
+                        className="shrink-0"
+                        onClick={handleAdd}
+                        disabled={!organizationId || isCreating}
+                      >
+                        <Plus className="mr-1.5 h-4 w-4" />
+                        {t("common.add", "Add")}
+                      </Button>
                     </div>
                     <DefaultProductsTable
                       rows={filteredProductRows}
@@ -430,15 +434,17 @@ export default function DefaultPricesPage() {
                       onDuplicate={handleDuplicate}
                       onDelete={deleteRow}
                     />
-                  </>
+                  </div>
                 ) : (
-                  <DefaultPricesTable
-                    rows={serviceRows}
-                    isLoading={isLoading}
-                    onEdit={handleEdit}
-                    onDelete={deleteRow}
-                    onOpenSop={handleOpenSop}
-                  />
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <DefaultPricesTable
+                      rows={serviceRows}
+                      isLoading={isLoading}
+                      onEdit={handleEdit}
+                      onDelete={deleteRow}
+                      onOpenSop={handleOpenSop}
+                    />
+                  </div>
                 )}
             </div>
           </div>

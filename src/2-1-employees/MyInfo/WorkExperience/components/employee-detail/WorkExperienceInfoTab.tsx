@@ -19,6 +19,13 @@ interface WorkExperienceInfoTabProps {
   onUpdate: () => void;
   /** When set, title and Add button share one header row (Work Experience page). */
   sectionTitle?: string;
+  /** Controlled add form (page header Add button). */
+  isAddingNew?: boolean;
+  onAddingNewChange?: (value: boolean) => void;
+  /** Notify page when a row is being edited (to hide header Add). */
+  onEditingChange?: (editing: boolean) => void;
+  /** Hide inline Add — use when Add lives in the page header. */
+  hideInlineAddButton?: boolean;
 }
 
 export const WorkExperienceInfoTab = ({
@@ -26,11 +33,20 @@ export const WorkExperienceInfoTab = ({
   isEditMode,
   onUpdate,
   sectionTitle,
+  isAddingNew: controlledIsAddingNew,
+  onAddingNewChange,
+  onEditingChange,
+  hideInlineAddButton = false,
 }: WorkExperienceInfoTabProps) => {
   const { organizationId } = useCurrentOrg();
   const { workExperiences, isLoading, addWorkExperience, updateWorkExperience, deleteWorkExperience } = useWorkExperiences(employee.id);
   
-  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [internalIsAddingNew, setInternalIsAddingNew] = useState(false);
+  const isAddingNew = controlledIsAddingNew ?? internalIsAddingNew;
+  const setIsAddingNew = (value: boolean) => {
+    onAddingNewChange?.(value);
+    if (controlledIsAddingNew === undefined) setInternalIsAddingNew(value);
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<WorkExperience>>({
     company_name: '',
@@ -69,6 +85,7 @@ export const WorkExperienceInfoTab = ({
     if (editingId) {
       await updateWorkExperience.mutateAsync({ id: editingId, data: experienceData });
       setEditingId(null);
+      onEditingChange?.(false);
     } else {
       await addWorkExperience.mutateAsync(experienceData);
       setIsAddingNew(false);
@@ -87,6 +104,7 @@ export const WorkExperienceInfoTab = ({
 
   const handleEdit = (experience: WorkExperience) => {
     setEditingId(experience.id);
+    onEditingChange?.(true);
     setFormData({
       company_name: experience.company_name,
       position: experience.position,
@@ -101,6 +119,7 @@ export const WorkExperienceInfoTab = ({
   const handleCancel = () => {
     setIsAddingNew(false);
     setEditingId(null);
+    onEditingChange?.(false);
     setFormData({
       company_name: '',
       position: '',
@@ -127,7 +146,7 @@ export const WorkExperienceInfoTab = ({
   }
 
   const addWorkExperienceButton =
-    isEditMode && !isAddingNew && !editingId ? (
+    !hideInlineAddButton && isEditMode && !isAddingNew && !editingId ? (
       <Button
         onClick={() => setIsAddingNew(true)}
         size="sm"
@@ -399,20 +418,12 @@ export const WorkExperienceInfoTab = ({
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="text-center py-12">
-            <p className="text-gray-500 mb-4">No work experience records found.</p>
-            {isEditMode && (
-              <Button
-                onClick={() => setIsAddingNew(true)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add First Work Experience
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <div className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 py-8 text-center text-gray-500">
+          <p>No work experience records found.</p>
+          {isEditMode && (
+            <p className="mt-2 text-sm">Click &quot;Add Work Experience&quot; to get started.</p>
+          )}
+        </div>
       )}
     </div>
   );

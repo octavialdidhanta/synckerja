@@ -24,6 +24,8 @@ export type MetaContentPostRow = {
   timestamp: string | null;
   comment_count: number;
   like_count: number;
+  /** Facebook ads-only / dark post (or organic post also used as an ad). */
+  is_ad?: boolean;
 };
 
 export type MetaContentCommentRow = {

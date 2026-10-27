@@ -47,54 +47,54 @@ export function InventorySummaryToolbar({
   const { t } = useAppTranslation();
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">{t("operations.inventory.summary.heading", "Summary")}</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          {canManage && onMigrateSkuStock ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="h-9"
-              disabled={migrating}
-              onClick={onMigrateSkuStock}
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${migrating ? "animate-spin" : ""}`} />
-              {t("operations.inventory.summary.migrateSku", "Migrate SKU stock")}
-            </Button>
-          ) : null}
-          <Button type="button" className="h-9" onClick={onExport}>
-            <Download className="mr-2 h-4 w-4" />
-            {t("operations.inventory.summary.export", "Export")}
-          </Button>
-        </div>
+    <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <h2 className="flex h-10 shrink-0 items-center whitespace-nowrap text-lg font-semibold leading-none text-gray-900">
+        {t("operations.inventory.summary.heading", "Summary")}
+      </h2>
+      <OutletFilterSelect
+        value={outletId}
+        onChange={onOutletChange}
+        className="h-10 w-[180px] shrink-0"
+      />
+      <InventorySummaryDateControl from={from} to={to} onChange={onRangeChange} />
+      <Select value={kind} onValueChange={(value) => onKindChange(value as InventorySummaryKindFilter)}>
+        <SelectTrigger className="h-10 w-[160px] shrink-0">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="item_library">
+            {t("operations.inventory.summary.kindProducts", "Item Library")}
+          </SelectItem>
+          <SelectItem value="ingredients">
+            {t("operations.inventory.summary.kindIngredients", "Ingredients")}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+      <div className="relative min-w-[140px] flex-1">
+        <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder={t("operations.inventory.summary.search", "Search")}
+          className="h-10 pr-9"
+        />
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <OutletFilterSelect value={outletId} onChange={onOutletChange} />
-        <InventorySummaryDateControl from={from} to={to} onChange={onRangeChange} />
-        <Select value={kind} onValueChange={(value) => onKindChange(value as InventorySummaryKindFilter)}>
-          <SelectTrigger className="h-9 w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="item_library">
-              {t("operations.inventory.summary.kindProducts", "Item Library")}
-            </SelectItem>
-            <SelectItem value="ingredients">
-              {t("operations.inventory.summary.kindIngredients", "Ingredients")}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="relative min-w-[180px] flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={t("operations.inventory.summary.search", "Search")}
-            className="h-9 pl-8"
-          />
-        </div>
-      </div>
+      {canManage && onMigrateSkuStock ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 shrink-0"
+          disabled={migrating}
+          onClick={onMigrateSkuStock}
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${migrating ? "animate-spin" : ""}`} />
+          {t("operations.inventory.summary.migrateSku", "Migrate SKU stock")}
+        </Button>
+      ) : null}
+      <Button type="button" className="h-10 shrink-0" onClick={onExport}>
+        <Download className="mr-2 h-4 w-4" />
+        {t("operations.inventory.summary.export", "Export")}
+      </Button>
     </div>
   );
 }

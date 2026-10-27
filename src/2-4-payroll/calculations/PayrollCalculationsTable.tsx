@@ -93,69 +93,75 @@ export function PayrollCalculationsTable({
     }).format(amount || 0);
   };
 
+  const isEmpty = !isLoading && (!calculations || calculations.length === 0);
+
+  const tableHeader = (
+    <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
+      <TableRow className="hover:bg-transparent">
+        <TableHead className="min-w-[180px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
+          Employee
+        </TableHead>
+        <TableHead className="min-w-[120px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
+          Department
+        </TableHead>
+        <TableHead className="min-w-[140px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
+          Period
+        </TableHead>
+        <TableHead className="min-w-[120px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
+          Basic Salary
+        </TableHead>
+        <TableHead className="min-w-[110px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
+          Allowances
+        </TableHead>
+        <TableHead className="min-w-[120px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
+          Gross Pay
+        </TableHead>
+        <TableHead className="min-w-[110px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
+          Deductions
+        </TableHead>
+        <TableHead className="min-w-[120px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
+          Net Pay
+        </TableHead>
+        <TableHead className="min-w-[100px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
+          Status
+        </TableHead>
+        <TableHead className="min-w-[100px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
+          Payment
+        </TableHead>
+        <TableHead className="min-w-[80px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
+          Actions
+        </TableHead>
+      </TableRow>
+    </TableHeader>
+  );
+
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col">
-      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <table className="w-full caption-bottom text-sm">
-          <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="min-w-[180px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
-                Employee
-              </TableHead>
-              <TableHead className="min-w-[120px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
-                Department
-              </TableHead>
-              <TableHead className="min-w-[140px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
-                Period
-              </TableHead>
-              <TableHead className="min-w-[120px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
-                Basic Salary
-              </TableHead>
-              <TableHead className="min-w-[110px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
-                Allowances
-              </TableHead>
-              <TableHead className="min-w-[120px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
-                Gross Pay
-              </TableHead>
-              <TableHead className="min-w-[110px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
-                Deductions
-              </TableHead>
-              <TableHead className="min-w-[120px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
-                Net Pay
-              </TableHead>
-              <TableHead className="min-w-[100px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
-                Status
-              </TableHead>
-              <TableHead className="min-w-[100px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
-                Payment
-              </TableHead>
-              <TableHead className="min-w-[80px] whitespace-nowrap bg-gray-50 px-3 text-xs font-medium text-gray-700">
-                Actions
-              </TableHead>
-            </TableRow>
-          </TableHeader>
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 w-full min-w-0 flex-1 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <table className="w-full min-w-full caption-bottom text-sm">
+          {tableHeader}
           <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={11} className="text-muted-foreground py-12 text-center text-sm">
-                  Loading payroll calculations...
-                </TableCell>
-              </TableRow>
-            ) : !calculations || calculations.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={11} className="text-muted-foreground py-8 text-center text-sm">
-                  <div className="flex flex-col items-center space-y-2">
-                    <Calculator className="text-muted-foreground/50 h-8 w-8" />
-                    <div>No payroll calculations found</div>
-                    {onRefresh && (
-                      <Button
-                        onClick={onRefresh}
-                        variant="outline"
-                        className="mt-1 flex h-8 items-center gap-1.5 px-3 text-xs"
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                        Refresh Data
-                      </Button>
+            {isLoading || isEmpty ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={11} className="p-0 align-middle">
+                  <div className="flex min-h-[min(480px,calc(100dvh-360px))] w-full flex-col items-center justify-center bg-muted/30 px-4 py-12 text-center">
+                    {isLoading ? (
+                      <p className="text-muted-foreground text-sm">Loading payroll calculations...</p>
+                    ) : (
+                      <div className="flex flex-col items-center space-y-2">
+                        <Calculator className="text-muted-foreground/50 h-8 w-8" />
+                        <div className="text-muted-foreground text-sm">No payroll calculations found</div>
+                        {onRefresh ? (
+                          <Button
+                            onClick={onRefresh}
+                            variant="outline"
+                            className="mt-1 flex h-8 items-center gap-1.5 px-3 text-xs"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            Refresh Data
+                          </Button>
+                        ) : null}
+                      </div>
                     )}
                   </div>
                 </TableCell>

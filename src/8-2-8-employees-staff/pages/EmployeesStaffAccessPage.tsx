@@ -27,13 +27,14 @@ export default function EmployeesStaffAccessPage() {
   return (
     <EmployeesStaffModuleShell showContent={showContent}>
       <EmployeesStaffWorkspace count={roles.length}>
-          <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-            <h2 className="text-base font-semibold">
+          <div className="flex flex-shrink-0 flex-nowrap items-center gap-2 border-b px-3 py-2">
+            <h2 className="flex h-10 shrink-0 items-center whitespace-nowrap text-lg font-semibold leading-none text-gray-900">
               {t("employeesStaff.access.title", "Employee Access")}
             </h2>
+            <div className="min-w-0 flex-1" aria-hidden />
             <Button
               type="button"
-              size="sm"
+              className="h-10 shrink-0"
               onClick={() => {
                 setSelected(null);
                 setSheetOpen(true);

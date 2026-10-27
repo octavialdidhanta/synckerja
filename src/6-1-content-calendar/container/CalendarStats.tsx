@@ -77,15 +77,17 @@ export const CalendarStats: React.FC<CalendarStatsProps> = ({ monthlyStats }) =>
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-1.5">
       {statsCards.map((stat, index) => (
-        <div key={index} className={`${stat.bgColor} ${stat.borderColor} border rounded-md p-4 flex flex-col`}>
-          <div className="flex items-center justify-between mb-3 flex-shrink-0">
-            <h3 className="text-sm font-medium text-gray-900">{t(stat.titleKey)}</h3>
-            <stat.icon className={`w-5 h-5 ${stat.iconColor} flex-shrink-0`} />
+        <div
+          key={index}
+          className={`${stat.bgColor} ${stat.borderColor} flex flex-col rounded-md border px-3 py-2`}
+        >
+          <div className="mb-1 flex flex-shrink-0 items-center justify-between gap-1">
+            <h3 className="truncate text-xs font-medium text-gray-900">{t(stat.titleKey)}</h3>
+            <stat.icon className={`h-3.5 w-3.5 flex-shrink-0 ${stat.iconColor}`} />
           </div>
-          
-          <div className="flex flex-col flex-1 justify-end">
-            <div className="text-2xl font-bold text-gray-900 text-left">{stat.value}</div>
-            <div className="text-xs text-gray-600 text-left mt-1">{t(stat.subtitleKey)}</div>
+          <div className="text-left text-xl font-bold leading-tight text-gray-900">{stat.value}</div>
+          <div className="mt-0.5 line-clamp-2 text-left text-[11px] leading-snug text-gray-600">
+            {t(stat.subtitleKey)}
           </div>
         </div>
       ))}

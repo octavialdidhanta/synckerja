@@ -17,7 +17,7 @@ export function DigitalMarketingReportChartsSkeleton({ variant = "default" }: Pr
         "overflow-hidden",
         isMobile
           ? "border-y border-border bg-card"
-          : "rounded-lg border border-gray-200 bg-white p-4 shadow-sm",
+          : "flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white px-4 pb-3 pt-4 shadow-sm",
       )}
       aria-busy
     >
@@ -47,8 +47,8 @@ export function DigitalMarketingReportChartsSkeleton({ variant = "default" }: Pr
           </div>
         </>
       ) : (
-        <>
-          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="mb-3 flex shrink-0 flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div
                 className="inline-flex h-9 flex-wrap items-center gap-1 rounded-md bg-gray-100 p-1"
@@ -62,8 +62,8 @@ export function DigitalMarketingReportChartsSkeleton({ variant = "default" }: Pr
             </div>
             <Skeleton className="h-9 w-[11.5rem] shrink-0" />
           </div>
-          <Skeleton className="h-[300px] w-full rounded-md" />
-        </>
+          <Skeleton className="min-h-[280px] w-full flex-1 rounded-md" />
+        </div>
       )}
     </div>
   );

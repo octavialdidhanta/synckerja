@@ -39,7 +39,7 @@ export function InventorySuppliersPage() {
     <>
       <StockManagementModuleShell>
         <InventoryWorkspace count={rows.length}>
-            <div className="border-b px-4 py-3">
+            <div className="border-b px-4 py-2">
               <SuppliersToolbar
                 search={search}
                 onSearchChange={setSearch}

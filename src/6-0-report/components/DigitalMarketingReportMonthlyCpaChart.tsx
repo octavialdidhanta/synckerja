@@ -12,6 +12,7 @@ import {
 import type { TooltipProps } from "recharts";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { cn } from "@/shared/lib/utils";
 import { formatMetricValue } from "@/google-ads/metrics/formatMetricValue";
 import { formatMetaMetricValue } from "@/meta-ads/metrics/formatMetaMetricValue";
 import type {
@@ -395,6 +396,8 @@ type Props = {
   chartDateOverlap: boolean;
   /** When true, render chart body only (no card shell or title). */
   embedded?: boolean;
+  /** Plot / empty-state height. Default `h-[300px]`. */
+  plotClassName?: string;
 };
 
 export function DigitalMarketingReportMonthlyCpaChart({
@@ -408,6 +411,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
   chartLoading,
   chartDateOverlap,
   embedded = false,
+  plotClassName = "h-[300px]",
 }: Props) {
   const { t } = useAppTranslation();
 
@@ -545,7 +549,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
   );
 
   const shellClass = embedded
-    ? "min-w-0"
+    ? "flex min-h-0 min-w-0 flex-1 flex-col"
     : "overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm";
 
   return (
@@ -566,7 +570,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
 
       {loading ? (
         bootstrapLoading ? null : (
-          <Skeleton className="h-[300px] w-full rounded-md" />
+          <Skeleton className={cn(plotClassName, "w-full rounded-md")} />
         )
       ) : !hasMonthlyChartDisplayableChannel(
           effectiveChannelFilter,
@@ -574,7 +578,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
           metaSeries,
           tiktokSeries,
         ) ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
+        <div className={cn("flex items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground", plotClassName)}>
           {!googleSeries.connected && !metaSeries.connected && !tiktokSeries.connected
             ? t(
                 "digitalMarketing.report.monthlyCpaNotConnected",
@@ -583,18 +587,18 @@ export function DigitalMarketingReportMonthlyCpaChart({
             : blockingError}
         </div>
       ) : !chartDateOverlap ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
+        <div className={cn("flex items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground", plotClassName)}>
           {t(
             "digitalMarketing.report.monthlySpendNoOverlap",
             "The date filter does not overlap the selected chart year. Adjust the date range or chart year.",
           )}
         </div>
       ) : blockingError ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-red-600">
+        <div className={cn("flex items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-red-600", plotClassName)}>
           {blockingError}
         </div>
       ) : !hasData ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
+        <div className={cn("flex items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground", plotClassName)}>
           {hasActivity
             ? t(
                 "digitalMarketing.report.monthlyCpaNeedsLeads",
@@ -603,14 +607,14 @@ export function DigitalMarketingReportMonthlyCpaChart({
             : t("digitalMarketing.report.monthlyCpaEmpty", "No CPA data for this year.")}
         </div>
       ) : (
-        <>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {metaSkippedNotice ? (
-            <p className="mb-2 text-xs text-amber-700">{metaSkippedNotice}</p>
+            <p className="mb-2 shrink-0 text-xs text-amber-700">{metaSkippedNotice}</p>
           ) : null}
           {tiktokSkippedNotice ? (
-            <p className="mb-2 text-xs text-amber-700">{tiktokSkippedNotice}</p>
+            <p className="mb-2 shrink-0 text-xs text-amber-700">{tiktokSkippedNotice}</p>
           ) : null}
-          <div className="mb-2 flex flex-wrap items-center gap-4">
+          <div className="mb-2 flex shrink-0 flex-wrap items-center gap-4">
             {showCombined ? (
               <span className="flex items-center gap-1.5 text-xs text-gray-600">
                 <span
@@ -690,9 +694,9 @@ export function DigitalMarketingReportMonthlyCpaChart({
             ) : null}
           </div>
           {mixedCurrencyBlockedCombined ? (
-            <p className="mb-2 text-[11px] text-amber-700">{tooltipLabels.mixedHint}</p>
+            <p className="mb-2 shrink-0 text-[11px] text-amber-700">{tooltipLabels.mixedHint}</p>
           ) : null}
-          <div className="h-[300px] w-full min-w-0 overflow-hidden">
+          <div className={cn(plotClassName, "w-full min-w-0 overflow-hidden")}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={chartDataForRender}
@@ -868,7 +872,7 @@ export function DigitalMarketingReportMonthlyCpaChart({
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

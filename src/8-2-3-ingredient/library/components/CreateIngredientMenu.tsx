@@ -20,7 +20,7 @@ export function CreateIngredientMenu({ disabled, onCreateRaw, onCreateSemi }: Cr
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" disabled={disabled}>
+        <Button type="button" className="shrink-0" disabled={disabled}>
           {t("ingredient.library.createButton", "Create Ingredient")}
           <ChevronDown className="ml-1.5 h-4 w-4" />
         </Button>

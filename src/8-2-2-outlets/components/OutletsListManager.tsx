@@ -123,19 +123,38 @@ export function OutletsListManager() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       {quota.isTrial && !bannerDismissed ? (
         <OutletTrialBanner onDismiss={() => setBannerDismissed(true)} />
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-lg font-semibold text-foreground">{t("outlets.pageTitle", "Outlet")}</h2>
-          <span className="rounded-md border px-2 py-1 text-sm text-muted-foreground">
-            {t("outlets.countLabel", "Outlet: {{count}}", { count: rows.length })}
-          </span>
+      <div className="flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <h2 className="flex h-10 shrink-0 items-center whitespace-nowrap text-lg font-semibold leading-none text-foreground">
+          {t("outlets.pageTitle", "Outlet")}
+        </h2>
+        <span className="flex h-10 shrink-0 items-center rounded-md border px-2 text-sm text-muted-foreground">
+          {t("outlets.countLabel", "Outlet: {{count}}", { count: rows.length })}
+        </span>
+        <div className="relative min-w-[160px] flex-1">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("outlets.search", "Search")}
+            className="h-10 pr-9"
+          />
+          <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         </div>
-        <Button type="button" onClick={openCreate} disabled={!quota.canCreate}>
+        <Select value={gobizFilter} onValueChange={setGobizFilter}>
+          <SelectTrigger className="h-10 w-[180px] shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={GOBIZ_ALL}>{t("outlets.gobizAll", "All Gobiz Status")}</SelectItem>
+            <SelectItem value={GOBIZ_LINKED}>{t("outlets.gobizLinked", "Linked")}</SelectItem>
+            <SelectItem value={GOBIZ_NOT_LINKED}>{t("outlets.gobizNotLinked", "Not Linked")}</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button type="button" className="h-10 shrink-0" onClick={openCreate} disabled={!quota.canCreate}>
           {t("outlets.createButton", "Create Outlet")}
         </Button>
       </div>
@@ -145,28 +164,6 @@ export function OutletsListManager() {
           {t("outlets.quotaReached", "Upgrade the POS add-on to add more outlets.")}
         </p>
       ) : null}
-
-      <div className="flex flex-wrap gap-2">
-        <div className="relative min-w-[180px] flex-1">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("outlets.search", "Search")}
-            className="pr-9"
-          />
-          <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        </div>
-        <Select value={gobizFilter} onValueChange={setGobizFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={GOBIZ_ALL}>{t("outlets.gobizAll", "All Gobiz Status")}</SelectItem>
-            <SelectItem value={GOBIZ_LINKED}>{t("outlets.gobizLinked", "Linked")}</SelectItem>
-            <SelectItem value={GOBIZ_NOT_LINKED}>{t("outlets.gobizNotLinked", "Not Linked")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       <div className="overflow-x-auto rounded-md border">
         <Table>

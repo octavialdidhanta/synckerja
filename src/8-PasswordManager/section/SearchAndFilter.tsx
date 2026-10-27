@@ -28,19 +28,22 @@ export const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
   onAddPassword,
 }) => {
   return (
-    <div className="flex w-full gap-2">
-      <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+    <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <h2 className="flex h-10 shrink-0 items-center whitespace-nowrap text-lg font-semibold leading-none text-gray-900">
+        Passwords
+      </h2>
+      <div className="relative min-w-[140px] flex-1">
+        <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search passwords..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="h-9 w-full pl-10"
+          className="h-10 pr-9"
         />
       </div>
 
       <Select value={selectedCategory} onValueChange={onCategoryChange}>
-        <SelectTrigger className="h-9 w-[200px]">
+        <SelectTrigger className="h-10 w-[180px] shrink-0">
           <SlidersHorizontal className="mr-2 h-4 w-4" />
           <SelectValue placeholder="All Categories" />
         </SelectTrigger>
@@ -54,7 +57,7 @@ export const SearchAndFilter: React.FC<SearchAndFilterProps> = ({
         </SelectContent>
       </Select>
 
-      <Button onClick={onAddPassword} className="h-9 whitespace-nowrap" size="sm">
+      <Button type="button" onClick={onAddPassword} className="h-10 shrink-0 whitespace-nowrap">
         <Plus className="mr-2 h-4 w-4" />
         Add Password
       </Button>

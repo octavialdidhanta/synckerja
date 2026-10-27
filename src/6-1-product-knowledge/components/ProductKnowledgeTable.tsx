@@ -106,10 +106,9 @@ export const ProductKnowledgeTable: React.FC<ProductKnowledgeTableProps> = ({
   };
 
   return (
-    <div className="w-full max-w-full">
-      <div className="rounded-md border border-gray-200">
-        {/* Horizontal scroll only; vertical scroll is the page-level seamless container */}
-        <div className="overflow-x-auto overflow-y-clip seamless-scroll nested-scroll-touch-chain">
+    <div className="w-full min-w-0">
+      {/* Horizontal scroll only; vertical scroll is the card/page seamless container */}
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain w-full min-w-0 overflow-x-auto overflow-y-clip [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <table className="border-collapse" style={{ minWidth: onGeneratePromptForRow ? '4088px' : '3888px', width: '100%' }}>
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
@@ -209,7 +208,6 @@ export const ProductKnowledgeTable: React.FC<ProductKnowledgeTableProps> = ({
               )}
             </tbody>
           </table>
-        </div>
       </div>
     </div>
   );

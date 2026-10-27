@@ -66,6 +66,8 @@ export type MetaContentPost = {
   /** Populated when Facebook post list includes inline insights field expansion. */
   insight_views?: number;
   insight_reach?: number;
+  /** True for Facebook ads-only / dark posts (and boosted creatives surfaced via ads APIs). */
+  is_ad?: boolean;
 };
 
 export type MetaContentComment = {
@@ -954,6 +956,7 @@ const FB_POST_LIST_FIELDS = [
   "permalink_url",
   "full_picture",
   "shares",
+  // summary(true) for list counts; stream filter on the comments edge is used when fetching threads.
   "comments.summary(true)",
   "reactions.summary(true)",
   "attachments{media_type,type,url,media,target}",
@@ -1065,6 +1068,206 @@ export async function fetchFacebookPosts(
   limit = 25,
 ): Promise<MetaContentPost[]> {
   return resolveFacebookPostsForMetrics(pageId, accessToken, limit);
+}
+
+async function fetchFacebookAdsPostsEdge(
+  pageId: string,
+  accessToken: string,
+  limit: number,
+): Promise<MetaContentPost[]> {
+  // Keep to one page — Manage Comments must stay under edge worker time budget.
+  const data = await graphGet<{
+    data?: Array<Record<string, unknown>>;
+  }>(
+    graphUrl(`${pageId}/ads_posts`, {
+      fields: FB_POST_LIST_FIELDS,
+      limit: String(Math.min(Math.max(limit, 1), 25)),
+      include_inline_create: "true",
+    }),
+    accessToken,
+  );
+  return (data.data ?? []).map(mapFbPost).slice(0, limit);
+}
+
+async function collectFacebookAdStoryIdsForPage(
+  adsUserToken: string,
+  adAccountIds: string[],
+  pageId: string,
+  maxIds: number,
+): Promise<string[]> {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const pagePrefix = `${pageId}_`;
+  const filtering = JSON.stringify([
+    {
+      field: "effective_status",
+      operator: "IN",
+      value: ["ACTIVE", "PAUSED", "CAMPAIGN_PAUSED", "ADSET_PAUSED"],
+    },
+  ]);
+
+  for (const raw of adAccountIds) {
+    if (ids.length >= maxIds) break;
+    const digits = String(raw ?? "").replace(/\D/g, "");
+    if (!digits) continue;
+    try {
+      const data = await graphGet<{
+        data?: Array<Record<string, unknown>>;
+      }>(
+        graphUrl(`act_${digits}/ads`, {
+          fields: "id,creative{effective_object_story_id,object_story_id}",
+          limit: "25",
+          filtering,
+        }),
+        adsUserToken,
+      );
+
+      for (const ad of data.data ?? []) {
+        const creative = ad.creative as Record<string, unknown> | undefined;
+        const storyId = String(
+          creative?.effective_object_story_id ?? creative?.object_story_id ?? "",
+        ).trim();
+        if (!storyId || seen.has(storyId)) continue;
+        if (!storyId.startsWith(pagePrefix)) continue;
+        seen.add(storyId);
+        ids.push(storyId);
+        if (ids.length >= maxIds) break;
+      }
+    } catch (err) {
+      console.warn(
+        "[metaContent] collectFacebookAdStoryIdsForPage act_",
+        digits,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  return ids;
+}
+
+async function hydrateFacebookPostsByIds(
+  ids: string[],
+  accessToken: string,
+): Promise<MetaContentPost[]> {
+  if (ids.length === 0) return [];
+  const relativeUrls = ids.slice(0, 25).map(
+    (id) => `${encodeURIComponent(id)}?fields=${encodeURIComponent(FB_POST_LIST_FIELDS)}`,
+  );
+  const results = await graphBatchGet(accessToken, relativeUrls);
+  const posts: MetaContentPost[] = [];
+  for (const item of results) {
+    if (!isGraphBatchItemSuccess(item)) continue;
+    try {
+      const body = JSON.parse(item.body) as Record<string, unknown> & GraphError;
+      if (body?.error) continue;
+      const post = mapFbPost(body);
+      if (post.id) posts.push(post);
+    } catch {
+      // skip malformed batch body
+    }
+  }
+  return posts;
+}
+
+export type FetchFacebookAdsPostsResult = {
+  posts: MetaContentPost[];
+  source: "ads_posts" | "marketing_api" | "none";
+  warnings: string[];
+};
+
+/**
+ * Facebook ads-only / dark posts for Manage Comments.
+ * Fast path: Page `ads_posts` (1 request). Fallback: Marketing API story IDs for this page.
+ */
+export async function fetchFacebookAdsPosts(args: {
+  pageId: string;
+  pageAccessToken: string;
+  adsUserToken?: string | null;
+  adAccountIds?: string[];
+  limit?: number;
+}): Promise<FetchFacebookAdsPostsResult> {
+  const limit = Math.min(Math.max(args.limit ?? 25, 1), 25);
+  const seen = new Set<string>();
+  const out: MetaContentPost[] = [];
+  const warnings: string[] = [];
+  let source: FetchFacebookAdsPostsResult["source"] = "none";
+
+  const pushPosts = (posts: MetaContentPost[], from: FetchFacebookAdsPostsResult["source"]) => {
+    for (const p of posts) {
+      if (!p.id || seen.has(p.id)) continue;
+      if (p.id.includes("_") && !p.id.startsWith(`${args.pageId}_`) && p.id !== args.pageId) {
+        continue;
+      }
+      seen.add(p.id);
+      out.push({ ...p, is_ad: true });
+      if (source === "none") source = from;
+      if (out.length >= limit) break;
+    }
+  };
+
+  const adsToken = args.adsUserToken?.trim() || "";
+  if (!adsToken) {
+    warnings.push("meta_ads_not_connected");
+  }
+
+  // 1) Prefer ads_posts (cheap) with ads token, then page token.
+  const tokensToTry = [adsToken, args.pageAccessToken].filter(Boolean);
+  for (const token of tokensToTry) {
+    if (out.length >= limit) break;
+    try {
+      pushPosts(await fetchFacebookAdsPostsEdge(args.pageId, token, limit), "ads_posts");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      warnings.push(`ads_posts: ${msg}`);
+      console.warn("[metaContent] ads_posts failed:", msg);
+    }
+  }
+
+  // 2) Light Marketing API fallback only if ads_posts returned nothing.
+  if (out.length === 0 && adsToken && (args.adAccountIds?.length ?? 0) > 0) {
+    try {
+      const storyIds = await collectFacebookAdStoryIdsForPage(
+        adsToken,
+        args.adAccountIds ?? [],
+        args.pageId,
+        limit,
+      );
+      if (storyIds.length > 0) {
+        let hydrated = await hydrateFacebookPostsByIds(storyIds, args.pageAccessToken);
+        if (hydrated.length === 0) {
+          hydrated = await hydrateFacebookPostsByIds(storyIds, adsToken);
+        }
+        pushPosts(hydrated, "marketing_api");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      warnings.push(`marketing_api: ${msg}`);
+      console.warn("[metaContent] ads story hydrate failed:", msg);
+    }
+  }
+
+  return { posts: out.slice(0, limit), source, warnings };
+}
+
+/** Merge organic page posts with ads/dark posts; ads wins on duplicate IDs. */
+export function mergeFacebookOrganicAndAdsPosts(
+  organic: MetaContentPost[],
+  ads: MetaContentPost[],
+): MetaContentPost[] {
+  const byId = new Map<string, MetaContentPost>();
+  for (const p of organic) {
+    if (!p.id) continue;
+    byId.set(p.id, { ...p, is_ad: Boolean(p.is_ad) });
+  }
+  for (const p of ads) {
+    if (!p.id) continue;
+    const existing = byId.get(p.id);
+    byId.set(p.id, existing ? { ...existing, ...p, is_ad: true } : { ...p, is_ad: true });
+  }
+  return Array.from(byId.values()).sort((a, b) => {
+    const aT = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const bT = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return bT - aT;
+  });
 }
 
 function looksLikeVideoUrl(url: string): boolean {
@@ -1253,19 +1456,55 @@ function mapIgComment(
   };
 }
 
+async function fetchFacebookCommentsWithFilter(
+  postId: string,
+  accessToken: string,
+  filter: "stream" | "toplevel",
+): Promise<MetaContentComment[]> {
+  // Keep fields flat — nested comments{} + filter=stream often returns empty for ads/dark posts.
+  // Request `from` (not only from{id,name}) — Meta often omits author for public
+  // users until Business Asset User Profile Access + Advanced Access are approved.
+  const fields = "id,message,from,created_time,like_count,comment_count,parent";
+  const data = await graphGet<{ data?: Array<Record<string, unknown>> }>(
+    graphUrl(`${postId}/comments`, {
+      fields,
+      filter,
+      order: "reverse_chronological",
+      limit: "100",
+    }),
+    accessToken,
+  );
+  return (data.data ?? []).map((row) => {
+    const parentObj = row.parent as { id?: string } | undefined;
+    const parentId =
+      typeof parentObj?.id === "string" && parentObj.id.trim() ? parentObj.id.trim() : null;
+    return mapFbComment(row, postId, parentId);
+  });
+}
+
 export async function fetchFacebookComments(
   postId: string,
   accessToken: string,
 ): Promise<MetaContentComment[]> {
-  const fields = "id,message,from,created_time,like_count,comment_count,comments{id,message,from,created_time,like_count}";
-  const url = graphUrl(`${postId}/comments`, { fields });
-  const data = await graphGet<{ data?: Array<Record<string, unknown>> }>(url, accessToken);
-  return (data.data ?? []).flatMap((row) => {
-    const parent = mapFbComment(row, postId, null);
-    const nested = row.comments as { data?: Array<Record<string, unknown>> } | undefined;
-    const replies = (nested?.data ?? []).map((r) => mapFbComment(r, postId, parent.id));
-    return [parent, ...replies];
-  });
+  // Prefer stream (ads / moderation set), fall back to toplevel if stream fails or is empty.
+  try {
+    const streamed = await fetchFacebookCommentsWithFilter(postId, accessToken, "stream");
+    if (streamed.length > 0) return streamed;
+  } catch (err) {
+    console.warn(
+      "[metaContent] facebook comments stream failed:",
+      err instanceof Error ? err.message : err,
+    );
+  }
+  try {
+    return await fetchFacebookCommentsWithFilter(postId, accessToken, "toplevel");
+  } catch (err) {
+    console.warn(
+      "[metaContent] facebook comments toplevel failed:",
+      err instanceof Error ? err.message : err,
+    );
+    throw err;
+  }
 }
 
 function mapFbComment(
@@ -1274,12 +1513,16 @@ function mapFbComment(
   parentId: string | null,
 ): MetaContentComment {
   const from = row.from as { id?: string; name?: string } | undefined;
+  const authorName =
+    typeof from?.name === "string" && from.name.trim() ? from.name.trim() : "";
+  const authorId = typeof from?.id === "string" && from.id.trim() ? from.id.trim() : null;
   return {
     id: String(row.id ?? ""),
     media_id: mediaId,
     text: typeof row.message === "string" ? row.message : "",
-    author_name: typeof from?.name === "string" ? from.name : "Unknown",
-    author_id: typeof from?.id === "string" ? from.id : null,
+    // Empty when Meta withholds `from` (needs App Review: Business Asset User Profile Access).
+    author_name: authorName,
+    author_id: authorId,
     like_count: Number(row.like_count ?? 0),
     reply_count: Number(row.comment_count ?? 0),
     parent_comment_id: parentId,

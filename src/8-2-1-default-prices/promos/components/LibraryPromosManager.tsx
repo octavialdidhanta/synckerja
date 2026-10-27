@@ -107,30 +107,35 @@ export function LibraryPromosManager({ listClassName }: LibraryPromosManagerProp
   }
 
   return (
-    <div className="space-y-3">
-      <h2 className="text-lg font-semibold text-gray-900">
-        {t("defaultPrices.promos.heading", "Promo")}
-      </h2>
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="mb-3 flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <h2 className="shrink-0 whitespace-nowrap text-lg font-semibold text-gray-900">
+          {t("defaultPrices.promos.heading", "Promo")}
+        </h2>
         <PromoListToolbar
           status={statusFilter}
           onStatusChange={setStatusFilter}
           query={searchQuery}
           onQueryChange={setSearchQuery}
         />
-        <Button type="button" onClick={openCreate}>
+        <div className="min-w-[8px] flex-1" aria-hidden />
+        <Button type="button" className="shrink-0" onClick={openCreate}>
           {t("defaultPrices.promos.createButton", "Create Promo")}
         </Button>
       </div>
-      <div className={cn("overflow-y-auto", listClassName ?? "max-h-56")}>
-        <Table>
-          <TableHeader>
+      <Table
+        containerClassName={cn(
+          "min-h-0 flex-1 overflow-auto rounded-md border border-border/60 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          listClassName,
+        )}
+      >
+          <TableHeader className="sticky top-0 z-[1] bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
             <TableRow>
-              <TableHead>{t("defaultPrices.promos.columnName", "Name")}</TableHead>
-              <TableHead className="w-[180px]">{t("defaultPrices.promos.columnType", "Type")}</TableHead>
-              <TableHead className="w-[180px]">{t("defaultPrices.promos.columnPeriod", "Period")}</TableHead>
-              <TableHead className="w-[120px]">{t("defaultPrices.promos.columnStatus", "Status")}</TableHead>
-              <TableHead className="w-[56px]" />
+              <TableHead className="h-9">{t("defaultPrices.promos.columnName", "Name")}</TableHead>
+              <TableHead className="h-9 w-[180px]">{t("defaultPrices.promos.columnType", "Type")}</TableHead>
+              <TableHead className="h-9 w-[180px]">{t("defaultPrices.promos.columnPeriod", "Period")}</TableHead>
+              <TableHead className="h-9 w-[120px]">{t("defaultPrices.promos.columnStatus", "Status")}</TableHead>
+              <TableHead className="h-9 w-[56px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -183,7 +188,6 @@ export function LibraryPromosManager({ listClassName }: LibraryPromosManagerProp
             )}
           </TableBody>
         </Table>
-      </div>
       <AlertDialog open={deleteTarget != null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

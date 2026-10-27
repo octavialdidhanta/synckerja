@@ -18,6 +18,10 @@ import { AttendanceRulesSettings } from "./AttendanceRulesSettings";
 import { ComprehensivePenaltySettings } from "./ComprehensivePenaltySettings";
 import { ShiftSettings } from "./ShiftSettings";
 import { IPAddressSettings } from "./IPAddressSettings";
+import {
+  AttendanceSettingsHeaderActionsProvider,
+  AttendanceSettingsHeaderActionsSlot,
+} from "./AttendanceSettingsHeaderActions";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -44,8 +48,8 @@ interface AttendanceSettingsLayoutProps {
 }
 
 const SETTINGS_CARD_TITLE_CLASS =
-  "m-0 truncate text-sm font-semibold leading-tight text-foreground";
-const SETTINGS_CARD_SUBTITLE_CLASS = "mb-0 mt-1 text-xs leading-snug text-muted-foreground";
+  "m-0 truncate text-lg font-semibold leading-tight text-foreground";
+const SETTINGS_CARD_SUBTITLE_CLASS = "mb-0 mt-1 text-sm leading-snug text-muted-foreground";
 
 const SETTINGS_SECTION_IDS = [
   "work-schedule",
@@ -211,21 +215,24 @@ export const AttendanceSettingsLayout = ({ children }: AttendanceSettingsLayoutP
   const current = getCurrentSection();
 
   return (
+    <AttendanceSettingsHeaderActionsProvider>
     <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
       <div className={ATTENDANCE_SETTINGS_GRID}>
         <div className={ATTENDANCE_SETTINGS_NAV_COLUMN}>
           <div className={ATTENDANCE_SETTINGS_TABLE_SECTION}>
             <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:h-full">
               <div className={ATTENDANCE_SETTINGS_CARD_HEADER}>
-                <h3 className={SETTINGS_CARD_TITLE_CLASS}>
-                  {t("attendanceSettings.sidebarCardTitle", "Attendance settings")}
-                </h3>
-                <p className={SETTINGS_CARD_SUBTITLE_CLASS}>
-                  {t(
-                    "attendanceSettings.sidebarCardSubtitle",
-                    "Configure attendance, locations, and rules",
-                  )}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <h3 className={SETTINGS_CARD_TITLE_CLASS}>
+                    {t("attendanceSettings.sidebarCardTitle", "Attendance settings")}
+                  </h3>
+                  <p className={SETTINGS_CARD_SUBTITLE_CLASS}>
+                    {t(
+                      "attendanceSettings.sidebarCardSubtitle",
+                      "Configure attendance, locations, and rules",
+                    )}
+                  </p>
+                </div>
               </div>
 
               <div className={cn(ATTENDANCE_SETTINGS_SCROLL_PANE, "p-3")}>
@@ -310,20 +317,32 @@ export const AttendanceSettingsLayout = ({ children }: AttendanceSettingsLayoutP
               <div className={ATTENDANCE_SETTINGS_CARD_HEADER}>
                 <div className="min-w-0 flex-1">
                   <h3 className={SETTINGS_CARD_TITLE_CLASS}>
-                    {current?.title ?? t("attendanceSettings.title", "Attendance Settings")}
+                    {activeSection === "work-schedule"
+                      ? t("workSchedule.title", "Work Schedule Settings")
+                      : (current?.title ?? t("attendanceSettings.title", "Attendance Settings"))}
                   </h3>
                   <p className={SETTINGS_CARD_SUBTITLE_CLASS}>
-                    {current?.description ??
-                      t(
-                        "attendanceSettings.description",
-                        "Configure location-based attendance system",
-                      )}
+                    {activeSection === "work-schedule"
+                      ? t(
+                          "workSchedule.description",
+                          "Manage working days, working hours, and national holidays",
+                        )
+                      : (current?.description ??
+                        t(
+                          "attendanceSettings.description",
+                          "Configure location-based attendance system",
+                        ))}
                   </p>
                 </div>
+                <AttendanceSettingsHeaderActionsSlot />
               </div>
 
               <div className={ATTENDANCE_SETTINGS_SCROLL_PANE}>
-                <div className="min-w-0 p-4">{renderSectionContent()}</div>
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4 pb-3">
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                    {renderSectionContent()}
+                  </div>
+                </div>
               </div>
 
               <div className={ATTENDANCE_SETTINGS_CARD_FOOTER}>
@@ -345,5 +364,6 @@ export const AttendanceSettingsLayout = ({ children }: AttendanceSettingsLayoutP
         </div>
       </div>
     </div>
+    </AttendanceSettingsHeaderActionsProvider>
   );
 };

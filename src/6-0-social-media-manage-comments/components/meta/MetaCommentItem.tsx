@@ -39,8 +39,18 @@ export function MetaCommentItem({
   const { t, i18n } = useTranslation();
   const isMobileLayout = useManageCommentsMobileLayout();
   const [showReplies, setShowReplies] = useState(false);
-  const name = comment.author_display_name?.trim() || t('digitalMarketing.manageComments.unknownUser', 'User');
-  const initials = name.slice(0, 2).toUpperCase();
+  const name =
+    comment.author_display_name?.trim() ||
+    t(
+      'digitalMarketing.manageComments.facebookUserHidden',
+      'Facebook user',
+    );
+  const initials = name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || '?';
   const authorPhotoUrl = useMetaCommentAuthorAvatarObjectUrl({
     organizationId,
     platform,

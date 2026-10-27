@@ -44,7 +44,7 @@ export function OutletFilterSelect({
       onValueChange={onChange}
       disabled={disabled || isLoading || noChoices}
     >
-      <SelectTrigger className={cn("h-9 w-[180px]", className)} aria-label={t("outlets.filter.label", "Outlet")}>
+      <SelectTrigger className={cn("h-10 w-[180px]", className)} aria-label={t("outlets.filter.label", "Outlet")}>
         <SelectValue placeholder={t("outlets.filter.placeholder", "Outlet")}>
           {displayLabel}
         </SelectValue>

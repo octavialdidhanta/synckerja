@@ -35,9 +35,9 @@ function ReprimandManagementFilters({
   const { t } = useAppTranslation();
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <div className="relative min-w-[150px] flex-1">
+    <div className="min-w-0">
+      <div className="flex min-w-0 flex-nowrap items-center gap-1.5">
+        <div className="relative min-w-0 flex-1">
           <Search className="absolute right-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
           <Input
             type="text"
@@ -49,7 +49,7 @@ function ReprimandManagementFilters({
         </div>
 
         <Select value={filters.department} onValueChange={(value) => updateFilter("department", value)}>
-          <SelectTrigger className="h-9 w-full text-left text-sm text-foreground sm:w-36 lg:w-40">
+          <SelectTrigger className="h-9 w-[7.75rem] shrink-0 text-left text-sm text-foreground">
             <SelectValue placeholder={t("reprimands.filters.departmentPlaceholder", "Department")} />
           </SelectTrigger>
           <SelectContent>
@@ -63,7 +63,7 @@ function ReprimandManagementFilters({
         </Select>
 
         <Select value={filters.status} onValueChange={(value) => updateFilter("status", value)}>
-          <SelectTrigger className="h-9 w-full text-left text-sm text-foreground sm:w-36 lg:w-40">
+          <SelectTrigger className="h-9 w-[7.25rem] shrink-0 text-left text-sm text-foreground">
             <SelectValue placeholder={t("reprimands.filters.statusPlaceholder", "Status")} />
           </SelectTrigger>
           <SelectContent>
@@ -77,7 +77,7 @@ function ReprimandManagementFilters({
         </Select>
 
         <Select value={filters.severity} onValueChange={(value) => updateFilter("severity", value)}>
-          <SelectTrigger className="h-9 w-full text-left text-sm text-foreground sm:w-36 lg:w-40">
+          <SelectTrigger className="h-9 w-[7.5rem] shrink-0 text-left text-sm text-foreground">
             <SelectValue placeholder={t("reprimands.filters.severityPlaceholder", "Severity")} />
           </SelectTrigger>
           <SelectContent>
@@ -91,7 +91,7 @@ function ReprimandManagementFilters({
         </Select>
 
         <Select value={filters.type} onValueChange={(value) => updateFilter("type", value)}>
-          <SelectTrigger className="h-9 w-full text-left text-sm text-foreground sm:w-36 lg:w-40">
+          <SelectTrigger className="h-9 w-[7rem] shrink-0 text-left text-sm text-foreground">
             <SelectValue placeholder={t("reprimands.filters.typePlaceholder", "Type")} />
           </SelectTrigger>
           <SelectContent>
@@ -105,7 +105,7 @@ function ReprimandManagementFilters({
         </Select>
 
         <Select value={filters.timePeriod} onValueChange={(value) => updateFilter("timePeriod", value)}>
-          <SelectTrigger className="h-9 w-full text-left text-sm text-foreground sm:w-36 lg:w-40">
+          <SelectTrigger className="h-9 w-[7rem] shrink-0 text-left text-sm text-foreground">
             <SelectValue placeholder={t("reprimands.filters.timePlaceholder", "Time Period")} />
           </SelectTrigger>
           <SelectContent>
@@ -123,13 +123,13 @@ function ReprimandManagementFilters({
         <button
           type="button"
           onClick={clearFilters}
-          className="flex h-9 items-center justify-center rounded-md border border-border px-3 transition-colors hover:bg-brand-blue/10 hover:text-brand-blue"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border transition-colors hover:bg-brand-blue/10 hover:text-brand-blue"
           title={t("reprimands.filters.clearFiltersTitle", "Clear all filters")}
         >
           <RefreshCw className="h-4 w-4 text-muted-foreground" />
         </button>
 
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <AddReprimandDialog />
         </div>
       </div>

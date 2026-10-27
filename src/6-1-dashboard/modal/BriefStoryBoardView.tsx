@@ -238,11 +238,7 @@ export const BriefStoryBoardView: React.FC<BriefStoryBoardViewProps> = ({
             key={sequence.id}
             className={cn(
               '@container/seq flex h-full min-h-0 w-full shrink-0 flex-col',
-              bare
-                ? ''
-                : isMobile
-                  ? 'rounded-none border-x-0 border-y border-dashed border-blue-200 bg-blue-50/20 px-2 py-3'
-                  : 'rounded-lg border border-dashed border-blue-200 bg-blue-50/20 p-3',
+              !bare && (isMobile ? 'px-2 py-1' : 'py-1'),
             )}
           >
             <BriefSequenceHeader

@@ -394,7 +394,32 @@ Deno.serve(async (req: Request) => {
       }).eq("organization_id", organizationId);
       return metaAdsJson({ ok: true }, 200);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      let msg = e instanceof Error ? e.message : String(e);
+      // #200 usually means OAuth succeeded but the user did not select this Ad Account
+      // (or any ad account) during Facebook Login for Business asset picker.
+      if (/ads_management|ads_read/i.test(msg) || /#200/.test(msg)) {
+        try {
+          const listed = await graphGet(accessToken, "me/adaccounts?fields=account_id,name&limit=5") as {
+            data?: Array<{ account_id?: string; name?: string }>;
+          };
+          const n = listed.data?.length ?? 0;
+          if (n === 0) {
+            msg =
+              "Token connected, but no Ad Accounts were granted. Disconnect → Connect again, and in the Meta dialog select your Ad Account(s) (not only Pages). Also click Save on the Synckerja Meta Ads Login configuration permissions.";
+          } else {
+            const sample = (listed.data ?? [])
+              .map((a) => a.account_id || a.name)
+              .filter(Boolean)
+              .slice(0, 3)
+              .join(", ");
+            msg =
+              `${msg} Token can access ${n} other ad account(s) (${sample}). Update the Synckerja Meta Ads account ID to one of those, or reconnect and also select ad account ${adAccountId}.`;
+          }
+        } catch {
+          msg =
+            `${msg} Reconnect Meta Ads and select Ad Accounts in the Meta asset picker (Pages alone are not enough).`;
+        }
+      }
       await admin.from("organization_meta_ads_connections").update({
         last_test_at: now,
         last_test_ok: false,

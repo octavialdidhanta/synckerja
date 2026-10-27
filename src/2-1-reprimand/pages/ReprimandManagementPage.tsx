@@ -69,14 +69,48 @@ export const ReprimandManagementPage = () => {
     });
   };
 
+  const searchQuery = filters.search.trim().toLowerCase();
+
+  const employeeMatchesSearch = useCallback(
+    (employee: (typeof employees)[number], query: string) => {
+      if (!query) return true;
+      const haystacks = [
+        employee.full_name,
+        employee.email,
+        employee.employee_id,
+        employee.job_positions?.name,
+        employee.departments?.name,
+      ];
+      return haystacks.some((value) => (value ?? "").toLowerCase().includes(query));
+    },
+    [],
+  );
+
+  const reprimandMatchesSearch = useCallback(
+    (reprimand: (typeof reprimands)[number], query: string) => {
+      if (!query) return true;
+      const employee = employees.find((e) => e.id === reprimand.employee_id);
+      if (employee && employeeMatchesSearch(employee, query)) return true;
+      const haystacks = [
+        reprimand.violation_description,
+        reprimand.reprimand_type,
+        reprimand.severity_level,
+        reprimand.violation_category,
+        reprimand.incident_location,
+        reprimand.notes,
+        reprimand.evidence_details,
+        reprimand.witness_names,
+        reprimand.status,
+      ];
+      return haystacks.some((value) => (value ?? "").toLowerCase().includes(query));
+    },
+    [employees, employeeMatchesSearch],
+  );
+
   const filteredReprimands = useMemo(() => {
     return reprimands.filter((reprimand) => {
-      if (filters.search) {
-        const employee = employees.find((e) => e.id === reprimand.employee_id);
-        const searchLower = filters.search.toLowerCase();
-        const nameMatch = (employee?.full_name ?? "").toLowerCase().includes(searchLower);
-        const descMatch = (reprimand.violation_description ?? "").toLowerCase().includes(searchLower);
-        if (!nameMatch && !descMatch) return false;
+      if (searchQuery && !reprimandMatchesSearch(reprimand, searchQuery)) {
+        return false;
       }
 
       if (filters.status !== "all" && reprimand.status !== filters.status) {
@@ -126,35 +160,60 @@ export const ReprimandManagementPage = () => {
 
       return true;
     });
-  }, [reprimands, filters, employees]);
+  }, [reprimands, filters.status, filters.severity, filters.type, filters.timePeriod, searchQuery, reprimandMatchesSearch]);
 
-  const reprimandCounts: ReprimandCount = reprimands.reduce((acc, reprimand) => {
-    const employeeId = reprimand.employee_id;
-    acc[employeeId] = (acc[employeeId] || 0) + 1;
-    return acc;
-  }, {} as ReprimandCount);
+  const matchedEmployeeIdsFromReprimands = useMemo(() => {
+    return new Set(filteredReprimands.map((reprimand) => reprimand.employee_id));
+  }, [filteredReprimands]);
 
-  const filteredEmployees = employees.filter((employee) => {
-    if (filters.department !== "all") {
-      const dept = employee.departments?.name || "Unassigned";
-      if (dept !== filters.department) {
-        return false;
-      }
-    }
-    return true;
-  });
-
-  const employeesByDepartment = filteredEmployees.reduce(
-    (acc, employee) => {
-      const dept = employee.departments?.name || "Unassigned";
-      if (!acc[dept]) {
-        acc[dept] = [];
-      }
-      acc[dept].push(employee);
+  const reprimandCounts: ReprimandCount = useMemo(() => {
+    return filteredReprimands.reduce((acc, reprimand) => {
+      const employeeId = reprimand.employee_id;
+      acc[employeeId] = (acc[employeeId] || 0) + 1;
       return acc;
-    },
-    {} as Record<string, (typeof filteredEmployees)[number][]>,
-  );
+    }, {} as ReprimandCount);
+  }, [filteredReprimands]);
+
+  const filteredEmployees = useMemo(() => {
+    return employees.filter((employee) => {
+      if (filters.department !== "all") {
+        const dept = employee.departments?.name || "Unassigned";
+        if (dept !== filters.department) {
+          return false;
+        }
+      }
+
+      if (searchQuery) {
+        const nameOrMetaMatch = employeeMatchesSearch(employee, searchQuery);
+        const hasMatchingReprimand = matchedEmployeeIdsFromReprimands.has(employee.id);
+        if (!nameOrMetaMatch && !hasMatchingReprimand) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [
+    employees,
+    filters.department,
+    searchQuery,
+    employeeMatchesSearch,
+    matchedEmployeeIdsFromReprimands,
+  ]);
+
+  const employeesByDepartment = useMemo(() => {
+    return filteredEmployees.reduce(
+      (acc, employee) => {
+        const dept = employee.departments?.name || "Unassigned";
+        if (!acc[dept]) {
+          acc[dept] = [];
+        }
+        acc[dept].push(employee);
+        return acc;
+      },
+      {} as Record<string, (typeof filteredEmployees)[number][]>,
+    );
+  }, [filteredEmployees]);
 
   const departments = [...new Set(employees.map((e) => e.departments?.name || "Unassigned"))].sort();
 

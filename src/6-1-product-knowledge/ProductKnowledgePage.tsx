@@ -373,8 +373,8 @@ const ProductKnowledgeContent: React.FC = () => {
 
                     <ModuleShellContentGate pagePath="/digital-marketing/social-media/product-knowledge">
                     <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
-                      <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col gap-0 overflow-hidden">
-                        <div className="min-h-0 flex-shrink-0">
+                      <div className="col-span-9 flex h-full min-h-0 w-full min-w-0 flex-col gap-0 overflow-hidden">
+                        <div className="min-h-0 w-full flex-shrink-0">
                           <ProductKnowledgeGeneratePanel
                             productKnowledgeData={productKnowledgeData}
                             onAddAsNewRow={handleAddToProductKnowledgeAsNewRow}
@@ -388,8 +388,8 @@ const ProductKnowledgeContent: React.FC = () => {
                             setDefaultRowIdForAdd={setDefaultRowIdForAdd}
                           />
                         </div>
-                        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                          <div className="z-20 flex min-h-11 shrink-0 items-center border-b-2 border-gray-300 bg-white px-4 py-2">
+                        <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                          <div className="z-20 flex min-h-11 w-full shrink-0 items-center border-b-2 border-gray-300 bg-white px-4 py-2">
                           <ProductKnowledgeFilters
                             searchTerm={searchTerm}
                             setSearchTerm={setSearchTerm}
@@ -401,23 +401,21 @@ const ProductKnowledgeContent: React.FC = () => {
                             onDeleteSelected={handleDeleteSelected}
                           />
                           </div>
-                          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                            <div className="w-full min-w-0 p-6">
-                              <ProductKnowledgeTable
-                                data={filteredData}
-                                isLoading={false}
-                                selectedItems={selectedItems}
-                                onSelectItem={handleSelectItem}
-                                onFieldChange={handleFieldChange}
-                                services={services}
-                                subServices={subServices}
-                                masterFeatures={masterFeatures}
-                                onFeatureSelect={handleFeatureSelect}
-                                onGeneratePromptForRow={handleGeneratePromptForRow}
-                              />
-                            </div>
+                          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <ProductKnowledgeTable
+                              data={filteredData}
+                              isLoading={false}
+                              selectedItems={selectedItems}
+                              onSelectItem={handleSelectItem}
+                              onFieldChange={handleFieldChange}
+                              services={services}
+                              subServices={subServices}
+                              masterFeatures={masterFeatures}
+                              onFeatureSelect={handleFeatureSelect}
+                              onGeneratePromptForRow={handleGeneratePromptForRow}
+                            />
                           </div>
-                          <div className="z-10 flex-shrink-0 border-t border-gray-200 bg-white">
+                          <div className="z-10 w-full flex-shrink-0 border-t border-gray-200 bg-white">
                             <ProductKnowledgeTableFooter
                               masterFeatures={masterFeatures}
                               allProductKnowledgeRows={productKnowledgeData}
@@ -430,7 +428,7 @@ const ProductKnowledgeContent: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="col-span-3 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
+                      <div className="col-span-3 flex h-full min-h-0 w-full min-w-0 flex-col self-stretch overflow-hidden">
                         <ProductKnowledgeSidebar
                           selectedItemId={selectedSidebarItemId}
                           onSelectItem={(id) => setSelectedSidebarItemId(id)}

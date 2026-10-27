@@ -60,7 +60,14 @@ export function ManageCommentsThreadHeader({
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-gray-900">{post.title}</p>
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate text-sm font-semibold text-gray-900">{post.title}</p>
+            {post.isAd ? (
+              <span className="shrink-0 rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                {t("digitalMarketing.manageComments.adsBadge", "Ads")}
+              </span>
+            ) : null}
+          </div>
           <p className="text-xs text-muted-foreground">{statsLine}</p>
         </div>
       </div>

@@ -37,7 +37,7 @@ export function YouTubeContentPerformancePageSkeleton() {
                       <div className="shrink-0 border-b border-gray-200 px-4 py-3">
                         <Skeleton className="h-9 w-56 rounded-lg" />
                       </div>
-                      <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-1">
+                      <div className="shrink-0 border-b border-gray-100 px-4 pb-3 pt-4">
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                           {Array.from({ length: 5 }, (_, i) => (
                             <div

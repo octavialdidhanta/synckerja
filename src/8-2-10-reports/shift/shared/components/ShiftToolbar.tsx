@@ -56,23 +56,15 @@ export function ShiftToolbar({
   return (
     <ReportsSalesToolbarShell
       title={t("reports.shift.title", "Shift")}
-      description={
-        <p className="text-xs text-muted-foreground">
-          {t(
-            "reports.shift.subtitle",
-            "Review cashier shift history and cash reconciliation.",
-          )}
-        </p>
-      }
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-nowrap items-center gap-2">
         <div className="relative">
           <Home className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <OutletFilterSelect
             value={outletId || POS_OUTLET_FILTER_ALL}
             onChange={onOutletChange}
             includeAll
-            className="w-[180px] pl-8"
+            className="h-10 w-[180px] pl-8"
           />
         </div>
         <ReportsSalesDateRangePicker
@@ -87,7 +79,7 @@ export function ShiftToolbar({
           onValueChange={onStaffUserIdChange}
           disabled={staffOptionsLoading}
         >
-          <SelectTrigger className="h-9 w-[180px]">
+          <SelectTrigger className="h-10 w-[180px]">
             <SelectValue
               placeholder={t("reports.shift.filters.staff", "All staff")}
             />
@@ -106,7 +98,6 @@ export function ShiftToolbar({
       </div>
       <Button
         type="button"
-        size="sm"
         className="shrink-0"
         disabled={exportDisabled}
         onClick={onExport}

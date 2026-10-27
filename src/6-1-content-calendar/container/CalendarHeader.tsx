@@ -47,16 +47,32 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   return (
     <div className="space-y-3">
       {/* Main Header */}
-      <div className="flex flex-row items-center justify-between">
+      <div className="flex flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <CalendarIcon className="h-5 w-5 text-primary" />
           <h2 className="text-xl font-semibold">Content Planning Calendar</h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-gray-500" />
+            <Select value={selectedService} onValueChange={onServiceChange}>
+              <SelectTrigger className="h-8 w-[180px] text-xs">
+                <SelectValue placeholder="Filter by Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {services.map((service) => (
+                  <SelectItem key={service.id} value={service.id}>
+                    {service.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button variant="outline" size="sm" onClick={onPrevMonth}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="text-lg font-medium min-w-[200px] text-center">
+          <div className="min-w-[200px] text-center text-lg font-medium">
             {indonesianMonths[currentDate.getMonth()]} {currentDate.getFullYear()}
           </div>
           <Button variant="outline" size="sm" onClick={onNextMonth}>
@@ -65,34 +81,14 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
         </div>
       </div>
 
-      {/* Calendar Legend and Service Filter */}
-      <div className="flex flex-wrap items-center justify-between gap-4 text-xs">
-        <div className="flex flex-wrap items-center gap-4">
-          {legendItems.map((item) => (
-            <div key={item.key} className="flex items-center gap-2">
-              <div className={`w-3 h-3 shrink-0 ${item.swatch}`} />
-              <span className="text-gray-700 dark:text-gray-300">{t(item.key)}</span>
-            </div>
-          ))}
-        </div>
-        
-        {/* Service Filter */}
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-gray-500" />
-          <Select value={selectedService} onValueChange={onServiceChange}>
-            <SelectTrigger className="w-[180px] h-8 text-xs">
-              <SelectValue placeholder="Filter by Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {services.map((service) => (
-                <SelectItem key={service.id} value={service.id}>
-                  {service.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      {/* Calendar Legend */}
+      <div className="flex flex-wrap items-center gap-4 text-xs">
+        {legendItems.map((item) => (
+          <div key={item.key} className="flex items-center gap-2">
+            <div className={`h-3 w-3 shrink-0 ${item.swatch}`} />
+            <span className="text-gray-700 dark:text-gray-300">{t(item.key)}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

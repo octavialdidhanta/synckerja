@@ -311,7 +311,10 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
           <p className="text-xs text-slate-500 truncate">{conversation.email_connection_display ?? ''}</p>
         </div>
       )}
-      <div ref={threadScrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden seamless-scroll min-w-0">
+      <div
+        ref={threadScrollRef}
+        className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         <div className="flex min-h-full flex-1 flex-col">
         {messages.map((msg, index) => {
           const senderDisplay = getMessageSenderDisplay(msg, conversation);
@@ -373,7 +376,7 @@ export function EmailChatThread({ conversation, hideHeader }: EmailChatThreadPro
                   </div>
                 ) : null}
                 {msg.body ? (
-                  <div className="min-w-0 w-full max-w-full overflow-x-auto">
+                  <div className="min-w-0 w-full max-w-full overflow-x-auto scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <p className="text-xs font-medium text-slate-600 mb-2">
                       {t('emailConnect.messageLabel', 'Pesan')}:
                     </p>

@@ -26,7 +26,8 @@ function stabilizePostListItem(
     prev.postedAt === next.postedAt &&
     prev.mediaType === next.mediaType &&
     prev.accountAvatarUrl === next.accountAvatarUrl &&
-    prev.accountLabel === next.accountLabel
+    prev.accountLabel === next.accountLabel &&
+    prev.isAd === next.isAd
   ) {
     return prev;
   }
@@ -64,14 +65,26 @@ function toPostListItem(
     duration: null,
     accountAvatarUrl,
     accountLabel,
+    isAd: Boolean(row.is_ad),
   };
 }
+
+export type MetaAdsCommentsStatus = {
+  meta_ads_connected: boolean;
+  ads_posts_loaded: number;
+  source: string;
+  warnings: string[];
+};
 
 export async function fetchMetaCommentPosts(args: {
   organizationId: string;
   platform: MetaContentPlatform;
   accountId: string;
-}): Promise<{ posts: MetaContentPostRow[]; account_label: string }> {
+}): Promise<{
+  posts: MetaContentPostRow[];
+  account_label: string;
+  ads_comments: MetaAdsCommentsStatus | null;
+}> {
   const { data, error } = await supabase.functions.invoke('meta-content-comments', {
     body: {
       action: 'listPosts',
@@ -84,10 +97,15 @@ export async function fetchMetaCommentPosts(args: {
   const payload = data as {
     posts?: MetaContentPostRow[];
     account_label?: string;
+    ads_comments?: MetaAdsCommentsStatus | null;
     error?: string;
   };
   if (payload?.error) throw await parseEdgeFunctionError(null, payload);
-  return { posts: payload.posts ?? [], account_label: payload.account_label ?? args.accountId };
+  return {
+    posts: payload.posts ?? [],
+    account_label: payload.account_label ?? args.accountId,
+    ads_comments: payload.ads_comments ?? null,
+  };
 }
 
 export function useMetaContentCommentPostsQuery(args: {

@@ -157,9 +157,10 @@ Deno.serve(async (req) => {
       if (!Number.isFinite(expected) || expected <= 0) {
         throw new Error("Invalid computed amount for omnichannel seats");
       }
+      // Client may send 0 / omit amount to defer pricing to the server RPC.
       if (amount != null && Number.isFinite(Number(amount))) {
         const clientAmt = Math.round(Number(amount));
-        if (Math.abs(clientAmt - expected) > 2) {
+        if (clientAmt > 0 && Math.abs(clientAmt - expected) > 2) {
           throw new Error("Payment amount does not match server price");
         }
       }
@@ -207,9 +208,10 @@ Deno.serve(async (req) => {
       if (!Number.isFinite(expected) || expected <= 0) {
         throw new Error("Invalid computed amount for lead magnet add-on");
       }
+      // Client may send 0 / omit amount to defer pricing to the server RPC.
       if (amount != null && Number.isFinite(Number(amount))) {
         const clientAmt = Math.round(Number(amount));
-        if (Math.abs(clientAmt - expected) > 2) {
+        if (clientAmt > 0 && Math.abs(clientAmt - expected) > 2) {
           throw new Error("Payment amount does not match server price");
         }
       }

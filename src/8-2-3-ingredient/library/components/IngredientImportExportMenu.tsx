@@ -22,7 +22,7 @@ export function IngredientImportExportMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline">
+        <Button type="button" variant="outline" className="shrink-0">
           {t("ingredient.library.importExport", "Import / Export")}
           <ChevronDown className="ml-1.5 h-4 w-4" />
         </Button>

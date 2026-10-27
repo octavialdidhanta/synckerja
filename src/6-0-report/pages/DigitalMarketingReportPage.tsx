@@ -335,29 +335,33 @@ function DigitalMarketingReportPageBody({
         aria-hidden={showTableSkeletonOverlay}
       >
         <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-                      <div className="col-span-12 flex min-h-0 min-w-0 flex-col gap-2">
-                        <DigitalMarketingReportSummaryBar
-                          bootstrapLoading={showTableSkeletonOverlay}
-                          googleServiceRows={googleServiceRows}
-                          metaServiceRows={metaServiceRows}
-                          tiktokServiceRows={tiktokServiceRows}
-                          servicesLoading={
-                            googleServicesLoading || metaServicesLoading || tiktokServicesLoading
-                          }
-                        />
+                      <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col gap-2">
+                        <div className="shrink-0">
+                          <DigitalMarketingReportSummaryBar
+                            bootstrapLoading={showTableSkeletonOverlay}
+                            googleServiceRows={googleServiceRows}
+                            metaServiceRows={metaServiceRows}
+                            tiktokServiceRows={tiktokServiceRows}
+                            servicesLoading={
+                              googleServicesLoading || metaServicesLoading || tiktokServicesLoading
+                            }
+                          />
+                        </div>
 
-                        <DigitalMarketingReportTable
-                          bootstrapLoading={showTableSkeletonOverlay}
-                          googleCost={googleCost}
-                          metaCost={metaCost}
-                          tiktokCost={tiktokCost}
-                          googleServiceRows={googleServiceRows}
-                          googleServicesLoading={googleServicesLoading}
-                          metaServiceRows={metaServiceRows}
-                          metaServicesLoading={metaServicesLoading}
-                          tiktokServiceRows={tiktokServiceRows}
-                          tiktokServicesLoading={tiktokServicesLoading}
-                        />
+                        <div className="shrink-0">
+                          <DigitalMarketingReportTable
+                            bootstrapLoading={showTableSkeletonOverlay}
+                            googleCost={googleCost}
+                            metaCost={metaCost}
+                            tiktokCost={tiktokCost}
+                            googleServiceRows={googleServiceRows}
+                            googleServicesLoading={googleServicesLoading}
+                            metaServiceRows={metaServiceRows}
+                            metaServicesLoading={metaServicesLoading}
+                            tiktokServiceRows={tiktokServiceRows}
+                            tiktokServicesLoading={tiktokServicesLoading}
+                          />
+                        </div>
 
                         <DigitalMarketingReportMonthlyChartsSection
                           bootstrapLoading={showTableSkeletonOverlay}
@@ -386,7 +390,7 @@ function DigitalMarketingReportPageBody({
         </div>
         <div
           className={cn(
-            "h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4",
+            "h-1 flex-shrink-0 [@media(max-height:900px)]:h-1.5 [@media(max-height:760px)]:h-2",
           )}
           aria-hidden
         />
@@ -410,7 +414,7 @@ export default function DigitalMarketingReportPage() {
   return (
     <HeaderAndTabActionsProvider host={host}>
       <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-2">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-1">
           <div className="flex h-full min-h-0 min-w-0 flex-col">
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex min-h-full min-w-0 flex-col">

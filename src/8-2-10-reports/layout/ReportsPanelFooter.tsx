@@ -49,9 +49,6 @@ export function ReportsPanelFooter({ count = 0 }: Props) {
             section: sectionLabel,
           })}
         </span>
-        <span className="text-xs text-muted-foreground/80">
-          {t("reports.footer.total", "Total: {{count}}", { count })}
-        </span>
       </div>
     </div>
   );

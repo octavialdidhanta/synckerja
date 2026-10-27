@@ -197,17 +197,18 @@ export function DigitalMarketingReportMonthlyCpaByServiceChart({
   }, [chartData.length]);
 
   const shellClass = embedded
-    ? "min-w-0"
+    ? "flex min-h-0 min-w-0 flex-1 flex-col"
     : "overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm";
+  const plotClassName = embedded ? "min-h-[280px] flex-1" : "h-[300px]";
 
   return (
     <div className={shellClass}>
       {loading ? (
         bootstrapLoading ? null : (
-          <Skeleton className="h-[300px] w-full rounded-md" />
+          <Skeleton className={`${plotClassName} w-full rounded-md`} />
         )
       ) : !hasMonthlyChartDisplayableChannel(channelFilter, googleSeries, metaSeries, tiktokSeries) ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
+        <div className={`flex ${plotClassName} items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground`}>
           {!googleSeries.connected && !metaSeries.connected && !tiktokSeries.connected
             ? t(
                 "digitalMarketing.report.monthlyCpaNotConnected",
@@ -216,33 +217,33 @@ export function DigitalMarketingReportMonthlyCpaByServiceChart({
             : blockingError}
         </div>
       ) : !chartDateOverlap ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground">
+        <div className={`flex ${plotClassName} items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-muted-foreground`}>
           {t(
             "digitalMarketing.report.monthlySpendNoOverlap",
             "The date filter does not overlap the selected chart year. Adjust the date range or chart year.",
           )}
         </div>
       ) : blockingError ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-red-600">
+        <div className={`flex ${plotClassName} items-center justify-center rounded-md bg-gray-50 px-4 text-center text-sm text-red-600`}>
           {blockingError}
         </div>
       ) : chartData.length === 0 ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 text-sm text-muted-foreground">
+        <div className={`flex ${plotClassName} items-center justify-center rounded-md bg-gray-50 text-sm text-muted-foreground`}>
           {t(
             "digitalMarketing.report.monthlyCpaByServiceEmptyServices",
             "No services with calculable CPA in the selected range.",
           )}
         </div>
       ) : !hasData ? (
-        <div className="flex h-[300px] items-center justify-center rounded-md bg-gray-50 text-sm text-muted-foreground">
+        <div className={`flex ${plotClassName} items-center justify-center rounded-md bg-gray-50 text-sm text-muted-foreground`}>
           {t("digitalMarketing.report.monthlyCpaEmpty", "No CPA data for this year.")}
         </div>
       ) : (
-        <>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {metaSkippedNotice ? (
-            <p className="mb-2 text-xs text-amber-700">{metaSkippedNotice}</p>
+            <p className="mb-2 shrink-0 text-xs text-amber-700">{metaSkippedNotice}</p>
           ) : null}
-          <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-gray-600">
+          <div className="mb-2 flex shrink-0 flex-wrap items-center gap-4 text-xs text-gray-600">
             {showProducts ? (
               <span className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "hsl(160 52% 36%)" }} aria-hidden />
@@ -257,10 +258,10 @@ export function DigitalMarketingReportMonthlyCpaByServiceChart({
             ) : null}
           </div>
           {currency ? (
-            <p className="mb-2 text-xs text-muted-foreground">{currency}</p>
+            <p className="mb-2 shrink-0 text-xs text-muted-foreground">{currency}</p>
           ) : null}
           <div
-            className={`h-[300px] w-full min-w-0${barLayout.useScroll ? " overflow-x-auto" : ""}`}
+            className={`${plotClassName} w-full min-w-0${barLayout.useScroll ? " overflow-x-auto" : ""}`}
           >
             <div
               className="h-full w-full"
@@ -328,7 +329,7 @@ export function DigitalMarketingReportMonthlyCpaByServiceChart({
               </ResponsiveContainer>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

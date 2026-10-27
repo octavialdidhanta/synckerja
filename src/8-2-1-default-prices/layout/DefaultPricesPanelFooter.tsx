@@ -48,9 +48,6 @@ export function DefaultPricesPanelFooter({ count = 0 }: Props) {
             section: sectionLabel,
           })}
         </span>
-        <span className="text-xs text-muted-foreground/80">
-          {t("defaultPrices.footer.total", "Total: {{count}}", { count })}
-        </span>
       </div>
     </div>
   );

@@ -478,7 +478,10 @@ export function EmailConnectPage() {
                                     connection={conn}
                                     onOpenLiveChat={handleOpenLiveChat}
                                     onSyncImap={handleSyncImap}
-                                    isSyncingImap={syncImapMutation.isPending}
+                                    isSyncingImap={
+                                      syncImapMutation.isPending &&
+                                      syncImapMutation.variables === conn.id
+                                    }
                                   />
                                 </div>
                               ))}

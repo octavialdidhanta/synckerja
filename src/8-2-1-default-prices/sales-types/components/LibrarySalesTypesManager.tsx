@@ -9,7 +9,6 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Button } from "@/shared/components/ui/button";
-import { Label } from "@/shared/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -102,26 +101,33 @@ export function LibrarySalesTypesManager({ listClassName }: LibrarySalesTypesMan
   };
 
   return (
-    <div className="space-y-3">
-      <div>
-        <Label className="text-lg font-semibold text-gray-900">
-          {t("defaultPrices.salesType.newHeading", "New sales type")}
-        </Label>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <OutletFilterSelect value={selectedOutletId} onChange={setSelectedOutletId} />
-          <Button type="button" onClick={openCreate}>
-            {t("common.add", "Add")}
-          </Button>
-        </div>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="mb-3 flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <h2 className="shrink-0 whitespace-nowrap text-lg font-semibold text-gray-900">
+          {t("defaultPrices.nav.salesType", "Sales Type")}
+        </h2>
+        <OutletFilterSelect
+          value={selectedOutletId}
+          onChange={setSelectedOutletId}
+          className="h-10 w-[180px] shrink-0"
+        />
+        <div className="min-w-0 flex-1" aria-hidden />
+        <Button type="button" className="shrink-0" onClick={openCreate}>
+          {t("common.add", "Add")}
+        </Button>
       </div>
-      <div className={cn("overflow-y-auto", listClassName ?? "max-h-56")}>
-        <Table>
-          <TableHeader>
+      <Table
+        containerClassName={cn(
+          "min-h-0 flex-1 overflow-auto rounded-md border border-border/60 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          listClassName,
+        )}
+      >
+          <TableHeader className="sticky top-0 z-[1] bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
             <TableRow>
-              <TableHead>{t("defaultPrices.salesType.columnName", "Name")}</TableHead>
-              <TableHead>{t("defaultPrices.salesType.columnGratuityApplied", "Gratuity Applied")}</TableHead>
-              <TableHead className="w-[120px]">{t("defaultPrices.salesType.columnStatus", "Status")}</TableHead>
-              <TableHead className="w-[56px]" />
+              <TableHead className="h-9">{t("defaultPrices.salesType.columnName", "Name")}</TableHead>
+              <TableHead className="h-9">{t("defaultPrices.salesType.columnGratuityApplied", "Gratuity Applied")}</TableHead>
+              <TableHead className="h-9 w-[120px]">{t("defaultPrices.salesType.columnStatus", "Status")}</TableHead>
+              <TableHead className="h-9 w-[56px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -203,7 +209,6 @@ export function LibrarySalesTypesManager({ listClassName }: LibrarySalesTypesMan
             )}
           </TableBody>
         </Table>
-      </div>
       <SalesTypeFormSheet
         salesType={editing}
         selectedOutletId={selectedOutletId}

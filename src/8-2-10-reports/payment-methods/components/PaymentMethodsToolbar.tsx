@@ -38,23 +38,15 @@ export function PaymentMethodsToolbar({
   return (
     <ReportsSalesToolbarShell
       title={t("reports.paymentMethods.title", "Payment Methods")}
-      description={
-        <p className="text-sm text-gray-500">
-          {t(
-            "reports.paymentMethods.subtitle",
-            "Breakdown by payment channel for the selected period.",
-          )}
-        </p>
-      }
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-nowrap items-center gap-2">
         <div className="relative">
           <Home className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <OutletFilterSelect
             value={outletId || POS_OUTLET_FILTER_ALL}
             onChange={onOutletChange}
             includeAll
-            className="w-[200px] pl-8"
+            className="h-10 w-[200px] pl-8"
           />
         </div>
         <ReportsSalesDateRangePicker
@@ -65,7 +57,7 @@ export function PaymentMethodsToolbar({
           onApplyFilters={onApplyFilters}
         />
       </div>
-      <Button type="button" size="sm" onClick={onExport} disabled={exportDisabled}>
+      <Button type="button" className="shrink-0" onClick={onExport} disabled={exportDisabled}>
         <Download className="mr-2 h-4 w-4" />
         {t("reports.actions.export", "Export")}
       </Button>

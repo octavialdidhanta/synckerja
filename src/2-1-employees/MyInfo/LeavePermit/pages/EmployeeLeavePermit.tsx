@@ -144,13 +144,13 @@ const EmployeeLeavePermit = () => {
   }
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-gray-100 font-sans">
-        <div className="flex flex-1 min-h-0">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
+        <div className="flex min-h-0 flex-1">
           {/* Main Content */}
-          <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
-            <div className="h-full flex flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-2">
+            <div className="flex h-full flex-col overflow-hidden">
                 {/* Header with Actions */}
-                <div className="flex-shrink-0 mt-2 mb-2">
+                <div className="mt-1 mb-1 flex-shrink-0">
                   <Button 
                     variant="outline" 
                     onClick={handleBackToEmployees} 
@@ -238,29 +238,35 @@ const EmployeeLeavePermit = () => {
                   </div>
                   
                   {/* Right Column - Main Content - 9 columns */}
-                  <div className="col-span-9 flex flex-col min-h-0">
-                    {/* Main Content Section */}
-                    <div className="flex-1 min-h-0">
-                      <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col h-full">
-                        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                          <div className="p-6">
-                            {/* Header */}
-                            <div className="flex items-center justify-between mb-6">
-                              <h2 className="text-xl font-semibold text-gray-900">Leave & Permit History</h2>
-                            </div>
-                            
-                            {/* Leave History Component */}
-                            {organizationId && (
-                              <ComprehensiveLeaveHistory 
-                                employeeId={employeeId} 
-                                organizationId={organizationId} 
-                              />
-                            )}
+                  <div className="col-span-9 flex min-h-0 flex-col">
+                    {/* Main Content Section — match /my-info/payroll footer shell */}
+                    <div className="min-h-0 flex-1">
+                      <div className="flex h-full flex-col rounded-lg border border-gray-200 bg-white shadow-sm">
+                        {/* Header Section - Fixed */}
+                        <div className="flex-shrink-0 border-b border-gray-200 px-6 pb-3 pt-4">
+                          <div className="flex items-center justify-between">
+                            <h2 className="text-xl font-semibold text-gray-900">Leave & Permit History</h2>
                           </div>
                         </div>
 
-                        {/* Content Footer */}
-                        <MyInfoContentFooter section="Leave Permit" />
+                        {/* Scrollable Content */}
+                        <div className="min-h-0 flex-1 overflow-hidden">
+                          <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <div className="p-6">
+                              {organizationId && (
+                                <ComprehensiveLeaveHistory 
+                                  employeeId={employeeId} 
+                                  organizationId={organizationId} 
+                                />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Content Footer - Fixed (same rhythm as payroll) */}
+                        <div className="flex-shrink-0">
+                          <MyInfoContentFooter section="Leave Permit" />
+                        </div>
                       </div>
                     </div>
                   </div>

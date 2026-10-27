@@ -14,7 +14,7 @@ type Props = {
 export function SynckerjaOrderOutletsPanel({ rows, onToggle, onCodeChange, busy }: Props) {
   const { t } = useAppTranslation();
   return (
-    <div className="overflow-x-auto p-4">
+    <div className="overflow-x-auto p-3">
       <table className="w-full min-w-[640px] text-left text-sm">
         <thead>
           <tr className="border-b text-muted-foreground">

@@ -9,7 +9,7 @@ import { ContentCalendarSidebarFooter } from './ContentCalendarSidebarFooter';
 
 /** Selaras dengan tab Funnel / Content Balance / Reminders di dashboard (`ReminderTab`). */
 const overviewTabsTriggerClass =
-  'flex h-full min-h-0 w-full items-center justify-center rounded-none px-2 text-xs text-muted-foreground transition-colors hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none';
+  'flex h-full min-h-0 w-full min-w-0 flex-1 items-center justify-center rounded-none px-1 text-xs text-muted-foreground transition-colors hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none sm:px-2';
 
 interface MonthlyStats {
   total: number;
@@ -56,8 +56,8 @@ export const ContentCalendarOverview = ({
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[5px] border bg-white">
       <Tabs defaultValue="overview" className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
-        <div className="shrink-0 border-b px-4 pb-2 pt-2">
-          <TabsList className="mb-2 grid h-9 w-full grid-cols-3 gap-0 overflow-hidden rounded-[5px] bg-muted p-0">
+        <div className="shrink-0 border-b pb-2 pt-0">
+          <TabsList className="mb-2 !grid h-9 w-full min-w-0 grid-cols-3 gap-0 overflow-hidden rounded-none bg-muted p-0">
             <TabsTrigger value="overview" className={overviewTabsTriggerClass}>
               Overview
             </TabsTrigger>
@@ -68,7 +68,7 @@ export const ContentCalendarOverview = ({
               Content Balance
             </TabsTrigger>
           </TabsList>
-          <p className="text-xs text-gray-500">{monthName}</p>
+          <p className="px-4 text-xs text-gray-500">{monthName}</p>
         </div>
 
         <TabsContent

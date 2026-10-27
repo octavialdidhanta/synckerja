@@ -81,6 +81,11 @@ export function ManageCommentsPostListItemRow({
               {t("digitalMarketing.manageComments.newComments", "New comment")}
             </span>
           ) : null}
+          {post.isAd ? (
+            <span className="shrink-0 rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+              {t("digitalMarketing.manageComments.adsBadge", "Ads")}
+            </span>
+          ) : null}
           <p className="line-clamp-2 text-xs text-muted-foreground">{snippetLabel}</p>
         </div>
       </div>

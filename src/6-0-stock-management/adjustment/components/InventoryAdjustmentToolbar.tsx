@@ -27,39 +27,39 @@ export function InventoryAdjustmentToolbar(props: {
   const { t } = useAppTranslation();
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <h2 className="text-base font-semibold">{t("operations.inventory.adjustment.heading", "Adjustment")}</h2>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <OutletFilterSelect value={props.outletId} onChange={props.onOutletChange} />
-          <InventorySummaryDateControl
-            from={props.from}
-            to={props.to}
-            onChange={(nextFrom, nextTo) => props.onRangeChange(nextFrom, nextTo)}
-          />
-          <Select
-            value={props.kind}
-            onValueChange={(value) => props.onKindChange(value as InventoryAdjustmentKindFilter)}
-          >
-            <SelectTrigger className="h-9 w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="item_library">{t("operations.inventory.summary.kindProducts", "Item Library")}</SelectItem>
-              <SelectItem value="ingredients">{t("operations.inventory.summary.kindIngredients", "Ingredients")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {props.canManage ? (
-          <Button type="button" className="h-9" onClick={props.onCreateClick} disabled={props.creating}>
-            <Plus className="mr-1 h-4 w-4" />
-            {t("operations.inventory.adjustment.create", "Create Adjustment")}
-          </Button>
-        ) : null}
-      </div>
+    <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <h2 className="flex h-10 shrink-0 items-center whitespace-nowrap text-lg font-semibold leading-none text-gray-900">
+        {t("operations.inventory.adjustment.heading", "Adjustment")}
+      </h2>
+      <OutletFilterSelect
+        value={props.outletId}
+        onChange={props.onOutletChange}
+        className="h-10 w-[180px] shrink-0"
+      />
+      <InventorySummaryDateControl
+        from={props.from}
+        to={props.to}
+        onChange={(nextFrom, nextTo) => props.onRangeChange(nextFrom, nextTo)}
+      />
+      <Select
+        value={props.kind}
+        onValueChange={(value) => props.onKindChange(value as InventoryAdjustmentKindFilter)}
+      >
+        <SelectTrigger className="h-10 w-[180px] shrink-0">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="item_library">{t("operations.inventory.summary.kindProducts", "Item Library")}</SelectItem>
+          <SelectItem value="ingredients">{t("operations.inventory.summary.kindIngredients", "Ingredients")}</SelectItem>
+        </SelectContent>
+      </Select>
+      <div className="min-w-0 flex-1" aria-hidden />
+      {props.canManage ? (
+        <Button type="button" className="h-10 shrink-0" onClick={props.onCreateClick} disabled={props.creating}>
+          <Plus className="mr-2 h-4 w-4" />
+          {t("operations.inventory.adjustment.create", "Create Adjustment")}
+        </Button>
+      ) : null}
     </div>
   );
 }
-

@@ -79,13 +79,9 @@ export default function TableReportPage() {
     >
       <TableManagementWorkspace count={tab === "transaction" ? report.rows.length : 0}>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="grid min-h-0 min-w-0 flex-1 grid-cols-12 gap-2 overflow-hidden p-4">
+          <div className="grid min-h-0 min-w-0 flex-1 grid-cols-12 gap-2 overflow-hidden px-3 pt-2 pb-4">
             <div className={cn("col-span-12 flex min-h-0 flex-col gap-3 overflow-hidden", selected ? "xl:col-span-8" : "")}>
-              <div className="flex-shrink-0">
-                <h2 className="text-lg font-semibold">
-                  {t("tableManagement.report.title", "Table Report")}
-                </h2>
-                <div className="mt-2">
+              <div className="flex-shrink-0 border-b px-0 pb-2">
                   <TableReportFilters
                     outletId={selectedOutletId || ""}
                     onOutletChange={(id) => {
@@ -104,7 +100,6 @@ export default function TableReportPage() {
                     }}
                     tableOptions={tableOpts.data ?? []}
                   />
-                </div>
               </div>
 
               <div className="flex flex-shrink-0 gap-4 border-b border-border text-sm">

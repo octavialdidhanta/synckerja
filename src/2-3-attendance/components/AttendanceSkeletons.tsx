@@ -224,43 +224,43 @@ function RecordsSidebarSkeleton() {
     <div className="h-full min-h-0">
       <div>
         <div>
-          <div className="px-3 pb-2 pt-3">
+          <div className="px-4 pb-2 pt-3">
             <div className="flex items-center gap-2">
               <Skeleton className="h-4 w-4 rounded-sm" />
               <Skeleton className="h-4 w-28" />
               <Skeleton className="bg-success h-2 w-2 rounded-full opacity-50" />
             </div>
           </div>
-          <div className="space-y-2 px-3 pb-3">
-            <div className="grid grid-cols-2 gap-1.5">
-              <div className="bg-success-muted relative rounded p-1.5 text-center">
-                <Skeleton className="mx-auto h-6 w-10 bg-background/50" />
-                <Skeleton className="mx-auto mt-1 h-3 w-12 bg-background/50" />
+          <div className="space-y-3 px-4 pb-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-success-muted relative rounded-md p-2.5 text-center">
+                <Skeleton className="mx-auto h-5 w-10 bg-background/50" />
+                <Skeleton className="mx-auto mt-1.5 h-3 w-12 bg-background/50" />
               </div>
-              <div className="bg-warning-muted rounded p-1.5 text-center">
-                <Skeleton className="mx-auto h-6 w-10 bg-background/50" />
-                <Skeleton className="mx-auto mt-1 h-3 w-10 bg-background/50" />
+              <div className="bg-warning-muted rounded-md p-2.5 text-center">
+                <Skeleton className="mx-auto h-5 w-10 bg-background/50" />
+                <Skeleton className="mx-auto mt-1.5 h-3 w-10 bg-background/50" />
               </div>
-              <div className="bg-destructive/10 rounded p-1.5 text-center">
-                <Skeleton className="mx-auto h-6 w-10 bg-background/50" />
-                <Skeleton className="mx-auto mt-1 h-3 w-12 bg-background/50" />
+              <div className="bg-destructive/10 rounded-md p-2.5 text-center">
+                <Skeleton className="mx-auto h-5 w-10 bg-background/50" />
+                <Skeleton className="mx-auto mt-1.5 h-3 w-12 bg-background/50" />
               </div>
-              <div className="bg-info-muted rounded p-1.5 text-center">
-                <Skeleton className="mx-auto h-6 w-10 bg-background/50" />
-                <Skeleton className="mx-auto mt-1 h-3 w-9 bg-background/50" />
+              <div className="bg-info-muted rounded-md p-2.5 text-center">
+                <Skeleton className="mx-auto h-5 w-10 bg-background/50" />
+                <Skeleton className="mx-auto mt-1.5 h-3 w-9 bg-background/50" />
               </div>
             </div>
-            <div className="space-y-1.5 pt-1">
-              <Skeleton className="h-1.5 w-full rounded-full" />
-              <Skeleton className="h-1.5 w-full rounded-full" />
-              <Skeleton className="h-1.5 w-full rounded-full" />
+            <div className="space-y-2.5 pt-1">
+              <Skeleton className="h-2 w-full rounded-full" />
+              <Skeleton className="h-2 w-full rounded-full" />
+              <Skeleton className="h-2 w-full rounded-full" />
             </div>
           </div>
         </div>
-        <div className="border-t border-border p-3">
-          <Skeleton className="mb-2 h-4 w-36" />
-          <div className="flex gap-2">
-            <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+        <div className="border-t border-border px-4 py-3">
+          <Skeleton className="mb-3 h-4 w-36" />
+          <div className="flex gap-2.5">
+            <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
             <div className="min-w-0 flex-1 space-y-2">
               <Skeleton className="h-4 w-full max-w-[200px]" />
               <Skeleton className="h-3 w-full max-w-[120px]" />

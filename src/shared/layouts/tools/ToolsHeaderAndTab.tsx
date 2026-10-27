@@ -3,6 +3,7 @@ import { Calculator, CheckSquare, FileText, Key, Lock, Target } from "lucide-rea
 import { useNavigate } from "react-router-dom";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
+import { cn } from "@/shared/lib/utils";
 
 export type ToolsTabMode = "default" | "password-manager-only" | "pph21-calculator-only";
 
@@ -62,6 +63,7 @@ export function ToolsHeaderAndTab({
   const navigate = useNavigate();
   const { isTabLocked } = useHeaderTabPageAccess();
   const { t } = useAppTranslation();
+  const isCompact = toolsTabMode === "password-manager-only" || toolsTabMode === "pph21-calculator-only";
 
   const toolTabs: ToolTabItem[] = useMemo(() => {
     switch (toolsTabMode) {
@@ -103,32 +105,29 @@ export function ToolsHeaderAndTab({
     }
   };
 
-  return (
-    <div className="px-1 py-3">
-      <div className="mb-3">
-        <h1 className="mb-0.5 text-xl font-bold text-gray-900">
-          {toolsTabMode === "password-manager-only"
-            ? t("sidebar.tools.passwordManager.title", "Password Manager")
-            : toolsTabMode === "pph21-calculator-only"
-              ? t("sidebar.tools.pph21Calculator.title", "PPh 21 Calculator")
-              : "Tools"}
-        </h1>
-        <p className="text-xs text-gray-600">
-          {toolsTabMode === "password-manager-only"
-            ? t(
-                "sidebar.tools.passwordManager.description",
-                "Manage your passwords securely",
-              )
-            : toolsTabMode === "pph21-calculator-only"
-              ? t(
-                  "sidebar.tools.pph21Calculator.description",
-                  "Calculate Indonesian payroll tax automatically",
-                )
-              : "Manage your daily tasks and productivity tools"}
-        </p>
-      </div>
+  const title =
+    toolsTabMode === "password-manager-only"
+      ? t("sidebar.tools.passwordManager.title", "Password Manager")
+      : toolsTabMode === "pph21-calculator-only"
+        ? t("sidebar.tools.pph21Calculator.title", "PPh 21 Calculator")
+        : "Tools";
 
-      <div className="-mb-3">
+  return (
+    <div className={cn(isCompact ? "px-1 pt-1 pb-0" : "px-1 py-3")}>
+      {isCompact ? (
+        <h1 className="mb-1.5 flex h-10 items-center text-xl font-bold leading-none text-gray-900">
+          {title}
+        </h1>
+      ) : (
+        <div className="mb-3">
+          <h1 className="mb-0.5 text-xl font-bold text-gray-900">{title}</h1>
+          <p className="text-xs text-gray-600">
+            Manage your daily tasks and productivity tools
+          </p>
+        </div>
+      )}
+
+      <div className={isCompact ? undefined : "-mb-3"}>
         <nav className="flex flex-wrap gap-x-6 gap-y-1">
           {toolTabs.map((tab) => {
             const Icon = tab.icon;

@@ -25,8 +25,8 @@ function ReportTableRowSkeleton() {
 export function DigitalMarketingReportTablePhaseSkeleton() {
   return (
     <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
-      <div className="col-span-12 flex min-h-0 min-w-0 flex-col gap-2">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" aria-hidden>
+      <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col gap-2">
+        <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" aria-hidden>
           {Array.from({ length: SUMMARY_SLOT_COUNT }, (_, i) => (
             <div key={i} className="rounded-md border border-gray-200 bg-white px-3 py-2">
               <Skeleton className="mb-1.5 h-3 w-16" />
@@ -37,7 +37,7 @@ export function DigitalMarketingReportTablePhaseSkeleton() {
           ))}
         </div>
 
-        <div className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="min-w-0 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
           <div className="nested-scroll-touch-chain-xy seamless-scroll min-w-0 w-full overflow-x-auto overflow-y-hidden">
             <table className="w-full min-w-[1040px] caption-bottom border-collapse text-sm">
               <thead>

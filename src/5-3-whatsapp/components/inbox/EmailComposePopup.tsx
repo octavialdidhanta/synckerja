@@ -146,7 +146,7 @@ export function EmailComposePopup({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto seamless-scroll flex flex-col min-h-0">
+        <div className="scrollbar-hide seamless-scroll flex min-h-0 flex-1 flex-col overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* To */}
           <div className="flex-shrink-0 px-4 py-2 border-b border-gray-100 flex items-center gap-2">
             <Label className="text-sm text-gray-600 w-12 shrink-0">{t('emailConnect.to', 'Kepada')}</Label>

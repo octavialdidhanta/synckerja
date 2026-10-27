@@ -20,6 +20,13 @@ interface DocumentsInfoTabProps {
   onUpdate: () => void;
   /** When set, title and Add Document share one header row (Documents page). */
   sectionTitle?: string;
+  /** Controlled add form (page header Add button). */
+  isAddingNew?: boolean;
+  onAddingNewChange?: (value: boolean) => void;
+  /** Notify page when a row is being edited (to hide header Add). */
+  onEditingChange?: (editing: boolean) => void;
+  /** Hide inline Add — use when Add lives in the page header. */
+  hideInlineAddButton?: boolean;
 }
 
 export const DocumentsInfoTab = ({
@@ -27,10 +34,19 @@ export const DocumentsInfoTab = ({
   isEditMode,
   onUpdate,
   sectionTitle,
+  isAddingNew: controlledIsAddingNew,
+  onAddingNewChange,
+  onEditingChange,
+  hideInlineAddButton = false,
 }: DocumentsInfoTabProps) => {
   const { documents, isLoading, addDocument, updateDocument, deleteDocument } = useEmployeeDocuments(employee.id);
   
-  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [internalIsAddingNew, setInternalIsAddingNew] = useState(false);
+  const isAddingNew = controlledIsAddingNew ?? internalIsAddingNew;
+  const setIsAddingNew = (value: boolean) => {
+    onAddingNewChange?.(value);
+    if (controlledIsAddingNew === undefined) setInternalIsAddingNew(value);
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<any>>({
     file_name: '',
@@ -76,6 +92,7 @@ export const DocumentsInfoTab = ({
     if (editingId) {
       await updateDocument.mutateAsync({ id: editingId, data: documentData });
       setEditingId(null);
+      onEditingChange?.(false);
     } else {
       await addDocument.mutateAsync(documentData);
       setIsAddingNew(false);
@@ -92,6 +109,7 @@ export const DocumentsInfoTab = ({
 
   const handleEdit = (document: EmployeeDocument) => {
     setEditingId(document.id);
+    onEditingChange?.(true);
     setFormData({
       file_name: document.file_name,
       document_type: document.document_type,
@@ -104,6 +122,7 @@ export const DocumentsInfoTab = ({
   const handleCancel = () => {
     setIsAddingNew(false);
     setEditingId(null);
+    onEditingChange?.(false);
     setFormData({
       file_name: '',
       document_type: '',
@@ -142,7 +161,7 @@ export const DocumentsInfoTab = ({
   }
 
   const addDocumentButton =
-    isEditMode && !isAddingNew && !editingId ? (
+    !hideInlineAddButton && isEditMode && !isAddingNew && !editingId ? (
       <Button
         onClick={() => setIsAddingNew(true)}
         size="sm"
@@ -428,20 +447,12 @@ export const DocumentsInfoTab = ({
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="text-center py-12">
-            <p className="text-gray-500 mb-4">No document records found.</p>
-            {isEditMode && (
-              <Button
-                onClick={() => setIsAddingNew(true)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add First Document
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <div className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 py-8 text-center text-gray-500">
+          <p>No document records found.</p>
+          {isEditMode && (
+            <p className="mt-2 text-sm">Click &quot;Add Document&quot; to get started.</p>
+          )}
+        </div>
       )}
     </div>
   );

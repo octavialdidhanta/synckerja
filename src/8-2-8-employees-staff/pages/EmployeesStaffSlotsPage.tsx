@@ -102,7 +102,7 @@ export default function EmployeesStaffSlotsPage() {
   return (
     <EmployeesStaffModuleShell showContent={showContent}>
       <EmployeesStaffWorkspace count={filtered.length}>
-          <div className="flex-shrink-0 space-y-3 border-b px-4 py-3">
+          <div className="flex-shrink-0 space-y-2 border-b px-3 py-2">
             {!posAddonActive && (
               <Alert>
                 <AlertDescription className="text-sm">
@@ -116,20 +116,12 @@ export default function EmployeesStaffSlotsPage() {
                 </AlertDescription>
               </Alert>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-base font-semibold">
-                  {t("employeesStaff.slots.title", "Employee Slots")}
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  {t("employeesStaff.slots.quota", "{{used}} of {{limit}} slots used", {
-                    used: slotRows.filter((r) => r.kind === "staff").length,
-                    limit: memberLimit,
-                  })}
-                </p>
-              </div>
-            </div>
             <EmployeeSlotFilters
+              title={t("employeesStaff.slots.title", "Employee Slots")}
+              quotaLabel={t("employeesStaff.slots.quota", "{{used}} of {{limit}} slots used", {
+                used: slotRows.filter((r) => r.kind === "staff").length,
+                limit: memberLimit,
+              })}
               search={search}
               onSearchChange={setSearch}
               statusFilter={statusFilter}

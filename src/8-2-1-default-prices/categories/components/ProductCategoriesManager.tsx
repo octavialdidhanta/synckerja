@@ -9,7 +9,6 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Button } from "@/shared/components/ui/button";
-import { Label } from "@/shared/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -104,96 +103,102 @@ export function ProductCategoriesManager({
   };
 
   return (
-    <div className="space-y-3">
-      <div>
-        <Label className="text-lg font-semibold text-gray-900">
-          {t("defaultPrices.product.newCategory", "New category")}
-        </Label>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <OutletFilterSelect value={selectedOutletId} onChange={setSelectedOutletId} />
-          <Button type="button" onClick={openCreate}>
-            {t("defaultPrices.category.createCategory", "Create Category")}
-          </Button>
-        </div>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="mb-3 flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <h2 className="shrink-0 whitespace-nowrap text-lg font-semibold text-gray-900">
+          {t("defaultPrices.nav.categories", "Categories")}
+        </h2>
+        <OutletFilterSelect
+          value={selectedOutletId}
+          onChange={setSelectedOutletId}
+          className="h-10 w-[180px] shrink-0"
+        />
+        <div className="min-w-0 flex-1" aria-hidden />
+        <Button type="button" className="shrink-0" onClick={openCreate}>
+          {t("defaultPrices.category.createCategory", "Create Category")}
+        </Button>
       </div>
-      <div className={cn("overflow-y-auto", listClassName ?? "max-h-56")}>
-        <Table>
-          <TableHeader>
+      <Table
+        containerClassName={cn(
+          "min-h-0 flex-1 overflow-auto rounded-md border border-border/60 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          listClassName,
+        )}
+      >
+        <TableHeader className="sticky top-0 z-[1] bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
+          <TableRow>
+            <TableHead className="h-9">{t("defaultPrices.category.columnName", "Category Name")}</TableHead>
+            <TableHead className="h-9 w-[140px] text-right">
+              {t("defaultPrices.category.columnItemStocks", "Item Stocks")}
+            </TableHead>
+            <TableHead className="h-9 w-[56px]" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {categories.isLoading ? (
             <TableRow>
-              <TableHead>{t("defaultPrices.category.columnName", "Category Name")}</TableHead>
-              <TableHead className="w-[140px] text-right">
-                {t("defaultPrices.category.columnItemStocks", "Item Stocks")}
-              </TableHead>
-              <TableHead className="w-[56px]" />
+              <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
+                {t("defaultPrices.loading", "Loading...")}
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {categories.isLoading ? (
-              <TableRow>
-                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
-                  {t("defaultPrices.loading", "Loading...")}
+          ) : categories.rows.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
+                {t("defaultPrices.product.noCategories", "No categories yet.")}
+              </TableCell>
+            </TableRow>
+          ) : filteredRows.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
+                {t("defaultPrices.category.emptyOutlet", "No categories assigned to this outlet.")}
+              </TableCell>
+            </TableRow>
+          ) : (
+            filteredRows.map((row) => (
+              <TableRow key={row.id}>
+                <TableCell className="py-2">
+                  <button
+                    type="button"
+                    className="min-w-0 max-w-full truncate text-left text-sm"
+                    onClick={() => onSelect?.(row)}
+                  >
+                    {row.name}
+                  </button>
                 </TableCell>
-              </TableRow>
-            ) : categories.rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
-                  {t("defaultPrices.product.noCategories", "No categories yet.")}
+                <TableCell className="py-2 text-right tabular-nums">
+                  {itemStocksByCategoryId.get(row.id) ?? 0}
                 </TableCell>
-              </TableRow>
-            ) : filteredRows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
-                  {t("defaultPrices.category.emptyOutlet", "No categories assigned to this outlet.")}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredRows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>
-                    <button
-                      type="button"
-                      className="min-w-0 max-w-full truncate text-left text-sm"
-                      onClick={() => onSelect?.(row)}
-                    >
-                      {row.name}
-                    </button>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {itemStocksByCategoryId.get(row.id) ?? 0}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {enableAssignToItem ? (
-                          <DropdownMenuItem onClick={() => setAssignCategory(row)}>
-                            {t("defaultPrices.category.assignToItem", "Assign To Item")}
-                          </DropdownMenuItem>
-                        ) : null}
-                        <DropdownMenuItem onClick={() => openEdit(row)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          {t("common.edit", "Edit")}
+                <TableCell className="py-1 text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {enableAssignToItem ? (
+                        <DropdownMenuItem onClick={() => setAssignCategory(row)}>
+                          {t("defaultPrices.category.assignToItem", "Assign To Item")}
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => setDeleteTarget(row)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          {t("common.delete", "Delete")}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                      ) : null}
+                      <DropdownMenuItem onClick={() => openEdit(row)}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        {t("common.edit", "Edit")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onClick={() => setDeleteTarget(row)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {t("common.delete", "Delete")}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
       <CategoryFormSheet
         category={editing}
         selectedOutletId={selectedOutletId}

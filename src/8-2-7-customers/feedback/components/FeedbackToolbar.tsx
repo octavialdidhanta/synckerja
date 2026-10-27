@@ -63,62 +63,63 @@ export function FeedbackToolbar({
   const employeesQuery = useFeedbackEmployees();
 
   return (
-    <div className="space-y-3">
-      <h2 className="text-base font-semibold">{t('customers.tab.feedback', 'Feedback')}</h2>
-      <div className="flex flex-wrap items-center gap-2">
-        <Select
-          value={outletId ?? 'all'}
-          onValueChange={(v) => onOutletChange(v === 'all' ? null : v)}
-        >
-          <SelectTrigger className="h-9 w-[160px]">
-            <Store className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-            <SelectValue placeholder={t('customers.feedback.allOutlets', 'All outlets')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t('customers.feedback.allOutlets', 'All outlets')}</SelectItem>
-            {outlets.map((outlet) => (
-              <SelectItem key={outlet.id} value={outlet.id}>
-                {outlet.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <h2 className="flex h-10 shrink-0 items-center whitespace-nowrap text-lg font-semibold leading-none text-gray-900">
+        {t('customers.tab.feedback', 'Feedback')}
+      </h2>
+      <div className="min-w-0 flex-1" aria-hidden />
+      <Select
+        value={outletId ?? 'all'}
+        onValueChange={(v) => onOutletChange(v === 'all' ? null : v)}
+      >
+        <SelectTrigger className="h-10 w-[160px] shrink-0">
+          <Store className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+          <SelectValue placeholder={t('customers.feedback.allOutlets', 'All outlets')} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{t('customers.feedback.allOutlets', 'All outlets')}</SelectItem>
+          {outlets.map((outlet) => (
+            <SelectItem key={outlet.id} value={outlet.id}>
+              {outlet.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
-        <FeedbackDateRangePicker value={dateRange} onChange={onDateRangeChange} />
+      <FeedbackDateRangePicker value={dateRange} onChange={onDateRangeChange} />
 
-        <Select
-          value={employeeId ?? 'all'}
-          onValueChange={(v) => onEmployeeChange(v === 'all' ? null : v)}
-        >
-          <SelectTrigger className="h-9 w-[160px]">
-            <SelectValue placeholder={t('customers.feedback.allEmployees', 'All Employees')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t('customers.feedback.allEmployees', 'All Employees')}</SelectItem>
-            {(employeesQuery.data ?? []).map((emp) => (
-              <SelectItem key={emp.id} value={emp.id}>
-                {emp.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <Select
+        value={employeeId ?? 'all'}
+        onValueChange={(v) => onEmployeeChange(v === 'all' ? null : v)}
+      >
+        <SelectTrigger className="h-10 w-[160px] shrink-0">
+          <SelectValue placeholder={t('customers.feedback.allEmployees', 'All Employees')} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{t('customers.feedback.allEmployees', 'All Employees')}</SelectItem>
+          {(employeesQuery.data ?? []).map((emp) => (
+            <SelectItem key={emp.id} value={emp.id}>
+              {emp.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
-        <Select
-          value={sentiment ?? 'all'}
-          onValueChange={(v) =>
-            onSentimentChange(v === 'all' ? null : (v as FeedbackSentiment))
-          }
-        >
-          <SelectTrigger className="h-9 w-[160px]">
-            <SelectValue placeholder={t('customers.feedback.allFeedbacks', 'All Feedbacks')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t('customers.feedback.allFeedbacks', 'All Feedbacks')}</SelectItem>
-            <SelectItem value="good">{t('customers.feedback.goodFeedbacks', 'Good Feedbacks')}</SelectItem>
-            <SelectItem value="bad">{t('customers.feedback.badFeedbacks', 'Bad Feedbacks')}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <Select
+        value={sentiment ?? 'all'}
+        onValueChange={(v) =>
+          onSentimentChange(v === 'all' ? null : (v as FeedbackSentiment))
+        }
+      >
+        <SelectTrigger className="h-10 w-[160px] shrink-0">
+          <SelectValue placeholder={t('customers.feedback.allFeedbacks', 'All Feedbacks')} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{t('customers.feedback.allFeedbacks', 'All Feedbacks')}</SelectItem>
+          <SelectItem value="good">{t('customers.feedback.goodFeedbacks', 'Good Feedbacks')}</SelectItem>
+          <SelectItem value="bad">{t('customers.feedback.badFeedbacks', 'Bad Feedbacks')}</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   );
 }

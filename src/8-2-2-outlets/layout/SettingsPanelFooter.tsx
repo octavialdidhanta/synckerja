@@ -7,7 +7,6 @@ import {
   SETTINGS_CHECKOUT_PATH,
   SETTINGS_RECEIPT_PATH,
 } from "./OutletsHeaderAndTab";
-import { SETTINGS_SECTION_COUNT } from "./settingsLayout";
 
 function sectionCopy(pathname: string): { key: string; fallback: string } {
   if (pathname.startsWith(SETTINGS_CHECKOUT_PATH)) {
@@ -39,9 +38,6 @@ export function SettingsPanelFooter() {
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>
           {t("outlets.footer.showing", "{{section}} settings", { section: sectionLabel })}
-        </span>
-        <span className="text-xs text-muted-foreground/80">
-          {t("outlets.footer.total", "Total: {{count}} sections", { count: SETTINGS_SECTION_COUNT })}
         </span>
       </div>
     </div>

@@ -1,13 +1,13 @@
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
-import { MapPin, Edit, Trash2, Plus, Building, Users, Phone, User, Wifi, WifiOff } from 'lucide-react';
+import { MapPin, Edit, Trash2, Plus, Building, Phone, User, Wifi, WifiOff } from 'lucide-react';
 import { EnhancedAddOfficeLocationModal } from '../modals/EnhancedAddOfficeLocationModal';
 import { EditOfficeLocationModal } from '../modals/EditOfficeLocationModal';
 import { useOfficeLocations, useLocationTypes, useClients } from '@/features/2-3-settings/hooks/useLocationManagement';
 import { useReportAttendanceSettingsLoading } from '@/2-3-attendance/context/AttendancePageLoadContext';
+import { AttendanceSettingsHeaderActions } from '@/2-3-settings/components/AttendanceSettingsHeaderActions';
 import { useToast } from '@/shared/components/ui/use-toast';
 
 const useRealtimeAttendanceFallback = () => ({
@@ -99,168 +99,144 @@ export const OptimizedOfficeLocationsList = () => {
   }
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div>
-                <CardTitle className="flex items-center space-x-2">
-                  <Building className="h-5 w-5" />
-                  <span>Office Locations</span>
-                </CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Manage office locations with real-time updates
-                </p>
-              </div>
-              
-              {/* Real-time Status Indicator */}
-              <div className="flex items-center gap-2">
-                {isConnected ? (
-                  <div className="flex items-center gap-1 text-success">
-                    <Wifi className="h-4 w-4" />
-                    <span className="text-xs">Live</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <WifiOff className="h-4 w-4" />
-                    <span className="text-xs">Offline</span>
-                  </div>
-                )}
-                
-                {lastUpdate && (
-                  <Badge variant="outline" className="text-xs">
-                    Updated {lastUpdate.toLocaleTimeString()}
-                  </Badge>
-                )}
-              </div>
-            </div>
-            
-            <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Add Location
-            </Button>
-          </div>
-        </CardHeader>
-        
-        <CardContent className="space-y-4">
-          {locations.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Building className="h-12 w-12 mx-auto mb-4 text-muted-foreground/40" />
-              <h3 className="text-lg font-medium mb-2">No Office Locations</h3>
-              <p className="text-sm mb-4">Add your first office location to get started</p>
-              <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Add Office Location
-              </Button>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <AttendanceSettingsHeaderActions>
+        <div className="flex items-center gap-2">
+          {isConnected ? (
+            <div className="flex items-center gap-1 text-success">
+              <Wifi className="h-4 w-4" />
+              <span className="text-xs">Live</span>
             </div>
           ) : (
-            <div className="grid gap-4">
-              {locations.map((location) => (
-                <div
-                  key={location.id}
-                  className="flex items-start justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-3">
-                      <h4 className="font-medium">{location.name}</h4>
-                      <Badge 
-                        variant="secondary" 
-                        className="text-xs"
-                        style={{ 
-                          backgroundColor: `${getLocationTypeColor(location.location_type_id)}15`,
-                          color: getLocationTypeColor(location.location_type_id),
-                          borderColor: `${getLocationTypeColor(location.location_type_id)}30`
-                        }}
-                      >
-                        {getLocationTypeName(location.location_type_id)}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        {location.radius_meters}m radius
-                      </Badge>
-                      {location.is_client_location && (
-                        <Badge variant="outline" className="border-success/30 bg-success-muted text-xs text-success-foreground">
-                          Client Location
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
-                        <span>{location.formatted_address || location.address}</span>
-                      </div>
-                      
-                      {location.contact_person && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <User className="h-3 w-3" />
-                          <span>{location.contact_person}</span>
-                          {location.contact_phone && (
-                            <>
-                              <Phone className="h-3 w-3 ml-2" />
-                              <span>{location.contact_phone}</span>
-                            </>
-                          )}
-                        </div>
-                      )}
-                      
-                      {location.is_client_location && getClientName(location.client_id) && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Building className="h-3 w-3" />
-                          <span>Client: {getClientName(location.client_id)}</span>
-                        </div>
-                      )}
-                      
-                      {location.notes && (
-                        <div className="text-sm text-muted-foreground italic">
-                          {location.notes}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="text-xs text-muted-foreground">
-                      Coordinates: {location.latitude}, {location.longitude}
-                      {location.last_verified && (
-                        <span className="ml-2">• Verified: {(() => {
-                          try {
-                            const date = new Date(location.last_verified);
-                            return isNaN(date.getTime()) ? location.last_verified : date.toLocaleDateString();
-                          } catch {
-                            return location.last_verified;
-                          }
-                        })()}</span>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 ml-4">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleEdit(location)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleDelete(location.id)}
-                      className="text-destructive hover:text-destructive/90"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <WifiOff className="h-4 w-4" />
+              <span className="text-xs">Offline</span>
             </div>
           )}
-        </CardContent>
-      </Card>
+          {lastUpdate ? (
+            <Badge variant="outline" className="text-xs">
+              Updated {lastUpdate.toLocaleTimeString()}
+            </Badge>
+          ) : null}
+          <Button onClick={() => setShowAddModal(true)} size="sm" className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Add Location
+          </Button>
+        </div>
+      </AttendanceSettingsHeaderActions>
 
-      <EnhancedAddOfficeLocationModal
-        open={showAddModal}
-        onOpenChange={setShowAddModal}
-      />
+      {locations.length === 0 ? (
+        <div className="flex w-full min-h-0 flex-1 flex-col items-center justify-center rounded-lg border border-border text-center">
+          <Building className="mb-3 h-10 w-10 text-muted-foreground/50" />
+          <h3 className="mb-1 text-base font-medium text-foreground">No Office Locations</h3>
+          <p className="text-sm text-muted-foreground">
+            Add your first office location to get started
+          </p>
+        </div>
+      ) : (
+        <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto">
+          {locations.map((location) => (
+            <div
+              key={location.id}
+              className="flex items-start justify-between rounded-lg border border-border p-4 transition-colors hover:bg-muted/50"
+            >
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="font-medium text-foreground">{location.name}</h4>
+                  <Badge
+                    variant="secondary"
+                    className="text-xs"
+                    style={{
+                      backgroundColor: `${getLocationTypeColor(location.location_type_id)}15`,
+                      color: getLocationTypeColor(location.location_type_id),
+                      borderColor: `${getLocationTypeColor(location.location_type_id)}30`,
+                    }}
+                  >
+                    {getLocationTypeName(location.location_type_id)}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {location.radius_meters}m radius
+                  </Badge>
+                  {location.is_client_location ? (
+                    <Badge
+                      variant="outline"
+                      className="border-success/30 bg-success-muted text-xs text-success-foreground"
+                    >
+                      Client Location
+                    </Badge>
+                  ) : null}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    <span>{location.formatted_address || location.address}</span>
+                  </div>
+
+                  {location.contact_person ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <User className="h-3 w-3 shrink-0" />
+                      <span>{location.contact_person}</span>
+                      {location.contact_phone ? (
+                        <>
+                          <Phone className="ml-2 h-3 w-3 shrink-0" />
+                          <span>{location.contact_phone}</span>
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {location.is_client_location && getClientName(location.client_id) ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Building className="h-3 w-3 shrink-0" />
+                      <span>Client: {getClientName(location.client_id)}</span>
+                    </div>
+                  ) : null}
+
+                  {location.notes ? (
+                    <div className="text-sm italic text-muted-foreground">{location.notes}</div>
+                  ) : null}
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                  Coordinates: {location.latitude}, {location.longitude}
+                  {location.last_verified ? (
+                    <span className="ml-2">
+                      • Verified:{' '}
+                      {(() => {
+                        try {
+                          const date = new Date(location.last_verified);
+                          return isNaN(date.getTime())
+                            ? location.last_verified
+                            : date.toLocaleDateString();
+                        } catch {
+                          return location.last_verified;
+                        }
+                      })()}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="ml-4 flex shrink-0 items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleEdit(location)}>
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDelete(location.id)}
+                  className="text-destructive hover:text-destructive/90"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <EnhancedAddOfficeLocationModal open={showAddModal} onOpenChange={setShowAddModal} />
 
       <EditOfficeLocationModal
         open={showEditModal}
@@ -268,6 +244,6 @@ export const OptimizedOfficeLocationsList = () => {
         location={selectedLocation}
         onLocationUpdated={handleLocationUpdated}
       />
-    </>
+    </div>
   );
 };

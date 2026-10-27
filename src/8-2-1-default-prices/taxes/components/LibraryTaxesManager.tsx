@@ -86,18 +86,17 @@ export function LibraryTaxesManager({ listClassName }: LibraryTaxesManagerProps)
   };
 
   return (
-    <div className="space-y-3">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="mb-3 flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <h2 className="shrink-0 whitespace-nowrap text-lg font-semibold text-gray-900">
           {t("defaultPrices.taxes.heading", "Taxes")}
         </h2>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <OutletFilterSelect value={selectedOutletId} onChange={setSelectedOutletId} />
-          <Button type="button" onClick={openCreate}>
-            {t("defaultPrices.taxes.createButton", "Create Tax")}
-          </Button>
-        </div>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <OutletFilterSelect
+          value={selectedOutletId}
+          onChange={setSelectedOutletId}
+          className="h-10 w-[180px] shrink-0"
+        />
+        <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
           {t(
             "defaultPrices.taxes.checkoutHintPrefix",
             "To set how tax would be applied on transactions,",
@@ -106,16 +105,23 @@ export function LibraryTaxesManager({ listClassName }: LibraryTaxesManagerProps)
             {t("defaultPrices.taxes.checkoutHintLink", "click here")}
           </Link>
         </p>
+        <Button type="button" className="shrink-0" onClick={openCreate}>
+          {t("defaultPrices.taxes.createButton", "Create Tax")}
+        </Button>
       </div>
-      <div className={cn("overflow-y-auto", listClassName ?? "max-h-56")}>
-        <Table>
-          <TableHeader>
+      <Table
+        containerClassName={cn(
+          "min-h-0 flex-1 overflow-auto rounded-md border border-border/60 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          listClassName,
+        )}
+      >
+          <TableHeader className="sticky top-0 z-[1] bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
             <TableRow>
-              <TableHead>{t("defaultPrices.taxes.columnName", "Name")}</TableHead>
-              <TableHead className="w-[120px] text-right">
+              <TableHead className="h-9">{t("defaultPrices.taxes.columnName", "Name")}</TableHead>
+              <TableHead className="h-9 w-[120px] text-right">
                 {t("defaultPrices.taxes.columnAmount", "Amount")}
               </TableHead>
-              <TableHead className="w-[56px]" />
+              <TableHead className="h-9 w-[56px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -166,7 +172,6 @@ export function LibraryTaxesManager({ listClassName }: LibraryTaxesManagerProps)
             )}
           </TableBody>
         </Table>
-      </div>
       <TaxFormSheet
         tax={editing}
         selectedOutletId={selectedOutletId}

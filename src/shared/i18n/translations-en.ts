@@ -11353,7 +11353,7 @@ export const enTranslations: TranslationDictionary = {
   "contentCalendar.stats.totalContent": "Total Content",
   "contentCalendar.stats.allContentThisMonth": "All content this month",
   "contentCalendar.stats.notApprovedSubtitle": "Content plan not approved yet",
-  "contentCalendar.stats.contentPlanApprovedSubtitle": "Content plan approved, production not started",
+  "contentCalendar.stats.contentPlanApprovedSubtitle": "Content plan approved",
   "contentCalendar.stats.productionApprovedSubtitle": "Production stage approved",
   "contentCalendar.stats.completedSubtitle": "Posted on time",
   "contentCalendar.stats.completedLateSubtitle": "Posted but late",

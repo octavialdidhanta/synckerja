@@ -63,85 +63,92 @@ export function TableMapToolbar({
         : t("tableManagement.group.statusInactive", "Inactive");
 
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0 space-y-2">
-        <h2 className="text-base font-semibold">{t("tableManagement.map.title", "Table Map")}</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <OutletFilterSelect value={outletId} onChange={onOutletChange} />
-          <Select
-            value={groupId || undefined}
-            onValueChange={onGroupChange}
-            disabled={groupsLoading || groups.length === 0}
-          >
-            <SelectTrigger className="h-9 w-[200px]" aria-label={t("tableManagement.map.group", "Table Group")}>
-              <SelectValue
-                placeholder={
-                  groups.length === 0
-                    ? t("tableManagement.map.noGroups", "No table groups")
-                    : t("tableManagement.map.pickGroup", "Table Group")
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {groups.map((g) => (
-                <SelectItem key={g.id} value={g.id}>
-                  {g.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="outline" disabled={!groupId}>
-                <Plus className="mr-1 h-4 w-4" />
-                {t("tableManagement.map.add", "Add")}
-                <ChevronDown className="ml-1 h-3.5 w-3.5 opacity-70" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={onAddTable}>
-                {t("tableManagement.map.addTable", "Add Table")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onAddFloorItem}>
-                {t("tableManagement.fixture.addFloorItem", "Add Floor Item")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!groupId || !canCopy}
-            onClick={onCopy}
-          >
-            <Copy className="mr-1 h-4 w-4" />
-            {t("tableManagement.map.copy", "Copy")}
+    <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <h2 className="flex h-10 shrink-0 items-center whitespace-nowrap text-lg font-semibold leading-none text-gray-900">
+        {t("tableManagement.map.title", "Table Map")}
+      </h2>
+      <OutletFilterSelect
+        value={outletId}
+        onChange={onOutletChange}
+        className="h-10 w-[180px] shrink-0"
+      />
+      <Select
+        value={groupId || undefined}
+        onValueChange={onGroupChange}
+        disabled={groupsLoading || groups.length === 0}
+      >
+        <SelectTrigger
+          className="h-10 w-[180px] shrink-0"
+          aria-label={t("tableManagement.map.group", "Table Group")}
+        >
+          <SelectValue
+            placeholder={
+              groups.length === 0
+                ? t("tableManagement.map.noGroups", "No table groups")
+                : t("tableManagement.map.pickGroup", "Table Group")
+            }
+          />
+        </SelectTrigger>
+        <SelectContent>
+          {groups.map((g) => (
+            <SelectItem key={g.id} value={g.id}>
+              {g.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="outline" className="h-10 shrink-0" disabled={!groupId}>
+            <Plus className="mr-1 h-4 w-4" />
+            {t("tableManagement.map.add", "Add")}
+            <ChevronDown className="ml-1 h-3.5 w-3.5 opacity-70" />
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!groupId || !canPaste}
-            onClick={onPaste}
-          >
-            <ClipboardPaste className="mr-1 h-4 w-4" />
-            {t("tableManagement.map.paste", "Paste")}
-          </Button>
-        </div>
-      </div>
-      <div className="flex flex-col items-end gap-1">
-        <Button type="button" onClick={onSave} disabled={saveDisabled || saving}>
-          {saving
-            ? t("common.saving", "Saving…")
-            : t("tableManagement.map.saveChanges", "Save Changes")}
-        </Button>
-        <p className="text-xs">
-          <span className="text-muted-foreground">
-            {t("tableManagement.map.statusLabel", "Status:")}{" "}
-          </span>
-          <span className={groupActive ? "font-medium text-emerald-600" : "text-muted-foreground"}>
-            {statusLabel}
-          </span>
-        </p>
-      </div>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem onClick={onAddTable}>
+            {t("tableManagement.map.addTable", "Add Table")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onAddFloorItem}>
+            {t("tableManagement.fixture.addFloorItem", "Add Floor Item")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-10 shrink-0"
+        disabled={!groupId || !canCopy}
+        onClick={onCopy}
+      >
+        <Copy className="mr-1 h-4 w-4" />
+        {t("tableManagement.map.copy", "Copy")}
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-10 shrink-0"
+        disabled={!groupId || !canPaste}
+        onClick={onPaste}
+      >
+        <ClipboardPaste className="mr-1 h-4 w-4" />
+        {t("tableManagement.map.paste", "Paste")}
+      </Button>
+      <div className="min-w-0 flex-1" aria-hidden />
+      <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
+        {t("tableManagement.map.statusLabel", "Status:")}{" "}
+        <span className={groupActive ? "font-medium text-emerald-600" : ""}>{statusLabel}</span>
+      </span>
+      <Button
+        type="button"
+        className="h-10 shrink-0"
+        onClick={onSave}
+        disabled={saveDisabled || saving}
+      >
+        {saving
+          ? t("common.saving", "Saving…")
+          : t("tableManagement.map.saveChanges", "Save Changes")}
+      </Button>
     </div>
   );
 }

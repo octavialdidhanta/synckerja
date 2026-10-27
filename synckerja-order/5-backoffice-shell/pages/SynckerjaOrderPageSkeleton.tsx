@@ -23,12 +23,9 @@ export function SynckerjaOrderPageSkeleton() {
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex min-h-full flex-col bg-muted/40">
               <div className="mb-1 flex-shrink-0">
-                <div className="px-1 py-3">
-                  <div className="mb-3">
-                    <Skeleton className="mb-0.5 h-7 w-56 max-w-[90%]" />
-                    <Skeleton className="h-3 w-full max-w-md" />
-                  </div>
-                  <div className="-mb-3">
+                <div className="flex items-start justify-between gap-3 px-1 pt-1 pb-0">
+                  <div className="min-w-0 flex-1">
+                    <Skeleton className="mb-1.5 h-10 w-56" />
                     <div className="flex flex-wrap gap-x-6 gap-y-1">
                       <Skeleton className="h-8 w-20" />
                       <Skeleton className="h-8 w-24" />
@@ -38,6 +35,10 @@ export function SynckerjaOrderPageSkeleton() {
                       <Skeleton className="h-8 w-24" />
                       <Skeleton className="h-8 w-12" />
                     </div>
+                  </div>
+                  <div className="flex shrink-0 gap-2 pt-2">
+                    <Skeleton className="h-10 w-24 shrink-0" />
+                    <Skeleton className="h-10 w-36 shrink-0" />
                   </div>
                 </div>
               </div>

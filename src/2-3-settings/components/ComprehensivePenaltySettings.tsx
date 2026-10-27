@@ -32,6 +32,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useReportAttendanceSettingsLoading } from '@/2-3-attendance/context/AttendancePageLoadContext';
+import { AttendanceSettingsHeaderActions } from '@/2-3-settings/components/AttendanceSettingsHeaderActions';
 import { applyVariables } from '@/shared/i18n/translations';
 import { id, enUS } from 'date-fns/locale';
 
@@ -238,18 +239,21 @@ export const ComprehensivePenaltySettings = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-foreground text-2xl font-semibold">{t('penaltySettings.title', 'Late Penalty Settings')}</h2>
-          <p className="text-muted-foreground mt-1">{t('penaltySettings.description', 'Manage rules and penalty settings for attendance violations')}</p>
-        </div>
+    <div className="space-y-3 pb-4">
+      <AttendanceSettingsHeaderActions>
         <Badge variant={generalSettings.enable_automatic_penalties ? "default" : "secondary"}>
-          {generalSettings.enable_automatic_penalties ? t('penaltySettings.status.active', 'Active') : t('penaltySettings.status.inactive', 'Inactive')}
+          {generalSettings.enable_automatic_penalties
+            ? t('penaltySettings.status.active', 'Active')
+            : t('penaltySettings.status.inactive', 'Inactive')}
         </Badge>
-      </div>
+        {activeTab === 'general' ? (
+          <Button size="sm" onClick={handleSaveGeneralSettings} className="min-w-[120px]">
+            {t('penaltySettings.saveSettings', 'Save Settings')}
+          </Button>
+        ) : null}
+      </AttendanceSettingsHeaderActions>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="general" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
@@ -269,38 +273,38 @@ export const ComprehensivePenaltySettings = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general" className="space-y-6">
+        <TabsContent value="general" className="mt-3 space-y-3">
           {/* Info Section about Calculation Types */}
           <Card className="border-primary/25 bg-accent">
-            <CardHeader>
-              <CardTitle className="text-foreground flex items-center gap-2">
-                <Target className="h-5 w-5" />
+            <CardHeader className="px-4 py-3">
+              <CardTitle className="text-foreground flex items-center gap-2 text-base">
+                <Target className="h-4 w-4" />
                 {t('penaltySettings.calculationTypes.title', 'Penalty Calculation Types')}
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-3">
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <h4 className="text-primary mb-2 font-semibold">{t('penaltySettings.calculationTypes.fixed.title', '1. Fixed Penalty')}</h4>
-                  <p className="text-muted-foreground mb-2">
+            <CardContent className="px-4 pb-3 pt-0">
+              <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-3">
+                <div className="rounded-lg border border-border bg-card p-2.5">
+                  <h4 className="text-primary mb-1 font-semibold">{t('penaltySettings.calculationTypes.fixed.title', '1. Fixed Penalty')}</h4>
+                  <p className="text-muted-foreground mb-1 text-xs">
                     {t('penaltySettings.calculationTypes.fixed.description', 'Fixed penalty that does not change based on late duration.')}
                   </p>
                   <div className="text-xs text-muted-foreground">
                     {t('penaltySettings.calculationTypes.fixed.example', 'Example: Late 5 minutes or 60 minutes, fixed penalty Rp 500,000')}
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <h4 className="text-success mb-2 font-semibold">{t('penaltySettings.calculationTypes.hourly.title', '2. Per Hour')}</h4>
-                  <p className="text-muted-foreground mb-2">
+                <div className="rounded-lg border border-border bg-card p-2.5">
+                  <h4 className="text-success mb-1 font-semibold">{t('penaltySettings.calculationTypes.hourly.title', '2. Per Hour')}</h4>
+                  <p className="text-muted-foreground mb-1 text-xs">
                     {t('penaltySettings.calculationTypes.hourly.description', 'Penalty calculated based on late duration × hourly rate.')}
                   </p>
                   <div className="text-xs text-muted-foreground">
                     {t('penaltySettings.calculationTypes.hourly.example', 'Example: Late 2 hours × Rp 50,000/hour = Rp 100,000')}
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <h4 className="text-info mb-2 font-semibold">{t('penaltySettings.calculationTypes.salaryPercentage.title', '3. Salary Percentage')}</h4>
-                  <p className="text-muted-foreground mb-2">
+                <div className="rounded-lg border border-border bg-card p-2.5">
+                  <h4 className="text-info mb-1 font-semibold">{t('penaltySettings.calculationTypes.salaryPercentage.title', '3. Salary Percentage')}</h4>
+                  <p className="text-muted-foreground mb-1 text-xs">
                     {t('penaltySettings.calculationTypes.salaryPercentage.description', 'Penalty based on percentage of employee monthly salary.')}
                   </p>
                   <div className="text-xs text-muted-foreground">
@@ -311,244 +315,352 @@ export const ComprehensivePenaltySettings = () => {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  {t('penaltySettings.basicSettings.title', 'Basic Settings')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    checked={generalSettings.enable_automatic_penalties}
-                    onCheckedChange={(checked) => 
-                      setGeneralSettings(prev => ({ ...prev, enable_automatic_penalties: checked }))
-                    }
-                  />
-                  <Label>{t('penaltySettings.basicSettings.enableAutomaticPenalties', 'Enable automatic penalties')}</Label>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {t(
-                    'penaltySettings.basicSettings.automaticPenaltyShiftToleranceInfo',
-                    'Automatic late penalties use minutes beyond the shift or work schedule tolerance (not raw late minutes).',
-                  )}
-                </p>
-
-                <div>
-                  <Label>{t('penaltySettings.basicSettings.calculationTimezone', 'Calculation Timezone')}</Label>
-                  <Select 
-                    value={generalSettings.penalty_calculation_timezone}
-                    onValueChange={(value) => 
-                      setGeneralSettings(prev => ({ ...prev, penalty_calculation_timezone: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Asia/Jakarta">{t('penaltySettings.timezone.wib', 'WIB (Asia/Jakarta)')}</SelectItem>
-                      <SelectItem value="Asia/Makassar">{t('penaltySettings.timezone.wita', 'WITA (Asia/Makassar)')}</SelectItem>
-                      <SelectItem value="Asia/Jayapura">{t('penaltySettings.timezone.wit', 'WIT (Asia/Jayapura)')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label>{t('penaltySettings.basicSettings.salaryDeductionDate', 'Salary Deduction Date')}</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="28"
-                    value={generalSettings.penalty_deduction_date}
-                    onChange={(e) => 
-                      setGeneralSettings(prev => ({ ...prev, penalty_deduction_date: parseInt(e.target.value) || 25 }))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t('penaltySettings.basicSettings.salaryDeductionDateDescription', 'Date in the month when penalty is deducted from salary')}
+          <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <Card>
+                <CardHeader className="px-4 py-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Settings className="h-4 w-4" />
+                    {t('penaltySettings.basicSettings.title', 'Basic Settings')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 px-4 pb-3 pt-0">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      checked={generalSettings.enable_automatic_penalties}
+                      onCheckedChange={(checked) =>
+                        setGeneralSettings((prev) => ({ ...prev, enable_automatic_penalties: checked }))
+                      }
+                    />
+                    <Label>
+                      {t(
+                        'penaltySettings.basicSettings.enableAutomaticPenalties',
+                        'Enable automatic penalties',
+                      )}
+                    </Label>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {t(
+                      'penaltySettings.basicSettings.automaticPenaltyShiftToleranceInfo',
+                      'Automatic late penalties use minutes beyond the shift or work schedule tolerance (not raw late minutes).',
+                    )}
                   </p>
-                </div>
 
-                <div>
-                  <Label>{t('penaltySettings.basicSettings.defaultCalculationType', 'Default Penalty Calculation Type')}</Label>
-                  <Select 
-                    value={generalSettings.default_calculation_type}
-                    onValueChange={(value) => 
-                      setGeneralSettings(prev => ({ ...prev, default_calculation_type: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="fixed">{t('penaltySettings.calculationTypes.fixed.title', 'Fixed Penalty')}</SelectItem>
-                      <SelectItem value="hourly">{t('penaltySettings.calculationTypes.hourly.title', 'Per Hour')}</SelectItem>
-                      <SelectItem value="salary_percentage">{t('penaltySettings.calculationTypes.salaryPercentage.title', 'Salary Percentage')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t('penaltySettings.basicSettings.defaultCalculationTypeDescription', 'Penalty calculation type used by default')}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+                  <div>
+                    <Label>
+                      {t('penaltySettings.basicSettings.calculationTimezone', 'Calculation Timezone')}
+                    </Label>
+                    <Select
+                      value={generalSettings.penalty_calculation_timezone}
+                      onValueChange={(value) =>
+                        setGeneralSettings((prev) => ({
+                          ...prev,
+                          penalty_calculation_timezone: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Asia/Jakarta">
+                          {t('penaltySettings.timezone.wib', 'WIB (Asia/Jakarta)')}
+                        </SelectItem>
+                        <SelectItem value="Asia/Makassar">
+                          {t('penaltySettings.timezone.wita', 'WITA (Asia/Makassar)')}
+                        </SelectItem>
+                        <SelectItem value="Asia/Jayapura">
+                          {t('penaltySettings.timezone.wit', 'WIT (Asia/Jayapura)')}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  {t('penaltySettings.penaltyLimits.title', 'Penalty Limits')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>{t('penaltySettings.penaltyLimits.minimumPenalty', 'Minimum Penalty (Rp)')}</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={generalSettings.minimum_penalty_amount}
-                    onChange={(e) => 
-                      setGeneralSettings(prev => ({ ...prev, minimum_penalty_amount: parseFloat(e.target.value) || 0 }))
-                    }
-                  />
-                </div>
+                  <div>
+                    <Label>
+                      {t('penaltySettings.basicSettings.salaryDeductionDate', 'Salary Deduction Date')}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="28"
+                      value={generalSettings.penalty_deduction_date}
+                      onChange={(e) =>
+                        setGeneralSettings((prev) => ({
+                          ...prev,
+                          penalty_deduction_date: parseInt(e.target.value) || 25,
+                        }))
+                      }
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t(
+                        'penaltySettings.basicSettings.salaryDeductionDateDescription',
+                        'Date in the month when penalty is deducted from salary',
+                      )}
+                    </p>
+                  </div>
 
-                <div>
-                  <Label>{t('penaltySettings.penaltyLimits.maximumDailyPenalty', 'Maximum Daily Penalty (Rp)')}</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={generalSettings.maximum_daily_penalty || ''}
-                    onChange={(e) => 
-                      setGeneralSettings(prev => ({ ...prev, maximum_daily_penalty: parseFloat(e.target.value) || 0 }))
-                    }
-                    placeholder={t('penaltySettings.penaltyLimits.unlimited', 'Unlimited')}
-                  />
-                </div>
+                  <div>
+                    <Label>
+                      {t(
+                        'penaltySettings.basicSettings.defaultCalculationType',
+                        'Default Penalty Calculation Type',
+                      )}
+                    </Label>
+                    <Select
+                      value={generalSettings.default_calculation_type}
+                      onValueChange={(value) =>
+                        setGeneralSettings((prev) => ({
+                          ...prev,
+                          default_calculation_type: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">
+                          {t('penaltySettings.calculationTypes.fixed.title', 'Fixed Penalty')}
+                        </SelectItem>
+                        <SelectItem value="hourly">
+                          {t('penaltySettings.calculationTypes.hourly.title', 'Per Hour')}
+                        </SelectItem>
+                        <SelectItem value="salary_percentage">
+                          {t(
+                            'penaltySettings.calculationTypes.salaryPercentage.title',
+                            'Salary Percentage',
+                          )}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t(
+                        'penaltySettings.basicSettings.defaultCalculationTypeDescription',
+                        'Penalty calculation type used by default',
+                      )}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
 
-                <div>
-                  <Label>{t('penaltySettings.penaltyLimits.maximumMonthlyPenalty', 'Maximum Monthly Penalty (Rp)')}</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={generalSettings.maximum_monthly_penalty || ''}
-                    onChange={(e) => 
-                      setGeneralSettings(prev => ({ ...prev, maximum_monthly_penalty: parseFloat(e.target.value) || 0 }))
-                    }
-                    placeholder={t('penaltySettings.penaltyLimits.unlimited', 'Unlimited')}
-                  />
-                </div>
+              <Card>
+                <CardHeader className="px-4 py-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Shield className="h-4 w-4" />
+                    {t('penaltySettings.graceSettings.title', 'Grace Settings')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 px-4 pb-3 pt-0">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      checked={graceSettings.first_offense_grace}
+                      onCheckedChange={(checked) =>
+                        setGraceSettings((prev) => ({ ...prev, first_offense_grace: checked }))
+                      }
+                    />
+                    <Label>
+                      {t(
+                        'penaltySettings.graceSettings.firstOffenseGrace',
+                        'Give grace for first offense',
+                      )}
+                    </Label>
+                  </div>
 
-                <div>
-                  <Label>{t('penaltySettings.penaltyLimits.defaultHourlyRate', 'Default Penalty Hourly Rate (Rp)')}</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={generalSettings.default_hourly_rate}
-                    onChange={(e) => 
-                      setGeneralSettings(prev => ({ ...prev, default_hourly_rate: parseFloat(e.target.value) || 0 }))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t('penaltySettings.penaltyLimits.defaultHourlyRateDescription', 'Used for hourly penalty calculation')}
-                  </p>
-                </div>
+                  <div>
+                    <Label>
+                      {t('penaltySettings.graceSettings.monthlyGraceLimit', 'Monthly Grace Limit')}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={graceSettings.monthly_grace_limit}
+                      onChange={(e) =>
+                        setGraceSettings((prev) => ({
+                          ...prev,
+                          monthly_grace_limit: parseInt(e.target.value) || 0,
+                        }))
+                      }
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t(
+                        'penaltySettings.graceSettings.monthlyGraceLimitDescription',
+                        'Maximum number of violations tolerated per month',
+                      )}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                <div>
-                  <Label>{t('penaltySettings.penaltyLimits.defaultSalaryPercentage', 'Default Salary Percentage (%)')}</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={generalSettings.default_salary_percentage}
-                    onChange={(e) => 
-                      setGeneralSettings(prev => ({ ...prev, default_salary_percentage: parseFloat(e.target.value) || 0 }))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t('penaltySettings.penaltyLimits.defaultSalaryPercentageDescription', 'Used for penalty calculation based on salary percentage')}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="flex flex-col gap-2">
+              <Card>
+                <CardHeader className="px-4 py-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <DollarSign className="h-4 w-4" />
+                    {t('penaltySettings.penaltyLimits.title', 'Penalty Limits')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 px-4 pb-3 pt-0">
+                  <div>
+                    <Label>
+                      {t('penaltySettings.penaltyLimits.minimumPenalty', 'Minimum Penalty (Rp)')}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value={generalSettings.minimum_penalty_amount}
+                      onChange={(e) =>
+                        setGeneralSettings((prev) => ({
+                          ...prev,
+                          minimum_penalty_amount: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                    />
+                  </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  {t('penaltySettings.holidayRules.title', 'Holiday Rules')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    checked={holidaySettings.apply_on_holidays}
-                    onCheckedChange={(checked) => 
-                      setHolidaySettings(prev => ({ ...prev, apply_on_holidays: checked }))
-                    }
-                  />
-                  <Label>{t('penaltySettings.holidayRules.applyOnNationalHolidays', 'Apply penalty on national holidays')}</Label>
-                </div>
+                  <div>
+                    <Label>
+                      {t(
+                        'penaltySettings.penaltyLimits.maximumDailyPenalty',
+                        'Maximum Daily Penalty (Rp)',
+                      )}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value={generalSettings.maximum_daily_penalty || ''}
+                      onChange={(e) =>
+                        setGeneralSettings((prev) => ({
+                          ...prev,
+                          maximum_daily_penalty: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      placeholder={t('penaltySettings.penaltyLimits.unlimited', 'Unlimited')}
+                    />
+                  </div>
 
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    checked={holidaySettings.apply_on_weekends}
-                    onCheckedChange={(checked) => 
-                      setHolidaySettings(prev => ({ ...prev, apply_on_weekends: checked }))
-                    }
-                  />
-                  <Label>{t('penaltySettings.holidayRules.applyOnWeekends', 'Apply penalty on weekends')}</Label>
-                </div>
-              </CardContent>
-            </Card>
+                  <div>
+                    <Label>
+                      {t(
+                        'penaltySettings.penaltyLimits.maximumMonthlyPenalty',
+                        'Maximum Monthly Penalty (Rp)',
+                      )}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value={generalSettings.maximum_monthly_penalty || ''}
+                      onChange={(e) =>
+                        setGeneralSettings((prev) => ({
+                          ...prev,
+                          maximum_monthly_penalty: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      placeholder={t('penaltySettings.penaltyLimits.unlimited', 'Unlimited')}
+                    />
+                  </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  {t('penaltySettings.graceSettings.title', 'Grace Settings')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    checked={graceSettings.first_offense_grace}
-                    onCheckedChange={(checked) => 
-                      setGraceSettings(prev => ({ ...prev, first_offense_grace: checked }))
-                    }
-                  />
-                  <Label>{t('penaltySettings.graceSettings.firstOffenseGrace', 'Give grace for first offense')}</Label>
-                </div>
+                  <div>
+                    <Label>
+                      {t(
+                        'penaltySettings.penaltyLimits.defaultHourlyRate',
+                        'Default Penalty Hourly Rate (Rp)',
+                      )}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value={generalSettings.default_hourly_rate}
+                      onChange={(e) =>
+                        setGeneralSettings((prev) => ({
+                          ...prev,
+                          default_hourly_rate: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t(
+                        'penaltySettings.penaltyLimits.defaultHourlyRateDescription',
+                        'Used for hourly penalty calculation',
+                      )}
+                    </p>
+                  </div>
 
-                <div>
-                  <Label>{t('penaltySettings.graceSettings.monthlyGraceLimit', 'Monthly Grace Limit')}</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={graceSettings.monthly_grace_limit}
-                    onChange={(e) => 
-                      setGraceSettings(prev => ({ ...prev, monthly_grace_limit: parseInt(e.target.value) || 0 }))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t('penaltySettings.graceSettings.monthlyGraceLimitDescription', 'Maximum number of violations tolerated per month')}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                  <div>
+                    <Label>
+                      {t(
+                        'penaltySettings.penaltyLimits.defaultSalaryPercentage',
+                        'Default Salary Percentage (%)',
+                      )}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={generalSettings.default_salary_percentage}
+                      onChange={(e) =>
+                        setGeneralSettings((prev) => ({
+                          ...prev,
+                          default_salary_percentage: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t(
+                        'penaltySettings.penaltyLimits.defaultSalaryPercentageDescription',
+                        'Used for penalty calculation based on salary percentage',
+                      )}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <div className="flex justify-end">
-            <Button onClick={handleSaveGeneralSettings} className="min-w-[120px]">
-              {t('penaltySettings.saveSettings', 'Save Settings')}
-            </Button>
+              <Card>
+                <CardHeader className="px-4 py-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Clock className="h-4 w-4" />
+                    {t('penaltySettings.holidayRules.title', 'Holiday Rules')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 px-4 pb-3 pt-0">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      checked={holidaySettings.apply_on_holidays}
+                      onCheckedChange={(checked) =>
+                        setHolidaySettings((prev) => ({ ...prev, apply_on_holidays: checked }))
+                      }
+                    />
+                    <Label>
+                      {t(
+                        'penaltySettings.holidayRules.applyOnNationalHolidays',
+                        'Apply penalty on national holidays',
+                      )}
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      checked={holidaySettings.apply_on_weekends}
+                      onCheckedChange={(checked) =>
+                        setHolidaySettings((prev) => ({ ...prev, apply_on_weekends: checked }))
+                      }
+                    />
+                    <Label>
+                      {t(
+                        'penaltySettings.holidayRules.applyOnWeekends',
+                        'Apply penalty on weekends',
+                      )}
+                    </Label>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </TabsContent>
 

@@ -93,22 +93,34 @@ export function LibraryBrandsManager({ listClassName }: LibraryBrandsManagerProp
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <OutletFilterSelect value={selectedOutletId} onChange={setSelectedOutletId} />
-        <Button type="button" onClick={openCreate}>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="mb-3 flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <h2 className="shrink-0 whitespace-nowrap text-lg font-semibold text-gray-900">
+          {t("defaultPrices.nav.brands", "Brands")}
+        </h2>
+        <OutletFilterSelect
+          value={selectedOutletId}
+          onChange={setSelectedOutletId}
+          className="h-10 w-[180px] shrink-0"
+        />
+        <div className="min-w-0 flex-1" aria-hidden />
+        <Button type="button" className="shrink-0" onClick={openCreate}>
           {t("defaultPrices.brands.createButton", "Create Brands")}
         </Button>
       </div>
-      <div className={cn("overflow-y-auto", listClassName ?? "max-h-56")}>
-        <Table>
-          <TableHeader>
+      <Table
+        containerClassName={cn(
+          "min-h-0 flex-1 overflow-auto rounded-md border border-border/60 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          listClassName,
+        )}
+      >
+          <TableHeader className="sticky top-0 z-[1] bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
             <TableRow>
-              <TableHead>{t("defaultPrices.brands.columnName", "Name")}</TableHead>
-              <TableHead className="w-[140px] text-right">
+              <TableHead className="h-9">{t("defaultPrices.brands.columnName", "Name")}</TableHead>
+              <TableHead className="h-9 w-[140px] text-right">
                 {t("defaultPrices.brands.columnItemStocks", "Item Stocks")}
               </TableHead>
-              <TableHead className="w-[56px]" />
+              <TableHead className="h-9 w-[56px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -164,7 +176,6 @@ export function LibraryBrandsManager({ listClassName }: LibraryBrandsManagerProp
             )}
           </TableBody>
         </Table>
-      </div>
       <BrandFormSheet
         brand={editing}
         selectedOutletId={selectedOutletId}

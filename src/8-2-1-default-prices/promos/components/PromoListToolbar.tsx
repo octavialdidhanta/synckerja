@@ -34,13 +34,13 @@ export function PromoListToolbar({
   };
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <div className="flex min-w-0 shrink-0 flex-nowrap items-center gap-2">
       <Select
         value={status}
         onValueChange={(value) => onStatusChange(value as PromoListStatusFilter)}
       >
         <SelectTrigger
-          className="h-9 w-[160px] rounded-full"
+          className="h-10 w-[140px] shrink-0"
           aria-label={t("defaultPrices.promos.filter.allStatus", "All Status")}
         >
           <SelectValue>{statusLabel(status)}</SelectValue>
@@ -53,12 +53,12 @@ export function PromoListToolbar({
           ))}
         </SelectContent>
       </Select>
-      <div className="relative w-[240px] max-w-full">
+      <div className="relative min-w-[160px] w-[220px] shrink-0">
         <Input
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           placeholder={t("defaultPrices.promos.searchPlaceholder", "Search promo")}
-          className="h-9 rounded-full pr-9"
+          className="h-10 pr-9"
           aria-label={t("defaultPrices.promos.searchPlaceholder", "Search promo")}
         />
         <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

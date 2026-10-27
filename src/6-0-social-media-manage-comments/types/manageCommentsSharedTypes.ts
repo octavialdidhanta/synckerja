@@ -22,4 +22,6 @@ export type ManageCommentsPostListItem = {
   duration: number | null;
   accountAvatarUrl: string | null;
   accountLabel: string;
+  /** Facebook Meta Ads / dark post. */
+  isAd?: boolean;
 };

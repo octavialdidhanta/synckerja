@@ -116,27 +116,18 @@ export function LibraryIngredientsManager({
   };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-gray-900">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="mb-3 flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <h2 className="shrink-0 whitespace-nowrap text-lg font-semibold text-gray-900">
           {t("ingredient.library.heading", "Ingredient Library")}
         </h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <IngredientImportExportMenu />
-          <CreateIngredientMenu
-            disabled={!selectedOutletId}
-            onCreateRaw={openCreateRaw}
-            onCreateSemi={openCreateSemi}
-          />
-          <span className="text-sm text-muted-foreground">
-            {t("ingredient.library.total", "Total : {{count}}", { count: filteredRows.length })}
-          </span>
-        </div>
-      </div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <OutletFilterSelect value={selectedOutletId} onChange={onOutletChange} />
+        <OutletFilterSelect
+          value={selectedOutletId}
+          onChange={onOutletChange}
+          className="h-10 w-[180px] shrink-0"
+        />
         <Select value={kindFilter} onValueChange={setKindFilter}>
-          <SelectTrigger className="h-9 w-[180px]">
+          <SelectTrigger className="h-10 w-[180px] shrink-0">
             <SelectValue placeholder={t("ingredient.library.filterType", "All Ingredient Types")} />
           </SelectTrigger>
           <SelectContent>
@@ -146,7 +137,7 @@ export function LibraryIngredientsManager({
           </SelectContent>
         </Select>
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="h-9 w-[160px]">
+          <SelectTrigger className="h-10 w-[160px] shrink-0">
             <SelectValue placeholder={t("ingredient.library.allCategories", "All Categories")} />
           </SelectTrigger>
           <SelectContent>
@@ -162,7 +153,7 @@ export function LibraryIngredientsManager({
           </SelectContent>
         </Select>
         <Select value={inventoryFilter} onValueChange={setInventoryFilter}>
-          <SelectTrigger className="h-9 w-[160px]">
+          <SelectTrigger className="h-10 w-[160px] shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -176,38 +167,48 @@ export function LibraryIngredientsManager({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("ingredient.library.search", "Search")}
-            className="h-9 pr-9"
+            className="h-10 pr-9"
           />
           <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         </div>
+        <IngredientImportExportMenu />
+        <CreateIngredientMenu
+          disabled={!selectedOutletId}
+          onCreateRaw={openCreateRaw}
+          onCreateSemi={openCreateSemi}
+        />
       </div>
-      <div className={cn("min-h-0 flex-1 overflow-y-auto", listClassName)}>
-        <Table>
-          <TableHeader>
+      <Table
+        containerClassName={cn(
+          "min-h-0 flex-1 overflow-auto rounded-md border border-border/60 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          listClassName,
+        )}
+      >
+          <TableHeader className="sticky top-0 z-[1] bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
             <TableRow>
-              <TableHead>{t("ingredient.library.columnName", "Name")}</TableHead>
-              <TableHead>{t("ingredient.library.columnCategory", "Category")}</TableHead>
-              <TableHead>{t("ingredient.library.columnInStock", "In Stock")}</TableHead>
-              <TableHead>{t("ingredient.library.columnUnit", "Unit")}</TableHead>
-              <TableHead>{t("ingredient.library.columnAlert", "Stock Alert")}</TableHead>
+              <TableHead className="h-9">{t("ingredient.library.columnName", "Name")}</TableHead>
+              <TableHead className="h-9">{t("ingredient.library.columnCategory", "Category")}</TableHead>
+              <TableHead className="h-9">{t("ingredient.library.columnInStock", "In Stock")}</TableHead>
+              <TableHead className="h-9">{t("ingredient.library.columnUnit", "Unit")}</TableHead>
+              <TableHead className="h-9">{t("ingredient.library.columnAlert", "Stock Alert")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
                   {t("ingredient.page.loadingAria", "Loading ingredients")}
                 </TableCell>
               </TableRow>
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
                   {t("ingredient.empty.library", "No ingredients yet.")}
                 </TableCell>
               </TableRow>
             ) : filteredRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
                   {t("ingredient.library.emptyOutlet", "No ingredients assigned to this outlet.")}
                 </TableCell>
               </TableRow>
@@ -220,20 +221,19 @@ export function LibraryIngredientsManager({
                     className="cursor-pointer"
                     onClick={() => openEdit(row)}
                   >
-                    <TableCell className="font-medium">{row.name}</TableCell>
-                    <TableCell>
+                    <TableCell className="py-2 font-medium">{row.name}</TableCell>
+                    <TableCell className="py-2">
                       {categoryNameById(categoryRows, row.category_id, uncategorizedLabel)}
                     </TableCell>
-                    <TableCell>{row.track_inventory ? formatIngredientStockQty(stock.in_stock) : ""}</TableCell>
-                    <TableCell>{formatIngredientUnitCode(row.unit_code)}</TableCell>
-                    <TableCell>{stockAlertLabel(row)}</TableCell>
+                    <TableCell className="py-2">{row.track_inventory ? formatIngredientStockQty(stock.in_stock) : ""}</TableCell>
+                    <TableCell className="py-2">{formatIngredientUnitCode(row.unit_code)}</TableCell>
+                    <TableCell className="py-2">{stockAlertLabel(row)}</TableCell>
                   </TableRow>
                 );
               })
             )}
           </TableBody>
         </Table>
-      </div>
       <IngredientFormSheet
         ingredient={editing?.kind === "semi_finished" ? null : editing}
         selectedOutletId={selectedOutletId}

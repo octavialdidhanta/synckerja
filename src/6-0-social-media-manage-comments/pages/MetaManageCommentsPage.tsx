@@ -28,12 +28,14 @@ import { useOmnichannelSurveySettingsAdmin } from '@/features/customer-survey/ho
 import { MetaContentAccountNav } from '@/6-0-social-media-performance/components/MetaContentAccountNav';
 import { useMetaContentConfig } from '@/meta-content/hooks/useMetaContentConfig';
 import { useMetaContentCommentPostsQuery } from '@/meta-content/hooks/useMetaContentCommentPostsQuery';
+import { useMetaAdsSettings } from '@/meta-ads/hooks/useMetaAdsSettings';
 import { missingScopesForFeature } from '@/meta-platform/constants/metaOAuthScopes';
 import type { MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
 
 const CONNECT_PATH = '/omnichannel/integrations/instagram';
+const META_ADS_SETTINGS_PATH = '/digital-marketing/meta-ads/settings';
 
 type MetaManageCommentsPageProps = {
   platform: MetaContentPlatform;
@@ -55,6 +57,9 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
   const [searchParams, setSearchParams] = useSearchParams();
   const { organizationId, canManage, gatePending } = useOmnichannelSurveySettingsAdmin();
   const configQuery = useMetaContentConfig(organizationId);
+  const metaAdsSettings = useMetaAdsSettings(organizationId, {
+    enabled: platform === 'facebook' && Boolean(organizationId && canManage && !gatePending),
+  });
   const [accountIdOverride, setAccountIdOverride] = useState('');
   const [postFilter, setPostFilter] = useState<ManageCommentsPostFilter>('all');
   const selectedMediaId = searchParams.get('videoId')?.trim() || null;
@@ -224,6 +229,14 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
   const showAccessDenied = !gatePending && !canManage;
   const showConnectCta =
     !gatePending && canManage && !configQuery.isPending && platformAccounts.length === 0;
+  const showMetaAdsConnectBanner =
+    platform === 'facebook' &&
+    !gatePending &&
+    canManage &&
+    platformAccounts.length > 0 &&
+    commentsScopesGranted &&
+    metaAdsSettings.isFetched &&
+    !metaAdsSettings.data?.oauthConnected;
 
   return (
     <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 gap-2 items-stretch [grid-template-rows:minmax(0,1fr)] lg:max-h-[calc(100vh-120px)] lg:overflow-hidden">
@@ -283,6 +296,32 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
                       )}{' '}
                       <Link to={CONNECT_PATH} className="font-medium text-primary underline">
                         {t('digitalMarketing.tiktokContent.openSettings', 'Open settings')}
+                      </Link>
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+
+                {showMetaAdsConnectBanner ? (
+                  <Alert className="mx-4 mb-2 mt-3 shrink-0">
+                    <AlertTitle>
+                      {t(
+                        'digitalMarketing.manageComments.connectMetaAdsTitle',
+                        'Connect Meta Ads to load ad comments',
+                      )}
+                    </AlertTitle>
+                    <AlertDescription>
+                      {t(
+                        'digitalMarketing.manageComments.connectMetaAdsBody',
+                        'Comments on Facebook ads / dark posts need a Meta Ads connection for this organization. Organic posts alone often show zero comments.',
+                      )}{' '}
+                      <Link
+                        to={META_ADS_SETTINGS_PATH}
+                        className="font-medium text-primary underline"
+                      >
+                        {t(
+                          'digitalMarketing.manageComments.openMetaAdsSettings',
+                          'Open Meta Ads settings',
+                        )}
                       </Link>
                     </AlertDescription>
                   </Alert>

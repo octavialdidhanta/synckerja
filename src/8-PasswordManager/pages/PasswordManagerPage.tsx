@@ -25,6 +25,7 @@ import { usePasswords } from "../hooks";
 import { PasswordManagerModuleShell } from "../layout/PasswordManagerModuleShell";
 import {
   PASSWORD_MANAGER_CONTENT_GRID,
+  PASSWORD_MANAGER_MAIN_COLUMN,
   PASSWORD_MANAGER_PANEL_CARD,
   PASSWORD_MANAGER_PANEL_SECTION,
 } from "../layout/passwordManagerLayout";
@@ -143,95 +144,101 @@ const PasswordManagerPage: React.FC = () => {
 
   return (
     <PasswordManagerModuleShell showContent={showContent}>
-      <div className="mb-2 flex-shrink-0">
-        <PasswordStats
-          totalPasswords={stats.total}
-          strongPasswords={stats.strong}
-          weakPasswords={stats.weak}
-          favorites={stats.favorites}
-        />
-      </div>
+      <div className={PASSWORD_MANAGER_MAIN_COLUMN}>
+        <div className="shrink-0">
+          <PasswordStats
+            totalPasswords={stats.total}
+            strongPasswords={stats.strong}
+            weakPasswords={stats.weak}
+            favorites={stats.favorites}
+          />
+        </div>
 
-      <div className={PASSWORD_MANAGER_CONTENT_GRID}>
-        <div className="col-span-3 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
-          <div className={PASSWORD_MANAGER_PANEL_SECTION}>
-            <div className={PASSWORD_MANAGER_PANEL_CARD}>
-              <div className="flex-shrink-0 border-b border-brand-blue/15 px-4 py-1.5">
-                <h3 className="text-sm font-semibold text-foreground">Categories</h3>
-                <p className="mt-1 text-xs text-muted-foreground">Filter by category</p>
+        <div className={PASSWORD_MANAGER_CONTENT_GRID}>
+          <div className="col-span-3 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
+            <div className={PASSWORD_MANAGER_PANEL_SECTION}>
+              <div className={PASSWORD_MANAGER_PANEL_CARD}>
+                <div className="flex h-10 flex-shrink-0 items-center border-b border-brand-blue/15 px-4">
+                  <h3 className="text-sm font-semibold leading-none text-foreground">Categories</h3>
+                </div>
+                <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {!showContent ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-brand-blue" aria-hidden />
+                      <span className="sr-only">Loading categories</span>
+                    </div>
+                  ) : (
+                    <CategoryFilter
+                      categories={categoriesWithCounts}
+                      selectedCategory={selectedCategory}
+                      onSelectCategory={handleCategorySelect}
+                      showFavoritesCount={stats.favorites}
+                      onShowFavorites={handleShowFavorites}
+                      isShowingFavorites={isShowingFavorites}
+                    />
+                  )}
+                </div>
+                <PasswordSidebarFooter
+                  totalCategories={categoriesWithCounts.length}
+                  totalPasswords={passwords.length}
+                />
               </div>
-              <div className="seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
+            </div>
+          </div>
+
+          <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
+            <div className={PASSWORD_MANAGER_PANEL_SECTION}>
+              <div className={PASSWORD_MANAGER_PANEL_CARD}>
                 {!showContent ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-brand-blue" aria-hidden />
-                    <span className="sr-only">Loading categories</span>
+                  <div className="flex min-h-[200px] flex-1 flex-col items-center justify-center gap-3">
+                    <Loader2 className="h-8 w-8 animate-spin text-brand-blue" aria-hidden />
+                    <p className="text-sm text-muted-foreground">Loading passwords…</p>
+                    <span className="sr-only">Loading passwords</span>
                   </div>
                 ) : (
-                  <CategoryFilter
-                    categories={categoriesWithCounts}
-                    selectedCategory={selectedCategory}
-                    onSelectCategory={handleCategorySelect}
-                    showFavoritesCount={stats.favorites}
-                    onShowFavorites={handleShowFavorites}
-                    isShowingFavorites={isShowingFavorites}
-                  />
-                )}
-              </div>
-              <PasswordSidebarFooter
-                totalCategories={categoriesWithCounts.length}
-                totalPasswords={passwords.length}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="col-span-9 flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden">
-          <div className={PASSWORD_MANAGER_PANEL_SECTION}>
-            <div className={PASSWORD_MANAGER_PANEL_CARD}>
-              {!showContent ? (
-                <div className="flex min-h-[200px] flex-1 flex-col items-center justify-center gap-3">
-                  <Loader2 className="h-8 w-8 animate-spin text-brand-blue" aria-hidden />
-                  <p className="text-sm text-muted-foreground">Loading passwords…</p>
-                  <span className="sr-only">Loading passwords</span>
-                </div>
-              ) : (
-                <>
-                  <div className="flex-shrink-0 border-b border-brand-blue/15 bg-brand-blue/5 px-4 py-2">
-                    <SearchAndFilter
-                      searchQuery={searchQuery}
-                      onSearchChange={setSearchQuery}
-                      selectedCategory={selectedCategory}
-                      onCategoryChange={handleCategorySelect}
-                      categories={categoriesWithCounts}
-                      onAddPassword={handleAddPassword}
-                    />
-                  </div>
-                  <div className="seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-                    <div className="p-4">
-                      <PasswordList
-                        passwords={filteredPasswords}
+                  <>
+                    <div className="flex-shrink-0 border-b border-brand-blue/15 bg-brand-blue/5 px-3 py-2">
+                      <SearchAndFilter
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
+                        selectedCategory={selectedCategory}
+                        onCategoryChange={handleCategorySelect}
                         categories={categoriesWithCounts}
-                        onEdit={handleEditPassword}
-                        onDelete={handleDeletePassword}
-                        onToggleFavorite={toggleFavorite}
+                        onAddPassword={handleAddPassword}
                       />
                     </div>
-                  </div>
-                  <PasswordListFooter
-                    totalPasswords={passwords.length}
-                    filteredPasswords={filteredPasswords.length}
-                    selectedCategoryName={
-                      selectedCategory === "all"
-                        ? undefined
-                        : categories.find((c) => c.id === selectedCategory)?.name
-                    }
-                  />
-                </>
-              )}
+                    <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      <div className="p-3">
+                        <PasswordList
+                          passwords={filteredPasswords}
+                          categories={categoriesWithCounts}
+                          onEdit={handleEditPassword}
+                          onDelete={handleDeletePassword}
+                          onToggleFavorite={toggleFavorite}
+                        />
+                      </div>
+                    </div>
+                    <PasswordListFooter
+                      totalPasswords={passwords.length}
+                      filteredPasswords={filteredPasswords.length}
+                      selectedCategoryName={
+                        selectedCategory === "all"
+                          ? undefined
+                          : categories.find((c) => c.id === selectedCategory)?.name
+                      }
+                    />
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      <div
+        className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
+        aria-hidden
+      />
 
       <AddPasswordDialog
         key={`${editingPassword?.id || "new"}-${dialogOpen ? "open" : "closed"}`}

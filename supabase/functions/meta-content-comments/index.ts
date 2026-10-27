@@ -2,9 +2,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
+  fetchFacebookAdsPosts,
   fetchMetaComments,
   fetchMetaPostLikers,
   fetchMetaPosts,
+  mergeFacebookOrganicAndAdsPosts,
   replyMetaComment,
   type MetaContentComment,
 } from "../_shared/metaContentApi.ts";
@@ -23,6 +25,7 @@ import {
   syncMetaManageCommentsInboundComments,
   syncMetaManageCommentsPostBaselines,
 } from "../_shared/metaManageCommentsInboxState.ts";
+import { getMetaAdsAccessToken } from "../_shared/metaAdsOrgResolver.ts";
 
 function sortComments<T extends { published_at: string | null }>(comments: T[], sort: string): T[] {
   const copy = [...comments];
@@ -170,11 +173,79 @@ Deno.serve(async (req: Request) => {
 
     if (action === "sync_posts" || action === "listPosts") {
       try {
-        const posts = await fetchMetaPosts(platform, {
+        const organic = await fetchMetaPosts(platform, {
           pageId: resolved.pageId,
           igBusinessAccountId: resolved.igBusinessAccountId,
           pageAccessToken: token,
         });
+
+        let posts = organic;
+        let adsComments: {
+          meta_ads_connected: boolean;
+          ads_posts_loaded: number;
+          source: string;
+          warnings: string[];
+        } | null = null;
+
+        if (platform === "facebook") {
+          // Ads enrichment must never take down the organic inbox (edge timeouts →
+          // client "Failed to send a request to the Edge Function").
+          try {
+            const adsUserToken = await getMetaAdsAccessToken(admin, organizationId);
+            // Include inactive rows — uploads toggle may mark accounts inactive while
+            // Marketing API story IDs are still needed for ads comments.
+            const { data: adAccountRows } = adsUserToken
+              ? await admin
+                .from("organization_meta_ads_accounts")
+                .select("ad_account_id")
+                .eq("organization_id", organizationId)
+                .limit(5)
+              : { data: null as Array<{ ad_account_id?: string }> | null };
+            const adAccountIds = (adAccountRows ?? [])
+              .map((r) => String(r.ad_account_id ?? "").trim())
+              .filter(Boolean);
+
+            const adsFetch = fetchFacebookAdsPosts({
+              pageId: resolved.pageId,
+              pageAccessToken: token,
+              adsUserToken,
+              adAccountIds,
+              limit: 20,
+            });
+            const adsResult = await Promise.race([
+              adsFetch,
+              new Promise<Awaited<typeof adsFetch>>((resolve) => {
+                setTimeout(
+                  () =>
+                    resolve({
+                      posts: [],
+                      source: "none",
+                      warnings: ["ads_fetch_timeout"],
+                    }),
+                  12_000,
+                );
+              }),
+            ]);
+
+            posts = mergeFacebookOrganicAndAdsPosts(organic, adsResult.posts);
+            adsComments = {
+              meta_ads_connected: Boolean(adsUserToken),
+              ads_posts_loaded: adsResult.posts.length,
+              source: adsResult.source,
+              warnings: adsResult.warnings,
+            };
+          } catch (adsErr) {
+            const msg = adsErr instanceof Error ? adsErr.message : String(adsErr);
+            console.warn("[meta-content-comments] ads enrichment skipped:", msg);
+            adsComments = {
+              meta_ads_connected: false,
+              ads_posts_loaded: 0,
+              source: "none",
+              warnings: [`ads_enrichment_error: ${msg}`],
+            };
+          }
+        }
+
         return metaContentJson({
           posts: posts.map((p) => ({
             id: p.id,
@@ -187,10 +258,12 @@ Deno.serve(async (req: Request) => {
             timestamp: p.timestamp,
             comment_count: p.comment_count,
             like_count: p.like_count,
+            is_ad: Boolean(p.is_ad),
           })),
           account_id: accountId,
           account_label: resolved.accountLabel,
           platform,
+          ads_comments: adsComments,
         }, 200);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -205,8 +278,10 @@ Deno.serve(async (req: Request) => {
       try {
         const comments = await fetchMetaComments(platform, mediaId, token);
         const topLevel = comments.filter((c) => !c.parent_comment_id);
+        // Ads/stream sometimes returns only replies (parent omitted/hidden). Still show them.
+        const visible = topLevel.length > 0 ? topLevel : comments;
         return metaContentJson({
-          comments: sortComments(topLevel.map(mapCommentRow), sort),
+          comments: sortComments(visible.map(mapCommentRow), sort),
           account_id: accountId,
           platform,
         }, 200);

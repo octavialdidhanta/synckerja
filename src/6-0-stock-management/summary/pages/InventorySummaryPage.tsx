@@ -77,7 +77,7 @@ export function InventorySummaryPage() {
   return (
     <StockManagementModuleShell>
       <InventoryWorkspace count={lines.length}>
-          <div className="border-b px-4 py-3">
+          <div className="border-b px-4 py-2">
             <InventorySummaryToolbar
               outletId={selectedOutletId}
               onOutletChange={setSelectedOutletId}

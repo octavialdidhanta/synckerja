@@ -22,9 +22,8 @@ export function OutletsListPageSkeleton() {
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex min-h-full flex-col bg-muted/40">
               <div className="mb-1 flex-shrink-0">
-                <div className="px-1 py-3">
-                  <Skeleton className="mb-0.5 h-7 w-40 max-w-full" />
-                  <Skeleton className="h-3 w-64 max-w-full" />
+                <div className="px-1 pt-1 pb-0">
+                  <Skeleton className="h-10 w-40 max-w-full" />
                 </div>
               </div>
 
@@ -38,14 +37,13 @@ export function OutletsListPageSkeleton() {
                           <Skeleton className="mb-1 h-8 w-full" />
                           <Skeleton className="h-8 w-full" />
                         </div>
-                        <div className={`${SETTINGS_PANEL_BODY} px-4 py-6`}>
-                          <div className="mb-4 flex items-center justify-between gap-3">
-                            <Skeleton className="h-8 w-32" />
-                            <Skeleton className="h-9 w-32" />
-                          </div>
-                          <div className="mb-4 flex gap-2">
-                            <Skeleton className="h-9 flex-1" />
-                            <Skeleton className="h-9 w-[180px]" />
+                        <div className={`${SETTINGS_PANEL_BODY} px-3 pt-2 pb-3`}>
+                          <div className="mb-3 flex h-10 items-center gap-2">
+                            <Skeleton className="h-6 w-20 shrink-0" />
+                            <Skeleton className="h-10 w-24 shrink-0" />
+                            <Skeleton className="h-10 min-w-[160px] flex-1" />
+                            <Skeleton className="h-10 w-[180px] shrink-0" />
+                            <Skeleton className="h-10 w-32 shrink-0" />
                           </div>
                           <div className="space-y-2">
                             <Skeleton className="h-10 w-full" />
@@ -56,10 +54,7 @@ export function OutletsListPageSkeleton() {
                         </div>
                       </div>
                       <div className="flex-shrink-0 border-t border-border bg-muted/50 px-4 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <Skeleton className="h-3 w-36 max-w-[55%]" />
-                          <Skeleton className="h-3 w-28 max-w-[40%]" />
-                        </div>
+                        <Skeleton className="h-3 w-36 max-w-[55%]" />
                       </div>
                     </div>
                   </div>

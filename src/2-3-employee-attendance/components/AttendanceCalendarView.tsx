@@ -425,7 +425,7 @@ const AttendanceCalendarView = ({
       </div>
 
       {/* Calendar Table */}
-      <div className="flex-1 overflow-auto">
+      <div className="scrollbar-hide flex-1 overflow-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <table className="w-full border-collapse">
           {/* Header Row */}
           <thead>

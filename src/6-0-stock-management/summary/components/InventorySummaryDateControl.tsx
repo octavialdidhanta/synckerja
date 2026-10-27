@@ -30,13 +30,13 @@ export function InventorySummaryDateControl({ from, to, onChange }: InventorySum
   };
 
   return (
-    <div className="flex items-center gap-1">
-      <Button type="button" variant="outline" size="icon" className="h-9 w-9" onClick={() => step(-1)}>
+    <div className="flex shrink-0 items-center gap-1">
+      <Button type="button" variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={() => step(-1)}>
         <ChevronLeft className="h-4 w-4" />
       </Button>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button type="button" variant="outline" className="h-9 min-w-[9.5rem] justify-between gap-2">
+          <Button type="button" variant="outline" className="h-10 min-w-[9.5rem] shrink-0 justify-between gap-2">
             {label}
             <ChevronDown className="h-4 w-4 opacity-60" />
           </Button>
@@ -94,7 +94,7 @@ export function InventorySummaryDateControl({ from, to, onChange }: InventorySum
           />
         </PopoverContent>
       </Popover>
-      <Button type="button" variant="outline" size="icon" className="h-9 w-9" onClick={() => step(1)}>
+      <Button type="button" variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={() => step(1)}>
         <ChevronRight className="h-4 w-4" />
       </Button>
     </div>

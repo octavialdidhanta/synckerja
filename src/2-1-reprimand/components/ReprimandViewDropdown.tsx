@@ -7,7 +7,6 @@ import {
   CheckCircle,
   Clock,
 } from "lucide-react";
-import { Button } from "@/shared/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/components/ui/collapsible";
 import { Badge } from "@/shared/components/ui/badge";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -109,46 +108,46 @@ export const ReprimandViewDropdown = ({
   if (reprimands.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-muted/50 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        <div className="flex items-start gap-3">
+          <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-muted-foreground" />
 
-            <div
-              className="flex min-w-0 flex-shrink-0 items-center gap-2"
-              style={{ minWidth: "150px", maxWidth: "180px" }}
-            >
-              <div className="relative flex h-8 w-8 shrink-0 overflow-hidden rounded-full text-xs">
-                <div className="flex h-full w-full items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground">
-                  {profilePhotoUrl ? (
-                    <img
-                      src={profilePhotoUrl}
-                      alt={employeeName}
-                      className="h-full w-full rounded-full object-cover"
-                    />
-                  ) : (
-                    employeeName.charAt(0).toUpperCase()
-                  )}
-                </div>
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate text-sm font-medium text-foreground">{employeeName}</h3>
-                <p className="truncate text-xs text-muted-foreground">
-                  {jobPosition || t("reprimands.dropdown.noPosition", "No position")}
-                </p>
+          <div
+            className="flex min-w-0 flex-shrink-0 items-start gap-2"
+            style={{ minWidth: "150px", maxWidth: "180px" }}
+          >
+            <div className="relative mt-0 flex h-8 w-8 shrink-0 overflow-hidden rounded-full text-xs">
+              <div className="flex h-full w-full items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground">
+                {profilePhotoUrl ? (
+                  <img
+                    src={profilePhotoUrl}
+                    alt={employeeName}
+                    className="h-full w-full rounded-full object-cover"
+                  />
+                ) : (
+                  employeeName.charAt(0).toUpperCase()
+                )}
               </div>
             </div>
-
-            <span className="flex-shrink-0 text-sm font-semibold text-foreground" style={{ minWidth: "32px" }}>
-              {reprimandCount}x
-            </span>
-
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap gap-1 pr-2">{reprimandBoxes}</div>
+              <h3 className="truncate text-base font-semibold leading-snug text-foreground">{employeeName}</h3>
+              <p className="mt-px truncate text-xs leading-snug text-muted-foreground">
+                {jobPosition || t("reprimands.dropdown.noPosition", "No position")}
+              </p>
             </div>
+          </div>
 
-            <Button variant="outline" size="sm" className="h-8 flex-shrink-0 px-3 text-xs" disabled>
+          <span
+            className="mt-0.5 flex-shrink-0 text-base font-semibold leading-snug text-foreground"
+            style={{ minWidth: "32px" }}
+          >
+            {reprimandCount}x
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1">{reprimandBoxes}</div>
+            <p className="mt-0.5 text-left text-xs leading-snug text-muted-foreground">
               {t("reprimands.dropdown.noViolations", "No Violations")}
-            </Button>
+            </p>
           </div>
         </div>
       </div>
@@ -185,14 +184,14 @@ export const ReprimandViewDropdown = ({
                   </div>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="truncate text-sm font-medium text-foreground">{employeeName}</h3>
-                  <p className="truncate text-xs text-muted-foreground">
+                  <h3 className="truncate text-base font-semibold leading-snug text-foreground">{employeeName}</h3>
+                  <p className="mt-px truncate text-xs leading-snug text-muted-foreground">
                     {jobPosition || t("reprimands.dropdown.noPosition", "No position")}
                   </p>
                 </div>
               </div>
 
-              <span className="flex-shrink-0 text-sm font-semibold text-foreground" style={{ minWidth: "32px" }}>
+              <span className="flex-shrink-0 text-base font-semibold text-foreground" style={{ minWidth: "32px" }}>
                 {reprimandCount}x
               </span>
 

@@ -10,10 +10,10 @@ type Props = {
 export function SynckerjaOrderTermsPanel({ settings, onChange }: Props) {
   const { t } = useAppTranslation();
   return (
-    <div className="space-y-1.5 p-4">
+    <div className="space-y-1 p-3">
       <Label>{t("synckerjaOrder.terms.label", "Guest terms")}</Label>
       <textarea
-        className="min-h-[280px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        className="min-h-[240px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
         value={settings.terms_html ?? ""}
         onChange={(e) => onChange({ terms_html: e.target.value })}
         placeholder={t(

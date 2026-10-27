@@ -373,7 +373,7 @@ export function DigitalMarketingReportMonthlySpendChart({
   })();
 
   const shellClass = embedded
-    ? "min-w-0"
+    ? "flex min-h-0 min-w-0 flex-1 flex-col"
     : "overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm";
 
   return (
@@ -426,14 +426,14 @@ export function DigitalMarketingReportMonthlySpendChart({
           {t("digitalMarketing.report.monthlySpendEmpty", "No spend data for this year.")}
         </div>
       ) : (
-        <>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {metaSkippedNotice ? (
-            <p className="mb-2 text-xs text-amber-700">{metaSkippedNotice}</p>
+            <p className="mb-2 shrink-0 text-xs text-amber-700">{metaSkippedNotice}</p>
           ) : null}
           {tiktokSkippedNotice ? (
-            <p className="mb-2 text-xs text-amber-700">{tiktokSkippedNotice}</p>
+            <p className="mb-2 shrink-0 text-xs text-amber-700">{tiktokSkippedNotice}</p>
           ) : null}
-          <div className="mb-2 flex flex-wrap items-center gap-4">
+          <div className="mb-2 flex shrink-0 flex-wrap items-center gap-4">
             {showCombined ? (
               <span className="flex items-center gap-1.5 text-xs text-gray-600">
                 <span
@@ -698,7 +698,7 @@ export function DigitalMarketingReportMonthlySpendChart({
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

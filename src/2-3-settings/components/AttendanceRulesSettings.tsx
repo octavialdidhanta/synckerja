@@ -19,10 +19,10 @@ import { useWorkScheduleSettings } from '@/2-1-employees/MyInfo/Attendance/hooks
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { applyVariables } from '@/shared/i18n/translations';
 import { useReportAttendanceSettingsLoading } from '@/2-3-attendance/context/AttendancePageLoadContext';
+import { AttendanceSettingsHeaderActions } from '@/2-3-settings/components/AttendanceSettingsHeaderActions';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { supabase } from '@/shared/lib/supabaseClient';
 import {
-  mergeAttendanceRulesSettings,
   useAttendanceRulesSettings,
   type AttendanceRulesSettingsRow,
 } from '@/2-3-settings/hooks/useAttendanceRulesSettings';
@@ -107,28 +107,17 @@ export const AttendanceRulesSettings = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-foreground text-2xl font-semibold">
-            {t('attendanceRules.title', 'Attendance Rules')}
-          </h2>
-          <p className="text-muted-foreground mt-1">
-            {t(
-              'attendanceRules.description',
-              'Configure rules and validation for the attendance system',
-            )}
-          </p>
-        </div>
-        <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-3">
+      <AttendanceSettingsHeaderActions>
+        <Button onClick={handleSave} disabled={isSaving} size="sm" className="gap-2">
           <Save className="h-4 w-4" />
           {isSaving
             ? t('attendanceRules.saving', 'Saving...')
             : t('attendanceRules.saveSettings', 'Save Settings')}
         </Button>
-      </div>
+      </AttendanceSettingsHeaderActions>
 
-      <Alert>
+      <Alert className="shrink-0">
         <Info className="h-4 w-4" />
         <AlertTitle>{t('attendanceRules.holidayWeekend.weekendInfoTitle', 'Weekend policy')}</AlertTitle>
         <AlertDescription className="text-sm">
@@ -144,42 +133,15 @@ export const AttendanceRulesSettings = () => {
         </AlertDescription>
       </Alert>
 
-      <div className="flex flex-wrap gap-2">
-        <Badge variant={form.enforce_national_holidays ? 'default' : 'secondary'}>
-          {t('attendanceRules.status.nationalHolidays', 'National Holidays')}:{' '}
-          {form.enforce_national_holidays ? 'ON' : 'OFF'}
-        </Badge>
-        <Badge variant={form.require_photo_checkin ? 'default' : 'secondary'}>
-          {t('attendanceRules.status.photoCheckin', 'Photo Check-in')}:{' '}
-          {form.require_photo_checkin ? 'ON' : 'OFF'}
-        </Badge>
-        <Badge variant={form.require_photo_checkout ? 'default' : 'secondary'}>
-          {t('attendanceRules.status.photoCheckout', 'Photo Check-out')}:{' '}
-          {form.require_photo_checkout ? 'ON' : 'OFF'}
-        </Badge>
-        <Badge variant={form.auto_checkout_enabled ? 'default' : 'secondary'}>
-          {t('attendanceRules.status.autoCheckout', 'Auto Check-out')}:{' '}
-          {form.auto_checkout_enabled ? 'ON' : 'OFF'}
-        </Badge>
-        <Badge variant={form.require_gps_accuracy ? 'default' : 'secondary'}>
-          {t('attendanceRules.status.gpsAccuracy', 'GPS Accuracy')}:{' '}
-          {form.require_gps_accuracy ? 'ON' : 'OFF'}
-        </Badge>
-        <Badge variant={form.enable_visit_attendance_integration ? 'default' : 'secondary'}>
-          {t('attendanceRules.status.visitIntegration', 'Visit Integration')}:{' '}
-          {form.enable_visit_attendance_integration ? 'ON' : 'OFF'}
-        </Badge>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid shrink-0 gap-3 md:grid-cols-2">
         <Card>
-          <CardHeader>
+          <CardHeader className="px-4 py-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Calendar className="h-5 w-5" />
               {t('attendanceRules.holidayWeekend.title', 'Holiday & Weekend Rules')}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 px-4 pb-3 pt-0">
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-1">
                 <Label htmlFor="enforce-national-holidays">
@@ -202,13 +164,13 @@ export const AttendanceRulesSettings = () => {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="px-4 py-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Camera className="h-5 w-5" />
               {t('attendanceRules.photoRequirements.title', 'Photo Requirements')}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 px-4 pb-3 pt-0">
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-1">
                 <Label htmlFor="require-photo-checkin">
@@ -249,13 +211,13 @@ export const AttendanceRulesSettings = () => {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="px-4 py-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Clock className="h-5 w-5" />
               {t('attendanceRules.autoCheckout.title', 'Auto Check-out')}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 px-4 pb-3 pt-0">
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-1">
                 <Label htmlFor="auto-checkout-enabled">
@@ -296,13 +258,13 @@ export const AttendanceRulesSettings = () => {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="px-4 py-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <MapPin className="h-5 w-5" />
               {t('attendanceRules.locationRules.title', 'Location Rules')}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 px-4 pb-3 pt-0">
             <div className="space-y-2">
               <Label htmlFor="default-max-radius">
                 {t('attendanceRules.locationRules.maxRadius', 'Maximum Radius (meters)')}
@@ -380,13 +342,13 @@ export const AttendanceRulesSettings = () => {
         </Card>
 
         <Card className="md:col-span-2">
-          <CardHeader>
+          <CardHeader className="px-4 py-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <MapPin className="h-5 w-5" />
               {t('attendanceRules.visitIntegration.title', 'Client Visit & Attendance')}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 px-4 pb-3 pt-0">
             <Alert>
               <Info className="h-4 w-4" />
               <AlertTitle>
@@ -436,7 +398,7 @@ export const AttendanceRulesSettings = () => {
                 }
               />
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="travel-threshold">
                   {t('attendanceRules.visitIntegration.travelThreshold', 'Travel threshold (minutes)')}
@@ -496,14 +458,14 @@ export const AttendanceRulesSettings = () => {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className="shrink-0">
+        <CardHeader className="px-4 py-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Shield className="h-5 w-5" />
             {t('attendanceRules.effectiveNow.title', 'Effective now')}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm">
+        <CardContent className="space-y-3 px-4 pb-3 pt-0 text-sm">
           <p className="text-muted-foreground">
             {t(
               'attendanceRules.effective.radiusSource',
@@ -518,9 +480,11 @@ export const AttendanceRulesSettings = () => {
             )}
           </p>
           {officeLocations.length === 0 ? (
-            <p className="text-muted-foreground">
-              {t('attendanceRules.effective.noOfficeLocations', 'No active office locations.')}
-            </p>
+            <div className="flex min-h-[72px] flex-col items-center justify-center rounded-md border border-dashed border-border py-3.5 text-center">
+              <p className="text-muted-foreground">
+                {t('attendanceRules.effective.noOfficeLocations', 'No active office locations.')}
+              </p>
+            </div>
           ) : (
             <div className="space-y-2">
               {officeLocations.map((loc) => (
@@ -539,14 +503,10 @@ export const AttendanceRulesSettings = () => {
               ))}
             </div>
           )}
-          <p className="text-xs text-muted-foreground">
-            {t(
-              'attendanceRules.effective.shiftNote',
-              'Shift-specific times and late tolerance use Employee Shift Settings and override work schedule hours.',
-            )}
-          </p>
         </CardContent>
       </Card>
+
+      <div className="h-3 flex-shrink-0" aria-hidden />
     </div>
   );
 };

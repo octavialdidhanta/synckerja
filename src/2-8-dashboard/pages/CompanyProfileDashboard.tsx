@@ -3,7 +3,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import {
-  CompanyProfileHeader,
   CompanyBasicInfo,
   CompanyMissionVision,
   CompanyDepartments,
@@ -175,18 +174,6 @@ export const CompanyProfileDashboard = () => {
 
   return (
     <div className="w-full max-w-none space-y-2 sm:space-y-3">
-      <CompanyProfileHeader 
-        companyName={isEditMode ? formData.company_name : displayCompanyData.company_name}
-        logoUrl={logoUrl}
-        isEditMode={isEditMode}
-        onEdit={handleEdit}
-        onCancel={handleCancel}
-        onSave={handleSave}
-        isSaving={updateCompanyMutation.isPending}
-        onLogoUpdate={updateLogo}
-        onCompanyNameChange={(value) => handleFieldChange('company_name', value)}
-      />
-      
       <div className="grid grid-cols-1 gap-2 sm:gap-3 xl:grid-cols-3">
         <div className="min-w-0 space-y-2 sm:space-y-3 xl:col-span-2">
           <CompanyBasicInfo 
@@ -194,11 +181,18 @@ export const CompanyProfileDashboard = () => {
             formData={formData}
             isEditMode={isEditMode}
             onFieldChange={handleFieldChange}
+            logoUrl={logoUrl}
+            onLogoUpdate={updateLogo}
+            onEdit={handleEdit}
+            onCancel={handleCancel}
+            onSave={handleSave}
+            isSaving={updateCompanyMutation.isPending}
           />
           <CompanyMissionVision 
             formData={formData}
             isEditMode={isEditMode}
             onFieldChange={handleFieldChange}
+            sections={['about']}
           />
         </div>
         
@@ -206,6 +200,12 @@ export const CompanyProfileDashboard = () => {
           <CompanyDepartments 
             departments={departments} 
             isLoading={isDepartmentsLoading} 
+          />
+          <CompanyMissionVision 
+            formData={formData}
+            isEditMode={isEditMode}
+            onFieldChange={handleFieldChange}
+            sections={['missionVision']}
           />
           <CompanyValues />
         </div>

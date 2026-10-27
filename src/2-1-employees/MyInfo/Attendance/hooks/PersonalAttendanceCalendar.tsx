@@ -380,8 +380,8 @@ const PersonalAttendanceCalendar = ({
           })()}
         </div>
         
-        {/* Summary section */}
-        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain max-h-[500px] space-y-4 overflow-x-hidden overflow-y-auto border-t bg-gray-50 p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* Summary section — scroll with page shell, not nested */}
+        <div className="space-y-4 border-t bg-gray-50 p-4">
           {/* Attendance Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-4 text-center">
             <div className="bg-emerald-50 p-2 sm:p-3 rounded border">

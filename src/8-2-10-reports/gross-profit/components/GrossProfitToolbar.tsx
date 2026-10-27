@@ -40,23 +40,15 @@ export function GrossProfitToolbar({
   return (
     <ReportsSalesToolbarShell
       title={t("reports.grossProfit.title", "Gross Profit")}
-      description={
-        <p className="text-sm text-gray-500">
-          {t(
-            "reports.grossProfit.subtitle",
-            "Net sales minus cost of goods sold for the selected period.",
-          )}
-        </p>
-      }
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-nowrap items-center gap-2">
         <div className="relative">
           <Home className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <OutletFilterSelect
             value={outletId || POS_OUTLET_FILTER_ALL}
             onChange={onOutletChange}
             includeAll
-            className="w-[200px] pl-8"
+            className="h-10 w-[200px] pl-8"
           />
         </div>
         <ReportsSalesDateRangePicker
@@ -67,14 +59,14 @@ export function GrossProfitToolbar({
           onApplyFilters={onApplyFilters}
         />
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-nowrap items-center gap-2">
         {onManageCogsAdjustments ? (
-          <Button type="button" size="sm" variant="outline" onClick={onManageCogsAdjustments}>
+          <Button type="button" variant="outline" className="shrink-0" onClick={onManageCogsAdjustments}>
             <SlidersHorizontal className="mr-2 h-4 w-4" />
             {t("reports.grossProfit.cogsAdjustment.manage", "COGS Adjustments")}
           </Button>
         ) : null}
-        <Button type="button" size="sm" onClick={onExport} disabled={exportDisabled}>
+        <Button type="button" className="shrink-0" onClick={onExport} disabled={exportDisabled}>
           <Download className="mr-2 h-4 w-4" />
           {t("reports.actions.export", "Export")}
         </Button>

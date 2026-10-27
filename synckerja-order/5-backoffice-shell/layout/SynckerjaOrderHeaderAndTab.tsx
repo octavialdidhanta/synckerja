@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BookOpen, Building2, Clock, Contact, QrCode, Store, UserRound } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useHeaderTabPageAccess } from "@/shared/auth/page-access/useHeaderTabPageAccess";
+import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { SYNCKERJA_ORDER_I18N } from "@/synckerja-order/shared/lib/orderCopy";
 import {
@@ -94,39 +95,13 @@ export function SynckerjaOrderHeaderAndTab({
   };
 
   const title = businessName?.trim() || t(SYNCKERJA_ORDER_I18N.headerTitle, "Synckerja Order");
-  const description = t(
-    SYNCKERJA_ORDER_I18N.headerSubtitle,
-    "Publish a QR dine-in menu for each outlet.",
-  );
 
   return (
-    <div className="px-1 py-3">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="mb-0.5 text-xl font-bold text-foreground">{title}</h1>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted"
-            onClick={onViewStore}
-            disabled={!onViewStore}
-          >
-            {t(SYNCKERJA_ORDER_I18N.viewStore, "View store")}
-          </button>
-          <button
-            type="button"
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-            onClick={onSave}
-            disabled={!onSave || saveBusy}
-          >
-            {t(SYNCKERJA_ORDER_I18N.saveContinue, "Save and continue")}
-          </button>
-        </div>
-      </div>
-
-      <div className="-mb-3">
+    <div className="flex items-start justify-between gap-3 px-1 pt-1 pb-0">
+      <div className="min-w-0 flex-1">
+        <h1 className="mb-1.5 flex h-10 items-center whitespace-nowrap text-xl font-bold leading-none text-foreground">
+          {title}
+        </h1>
         <nav className="flex flex-wrap gap-x-6 gap-y-1" aria-label={title} role="tablist">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -158,6 +133,25 @@ export function SynckerjaOrderHeaderAndTab({
             );
           })}
         </nav>
+      </div>
+      <div className="flex shrink-0 items-center gap-2 pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 shrink-0"
+          onClick={onViewStore}
+          disabled={!onViewStore}
+        >
+          {t(SYNCKERJA_ORDER_I18N.viewStore, "View store")}
+        </Button>
+        <Button
+          type="button"
+          className="h-10 shrink-0"
+          onClick={onSave}
+          disabled={!onSave || saveBusy}
+        >
+          {t(SYNCKERJA_ORDER_I18N.saveContinue, "Save and continue")}
+        </Button>
       </div>
     </div>
   );

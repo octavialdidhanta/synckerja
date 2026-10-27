@@ -79,7 +79,7 @@ export default function EmployeesStaffPinPage() {
     <EmployeesStaffModuleShell showContent={showContent}>
       <EmployeesStaffWorkspace count={staff.length}>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="flex-shrink-0 border-b px-4 py-4">
+          <div className="flex-shrink-0 border-b px-3 py-2">
             <PinAccessIntro />
           </div>
 

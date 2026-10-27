@@ -20,6 +20,13 @@ interface EducationInfoTabProps {
   onUpdate: () => void;
   /** When set, title and Add Education share one header row (Formal Education page). */
   sectionTitle?: string;
+  /** Controlled add form (page header Add button). */
+  isAddingNew?: boolean;
+  onAddingNewChange?: (value: boolean) => void;
+  /** Notify page when a row is being edited (to hide header Add). */
+  onEditingChange?: (editing: boolean) => void;
+  /** Hide inline Add — use when Add lives in the page header. */
+  hideInlineAddButton?: boolean;
 }
 
 export const EducationInfoTab = ({
@@ -27,11 +34,20 @@ export const EducationInfoTab = ({
   isEditMode,
   onUpdate,
   sectionTitle,
+  isAddingNew: controlledIsAddingNew,
+  onAddingNewChange,
+  onEditingChange,
+  hideInlineAddButton = false,
 }: EducationInfoTabProps) => {
   const { organizationId } = useCurrentOrg();
   const { educations, isLoading, addEducation, updateEducation, deleteEducation } = useEducations(employee.id);
   
-  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [internalIsAddingNew, setInternalIsAddingNew] = useState(false);
+  const isAddingNew = controlledIsAddingNew ?? internalIsAddingNew;
+  const setIsAddingNew = (value: boolean) => {
+    onAddingNewChange?.(value);
+    if (controlledIsAddingNew === undefined) setInternalIsAddingNew(value);
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Education>>({
     institution_name: '',
@@ -72,6 +88,7 @@ export const EducationInfoTab = ({
     if (editingId) {
       await updateEducation.mutateAsync({ id: editingId, data: educationData });
       setEditingId(null);
+      onEditingChange?.(false);
     } else {
       await addEducation.mutateAsync(educationData);
       setIsAddingNew(false);
@@ -91,6 +108,7 @@ export const EducationInfoTab = ({
 
   const handleEdit = (education: Education) => {
     setEditingId(education.id);
+    onEditingChange?.(true);
     setFormData({
       institution_name: education.institution_name,
       degree: education.degree,
@@ -106,6 +124,7 @@ export const EducationInfoTab = ({
   const handleCancel = () => {
     setIsAddingNew(false);
     setEditingId(null);
+    onEditingChange?.(false);
     setFormData({
       institution_name: '',
       degree: '',
@@ -133,7 +152,7 @@ export const EducationInfoTab = ({
   }
 
   const addEducationButton =
-    isEditMode && !isAddingNew && !editingId ? (
+    !hideInlineAddButton && isEditMode && !isAddingNew && !editingId ? (
       <Button
         onClick={() => setIsAddingNew(true)}
         size="sm"

@@ -17,6 +17,7 @@ import { useEffect } from 'react';
 import { ManualHolidayForm } from './ManualHolidayForm';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useReportAttendanceSettingsLoading } from '@/2-3-attendance/context/AttendancePageLoadContext';
+import { AttendanceSettingsHeaderActions } from '@/2-3-settings/components/AttendanceSettingsHeaderActions';
 import { applyVariables } from '@/shared/i18n/translations';
 import { format } from 'date-fns';
 import { id, enUS } from 'date-fns/locale';
@@ -159,18 +160,12 @@ export const WorkScheduleSettings = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-foreground text-2xl font-semibold">{t('workSchedule.title', 'Work Schedule Settings')}</h2>
-          <p className="text-muted-foreground mt-1">{t('workSchedule.description', 'Manage working days, working hours, and national holidays')}</p>
-        </div>
-        <Button 
-          onClick={() => setShowCreateForm(true)}
-        >
+      <AttendanceSettingsHeaderActions>
+        <Button onClick={() => setShowCreateForm(true)} size="sm">
           <Plus className="h-4 w-4 mr-2" />
           {t('workSchedule.button.addSchedule', 'Add Schedule')}
         </Button>
-      </div>
+      </AttendanceSettingsHeaderActions>
 
       <Tabs defaultValue="schedules" className="w-full">
         <TabsList className="grid w-full grid-cols-2">

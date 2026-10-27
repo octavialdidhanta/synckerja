@@ -344,20 +344,25 @@ function getChatTimelineIso(msg: { direction: string; created_at: string; raw_me
   return ca;
 }
 
+/** WhatsApp Web day pill — centered capsule, no side rules. */
 function DateSeparator({ label }: { label: string }) {
   return (
     <div
-      className="flex w-full min-w-0 shrink-0 items-center gap-2 py-2.5 px-1"
+      className="flex w-full min-w-0 shrink-0 justify-center py-2"
       data-date-separator
       data-date-label={label}
       role="separator"
       aria-label={label}
     >
-      <div className="h-px min-w-[1rem] flex-1 bg-neutral-400/45" aria-hidden />
-      <span className="shrink-0 px-1 text-center text-[11px] font-medium leading-none text-neutral-600">
+      <span
+        className="inline-block max-w-[min(100%,20rem)] rounded-[7.5px] px-3 py-[5px] text-center text-[12.5px] font-normal leading-[15px] tracking-[0.01em] text-[#54656f]"
+        style={{
+          backgroundColor: '#ffffff',
+          boxShadow: '0 1px 0.5px rgba(11,20,26,0.13)',
+        }}
+      >
         {label}
       </span>
-      <div className="h-px min-w-[1rem] flex-1 bg-neutral-400/45" aria-hidden />
     </div>
   );
 }
@@ -370,19 +375,74 @@ function maskPhoneLast4(phone: string | null | undefined): string {
   return s.slice(0, -4) + '****';
 }
 
-/** Checklist di sebelah pesan outbound: satu centang (terkirim), dua centang (delivered), dua centang biru (dibaca). */
+/** WhatsApp Web bubble palette */
+const WA_IN_BG = '#ffffff';
+const WA_OUT_BG = '#d9fdd3';
+const WA_TEXT = '#111b21';
+const WA_TIME = '#667781';
+const WA_SHADOW = '0 1px 0.5px rgba(11,20,26,0.13)';
+
+/** Checklist outbound (WhatsApp): abu-abu / biru read — di atas bubble hijau muda. */
 function MessageStatus({ status }: { status: WhatsAppMessage['status'] | 'sending' | string | null }) {
   const normalized = status === 'read' ? 'read' : status === 'delivered' ? 'delivered' : status === 'sending' ? 'sending' : status === 'sent' ? 'sent' : null;
   if (normalized === 'read') {
-    return <CheckCheck className="w-4 h-4 shrink-0 text-[#7dd3fc]" aria-label="Read" />;
+    return <CheckCheck className="h-[14px] w-[14px] shrink-0 text-[#53bdeb]" aria-label="Read" />;
   }
   if (normalized === 'delivered') {
-    return <CheckCheck className="w-4 h-4 shrink-0 text-white" aria-label="Delivered" />;
+    return <CheckCheck className="h-[14px] w-[14px] shrink-0 text-[#667781]" aria-label="Delivered" />;
   }
   if (normalized === 'sent' || normalized === 'sending' || !normalized) {
-    return <Check className="w-4 h-4 shrink-0 text-white" aria-label={normalized === 'sending' ? 'Sending' : 'Sent'} />;
+    return (
+      <Check
+        className="h-[14px] w-[14px] shrink-0 text-[#667781]"
+        aria-label={normalized === 'sending' ? 'Sending' : 'Sent'}
+      />
+    );
   }
   return <span className="text-xs opacity-80">{status}</span>;
+}
+
+/**
+ * Ekor bubble WhatsApp — harus menempel pojok rata (tanpa radius di sisi ekor).
+ * Path sama seperti WA Web; digeser 1px ke dalam agar tidak ada celah anti-alias.
+ */
+function WhatsAppBubbleTail({ direction }: { direction: 'inbound' | 'outbound' }) {
+  const isOut = direction === 'outbound';
+  return (
+    <span
+      className={`pointer-events-none absolute top-0 z-0 block h-[13px] w-[8px] overflow-visible ${
+        isOut ? '-right-2' : '-left-2'
+      }`}
+      style={{ color: isOut ? WA_OUT_BG : WA_IN_BG }}
+      aria-hidden
+    >
+      <svg
+        viewBox="0 0 8 13"
+        width="8"
+        height="13"
+        className="block"
+        style={{
+          // Overlap 1px into the bubble so fill meets the flat corner (no gap).
+          transform: isOut ? 'translateX(-1px)' : 'translateX(1px)',
+        }}
+      >
+        {isOut ? (
+          <path fill="currentColor" d="M5.188 0H0v11.193l6.467-8.625C7.526 1.156 6.958 0 5.188 0z" />
+        ) : (
+          <path fill="currentColor" d="M1.533 2.568 8 11.193V0H2.812C1.042 0 .474 1.156 1.533 2.568z" />
+        )}
+      </svg>
+    </span>
+  );
+}
+
+/** Spacer akhir baris terakhir — ruang timestamp WhatsApp tanpa mempersempit semua baris. */
+function WhatsAppTimeEndSpacer() {
+  return (
+    <span className="inline-block w-[54px]" aria-hidden>
+      {'\u00a0'}
+    </span>
+  );
 }
 
 function messageStatusTitle(status: WhatsAppMessage['status'] | 'sending' | string | null) {
@@ -423,9 +483,8 @@ function ChatBubbleTimeMeta({
   if (variant === 'corner') {
     return (
       <span
-        className={`pointer-events-none absolute bottom-1 right-1.5 z-[2] inline-flex items-center gap-0.5 whitespace-nowrap text-[10px] leading-none ${
-          isOutbound ? 'text-white/85' : 'text-gray-500'
-        }`}
+        className="pointer-events-none absolute bottom-[3px] right-[7px] z-[2] inline-flex items-center gap-[3px] whitespace-nowrap text-[11px] leading-none"
+        style={{ color: WA_TIME }}
         aria-hidden
       >
         {core}
@@ -712,19 +771,15 @@ function ChatDocumentBubble({
   messageId?: string;
   t: (key: string, fallback?: string) => string;
 }) {
-  const cardBg = isOutbound
-    ? 'bg-[#0a5a4a]/50 hover:bg-[#0a5a4a]/65'
-    : 'bg-gray-100 hover:bg-gray-50';
-  const titleCls = isOutbound ? 'text-white' : 'text-gray-900';
-  const subCls = isOutbound ? 'text-white/75' : 'text-gray-500';
-  const captionCls = isOutbound ? 'text-white/90' : 'text-gray-600';
-  const iconBg = documentIconBgClass(meta.extension, isOutbound);
+  const cardBg = 'bg-[#f0f2f5] hover:bg-[#e9edef]';
+  const titleCls = 'text-[#111b21]';
+  const subCls = 'text-[#667781]';
+  const captionCls = 'text-[#111b21]';
+  const iconBg = documentIconBgClass(meta.extension, false);
 
   const card = (
     <div
-      className={`flex min-w-[228px] max-w-[300px] items-center gap-3 rounded-lg border p-2.5 pr-3 shadow-sm ${
-        isOutbound ? 'border-white/15' : 'border-gray-200/80'
-      } ${cardBg} transition-colors`}
+      className={`flex min-w-[228px] max-w-[300px] items-center gap-3 rounded-lg border border-[#d1d7db]/80 p-2.5 pr-3 shadow-sm ${cardBg} transition-colors`}
     >
       <div
         className={`flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-md ${iconBg}`}
@@ -761,11 +816,16 @@ function ChatDocumentBubble({
             }
           }}
           disabled={isResolving}
-          className={`mt-2 text-xs font-medium underline hover:no-underline disabled:opacity-50 ${isOutbound ? 'text-white/90' : 'text-[#128C7E]'}`}
+          className="mt-2 text-xs font-medium text-[#027eb5] underline hover:no-underline disabled:opacity-50"
         >
           {isResolving ? t('whatsappInbox.loading', 'Loading...') : t('whatsappInbox.showDocument', 'Show document')}
         </button>
-        {meta.caption ? <p className={`mt-1.5 text-sm whitespace-pre-wrap break-words ${captionCls}`}>{meta.caption}</p> : null}
+        {meta.caption ? (
+          <p className={`mt-1.5 text-[14.2px] leading-[19px] whitespace-pre-wrap break-words ${captionCls}`}>
+            {meta.caption}
+            <WhatsAppTimeEndSpacer />
+          </p>
+        ) : null}
       </span>
     );
   }
@@ -799,7 +859,10 @@ function ChatDocumentBubble({
         ) : null}
       </span>
       {meta.caption ? (
-        <p className={`mt-1.5 text-sm whitespace-pre-wrap break-words ${captionCls}`}>{meta.caption}</p>
+        <p className={`mt-1.5 text-[14.2px] leading-[19px] whitespace-pre-wrap break-words ${captionCls}`}>
+          {meta.caption}
+          <WhatsAppTimeEndSpacer />
+        </p>
       ) : null}
     </span>
   );
@@ -826,10 +889,9 @@ function getTemplateDisplayBody(body: string | null | undefined): string {
 
 function LeadMagnetButtonChips({
   titles,
-  isOutbound,
 }: {
   titles: string[];
-  isOutbound: boolean;
+  isOutbound?: boolean;
 }) {
   if (!titles.length) return null;
   return (
@@ -837,9 +899,7 @@ function LeadMagnetButtonChips({
       {titles.map((title) => (
         <span
           key={title}
-          className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
-            isOutbound ? 'border-white/30 bg-white/10 text-white' : 'border-border bg-background text-foreground'
-          }`}
+          className="rounded-full border border-[#d1d7db] bg-white px-2 py-0.5 text-[10px] font-medium text-[#111b21]"
         >
           {title}
         </span>
@@ -885,6 +945,11 @@ function MediaPreview({
     direction === 'inbound' &&
     MEDIA_TYPES.includes(messageType);
 
+  const waChipCls = isOutbound
+    ? 'bg-black/[0.06] text-[#54656f]'
+    : 'bg-[#f0f2f5] text-[#54656f]';
+  const waBodyStyle = { color: WA_TEXT } as const;
+
   if (messageType === 'lead_magnet_buttons' || (messageType === 'text' && (body ?? '').includes('[Tombol:'))) {
     const legacy = resolveLegacyLeadMagnetOutboundDisplay(body, rawMetadata);
     const buttonTitles =
@@ -893,17 +958,18 @@ function MediaPreview({
         : legacy.buttonTitles;
     const displayText = legacy.body || body || '—';
     return (
-      <div className="min-w-0">
+      <div className="min-w-0 max-w-full">
         {isOutbound ? (
           <span
-            className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-              isOutbound ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'
-            }`}
+            className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${waChipCls}`}
           >
             {t('whatsappInbox.leadMagnetAutomatedMessage', 'Pesan otomatis')}
           </span>
         ) : null}
-        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>{displayText}</p>
+        <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]" style={waBodyStyle}>
+          {displayText}
+          <WhatsAppTimeEndSpacer />
+        </p>
         <LeadMagnetButtonChips titles={buttonTitles} isOutbound={isOutbound} />
       </div>
     );
@@ -911,16 +977,15 @@ function MediaPreview({
 
   if (messageType === 'template') {
     return (
-      <div className="min-w-0">
+      <div className="min-w-0 max-w-full">
         <span
-          className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            isOutbound ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'
-          }`}
+          className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${waChipCls}`}
         >
           {t('whatsappInbox.templateMessageLabel', 'Template')}
         </span>
-        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>
+        <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]" style={waBodyStyle}>
           {getTemplateDisplayBody(body)}
+          <WhatsAppTimeEndSpacer />
         </p>
       </div>
     );
@@ -943,35 +1008,36 @@ function MediaPreview({
     const rows = flowInteractive?.action?.sections?.[0]?.rows ?? [];
     const replyButtons = flowInteractive?.action?.buttons ?? [];
     return (
-      <div className="min-w-0">
+      <div className="min-w-0 max-w-full">
         <span
           className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            isOutbound ? 'bg-white/20 text-white' : isReplyButtons ? 'bg-violet-100 text-violet-800' : 'bg-blue-100 text-blue-800'
+            isOutbound ? waChipCls : isReplyButtons ? 'bg-violet-100 text-violet-800' : 'bg-blue-100 text-blue-800'
           }`}
         >
           {isReplyButtons
             ? t('whatsappInbox.quickReplyLabel', 'Quick reply')
             : t('whatsappInbox.listMessageLabel', 'List message')}
         </span>
-        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>{body || '—'}</p>
+        <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]" style={waBodyStyle}>
+          {body || '—'}
+          <WhatsAppTimeEndSpacer />
+        </p>
         {isReplyButtons ? (
           <div className="mt-2 flex flex-wrap gap-1">
             {replyButtons.map((btn, index) => (
               <span
                 key={`${btn.reply?.title ?? index}`}
-                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
-                  isOutbound ? 'border-white/30 bg-white/10 text-white' : 'border-border bg-background text-foreground'
-                }`}
+                className="rounded-full border border-[#d1d7db] bg-white px-2 py-0.5 text-[10px] font-medium text-[#111b21]"
               >
                 {btn.reply?.title ?? '…'}
               </span>
             ))}
           </div>
         ) : (
-          <div className={`mt-2 rounded border px-2 py-1.5 text-xs ${isOutbound ? 'border-white/30 bg-white/10 text-white' : 'border-border bg-background'}`}>
+          <div className="mt-2 rounded border border-[#d1d7db] bg-white/80 px-2 py-1.5 text-xs text-[#111b21]">
             <span className="font-medium">{buttonText}</span>
             {rows.length > 0 ? (
-              <ul className={`mt-1 space-y-0.5 ${isOutbound ? 'text-white/90' : 'text-muted-foreground'}`}>
+              <ul className="mt-1 space-y-0.5 text-[#667781]">
                 {rows.slice(0, 4).map((row, index) => (
                   <li key={`${row.title ?? index}`}>• {row.title}</li>
                 ))}
@@ -986,15 +1052,18 @@ function MediaPreview({
 
   if (messageType === 'nfm_reply') {
     return (
-      <div className="min-w-0">
+      <div className="min-w-0 max-w-full">
         <span
           className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            isOutbound ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+            isOutbound ? waChipCls : 'bg-emerald-100 text-emerald-800'
           }`}
         >
           {t('whatsappInbox.formFlowSubmissionLabel', 'Form submission')}
         </span>
-        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>{body || '—'}</p>
+        <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]" style={waBodyStyle}>
+          {body || '—'}
+          <WhatsAppTimeEndSpacer />
+        </p>
       </div>
     );
   }
@@ -1016,15 +1085,18 @@ function MediaPreview({
       ? humanizeLeadMagnetPostbackBody(body, rawMetadata)
       : (body || '—');
     return (
-      <div className="min-w-0">
+      <div className="min-w-0 max-w-full">
         <span
           className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            isOutbound ? 'bg-white/20 text-white' : 'bg-violet-100 text-violet-800'
+            isOutbound ? waChipCls : 'bg-violet-100 text-violet-800'
           }`}
         >
           {chipLabel}
         </span>
-        <p className={`text-sm whitespace-pre-wrap break-words ${isOutbound ? 'text-white' : ''}`}>{displayBody}</p>
+        <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]" style={waBodyStyle}>
+          {displayBody}
+          <WhatsAppTimeEndSpacer />
+        </p>
       </div>
     );
   }
@@ -1078,7 +1150,12 @@ function MediaPreview({
         </span>
       );
     }
-    return <p className="text-sm whitespace-pre-wrap break-words">{displayBody}</p>;
+    return (
+      <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]" style={waBodyStyle}>
+        {displayBody}
+        <WhatsAppTimeEndSpacer />
+      </p>
+    );
   }
   // Caption: dari body (jika bukan placeholder), atau dari raw_metadata untuk pesan masuk lama
   const isPlaceholder = body && MEDIA_TYPES.some((t) => body === `[${t}]`);
@@ -1086,7 +1163,6 @@ function MediaPreview({
   const captionFromRaw = direction === 'inbound' ? maskEmailsForDisplay(getCaptionFromRawMetadata(rawMetadata)) ?? null : null;
   const caption = captionFromBody ?? captionFromRaw ?? null;
 
-  const textCls = isOutbound ? 'text-white/90' : 'text-gray-600';
   const mediaActionOverlay = topRightAction ? (
     <div className="absolute top-1 right-1 z-10" onClick={(e) => e.stopPropagation()}>
       {topRightAction}
@@ -1116,39 +1192,42 @@ function MediaPreview({
       </span>
     );
   }
-  if (messageType === 'image') {
-    return (
-      <span className="block">
-        <span className="relative inline-block max-w-[260px] rounded overflow-hidden">
-          {onMediaClick ? (
-            <button type="button" onClick={() => onMediaClick(mediaUrl, 'image')} className="block w-full text-left">
-              <img src={mediaUrl} alt="" className="max-w-full max-h-[280px] object-contain rounded cursor-pointer" />
-            </button>
-          ) : (
-            <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="block">
-              <img src={mediaUrl} alt="" className="max-w-full max-h-[280px] object-contain rounded" />
-            </a>
-          )}
-          {mediaActionOverlay}
-        </span>
-        {caption ? <p className={`text-sm mt-1 whitespace-pre-wrap break-words ${textCls}`}>{caption}</p> : null}
-      </span>
+  // WhatsApp media tile: fixed column (parent ~330px), media edge-to-edge, caption same width.
+  if (messageType === 'image' || messageType === 'video') {
+    const isVideo = messageType === 'video';
+    const mediaEl = isVideo ? (
+      onMediaClick ? (
+        <button type="button" onClick={() => onMediaClick(mediaUrl, 'video')} className="block w-full">
+          <video src={mediaUrl} className="block h-auto w-full cursor-pointer" />
+        </button>
+      ) : (
+        <video src={mediaUrl} controls className="block h-auto w-full" />
+      )
+    ) : onMediaClick ? (
+      <button type="button" onClick={() => onMediaClick(mediaUrl, 'image')} className="block w-full text-left">
+        <img src={mediaUrl} alt="" className="block h-auto w-full cursor-pointer" loading="lazy" />
+      </button>
+    ) : (
+      <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="block w-full">
+        <img src={mediaUrl} alt="" className="block h-auto w-full" loading="lazy" />
+      </a>
     );
-  }
-  if (messageType === 'video') {
+
     return (
-      <span className="block">
-        <span className="relative inline-block max-w-[260px]">
-          {onMediaClick ? (
-            <button type="button" onClick={() => onMediaClick(mediaUrl, 'video')} className="block w-full">
-              <video src={mediaUrl} className="max-w-full max-h-[280px] rounded cursor-pointer" />
-            </button>
-          ) : (
-            <video src={mediaUrl} controls className="max-w-full max-h-[280px] rounded" />
-          )}
+      <span className="block w-full min-w-0">
+        <span className="relative block max-h-[420px] w-full overflow-hidden rounded-[6px] bg-[#0b141a]/5">
+          {mediaEl}
           {mediaActionOverlay}
         </span>
-        {caption ? <p className={`text-sm mt-1 whitespace-pre-wrap break-words ${textCls}`}>{caption}</p> : null}
+        {caption ? (
+          <p
+            className="w-full px-1 pb-0 pt-[6px] text-[14.2px] leading-[19px] whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+            style={{ color: WA_TEXT }}
+          >
+            {caption}
+            <WhatsAppTimeEndSpacer />
+          </p>
+        ) : null}
       </span>
     );
   }
@@ -2503,6 +2582,10 @@ export function ChatThread({
             );
             const isStickerBubble =
               isStickerMessageType(msg.message_type) && Boolean(String(msg.media_url ?? '').trim());
+            /** Image/video tile — WhatsApp fixed-width media bubble (not sticker/doc/audio). */
+            const isWaMediaTile =
+              Boolean(msg.media_url) &&
+              (msg.message_type === 'image' || msg.message_type === 'video');
             const bodyIsPlaceholder =
               msg.body != null && MEDIA_TYPES.some((t) => msg.body === `[${t}]`);
             const hasVisibleTextBody = Boolean(
@@ -2519,6 +2602,20 @@ export function ChatThread({
               isMediaBubble &&
               !hasMediaCaption &&
               (msg.message_type === 'image' || msg.message_type === 'video' || msg.message_type === 'sticker');
+
+            // WhatsApp: ekor hanya di pesan pertama grup arah yang sama (urutan kronologis).
+            const chronIndex = n - 1 - index;
+            const prevChron = chronIndex > 0 ? chron[chronIndex - 1] : null;
+            const showWaTail =
+              !isStickerBubble &&
+              (!prevChron ||
+                prevChron.direction !== msg.direction ||
+                getChatDayKey(tlIso(prevChron), tz) !== getChatDayKey(tlIso(msg), tz));
+            const waRadius = showWaTail
+              ? msg.direction === 'outbound'
+                ? 'rounded-tl-[7.5px] rounded-tr-none rounded-br-[7.5px] rounded-bl-[7.5px]'
+                : 'rounded-tl-none rounded-tr-[7.5px] rounded-br-[7.5px] rounded-bl-[7.5px]'
+              : 'rounded-[7.5px]';
 
             return (
             <React.Fragment key={msg.id}>
@@ -2550,7 +2647,11 @@ export function ChatThread({
             >
               <div
                 data-msg-bubble={msg.id}
-                className="relative w-fit max-w-[80%]"
+                className={
+                  isWaMediaTile
+                    ? `relative w-[min(100%,330px)] max-w-[85%] ${msg.direction === 'outbound' ? 'mr-2' : 'ml-2'}`
+                    : `relative w-fit max-w-[85%] ${msg.direction === 'outbound' ? 'mr-2' : 'ml-2'}`
+                }
                 style={
                   hideHeader && swipeOffset?.msgId === msg.id
                     ? isDraggingReply
@@ -2768,32 +2869,43 @@ export function ChatThread({
                   : {})}
               >
                 <div
-                  className={`relative max-w-full rounded-xl ${
+                  className={`relative max-w-full ${
                     isStickerBubble
-                      ? 'bg-transparent shadow-none px-0 py-0'
-                      : isMediaBubble
-                        ? 'block px-1 py-1'
-                        : 'inline-block px-2 pt-1.5 pb-1.5 pl-2 pr-1.5'
-                  } ${
+                      ? 'rounded-xl bg-transparent px-0 py-0 shadow-none'
+                      : isWaMediaTile
+                        ? `block w-full ${waRadius} px-[3px] pt-[3px] ${
+                            timeOverMedia ? 'pb-[3px]' : 'pb-[18px]'
+                          }`
+                        : isMediaBubble
+                          ? `block ${waRadius} px-1 py-1`
+                          : // WhatsApp text: pojok ekor rata agar SVG menempel (bukan terpisah)
+                            `inline-block ${waRadius} pb-[8px] pl-[9px] pr-[7px] pt-[6px]`
+                  }`}
+                  style={
                     isStickerBubble
-                      ? ''
-                      : msg.direction === 'outbound'
-                        ? 'bg-[#128C7E] text-white'
-                        : 'bg-white text-gray-900 shadow-sm'
-                  } ${timeOverMedia ? 'pb-5' : ''}`}
+                      ? undefined
+                      : {
+                          backgroundColor: msg.direction === 'outbound' ? WA_OUT_BG : WA_IN_BG,
+                          color: WA_TEXT,
+                          boxShadow: WA_SHADOW,
+                        }
+                  }
                 >
+                  {showWaTail ? (
+                    <WhatsAppBubbleTail direction={msg.direction === 'outbound' ? 'outbound' : 'inbound'} />
+                  ) : null}
                   {isInboundText && inboundDropdown && (
-                    <div className="absolute top-1 right-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="absolute top-1 right-1 z-[3]" onClick={(e) => e.stopPropagation()}>
                       {inboundDropdown}
                     </div>
                   )}
                   {msg.direction === "outbound" && msg.source === "flow_automation" ? (
-                    <div className="mb-1 inline-flex rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/90">
+                    <div className="mb-1 inline-flex rounded bg-black/[0.06] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#54656f]">
                       {t("whatsappInbox.automationBadge", "Automation")}
                     </div>
                   ) : null}
                   {msg.direction === 'outbound' && !hasReplyBlock && outboundDropdown && (
-                    <div className="absolute top-1 right-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="absolute top-1 right-1 z-[3]" onClick={(e) => e.stopPropagation()}>
                       {outboundDropdown}
                     </div>
                   )}
@@ -2811,28 +2923,24 @@ export function ChatThread({
                       tabIndex={0}
                       onClick={(e) => { e.stopPropagation(); goToRepliedMessage(); }}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToRepliedMessage(); } }}
-                      className={`flex items-start gap-1.5 mb-1.5 pb-1.5 -ml-0.5 -mr-0.5 px-1 rounded-r-sm border-l-2 border-r border-b cursor-pointer hover:opacity-95 ${
-                        msg.direction === 'outbound'
-                          ? 'bg-[#0a5a4a]/90 border-l-[#7dd3fc] border-r-white/90 border-white/20 text-white/90'
-                          : 'bg-gray-100 border-l-[#128C7E] border-r-white border-gray-200 text-gray-700'
-                      }`}
+                      className="mb-1.5 -ml-0.5 -mr-0.5 flex cursor-pointer items-start gap-1.5 rounded-r-sm border-b border-r border-l-2 border-l-[#25D366] border-b-[#e9edef] border-r-[#e9edef] bg-[#f0f2f5] px-1 pb-1.5 hover:opacity-95"
                       title={t('whatsappInbox.scrollToRepliedMessage', 'Click to go to the replied message')}
                       aria-label={t('whatsappInbox.scrollToRepliedMessage', 'Click to go to the replied message')}
                     >
                       {replyThumbUrl && !isBlockedImageUrl(replyThumbUrl) && (
-                        <img src={replyThumbUrl} alt="" className="w-10 h-10 object-cover rounded shrink-0" />
+                        <img src={replyThumbUrl} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
                       )}
                       <div className="min-w-0 flex-1">
-                        <div className={`text-xs font-medium ${msg.direction === 'outbound' ? 'text-[#7dd3fc]' : 'text-[#128C7E]'}`}>
+                        <div className="text-xs font-medium text-[#25D366]">
                           {msg.reply_to_sender?.trim() || t('whatsappInbox.replyTo', 'Balas: ')}
                         </div>
-                        <div className="flex items-start gap-1.5 mt-0.5 text-xs break-words line-clamp-2 text-white/90 min-w-0">
+                        <div className="mt-0.5 flex min-w-0 items-start gap-1.5 text-xs break-words line-clamp-2 text-[#667781]">
                           {MEDIA_TYPES.includes((msg.reply_to_message_type ?? '').toLowerCase()) && !replyThumbUrl && (
-                            <span className="shrink-0 mt-0.5 opacity-90">
-                              <ReplyMediaIcon messageType={msg.reply_to_message_type} className="w-3.5 h-3.5" />
+                            <span className="mt-0.5 shrink-0 opacity-90">
+                              <ReplyMediaIcon messageType={msg.reply_to_message_type} className="h-3.5 w-3.5" />
                             </span>
                           )}
-                          <span className={msg.direction === 'outbound' ? 'text-white/90' : 'text-gray-600'}>
+                          <span>
                             {maskEmailsForDisplay(msg.reply_to_body)?.slice(0, 120) ?? (MEDIA_TYPES.includes((msg.reply_to_message_type ?? '').toLowerCase()) ? `[${(msg.reply_to_message_type ?? 'media').toLowerCase()}]` : '[Pesan]')}
                             {(msg.reply_to_body?.length ?? 0) > 120 ? '...' : ''}
                           </span>
@@ -2873,7 +2981,13 @@ export function ChatThread({
                     </div>
                   ) : (
                     <>
-                      <div className="block w-fit max-w-full min-w-0 pb-5 pr-11 text-left leading-snug [&_p]:whitespace-pre-wrap [&_p]:break-words">
+                      <div
+                        className={
+                          isWaMediaTile
+                            ? 'block w-full min-w-0 text-left leading-snug'
+                            : 'relative block w-fit max-w-full min-w-0 text-left leading-snug'
+                        }
+                      >
                         <MediaPreview
                           messageType={msg.message_type ?? 'text'}
                           mediaUrl={msg.media_url}

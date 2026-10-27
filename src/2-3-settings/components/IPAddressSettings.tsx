@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Wifi, Globe, Edit, Save, X } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Textarea } from '@/shared/components/ui/textarea';
@@ -13,6 +12,7 @@ import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { toast } from 'sonner';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useReportAttendanceSettingsLoading } from '@/2-3-attendance/context/AttendancePageLoadContext';
+import { AttendanceSettingsHeaderActions } from '@/2-3-settings/components/AttendanceSettingsHeaderActions';
 import { format } from 'date-fns';
 import { id, enUS } from 'date-fns/locale';
 
@@ -170,163 +170,168 @@ export const IPAddressSettings = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-foreground">{t('ipAddress.management', 'IP Address Management')}</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t('ipAddress.managementDescription', 'Manage the list of allowed IP addresses for attendance from laptop/computer')}
-          </p>
-        </div>
-        <Button 
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <AttendanceSettingsHeaderActions>
+        <Button
+          size="sm"
           onClick={() => setShowAddForm(!showAddForm)}
           disabled={loading}
         >
           <Plus className="h-4 w-4 mr-2" />
           {t('ipAddress.addIP', 'Add IP')}
         </Button>
-      </div>
+      </AttendanceSettingsHeaderActions>
 
-      <Alert>
+      <Alert className="shrink-0">
         <Wifi className="h-4 w-4" />
         <AlertDescription>
-          {t('ipAddress.alertDescription', 'IP address is used as a fallback when GPS is not available (laptop/computer). Use format like 192.168.1.1 for single IP or 192.168.1.0/24 for range.')}
+          {t(
+            'ipAddress.alertDescription',
+            'IP address is used as a fallback when GPS is not available (laptop/computer). Use format like 192.168.1.1 for single IP or 192.168.1.0/24 for range.',
+          )}
         </AlertDescription>
       </Alert>
 
-      {showAddForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t('ipAddress.addNewIP', 'Add New IP Address')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="ip_address">{t('ipAddress.ipAddress', 'IP Address')} *</Label>
-                  <Input
-                    id="ip_address"
-                    value={formData.ip_address}
-                    onChange={(e) => setFormData(prev => ({ ...prev, ip_address: e.target.value }))}
-                    placeholder={t('ipAddress.ipAddressPlaceholder', '192.168.1.1 or 192.168.1.0/24')}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t('ipAddress.useSlash24', 'Use /24 for network range (example: 192.168.1.0/24)')}
+      {showAddForm ? (
+        <div className="shrink-0 rounded-lg border border-border bg-card p-4 shadow-sm">
+          <h3 className="mb-3 text-base font-medium text-foreground">
+            {t('ipAddress.addNewIP', 'Add New IP Address')}
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <Label htmlFor="ip_address">{t('ipAddress.ipAddress', 'IP Address')} *</Label>
+                <Input
+                  id="ip_address"
+                  value={formData.ip_address}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, ip_address: e.target.value }))}
+                  placeholder={t('ipAddress.ipAddressPlaceholder', '192.168.1.1 or 192.168.1.0/24')}
+                  required
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t('ipAddress.useSlash24', 'Use /24 for network range (example: 192.168.1.0/24)')}
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="name">{t('ipAddress.nameLabel', 'Name/Label')} *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder={t('ipAddress.namePlaceholder', 'Main Office WiFi')}
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="description">{t('ipAddress.description', 'Description')}</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder={t(
+                  'ipAddress.descriptionPlaceholder',
+                  'Optional description for this IP address',
+                )}
+                rows={2}
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="is_active"
+                checked={formData.is_active}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, is_active: checked }))
+                }
+              />
+              <Label htmlFor="is_active">{t('ipAddress.active', 'Active')}</Label>
+            </div>
+
+            <div className="flex gap-2">
+              <Button type="submit" disabled={loading}>
+                <Save className="mr-2 h-4 w-4" />
+                {t('common.save', 'Save')}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAddForm(false)}
+                disabled={loading}
+              >
+                <X className="mr-2 h-4 w-4" />
+                {t('common.cancel', 'Cancel')}
+              </Button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {allowedIPs.length === 0 ? (
+        <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center rounded-lg border border-border text-center">
+          <Globe className="mb-3 h-10 w-10 text-muted-foreground/50" />
+          <p className="mb-1 text-base font-medium text-foreground">
+            {t('ipAddress.noIPConfigured', 'No IP addresses configured yet')}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {t('ipAddress.addFirstIP', 'Add the first IP address to start using this feature')}
+          </p>
+        </div>
+      ) : (
+        <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto">
+          {allowedIPs.map((ip) => (
+            <div
+              key={ip.id}
+              className="rounded-lg border border-border bg-card p-4 shadow-sm"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Wifi className="h-4 w-4 shrink-0 text-primary" />
+                    <code className="rounded bg-muted px-2 py-1 font-mono text-sm">
+                      {ip.ip_address}
+                    </code>
+                    <Badge variant={ip.is_active ? 'default' : 'secondary'}>
+                      {ip.is_active
+                        ? t('ipAddress.active', 'Active')
+                        : t('ipAddress.inactive', 'Inactive')}
+                    </Badge>
+                  </div>
+
+                  <div className="mt-2">
+                    <h4 className="font-medium text-foreground">{ip.name}</h4>
+                    {ip.description ? (
+                      <p className="mt-1 text-sm text-muted-foreground">{ip.description}</p>
+                    ) : null}
+                  </div>
+
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {t('ipAddress.added', 'Added')}:{' '}
+                    {format(new Date(ip.created_at), 'PP', { locale: dateLocale })}
                   </p>
                 </div>
-                <div>
-                  <Label htmlFor="name">{t('ipAddress.nameLabel', 'Name/Label')} *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder={t('ipAddress.namePlaceholder', 'Main Office WiFi')}
-                    required
+
+                <div className="flex shrink-0 items-center gap-2">
+                  <Switch
+                    checked={ip.is_active}
+                    onCheckedChange={() => handleToggleActive(ip.id, ip.is_active)}
+                    disabled={loading}
                   />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDelete(ip.id)}
+                    disabled={loading}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-              
-              <div>
-                <Label htmlFor="description">{t('ipAddress.description', 'Description')}</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder={t('ipAddress.descriptionPlaceholder', 'Optional description for this IP address')}
-                  rows={2}
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="is_active"
-                  checked={formData.is_active}
-                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
-                />
-                <Label htmlFor="is_active">{t('ipAddress.active', 'Active')}</Label>
-              </div>
-
-              <div className="flex gap-2">
-                <Button type="submit" disabled={loading}>
-                  <Save className="h-4 w-4 mr-2" />
-                  {t('common.save', 'Save')}
-                </Button>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setShowAddForm(false)}
-                  disabled={loading}
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  {t('common.cancel', 'Cancel')}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+            </div>
+          ))}
+        </div>
       )}
-
-      <div className="space-y-4">
-        {allowedIPs.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-8">
-              <Globe className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">{t('ipAddress.noIPConfigured', 'No IP addresses configured yet')}</p>
-              <p className="text-sm text-muted-foreground">{t('ipAddress.addFirstIP', 'Add the first IP address to start using this feature')}</p>
-            </CardContent>
-          </Card>
-        ) : (
-          allowedIPs.map((ip) => (
-            <Card key={ip.id}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        <Wifi className="h-4 w-4 text-primary" />
-                        <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
-                          {ip.ip_address}
-                        </code>
-                      </div>
-                      <Badge variant={ip.is_active ? "default" : "secondary"}>
-                        {ip.is_active ? t('ipAddress.active', 'Active') : t('ipAddress.inactive', 'Inactive')}
-                      </Badge>
-                    </div>
-                    
-                    <div className="mt-2">
-                      <h4 className="font-medium text-foreground">{ip.name}</h4>
-                      {ip.description && (
-                        <p className="text-sm text-muted-foreground mt-1">{ip.description}</p>
-                      )}
-                    </div>
-                    
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {t('ipAddress.added', 'Added')}: {format(new Date(ip.created_at), 'PP', { locale: dateLocale })}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={ip.is_active}
-                      onCheckedChange={() => handleToggleActive(ip.id, ip.is_active)}
-                      disabled={loading}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(ip.id)}
-                      disabled={loading}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
     </div>
   );
 };

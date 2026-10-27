@@ -54,15 +54,16 @@ export function SynckerjaOrderProfilePanel({ settings, onChange }: Props) {
   };
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="space-y-1.5">
+    <div className="flex w-full max-w-3xl flex-col content-start gap-3 p-3">
+      <div className="w-full space-y-1">
         <Label>{t("synckerjaOrder.profile.businessName", "Business name")}</Label>
         <Input
+          className="h-10 w-full"
           value={settings.business_name}
           onChange={(e) => onChange({ business_name: e.target.value })}
         />
       </div>
-      <div className="space-y-1.5">
+      <div className="w-full space-y-1">
         <Label>{t("synckerjaOrder.profile.cover", "Hero image")}</Label>
         <input
           ref={fileRef}
@@ -74,13 +75,13 @@ export function SynckerjaOrderProfilePanel({ settings, onChange }: Props) {
         <button
           type="button"
           disabled={uploading || !organizationId}
-          className="flex w-full items-center gap-3 rounded-md border border-dashed border-border bg-muted/40 px-3 py-3 text-left disabled:opacity-60"
+          className="flex w-full items-center gap-3 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2.5 text-left disabled:opacity-60"
           onClick={() => fileRef.current?.click()}
         >
           {coverUrl ? (
-            <img src={coverUrl} alt="" className="h-16 w-28 shrink-0 rounded object-cover" />
+            <img src={coverUrl} alt="" className="h-14 w-24 shrink-0 rounded object-cover" />
           ) : (
-            <span className="h-16 w-28 shrink-0 rounded bg-neutral-200" />
+            <span className="h-14 w-24 shrink-0 rounded bg-neutral-200" />
           )}
           <span className="min-w-0">
             <span className="block text-sm">
@@ -106,7 +107,7 @@ export function SynckerjaOrderProfilePanel({ settings, onChange }: Props) {
           </button>
         ) : null}
       </div>
-      <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+      <div className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2">
         <div>
           <p className="text-sm font-medium">
             {t("synckerjaOrder.profile.pickup", "Take Away")}

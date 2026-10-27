@@ -113,20 +113,14 @@ export default function TableGroupPage() {
   return (
     <TableManagementModuleShell showContent={showContent}>
       <TableManagementWorkspace count={filtered.length}>
-          <div className="flex-shrink-0 space-y-3 border-b px-4 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-semibold">
-                {t("tableManagement.group.title", "Table Group")}
-              </h2>
-              <Button type="button" onClick={openCreate} disabled={!selectedOutletId}>
-                {t("tableManagement.group.create", "Create Table Group")}
-              </Button>
-            </div>
+          <div className="flex-shrink-0 border-b px-3 py-2">
             <TableGroupToolbar
               outletId={selectedOutletId}
               onOutletChange={setSelectedOutletId}
               search={search}
               onSearchChange={setSearch}
+              onCreate={openCreate}
+              createDisabled={!selectedOutletId}
             />
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col p-4">

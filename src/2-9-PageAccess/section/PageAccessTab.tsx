@@ -295,9 +295,6 @@ export const PageAccessTab = () => {
                           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                             <div className="min-w-0 flex-1">
                               <h2 className="text-lg font-semibold text-foreground">Page Access Configuration</h2>
-                              <p className="text-muted-foreground mt-1 text-sm">
-                                Configure which roles can access specific pages and features
-                              </p>
                             </div>
                             <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                               <div className="relative min-w-0 flex-1 sm:min-w-[220px] sm:max-w-md">
@@ -454,116 +451,138 @@ export const PageAccessTab = () => {
                           </div>
                         </div>
                         
-                        {/* Scrollable Table Content - satu scroll container per panel */}
-                        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overflow-x-auto pb-6">
-                          <div className="p-4">
-                            {loading ? null : filteredConfigurations.length === 0 ? (
-                              <p className="text-muted-foreground py-12 text-center text-sm">
-                                {pathSearchActive
-                                  ? t('pageAccess.config.searchNoResults', 'No pages match your search.')
-                                  : t(
-                                      'pageAccess.config.empty',
-                                      'No page access configurations yet. Add a page to get started.',
-                                    )}
-                              </p>
-                            ) : (
-                              <div className="relative w-full min-h-0">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead className="w-[200px] text-center">Page</TableHead>
-                                      <TableHead className="w-[120px] text-center">Path</TableHead>
-                                      <TableHead className="w-[80px] text-center">Type</TableHead>
-                                      <TableHead className="w-[100px] text-center">Excluded Users</TableHead>
-                                      <TableHead className="w-[120px] text-center">Exception Paths</TableHead>
-                                      <TableHead className="w-[80px] text-center">Owner</TableHead>
-                                      <TableHead className="w-[80px] text-center">Admin</TableHead>
-                                      <TableHead className="w-[80px] text-center">Employee</TableHead>
-                                      <TableHead className="w-[100px] text-center">Actions</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {filteredConfigurations.map(config => (
-                                      <TableRow key={config.id}>
-                                        <TableCell className="text-center">
-                                          <div className="font-medium">{config.page_title}</div>
-                                        </TableCell>
-                                        <TableCell className="text-center">
-                                          <code className="bg-muted rounded px-2 py-1 text-xs">
-                                            {config.page_path}
-                                          </code>
-                                        </TableCell>
-                                        <TableCell className="text-center">
-                                          <Badge variant="outline" className="text-xs">Organisasi</Badge>
-                                        </TableCell>
-                                        <TableCell className="text-center">
-                                          {config.exceptions?.length || 0}
-                                          {config.exceptions?.length > 0 && (
-                                            <div className="text-xs text-muted-foreground mt-1">
-                                              Individual users with special access
-                                            </div>
-                                          )}
-                                          {config.exceptions?.length === 0 && (
-                                            <div className="text-xs text-muted-foreground mt-1">
-                                              No individual exceptions
-                                            </div>
-                                          )}
-                                        </TableCell>
-                                        <TableCell className="text-center">
-                                          <div className="flex flex-wrap gap-1 justify-center">
-                                            {(config.exception_paths || []).map((path, index) => (
-                                              <Badge key={index} variant="default" className="text-xs">
-                                                {path}
-                                              </Badge>
-                                            ))}
-                                            {(!config.exception_paths || config.exception_paths.length === 0) && (
-                                              <span className="text-muted-foreground text-sm">None</span>
-                                            )}
-                                          </div>
-                                        </TableCell>
-                                        {Object.keys(ROLE_DESCRIPTIONS).map(role => (
-                                          <TableCell key={role} className="text-center">
-                                            <Switch 
-                                              id={`${config.id}-${role}`} 
-                                              checked={role === 'owner' ? true : getRoleAccess(config, role)} 
-                                              onCheckedChange={() => void toggleRoleAccess(config, role)} 
-                                              disabled={saving || pendingRowId === config.id || role === 'owner'}
-                                              title={
-                                                role === 'owner'
-                                                  ? 'Role Owner selalu memiliki akses penuh ke semua halaman.'
-                                                  : undefined
-                                              }
-                                            />
-                                          </TableCell>
+                        {/* Satu scroll container: vertikal + horizontal; header kolom sticky */}
+                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pt-2 pb-1">
+                          {loading ? null : filteredConfigurations.length === 0 ? (
+                            <p className="text-muted-foreground py-12 text-center text-sm">
+                              {pathSearchActive
+                                ? t('pageAccess.config.searchNoResults', 'No pages match your search.')
+                                : t(
+                                    'pageAccess.config.empty',
+                                    'No page access configurations yet. Add a page to get started.',
+                                  )}
+                            </p>
+                          ) : (
+                            <Table
+                              className="table-fixed min-w-[1160px]"
+                              containerClassName="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            >
+                              <TableHeader>
+                                <TableRow className="hover:bg-transparent border-b-0">
+                                  <TableHead className="sticky top-0 z-20 h-9 w-[200px] border-b border-border bg-card px-2 py-0 text-left align-middle leading-9">
+                                    Page
+                                  </TableHead>
+                                  <TableHead className="sticky top-0 z-20 h-9 w-[240px] border-b border-border bg-card px-2 py-0 text-left align-middle leading-9">
+                                    Path
+                                  </TableHead>
+                                  <TableHead className="sticky top-0 z-20 h-9 w-[88px] border-b border-border bg-card px-2 py-0 text-center align-middle leading-9">
+                                    Type
+                                  </TableHead>
+                                  <TableHead className="sticky top-0 z-20 h-9 w-[120px] border-b border-border bg-card px-2 py-0 text-center align-middle leading-9">
+                                    Excluded Users
+                                  </TableHead>
+                                  <TableHead className="sticky top-0 z-20 h-9 w-[180px] border-b border-border bg-card px-2 py-0 text-center align-middle leading-9">
+                                    Exception Paths
+                                  </TableHead>
+                                  <TableHead className="sticky top-0 z-20 h-9 w-[72px] border-b border-border bg-card px-2 py-0 text-center align-middle leading-9">
+                                    Owner
+                                  </TableHead>
+                                  <TableHead className="sticky top-0 z-20 h-9 w-[72px] border-b border-border bg-card px-2 py-0 text-center align-middle leading-9">
+                                    Admin
+                                  </TableHead>
+                                  <TableHead className="sticky top-0 z-20 h-9 w-[88px] border-b border-border bg-card px-2 py-0 text-center align-middle leading-9">
+                                    Employee
+                                  </TableHead>
+                                  <TableHead className="sticky top-0 z-20 h-9 w-[96px] border-b border-border bg-card px-2 py-0 text-center align-middle leading-9">
+                                    Actions
+                                  </TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {filteredConfigurations.map(config => (
+                                  <TableRow key={config.id}>
+                                    <TableCell className="max-w-[200px] text-left align-middle">
+                                      <div className="font-medium break-words leading-snug">
+                                        {config.page_title}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="max-w-[240px] text-left align-middle">
+                                      <code
+                                        className="bg-muted block max-w-full truncate rounded px-2 py-1 text-xs"
+                                        title={config.page_path}
+                                      >
+                                        {config.page_path}
+                                      </code>
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      <Badge variant="outline" className="text-xs">Organisasi</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      {config.exceptions?.length || 0}
+                                      {config.exceptions?.length > 0 && (
+                                        <div className="text-xs text-muted-foreground mt-1">
+                                          Individual users with special access
+                                        </div>
+                                      )}
+                                      {config.exceptions?.length === 0 && (
+                                        <div className="text-xs text-muted-foreground mt-1">
+                                          No individual exceptions
+                                        </div>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      <div className="flex flex-wrap gap-1 justify-center">
+                                        {(config.exception_paths || []).map((path, index) => (
+                                          <Badge key={index} variant="default" className="text-xs">
+                                            {path}
+                                          </Badge>
                                         ))}
-                                        <TableCell className="text-center">
-                                          <div className="flex items-center gap-1 justify-center">
-                                            <Button variant="outline" size="sm" onClick={() => handleEditPage(config)}>
-                                              <Edit className="w-3 h-3" />
-                                            </Button>
-                                            <Button 
-                                              variant="outline" 
-                                              size="sm" 
-                                              onClick={() => handleDeletePage(config)}
-                                              disabled={deletingId === config.id}
-                                              title="Delete page access configuration"
-                                              className="text-red-600 hover:text-red-700 disabled:text-muted-foreground"
-                                            >
-                                              {deletingId === config.id ? (
-                                                <Loader2 className="w-3 h-3 animate-spin" />
-                                              ) : (
-                                                <Trash2 className="w-3 h-3" />
-                                              )}
-                                            </Button>
-                                          </div>
-                                        </TableCell>
-                                      </TableRow>
+                                        {(!config.exception_paths || config.exception_paths.length === 0) && (
+                                          <span className="text-muted-foreground text-sm">None</span>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    {Object.keys(ROLE_DESCRIPTIONS).map(role => (
+                                      <TableCell key={role} className="text-center">
+                                        <Switch
+                                          id={`${config.id}-${role}`}
+                                          checked={role === 'owner' ? true : getRoleAccess(config, role)}
+                                          onCheckedChange={() => void toggleRoleAccess(config, role)}
+                                          disabled={saving || pendingRowId === config.id || role === 'owner'}
+                                          title={
+                                            role === 'owner'
+                                              ? 'Role Owner selalu memiliki akses penuh ke semua halaman.'
+                                              : undefined
+                                          }
+                                        />
+                                      </TableCell>
                                     ))}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            )}
-                          </div>
+                                    <TableCell className="text-center">
+                                      <div className="flex items-center gap-1 justify-center">
+                                        <Button variant="outline" size="sm" onClick={() => handleEditPage(config)}>
+                                          <Edit className="w-3 h-3" />
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleDeletePage(config)}
+                                          disabled={deletingId === config.id}
+                                          title="Delete page access configuration"
+                                          className="text-red-600 hover:text-red-700 disabled:text-muted-foreground"
+                                        >
+                                          {deletingId === config.id ? (
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                          ) : (
+                                            <Trash2 className="w-3 h-3" />
+                                          )}
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          )}
                         </div>
 
                         {/* Table Footer */}

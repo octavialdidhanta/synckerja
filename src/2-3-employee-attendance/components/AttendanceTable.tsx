@@ -311,8 +311,46 @@ export const AttendanceTable = ({
     'No attendance records found matching your criteria.',
   );
 
+  const headerRow = (
+    <TableRow>
+      {!isInline && (
+        <TableHead className="w-[280px] min-w-[280px] whitespace-nowrap">Employee</TableHead>
+      )}
+      <TableHead className="min-w-[120px] whitespace-nowrap">Date</TableHead>
+      <TableHead className="min-w-[100px] whitespace-nowrap">Check In</TableHead>
+      <TableHead className="min-w-[100px] whitespace-nowrap">Check Out</TableHead>
+      <TableHead className="min-w-[120px] whitespace-nowrap">Working Hours</TableHead>
+      <TableHead className="min-w-[80px] whitespace-nowrap">Status</TableHead>
+      <TableHead className="min-w-[200px] whitespace-nowrap">Check In Location</TableHead>
+      <TableHead className="min-w-[200px] whitespace-nowrap pr-6">Check Out Location</TableHead>
+      <TableHead
+        className={
+          showPhotos ? 'min-w-[120px] whitespace-nowrap' : 'min-w-[240px] whitespace-nowrap pl-5'
+        }
+      >
+        Notes
+      </TableHead>
+      {showPhotos && (
+        <>
+          <TableHead className="min-w-[120px] whitespace-nowrap">
+            {t('attendance.records.checkInPhoto', 'Check-in photo')}
+          </TableHead>
+          <TableHead className="min-w-[120px] whitespace-nowrap">
+            {t('attendance.records.checkOutPhoto', 'Check-out photo')}
+          </TableHead>
+        </>
+      )}
+    </TableRow>
+  );
+
   return (
-    <div className={isInline ? 'flex flex-col gap-2' : 'flex flex-col gap-3'}>
+    <div
+      className={
+        isInline
+          ? 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col bg-white'
+          : 'flex flex-col gap-3'
+      }
+    >
       {!isInline && (
         <div>
           <h2 className="text-foreground text-base font-semibold">Attendance Records</h2>
@@ -322,40 +360,41 @@ export const AttendanceTable = ({
         </div>
       )}
 
-      <div className="min-h-0 rounded-md border bg-white">
-        <div className="min-h-0">
+      <div
+        className={
+          isInline
+            ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'
+            : 'min-h-0 rounded-md border bg-white'
+        }
+      >
           <TooltipProvider delayDuration={200}>
-            <Table className={isInline ? 'w-full min-w-[900px]' : 'w-full min-w-[1300px] table-fixed'}>
-              <TableHeader>
-                <TableRow>
-                  {!isInline && (
-                    <TableHead className="w-[280px] min-w-[280px]">Employee</TableHead>
-                  )}
-                  <TableHead className="min-w-[120px]">Date</TableHead>
-                  <TableHead className="min-w-[100px]">Check In</TableHead>
-                  <TableHead className="min-w-[100px]">Check Out</TableHead>
-                  <TableHead className="min-w-[100px]">Working Hours</TableHead>
-                  <TableHead className="min-w-[80px]">Status</TableHead>
-                  <TableHead className="min-w-[200px] whitespace-nowrap">Check In Location</TableHead>
-                  <TableHead className="min-w-[200px] whitespace-nowrap pr-6">Check Out Location</TableHead>
-                  <TableHead className={showPhotos ? 'min-w-[120px]' : 'min-w-[240px] pl-5'}>Notes</TableHead>
-                  {showPhotos && (
-                    <>
-                      <TableHead className="min-w-[72px]">
-                        {t('attendance.records.checkInPhoto', 'Check-in photo')}
-                      </TableHead>
-                      <TableHead className="min-w-[72px]">
-                        {t('attendance.records.checkOutPhoto', 'Check-out photo')}
-                      </TableHead>
-                    </>
-                  )}
-                </TableRow>
-              </TableHeader>
+            <Table
+              containerClassName={
+                isInline
+                  ? 'scrollbar-hide h-full min-h-0 min-w-0 flex-1 overflow-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+                  : undefined
+              }
+              className={isInline ? 'w-full min-w-max' : 'w-full min-w-[1300px] table-fixed'}
+            >
+              <TableHeader>{headerRow}</TableHeader>
               <TableBody>
                 {filteredRecords.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={columnCount} className="py-8 text-center text-muted-foreground">
-                      {emptyMessage ?? defaultEmpty}
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell
+                      colSpan={columnCount}
+                      className={
+                        isInline
+                          ? 'p-0 align-middle'
+                          : 'py-8 text-center text-muted-foreground'
+                      }
+                    >
+                      {isInline ? (
+                        <div className="flex min-h-[min(420px,calc(100dvh-280px))] items-center justify-center px-4 py-12 text-sm text-muted-foreground">
+                          {emptyMessage ?? defaultEmpty}
+                        </div>
+                      ) : (
+                        emptyMessage ?? defaultEmpty
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -496,7 +535,6 @@ export const AttendanceTable = ({
               </TableBody>
             </Table>
           </TooltipProvider>
-        </div>
       </div>
     </div>
   );

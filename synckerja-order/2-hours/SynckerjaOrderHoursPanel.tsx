@@ -39,11 +39,11 @@ export function SynckerjaOrderHoursPanel({
   };
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="space-y-1.5">
+    <div className="flex w-full max-w-4xl flex-col content-start gap-3 p-3">
+      <div className="w-full space-y-1">
         <Label>{t("synckerjaOrder.hours.outlet", "Outlet")}</Label>
         <select
-          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           value={selectedOutletId ?? ""}
           onChange={(e) => onSelectOutlet(e.target.value)}
         >
@@ -59,7 +59,7 @@ export function SynckerjaOrderHoursPanel({
         </select>
       </div>
 
-      <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+      <div className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2">
         <div>
           <p className="text-sm font-medium">{t("synckerjaOrder.hours.forceClosed", "Temporarily closed")}</p>
           <p className="text-xs text-muted-foreground">
@@ -69,35 +69,38 @@ export function SynckerjaOrderHoursPanel({
         <Switch checked={forceClosed} onCheckedChange={(v) => onChange({ forceClosed: v })} />
       </div>
 
-      <div className="space-y-2">
+      <div className="flex w-full flex-col gap-2">
         {DAY_KEYS.map((day) => {
           const rule = weeklyHours.find((row) => row.dow === day.dow);
           if (!rule) return null;
           return (
-            <div key={day.dow} className="grid grid-cols-12 items-center gap-2 rounded-md border border-border px-3 py-2">
-              <p className="col-span-12 text-sm font-medium sm:col-span-3">{t(day.key, day.fallback)}</p>
-              <label className="col-span-12 flex items-center gap-2 text-xs sm:col-span-3">
+            <div
+              key={day.dow}
+              className="grid w-full grid-cols-1 items-end gap-2 rounded-md border border-border px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1fr)]"
+            >
+              <p className="text-sm font-medium">{t(day.key, day.fallback)}</p>
+              <label className="flex items-center gap-2 pb-2 text-xs">
                 <Switch
                   checked={rule.closed}
                   onCheckedChange={(v) => patchDay(day.dow, { closed: v })}
                 />
                 {t("synckerjaOrder.hours.closedAllDay", "Closed all day")}
               </label>
-              <div className="col-span-6 sm:col-span-3">
+              <div className="min-w-0">
                 <Label className="text-xs">{t("synckerjaOrder.hours.open", "Opens")}</Label>
                 <input
                   type="time"
-                  className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  className="mt-1 h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
                   value={rule.open}
                   disabled={rule.closed}
                   onChange={(e) => patchDay(day.dow, { open: e.target.value })}
                 />
               </div>
-              <div className="col-span-6 sm:col-span-3">
+              <div className="min-w-0">
                 <Label className="text-xs">{t("synckerjaOrder.hours.close", "Closes")}</Label>
                 <input
                   type="time"
-                  className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  className="mt-1 h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
                   value={rule.close}
                   disabled={rule.closed}
                   onChange={(e) => patchDay(day.dow, { close: e.target.value })}

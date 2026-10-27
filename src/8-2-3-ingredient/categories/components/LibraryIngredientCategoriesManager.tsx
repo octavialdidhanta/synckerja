@@ -64,54 +64,65 @@ export function LibraryIngredientCategoriesManager({
   };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-gray-900">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="mb-3 flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <h2 className="shrink-0 whitespace-nowrap text-lg font-semibold text-gray-900">
           {t("ingredient.categories.heading", "Ingredient Categories")}
         </h2>
-        <Button type="button" onClick={openCreate} disabled={!selectedOutletId}>
-          {t("ingredient.categories.createButton", "Create Ingredient Category")}
-        </Button>
-      </div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <OutletFilterSelect value={selectedOutletId} onChange={onOutletChange} />
+        <OutletFilterSelect
+          value={selectedOutletId}
+          onChange={onOutletChange}
+          className="h-10 w-[180px] shrink-0"
+        />
         <div className="relative min-w-[160px] flex-1">
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("ingredient.categories.search", "Search")}
-            className="h-9 pr-9"
+            className="h-10 pr-9"
           />
           <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         </div>
+        <Button
+          type="button"
+          className="shrink-0"
+          onClick={openCreate}
+          disabled={!selectedOutletId}
+        >
+          {t("ingredient.categories.createButton", "Create Ingredient Category")}
+        </Button>
       </div>
-      <div className={cn("min-h-0 flex-1 overflow-y-auto", listClassName)}>
-        <Table>
-          <TableHeader>
+      <Table
+        containerClassName={cn(
+          "min-h-0 flex-1 overflow-auto rounded-md border border-border/60 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          listClassName,
+        )}
+      >
+          <TableHeader className="sticky top-0 z-[1] bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
             <TableRow>
-              <TableHead>
+              <TableHead className="h-9">
                 {t("ingredient.categories.columnName", "Ingredient Category Name")}
               </TableHead>
-              <TableHead>{t("ingredient.categories.columnStocks", "Ingredient Stocks")}</TableHead>
-              <TableHead className="w-[200px]" />
+              <TableHead className="h-9">{t("ingredient.categories.columnStocks", "Ingredient Stocks")}</TableHead>
+              <TableHead className="h-9 w-[200px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {categories.isLoading ? (
               <TableRow>
-                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
                   {t("ingredient.page.loadingAria", "Loading ingredients")}
                 </TableCell>
               </TableRow>
             ) : categories.rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
                   {t("ingredient.empty.categories", "No ingredient categories yet.")}
                 </TableCell>
               </TableRow>
             ) : filteredRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
                   {t(
                     "ingredient.categories.emptyOutlet",
                     "No categories assigned to this outlet.",
@@ -125,13 +136,13 @@ export function LibraryIngredientCategoriesManager({
                   className="cursor-pointer"
                   onClick={() => openEdit(row)}
                 >
-                  <TableCell className="font-medium">{row.name}</TableCell>
-                  <TableCell>
+                  <TableCell className="py-2 font-medium">{row.name}</TableCell>
+                  <TableCell className="py-2">
                     {t("ingredient.categories.stockCount", "{{count}} ingredients", {
                       count: stockCounts.get(row.id) ?? 0,
                     })}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="py-2 text-right">
                     <Button
                       type="button"
                       variant="outline"
@@ -149,7 +160,6 @@ export function LibraryIngredientCategoriesManager({
             )}
           </TableBody>
         </Table>
-      </div>
       <IngredientCategoryFormSheet
         category={editing}
         selectedOutletId={selectedOutletId}

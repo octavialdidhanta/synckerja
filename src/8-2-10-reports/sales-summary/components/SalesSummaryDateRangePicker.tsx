@@ -131,7 +131,7 @@ export function SalesSummaryDateRangePicker({
         type="button"
         variant="outline"
         size="icon"
-        className="h-9 w-9 shrink-0"
+        className="h-10 w-10 shrink-0"
         aria-label={t("reports.salesSummary.prevPeriod", "Previous period")}
         onClick={() => onDateRangeChange(shiftSalesSummaryRangeByDay(dateRange, -1))}
       >
@@ -140,7 +140,7 @@ export function SalesSummaryDateRangePicker({
 
       <Popover open={open} onOpenChange={openPopover}>
         <PopoverTrigger asChild>
-          <Button type="button" variant="outline" className="h-9 min-w-[11rem] justify-between gap-2">
+          <Button type="button" variant="outline" className="h-10 min-w-[11rem] justify-between gap-2">
             <span className="tabular-nums">{formatRangeLabel(dateRange)}</span>
             <ChevronDown className="h-4 w-4 opacity-60" />
           </Button>
@@ -198,7 +198,7 @@ export function SalesSummaryDateRangePicker({
                       </Label>
                       <Input
                         type="time"
-                        className="mt-1 h-9"
+                        className="mt-1 h-10"
                         value={draftTime.startTime}
                         disabled={draftTime.allDay}
                         onChange={(e) =>
@@ -212,7 +212,7 @@ export function SalesSummaryDateRangePicker({
                       </Label>
                       <Input
                         type="time"
-                        className="mt-1 h-9"
+                        className="mt-1 h-10"
                         value={draftTime.endTime}
                         disabled={draftTime.allDay}
                         onChange={(e) =>
@@ -235,7 +235,7 @@ export function SalesSummaryDateRangePicker({
         type="button"
         variant="outline"
         size="icon"
-        className="h-9 w-9 shrink-0"
+        className="h-10 w-10 shrink-0"
         aria-label={t("reports.salesSummary.nextPeriod", "Next period")}
         onClick={() => onDateRangeChange(shiftSalesSummaryRangeByDay(dateRange, 1))}
       >
