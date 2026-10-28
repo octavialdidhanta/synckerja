@@ -8,6 +8,7 @@ export const META_BUSINESS_OAUTH_SCOPE_LIST = [
   'instagram_manage_insights',
   'instagram_content_publish',
   'pages_read_engagement',
+  'pages_read_user_content',
   'pages_manage_engagement',
   'pages_messaging',
   'business_management',
@@ -20,6 +21,7 @@ export const META_FACEBOOK_PAGE_OAUTH_SCOPE_LIST = [
   'pages_show_list',
   'pages_manage_metadata',
   'pages_read_engagement',
+  'pages_read_user_content',
   'read_insights',
   'pages_manage_engagement',
   'pages_manage_posts',
@@ -58,6 +60,7 @@ export const META_SCOPE_ALIASES: Record<string, readonly string[]> = {
 export const META_PENDING_APP_REVIEW_SCOPES = [
   'instagram_manage_comments',
   'pages_manage_engagement',
+  'pages_read_user_content',
   'instagram_manage_insights',
   'pages_read_engagement',
   'read_insights',
@@ -106,7 +109,14 @@ export const META_SCOPE_FEATURE_MAP = {
   messenger_dm: ['pages_messaging', 'pages_manage_metadata'] as const,
   /** @deprecated Use instagram_dm on Instagram connect. */
   dm: ['instagram_manage_messages', 'pages_messaging'] as const,
-  comments: ['instagram_manage_comments', 'pages_manage_engagement'] as const,
+  /** Instagram + Page comment moderation (includes pages_read_user_content for FB commenter identity). */
+  comments: [
+    'instagram_manage_comments',
+    'pages_manage_engagement',
+    'pages_read_user_content',
+  ] as const,
+  /** Facebook Page comments only — no Instagram scopes. */
+  facebook_comments: ['pages_manage_engagement', 'pages_read_user_content'] as const,
   insights: ['instagram_manage_insights', 'pages_read_engagement'] as const,
   publish: ['instagram_content_publish'] as const,
   facebook_publish: ['pages_manage_posts', 'pages_read_engagement', 'pages_show_list'] as const,

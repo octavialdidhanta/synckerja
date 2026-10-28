@@ -1474,12 +1474,19 @@ async function fetchFacebookCommentsWithFilter(
     }),
     accessToken,
   );
-  return (data.data ?? []).map((row) => {
+  const mapped = (data.data ?? []).map((row) => {
     const parentObj = row.parent as { id?: string } | undefined;
     const parentId =
       typeof parentObj?.id === "string" && parentObj.id.trim() ? parentObj.id.trim() : null;
     return mapFbComment(row, postId, parentId);
   });
+  if (mapped.length > 0) {
+    const named = mapped.filter((c) => c.author_name.trim().length > 0).length;
+    console.info(
+      `[metaContent] facebook comments filter=${filter} post=${postId}: ${named}/${mapped.length} with from.name`,
+    );
+  }
+  return mapped;
 }
 
 export async function fetchFacebookComments(

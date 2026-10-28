@@ -1459,6 +1459,7 @@ export const enTranslations: TranslationDictionary = {
   "metaPlatform.scopeStatus.messengerDm": "Messenger Live Chat",
   "metaPlatform.scopeStatus.dm": "DM Live Chat",
   "metaPlatform.scopeStatus.comments": "Comments",
+  "metaPlatform.scopeStatus.facebookComments": "Facebook Comments",
   "metaPlatform.scopeStatus.insights": "Insights",
   "metaPlatform.scopeStatus.publish": "Reels Publishing",
   "metaPlatform.scopeStatus.facebookPublish": "Facebook Reels Publishing",
@@ -1577,6 +1578,11 @@ export const enTranslations: TranslationDictionary = {
   "digitalMarketing.manageComments.reconnectForCommentsTitle": "One-time reconnect for comments",
   "digitalMarketing.manageComments.reconnectForComments":
     "Your app is already approved on business-api.tiktok.com. Open Settings, disconnect the account, then Connect again — the browser should open business-api.tiktok.com (not tiktok.com login).",
+  "digitalMarketing.manageComments.facebookCommenterNamesTitle": "Commenter names need Meta App Review",
+  "digitalMarketing.manageComments.facebookCommenterNamesHint":
+    "Personal profiles may show as “Facebook user” until Meta approves pages_read_user_content and the Business Asset User Profile Access feature (Advanced Access). After approval, reconnect the Facebook Page, then refresh this inbox.",
+  "digitalMarketing.manageComments.reconnectFacebookPage": "Reconnect Facebook Page",
+  "digitalMarketing.manageComments.facebookUserHidden": "Facebook user",
   "digitalMarketing.manageComments.reconnectSteps":
     "Disconnect, then Connect (browser must open business-api.tiktok.com).",
   "digitalMarketing.manageComments.commentApiNotEnabledTitle": "TikTok Business authorization needed",

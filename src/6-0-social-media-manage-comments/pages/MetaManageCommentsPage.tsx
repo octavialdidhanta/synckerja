@@ -31,10 +31,13 @@ import { useMetaContentCommentPostsQuery } from '@/meta-content/hooks/useMetaCon
 import { useMetaAdsSettings } from '@/meta-ads/hooks/useMetaAdsSettings';
 import { missingScopesForFeature } from '@/meta-platform/constants/metaOAuthScopes';
 import type { MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
+import {
+  CONNECT_FACEBOOK_PATH,
+  CONNECT_INSTAGRAM_PATH,
+} from '@/5-3-whatsapp/constants/omnichannelIntegrationPaths';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
 
-const CONNECT_PATH = '/omnichannel/integrations/instagram';
 const META_ADS_SETTINGS_PATH = '/digital-marketing/meta-ads/settings';
 
 type MetaManageCommentsPageProps = {
@@ -69,6 +72,7 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
     [platform],
   );
   const PlatformIcon = platform === 'instagram' ? Instagram : Facebook;
+  const connectPath = platform === 'facebook' ? CONNECT_FACEBOOK_PATH : CONNECT_INSTAGRAM_PATH;
 
   const platformAccounts = useMemo(
     () => (configQuery.data?.accounts ?? []).filter((a) => a.platform === platform),
@@ -91,8 +95,23 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
 
   const commentsScopesGranted = useMemo(() => {
     if (!selectedAccount) return false;
-    return missingScopesForFeature(selectedAccount.granted_scopes ?? [], 'comments').length === 0;
-  }, [selectedAccount]);
+    const feature = platform === 'facebook' ? 'facebook_comments' : 'comments';
+    return missingScopesForFeature(selectedAccount.granted_scopes ?? [], feature).length === 0;
+  }, [selectedAccount, platform]);
+
+  const missingCommentScopes = useMemo(() => {
+    if (!selectedAccount) return [] as string[];
+    const feature = platform === 'facebook' ? 'facebook_comments' : 'comments';
+    return missingScopesForFeature(selectedAccount.granted_scopes ?? [], feature);
+  }, [selectedAccount, platform]);
+
+  /** Prompt reconnect when Page token lacks pages_read_user_content (needed for from.name). */
+  const showFacebookCommenterNameHint =
+    platform === 'facebook' &&
+    !gatePending &&
+    canManage &&
+    platformAccounts.length > 0 &&
+    missingCommentScopes.includes('pages_read_user_content');
 
   const postsQuery = useMetaContentCommentPostsQuery({
     organizationId,
@@ -265,7 +284,7 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
                 )}
               </p>
               <Button asChild>
-                <Link to={CONNECT_PATH}>
+                <Link to={connectPath}>
                   {t('metaPlatform.manageComments.openConnect', 'Connect Instagram / Facebook')}
                 </Link>
               </Button>
@@ -277,11 +296,32 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
                 accounts={configQuery.data?.accounts ?? []}
                 selectedAccountId={accountId}
                 onSelectAccountId={handleAccountChange}
-                onSettingsSelect={() => navigate(CONNECT_PATH)}
+                onSettingsSelect={() => navigate(connectPath)}
               />
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                {!commentsScopesGranted ? (
+                {showFacebookCommenterNameHint ? (
+                  <Alert className="mx-4 mb-2 mt-3 shrink-0">
+                    <AlertTitle>
+                      {t(
+                        'digitalMarketing.manageComments.facebookCommenterNamesTitle',
+                        'Commenter names need Meta App Review',
+                      )}
+                    </AlertTitle>
+                    <AlertDescription>
+                      {t(
+                        'digitalMarketing.manageComments.facebookCommenterNamesHint',
+                        'Personal profiles may show as “Facebook user” until Meta approves pages_read_user_content and the Business Asset User Profile Access feature (Advanced Access). After approval, reconnect the Facebook Page, then refresh this inbox.',
+                      )}{' '}
+                      <Link to={connectPath} className="font-medium text-primary underline">
+                        {t(
+                          'digitalMarketing.manageComments.reconnectFacebookPage',
+                          'Reconnect Facebook Page',
+                        )}
+                      </Link>
+                    </AlertDescription>
+                  </Alert>
+                ) : !commentsScopesGranted ? (
                   <Alert className="mx-4 mb-2 mt-3 shrink-0">
                     <AlertTitle>
                       {t(
@@ -294,7 +334,7 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
                         'digitalMarketing.manageComments.reconnectForComments',
                         'Reconnect your Meta account to grant comment permissions.',
                       )}{' '}
-                      <Link to={CONNECT_PATH} className="font-medium text-primary underline">
+                      <Link to={connectPath} className="font-medium text-primary underline">
                         {t('digitalMarketing.tiktokContent.openSettings', 'Open settings')}
                       </Link>
                     </AlertDescription>
@@ -363,7 +403,7 @@ function MetaManageCommentsPageContent({ platform }: { platform: MetaContentPlat
                         accountId={accountId}
                         post={selectedPost}
                         commentsScopesGranted={commentsScopesGranted}
-                        connectPath={CONNECT_PATH}
+                        connectPath={connectPath}
                         postHighlightActive={
                           platform === 'instagram' && selectedPost
                             ? visibleHighlightedPostIds.has(selectedPost.id)

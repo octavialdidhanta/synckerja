@@ -52,6 +52,7 @@ const FEATURE_LINKS: Record<keyof typeof META_SCOPE_FEATURE_MAP, string> = {
   messenger_dm: '/omnichannel/livechat',
   dm: '/omnichannel/livechat',
   comments: '/digital-marketing/social-media-performance/manage-comments/instagram',
+  facebook_comments: '/digital-marketing/social-media-performance/manage-comments/facebook',
   insights: '/digital-marketing/social-media-performance/instagram',
   publish: '/digital-marketing/social-media-performance/instagram/settings',
   facebook_publish: '/digital-marketing/social-media-performance/facebook/settings',
@@ -97,6 +98,10 @@ export function MetaScopeStatusCards({
             messenger_dm: t('metaPlatform.scopeStatus.messengerDm', 'Messenger Live Chat'),
             dm: t('metaPlatform.scopeStatus.dm', 'DM Live Chat'),
             comments: t('metaPlatform.scopeStatus.comments', 'Comments'),
+            facebook_comments: t(
+              'metaPlatform.scopeStatus.facebookComments',
+              'Facebook Comments',
+            ),
             insights: t('metaPlatform.scopeStatus.insights', 'Insights'),
             publish: t('metaPlatform.scopeStatus.publish', 'Reels Publishing'),
             facebook_publish: t('metaPlatform.scopeStatus.facebookPublish', 'Facebook Reels Publishing'),

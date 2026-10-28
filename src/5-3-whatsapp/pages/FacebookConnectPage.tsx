@@ -163,7 +163,12 @@ export function FacebookConnectPage() {
                               {connectedPages.length > 0 && (
                                 <MetaScopeStatusCards
                                   accounts={connectedPages}
-                                  features={['messenger_dm', 'pages', 'facebook_publish']}
+                                  features={[
+                                    'messenger_dm',
+                                    'pages',
+                                    'facebook_comments',
+                                    'facebook_publish',
+                                  ]}
                                   compact
                                   hideMissingDetails
                                 />

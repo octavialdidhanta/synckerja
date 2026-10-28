@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Synckerja Meta Interest Research",
+  "version": "0.1.0",
+  "description": "Capture Meta Ads Manager interest IDs and open Synckerja Interest Research.",
+  "permissions": ["activeTab", "storage", "scripting"],
+  "host_permissions": [
+    "https://adsmanager.facebook.com/*",
+    "https://business.facebook.com/*",
+    "https://*.synckerja.com/*",
+    "http://localhost/*"
+  ],
+  "action": {
+    "default_title": "Synckerja Interest Research",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://adsmanager.facebook.com/*",
+        "https://business.facebook.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

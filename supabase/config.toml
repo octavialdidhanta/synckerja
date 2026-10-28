@@ -199,6 +199,9 @@ verify_jwt = false
 [functions.meta-ads-metrics]
 verify_jwt = false
 
+[functions.meta-ads-targeting]
+verify_jwt = false
+
 [functions.meta-ads-monthly-purchases]
 verify_jwt = false
 

@@ -455,6 +455,12 @@ export const GoogleAdsMetricsPageSkeleton = createDeferredSkeleton(() =>
   })),
 );
 
+export const MetaAdsInterestResearchPageSkeleton = createDeferredSkeleton(() =>
+  import("@/6-0-meta-ads/skeletons/MetaAdsInterestResearchPageSkeleton").then((m) => ({
+    default: m.MetaAdsInterestResearchPageSkeleton,
+  })),
+);
+
 export const MetaAdsMetricsPageSkeleton = createDeferredSkeleton(() =>
   import("@/6-0-meta-ads/skeletons/MetaAdsMetricsPageSkeleton").then((m) => ({
     default: m.MetaAdsMetricsPageSkeleton,

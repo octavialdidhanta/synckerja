@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Synckerja Interest Research</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        padding: 12px;
+        width: 280px;
+        color: #111827;
+      }
+      h1 {
+        font-size: 14px;
+        margin: 0 0 8px;
+      }
+      p {
+        font-size: 12px;
+        color: #6b7280;
+        margin: 0 0 10px;
+      }
+      button {
+        width: 100%;
+        border: 0;
+        border-radius: 6px;
+        padding: 8px 10px;
+        background: #0ea5e9;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.secondary {
+        margin-top: 6px;
+        background: #e5e7eb;
+        color: #111827;
+      }
+      textarea {
+        width: 100%;
+        min-height: 72px;
+        box-sizing: border-box;
+        margin-bottom: 8px;
+        font-size: 11px;
+      }
+      label {
+        display: block;
+        font-size: 11px;
+        margin-bottom: 4px;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 8px;
+        padding: 6px 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Interest Research</h1>
+    <p>Copy selected interest IDs from Ads Manager, then open Synckerja workspace.</p>
+    <label for="baseUrl">Synckerja base URL</label>
+    <input id="baseUrl" type="url" placeholder="https://office.synckerja.com" />
+    <label for="ids">Interest IDs (one per line)</label>
+    <textarea id="ids" placeholder="6003139266461"></textarea>
+    <button id="openBtn" type="button">Open Interest Research</button>
+    <button id="captureBtn" class="secondary" type="button">Capture from page</button>
+    <script src="popup.js"></script>
+  </body>
+</html>

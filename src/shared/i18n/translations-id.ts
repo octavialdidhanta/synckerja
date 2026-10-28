@@ -1451,6 +1451,7 @@ export const idTranslations: TranslationDictionary = {
   "metaPlatform.scopeStatus.messengerDm": "Messenger Live Chat",
   "metaPlatform.scopeStatus.dm": "DM Live Chat",
   "metaPlatform.scopeStatus.comments": "Komentar",
+  "metaPlatform.scopeStatus.facebookComments": "Komentar Facebook",
   "metaPlatform.scopeStatus.insights": "Insights",
   "metaPlatform.scopeStatus.publish": "Publikasi Reels",
   "metaPlatform.scopeStatus.facebookPublish": "Publikasi Reels Facebook",
@@ -1577,6 +1578,11 @@ export const idTranslations: TranslationDictionary = {
   "digitalMarketing.manageComments.reconnectForCommentsTitle": "Hubungkan ulang sekali untuk komentar",
   "digitalMarketing.manageComments.reconnectForComments":
     "App Anda sudah approved di business-api.tiktok.com. Buka Settings, disconnect akun, lalu Connect lagi — browser harus membuka business-api.tiktok.com (bukan login tiktok.com).",
+  "digitalMarketing.manageComments.facebookCommenterNamesTitle": "Nama commenter membutuhkan Meta App Review",
+  "digitalMarketing.manageComments.facebookCommenterNamesHint":
+    "Profil pribadi bisa tampil sebagai “Facebook user” sampai Meta menyetujui pages_read_user_content dan fitur Business Asset User Profile Access (Advanced Access). Setelah disetujui, hubungkan ulang Facebook Page, lalu refresh inbox ini.",
+  "digitalMarketing.manageComments.reconnectFacebookPage": "Hubungkan ulang Facebook Page",
+  "digitalMarketing.manageComments.facebookUserHidden": "Pengguna Facebook",
   "digitalMarketing.manageComments.reconnectSteps":
     "Disconnect, lalu Connect (browser harus membuka business-api.tiktok.com).",
   "digitalMarketing.manageComments.commentApiNotEnabledTitle": "Otorisasi TikTok Business diperlukan",

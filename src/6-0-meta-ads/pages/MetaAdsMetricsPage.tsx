@@ -41,6 +41,7 @@ import { MetaAdsSettingsPanel } from "@/meta-ads/settings/MetaAdsSettingsPanel";
 import {
   META_ADS_DIGITAL_MARKETING_BASE_PATH,
   META_ADS_DIGITAL_MARKETING_BREAKDOWN_PATH,
+  META_ADS_DIGITAL_MARKETING_INTEREST_RESEARCH_PATH,
   META_ADS_DIGITAL_MARKETING_SETTINGS_PATH,
 } from "@/meta-ads/settings/metaAdsSettingsPaths";
 import { MetaAdsMetricsPageSkeleton } from "@/6-0-meta-ads/skeletons/MetaAdsMetricsPageSkeleton";
@@ -665,6 +666,10 @@ function MetaAdsMetricsPageContent() {
                         <MetaAdsEntityNav
                           entity={isBreakdownView ? "breakdown" : isSettingsView ? entity : panel}
                           onEntityChange={(next) => {
+                            if (next === "interest-research") {
+                              navigate(META_ADS_DIGITAL_MARKETING_INTEREST_RESEARCH_PATH);
+                              return;
+                            }
                             if (next === "breakdown") {
                               setPanel("breakdown");
                               if (!isBreakdownView) navigate(META_ADS_DIGITAL_MARKETING_BREAKDOWN_PATH);

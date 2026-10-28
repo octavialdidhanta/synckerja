@@ -98,6 +98,7 @@ import {
   TrafficPageSkeleton,
   GoogleAdsMetricsPageSkeleton,
   MetaAdsMetricsPageSkeleton,
+  MetaAdsInterestResearchPageSkeleton,
   TikTokAdsMetricsPageSkeleton,
   TikTokShopSettingsPageSkeleton,
   TikTokShopDashboardPageSkeleton,
@@ -279,6 +280,9 @@ const LeadMagnetDownloadPage = lazy(() =>
 const TrafficPage = lazy(() => import("@/6-0-traffic/pages/TrafficPage"));
 const GoogleAdsMetricsPage = lazy(() => import("@/6-0-google-ads/pages/GoogleAdsMetricsPage"));
 const MetaAdsMetricsPage = lazy(() => import("@/6-0-meta-ads/pages/MetaAdsMetricsPage"));
+const MetaAdsInterestResearchPage = lazy(
+  () => import("@/6-0-meta-ads/pages/MetaAdsInterestResearchPage"),
+);
 const TikTokAdsMetricsPage = lazy(() => import("@/6-0-tiktok-ads/pages/TikTokAdsMetricsPage"));
 const TikTokShopSettingsPage = lazy(() => import("@/6-0-tiktok-shop/pages/TikTokShopSettingsPage"));
 const TikTokShopDashboardPage = lazy(() => import("@/6-0-tiktok-shop/pages/TikTokShopDashboardPage"));
@@ -3142,6 +3146,20 @@ function MetaAdsMetricsPageRouteElement() {
   );
 }
 
+function MetaAdsInterestResearchPageRouteElement() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-gray-100" aria-busy>
+          <MetaAdsInterestResearchPageSkeleton />
+        </div>
+      }
+    >
+      <MetaAdsInterestResearchPage />
+    </Suspense>
+  );
+}
+
 function TikTokAdsMetricsPageRouteElement() {
   const { isDesktop } = useAuthSurface();
   const location = useLocation();
@@ -5627,6 +5645,18 @@ const App = () => (
                                 loadingShellWrapperClassName="bg-gray-100"
                               >
                                 <MetaAdsMetricsPageRouteElement />
+                              </PageAccessGuard>
+                            }
+                          />
+                          <Route
+                            path="/digital-marketing/meta-ads/interest-research"
+                            element={
+                              <PageAccessGuard
+                                pagePath="/digital-marketing/meta-ads"
+                                loadingShell={<MetaAdsInterestResearchPageSkeleton />}
+                                loadingShellWrapperClassName="bg-gray-100"
+                              >
+                                <MetaAdsInterestResearchPageRouteElement />
                               </PageAccessGuard>
                             }
                           />

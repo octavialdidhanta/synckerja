@@ -1,10 +1,24 @@
 import type { ReactNode } from "react";
-import { Building2, Filter, ImageIcon, LayoutGrid, Megaphone, PieChart, Settings, type LucideIcon } from "lucide-react";
+import {
+  Building2,
+  Filter,
+  ImageIcon,
+  LayoutGrid,
+  Megaphone,
+  PieChart,
+  Search,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 import type { MetaAdsMetricEntity } from "@/meta-ads/hooks/useMetaAdsMetricsQuery";
 
-export type MetaAdsNavView = MetaAdsMetricEntity | "funnel" | "breakdown";
+export type MetaAdsNavView =
+  | MetaAdsMetricEntity
+  | "funnel"
+  | "breakdown"
+  | "interest-research";
 
 export type MetaAdsNavAccount = {
   id: string;
@@ -53,6 +67,12 @@ const ENTITY_ITEMS: NavItemDef[] = [
     defaultLabel: "Breakdown",
     icon: PieChart,
   },
+  {
+    id: "interest-research",
+    labelKey: "digitalMarketing.metaAds.navInterestResearch",
+    defaultLabel: "Interest Research",
+    icon: Search,
+  },
 ];
 
 const ACCOUNT_NAV_MAX_VISIBLE = 5;
@@ -86,6 +106,8 @@ type MetaAdsEntityNavProps = {
   onAdAccountIdChange: (adAccountId: string) => void;
   settingsActive?: boolean;
   onSettingsSelect?: () => void;
+  /** Interest research / reach — allow selecting accounts even without Pixel. */
+  allowAccountsWithoutPixel?: boolean;
 };
 
 export function MetaAdsEntityNav({
@@ -99,8 +121,11 @@ export function MetaAdsEntityNav({
   onAdAccountIdChange,
   settingsActive,
   onSettingsSelect,
+  allowAccountsWithoutPixel = false,
 }: MetaAdsEntityNavProps) {
   const { t } = useTranslation();
+  const accountSelectable = (a: MetaAdsNavAccount) =>
+    allowAccountsWithoutPixel || a.metricsReady;
 
   return (
     <nav
@@ -124,7 +149,7 @@ export function MetaAdsEntityNav({
           <p className="px-2 text-xs text-muted-foreground">
             {t("digitalMarketing.metaAds.filterNoAccounts", "No accounts found.")}
           </p>
-        ) : accounts.every((a) => !a.metricsReady) ? (
+        ) : !allowAccountsWithoutPixel && accounts.every((a) => !a.metricsReady) ? (
           <div className="space-y-1">
             <p className="px-2 text-xs text-amber-700">
               {t(
@@ -164,9 +189,10 @@ export function MetaAdsEntityNav({
             role="list"
           >
             {accounts.map((a) => {
-              const isActive = adAccountId === a.ad_account_id && a.metricsReady;
+              const canSelectAccount = accountSelectable(a);
+              const isActive = adAccountId === a.ad_account_id && canSelectAccount;
               const name = a.label || a.ad_account_id;
-              const canSelect = accountSelectReady && a.metricsReady;
+              const canSelect = accountSelectReady && canSelectAccount;
               return (
                 <li key={a.id}>
                   <button
@@ -175,7 +201,7 @@ export function MetaAdsEntityNav({
                     className={navItemClassName(isActive)}
                     aria-current={isActive ? "true" : undefined}
                     title={
-                      !a.metricsReady
+                      !canSelectAccount
                         ? t(
                             "digitalMarketing.metaAds.navPixelRequiredAccount",
                             "Edit this account and enter your Meta Pixel ID from Events Manager.",

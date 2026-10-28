@@ -151,3 +151,59 @@ export async function resolveOrgMetaAdsForMetrics(
   if (!account) return null;
   return { accessToken, account };
 }
+
+/** Interest research / targeting search — needs token + ad account, not pixel. */
+export async function resolveOrgMetaAdsForTargeting(
+  admin: SupabaseClient,
+  organizationId: string,
+  adAccountId?: string | null,
+): Promise<{ accessToken: string; account: MetaAdsAccountRow } | null> {
+  const accessToken = await getMetaAdsAccessToken(admin, organizationId);
+  if (!accessToken) return null;
+
+  const { data: connection } = await admin
+    .from("organization_meta_ads_connections")
+    .select("oauth_connected_at")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (!connection?.oauth_connected_at) return null;
+
+  let account: MetaAdsAccountRow | null = null;
+
+  if (adAccountId) {
+    const digits = adAccountId.replace(/\D/g, "");
+    const { data: row } = await admin
+      .from("organization_meta_ads_accounts")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .eq("ad_account_id", digits)
+      .maybeSingle();
+    if (row) account = row as MetaAdsAccountRow;
+  }
+
+  if (!account) {
+    const { data: defaultRow } = await admin
+      .from("organization_meta_ads_accounts")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .eq("is_default", true)
+      .maybeSingle();
+    account = (defaultRow as MetaAdsAccountRow | null) ?? null;
+  }
+
+  if (!account) {
+    const { data: first } = await admin
+      .from("organization_meta_ads_accounts")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    account = (first as MetaAdsAccountRow | null) ?? null;
+  }
+
+  if (!account) return null;
+  return { accessToken, account };
+}
