@@ -38,6 +38,7 @@ import {
 import {
   InterestResearchLocationMap,
   type InterestResearchLocationMapHandle,
+  type MapPlaceState,
 } from "@/6-0-meta-ads/components/interest-research/InterestResearchLocationMap";
 import { useGoogleMapsLoader } from "@/2-3-settings/hooks/useGoogleMapsLoader";
 import {
@@ -107,6 +108,15 @@ function locationSig(loc: MetaGeoLocation): string {
   return `${loc.type}:${loc.key}`;
 }
 
+function inheritedCityRadiusKm(locations: MetaGeoLocation[]): number | null {
+  for (const loc of locations) {
+    if (locationUsesPinRadius(loc) || !locationAllowsRadius(loc)) continue;
+    if (loc.radius_km == null || loc.radius_km < locationRadiusMinKm(loc)) continue;
+    return loc.radius_km;
+  }
+  return null;
+}
+
 function locationMapQuery(loc: MetaGeoLocation): string {
   const parts: string[] = [];
   const push = (value: string | null | undefined) => {
@@ -173,6 +183,19 @@ export function InterestResearchLocationPicker({
     countryCode,
     enabled: open,
   });
+
+  useEffect(() => {
+    const inherited = inheritedCityRadiusKm(locations);
+    if (inherited == null) return;
+    let changed = false;
+    const next = locations.map((loc) => {
+      if (locationUsesPinRadius(loc) || !locationAllowsRadius(loc)) return loc;
+      if (loc.radius_km != null && loc.radius_km >= locationRadiusMinKm(loc)) return loc;
+      changed = true;
+      return { ...loc, radius_km: clampLocationRadiusKm(loc, inherited) };
+    });
+    if (changed) onChange(next);
+  }, [locations, onChange]);
 
   useEffect(() => {
     if (!open || !mapsLoaded || debouncedQ.length < 2) {
@@ -273,9 +296,17 @@ export function InterestResearchLocationPicker({
       return;
     }
 
+    const inheritedRadius = inheritedCityRadiusKm(locations);
     const withRadius: MetaGeoLocation = locationUsesPinRadius(loc)
       ? { ...loc, radius_km: loc.radius_km ?? 2 }
-      : { ...loc, radius_km: loc.radius_km ?? null };
+      : {
+          ...loc,
+          radius_km:
+            loc.radius_km ??
+            (locationAllowsRadius(loc) && inheritedRadius != null
+              ? clampLocationRadiusKm(loc, inheritedRadius)
+              : null),
+        };
     onChange([...locations, withRadius], country);
   };
 
@@ -287,45 +318,34 @@ export function InterestResearchLocationPicker({
     (loc) =>
       locationUsesPinRadius(loc) && loc.latitude != null && loc.longitude != null,
   );
-  const mapPin = useMemo(() => {
-    if (!pinLoc || pinLoc.latitude == null || pinLoc.longitude == null) return null;
-    return {
-      lat: pinLoc.latitude,
-      lng: pinLoc.longitude,
-      radiusKm: pinLoc.radius_km ?? 2,
-    };
-  }, [pinLoc]);
-  const mapFocus = useMemo(() => {
-    if (mapPin) return null;
-    const loc =
-      [...locations].reverse().find((item) => !locationUsesPinRadius(item)) ??
-      locations[locations.length - 1] ??
-      null;
-    if (!loc) {
-      return {
-        query: countryCode,
-        label: countryCode === "ID" ? "Indonesia" : countryCode,
-        kind: "country" as const,
-        countryCode,
-      };
-    }
-    const type = String(loc.type ?? "").toLowerCase();
-    const kind =
-      type === "country" || type === "country_group"
-        ? ("country" as const)
-        : type === "region"
-          ? ("region" as const)
-          : ("local" as const);
-    return {
-      query: locationMapQuery(loc),
-      label: loc.display_name || loc.name,
-      lat: loc.latitude,
-      lng: loc.longitude,
-      radiusKm: loc.radius_km,
-      kind,
-      countryCode: type === "country" ? String(loc.key).toUpperCase() : loc.country_code ?? countryCode,
-    };
-  }, [locations, mapPin, countryCode]);
+  const mapPlaces = useMemo<MapPlaceState[]>(
+    () =>
+      locations.map((loc) => {
+        const type = String(loc.type ?? "").toLowerCase();
+        const kind: MapPlaceState["kind"] =
+          type === "country" || type === "country_group"
+            ? "country"
+            : type === "region"
+              ? "region"
+              : "local";
+        return {
+          key: locationSig(loc),
+          query: locationMapQuery(loc),
+          label: loc.display_name || loc.name,
+          lat: loc.latitude,
+          lng: loc.longitude,
+          radiusKm: loc.radius_km,
+          kind,
+          countryCode:
+            kind === "country"
+              ? String(loc.key).toUpperCase()
+              : loc.country_code ?? countryCode,
+          draggable:
+            locationUsesPinRadius(loc) && loc.latitude != null && loc.longitude != null,
+        };
+      }),
+    [locations, countryCode],
+  );
 
   const pinLocations = locations.filter(locationUsesPinRadius);
   const radiusPinOnly = pinLocations.length > 0;
@@ -415,7 +435,7 @@ export function InterestResearchLocationPicker({
       </DialogTrigger>
       <DialogContent
         hideCloseButton
-        className="flex max-h-[min(90vh,720px)] w-[min(96vw,960px)] max-w-none flex-col gap-0 overflow-hidden p-0"
+        className="flex h-[min(90vh,720px)] w-[min(96vw,960px)] max-w-none flex-col gap-0 overflow-hidden p-0"
       >
         <DialogHeader className="border-b px-4 py-3 text-left">
           <div className="flex items-center justify-between gap-3">
@@ -450,8 +470,8 @@ export function InterestResearchLocationPicker({
           </div>
         </DialogHeader>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2">
-          <div className="flex min-h-0 flex-col border-b md:border-b-0 md:border-r">
+        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2 md:overflow-hidden">
+          <div className="flex min-h-0 flex-col overflow-hidden border-b md:h-full md:border-b-0 md:border-r">
             <div className="border-b p-2">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -576,8 +596,8 @@ export function InterestResearchLocationPicker({
               )}
             </div>
 
-            {locations.length > 0 ? (
-              <div className="border-t p-2">
+            <div className="flex h-11 shrink-0 items-center border-t p-2">
+              {locations.length > 0 ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -587,17 +607,16 @@ export function InterestResearchLocationPicker({
                 >
                   {t("digitalMarketing.metaAds.interestGeoClear", "Clear locations (use country only)")}
                 </Button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
 
-          <div className="relative min-h-[280px] bg-muted/30">
+          <div className="relative min-h-[280px] bg-muted/30 md:min-h-0 md:h-full">
             {open ? (
               <InterestResearchLocationMap
                 ref={mapHandleRef}
                 countryCode={countryCode}
-                pin={mapPin}
-                focus={mapFocus}
+                places={mapPlaces}
                 onDropPin={onDropPin}
               />
             ) : null}

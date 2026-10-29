@@ -53,6 +53,7 @@ type InterestResearchFilterBarProps = {
   typeFilter?: string;
   onTypeFilterChange?: (value: string) => void;
   children?: ReactNode;
+  endSlot?: ReactNode;
 };
 
 function ToolbarRule({ strong = false }: { strong?: boolean }) {
@@ -101,6 +102,7 @@ export function InterestResearchFilterBar({
   typeFilter = "all",
   onTypeFilterChange,
   children,
+  endSlot,
 }: InterestResearchFilterBarProps) {
   const { t } = useTranslation();
 
@@ -351,6 +353,8 @@ export function InterestResearchFilterBar({
           </Button>
         </>
       ) : null}
+
+      {endSlot ? <div className="ml-auto flex shrink-0 items-center pl-3">{endSlot}</div> : null}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useGoogleMapsLoader } from "@/2-3-settings/hooks/useGoogleMapsLoader";
@@ -49,6 +49,18 @@ export type MapFocusState = {
   radiusKm?: number | null;
   kind?: "country" | "region" | "local";
   countryCode?: string | null;
+};
+
+export type MapPlaceState = {
+  key: string;
+  query: string;
+  label: string;
+  lat?: number | null;
+  lng?: number | null;
+  radiusKm?: number | null;
+  kind?: "country" | "region" | "local";
+  countryCode?: string | null;
+  draggable?: boolean;
 };
 
 const CIRCLE_OPTS = {
@@ -109,8 +121,9 @@ function syncCircle(
 
 type InterestResearchLocationMapProps = {
   countryCode: string;
-  pin: MapPinState | null;
-  focus: MapFocusState | null;
+  pin?: MapPinState | null;
+  focus?: MapFocusState | null;
+  places?: MapPlaceState[];
   onDropPin: (lat: number, lng: number, label: string) => void;
 };
 
@@ -153,6 +166,25 @@ async function loadCountryShape(map: google.maps.Map, code: string): Promise<boo
   }
 }
 
+function pickGeocodeLocation(
+  results: google.maps.GeocoderResult[] | null | undefined,
+  query: string,
+): google.maps.LatLng | null {
+  if (!results?.length) return null;
+  const head = query.split(",")[0]?.trim().toLowerCase() ?? "";
+  const named =
+    results.find((result) => {
+      if (!head) return false;
+      if (result.formatted_address.toLowerCase().includes(head)) return true;
+      return result.address_components.some(
+        (part) =>
+          part.long_name.toLowerCase() === head ||
+          part.short_name.toLowerCase() === head,
+      );
+    }) ?? results[0];
+  return named.geometry.location;
+}
+
 function geocodeQuery(
   query: string,
   countryCode: string,
@@ -164,12 +196,12 @@ function geocodeQuery(
     }
     const geocoder = new window.google.maps.Geocoder();
     const finish = (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
-      const loc = results?.[0]?.geometry?.location;
-      if (status === "OK" && loc) {
-        resolve({ lat: loc.lat(), lng: loc.lng() });
-        return true;
-      }
-      return false;
+    const loc = pickGeocodeLocation(results, query);
+    if (status === "OK" && loc) {
+      resolve({ lat: loc.lat(), lng: loc.lng() });
+      return true;
+    }
+    return false;
     };
     const request: google.maps.GeocoderRequest = { address: query.trim() };
     if (countryCode) request.componentRestrictions = { country: countryCode };
@@ -207,7 +239,7 @@ export const InterestResearchLocationMap = forwardRef<
   InterestResearchLocationMapHandle,
   InterestResearchLocationMapProps
 >(function InterestResearchLocationMap(
-  { countryCode, pin, focus, onDropPin },
+  { countryCode, pin = null, focus = null, places, onDropPin },
   ref,
 ) {
   const { t } = useTranslation();
@@ -216,16 +248,52 @@ export const InterestResearchLocationMap = forwardRef<
   const [focusLabel, setFocusLabel] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
-  const markerRef = useRef<google.maps.Marker | null>(null);
-  const previewRef = useRef<google.maps.Marker | null>(null);
-  const circleRef = useRef<google.maps.Circle | null>(null);
+  const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
+  const circlesRef = useRef<Map<string, google.maps.Circle>>(new Map());
   const onDropPinRef = useRef(onDropPin);
-  const geocodeCacheRef = useRef<{
-    query: string;
-    country: string;
-    pos: { lat: number; lng: number };
-  } | null>(null);
+  const geocodeCacheRef = useRef<Map<string, { lat: number; lng: number }>>(new Map());
   onDropPinRef.current = onDropPin;
+
+  const resolvedPlaces = useMemo<MapPlaceState[]>(() => {
+    if (places && places.length > 0) return places;
+    if (pin) {
+      return [
+        {
+          key: "dropped-pin",
+          query: `${pin.lat},${pin.lng}`,
+          label: "",
+          lat: pin.lat,
+          lng: pin.lng,
+          radiusKm: pin.radiusKm,
+          kind: "local",
+          countryCode,
+          draggable: true,
+        },
+      ];
+    }
+    if (focus?.query) {
+      return [
+        {
+          key: "focus",
+          query: focus.query,
+          label: focus.label || focus.query,
+          lat: focus.lat,
+          lng: focus.lng,
+          radiusKm: focus.radiusKm,
+          kind: focus.kind,
+          countryCode: focus.countryCode ?? countryCode,
+        },
+      ];
+    }
+    return [];
+  }, [places, pin, focus, countryCode]);
+
+  const placesSig = resolvedPlaces
+    .map(
+      (place) =>
+        `${place.key}|${place.query}|${place.lat ?? ""}|${place.lng ?? ""}|${place.radiusKm ?? ""}|${place.kind ?? ""}|${place.draggable ? "1" : "0"}`,
+    )
+    .join(";");
 
   useImperativeHandle(ref, () => ({
     dropPinAtCenter: () => {
@@ -260,61 +328,16 @@ export const InterestResearchLocationMap = forwardRef<
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!isLoaded || !map) return;
-
-    if (!pin) {
-      markerRef.current?.setMap(null);
-      markerRef.current = null;
-      return;
-    }
-
-    const position = { lat: pin.lat, lng: pin.lng };
-    if (!markerRef.current) {
-      markerRef.current = new window.google.maps.Marker({
-        map,
-        position,
-        draggable: true,
-      });
-      markerRef.current.addListener("dragend", () => {
-        const pos = markerRef.current?.getPosition();
-        if (!pos) return;
-        const lat = pos.lat();
-        const lng = pos.lng();
-        void reverseGeocodeLabel(lat, lng).then((label) => onDropPinRef.current(lat, lng, label));
-      });
-    } else {
-      markerRef.current.setPosition(position);
-    }
-
-    syncCircle(map, circleRef, position, pin.radiusKm);
-    focusMap(map, position, pin.radiusKm);
-  }, [isLoaded, mapReady, pin?.lat, pin?.lng, pin?.radiusKm]);
-
-  useEffect(() => {
-    const map = mapRef.current;
     if (!isLoaded || !mapReady || !map) return;
 
-    const clearPreview = () => {
-      previewRef.current?.setMap(null);
-      previewRef.current = null;
-      setFocusLabel(null);
+    const clearOverlays = () => {
+      markersRef.current.forEach((marker) => marker.setMap(null));
+      markersRef.current.clear();
+      circlesRef.current.forEach((circle) => circle.setMap(null));
+      circlesRef.current.clear();
     };
 
-    if (pin) {
-      clearPreview();
-      clearCountryShapes(map);
-      return;
-    }
-
-    if (!focus?.query) {
-      clearPreview();
-      clearCountryShapes(map);
-      syncCircle(map, circleRef, null, null);
-      return;
-    }
-
-    if (focus.kind === "country") {
-      const code = (focus.countryCode || countryCode || "ID").toUpperCase();
+    const showCountry = (code: string, label: string) => {
       const box = COUNTRY_VIEW[code];
       const origin = COUNTRY_CENTER[code] ?? COUNTRY_CENTER.ID;
       const position = box
@@ -327,83 +350,145 @@ export const InterestResearchLocationMap = forwardRef<
         map.panTo(position);
         map.setZoom(origin.zoom);
       }
-      if (!previewRef.current) {
-        previewRef.current = new window.google.maps.Marker({
+      let marker = markersRef.current.get("country");
+      if (!marker) {
+        marker = new window.google.maps.Marker({
           map,
           position,
-          title: focus.label || focus.query,
+          title: label,
         });
+        markersRef.current.set("country", marker);
       } else {
-        previewRef.current.setPosition(position);
-        previewRef.current.setTitle(focus.label || focus.query);
+        marker.setPosition(position);
+        marker.setTitle(label);
       }
-      syncCircle(map, circleRef, null, null);
-      setFocusLabel(focus.label || focus.query);
+      setFocusLabel(label);
       void loadCountryShape(map, code);
+    };
+
+    if (resolvedPlaces.length === 0) {
+      clearOverlays();
+      showCountry(countryCode.toUpperCase(), countryCode === "ID" ? "Indonesia" : countryCode);
       return;
     }
 
-    clearCountryShapes(map);
+    const onlyCountry =
+      resolvedPlaces.length === 1 && resolvedPlaces[0].kind === "country";
+    if (onlyCountry) {
+      clearOverlays();
+      const place = resolvedPlaces[0];
+      const code = (place.countryCode || countryCode || "ID").toUpperCase();
+      showCountry(code, place.label || place.query);
+      return;
+    }
 
+    const markerPlaces = resolvedPlaces.some((place) => place.kind !== "country")
+      ? resolvedPlaces.filter((place) => place.kind !== "country")
+      : resolvedPlaces;
+
+    clearCountryShapes(map);
     let cancelled = false;
-    const apply = (position: { lat: number; lng: number }) => {
-      if (cancelled) return;
-      if (!previewRef.current) {
-        previewRef.current = new window.google.maps.Marker({
+
+    const upsertMarker = (place: MapPlaceState, position: { lat: number; lng: number }) => {
+      let marker = markersRef.current.get(place.key);
+      if (!marker) {
+        marker = new window.google.maps.Marker({
           map,
           position,
-          title: focus.label || focus.query,
+          title: place.label || place.query,
+          draggable: Boolean(place.draggable),
         });
+        if (place.draggable) {
+          marker.addListener("dragend", () => {
+            const pos = marker?.getPosition();
+            if (!pos) return;
+            const lat = pos.lat();
+            const lng = pos.lng();
+            void reverseGeocodeLabel(lat, lng).then((label) =>
+              onDropPinRef.current(lat, lng, label),
+            );
+          });
+        }
+        markersRef.current.set(place.key, marker);
       } else {
-        previewRef.current.setPosition(position);
-        previewRef.current.setTitle(focus.label || focus.query);
+        marker.setPosition(position);
+        marker.setTitle(place.label || place.query);
+        marker.setDraggable(Boolean(place.draggable));
       }
-      syncCircle(map, circleRef, position, focus.radiusKm);
-      focusMap(map, position, focus.radiusKm);
-      setFocusLabel(
-        focus.radiusKm != null
-          ? `${focus.label || focus.query} · ${focus.radiusKm} km`
-          : focus.label || focus.query,
-      );
+
+      const existingCircle = circlesRef.current.get(place.key) ?? null;
+      const circleHolder = { current: existingCircle };
+      syncCircle(map, circleHolder, position, place.radiusKm);
+      if (circleHolder.current) circlesRef.current.set(place.key, circleHolder.current);
+      else circlesRef.current.delete(place.key);
     };
 
-    if (focus.lat != null && focus.lng != null) {
-      apply({ lat: focus.lat, lng: focus.lng });
-      return () => {
-        cancelled = true;
-      };
-    }
+    void (async () => {
+      const resolved: Array<{ place: MapPlaceState; pos: { lat: number; lng: number } }> = [];
+      for (const place of markerPlaces) {
+        if (cancelled) return;
+        if (place.lat != null && place.lng != null) {
+          resolved.push({ place, pos: { lat: place.lat, lng: place.lng } });
+          continue;
+        }
+        const cacheKey = `${(place.countryCode || countryCode).toUpperCase()}|${place.query}`;
+        const cached = geocodeCacheRef.current.get(cacheKey);
+        if (cached) {
+          resolved.push({ place, pos: cached });
+          continue;
+        }
+        const pos = await geocodeQuery(place.query, place.countryCode || countryCode);
+        if (cancelled || !pos) continue;
+        geocodeCacheRef.current.set(cacheKey, pos);
+        resolved.push({ place, pos });
+      }
+      if (cancelled) return;
 
-    const cached = geocodeCacheRef.current;
-    if (cached && cached.query === focus.query && cached.country === countryCode) {
-      apply(cached.pos);
-      return () => {
-        cancelled = true;
-      };
-    }
+      const keep = new Set(resolved.map((item) => item.place.key));
+      markersRef.current.forEach((marker, key) => {
+        if (!keep.has(key)) {
+          marker.setMap(null);
+          markersRef.current.delete(key);
+        }
+      });
+      circlesRef.current.forEach((circle, key) => {
+        if (!keep.has(key)) {
+          circle.setMap(null);
+          circlesRef.current.delete(key);
+        }
+      });
 
-    void geocodeQuery(focus.query, countryCode).then((pos) => {
-      if (!pos || cancelled) return;
-      geocodeCacheRef.current = { query: focus.query, country: countryCode, pos };
-      apply(pos);
-    });
+      const bounds = new window.google.maps.LatLngBounds();
+      for (const item of resolved) {
+        upsertMarker(item.place, item.pos);
+        bounds.extend(item.pos);
+      }
+
+      window.google.maps.event.trigger(map, "resize");
+      if (resolved.length === 1) {
+        const only = resolved[0];
+        focusMap(map, only.pos, only.place.radiusKm);
+        setFocusLabel(
+          only.place.radiusKm != null
+            ? `${only.place.label || only.place.query} · ${only.place.radiusKm} km`
+            : only.place.label || only.place.query,
+        );
+        return;
+      }
+      if (resolved.length > 1) {
+        map.fitBounds(bounds, 48);
+        setFocusLabel(
+          t("digitalMarketing.metaAds.interestGeoMapPlaces", "{{count}} locations", {
+            count: resolved.length,
+          }),
+        );
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [
-    isLoaded,
-    mapReady,
-    pin,
-    countryCode,
-    focus?.query,
-    focus?.label,
-    focus?.lat,
-    focus?.lng,
-    focus?.radiusKm,
-    focus?.kind,
-    focus?.countryCode,
-  ]);
+  }, [isLoaded, mapReady, countryCode, placesSig, resolvedPlaces, t]);
 
   if (error) {
     return (
@@ -428,7 +513,7 @@ export const InterestResearchLocationMap = forwardRef<
   return (
     <div className="relative h-full min-h-[280px] w-full">
       <div ref={containerRef} className="h-full min-h-[280px] w-full" />
-      {focusLabel && !pin ? (
+      {focusLabel ? (
         <p className="pointer-events-none absolute left-2 top-2 rounded bg-white/90 px-2 py-1 text-[10px] font-medium text-foreground">
           {focusLabel}
         </p>

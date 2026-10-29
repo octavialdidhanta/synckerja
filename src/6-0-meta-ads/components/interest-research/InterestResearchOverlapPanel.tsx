@@ -141,18 +141,20 @@ function layoutVenn(sizeA: number, sizeB: number, sizeAnd: number) {
 }
 
 /** Area ∝ Potential Reach; jarak pusat mengikuti luas irisan AND. */
-function OverlapVenn({
+export function OverlapVenn({
   pctLabel,
   sizeA,
   sizeB,
   sizeAnd,
   size = 240,
+  compact = false,
 }: {
   pctLabel: string;
   sizeA: number;
   sizeB: number;
   sizeAnd: number;
   size?: number;
+  compact?: boolean;
 }) {
   const clipId = useId().replace(/:/g, "");
   const layout = layoutVenn(sizeA, sizeB, sizeAnd);
@@ -161,9 +163,10 @@ function OverlapVenn({
   const bTagX = ((layout.cxB + layout.rB * 0.15) / layout.width) * 100;
   const badgeLeft = (layout.badgeX / layout.width) * 100;
   const badgeTop = (layout.cy / layout.height) * 100;
+  const minH = compact ? 56 : 96;
 
   return (
-    <div className="relative mx-auto" style={{ width: size, height: Math.max(h, 96) }}>
+    <div className={cn("relative", compact ? "mx-0" : "mx-auto")} style={{ width: size, height: Math.max(h, minH) }}>
       <svg
         viewBox={`0 0 ${layout.width} ${layout.height}`}
         className="h-full w-full"
@@ -205,23 +208,41 @@ function OverlapVenn({
         className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
         style={{ left: `${badgeLeft}%`, top: `${badgeTop}%` }}
       >
-        <div className="rounded-full bg-white/95 px-2.5 py-1 text-center shadow-sm ring-1 ring-black/5">
-          <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Overlap</p>
-          <p className="text-lg font-bold tabular-nums leading-none text-slate-900">{pctLabel}</p>
+        <div
+          className={cn(
+            "rounded-full bg-white/95 text-center shadow-sm ring-1 ring-black/5",
+            compact ? "px-1.5 py-0.5" : "px-2.5 py-1",
+          )}
+        >
+          {compact ? null : (
+            <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Overlap</p>
+          )}
+          <p
+            className={cn(
+              "font-bold tabular-nums leading-none text-slate-900",
+              compact ? "text-[11px]" : "text-lg",
+            )}
+          >
+            {pctLabel}
+          </p>
         </div>
       </div>
-      <span
-        className="absolute top-1 -translate-x-1/2 rounded bg-blue-600/90 px-1.5 py-0.5 text-[10px] font-semibold text-white"
-        style={{ left: `${aTagX}%` }}
-      >
-        A
-      </span>
-      <span
-        className="absolute top-1 -translate-x-1/2 rounded bg-emerald-600/90 px-1.5 py-0.5 text-[10px] font-semibold text-white"
-        style={{ left: `${bTagX}%` }}
-      >
-        B
-      </span>
+      {compact ? null : (
+        <>
+          <span
+            className="absolute top-1 -translate-x-1/2 rounded bg-blue-600/90 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+            style={{ left: `${aTagX}%` }}
+          >
+            A
+          </span>
+          <span
+            className="absolute top-1 -translate-x-1/2 rounded bg-emerald-600/90 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+            style={{ left: `${bTagX}%` }}
+          >
+            B
+          </span>
+        </>
+      )}
     </div>
   );
 }

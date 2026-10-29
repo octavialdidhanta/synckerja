@@ -8,10 +8,21 @@ import {
 } from "../_shared/metaAdsAuth.ts";
 import { metaActId, resolveOrgMetaAdsForTargeting } from "../_shared/metaAdsOrgResolver.ts";
 import {
+  adsManagerAdsetsUrl,
+  adsManagerAdsUrl,
+  adsManagerAudiencesUrl,
   applyOfficialPotential,
+  buildGroupedInterestTargetingSpec,
   buildInterestTargetingSpec,
   buildIntersectionTargetingSpec,
+  buildUnionInterestTargetingSpec,
+  flexibleSpecKeyForItem,
+  createOrUpdateMetaSavedAudience,
   createPausedInterestAdDraft,
+  listAdAccountCampaigns,
+  deleteMetaSavedAudience,
+  isDeletedOrMissingAdObjectError,
+  updateAdsetTargeting,
   deliveryEstimate,
   extractDailyReachBounds,
   firstDeliveryRow,
@@ -127,7 +138,7 @@ function parseResearchFilters(
   if (body.promoted_object && typeof body.promoted_object === "object") {
     promotedObject = body.promoted_object as Record<string, unknown>;
   } else if (
-    optimizationGoal === "OFFSITE_CONVERSIONS" &&
+    (optimizationGoal === "OFFSITE_CONVERSIONS" || optimizationGoal === "VALUE") &&
     account.pixel_id &&
     account.pixel_id !== "0"
   ) {
@@ -138,7 +149,10 @@ function parseResearchFilters(
   }
 
   let objectiveDowngraded = false;
-  if (optimizationGoal === "OFFSITE_CONVERSIONS" && !promotedObject) {
+  if (
+    (optimizationGoal === "OFFSITE_CONVERSIONS" || optimizationGoal === "VALUE") &&
+    !promotedObject
+  ) {
     optimizationGoal = "REACH";
     objectiveDowngraded = true;
   }
@@ -174,6 +188,275 @@ async function parseResearchFiltersForReach(
     locations,
     geoUnresolved: filters.locations.length > 0 && locations.length === 0,
   };
+}
+
+const LIST_ROW_SELECT =
+  "id, name, created_by, created_at, updated_at, ad_account_id, meta_saved_audience_id, meta_ad_account_id, meta_saved_audience_pushed_at, meta_saved_audience_filters, meta_push_kind, meta_campaign_id, meta_adset_id";
+
+type InterestListRow = {
+  id: string;
+  name: string;
+  created_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  ad_account_id?: string | null;
+  meta_saved_audience_id?: string | null;
+  meta_ad_account_id?: string | null;
+  meta_saved_audience_pushed_at?: string | null;
+  meta_saved_audience_filters?: Record<string, unknown> | null;
+  meta_push_kind?: string | null;
+  meta_campaign_id?: string | null;
+  meta_adset_id?: string | null;
+};
+
+function accountDigits(adAccountId: string | null | undefined): string {
+  return String(adAccountId ?? "").replace(/\D/g, "");
+}
+
+function listBelongsToAccount(list: InterestListRow, adAccountId: string): boolean {
+  const owner = accountDigits(list.ad_account_id);
+  const current = accountDigits(adAccountId);
+  return Boolean(owner && current && owner === current);
+}
+
+function snapshotAudienceFilters(
+  body: Record<string, unknown>,
+  countryCode: string,
+): Record<string, unknown> {
+  return {
+    country_code: countryCode,
+    gender: body.gender ?? "all",
+    age_min: body.age_min ?? 18,
+    age_max: body.age_max ?? 65,
+    placement: body.placement ?? "automatic",
+    locations: Array.isArray(body.locations) ? body.locations : [],
+    daily_budget: body.daily_budget ?? null,
+    objective: body.objective ?? "conversions",
+  };
+}
+
+function mergeBodyWithFilterSnapshot(
+  body: Record<string, unknown>,
+  snapshot: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const snap = snapshot && typeof snapshot === "object" ? snapshot : {};
+  const hasLive =
+    body.country_code != null ||
+    body.gender != null ||
+    body.age_min != null ||
+    body.age_max != null ||
+    body.placement != null ||
+    body.locations != null;
+  if (hasLive) return body;
+  return { ...body, ...snap };
+}
+
+const MAX_LIST_MATCH_GROUP = 4;
+
+type ListSpecItem = {
+  id: string;
+  name?: string;
+  type?: string;
+  path?: string[];
+  match_group: number;
+};
+
+function parseMatchGroup(value: unknown): number {
+  const n = Math.floor(Number(value ?? 0));
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n;
+}
+
+function listItemsToSpecEntries(
+  rows: Array<{
+    meta_targeting_id?: string;
+    name?: string;
+    type?: string;
+    path?: unknown;
+    match_group?: number;
+  }>,
+): ListSpecItem[] {
+  return rows
+    .map((row) => ({
+      id: String(row.meta_targeting_id ?? "").trim(),
+      name: row.name ? String(row.name) : undefined,
+      type: row.type ? String(row.type) : undefined,
+      path: Array.isArray(row.path) ? row.path.map((p) => String(p)) : undefined,
+      match_group: parseMatchGroup(row.match_group),
+    }))
+    .filter((row) => row.id);
+}
+
+function groupListSpecItems(items: ListSpecItem[]): Array<Array<{
+  id: string;
+  name?: string;
+  type?: string;
+  path?: string[];
+}>> {
+  const byGroup = new Map<number, ListSpecItem[]>();
+  for (const item of items) {
+    const g = item.match_group;
+    const list = byGroup.get(g) ?? [];
+    list.push(item);
+    byGroup.set(g, list);
+  }
+  const max = Math.max(0, ...byGroup.keys());
+  const groups: Array<Array<{ id: string; name?: string; type?: string; path?: string[] }>> = [];
+  for (let i = 0; i <= max; i++) {
+    groups.push((byGroup.get(i) ?? []).map(({ match_group: _g, ...entry }) => entry));
+  }
+  return groups;
+}
+
+function targetingSpecFromListItems(
+  items: ListSpecItem[],
+  specArgs: {
+    countryCodes: string[];
+    ageMin: number;
+    ageMax: number;
+    genders?: number[];
+    placement?: string;
+    selectedLocations?: MetaGeoLocation[];
+  },
+): Record<string, unknown> {
+  const groups = groupListSpecItems(items).filter((group) => group.length > 0);
+  return buildGroupedInterestTargetingSpec({
+    countryCodes: specArgs.countryCodes,
+    ageMin: specArgs.ageMin,
+    ageMax: specArgs.ageMax,
+    genders: specArgs.genders,
+    placement: specArgs.placement,
+    selectedLocations: specArgs.selectedLocations,
+    idsOnly: true,
+    groups,
+  });
+}
+
+function specHasFlexibleTargeting(spec: Record<string, unknown>): boolean {
+  const rows = spec.flexible_spec as Array<Record<string, unknown>> | undefined;
+  return Boolean(rows?.some((row) => row && Object.keys(row).length > 0));
+}
+
+async function loadListSpecItems(
+  admin: ReturnType<typeof createClient>,
+  listId: string,
+): Promise<ListSpecItem[]> {
+  const { data, error } = await admin
+    .from("meta_ads_interest_list_items")
+    .select("meta_targeting_id, name, type, path, match_group")
+    .eq("list_id", listId)
+    .order("match_group", { ascending: true })
+    .order("sort_order", { ascending: true });
+  if (error) throw new Error(error.message);
+  return listItemsToSpecEntries(data ?? []);
+}
+
+async function clearSavedAudienceLink(
+  admin: ReturnType<typeof createClient>,
+  listId: string,
+): Promise<void> {
+  await admin
+    .from("meta_ads_interest_lists")
+    .update({
+      meta_saved_audience_id: null,
+      meta_ad_account_id: null,
+      meta_saved_audience_pushed_at: null,
+      meta_saved_audience_filters: null,
+      meta_push_kind: null,
+      meta_campaign_id: null,
+      meta_adset_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", listId);
+}
+
+async function syncPushedSavedAudience(args: {
+  admin: ReturnType<typeof createClient>;
+  accessToken: string;
+  account: { ad_account_id: string; pixel_id?: string; default_event_name?: string };
+  act: string;
+  list: InterestListRow;
+  body: Record<string, unknown>;
+  countryCode: string;
+}): Promise<string | null> {
+  const kind = String(args.list.meta_push_kind ?? "saved_audience");
+  const objectId =
+    kind === "adset_draft"
+      ? String(args.list.meta_adset_id ?? "").trim()
+      : String(args.list.meta_saved_audience_id ?? "").trim();
+  if (!objectId) return null;
+  try {
+    const items = await loadListSpecItems(args.admin, args.list.id);
+    if (!items.length) {
+      await deleteMetaSavedAudience(args.accessToken, objectId);
+      await clearSavedAudienceLink(args.admin, args.list.id);
+      return null;
+    }
+    const merged = mergeBodyWithFilterSnapshot(args.body, args.list.meta_saved_audience_filters);
+    const country =
+      String(merged.country_code ?? args.countryCode ?? "ID").trim().toUpperCase() || "ID";
+    const filters = await parseResearchFiltersForReach(
+      args.accessToken,
+      merged,
+      country,
+      args.account,
+    );
+    const includeCount = items.filter((item) => item.match_group === 0).length;
+    if (!includeCount) {
+      return "Include group must have at least one interest";
+    }
+    const spec = targetingSpecFromListItems(items, {
+      countryCodes: [filters.countryCode],
+      ageMin: filters.ageMin,
+      ageMax: filters.ageMax,
+      genders: filters.genders,
+      placement: filters.placement,
+      selectedLocations: filters.locations,
+    });
+    if (!specHasFlexibleTargeting(spec)) {
+      return "Saved audience targeting is empty";
+    }
+    if (kind === "adset_draft") {
+      try {
+        await updateAdsetTargeting(args.accessToken, objectId, {
+          name: args.list.name,
+          targetingSpec: spec,
+        });
+        return null;
+      } catch (err) {
+        if (!isDeletedOrMissingAdObjectError(err)) throw err;
+        const draft = await createPausedInterestAdDraft(args.accessToken, args.act, {
+          targetingSpec: spec,
+          campaignName: `Synckerja ${args.list.name}`.slice(0, 80),
+          adsetName: String(args.list.name ?? "").slice(0, 80) || "Interest list",
+          dailyBudget: 50_000,
+          objective: filters.objective,
+          promotedObject: filters.promotedObject,
+        });
+        await args.admin
+          .from("meta_ads_interest_lists")
+          .update({
+            meta_push_kind: "adset_draft",
+            meta_campaign_id: draft.campaign_id,
+            meta_adset_id: draft.adset_id,
+            meta_saved_audience_id: null,
+            meta_ad_account_id: args.account.ad_account_id,
+            meta_saved_audience_pushed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", args.list.id);
+        return null;
+      }
+    }
+    await createOrUpdateMetaSavedAudience(args.accessToken, args.act, {
+      name: args.list.name,
+      targetingSpec: spec,
+      existingAudienceId: objectId,
+    });
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : "Meta saved audience sync failed";
+  }
 }
 
 function filtersFingerprint(f: ResearchFilters): string {
@@ -423,6 +706,11 @@ Deno.serve(async (req: Request) => {
       }, 200);
     }
 
+    if (action === "listCampaigns") {
+      const campaigns = await listAdAccountCampaigns(accessToken, act);
+      return metaAdsJson({ campaigns, ad_account_id: account.ad_account_id }, 200);
+    }
+
     if (action === "search") {
       const q = String(body.q ?? "").trim();
       if (!q) return metaAdsJson({ error: "Missing q" }, 400);
@@ -484,6 +772,30 @@ Deno.serve(async (req: Request) => {
         type_filter: typeFilter,
         cached: false,
       };
+      cacheSet(cacheKey, payload);
+      return metaAdsJson(payload, 200);
+    }
+
+    if (action === "targeting_categories") {
+      const cacheKey = `cat:v1:${organizationId}`;
+      if (!forceRefresh) {
+        const cached = cacheGet(cacheKey);
+        if (cached) return metaAdsJson({ ...(cached as object), cached: true }, 200);
+      }
+      const [interests, behaviors, demographics] = await Promise.all([
+        searchTargetingCategory(accessToken, "interests").catch(() => [] as MetaTargetingItem[]),
+        searchTargetingCategory(accessToken, "behaviors").catch(() => [] as MetaTargetingItem[]),
+        searchTargetingCategory(accessToken, "demographics").catch(() => [] as MetaTargetingItem[]),
+      ]);
+      const items = [...interests, ...behaviors, ...demographics].reduce<MetaTargetingItem[]>(
+        (acc, item) => {
+          if (!item.id || acc.some((row) => row.id === item.id)) return acc;
+          acc.push(item);
+          return acc;
+        },
+        [],
+      );
+      const payload = { items, ad_account_id: account.ad_account_id, cached: false };
       cacheSet(cacheKey, payload);
       return metaAdsJson(payload, 200);
     }
@@ -645,7 +957,27 @@ Deno.serve(async (req: Request) => {
         }, 200);
       }
 
-      const items = rawItems;
+      const mixedKeys = new Set(
+        rawItems.map((item) => flexibleSpecKeyForItem(item)).filter((key): key is string => Boolean(key)),
+      ).size > 1;
+      const parseGroupItems = (raw: unknown) =>
+        (Array.isArray(raw) ? raw : [])
+          .map((entry) => {
+            const row = (entry ?? {}) as Record<string, unknown>;
+            return {
+              id: String(row.id ?? ""),
+              name: row.name ? String(row.name) : undefined,
+              type: row.type ? String(row.type) : undefined,
+              path: Array.isArray(row.path) ? row.path.map((p) => String(p)) : undefined,
+            };
+          })
+          .filter((item) => item.id);
+      const groupedItems = (Array.isArray(body.groups) ? body.groups : [])
+        .map((group) => parseGroupItems(group))
+        .filter((group) => group.length > 0);
+      const useGrouped = groupedItems.length >= 2;
+      const useUnion = !useGrouped && (body.union === true || mixedKeys);
+      const items = useUnion ? rawItems.slice(0, 8) : rawItems;
       const interests = Array.isArray(body.interests)
         ? (body.interests as Array<{ id?: string; name?: string }>)
           .map((i) => ({ id: String(i.id ?? ""), name: i.name ? String(i.name) : undefined }))
@@ -656,18 +988,39 @@ Deno.serve(async (req: Request) => {
           .map((i) => ({ id: String(i.id ?? ""), name: i.name ? String(i.name) : undefined }))
           .filter((i) => i.id)
         : [];
-      const spec = buildInterestTargetingSpec({
+      const specArgs = {
         countryCodes: [filters.countryCode],
-        items: items.length ? items : undefined,
-        interests: !items.length && interests.length ? interests : undefined,
-        behaviors: !items.length && behaviors.length ? behaviors : undefined,
         ageMin: filters.ageMin,
         ageMax: filters.ageMax,
         genders: filters.genders,
         placement: filters.placement,
         selectedLocations: filters.locations,
-        idsOnly: true,
-      });
+        idsOnly: true as const,
+      };
+      const spec = useGrouped
+        ? buildGroupedInterestTargetingSpec({ ...specArgs, groups: groupedItems })
+        : useUnion && items.length
+        ? buildUnionInterestTargetingSpec({ ...specArgs, items })
+        : buildInterestTargetingSpec({
+          ...specArgs,
+          items: items.length ? items : undefined,
+          interests: !items.length && interests.length ? interests : undefined,
+          behaviors: !items.length && behaviors.length ? behaviors : undefined,
+        });
+      const fp = filtersFingerprint(filters);
+      const groupedKey = groupedItems
+        .map((group) => group.map((item) => item.id).sort().join("+"))
+        .join("|");
+      const unionKey = items.map((item) => item.id).sort().join("+");
+      const estimateCacheKey = useGrouped && groupedKey
+        ? `est:grouped:v1:${organizationId}:${account.ad_account_id}:${fp}:${groupedKey}`
+        : useUnion && unionKey
+        ? `est:union:v1:${organizationId}:${account.ad_account_id}:${fp}:${unionKey}`
+        : "";
+      if (estimateCacheKey && !forceRefresh) {
+        const cached = cacheGet(estimateCacheKey);
+        if (cached) return metaAdsJson(cached, 200);
+      }
       const flexible = (spec.flexible_spec as Array<Record<string, unknown>> | undefined)?.[0];
       const geo = spec.geo_locations as Record<string, unknown> | undefined;
       const hasGeo = Boolean(geo && Object.keys(geo).length);
@@ -697,12 +1050,14 @@ Deno.serve(async (req: Request) => {
           ? { lower: dailyBounds.lower, upper: dailyBounds.upper }
           : null;
       const delivery_summary = summarizeDeliveryRow(deliveryRow);
-      return metaAdsJson({
+      const payload = {
         estimate: applyOfficialPotential({ reach: estimate, delivery: delivery_summary }),
         daily,
         daily_source: dailyBounds.source,
         delivery_summary,
         targeting_spec: spec,
+        union: useUnion,
+        grouped: useGrouped,
         filters: {
           country_code: filters.countryCode,
           genders: filters.genders,
@@ -719,7 +1074,9 @@ Deno.serve(async (req: Request) => {
         ad_account_id: account.ad_account_id,
         country_code: filters.countryCode,
         approximate: false,
-      }, 200);
+      };
+      if (estimateCacheKey) cacheSet(estimateCacheKey, payload);
+      return metaAdsJson(payload, 200);
     }
 
     if (action === "overlap_rows") {
@@ -742,15 +1099,14 @@ Deno.serve(async (req: Request) => {
       const seeds = (seedRaw as Array<Record<string, unknown>>)
         .map((s) => parseItem(s))
         .filter((s) => s.id)
-        .slice(0, 5);
+        .slice(0, 8);
       const items = (Array.isArray(body.items) ? body.items as Array<Record<string, unknown>> : [])
         .map((i) => parseItem(i))
         .filter((i) => i.id)
-        .slice(0, 10);
+        .slice(0, 20);
       if (!seeds.length) return metaAdsJson({ error: "Missing seed" }, 400);
-      if (!items.length) return metaAdsJson({ error: "Missing items" }, 400);
 
-      const specSeed = buildInterestTargetingSpec({
+      const specSeed = buildUnionInterestTargetingSpec({
         countryCodes: [filters.countryCode],
         items: seeds,
         ageMin: filters.ageMin,
@@ -772,26 +1128,135 @@ Deno.serve(async (req: Request) => {
       const fp = filtersFingerprint(filters);
       const seedKey = seeds.map((s) => s.id).sort().join("+");
 
+      let seedLower: number | null = null;
+      let seedUpper: number | null = null;
       let seedFloor = false;
       try {
         const estSeed = await reachEstimate(accessToken, act, specSeed);
+        seedLower = estSeed.users_lower;
+        seedUpper = estSeed.users_upper;
         seedFloor = isMetaReachPrivacyFloor(estSeed.users_lower, estSeed.users_upper);
       } catch {
         seedFloor = false;
       }
+      const seedMid = mid(seedLower, seedUpper);
+      const pctSelFor = (
+        andLower: number | null,
+        andUpper: number | null,
+        extraFloor: boolean,
+      ) => {
+        const andFloor = isMetaReachPrivacyFloor(andLower, andUpper);
+        const num = mid(andLower, andUpper);
+        if (seedFloor || andFloor || extraFloor || seedMid <= 0) return null;
+        return Math.min(100, Math.max(0, (num / seedMid) * 100));
+      };
+
+      const estimateAgainstUnion = async (
+        specB: Record<string, unknown>,
+        rowId: string,
+      ) => {
+        const estB = await reachEstimate(accessToken, act, specB);
+        const bLower = estB.users_lower;
+        const bUpper = estB.users_upper;
+        const bFloor = isMetaReachPrivacyFloor(bLower, bUpper);
+        const bReach = { users_lower: bLower, users_upper: bUpper };
+        const specAnd = buildIntersectionTargetingSpec(specSeed, specB);
+        let estAnd = await reachEstimate(accessToken, act, specAnd);
+        if (isMetaReachPrivacyFloor(estAnd.users_lower, estAnd.users_upper)) {
+          try {
+            const delivery = await deliveryEstimate(
+              accessToken,
+              act,
+              specAnd,
+              filters.optimizationGoal,
+              filters.promotedObject,
+            );
+            estAnd = applyOfficialPotential({
+              reach: estAnd,
+              delivery: summarizeDeliveryRow(firstDeliveryRow(delivery)),
+            });
+          } catch {
+            /* keep AND reach */
+          }
+        }
+        const andFloor = isMetaReachPrivacyFloor(estAnd.users_lower, estAnd.users_upper);
+        const den = mid(bLower, bUpper);
+        const seedDen = mid(seedLower, seedUpper);
+        const num = mid(estAnd.users_lower, estAnd.users_upper);
+        const capped = den > 0 && seedDen > 0 ? Math.min(num, den, seedDen) : num;
+        const pct =
+          seedFloor || andFloor || bFloor || den <= 0
+            ? null
+            : Math.min(100, Math.max(0, (capped / den) * 100));
+        return {
+          id: rowId,
+          and: {
+            users_lower: estAnd.users_lower,
+            users_upper: estAnd.users_upper,
+            estimate_ready: estAnd.estimate_ready,
+          },
+          b: bReach,
+          comparison_users: bReach,
+          pct,
+          pct_com: pct,
+          pct_sel: pctSelFor(estAnd.users_lower, estAnd.users_upper, bFloor),
+        };
+      };
+
+      if (body.union_items === true) {
+        if (!items.length) {
+          return metaAdsJson({
+            rows: [],
+            seed: { users_lower: seedLower, users_upper: seedUpper },
+            seed_ids: seeds.map((s) => s.id),
+            ad_account_id: account.ad_account_id,
+            country_code: filters.countryCode,
+          }, 200);
+        }
+        const unionKey = items.map((item) => item.id).sort().join("+");
+        const cacheKey =
+          `ovrow:v6:${organizationId}:${account.ad_account_id}:${fp}:${seedKey}:union:${unionKey}`;
+        if (!forceRefresh) {
+          const cached = cacheGet(cacheKey);
+          if (cached) {
+            return metaAdsJson({
+              rows: [cached],
+              seed: { users_lower: seedLower, users_upper: seedUpper },
+              seed_ids: seeds.map((s) => s.id),
+              ad_account_id: account.ad_account_id,
+              country_code: filters.countryCode,
+            }, 200);
+          }
+        }
+        const specB = buildUnionInterestTargetingSpec({
+          countryCodes: [filters.countryCode],
+          items,
+          ageMin: filters.ageMin,
+          ageMax: filters.ageMax,
+          genders: filters.genders,
+          placement: filters.placement,
+          selectedLocations: filters.locations,
+          idsOnly: true,
+        });
+        if (!(specB.flexible_spec as unknown[] | undefined)?.length) {
+          return metaAdsJson({
+            error: "Comparison targeting type is not supported for overlap.",
+          }, 400);
+        }
+        const row = await estimateAgainstUnion(specB, "__comparison_union__");
+        cacheSet(cacheKey, row);
+        return metaAdsJson({
+          rows: [row],
+          seed: { users_lower: seedLower, users_upper: seedUpper },
+          seed_ids: seeds.map((s) => s.id),
+          ad_account_id: account.ad_account_id,
+          country_code: filters.countryCode,
+        }, 200);
+      }
 
       const rows = await mapPool(items, 2, async (item) => {
-        if (seedIds.has(item.id)) {
-          const lo = item.potential_lower;
-          const hi = item.potential_upper;
-          return {
-            id: item.id,
-            and: { users_lower: lo, users_upper: hi, estimate_ready: true },
-            pct: 100,
-          };
-        }
         const cacheKey =
-          `ovrow:v2:${organizationId}:${account.ad_account_id}:${fp}:${seedKey}:${item.id}`;
+          `ovrow:v6:${organizationId}:${account.ad_account_id}:${fp}:${seedKey}:${item.id}`;
         if (!forceRefresh) {
           const cached = cacheGet(cacheKey);
           if (cached) return cached as Record<string, unknown>;
@@ -811,10 +1276,38 @@ Deno.serve(async (req: Request) => {
             return {
               id: item.id,
               and: { users_lower: null, users_upper: null, estimate_ready: false },
+              b: { users_lower: null, users_upper: null },
+              comparison_users: { users_lower: null, users_upper: null },
               pct: null,
+              pct_com: null,
+              pct_sel: null,
               error: "Unsupported targeting type for overlap",
             };
           }
+          const estB = await reachEstimate(accessToken, act, specB);
+          const bLower = estB.users_lower;
+          const bUpper = estB.users_upper;
+          const bFloor = isMetaReachPrivacyFloor(bLower, bUpper);
+          const bReach = { users_lower: bLower, users_upper: bUpper };
+
+          if (seedIds.has(item.id) && seeds.length === 1) {
+            const row = {
+              id: item.id,
+              and: {
+                users_lower: seedLower,
+                users_upper: seedUpper,
+                estimate_ready: true,
+              },
+              b: bReach,
+              comparison_users: bReach,
+              pct: 100,
+              pct_com: 100,
+              pct_sel: 100,
+            };
+            cacheSet(cacheKey, row);
+            return row;
+          }
+
           const specAnd = buildIntersectionTargetingSpec(specSeed, specB);
           let estAnd = await reachEstimate(accessToken, act, specAnd);
           if (isMetaReachPrivacyFloor(estAnd.users_lower, estAnd.users_upper)) {
@@ -834,21 +1327,15 @@ Deno.serve(async (req: Request) => {
               /* keep AND reach */
             }
           }
-          let bLower = item.potential_lower;
-          let bUpper = item.potential_upper;
-          if (bLower == null && bUpper == null) {
-            const estB = await reachEstimate(accessToken, act, specB);
-            bLower = estB.users_lower;
-            bUpper = estB.users_upper;
-          }
           const andFloor = isMetaReachPrivacyFloor(estAnd.users_lower, estAnd.users_upper);
-          const bFloor = isMetaReachPrivacyFloor(bLower, bUpper);
           const den = mid(bLower, bUpper);
+          const seedDen = mid(seedLower, seedUpper);
           const num = mid(estAnd.users_lower, estAnd.users_upper);
+          const capped = den > 0 && seedDen > 0 ? Math.min(num, den, seedDen) : num;
           const pct =
             seedFloor || andFloor || bFloor || den <= 0
               ? null
-              : Math.min(100, Math.max(0, (num / den) * 100));
+              : Math.min(100, Math.max(0, (capped / den) * 100));
           const row = {
             id: item.id,
             and: {
@@ -856,7 +1343,11 @@ Deno.serve(async (req: Request) => {
               users_upper: estAnd.users_upper,
               estimate_ready: estAnd.estimate_ready,
             },
+            b: bReach,
+            comparison_users: bReach,
             pct,
+            pct_com: pct,
+            pct_sel: pctSelFor(estAnd.users_lower, estAnd.users_upper, bFloor),
           };
           cacheSet(cacheKey, row);
           return row;
@@ -864,7 +1355,11 @@ Deno.serve(async (req: Request) => {
           return {
             id: item.id,
             and: { users_lower: null, users_upper: null, estimate_ready: false },
+            b: { users_lower: null, users_upper: null },
+            comparison_users: { users_lower: null, users_upper: null },
             pct: null,
+            pct_com: null,
+            pct_sel: null,
             error: e instanceof Error ? e.message : String(e),
           };
         }
@@ -872,6 +1367,7 @@ Deno.serve(async (req: Request) => {
 
       return metaAdsJson({
         rows,
+        seed: { users_lower: seedLower, users_upper: seedUpper },
         seed_ids: seeds.map((s) => s.id),
         ad_account_id: account.ad_account_id,
         country_code: filters.countryCode,
@@ -1017,10 +1513,12 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "listLists") {
+      const ownerAccountId = accountDigits(account.ad_account_id);
       const { data, error } = await admin
         .from("meta_ads_interest_lists")
-        .select("id, name, created_by, created_at, updated_at, meta_ads_interest_list_items(count)")
+        .select(`${LIST_ROW_SELECT}, meta_ads_interest_list_items(count)`)
         .eq("organization_id", organizationId)
+        .eq("ad_account_id", ownerAccountId)
         .order("updated_at", { ascending: false });
       if (error) return metaAdsJson({ error: error.message }, 500);
       return metaAdsJson({ lists: data ?? [] }, 200);
@@ -1031,19 +1529,80 @@ Deno.serve(async (req: Request) => {
       if (!listId) return metaAdsJson({ error: "Missing list_id" }, 400);
       const { data: list, error: listErr } = await admin
         .from("meta_ads_interest_lists")
-        .select("id, name, created_by, created_at, updated_at")
+        .select(LIST_ROW_SELECT)
         .eq("organization_id", organizationId)
         .eq("id", listId)
         .maybeSingle();
       if (listErr) return metaAdsJson({ error: listErr.message }, 500);
-      if (!list) return metaAdsJson({ error: "List not found" }, 404);
+      if (!list || !listBelongsToAccount(list as InterestListRow, account.ad_account_id)) {
+        return metaAdsJson({ error: "List not found" }, 404);
+      }
       const { data: items, error: itemsErr } = await admin
         .from("meta_ads_interest_list_items")
         .select("*")
         .eq("list_id", listId)
+        .order("match_group", { ascending: true })
         .order("sort_order", { ascending: true });
       if (itemsErr) return metaAdsJson({ error: itemsErr.message }, 500);
       return metaAdsJson({ list, items: items ?? [] }, 200);
+    }
+
+    if (action === "list_grouped_reach") {
+      const listId = String(body.list_id ?? "").trim();
+      if (!listId) return metaAdsJson({ error: "Missing list_id" }, 400);
+      const { data: list, error: listErr } = await admin
+        .from("meta_ads_interest_lists")
+        .select(LIST_ROW_SELECT)
+        .eq("organization_id", organizationId)
+        .eq("id", listId)
+        .maybeSingle();
+      if (listErr) return metaAdsJson({ error: listErr.message }, 500);
+      if (!list || !listBelongsToAccount(list as InterestListRow, account.ad_account_id)) {
+        return metaAdsJson({ error: "List not found" }, 404);
+      }
+      const items = await loadListSpecItems(admin, listId);
+      const groups = groupListSpecItems(items);
+      const include = groups[0] ?? [];
+      if (!include.length) {
+        return metaAdsJson({ error: "Include group must have at least one interest" }, 400);
+      }
+      const filters = await parseResearchFiltersForReach(accessToken, body, countryCode, account);
+      const specArgs = {
+        countryCodes: [filters.countryCode],
+        ageMin: filters.ageMin,
+        ageMax: filters.ageMax,
+        genders: filters.genders,
+        placement: filters.placement,
+        selectedLocations: filters.locations,
+        idsOnly: true as const,
+      };
+      const includeSpec = buildUnionInterestTargetingSpec({ ...specArgs, items: include });
+      const includeReach = applyOfficialPotential({
+        reach: await reachEstimate(accessToken, act, includeSpec),
+        delivery: { mau_lower: null, mau_upper: null, estimate_ready: null },
+      });
+      const nonempty = groups.filter((group) => group.length > 0);
+      let firstNarrow = null as MetaReachEstimate | null;
+      let intersection = null as MetaReachEstimate | null;
+      if (nonempty.length >= 2) {
+        const narrowSpec = buildUnionInterestTargetingSpec({ ...specArgs, items: nonempty[1] });
+        firstNarrow = applyOfficialPotential({
+          reach: await reachEstimate(accessToken, act, narrowSpec),
+          delivery: { mau_lower: null, mau_upper: null, estimate_ready: null },
+        });
+        const andSpec = buildGroupedInterestTargetingSpec({ ...specArgs, groups: nonempty });
+        intersection = applyOfficialPotential({
+          reach: await reachEstimate(accessToken, act, andSpec),
+          delivery: { mau_lower: null, mau_upper: null, estimate_ready: null },
+        });
+      }
+      return metaAdsJson({
+        include: includeReach,
+        first_narrow: firstNarrow,
+        intersection,
+        country_code: filters.countryCode,
+        group_counts: groups.map((group) => group.length),
+      }, 200);
     }
 
     if (action === "createList") {
@@ -1055,8 +1614,9 @@ Deno.serve(async (req: Request) => {
           organization_id: organizationId,
           name,
           created_by: userRes.userId,
+          ad_account_id: accountDigits(account.ad_account_id),
         })
-        .select("id, name, created_by, created_at, updated_at")
+        .select(LIST_ROW_SELECT)
         .single();
       if (error) return metaAdsJson({ error: error.message }, 500);
       return metaAdsJson({ list: data }, 200);
@@ -1071,23 +1631,58 @@ Deno.serve(async (req: Request) => {
         .update({ name, updated_at: new Date().toISOString() })
         .eq("organization_id", organizationId)
         .eq("id", listId)
-        .select("id, name, created_by, created_at, updated_at")
+        .eq("ad_account_id", accountDigits(account.ad_account_id))
+        .select(LIST_ROW_SELECT)
         .maybeSingle();
       if (error) return metaAdsJson({ error: error.message }, 500);
       if (!data) return metaAdsJson({ error: "List not found" }, 404);
-      return metaAdsJson({ list: data }, 200);
+      const metaSyncError = await syncPushedSavedAudience({
+        admin,
+        accessToken,
+        account,
+        act,
+        list: data as InterestListRow,
+        body,
+        countryCode,
+      });
+      return metaAdsJson({ list: data, meta_sync_error: metaSyncError }, 200);
     }
 
     if (action === "deleteList") {
       const listId = String(body.list_id ?? "").trim();
       if (!listId) return metaAdsJson({ error: "Missing list_id" }, 400);
+      const { data: existing } = await admin
+        .from("meta_ads_interest_lists")
+        .select(LIST_ROW_SELECT)
+        .eq("organization_id", organizationId)
+        .eq("id", listId)
+        .maybeSingle();
+      let metaSyncError: string | null = null;
+      const existingRow = existing as InterestListRow | null;
+      if (!existingRow || !listBelongsToAccount(existingRow, account.ad_account_id)) {
+        return metaAdsJson({ error: "List not found" }, 404);
+      }
+      const objectId =
+        String(existingRow?.meta_push_kind ?? "") === "adset_draft"
+          ? String(existingRow?.meta_adset_id ?? "").trim()
+          : String(existingRow?.meta_saved_audience_id ?? "").trim();
+      if (objectId) {
+        try {
+          await deleteMetaSavedAudience(accessToken, objectId);
+        } catch (syncErr) {
+          metaSyncError = syncErr instanceof Error
+            ? syncErr.message
+            : "Meta object could not be deleted";
+        }
+      }
       const { error } = await admin
         .from("meta_ads_interest_lists")
         .delete()
         .eq("organization_id", organizationId)
-        .eq("id", listId);
+        .eq("id", listId)
+        .eq("ad_account_id", accountDigits(account.ad_account_id));
       if (error) return metaAdsJson({ error: error.message }, 500);
-      return metaAdsJson({ ok: true }, 200);
+      return metaAdsJson({ ok: true, meta_sync_error: metaSyncError }, 200);
     }
 
     if (action === "addListItems") {
@@ -1095,29 +1690,49 @@ Deno.serve(async (req: Request) => {
       if (!listId) return metaAdsJson({ error: "Missing list_id" }, 400);
       const { data: owned } = await admin
         .from("meta_ads_interest_lists")
-        .select("id")
+        .select(LIST_ROW_SELECT)
         .eq("organization_id", organizationId)
         .eq("id", listId)
         .maybeSingle();
-      if (!owned) return metaAdsJson({ error: "List not found" }, 404);
+      if (!owned || !listBelongsToAccount(owned as InterestListRow, account.ad_account_id)) {
+        return metaAdsJson({ error: "List not found" }, 404);
+      }
 
       const rawItems = Array.isArray(body.items) ? body.items as Array<Record<string, unknown>> : [];
       if (rawItems.length === 0) return metaAdsJson({ error: "Missing items" }, 400);
 
-      const { data: existing } = await admin
-        .from("meta_ads_interest_list_items")
-        .select("sort_order")
-        .eq("list_id", listId)
-        .order("sort_order", { ascending: false })
-        .limit(1);
-      let sortBase = Number((existing?.[0] as { sort_order?: number } | undefined)?.sort_order ?? 0);
+      const matchGroup = parseMatchGroup(body.match_group);
+      if (matchGroup > MAX_LIST_MATCH_GROUP) {
+        return metaAdsJson({ error: "match_group must be between 0 and 4" }, 400);
+      }
 
-      const rows = rawItems.map((item) => {
+      const { data: existingRows } = await admin
+        .from("meta_ads_interest_list_items")
+        .select("meta_targeting_id, sort_order")
+        .eq("list_id", listId)
+        .order("sort_order", { ascending: false });
+      const existingIds = new Set(
+        (existingRows ?? []).map((row) => String((row as { meta_targeting_id?: string }).meta_targeting_id ?? "")),
+      );
+      let sortBase = Number((existingRows?.[0] as { sort_order?: number } | undefined)?.sort_order ?? 0);
+
+      const seenIncoming = new Set<string>();
+      const skipped_ids: string[] = [];
+      const rows = [];
+      for (const item of rawItems) {
+        const id = String(item.id ?? item.meta_targeting_id ?? "").trim();
+        const name = String(item.name ?? "").trim();
+        if (!id || !name) continue;
+        if (seenIncoming.has(id) || existingIds.has(id)) {
+          skipped_ids.push(id);
+          continue;
+        }
+        seenIncoming.add(id);
         sortBase += 1;
-        return {
+        rows.push({
           list_id: listId,
-          meta_targeting_id: String(item.id ?? item.meta_targeting_id ?? "").trim(),
-          name: String(item.name ?? "").trim(),
+          meta_targeting_id: id,
+          name,
           type: String(item.type ?? "interest").trim() || "interest",
           path: Array.isArray(item.path) ? item.path : [],
           audience_size_lower: item.audience_size_lower != null
@@ -1127,14 +1742,23 @@ Deno.serve(async (req: Request) => {
             ? Number(item.audience_size_upper)
             : null,
           sort_order: sortBase,
-        };
-      }).filter((r) => r.meta_targeting_id && r.name);
+          match_group: matchGroup,
+        });
+      }
 
-      if (rows.length === 0) return metaAdsJson({ error: "No valid items" }, 400);
+      if (rows.length === 0) {
+        return metaAdsJson({
+          error: skipped_ids.length
+            ? "Those interests are already in this list"
+            : "No valid items",
+          skipped_ids,
+          added: 0,
+        }, skipped_ids.length ? 409 : 400);
+      }
 
       const { error } = await admin
         .from("meta_ads_interest_list_items")
-        .upsert(rows, { onConflict: "list_id,meta_targeting_id" });
+        .insert(rows);
       if (error) return metaAdsJson({ error: error.message }, 500);
 
       await admin
@@ -1142,7 +1766,21 @@ Deno.serve(async (req: Request) => {
         .update({ updated_at: new Date().toISOString() })
         .eq("id", listId);
 
-      return metaAdsJson({ ok: true, added: rows.length }, 200);
+      const metaSyncError = await syncPushedSavedAudience({
+        admin,
+        accessToken,
+        account,
+        act,
+        list: owned as InterestListRow,
+        body,
+        countryCode,
+      });
+      return metaAdsJson({
+        ok: true,
+        added: rows.length,
+        skipped_ids,
+        meta_sync_error: metaSyncError,
+      }, 200);
     }
 
     if (action === "removeListItem") {
@@ -1151,18 +1789,239 @@ Deno.serve(async (req: Request) => {
       if (!listId || !itemId) return metaAdsJson({ error: "Missing list_id/item_id" }, 400);
       const { data: owned } = await admin
         .from("meta_ads_interest_lists")
-        .select("id")
+        .select(LIST_ROW_SELECT)
         .eq("organization_id", organizationId)
         .eq("id", listId)
         .maybeSingle();
-      if (!owned) return metaAdsJson({ error: "List not found" }, 404);
+      if (!owned || !listBelongsToAccount(owned as InterestListRow, account.ad_account_id)) {
+        return metaAdsJson({ error: "List not found" }, 404);
+      }
       const { error } = await admin
         .from("meta_ads_interest_list_items")
         .delete()
         .eq("list_id", listId)
         .eq("id", itemId);
       if (error) return metaAdsJson({ error: error.message }, 500);
-      return metaAdsJson({ ok: true }, 200);
+      const metaSyncError = await syncPushedSavedAudience({
+        admin,
+        accessToken,
+        account,
+        act,
+        list: owned as InterestListRow,
+        body,
+        countryCode,
+      });
+      return metaAdsJson({ ok: true, meta_sync_error: metaSyncError }, 200);
+    }
+
+    if (action === "removeListGroup") {
+      const listId = String(body.list_id ?? "").trim();
+      const matchGroup = parseMatchGroup(body.match_group);
+      if (!listId) return metaAdsJson({ error: "Missing list_id" }, 400);
+      if (matchGroup < 1) return metaAdsJson({ error: "Can only remove Narrow groups" }, 400);
+      const { data: owned } = await admin
+        .from("meta_ads_interest_lists")
+        .select(LIST_ROW_SELECT)
+        .eq("organization_id", organizationId)
+        .eq("id", listId)
+        .maybeSingle();
+      if (!owned || !listBelongsToAccount(owned as InterestListRow, account.ad_account_id)) {
+        return metaAdsJson({ error: "List not found" }, 404);
+      }
+      const { error } = await admin
+        .from("meta_ads_interest_list_items")
+        .delete()
+        .eq("list_id", listId)
+        .eq("match_group", matchGroup);
+      if (error) return metaAdsJson({ error: error.message }, 500);
+      const metaSyncError = await syncPushedSavedAudience({
+        admin,
+        accessToken,
+        account,
+        act,
+        list: owned as InterestListRow,
+        body,
+        countryCode,
+      });
+      return metaAdsJson({ ok: true, meta_sync_error: metaSyncError }, 200);
+    }
+
+    if (action === "createSavedAudience") {
+      const listId = String(body.list_id ?? "").trim();
+      if (!listId) return metaAdsJson({ error: "Missing list_id" }, 400);
+      const { data: list, error: listErr } = await admin
+        .from("meta_ads_interest_lists")
+        .select(LIST_ROW_SELECT)
+        .eq("organization_id", organizationId)
+        .eq("id", listId)
+        .maybeSingle();
+      if (listErr) return metaAdsJson({ error: listErr.message }, 500);
+      if (!list || !listBelongsToAccount(list as InterestListRow, account.ad_account_id)) {
+        return metaAdsJson({ error: "List not found" }, 404);
+      }
+      const items = await loadListSpecItems(admin, listId);
+      if (!items.length) {
+        return metaAdsJson({ error: "List has no interests to push" }, 400);
+      }
+      if (!items.some((item) => item.match_group === 0)) {
+        return metaAdsJson({ error: "Include group must have at least one interest" }, 400);
+      }
+      const pushFilters = await parseResearchFiltersForReach(accessToken, body, countryCode, account);
+      const spec = targetingSpecFromListItems(items, {
+        countryCodes: [pushFilters.countryCode],
+        ageMin: pushFilters.ageMin,
+        ageMax: pushFilters.ageMax,
+        genders: pushFilters.genders,
+        placement: pushFilters.placement,
+        selectedLocations: pushFilters.locations,
+      });
+      if (!specHasFlexibleTargeting(spec)) {
+        return metaAdsJson({
+          error: "Select at least one supported targeting option (interest, behaviour, life event, etc.).",
+        }, 400);
+      }
+      const listRow = list as InterestListRow;
+      const sameAccount =
+        String(listRow.meta_ad_account_id ?? "").replace(/\D/g, "") ===
+        String(account.ad_account_id).replace(/\D/g, "");
+      const existingKind = sameAccount ? String(listRow.meta_push_kind ?? "saved_audience") : "";
+      const existingAudienceId = sameAccount && existingKind !== "adset_draft"
+        ? String(listRow.meta_saved_audience_id ?? "").trim() || null
+        : null;
+      const existingAdsetId = sameAccount && existingKind === "adset_draft"
+        ? String(listRow.meta_adset_id ?? "").trim() || null
+        : null;
+      const listName = String(listRow.name ?? "");
+      const createNew = body.create_new === true;
+      const draftCampaignName =
+        String(body.campaign_name ?? "").trim() || `Synckerja ${listName}`.slice(0, 80);
+      const draftAdsetName =
+        String(body.adset_name ?? "").trim() || listName.slice(0, 80) || "Interest list";
+      const draftDailyBudget = Number(body.daily_budget);
+      const attachCampaignId = String(body.campaign_id ?? "").trim() || null;
+      const makeDraft = () =>
+        createPausedInterestAdDraft(accessToken, act, {
+          targetingSpec: spec,
+          campaignName: draftCampaignName,
+          adsetName: draftAdsetName,
+          dailyBudget: Number.isFinite(draftDailyBudget) && draftDailyBudget > 0
+            ? draftDailyBudget
+            : 50_000,
+          lifetimeBudget: Number(body.lifetime_budget) > 0 ? Number(body.lifetime_budget) : null,
+          campaignId: attachCampaignId,
+          objective: pushFilters.objective,
+          promotedObject: pushFilters.promotedObject,
+          buyingType: String(body.buying_type ?? "AUCTION"),
+          budgetLevel: String(body.budget_level ?? "CAMPAIGN"),
+          bidStrategy: String(body.bid_strategy ?? "LOWEST_COST_WITHOUT_CAP"),
+          bidAmount: Number(body.bid_amount) > 0 ? Number(body.bid_amount) : null,
+          roasAverageFloor: Number(body.roas_average_floor) > 0 ? Number(body.roas_average_floor) : null,
+          adName: String(body.ad_name ?? "").trim() || null,
+          destinationType: String(body.destination_type ?? "").trim() || null,
+          optimizationGoal: String(body.optimization_goal ?? "").trim() || null,
+          attributionModel: String(body.attribution_model ?? "").trim() || null,
+          websiteUrl: String(body.website_url ?? body.websiteUrl ?? body.link_url ?? "").trim() || null,
+          imageUrl: String(body.image_url ?? body.imageUrl ?? "").trim() || null,
+        });
+
+      let pushKind: "saved_audience" | "adset_draft" = "saved_audience";
+      let savedAudienceId: string | null = null;
+      let campaignId: string | null = sameAccount ? String(listRow.meta_campaign_id ?? "").trim() || null : null;
+      let adsetId: string | null = existingAdsetId;
+      let adId: string | null = null;
+      let updatedFlag = false;
+      let adsManagerUrl = "";
+
+      // Meta Graph Saved Audience object is read-only (create/update/delete unsupported).
+      // ads_management Standard Access is not enough; POST /saved_audiences returns (#3).
+      if (existingAdsetId && !createNew) {
+        try {
+          await updateAdsetTargeting(accessToken, existingAdsetId, {
+            name: listName,
+            targetingSpec: spec,
+          });
+          pushKind = "adset_draft";
+          updatedFlag = true;
+          adsManagerUrl = adsManagerAdsetsUrl(account.ad_account_id, {
+            campaignId,
+            adsetId: existingAdsetId,
+          });
+        } catch (err) {
+          if (!isDeletedOrMissingAdObjectError(err)) throw err;
+          const draft = await makeDraft();
+          pushKind = "adset_draft";
+          campaignId = draft.campaign_id;
+          adsetId = draft.adset_id;
+          adId = draft.ad_id;
+          adsManagerUrl = draft.ad_id
+            ? adsManagerAdsUrl(account.ad_account_id, {
+              campaignId: draft.campaign_id,
+              adsetId: draft.adset_id,
+              adId: draft.ad_id,
+            })
+            : adsManagerAdsetsUrl(account.ad_account_id, {
+              campaignId: draft.campaign_id,
+              adsetId: draft.adset_id,
+            });
+        }
+      } else if (existingAudienceId && !createNew) {
+        const pushed = await createOrUpdateMetaSavedAudience(accessToken, act, {
+          name: listName,
+          targetingSpec: spec,
+          existingAudienceId,
+        });
+        savedAudienceId = pushed.id;
+        updatedFlag = pushed.updated;
+        adsManagerUrl = adsManagerAudiencesUrl(account.ad_account_id, pushed.id);
+      } else {
+        const draft = await makeDraft();
+        pushKind = "adset_draft";
+        campaignId = draft.campaign_id;
+        adsetId = draft.adset_id;
+        adId = draft.ad_id;
+        adsManagerUrl = draft.ad_id
+          ? adsManagerAdsUrl(account.ad_account_id, {
+            campaignId: draft.campaign_id,
+            adsetId: draft.adset_id,
+            adId: draft.ad_id,
+          })
+          : adsManagerAdsetsUrl(account.ad_account_id, {
+            campaignId: draft.campaign_id,
+            adsetId: draft.adset_id,
+          });
+      }
+
+      const now = new Date().toISOString();
+      const { data: updated, error: saveErr } = await admin
+        .from("meta_ads_interest_lists")
+        .update({
+          ad_account_id: accountDigits(account.ad_account_id),
+          meta_saved_audience_id: savedAudienceId,
+          meta_ad_account_id: account.ad_account_id,
+          meta_saved_audience_pushed_at: now,
+          meta_saved_audience_filters: snapshotAudienceFilters(body, countryCode),
+          meta_push_kind: pushKind,
+          meta_campaign_id: campaignId,
+          meta_adset_id: adsetId,
+          updated_at: now,
+        })
+        .eq("id", listId)
+        .eq("organization_id", organizationId)
+        .select(LIST_ROW_SELECT)
+        .maybeSingle();
+      if (saveErr) return metaAdsJson({ error: saveErr.message }, 500);
+      return metaAdsJson({
+        list: updated,
+        saved_audience_id: savedAudienceId,
+        adset_id: adsetId,
+        ad_id: adId,
+        campaign_id: campaignId,
+        ad_account_id: account.ad_account_id,
+        ads_manager_url: adsManagerUrl,
+        updated: updatedFlag,
+        push_kind: pushKind,
+        targeting_spec: spec,
+      }, 200);
     }
 
     if (action === "createAdDraft") {
@@ -1210,12 +2069,36 @@ Deno.serve(async (req: Request) => {
         campaignName: body.campaign_name != null ? String(body.campaign_name) : undefined,
         adsetName: body.adset_name != null ? String(body.adset_name) : undefined,
         dailyBudget: body.daily_budget != null ? Number(body.daily_budget) : 50_000,
+        lifetimeBudget: Number(body.lifetime_budget) > 0 ? Number(body.lifetime_budget) : null,
         campaignId: body.campaign_id != null ? String(body.campaign_id) : null,
+        objective: draftFilters.objective,
+        promotedObject: draftFilters.promotedObject,
+        buyingType: String(body.buying_type ?? "AUCTION"),
+        budgetLevel: String(body.budget_level ?? "CAMPAIGN"),
+        bidStrategy: String(body.bid_strategy ?? "LOWEST_COST_WITHOUT_CAP"),
+        bidAmount: Number(body.bid_amount) > 0 ? Number(body.bid_amount) : null,
+        roasAverageFloor: Number(body.roas_average_floor) > 0 ? Number(body.roas_average_floor) : null,
+        adName: body.ad_name != null ? String(body.ad_name) : undefined,
+        destinationType: body.destination_type != null ? String(body.destination_type) : null,
+        optimizationGoal: body.optimization_goal != null ? String(body.optimization_goal) : null,
+        attributionModel: body.attribution_model != null ? String(body.attribution_model) : null,
+        websiteUrl: String(body.website_url ?? body.websiteUrl ?? body.link_url ?? "").trim() || null,
+        imageUrl: String(body.image_url ?? body.imageUrl ?? "").trim() || null,
       });
       return metaAdsJson({
         ...draft,
         targeting_spec: spec,
         ad_account_id: account.ad_account_id,
+        ads_manager_url: draft.ad_id
+          ? adsManagerAdsUrl(account.ad_account_id, {
+            campaignId: draft.campaign_id,
+            adsetId: draft.adset_id,
+            adId: draft.ad_id,
+          })
+          : adsManagerAdsetsUrl(account.ad_account_id, {
+            campaignId: draft.campaign_id,
+            adsetId: draft.adset_id,
+          }),
         note: "Created as PAUSED draft. Review in Meta Ads Manager before enabling.",
       }, 200);
     }

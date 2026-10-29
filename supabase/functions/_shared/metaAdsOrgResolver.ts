@@ -25,6 +25,14 @@ function actId(adAccountId: string): string {
 
 export { actId as metaActId };
 
+function pickAccountRow(rows: MetaAdsAccountRow[] | null | undefined): MetaAdsAccountRow | null {
+  const list = (rows ?? []).filter(Boolean);
+  if (!list.length) return null;
+  const active = list.filter((row) => row.is_active);
+  const pool = active.length ? active : list;
+  return pool.find((row) => row.is_default) ?? pool[0];
+}
+
 export async function getMetaAdsAccessToken(
   admin: SupabaseClient,
   organizationId: string,
@@ -127,25 +135,22 @@ export async function resolveOrgMetaAdsForMetrics(
 
   if (adAccountId) {
     const digits = adAccountId.replace(/\D/g, "");
-    const { data: row } = await admin
+    const { data: rows } = await admin
       .from("organization_meta_ads_accounts")
       .select("*")
       .eq("organization_id", organizationId)
-      .eq("is_active", true)
-      .eq("ad_account_id", digits)
-      .maybeSingle();
-    if (row) account = row as MetaAdsAccountRow;
+      .eq("ad_account_id", digits);
+    account = pickAccountRow(rows as MetaAdsAccountRow[] | null);
   }
 
   if (!account) {
-    const { data: defaultRow } = await admin
+    const { data: defaultRows } = await admin
       .from("organization_meta_ads_accounts")
       .select("*")
       .eq("organization_id", organizationId)
       .eq("is_active", true)
-      .eq("is_default", true)
-      .maybeSingle();
-    account = (defaultRow as MetaAdsAccountRow | null) ?? null;
+      .eq("is_default", true);
+    account = pickAccountRow(defaultRows as MetaAdsAccountRow[] | null);
   }
 
   if (!account) return null;
@@ -172,24 +177,22 @@ export async function resolveOrgMetaAdsForTargeting(
 
   if (adAccountId) {
     const digits = adAccountId.replace(/\D/g, "");
-    const { data: row } = await admin
+    const { data: rows } = await admin
       .from("organization_meta_ads_accounts")
       .select("*")
       .eq("organization_id", organizationId)
-      .eq("ad_account_id", digits)
-      .maybeSingle();
-    if (row) account = row as MetaAdsAccountRow;
+      .eq("ad_account_id", digits);
+    account = pickAccountRow(rows as MetaAdsAccountRow[] | null);
   }
 
   if (!account) {
-    const { data: defaultRow } = await admin
+    const { data: defaultRows } = await admin
       .from("organization_meta_ads_accounts")
       .select("*")
       .eq("organization_id", organizationId)
       .eq("is_active", true)
-      .eq("is_default", true)
-      .maybeSingle();
-    account = (defaultRow as MetaAdsAccountRow | null) ?? null;
+      .eq("is_default", true);
+    account = pickAccountRow(defaultRows as MetaAdsAccountRow[] | null);
   }
 
   if (!account) {

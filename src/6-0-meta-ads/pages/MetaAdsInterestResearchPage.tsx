@@ -21,6 +21,7 @@ import {
 } from "@/6-0-meta-ads/components/MetaAdsEntityNav";
 import { InterestResearchWorkspace } from "@/6-0-meta-ads/components/interest-research/InterestResearchWorkspace";
 import { InterestResearchSavedPanel } from "@/6-0-meta-ads/components/interest-research/InterestResearchSavedPanel";
+import type { PopulationBudgetSession } from "@/6-0-meta-ads/components/interest-research/population-budget";
 import {
   InterestResearchReachPanel,
   type InterestResearchReachResult,
@@ -30,7 +31,10 @@ import {
   type InterestResearchOverlapResult,
 } from "@/6-0-meta-ads/components/interest-research/InterestResearchOverlapPanel";
 import { useDigitalMarketingPaidAdsFilters } from "@/6-0-digital-marketing-shared/DigitalMarketingPaidAdsFiltersContext";
-import type { MetaTargetingItem } from "@/meta-ads/hooks/useMetaAdsTargeting";
+import type {
+  InterestResearchFilters,
+  MetaTargetingItem,
+} from "@/meta-ads/hooks/useMetaAdsTargeting";
 
 export default function MetaAdsInterestResearchPage() {
   const { orgBootstrapPending } = useOrgBootstrapPending();
@@ -68,6 +72,9 @@ function MetaAdsInterestResearchPageContent() {
   const [loadedItems, setLoadedItems] = useState<MetaTargetingItem[] | null>(null);
   const [reachResult, setReachResult] = useState<InterestResearchReachResult | null>(null);
   const [overlapResult, setOverlapResult] = useState<InterestResearchOverlapResult | null>(null);
+  const [researchFilters, setResearchFilters] = useState<InterestResearchFilters | null>(null);
+  const [populationBudget, setPopulationBudget] = useState<PopulationBudgetSession | null>(null);
+  const [selectedResearchItems, setSelectedResearchItems] = useState<MetaTargetingItem[]>([]);
 
   const oauthConnected = settings?.oauthConnected ?? false;
   const allActiveAccounts = useMemo(
@@ -208,11 +215,19 @@ function MetaAdsInterestResearchPageContent() {
               onExternalItemsConsumed={clearLoaded}
               onReachResultChange={setReachResult}
               onOverlapResultChange={setOverlapResult}
+              onResearchFiltersChange={setResearchFilters}
+              populationBudget={populationBudget}
+              onClosePopulationBudget={() => setPopulationBudget(null)}
+              onSelectedItemsChange={setSelectedResearchItems}
             />
             <aside className="hidden h-full min-h-0 w-[320px] shrink-0 flex-col overflow-hidden border-l border-gray-200 bg-white xl:flex">
               <InterestResearchSavedPanel
                 organizationId={organizationId!}
+                adAccountId={adAccountId}
+                filters={researchFilters}
                 onLoadItems={setLoadedItems}
+                onCalculatePopulation={setPopulationBudget}
+                selectedItems={selectedResearchItems}
                 topContent={
                   reachResult || overlapResult ? (
                     <div className="space-y-3">

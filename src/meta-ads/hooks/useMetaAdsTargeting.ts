@@ -37,7 +37,34 @@ export type MetaInterestList = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  ad_account_id?: string | null;
+  meta_saved_audience_id?: string | null;
+  meta_ad_account_id?: string | null;
+  meta_saved_audience_pushed_at?: string | null;
+  meta_saved_audience_filters?: Record<string, unknown> | null;
+  meta_push_kind?: string | null;
+  meta_campaign_id?: string | null;
+  meta_adset_id?: string | null;
   meta_ads_interest_list_items?: Array<{ count: number }> | { count: number };
+};
+
+export type MetaSavedAudiencePushResult = {
+  list: MetaInterestList | null;
+  saved_audience_id: string | null;
+  adset_id?: string | null;
+  ad_id?: string | null;
+  campaign_id?: string | null;
+  ad_account_id: string;
+  ads_manager_url: string;
+  updated: boolean;
+  push_kind?: "saved_audience" | "adset_draft";
+};
+
+type InterestListMutationResult = {
+  ok?: boolean;
+  added?: number;
+  list?: MetaInterestList;
+  meta_sync_error?: string | null;
 };
 
 export type MetaInterestListItem = {
@@ -50,7 +77,10 @@ export type MetaInterestListItem = {
   audience_size_lower: number | null;
   audience_size_upper: number | null;
   sort_order: number;
+  match_group?: number;
 };
+
+export const MAX_INTEREST_LIST_MATCH_GROUP = 4;
 
 async function invokeTargeting<T>(
   organizationId: string,
@@ -131,6 +161,23 @@ export function useMetaAdsTargetingSearch(args: {
   };
 }
 
+export function useMetaAdsTargetingCategories(args: {
+  organizationId: string | null | undefined;
+  adAccountId: string;
+  enabled?: boolean;
+}) {
+  const { organizationId, adAccountId, enabled = true } = args;
+  return useQuery({
+    queryKey: ["meta-ads-targeting-categories", organizationId, adAccountId],
+    enabled: Boolean(organizationId && adAccountId && enabled),
+    staleTime: 30 * 60 * 1000,
+    queryFn: () =>
+      invokeTargeting<{ items: MetaTargetingItem[] }>(organizationId!, "targeting_categories", {
+        ad_account_id: adAccountId,
+      }),
+  });
+}
+
 export function useMetaAdsTargetingSuggest() {
   return useMutation({
     mutationFn: (args: {
@@ -168,7 +215,9 @@ export type InterestResearchObjective =
   | "conversions"
   | "traffic"
   | "awareness"
-  | "engagement";
+  | "engagement"
+  | "leads"
+  | "app_promotion";
 export type InterestResearchPlacement =
   | "automatic"
   | "facebook"
@@ -374,7 +423,20 @@ export type MetaOverlapRow = {
     users_upper: number | null;
     estimate_ready?: boolean;
   };
+  /** Filtered potential reach of the comparison item (same geo/age/gender/placement as seed). */
+  b?: {
+    users_lower: number | null;
+    users_upper: number | null;
+  };
+  comparison_users?: {
+    users_lower: number | null;
+    users_upper: number | null;
+  };
+  /** % Com: overlap / comparison (row) potential reach */
   pct: number | null;
+  pct_com?: number | null;
+  /** % Sel: overlap / selected (seed) potential reach */
+  pct_sel?: number | null;
   error?: string;
 };
 
@@ -425,6 +487,8 @@ export function useMetaAdsTargetingEstimate() {
       filters?: InterestResearchFilters;
       countryCode?: string;
       items: Array<{ id: string; name?: string; type?: string; path?: string[] }>;
+      union?: boolean;
+      groups?: Array<Array<{ id: string; name?: string; type?: string; path?: string[] }>>;
     }) => {
       const filters = args.filters ?? {
         ...DEFAULT_INTEREST_RESEARCH_FILTERS,
@@ -437,9 +501,13 @@ export function useMetaAdsTargetingEstimate() {
         delivery_summary: MetaDeliverySummary;
         country_code: string;
         objective_downgraded?: boolean;
+        union?: boolean;
+        grouped?: boolean;
       }>(args.organizationId, "estimate", {
         ad_account_id: args.adAccountId,
         items: args.items,
+        union: args.union === true,
+        ...(args.groups?.length ? { groups: args.groups } : {}),
         ...interestResearchFiltersPayload(filters),
       });
     },
@@ -475,7 +543,106 @@ export function useMetaAdsTargetingEstimateRows() {
   });
 }
 
+export type MetaOverlapRowsResult = {
+  rows: MetaOverlapRow[];
+  seed_ids: string[];
+  seed?: { users_lower: number | null; users_upper: number | null };
+  country_code: string;
+};
+
+export type MetaOverlapPairCache = {
+  seed: { users_lower: number | null; users_upper: number | null };
+  row: MetaOverlapRow;
+};
+
+export function officialReachCount(estimate: {
+  users_lower?: number | null;
+  users_upper?: number | null;
+} | null | undefined): number | null {
+  if (!estimate) return null;
+  const mid = midBound(estimate.users_lower ?? null, estimate.users_upper ?? null);
+  if (mid == null || !Number.isFinite(mid) || mid <= 0) return null;
+  return Math.round(mid);
+}
+
+export function metaAdsOverlapPairQueryKey(args: {
+  organizationId: string;
+  adAccountId: string;
+  filters: InterestResearchFilters;
+  seedId: string;
+  comparisonId: string;
+}) {
+  const age = sanitizeMetaAgeRange(args.filters.ageMin, args.filters.ageMax);
+  return [
+    "meta-ads-overlap-pair",
+    args.organizationId,
+    args.adAccountId,
+    args.filters.countryCode,
+    args.filters.gender,
+    age.ageMin,
+    age.ageMax,
+    args.filters.placement,
+    locationsFingerprintClient(args.filters.locations ?? []),
+    args.seedId,
+    args.comparisonId,
+  ] as const;
+}
+
+export function cacheMetaAdsOverlapPairs(
+  queryClient: ReturnType<typeof useQueryClient>,
+  args: {
+    organizationId: string;
+    adAccountId: string;
+    filters: InterestResearchFilters;
+    seedId: string;
+    seed?: { users_lower: number | null; users_upper: number | null };
+    rows: MetaOverlapRow[];
+  },
+) {
+  if (!args.seed) return;
+  for (const row of args.rows) {
+    if (!row?.id) continue;
+    queryClient.setQueryData(
+      metaAdsOverlapPairQueryKey({
+        organizationId: args.organizationId,
+        adAccountId: args.adAccountId,
+        filters: args.filters,
+        seedId: args.seedId,
+        comparisonId: row.id,
+      }),
+      { seed: args.seed, row } satisfies MetaOverlapPairCache,
+    );
+  }
+}
+
+export function fetchMetaAdsOverlapRows(args: {
+  organizationId: string;
+  adAccountId: string;
+  filters: InterestResearchFilters;
+  seed: Array<{ id: string; name?: string; type?: string; path?: string[] }>;
+  items: Array<{
+    id: string;
+    name?: string;
+    type?: string;
+    path?: string[];
+    potential_lower?: number | null;
+    potential_upper?: number | null;
+  }>;
+  forceRefresh?: boolean;
+  unionItems?: boolean;
+}) {
+  return invokeTargeting<MetaOverlapRowsResult>(args.organizationId, "overlap_rows", {
+    ad_account_id: args.adAccountId,
+    seed: args.seed,
+    items: args.items,
+    union_items: args.unionItems === true,
+    force_refresh: args.forceRefresh === true,
+    ...interestResearchFiltersPayload(args.filters),
+  });
+}
+
 export function useMetaAdsTargetingOverlapRows() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (args: {
       organizationId: string;
@@ -491,18 +658,20 @@ export function useMetaAdsTargetingOverlapRows() {
         potential_upper?: number | null;
       }>;
       forceRefresh?: boolean;
-    }) =>
-      invokeTargeting<{
-        rows: MetaOverlapRow[];
-        seed_ids: string[];
-        country_code: string;
-      }>(args.organizationId, "overlap_rows", {
-        ad_account_id: args.adAccountId,
-        seed: args.seed,
-        items: args.items,
-        force_refresh: args.forceRefresh === true,
-        ...interestResearchFiltersPayload(args.filters),
-      }),
+      unionItems?: boolean;
+    }) => fetchMetaAdsOverlapRows(args),
+    onSuccess: (data, args) => {
+      const seedId = args.seed[0]?.id;
+      if (!seedId || args.unionItems) return;
+      cacheMetaAdsOverlapPairs(queryClient, {
+        organizationId: args.organizationId,
+        adAccountId: args.adAccountId,
+        filters: args.filters,
+        seedId,
+        seed: data.seed,
+        rows: data.rows ?? [],
+      });
+    },
   });
 }
 
@@ -566,6 +735,35 @@ export function useMetaAdsTargetingSpike() {
   });
 }
 
+export type MetaAdCampaignOption = {
+  id: string;
+  name: string;
+  objective: string;
+  buying_type: string;
+  status: string;
+  effective_status: string;
+  daily_budget?: string;
+  lifetime_budget?: string;
+  is_adset_budget_sharing_enabled?: boolean;
+  uses_campaign_budget?: boolean;
+};
+
+export function useMetaAdsCampaignOptions(
+  organizationId: string | null | undefined,
+  adAccountId: string | null | undefined,
+  enabled = true,
+) {
+  const accountId = String(adAccountId ?? "").trim();
+  return useQuery({
+    queryKey: ["meta-ads-campaigns", organizationId, accountId],
+    enabled: Boolean(organizationId && accountId && enabled),
+    queryFn: () =>
+      invokeTargeting<{ campaigns: MetaAdCampaignOption[] }>(organizationId!, "listCampaigns", {
+        ad_account_id: accountId,
+      }),
+  });
+}
+
 export function useMetaAdsCreateAdDraft() {
   return useMutation({
     mutationFn: (args: {
@@ -577,7 +775,19 @@ export function useMetaAdsCreateAdDraft() {
       campaignName?: string;
       adsetName?: string;
       dailyBudget?: number;
+      lifetimeBudget?: number;
       campaignId?: string;
+      buyingType?: string;
+      budgetLevel?: "CAMPAIGN" | "ADSET";
+      bidStrategy?: string;
+      bidAmount?: number;
+      roasAverageFloor?: number;
+      adName?: string;
+      destinationType?: string;
+      optimizationGoal?: string;
+      attributionModel?: string;
+      websiteUrl?: string;
+      imageUrl?: string;
     }) => {
       const filters = args.filters ?? {
         ...DEFAULT_INTEREST_RESEARCH_FILTERS,
@@ -586,49 +796,83 @@ export function useMetaAdsCreateAdDraft() {
       return invokeTargeting<{
         campaign_id: string;
         adset_id: string;
+        ad_id?: string;
         status: string;
+        ads_manager_url?: string;
         note?: string;
       }>(args.organizationId, "createAdDraft", {
         ad_account_id: args.adAccountId,
         items: args.items,
+        ...interestResearchFiltersPayload(filters),
         campaign_name: args.campaignName,
         adset_name: args.adsetName,
         daily_budget: args.dailyBudget,
+        lifetime_budget: args.lifetimeBudget,
         campaign_id: args.campaignId,
-        ...interestResearchFiltersPayload(filters),
+        buying_type: args.buyingType,
+        budget_level: args.budgetLevel ?? "CAMPAIGN",
+        bid_strategy: args.bidStrategy,
+        bid_amount: args.bidAmount,
+        roas_average_floor: args.roasAverageFloor,
+        ad_name: args.adName,
+        destination_type: args.destinationType,
+        optimization_goal: args.optimizationGoal,
+        attribution_model: args.attributionModel,
+        website_url: args.websiteUrl,
+        image_url: args.imageUrl,
       });
     },
   });
 }
 
-export function useMetaAdsInterestLists(organizationId: string | null | undefined, enabled = true) {
+export function useMetaAdsInterestLists(
+  organizationId: string | null | undefined,
+  adAccountId?: string | null,
+  enabled = true,
+) {
+  const accountId = String(adAccountId ?? "").trim();
   return useQuery({
-    queryKey: ["meta-ads-interest-lists", organizationId],
+    queryKey: ["meta-ads-interest-lists", organizationId, accountId],
     enabled: Boolean(organizationId && enabled),
     queryFn: () =>
-      invokeTargeting<{ lists: MetaInterestList[] }>(organizationId!, "listLists"),
+      invokeTargeting<{ lists: MetaInterestList[] }>(organizationId!, "listLists", {
+        ...(accountId ? { ad_account_id: accountId } : {}),
+      }),
   });
 }
 
 export function useMetaAdsInterestListDetail(
   organizationId: string | null | undefined,
   listId: string | null,
+  adAccountId?: string | null,
   enabled = true,
 ) {
+  const accountId = String(adAccountId ?? "").trim();
   return useQuery({
-    queryKey: ["meta-ads-interest-list", organizationId, listId],
+    queryKey: ["meta-ads-interest-list", organizationId, accountId, listId],
     enabled: Boolean(organizationId && listId && enabled),
     queryFn: () =>
       invokeTargeting<{ list: MetaInterestList; items: MetaInterestListItem[] }>(
         organizationId!,
         "getList",
-        { list_id: listId },
+        {
+          list_id: listId,
+          ...(accountId ? { ad_account_id: accountId } : {}),
+        },
       ),
   });
 }
 
-export function useMetaAdsInterestListMutations(organizationId: string | null | undefined) {
+export function useMetaAdsInterestListMutations(
+  organizationId: string | null | undefined,
+  adAccountId?: string | null,
+) {
   const queryClient = useQueryClient();
+  const accountId = String(adAccountId ?? "").trim();
+  const withAccount = (extra: Record<string, unknown> = {}) => ({
+    ...(accountId ? { ad_account_id: accountId } : {}),
+    ...extra,
+  });
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["meta-ads-interest-lists", organizationId] });
     void queryClient.invalidateQueries({ queryKey: ["meta-ads-interest-list", organizationId] });
@@ -636,44 +880,174 @@ export function useMetaAdsInterestListMutations(organizationId: string | null | 
 
   const createList = useMutation({
     mutationFn: (name: string) =>
-      invokeTargeting<{ list: MetaInterestList }>(organizationId!, "createList", { name }),
+      invokeTargeting<{ list: MetaInterestList }>(
+        organizationId!,
+        "createList",
+        withAccount({ name }),
+      ),
     onSuccess: invalidate,
   });
 
   const renameList = useMutation({
-    mutationFn: (args: { listId: string; name: string }) =>
-      invokeTargeting<{ list: MetaInterestList }>(organizationId!, "renameList", {
-        list_id: args.listId,
-        name: args.name,
-      }),
+    mutationFn: (args: { listId: string; name: string; filters?: InterestResearchFilters | null }) =>
+      invokeTargeting<InterestListMutationResult>(
+        organizationId!,
+        "renameList",
+        withAccount({
+          list_id: args.listId,
+          name: args.name,
+          ...(args.filters ? interestResearchFiltersPayload(args.filters) : {}),
+        }),
+      ),
     onSuccess: invalidate,
   });
 
   const deleteList = useMutation({
     mutationFn: (listId: string) =>
-      invokeTargeting<{ ok: boolean }>(organizationId!, "deleteList", { list_id: listId }),
+      invokeTargeting<InterestListMutationResult>(
+        organizationId!,
+        "deleteList",
+        withAccount({ list_id: listId }),
+      ),
     onSuccess: invalidate,
   });
 
   const addItems = useMutation({
-    mutationFn: (args: { listId: string; items: MetaTargetingItem[] }) =>
-      invokeTargeting<{ ok: boolean; added: number }>(organizationId!, "addListItems", {
-        list_id: args.listId,
-        items: args.items,
-      }),
+    mutationFn: (args: {
+      listId: string;
+      items: MetaTargetingItem[];
+      matchGroup?: number;
+      filters?: InterestResearchFilters | null;
+    }) =>
+      invokeTargeting<InterestListMutationResult>(
+        organizationId!,
+        "addListItems",
+        withAccount({
+          list_id: args.listId,
+          items: args.items,
+          match_group: args.matchGroup ?? 0,
+          ...(args.filters ? interestResearchFiltersPayload(args.filters) : {}),
+        }),
+      ),
     onSuccess: invalidate,
   });
 
   const removeItem = useMutation({
-    mutationFn: (args: { listId: string; itemId: string }) =>
-      invokeTargeting<{ ok: boolean }>(organizationId!, "removeListItem", {
-        list_id: args.listId,
-        item_id: args.itemId,
-      }),
+    mutationFn: (args: {
+      listId: string;
+      itemId: string;
+      filters?: InterestResearchFilters | null;
+    }) =>
+      invokeTargeting<InterestListMutationResult>(
+        organizationId!,
+        "removeListItem",
+        withAccount({
+          list_id: args.listId,
+          item_id: args.itemId,
+          ...(args.filters ? interestResearchFiltersPayload(args.filters) : {}),
+        }),
+      ),
     onSuccess: invalidate,
   });
 
-  return { createList, renameList, deleteList, addItems, removeItem };
+  const removeGroup = useMutation({
+    mutationFn: (args: {
+      listId: string;
+      matchGroup: number;
+      filters?: InterestResearchFilters | null;
+    }) =>
+      invokeTargeting<InterestListMutationResult>(
+        organizationId!,
+        "removeListGroup",
+        withAccount({
+          list_id: args.listId,
+          match_group: args.matchGroup,
+          ...(args.filters ? interestResearchFiltersPayload(args.filters) : {}),
+        }),
+      ),
+    onSuccess: invalidate,
+  });
+
+  return { createList, renameList, deleteList, addItems, removeItem, removeGroup };
+}
+
+export function useMetaAdsListGroupedReach() {
+  return useMutation({
+    mutationFn: (args: {
+      organizationId: string;
+      adAccountId: string;
+      listId: string;
+      filters: InterestResearchFilters;
+    }) =>
+      invokeTargeting<{
+        include: MetaReachEstimate;
+        first_narrow: MetaReachEstimate | null;
+        intersection: MetaReachEstimate | null;
+        country_code: string;
+        group_counts: number[];
+      }>(args.organizationId, "list_grouped_reach", {
+        ad_account_id: args.adAccountId,
+        list_id: args.listId,
+        ...interestResearchFiltersPayload(args.filters),
+      }),
+  });
+}
+
+export function useMetaAdsCreateSavedAudience() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: {
+      organizationId: string;
+      adAccountId: string;
+      listId: string;
+      filters?: InterestResearchFilters | null;
+      campaignName?: string;
+      adsetName?: string;
+      dailyBudget?: number;
+      lifetimeBudget?: number;
+      createNew?: boolean;
+      campaignId?: string;
+      buyingType?: string;
+      budgetLevel?: "CAMPAIGN" | "ADSET";
+      bidStrategy?: string;
+      bidAmount?: number;
+      roasAverageFloor?: number;
+      adName?: string;
+      destinationType?: string;
+      optimizationGoal?: string;
+      attributionModel?: string;
+      websiteUrl?: string;
+      imageUrl?: string;
+    }) =>
+      invokeTargeting<MetaSavedAudiencePushResult>(args.organizationId, "createSavedAudience", {
+        ad_account_id: args.adAccountId,
+        list_id: args.listId,
+        ...(args.filters
+          ? interestResearchFiltersPayload(args.filters)
+          : interestResearchFiltersPayload(DEFAULT_INTEREST_RESEARCH_FILTERS)),
+        campaign_name: args.campaignName,
+        adset_name: args.adsetName,
+        daily_budget: args.dailyBudget,
+        lifetime_budget: args.lifetimeBudget,
+        create_new: args.createNew === true,
+        campaign_id: args.campaignId,
+        buying_type: args.buyingType,
+        budget_level: args.budgetLevel ?? "CAMPAIGN",
+        bid_strategy: args.bidStrategy,
+        bid_amount: args.bidAmount,
+        roas_average_floor: args.roasAverageFloor,
+        ad_name: args.adName,
+        destination_type: args.destinationType,
+        optimization_goal: args.optimizationGoal,
+        attribution_model: args.attributionModel,
+        website_url: args.websiteUrl,
+        image_url: args.imageUrl,
+      }),
+    onSuccess: (_data, args) => {
+      void queryClient.invalidateQueries({ queryKey: ["meta-ads-interest-lists", args.organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["meta-ads-interest-list", args.organizationId] });
+    },
+  });
 }
 
 /** Meta will not publish reach below this; Ads Manager shows it as &lt;1,000. */

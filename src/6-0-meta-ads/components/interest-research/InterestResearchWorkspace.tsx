@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  Columns2,
   Compass,
+  ArrowLeft,
   Copy,
   Download,
   GitCompare,
@@ -48,7 +50,6 @@ import {
   useMetaAdsInterestLists,
   useMetaAdsTargetingEstimate,
   useMetaAdsTargetingEstimateRows,
-  useMetaAdsTargetingOverlap,
   useMetaAdsTargetingOverlapRows,
   useMetaAdsTargetingSearch,
   useMetaAdsTargetingSpike,
@@ -59,6 +60,7 @@ import {
   type MetaTargetingItem,
 } from "@/meta-ads/hooks/useMetaAdsTargeting";
 import { InterestResearchCreateAdDialog } from "@/6-0-meta-ads/components/interest-research/InterestResearchCreateAdDialog";
+import { InterestResearchAudienceOverlapDialog } from "@/6-0-meta-ads/components/interest-research/InterestResearchAudienceOverlapDialog";
 import {
   filterBroadBehaviourNoise,
   type CompositionHop,
@@ -72,6 +74,10 @@ import {
   type InterestResearchReachResult,
 } from "@/6-0-meta-ads/components/interest-research/InterestResearchReachPanel";
 import { InterestResearchFilterBar } from "@/6-0-meta-ads/components/interest-research/InterestResearchFilterBar";
+import {
+  InterestResearchPopulationBudgetPanel,
+  type PopulationBudgetSession,
+} from "@/6-0-meta-ads/components/interest-research/population-budget";
 
 function targetingPathLabel(item: MetaTargetingItem): string {
   const path = (item.path ?? []).map((p) => String(p).trim()).filter(Boolean);
@@ -105,6 +111,91 @@ type ExploreLayer = {
   items: MetaTargetingItem[];
 };
 
+type TableViewMode = "default" | "audience_overlap";
+
+function OverlapCellFrame({
+  loading,
+  ov,
+  andFloor,
+  retryDisabled,
+  onRetry,
+  children,
+}: {
+  loading: boolean;
+  ov?: MetaOverlapRow;
+  andFloor: boolean;
+  retryDisabled: boolean;
+  onRetry: () => void;
+  children: (ov: MetaOverlapRow) => ReactNode;
+}) {
+  const { t } = useTranslation();
+  if (loading) {
+    return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />;
+  }
+  if (ov?.error) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-xs text-destructive"
+            disabled={retryDisabled}
+            onClick={onRetry}
+          >
+            {t("digitalMarketing.metaAds.interestDailyError", "Retry")}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[260px] text-xs">
+          {ov.error}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (ov && andFloor) {
+    return (
+      <span className="inline-flex items-center gap-1 text-muted-foreground">
+        —
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+              aria-label={t(
+                "digitalMarketing.metaAds.interestOverlapFloorTitle",
+                "Irisan terlalu kecil",
+              )}
+            >
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[240px] text-xs">
+            {t(
+              "digitalMarketing.metaAds.interestOverlapFloorHint",
+              "Irisan terlalu kecil untuk dihitung (batas privasi Meta).",
+            )}
+          </TooltipContent>
+        </Tooltip>
+      </span>
+    );
+  }
+  if (ov) return <>{children(ov)}</>;
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="secondary"
+      className="h-7 px-2 text-xs"
+      disabled={retryDisabled}
+      onClick={onRetry}
+    >
+      <Target className="mr-1 h-3 w-3" />
+      {t("digitalMarketing.metaAds.interestEstimateRow", "Estimate")}
+    </Button>
+  );
+}
+
 type InterestResearchWorkspaceProps = {
   organizationId: string;
   adAccountId: string;
@@ -113,6 +204,10 @@ type InterestResearchWorkspaceProps = {
   onExternalItemsConsumed?: () => void;
   onReachResultChange?: (result: InterestResearchReachResult | null) => void;
   onOverlapResultChange?: (result: InterestResearchOverlapResult | null) => void;
+  onResearchFiltersChange?: (filters: InterestResearchFilters) => void;
+  populationBudget?: PopulationBudgetSession | null;
+  onClosePopulationBudget?: () => void;
+  onSelectedItemsChange?: (items: MetaTargetingItem[]) => void;
 };
 
 export function InterestResearchWorkspace({
@@ -123,6 +218,10 @@ export function InterestResearchWorkspace({
   onExternalItemsConsumed,
   onReachResultChange,
   onOverlapResultChange,
+  onResearchFiltersChange,
+  populationBudget = null,
+  onClosePopulationBudget,
+  onSelectedItemsChange,
 }: InterestResearchWorkspaceProps) {
   const { t } = useTranslation();
   const [queryInput, setQueryInput] = useState("");
@@ -138,6 +237,11 @@ export function InterestResearchWorkspace({
   const [newListName, setNewListName] = useState("");
   const [spikeSummary, setSpikeSummary] = useState<string | null>(null);
   const [createAdOpen, setCreateAdOpen] = useState(false);
+  const [suggestedDailyBudget, setSuggestedDailyBudget] = useState<number | null>(null);
+  const onCalculatedDailyBudget = useCallback((daily: number | null) => {
+    setSuggestedDailyBudget(daily);
+  }, []);
+  const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
   const [filters, setFilters] = useState<InterestResearchFilters>({
     ...DEFAULT_INTEREST_RESEARCH_FILTERS,
     countryCode,
@@ -149,11 +253,21 @@ export function InterestResearchWorkspace({
   const [estimatingRowId, setEstimatingRowId] = useState<string | null>(null);
   const [overlappingRowId, setOverlappingRowId] = useState<string | null>(null);
   const [objectiveDowngraded, setObjectiveDowngraded] = useState(false);
+  const [tableView, setTableView] = useState<TableViewMode>("default");
   const estimateReqRef = useRef(0);
   const INITIAL_ESTIMATE_COUNT = 10;
 
   useEffect(() => {
+    if (!populationBudget) setSuggestedDailyBudget(null);
+  }, [populationBudget]);
+
+  useEffect(() => {
     if (!externalItems?.length) return;
+    const items = externalItems;
+    setResearchMode("explore");
+    setExploreBarSeeds([]);
+    setQueryInput("");
+    setSubmittedQueries([]);
     setExploreStack([
       {
         hop: {
@@ -161,16 +275,21 @@ export function InterestResearchWorkspace({
           label: t("digitalMarketing.metaAds.interestHopSaved", "Saved list"),
         },
         seeds: [],
-        items: externalItems,
+        items,
       },
     ]);
-    setSelectedIds(new Set(externalItems.map((i) => i.id)));
-    onExternalItemsConsumed?.();
+    setSelectedIds(new Set(items.map((i) => i.id)));
+    const consume = window.setTimeout(() => onExternalItemsConsumed?.(), 0);
+    return () => window.clearTimeout(consume);
   }, [externalItems, onExternalItemsConsumed, t]);
 
   useEffect(() => {
     onReachResultChange?.(reachResult);
   }, [reachResult, onReachResultChange]);
+
+  useEffect(() => {
+    onResearchFiltersChange?.(filters);
+  }, [filters, onResearchFiltersChange]);
 
   useEffect(() => {
     onOverlapResultChange?.(overlapResult);
@@ -188,10 +307,13 @@ export function InterestResearchWorkspace({
   const estimateMutation = useMetaAdsTargetingEstimate();
   const estimateRowsMutation = useMetaAdsTargetingEstimateRows();
   const overlapRowsMutation = useMetaAdsTargetingOverlapRows();
-  const overlapMutation = useMetaAdsTargetingOverlap();
   const spikeMutation = useMetaAdsTargetingSpike();
-  const listsQuery = useMetaAdsInterestLists(organizationId, Boolean(organizationId));
-  const listMutations = useMetaAdsInterestListMutations(organizationId);
+  const listsQuery = useMetaAdsInterestLists(organizationId, adAccountId, Boolean(organizationId));
+  const listMutations = useMetaAdsInterestListMutations(organizationId, adAccountId);
+
+  useEffect(() => {
+    setSaveListId("");
+  }, [adAccountId]);
 
   const rawExploreItems =
     exploreStack.length > 0 ? exploreStack[exploreStack.length - 1]?.items ?? [] : null;
@@ -206,6 +328,9 @@ export function InterestResearchWorkspace({
     () => resultItems.filter((i) => selectedIds.has(i.id)),
     [resultItems, selectedIds],
   );
+  useEffect(() => {
+    onSelectedItemsChange?.(selectedItems);
+  }, [onSelectedItemsChange, selectedItems]);
   const visibleEstimateItems = useMemo(
     () => resultItems.slice(0, INITIAL_ESTIMATE_COUNT),
     [resultItems],
@@ -223,6 +348,12 @@ export function InterestResearchWorkspace({
     [exploreSeeds],
   );
   const showOverlapColumn = researchMode === "explore" && exploreSeeds.length > 0;
+  const audienceOverlapView = showOverlapColumn && tableView === "audience_overlap";
+
+  useEffect(() => {
+    if (!showOverlapColumn) setTableView("default");
+  }, [showOverlapColumn]);
+
   const overlapSeedLabel =
     exploreSeeds.length === 1
       ? exploreSeeds[0].name
@@ -597,49 +728,14 @@ export function InterestResearchWorkspace({
     }
   };
 
-  const runOverlap = async () => {
-    if (selectedItems.length !== 2) {
+  const runOverlap = () => {
+    if (selectedItems.length < 2) {
       toast.error(
-        t("digitalMarketing.metaAds.interestOverlapNeedTwo", "Select exactly two items to compare"),
+        t("digitalMarketing.metaAds.interestOverlapNeedTwoPlus", "Select at least two items to compare"),
       );
       return;
     }
-    const [a, b] = selectedItems;
-    try {
-      const res = await overlapMutation.mutateAsync({
-        organizationId,
-        filters,
-        adAccountId,
-        a: { id: a.id, name: a.name, type: a.type, path: a.path },
-        b: { id: b.id, name: b.name, type: b.type, path: b.path },
-      });
-      const next: InterestResearchOverlapResult = {
-        approximate: res.approximate,
-        method: res.method,
-        a_label: res.a_label,
-        b_label: res.b_label,
-        a_users: res.a_users,
-        b_users: res.b_users,
-        intersection_users: res.intersection_users ?? {
-          lower: res.overlap_users,
-          upper: res.overlap_users,
-          mid: res.overlap_users,
-        },
-        overlap_users: res.overlap_users,
-        overlap_pct_of_smaller: res.overlap_pct_of_smaller,
-        note: res.note,
-        country_code: res.country_code,
-      };
-      setOverlapResult(next);
-      toast.success(
-        t(
-          "digitalMarketing.metaAds.interestOverlapToast",
-          "Overlap dari Potential Reach A AND B",
-        ),
-      );
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Overlap failed");
-    }
+    setOverlapDialogOpen(true);
   };
 
   const copyIds = async () => {
@@ -678,12 +774,25 @@ export function InterestResearchWorkspace({
         listId = created.list.id;
         setSaveListId(listId);
       }
-      await listMutations.addItems.mutateAsync({ listId, items: selectedItems });
+      const added = await listMutations.addItems.mutateAsync({
+        listId,
+        items: selectedItems,
+        filters,
+      });
       toast.success(
         t("digitalMarketing.metaAds.interestSaved", "Saved {{count}} items", {
           count: selectedItems.length,
         }),
       );
+      if (added.meta_sync_error) {
+        toast.message(
+          t(
+            "digitalMarketing.metaAds.interestMetaSyncFailed",
+            "List updated. Ads Manager sync failed: {{error}}",
+            { error: added.meta_sync_error },
+          ),
+        );
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
     }
@@ -811,13 +920,88 @@ export function InterestResearchWorkspace({
   const busy =
     searchQuery.isPending ||
     suggestMutation.isPending ||
-    estimateMutation.isPending ||
-    overlapMutation.isPending;
+    estimateMutation.isPending;
 
   return (
     <TooltipProvider delayDuration={200}>
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <div className="shrink-0 space-y-2 border-b border-gray-200 px-4 pb-2 pt-4">
+        {populationBudget ? (
+          <>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 shrink-0 gap-1 px-2"
+                onClick={() => onClosePopulationBudget?.()}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                {t("common.back", "Back")}
+              </Button>
+              <div className="min-w-0 flex-1">
+                <h2 className="flex items-center gap-1.5 text-base font-semibold">
+                  <span className="truncate">
+                    {t("digitalMarketing.metaAds.populationBudgetTitle", "Hitung budget populasi ini")}
+                  </span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={t(
+                          "digitalMarketing.metaAds.populationBudgetNoteTitle",
+                          "How this estimate is calculated",
+                        )}
+                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-muted-foreground/30 bg-muted/60 text-muted-foreground transition-colors hover:bg-muted"
+                      >
+                        <Info className="h-3 w-3" strokeWidth={2.5} />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side="bottom"
+                      align="start"
+                      className="w-[min(100vw-2rem,22rem)] text-left text-sm leading-relaxed"
+                    >
+                      <p className="font-medium text-foreground">
+                        {t(
+                          "digitalMarketing.metaAds.populationBudgetNoteTitle",
+                          "How this estimate is calculated",
+                        )}
+                      </p>
+                      <p className="mt-1 text-muted-foreground">
+                        {t(
+                          "digitalMarketing.metaAds.populationBudgetNoteBody",
+                          "Population is Meta’s official unique reach for this list (OR union) with the location, gender, age, and placement filters on the page — not the sum of each row. Impressions = population × frequency (frequency is views per person for the whole campaign). Total budget = (impressions / 1000) × CPM. Days only split total into a daily budget.",
+                        )}
+                      </p>
+                    </PopoverContent>
+                  </Popover>
+                </h2>
+                {populationBudget.listName ? (
+                  <p className="truncate text-xs text-muted-foreground">{populationBudget.listName}</p>
+                ) : null}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 gap-1.5"
+                disabled={!adAccountId || populationBudget.items.length === 0}
+                onClick={() => setCreateAdOpen(true)}
+              >
+                <Megaphone className="h-3.5 w-3.5" />
+                {t("digitalMarketing.metaAds.interestCreateAdsTitle", "Create draft campaign")}
+              </Button>
+            </div>
+            <InterestResearchFilterBar
+              organizationId={organizationId}
+              adAccountId={adAccountId}
+              filters={filters}
+              onChange={setFilters}
+            />
+          </>
+        ) : (
+        <>
         <div className="flex items-center gap-2">
           <div className="flex min-h-10 min-w-0 flex-1 flex-wrap items-center gap-1 rounded-md border border-input bg-background px-2 py-1">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -986,6 +1170,48 @@ export function InterestResearchWorkspace({
           savePending={listMutations.addItems.isPending || listMutations.createList.isPending}
           typeFilter={typeFilter}
           onTypeFilterChange={setTypeFilter}
+          endSlot={
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Select
+                    value={audienceOverlapView ? "audience_overlap" : "default"}
+                    onValueChange={(value) =>
+                      setTableView(value === "audience_overlap" ? "audience_overlap" : "default")
+                    }
+                    disabled={!showOverlapColumn}
+                  >
+                    <SelectTrigger className="h-6 w-auto min-w-[148px] gap-0.5 border-0 bg-transparent px-0 py-0 text-xs font-medium shadow-none focus:ring-0 focus:ring-offset-0 [&>span]:line-clamp-none [&>svg]:h-3 [&>svg]:w-3">
+                      <Columns2 className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      <SelectItem value="default">
+                        {t("digitalMarketing.metaAds.interestTableViewDefault", "Default columns")}
+                      </SelectItem>
+                      <SelectItem value="audience_overlap">
+                        {t(
+                          "digitalMarketing.metaAds.interestTableViewAudienceOverlap",
+                          "Audience Overlap",
+                        )}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[240px] text-xs">
+                {showOverlapColumn
+                  ? t(
+                      "digitalMarketing.metaAds.interestTableViewAudienceOverlapHint",
+                      "Tampilkan Overlap, % Com., dan % Sel. tanpa mengubah seed Explore.",
+                    )
+                  : t(
+                      "digitalMarketing.metaAds.interestTableViewAudienceOverlapNeedExplore",
+                      "Explore dulu satu atau lebih interest untuk memakai Audience Overlap.",
+                    )}
+              </TooltipContent>
+            </Tooltip>
+          }
         >
           {selectedItems.length > 0 ? (
             <>
@@ -1008,13 +1234,9 @@ export function InterestResearchWorkspace({
                 variant="ghost"
                 className="h-6 shrink-0 rounded-none px-2.5 text-xs font-medium text-foreground hover:bg-transparent hover:text-sky-800"
                 onClick={runOverlap}
-                disabled={busy || selectedItems.length !== 2}
+                disabled={busy || selectedItems.length < 2}
               >
-                {overlapMutation.isPending ? (
-                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                ) : (
-                  <GitCompare className="mr-1 h-3 w-3" />
-                )}
+                <GitCompare className="mr-1 h-3 w-3" />
                 {t("digitalMarketing.metaAds.interestOverlap", "Overlap")}
               </Button>
               <Button
@@ -1042,7 +1264,7 @@ export function InterestResearchWorkspace({
                 onClick={() => setCreateAdOpen(true)}
               >
                 <Megaphone className="mr-1 h-3 w-3" />
-                {t("digitalMarketing.metaAds.interestCreateAd", "Create Ad")}
+                {t("digitalMarketing.metaAds.interestCreateAdsTitle", "Create draft campaign")}
               </Button>
               <Select
                 value={saveListId || "__new"}
@@ -1074,6 +1296,8 @@ export function InterestResearchWorkspace({
             </>
           ) : null}
         </InterestResearchFilterBar>
+        </>
+        )}
       </div>
 
       <InterestResearchCreateAdDialog
@@ -1082,10 +1306,33 @@ export function InterestResearchWorkspace({
         organizationId={organizationId}
         adAccountId={adAccountId}
         filters={filters}
-        items={selectedItems}
+        items={populationBudget ? populationBudget.items : selectedItems}
+        listId={populationBudget?.listId}
+        listName={populationBudget?.listName}
+        suggestedDailyBudget={populationBudget ? suggestedDailyBudget : null}
+      />
+      <InterestResearchAudienceOverlapDialog
+        open={overlapDialogOpen}
+        onOpenChange={setOverlapDialogOpen}
+        organizationId={organizationId}
+        adAccountId={adAccountId}
+        filters={filters}
+        checkedItems={selectedItems}
+        rowEstimates={rowEstimates}
       />
 
       <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {populationBudget ? (
+          <InterestResearchPopulationBudgetPanel
+            organizationId={organizationId}
+            adAccountId={adAccountId}
+            filters={filters}
+            items={populationBudget.items}
+            targetingGroups={populationBudget.targetingGroups}
+            onCalculatedDailyBudget={onCalculatedDailyBudget}
+          />
+        ) : (
+          <>
         {overlapResult ? (
           <div className="px-4 pt-4">
             <InterestResearchOverlapPanel result={overlapResult} variant="full" />
@@ -1125,7 +1372,7 @@ export function InterestResearchWorkspace({
           </div>
         ) : (
           <TooltipProvider delayDuration={200}>
-            <table className="w-full min-w-[820px] text-left text-sm">
+            <table className={cn("w-full text-left text-sm", audienceOverlapView ? "min-w-[760px]" : "min-w-[820px]")}>
               <thead className="sticky top-0 z-[1] border-b bg-gray-50 text-xs text-muted-foreground">
                 <tr>
                   <th className="w-10 px-3 py-2">
@@ -1139,24 +1386,28 @@ export function InterestResearchWorkspace({
                   <th className="px-3 py-2 font-medium">
                     {t("digitalMarketing.metaAds.interestColName", "Name")}
                   </th>
-                  <th className="px-3 py-2 font-medium">
-                    {t("digitalMarketing.metaAds.interestColType", "Type")}
-                  </th>
-                  <th className="px-3 py-2 font-medium">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help border-b border-dotted border-muted-foreground/50">
-                          {t("digitalMarketing.metaAds.interestColAudienceSize", "Audience Size")}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[220px] text-xs">
-                        {t(
-                          "digitalMarketing.metaAds.interestAudienceSizeHint",
-                          "Ukuran interest global dari katalog Meta. Tidak berubah saat filter lokasi/usia/gender.",
-                        )}
-                      </TooltipContent>
-                    </Tooltip>
-                  </th>
+                  {!audienceOverlapView ? (
+                    <th className="px-3 py-2 font-medium">
+                      {t("digitalMarketing.metaAds.interestColType", "Type")}
+                    </th>
+                  ) : null}
+                  {!audienceOverlapView ? (
+                    <th className="px-3 py-2 font-medium">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">
+                            {t("digitalMarketing.metaAds.interestColAudienceSize", "Audience Size")}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[220px] text-xs">
+                          {t(
+                            "digitalMarketing.metaAds.interestAudienceSizeHint",
+                            "Ukuran interest global dari katalog Meta. Tidak berubah saat filter lokasi/usia/gender.",
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    </th>
+                  ) : null}
                   <th className="px-3 py-2 font-medium">
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -1172,7 +1423,55 @@ export function InterestResearchWorkspace({
                       </TooltipContent>
                     </Tooltip>
                   </th>
-                  {showOverlapColumn ? (
+                  {audienceOverlapView ? (
+                    <>
+                      <th className="px-3 py-2 font-medium">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help border-b border-dotted border-muted-foreground/50">
+                              {t("digitalMarketing.metaAds.interestColOverlapPeople", "Overlap")}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[240px] text-xs">
+                            {t(
+                              "digitalMarketing.metaAds.interestColOverlapPeopleHint",
+                              "Jumlah orang yang masuk seed dan baris ini (AND reachestimate).",
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </th>
+                      <th className="px-3 py-2 font-medium">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help border-b border-dotted border-muted-foreground/50">
+                              {t("digitalMarketing.metaAds.interestColPctCom", "% Com.")}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[240px] text-xs">
+                            {t(
+                              "digitalMarketing.metaAds.interestColPctComHint",
+                              "% overlap of comparison audience — persentase audiens baris ini yang juga ada di seed.",
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </th>
+                      <th className="px-3 py-2 font-medium">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help border-b border-dotted border-muted-foreground/50">
+                              {t("digitalMarketing.metaAds.interestColPctSel", "% Sel.")}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[240px] text-xs">
+                            {t(
+                              "digitalMarketing.metaAds.interestColPctSelHint",
+                              "% overlap of selected audience — persentase audiens seed yang juga ada di baris ini.",
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </th>
+                    </>
+                  ) : showOverlapColumn ? (
                     <th className="px-3 py-2 font-medium">
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -1244,27 +1543,31 @@ export function InterestResearchWorkspace({
                           {pathLabel}
                         </p>
                       </td>
-                      <td className="px-3 py-2 capitalize text-muted-foreground">
-                        {item.type.replace(/_/g, " ")}
-                      </td>
-                      <td className="px-3 py-2 tabular-nums text-gray-900">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="cursor-help">
-                              {formatAudienceSize(
-                                item.audience_size_lower,
-                                item.audience_size_upper,
+                      {!audienceOverlapView ? (
+                        <td className="px-3 py-2 capitalize text-muted-foreground">
+                          {item.type.replace(/_/g, " ")}
+                        </td>
+                      ) : null}
+                      {!audienceOverlapView ? (
+                        <td className="px-3 py-2 tabular-nums text-gray-900">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help">
+                                {formatAudienceSize(
+                                  item.audience_size_lower,
+                                  item.audience_size_upper,
+                                )}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                              {t(
+                                "digitalMarketing.metaAds.interestAudienceSizeCellHint",
+                                "Global (katalog Meta)",
                               )}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="text-xs">
-                            {t(
-                              "digitalMarketing.metaAds.interestAudienceSizeCellHint",
-                              "Global (katalog Meta)",
-                            )}
-                          </TooltipContent>
-                        </Tooltip>
-                      </td>
+                            </TooltipContent>
+                          </Tooltip>
+                        </td>
+                      ) : null}
                       <td className="px-3 py-2 tabular-nums text-gray-900">
                         {reachLoading ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
@@ -1334,94 +1637,145 @@ export function InterestResearchWorkspace({
                           </Button>
                         )}
                       </td>
-                      {showOverlapColumn ? (
-                        <td className="px-3 py-2 tabular-nums text-gray-900">
-                          {overlapLoadingCell ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                          ) : ov?.error ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 px-2 text-xs text-destructive"
-                                  disabled={Boolean(overlappingRowId) || overlapLoading}
-                                  onClick={() => void runOverlapRow(item)}
-                                >
-                                  {t("digitalMarketing.metaAds.interestDailyError", "Retry")}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-[260px] text-xs">
-                                {ov.error}
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : ov && ov.pct != null ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-flex cursor-help flex-col leading-tight">
-                                  <span className="font-medium tabular-nums">
-                                    {Math.round(ov.pct)}%
-                                  </span>
-                                  <span className="mt-0.5 text-[11px] font-normal tabular-nums text-muted-foreground">
-                                    {formatAudienceSize(ov.and.users_lower, ov.and.users_upper)}
-                                  </span>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-[240px] text-xs">
-                                {t(
-                                  "digitalMarketing.metaAds.interestOverlapCellHint",
-                                  "{{pct}}% audiens baris ini juga termasuk di {{seed}} (sekitar {{people}} orang).",
-                                  {
-                                    pct: Math.round(ov.pct),
-                                    seed: overlapSeedLabel,
-                                    people: formatAudienceSize(
-                                      ov.and.users_lower,
-                                      ov.and.users_upper,
-                                    ),
-                                  },
-                                )}
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : ov && andFloor ? (
-                            <span className="inline-flex items-center gap-1 text-muted-foreground">
-                              —
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button
-                                    type="button"
-                                    className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
-                                    aria-label={t(
-                                      "digitalMarketing.metaAds.interestOverlapFloorTitle",
-                                      "Irisan terlalu kecil",
-                                    )}
-                                  >
-                                    <Info className="h-3.5 w-3.5" />
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-[240px] text-xs">
-                                  {t(
-                                    "digitalMarketing.metaAds.interestOverlapFloorHint",
-                                    "Irisan terlalu kecil untuk dihitung (batas privasi Meta).",
-                                  )}
-                                </TooltipContent>
-                              </Tooltip>
-                            </span>
-                          ) : ov && ov.pct == null ? (
-                            <span className="text-muted-foreground">—</span>
-                          ) : (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              className="h-7 px-2 text-xs"
-                              disabled={Boolean(overlappingRowId) || overlapLoading}
-                              onClick={() => void runOverlapRow(item)}
+                      {audienceOverlapView ? (
+                        <>
+                          <td className="px-3 py-2 tabular-nums text-gray-900">
+                            <OverlapCellFrame
+                              loading={overlapLoadingCell}
+                              ov={ov}
+                              andFloor={Boolean(andFloor)}
+                              retryDisabled={Boolean(overlappingRowId) || overlapLoading}
+                              onRetry={() => void runOverlapRow(item)}
                             >
-                              <Target className="mr-1 h-3 w-3" />
-                              {t("digitalMarketing.metaAds.interestEstimateRow", "Estimate")}
-                            </Button>
-                          )}
+                              {(rowOv) => (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="cursor-help font-medium tabular-nums">
+                                      {formatAudienceSize(rowOv.and.users_lower, rowOv.and.users_upper)}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-[240px] text-xs">
+                                    {t(
+                                      "digitalMarketing.metaAds.interestColOverlapPeopleHint",
+                                      "Jumlah orang yang masuk seed dan baris ini (AND reachestimate).",
+                                    )}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </OverlapCellFrame>
+                          </td>
+                          <td className="px-3 py-2 tabular-nums text-gray-900">
+                            <OverlapCellFrame
+                              loading={overlapLoadingCell}
+                              ov={ov}
+                              andFloor={Boolean(andFloor)}
+                              retryDisabled={Boolean(overlappingRowId) || overlapLoading}
+                              onRetry={() => void runOverlapRow(item)}
+                            >
+                              {(rowOv) =>
+                                rowOv.pct != null ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-help font-medium tabular-nums">
+                                        {Math.round(rowOv.pct)}%
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-[240px] text-xs">
+                                      {t(
+                                        "digitalMarketing.metaAds.interestPctComCellHint",
+                                        "{{pct}}% audiens baris ini juga termasuk di {{seed}}.",
+                                        {
+                                          pct: Math.round(rowOv.pct),
+                                          seed: overlapSeedLabel,
+                                        },
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )
+                              }
+                            </OverlapCellFrame>
+                          </td>
+                          <td className="px-3 py-2 tabular-nums text-gray-900">
+                            <OverlapCellFrame
+                              loading={overlapLoadingCell}
+                              ov={ov}
+                              andFloor={Boolean(andFloor)}
+                              retryDisabled={Boolean(overlappingRowId) || overlapLoading}
+                              onRetry={() => void runOverlapRow(item)}
+                            >
+                              {(rowOv) =>
+                                rowOv.pct_sel != null ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-help font-medium tabular-nums">
+                                        {Math.round(rowOv.pct_sel)}%
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-[240px] text-xs">
+                                      {t(
+                                        "digitalMarketing.metaAds.interestPctSelCellHint",
+                                        "{{pct}}% audiens {{seed}} juga termasuk di baris ini.",
+                                        {
+                                          pct: Math.round(rowOv.pct_sel),
+                                          seed: overlapSeedLabel,
+                                        },
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )
+                              }
+                            </OverlapCellFrame>
+                          </td>
+                        </>
+                      ) : showOverlapColumn ? (
+                        <td className="px-3 py-2 tabular-nums text-gray-900">
+                          <OverlapCellFrame
+                            loading={overlapLoadingCell}
+                            ov={ov}
+                            andFloor={Boolean(andFloor)}
+                            retryDisabled={Boolean(overlappingRowId) || overlapLoading}
+                            onRetry={() => void runOverlapRow(item)}
+                          >
+                            {(rowOv) =>
+                              rowOv.pct != null ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-flex cursor-help flex-col leading-tight">
+                                      <span className="font-medium tabular-nums">
+                                        {Math.round(rowOv.pct)}%
+                                      </span>
+                                      <span className="mt-0.5 text-[11px] font-normal tabular-nums text-muted-foreground">
+                                        {formatAudienceSize(
+                                          rowOv.and.users_lower,
+                                          rowOv.and.users_upper,
+                                        )}
+                                      </span>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-[240px] text-xs">
+                                    {t(
+                                      "digitalMarketing.metaAds.interestOverlapCellHint",
+                                      "{{pct}}% audiens baris ini juga termasuk di {{seed}} (sekitar {{people}} orang).",
+                                      {
+                                        pct: Math.round(rowOv.pct),
+                                        seed: overlapSeedLabel,
+                                        people: formatAudienceSize(
+                                          rowOv.and.users_lower,
+                                          rowOv.and.users_upper,
+                                        ),
+                                      },
+                                    )}
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )
+                            }
+                          </OverlapCellFrame>
                         </td>
                       ) : null}
                     </tr>
@@ -1429,7 +1783,7 @@ export function InterestResearchWorkspace({
                 })}
                 {resultItems.length === 0 && !searchQuery.isFetching ? (
                   <tr>
-                    <td colSpan={showOverlapColumn ? 7 : 6} className="px-3 py-8 text-center text-muted-foreground">
+                    <td colSpan={audienceOverlapView ? 7 : showOverlapColumn ? 7 : 6} className="px-3 py-8 text-center text-muted-foreground">
                       {t("digitalMarketing.metaAds.interestNoResults", "No results")}
                     </td>
                   </tr>
@@ -1437,6 +1791,8 @@ export function InterestResearchWorkspace({
               </tbody>
             </table>
           </TooltipProvider>
+        )}
+          </>
         )}
         <div
           className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"

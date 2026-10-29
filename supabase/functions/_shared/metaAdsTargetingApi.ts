@@ -30,7 +30,29 @@ export type MetaReachEstimate = {
   raw: unknown;
 };
 
-type GraphErrorBody = { error?: { message?: string; code?: number; error_subcode?: number } };
+type GraphErrorBody = {
+  error?: {
+    message?: string;
+    code?: number;
+    error_subcode?: number;
+    error_user_title?: string;
+    error_user_msg?: string;
+  };
+};
+
+function throwGraphError(json: GraphErrorBody, httpStatus: number): never {
+  const e = json.error;
+  const title = e?.error_user_title?.trim();
+  const user = e?.error_user_msg?.trim();
+  const base = e?.message ?? `HTTP ${httpStatus}`;
+  const sub = e?.error_subcode != null ? ` subcode ${e.error_subcode}` : "";
+  const msg = title || user
+    ? `${[title, user].filter(Boolean).join(" — ")} (${base}${sub})`
+    : `${base}${sub}`;
+  const err = new Error(msg) as Error & { code?: number };
+  err.code = e?.code;
+  throw err;
+}
 
 function isTransientGraphError(e: unknown): boolean {
   const code =
@@ -48,6 +70,11 @@ export function isInvalidTargetingGraphError(e: unknown): boolean {
     code === 100 ||
     /invalid parameter|targeting_spec|not a valid|invalid interest/i.test(msg)
   );
+}
+
+function isBidAmountRequiredError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  return /1815857|bid amount required|bid_amount field|LOWEST_COST_WITH_BID_CAP|TARGET_COST/i.test(msg);
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -101,16 +128,759 @@ async function graphPostForm(
     body,
   });
   const json = (await res.json().catch(() => ({}))) as GraphErrorBody & Record<string, unknown>;
-  if (!res.ok) {
-    const msg = json?.error?.message ?? `HTTP ${res.status}`;
-    const err = new Error(msg) as Error & { code?: number };
-    err.code = json?.error?.code;
-    throw err;
-  }
+  if (!res.ok) throwGraphError(json, res.status);
   return json;
 }
 
-/** Create PAUSED OUTCOME_AWARENESS campaign + REACH ad set with targeting (draft only). */
+async function graphDelete(
+  path: string,
+  accessToken: string,
+): Promise<Record<string, unknown>> {
+  const v = metaGraphVersion();
+  const url =
+    `https://graph.facebook.com/${v}/${path}?access_token=${encodeURIComponent(accessToken)}`;
+  const res = await fetch(url, { method: "DELETE" });
+  const json = (await res.json().catch(() => ({}))) as GraphErrorBody & Record<string, unknown>;
+  if (!res.ok) throwGraphError(json, res.status);
+  return json;
+}
+
+function isMissingGraphObjectError(err: unknown): boolean {
+  const code = (err as { code?: number } | null)?.code;
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  if (code === 803) return true;
+  return /does not exist|does not belong|cannot be found|object with ID .* does not exist/i.test(msg);
+}
+
+export function isDeletedOrMissingAdObjectError(err: unknown): boolean {
+  if (isMissingGraphObjectError(err)) return true;
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return (
+    /has been deleted|deleted ad sets can't be edited|you can only edit the name|subcode 1487056|campaign has been deleted|campaign archived|archived campaigns|subcode 1487866|archived ad set|this ad set is archived|can't be reactivated|subcode 3858861/i
+      .test(msg)
+  );
+}
+
+export function numericAdAccountId(adAccountId: string): string {
+  return String(adAccountId ?? "").replace(/\D/g, "");
+}
+
+export function adsManagerAudiencesUrl(
+  adAccountId: string,
+  savedAudienceId?: string | null,
+): string {
+  const act = numericAdAccountId(adAccountId);
+  const base =
+    `https://adsmanager.facebook.com/adsmanager/manage/audiences?act=${encodeURIComponent(act)}`;
+  if (savedAudienceId) {
+    return `${base}&selected_audience_ids=${encodeURIComponent(savedAudienceId)}`;
+  }
+  return base;
+}
+
+export type MetaAdCampaignOption = {
+  id: string;
+  name: string;
+  objective: string;
+  buying_type: string;
+  status: string;
+  effective_status: string;
+  daily_budget: string;
+  lifetime_budget: string;
+  is_adset_budget_sharing_enabled: boolean;
+  uses_campaign_budget: boolean;
+};
+
+function campaignUsesCampaignBudget(row: Record<string, unknown>): boolean {
+  if (row.is_adset_budget_sharing_enabled === true || row.is_adset_budget_sharing_enabled === "true") {
+    return true;
+  }
+  return Number(row.daily_budget) > 0 || Number(row.lifetime_budget) > 0;
+}
+
+export async function listAdAccountCampaigns(
+  accessToken: string,
+  actId: string,
+): Promise<MetaAdCampaignOption[]> {
+  const url = graphUrl(
+    `${actId}/campaigns?fields=id,name,objective,buying_type,status,effective_status,daily_budget,lifetime_budget,is_adset_budget_sharing_enabled&limit=80`,
+    accessToken,
+  );
+  const rows = await graphGetPagedData(url, 80, 4);
+  const usable = new Set(["ACTIVE", "PAUSED"]);
+  return rows
+    .map((row) => ({
+      id: String(row.id ?? "").trim(),
+      name: String(row.name ?? "").trim() || String(row.id ?? ""),
+      objective: String(row.objective ?? ""),
+      buying_type: String(row.buying_type ?? "AUCTION"),
+      status: String(row.status ?? ""),
+      effective_status: String(row.effective_status ?? row.status ?? ""),
+      daily_budget: String(row.daily_budget ?? ""),
+      lifetime_budget: String(row.lifetime_budget ?? ""),
+      is_adset_budget_sharing_enabled: campaignUsesCampaignBudget(row),
+      uses_campaign_budget: campaignUsesCampaignBudget(row),
+    }))
+    .filter((row) => row.id && usable.has(row.effective_status.toUpperCase()));
+}
+
+export function adsManagerAdsetsUrl(
+  adAccountId: string,
+  args?: { campaignId?: string | null; adsetId?: string | null },
+): string {
+  const act = numericAdAccountId(adAccountId);
+  const params = new URLSearchParams({ act });
+  if (args?.campaignId) params.set("selected_campaign_ids", args.campaignId);
+  if (args?.adsetId) params.set("selected_adset_ids", args.adsetId);
+  return `https://adsmanager.facebook.com/adsmanager/manage/adsets?${params.toString()}`;
+}
+
+export function adsManagerAdsUrl(
+  adAccountId: string,
+  args?: { campaignId?: string | null; adsetId?: string | null; adId?: string | null },
+): string {
+  const act = numericAdAccountId(adAccountId);
+  const params = new URLSearchParams({ act });
+  if (args?.campaignId) params.set("selected_campaign_ids", args.campaignId);
+  if (args?.adsetId) params.set("selected_adset_ids", args.adsetId);
+  if (args?.adId) params.set("selected_ad_ids", args.adId);
+  return `https://adsmanager.facebook.com/adsmanager/manage/ads?${params.toString()}`;
+}
+
+export function adsManagerCampaignsUrl(
+  adAccountId: string,
+  campaignId?: string | null,
+): string {
+  const act = numericAdAccountId(adAccountId);
+  const params = new URLSearchParams({ act });
+  if (campaignId) params.set("selected_campaign_ids", campaignId);
+  return `https://adsmanager.facebook.com/adsmanager/manage/campaigns?${params.toString()}`;
+}
+
+export function isMetaAppCapabilityError(err: unknown): boolean {
+  const code = (err as { code?: number } | null)?.code;
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return code === 3 || /\(#3\)|does not have the capability/i.test(msg);
+}
+
+export async function updateAdsetTargeting(
+  accessToken: string,
+  adsetId: string,
+  args: { name?: string; targetingSpec: Record<string, unknown> },
+): Promise<void> {
+  const fields: Record<string, string> = {
+    targeting: JSON.stringify(sanitizeTargetingForAdset(args.targetingSpec)),
+  };
+  if (args.name?.trim()) fields.name = args.name.trim();
+  await graphPostForm(adsetId, accessToken, fields);
+}
+
+export async function createOrUpdateMetaSavedAudience(
+  accessToken: string,
+  actId: string,
+  args: {
+    name: string;
+    targetingSpec: Record<string, unknown>;
+    existingAudienceId?: string | null;
+  },
+): Promise<{ id: string; updated: boolean }> {
+  const baseName = args.name.trim() || "Synckerja audience";
+  const targeting = JSON.stringify(args.targetingSpec);
+  const post = (path: string, name: string) =>
+    graphPostForm(path, accessToken, { name, targeting });
+
+  const tryCreate = async (name: string) => {
+    const created = await post(`${actId}/saved_audiences`, name);
+    const id = String(created.id ?? "");
+    if (!id) throw new Error("Failed to create saved audience");
+    return { id, updated: false as const };
+  };
+
+  if (args.existingAudienceId) {
+    try {
+      const updated = await post(args.existingAudienceId, baseName);
+      return { id: String(updated.id ?? args.existingAudienceId), updated: true };
+    } catch (err) {
+      if (!isMissingGraphObjectError(err)) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/already (in use|exists)|duplicate/i.test(msg)) {
+          const updated = await post(args.existingAudienceId, `${baseName} (Synckerja)`);
+          return { id: String(updated.id ?? args.existingAudienceId), updated: true };
+        }
+        throw err;
+      }
+    }
+  }
+
+  try {
+    return await tryCreate(baseName);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already (in use|exists)|duplicate/i.test(msg)) {
+      return await tryCreate(`${baseName} (Synckerja)`);
+    }
+    throw err;
+  }
+}
+
+export async function deleteMetaSavedAudience(
+  accessToken: string,
+  audienceId: string,
+): Promise<{ deleted: boolean; alreadyGone: boolean }> {
+  const id = audienceId.trim();
+  if (!id) return { deleted: false, alreadyGone: true };
+  try {
+    await graphDelete(id, accessToken);
+    return { deleted: true, alreadyGone: false };
+  } catch (err) {
+    if (isMissingGraphObjectError(err)) return { deleted: false, alreadyGone: true };
+    throw err;
+  }
+}
+
+const ADSET_FLEXIBLE_KEYS = new Set([
+  "interests",
+  "behaviors",
+  "life_events",
+  "industries",
+  "income",
+  "family_statuses",
+  "work_employers",
+  "relationship_statuses",
+]);
+
+/** Drop estimate-only geo (places) and placement fields that ad set create often rejects. */
+export function sanitizeTargetingForAdset(spec: Record<string, unknown>): Record<string, unknown> {
+  const geoIn =
+    spec.geo_locations && typeof spec.geo_locations === "object"
+      ? { ...(spec.geo_locations as Record<string, unknown>) }
+      : {};
+  delete geoIn.places;
+  const hasGeo = ["countries", "regions", "cities", "zips", "custom_locations", "geo_markets"].some(
+    (key) => Array.isArray(geoIn[key]) && (geoIn[key] as unknown[]).length > 0,
+  );
+  if (!hasGeo) geoIn.countries = ["ID"];
+  if (!geoIn.location_types) geoIn.location_types = ["home", "recent"];
+
+  const flexibleRaw = Array.isArray(spec.flexible_spec) ? spec.flexible_spec : [];
+  const flexible: Array<Record<string, unknown>> = [];
+  for (const row of flexibleRaw) {
+    if (!row || typeof row !== "object") continue;
+    for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
+      if (!ADSET_FLEXIBLE_KEYS.has(key) || !Array.isArray(value) || value.length === 0) continue;
+      const nextValue = key === "relationship_statuses" ? coerceRelationshipStatusIds(value) : value;
+      if (!Array.isArray(nextValue) || nextValue.length === 0) continue;
+      flexible.push({ [key]: nextValue });
+    }
+  }
+
+  const out: Record<string, unknown> = {
+    geo_locations: geoIn,
+    age_min: spec.age_min ?? 18,
+    age_max: spec.age_max ?? 65,
+    // Ads Manager "Advantage+ audience" defaults ON for ODAX. Keep original targeting.
+    targeting_automation: { advantage_audience: 0 },
+    targeting_relaxation_types: { lookalike: 0, custom_audience: 0 },
+  };
+  if (Array.isArray(spec.genders) && spec.genders.length) out.genders = spec.genders;
+  if (flexible.length) out.flexible_spec = flexible;
+  return out;
+}
+
+function countryOnlyTargeting(spec: Record<string, unknown>): Record<string, unknown> {
+  const cleaned = sanitizeTargetingForAdset(spec);
+  const countries =
+    ((cleaned.geo_locations as Record<string, unknown> | undefined)?.countries as string[] | undefined) ??
+    ["ID"];
+  return {
+    ...cleaned,
+    geo_locations: { countries, location_types: ["home", "recent"] },
+  };
+}
+
+export function mapObjectiveToCampaignDraft(
+  objective: string | null | undefined,
+  promotedObject?: Record<string, unknown> | null,
+): {
+  campaignObjective: string;
+  optimizationGoal: string;
+  billingEvent: string;
+  promotedObject: Record<string, unknown> | null;
+} {
+  const o = String(objective ?? "").trim().toLowerCase();
+  if (o === "traffic" || o === "link_clicks") {
+    return {
+      campaignObjective: "OUTCOME_TRAFFIC",
+      optimizationGoal: "REACH",
+      billingEvent: "IMPRESSIONS",
+      promotedObject: null,
+    };
+  }
+  if (o === "engagement" || o === "post_engagement") {
+    return {
+      campaignObjective: "OUTCOME_ENGAGEMENT",
+      optimizationGoal: "REACH",
+      billingEvent: "IMPRESSIONS",
+      promotedObject: null,
+    };
+  }
+  if (o === "leads" || o === "lead_generation") {
+    return {
+      campaignObjective: "OUTCOME_LEADS",
+      // Leave Instant Forms / dataset unset so Ads Manager keeps conversion setup editable.
+      optimizationGoal: "REACH",
+      billingEvent: "IMPRESSIONS",
+      promotedObject: null,
+    };
+  }
+  if (o === "app_promotion" || o === "app_installs") {
+    return {
+      campaignObjective: "OUTCOME_APP_PROMOTION",
+      optimizationGoal: "REACH",
+      billingEvent: "IMPRESSIONS",
+      promotedObject: null,
+    };
+  }
+  if (o === "conversions" || o === "sales" || o === "offsite_conversions") {
+    return {
+      campaignObjective: "OUTCOME_SALES",
+      // LINK_CLICKS publishes conversion location as Website and Ads Manager
+      // then locks it. REACH avoids pinning a website destination.
+      optimizationGoal: "REACH",
+      billingEvent: "IMPRESSIONS",
+      promotedObject: null,
+    };
+  }
+  return {
+    campaignObjective: "OUTCOME_AWARENESS",
+    optimizationGoal: "REACH",
+    billingEvent: "IMPRESSIONS",
+    promotedObject: null,
+  };
+}
+
+function budgetAmountFields(opts?: {
+  dailyBudget?: number;
+  lifetimeBudget?: number;
+}): Record<string, string> {
+  const lifetime = Math.round(Number(opts?.lifetimeBudget ?? 0));
+  if (Number.isFinite(lifetime) && lifetime > 0) {
+    return { lifetime_budget: String(Math.max(10_000, lifetime)) };
+  }
+  const daily = Math.max(10_000, Math.round(opts?.dailyBudget ?? 50_000));
+  return { daily_budget: String(daily) };
+}
+
+function bidStrategyFields(opts?: {
+  bidStrategy?: string | null;
+  bidAmount?: number | null;
+  roasAverageFloor?: number | null;
+}): Record<string, string> {
+  const strategy = String(opts?.bidStrategy ?? "LOWEST_COST_WITHOUT_CAP").trim().toUpperCase();
+  const fields: Record<string, string> = {
+    bid_strategy: strategy || "LOWEST_COST_WITHOUT_CAP",
+  };
+  if (strategy === "COST_CAP" || strategy === "LOWEST_COST_WITH_BID_CAP") {
+    const amount = Math.round(Number(opts?.bidAmount ?? 0));
+    if (Number.isFinite(amount) && amount > 0) fields.bid_amount = String(amount);
+  }
+  if (strategy === "LOWEST_COST_WITH_MIN_ROAS") {
+    const floor = Math.round(Number(opts?.roasAverageFloor ?? 0));
+    if (Number.isFinite(floor) && floor > 0) {
+      fields.bid_constraints = JSON.stringify({ roas_average_floor: floor });
+    }
+  }
+  return fields;
+}
+
+async function createPausedCampaign(
+  accessToken: string,
+  actId: string,
+  campaignName: string,
+  campaignObjective: string,
+  buyingType = "AUCTION",
+  opts?: {
+    campaignBudget?: boolean;
+    dailyBudget?: number;
+    lifetimeBudget?: number;
+    bidStrategy?: string | null;
+    bidAmount?: number | null;
+    roasAverageFloor?: number | null;
+  },
+): Promise<{ id: string; campaignBudget: boolean }> {
+  const wantCampaignBudget = opts?.campaignBudget === true;
+  const shared: Record<string, string> = {
+    name: campaignName,
+    objective: campaignObjective,
+    buying_type: buyingType === "RESERVED" ? "RESERVED" : "AUCTION",
+    status: "PAUSED",
+    special_ad_categories: JSON.stringify(["NONE"]),
+  };
+
+  const postCampaign = async (fields: Record<string, string>) => {
+    const campaign = await graphPostForm(`${actId}/campaigns`, accessToken, fields);
+    const campaignId = String(campaign.id ?? "");
+    if (!campaignId) throw new Error("Failed to create campaign");
+    return campaignId;
+  };
+
+  if (wantCampaignBudget) {
+    const budget = budgetAmountFields(opts);
+    const bid = bidStrategyFields(opts);
+    const cboAttempts: Array<Record<string, string>> = [
+      {
+        ...shared,
+        ...budget,
+        ...bid,
+        is_adset_budget_sharing_enabled: "true",
+      },
+      {
+        ...shared,
+        ...budget,
+        ...bid,
+      },
+    ];
+    if (bid.bid_strategy === "LOWEST_COST_WITHOUT_CAP") {
+      cboAttempts.push({
+        ...shared,
+        ...budget,
+        is_adset_budget_sharing_enabled: "true",
+      });
+    }
+    let lastErr: unknown = null;
+    for (const fields of cboAttempts) {
+      try {
+        const id = await postCampaign(fields);
+        return { id, campaignBudget: true };
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    throw lastErr instanceof Error ? lastErr : new Error("Failed to create campaign budget");
+  }
+
+  const id = await postCampaign({
+    ...shared,
+    is_adset_budget_sharing_enabled: "false",
+  });
+  return { id, campaignBudget: false };
+}
+
+function applyCampaignIdPlaceholder(name: string, campaignId: string): string {
+  if (!name.includes("{{campaign_id}}")) return name;
+  return name.split("{{campaign_id}}").join(campaignId);
+}
+
+async function finalizeCampaignName(
+  accessToken: string,
+  campaignId: string,
+  campaignName: string,
+): Promise<void> {
+  const next = applyCampaignIdPlaceholder(campaignName, campaignId);
+  if (next === campaignName) return;
+  try {
+    await graphPostForm(campaignId, accessToken, { name: next });
+  } catch {
+    /* name patch is best-effort */
+  }
+}
+
+async function ensureCampaignBidStrategy(
+  accessToken: string,
+  campaignId: string,
+  opts?: {
+    bidStrategy?: string | null;
+    bidAmount?: number | null;
+    roasAverageFloor?: number | null;
+  },
+): Promise<void> {
+  try {
+    await graphPostForm(campaignId, accessToken, bidStrategyFields(opts));
+  } catch {
+    /* campaign may reject bid_strategy; ad set retries still run */
+  }
+}
+
+async function createPausedReachAdset(
+  accessToken: string,
+  actId: string,
+  campaignId: string,
+  args: {
+    targetingSpec: Record<string, unknown>;
+    adsetName?: string;
+    dailyBudget: number;
+    lifetimeBudget?: number;
+    optimizationGoal: string;
+    billingEvent: string;
+    promotedObject?: Record<string, unknown> | null;
+    useAdsetBudget?: boolean;
+    destinationType?: string | null;
+    incrementalAttribution?: boolean;
+    bidStrategy?: string | null;
+    bidAmount?: number | null;
+    roasAverageFloor?: number | null;
+    startTime?: number | null;
+    endTime?: number | null;
+  },
+): Promise<string> {
+  const targeting = sanitizeTargetingForAdset(args.targetingSpec);
+  const countryTargeting = countryOnlyTargeting(args.targetingSpec);
+  const useAdsetBudget = args.useAdsetBudget !== false;
+  const dest = String(args.destinationType ?? "").trim().toUpperCase();
+  const goal = String(args.optimizationGoal ?? "").trim().toUpperCase() || "REACH";
+  const core: Record<string, string> = {
+    name: applyCampaignIdPlaceholder(args.adsetName?.trim() || "Interest Research draft", campaignId),
+    campaign_id: campaignId,
+    targeting: JSON.stringify(targeting),
+    status: "PAUSED",
+    billing_event: args.billingEvent || "IMPRESSIONS",
+    optimization_goal: goal,
+  };
+  if (useAdsetBudget) {
+    Object.assign(core, budgetAmountFields({
+      dailyBudget: args.dailyBudget,
+      lifetimeBudget: args.lifetimeBudget,
+    }));
+    Object.assign(core, bidStrategyFields({
+      bidStrategy: args.bidStrategy,
+      bidAmount: args.bidAmount,
+      roasAverageFloor: args.roasAverageFloor,
+    }));
+  }
+  if (args.startTime) core.start_time = String(args.startTime);
+  if (args.endTime) core.end_time = String(args.endTime);
+  if (dest && dest !== "NONE") {
+    core.destination_type = dest;
+  }
+  if (args.promotedObject && Object.keys(args.promotedObject).length > 0) {
+    core.promoted_object = JSON.stringify(args.promotedObject);
+  }
+  if (args.incrementalAttribution) {
+    core.is_incremental_attribution_enabled = "true";
+  }
+
+  const omit = (fields: Record<string, string>, key: string) => {
+    const next = { ...fields };
+    delete next[key];
+    return next;
+  };
+  const attempts: Array<Record<string, string>> = [core];
+  if (core.is_incremental_attribution_enabled) {
+    attempts.push(omit(core, "is_incremental_attribution_enabled"));
+  }
+  const conversionLocked =
+    goal === "OFFSITE_CONVERSIONS" ||
+    goal === "VALUE" ||
+    goal === "CONVERSATIONS" ||
+    goal === "QUALITY_CALL" ||
+    goal === "APP_INSTALLS";
+  if (!conversionLocked && core.destination_type) {
+    attempts.push(omit(attempts[attempts.length - 1], "destination_type"));
+  }
+  if (!conversionLocked && core.promoted_object) {
+    attempts.push(omit(attempts[attempts.length - 1], "promoted_object"));
+  }
+  // CBO: bid lives on the campaign. Sending bid_strategy on the ad set makes Meta
+  // treat it as LOWEST_COST_WITH_BID_CAP and demand bid_amount (#1815857).
+  if (useAdsetBudget) {
+    attempts.push({
+      ...core,
+      bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+    });
+  }
+
+  let lastErr: unknown = null;
+  for (const fields of attempts) {
+    for (const targetingJson of [fields.targeting, JSON.stringify(countryTargeting)]) {
+      try {
+        const adset = await graphPostForm(`${actId}/adsets`, accessToken, {
+          ...fields,
+          targeting: targetingJson,
+        });
+        const adsetId = String(adset.id ?? "");
+        if (!adsetId) throw new Error("Failed to create ad set");
+        try {
+          const applied = JSON.parse(targetingJson) as Record<string, unknown>;
+          await graphPostForm(adsetId, accessToken, {
+            targeting: JSON.stringify({
+              ...applied,
+              targeting_automation: { advantage_audience: 0 },
+              targeting_relaxation_types: { lookalike: 0, custom_audience: 0 },
+            }),
+          });
+        } catch {
+          /* ad set exists; Ads Manager may still show Advantage+ if Graph ignores this */
+        }
+        return adsetId;
+      } catch (err) {
+        if (isDeletedOrMissingAdObjectError(err) || isMetaAppCapabilityError(err)) throw err;
+        lastErr = err;
+        if (isBidAmountRequiredError(err) && fields.bid_strategy) continue;
+      }
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Failed to create ad set");
+}
+
+async function firstGraphEdgeId(accessToken: string, path: string): Promise<string | null> {
+  try {
+    const json = await graphGetJson(graphUrl(`${path}?fields=id&limit=5`, accessToken)) as {
+      data?: Array<{ id?: string }>;
+    };
+    const id = String(json.data?.[0]?.id ?? "").trim();
+    return id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveActFacebookPageId(accessToken: string, actId: string): Promise<string> {
+  const pageId =
+    (await firstGraphEdgeId(accessToken, `${actId}/assigned_pages`)) ||
+    (await firstGraphEdgeId(accessToken, `${actId}/promote_pages`)) ||
+    (await firstGraphEdgeId(accessToken, `${actId}/client_pages`));
+  if (!pageId) {
+    throw new Error(
+      "This ad account has no Facebook Page. Assign a Page in Ads Manager, then try again.",
+    );
+  }
+  return pageId;
+}
+
+function isMessagingDestinationType(dest: string): boolean {
+  const d = dest.toUpperCase();
+  return d.includes("MESSENGER") || d.includes("WHATSAPP") || d.includes("INSTAGRAM_DIRECT");
+}
+
+async function resolvePageCreativeExtras(
+  accessToken: string,
+  pageId: string,
+): Promise<{ link: string; pictureUrl: string | null; instagramActorId: string | null }> {
+  try {
+    const json = await graphGetJson(
+      graphUrl(`${pageId}?fields=id,link,picture.type(large),instagram_business_account`, accessToken),
+    ) as {
+      link?: string;
+      picture?: { data?: { url?: string } };
+      instagram_business_account?: { id?: string };
+    };
+    return {
+      link: String(json.link ?? "").trim() || `https://www.facebook.com/${pageId}`,
+      pictureUrl: String(json.picture?.data?.url ?? "").trim() || null,
+      instagramActorId: String(json.instagram_business_account?.id ?? "").trim() || null,
+    };
+  } catch {
+    return {
+      link: `https://www.facebook.com/${pageId}`,
+      pictureUrl: null,
+      instagramActorId: null,
+    };
+  }
+}
+
+async function createPausedDraftAd(
+  accessToken: string,
+  actId: string,
+  args: {
+    adsetId: string;
+    adName: string;
+    pageId: string;
+    instagramActorId?: string | null;
+    messaging?: boolean;
+    pictureUrl?: string | null;
+    pageLink?: string | null;
+    websiteUrl?: string | null;
+    imageUrl?: string | null;
+    requireWebsiteLink?: boolean;
+  },
+): Promise<string> {
+  const message = args.adName.trim() || "Synckerja draft ad";
+  const headline = message.slice(0, 40) || "Draft ad";
+  const websiteUrl = String(args.websiteUrl ?? "").trim();
+  if (args.requireWebsiteLink && !/^https?:\/\//i.test(websiteUrl)) {
+    throw new Error("Website URL is required to create the draft ad.");
+  }
+  const link = websiteUrl || args.pageLink?.trim() || `https://www.facebook.com/${args.pageId}`;
+  const picture = String(args.imageUrl ?? "").trim() || null;
+  const objectStorySpec = {
+    page_id: args.pageId,
+    ...(args.messaging && args.instagramActorId
+      ? { instagram_user_id: args.instagramActorId }
+      : {}),
+    link_data: {
+      link,
+      message: message.slice(0, 2000),
+      name: headline,
+      ...(picture ? { picture } : {}),
+      call_to_action: args.messaging
+        ? { type: "MESSAGE_PAGE" }
+        : { type: "LEARN_MORE", value: { link } },
+    },
+  };
+  // standard_enhancements is deprecated (#3858504). Multi-destination ads still
+  // require a DOF spec (#2446493) via individual creative features.
+  const dofSpec = {
+    creative_features_spec: {
+      image_enhancement: { enroll_status: "OPT_IN" },
+      image_templates: { enroll_status: "OPT_IN" },
+      text_optimizations: { enroll_status: "OPT_IN" },
+      inline_comment: { enroll_status: "OPT_IN" },
+    },
+  };
+
+  const creativeAttempts: Array<Record<string, string>> = [
+    {
+      name: `${message} creative`.slice(0, 80),
+      object_story_spec: JSON.stringify(objectStorySpec),
+      degrees_of_freedom_spec: JSON.stringify(dofSpec),
+    },
+    {
+      name: `${message} creative`.slice(0, 80),
+      object_story_spec: JSON.stringify(objectStorySpec),
+    },
+  ];
+
+  let lastErr: unknown = null;
+  const publishAd = async (creativePayload: Record<string, string>) => {
+    const ad = await graphPostForm(`${actId}/ads`, accessToken, {
+      name: message.slice(0, 80),
+      adset_id: args.adsetId,
+      status: "PAUSED",
+      ...creativePayload,
+    });
+    const adId = String(ad.id ?? "").trim();
+    if (!adId) throw new Error("Failed to create ad");
+    return adId;
+  };
+
+  for (const fields of creativeAttempts) {
+    try {
+      const creative = await graphPostForm(`${actId}/adcreatives`, accessToken, fields);
+      const creativeId = String(creative.id ?? "").trim();
+      if (!creativeId) continue;
+      return await publishAd({ creative: JSON.stringify({ creative_id: creativeId }) });
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Failed to create ad");
+}
+
+function optimizationNeedsPixel(goal: string): boolean {
+  return goal === "OFFSITE_CONVERSIONS" || goal === "VALUE";
+}
+
+function optimizationNeedsPage(goal: string, dest: string): boolean {
+  return (
+    isMessagingDestinationType(dest) ||
+    dest === "PHONE_CALL" ||
+    dest === "WEBSITE_AND_CALLS" ||
+    goal === "CONVERSATIONS" ||
+    goal === "QUALITY_CALL"
+  );
+}
+
+/** Create PAUSED campaign + ad set + ad. Objective/conversion follow the draft wizard. */
 export async function createPausedInterestAdDraft(
   accessToken: string,
   actId: string,
@@ -120,34 +890,160 @@ export async function createPausedInterestAdDraft(
     adsetName?: string;
     dailyBudget?: number;
     campaignId?: string | null;
+    objective?: string | null;
+    promotedObject?: Record<string, unknown> | null;
+    buyingType?: string | null;
+    budgetLevel?: string | null;
+    adName?: string | null;
+    destinationType?: string | null;
+    optimizationGoal?: string | null;
+    attributionModel?: string | null;
+    websiteUrl?: string | null;
+    imageUrl?: string | null;
+    lifetimeBudget?: number | null;
+    bidStrategy?: string | null;
+    bidAmount?: number | null;
+    roasAverageFloor?: number | null;
   },
-): Promise<{ campaign_id: string; adset_id: string; status: "PAUSED" }> {
-  let campaignId = args.campaignId?.trim() || "";
-  if (!campaignId) {
-    const campaign = await graphPostForm(`${actId}/campaigns`, accessToken, {
-      name: args.campaignName?.trim() || `Synckerja Interest Research ${new Date().toISOString().slice(0, 10)}`,
-      objective: "OUTCOME_AWARENESS",
-      status: "PAUSED",
-      special_ad_categories: "[]",
-    });
-    campaignId = String(campaign.id ?? "");
-    if (!campaignId) throw new Error("Failed to create campaign");
+): Promise<{ campaign_id: string; adset_id: string; ad_id: string; status: "PAUSED" }> {
+  const campaignName =
+    args.campaignName?.trim() || `Synckerja Interest Research ${new Date().toISOString().slice(0, 10)}`;
+  const dailyBudget = Math.max(10_000, Math.round(args.dailyBudget ?? 50_000));
+  const lifetimeBudget = Math.round(Number(args.lifetimeBudget ?? 0));
+  const hasLifetime = Number.isFinite(lifetimeBudget) && lifetimeBudget > 0;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const endSec = hasLifetime ? nowSec + 7 * 24 * 60 * 60 : null;
+  const draft = mapObjectiveToCampaignDraft(args.objective, args.promotedObject);
+  const buyingType = String(args.buyingType ?? "AUCTION").toUpperCase() === "RESERVED"
+    ? "RESERVED"
+    : "AUCTION";
+  let campaignBudget = String(args.budgetLevel ?? "CAMPAIGN").toUpperCase() !== "ADSET";
+  const attachId = args.campaignId?.trim() || "";
+  if (attachId) {
+    try {
+      const url = graphUrl(
+        `${attachId}?fields=daily_budget,lifetime_budget,is_adset_budget_sharing_enabled`,
+        accessToken,
+      );
+      const row = await graphGetJson(url) as Record<string, unknown>;
+      campaignBudget = campaignUsesCampaignBudget(row);
+    } catch {
+      campaignBudget = false;
+    }
+  }
+  const dest = String(args.destinationType ?? "").trim().toUpperCase();
+  const goal = String(args.optimizationGoal ?? "").trim().toUpperCase() || draft.optimizationGoal;
+  const incremental = String(args.attributionModel ?? "").trim().toLowerCase() === "incremental";
+  let promotedObject = args.promotedObject && Object.keys(args.promotedObject).length
+    ? { ...args.promotedObject }
+    : null;
+  if (optimizationNeedsPixel(goal) && !promotedObject?.pixel_id) {
+    throw new Error(
+      "This conversion setup needs a Meta Pixel on the ad account. Add a pixel in Ads settings, then try again.",
+    );
   }
 
-  const dailyBudget = Math.max(1000, Math.round(args.dailyBudget ?? 50_000));
-  const adset = await graphPostForm(`${actId}/adsets`, accessToken, {
-    name: args.adsetName?.trim() || "Interest Research draft",
-    campaign_id: campaignId,
-    billing_event: "IMPRESSIONS",
-    optimization_goal: "REACH",
-    bid_strategy: "LOWEST_COST_WITHOUT_CAP",
-    daily_budget: String(dailyBudget),
-    targeting: JSON.stringify(args.targetingSpec),
-    status: "PAUSED",
+  if (optimizationNeedsPage(goal, dest)) {
+    const pageId = await resolveActFacebookPageId(accessToken, actId);
+    const pageExtras = await resolvePageCreativeExtras(accessToken, pageId);
+    promotedObject = {
+      ...(promotedObject ?? {}),
+      page_id: pageId,
+      ...(pageExtras.instagramActorId && dest.includes("INSTAGRAM")
+        ? { instagram_profile_id: pageExtras.instagramActorId }
+        : {}),
+    };
+  }
+
+  const makeAdsetArgs = (useAdsetBudget: boolean) => ({
+    targetingSpec: args.targetingSpec,
+    adsetName: args.adsetName,
+    dailyBudget,
+    lifetimeBudget: hasLifetime ? lifetimeBudget : undefined,
+    optimizationGoal: goal,
+    billingEvent: draft.billingEvent,
+    promotedObject,
+    useAdsetBudget,
+    destinationType: dest || null,
+    incrementalAttribution: incremental,
+    bidStrategy: args.bidStrategy,
+    bidAmount: args.bidAmount,
+    roasAverageFloor: args.roasAverageFloor,
+    startTime: hasLifetime ? nowSec : null,
+    endTime: endSec,
   });
-  const adsetId = String(adset.id ?? "");
-  if (!adsetId) throw new Error("Failed to create ad set");
-  return { campaign_id: campaignId, adset_id: adsetId, status: "PAUSED" };
+  let campaignId = attachId;
+  if (!campaignId) {
+    const created = await createPausedCampaign(
+      accessToken,
+      actId,
+      campaignName,
+      draft.campaignObjective,
+      buyingType,
+      {
+        campaignBudget,
+        dailyBudget: hasLifetime ? undefined : dailyBudget,
+        lifetimeBudget: hasLifetime ? lifetimeBudget : undefined,
+        bidStrategy: args.bidStrategy,
+        bidAmount: args.bidAmount,
+        roasAverageFloor: args.roasAverageFloor,
+      },
+    );
+    campaignId = created.id;
+    campaignBudget = created.campaignBudget;
+    await finalizeCampaignName(accessToken, campaignId, campaignName);
+  }
+  if (campaignBudget) {
+    await ensureCampaignBidStrategy(accessToken, campaignId, {
+      bidStrategy: args.bidStrategy,
+      bidAmount: args.bidAmount,
+      roasAverageFloor: args.roasAverageFloor,
+    });
+  }
+
+  const createDraftObjects = async (cid: string, useAdsetBudget: boolean) => {
+    const adsetId = await createPausedReachAdset(
+      accessToken,
+      actId,
+      cid,
+      makeAdsetArgs(useAdsetBudget),
+    );
+    return { campaign_id: cid, adset_id: adsetId, ad_id: "", status: "PAUSED" as const };
+  };
+
+  try {
+    return await createDraftObjects(campaignId, !campaignBudget);
+  } catch (err) {
+    if (attachId && isDeletedOrMissingAdObjectError(err)) {
+      const created = await createPausedCampaign(
+        accessToken,
+        actId,
+        campaignName,
+        draft.campaignObjective,
+        buyingType,
+        {
+          campaignBudget,
+          dailyBudget: hasLifetime ? undefined : dailyBudget,
+          lifetimeBudget: hasLifetime ? lifetimeBudget : undefined,
+          bidStrategy: args.bidStrategy,
+          bidAmount: args.bidAmount,
+          roasAverageFloor: args.roasAverageFloor,
+        },
+      );
+      campaignId = created.id;
+      campaignBudget = created.campaignBudget;
+      await finalizeCampaignName(accessToken, campaignId, campaignName);
+      if (campaignBudget) {
+        await ensureCampaignBidStrategy(accessToken, campaignId, {
+          bidStrategy: args.bidStrategy,
+          bidAmount: args.bidAmount,
+          roasAverageFloor: args.roasAverageFloor,
+        });
+      }
+      return await createDraftObjects(campaignId, !campaignBudget);
+    }
+    throw err;
+  }
 }
 
 function graphUrl(pathAndQuery: string, accessToken: string, version?: string): string {
@@ -886,10 +1782,63 @@ export function summarizeDeliveryRow(deliveryRow: Record<string, unknown> | null
 
 export type TargetingSpecEntry = { id: string; name?: string; type?: string; path?: string[] };
 
+function relationshipStatusCode(item: TargetingSpecEntry): number | null {
+  const rawId = Number(item.id);
+  if (Number.isInteger(rawId) && rawId >= 1 && rawId <= 13) return rawId;
+  const name = String(item.name ?? "").trim().toLowerCase();
+  const pathJoined = (item.path ?? []).join(" > ").toLowerCase();
+  const blob = `${name} ${pathJoined}`;
+  if (/\bnewly engaged\b/.test(blob)) return null;
+  if (/\bin a relationship\b|\bin_relationship\b/.test(blob)) return 2;
+  if (/\bengaged\b/.test(blob) && (pathJoined.includes("relationship") || name === "engaged")) return 4;
+  if (/\bmarried\b/.test(blob) && pathJoined.includes("relationship")) return 3;
+  if (/^single$/.test(name) || /\brelationship status\b.*\bsingle\b/.test(blob)) return 1;
+  if (/civil union/.test(blob)) return 7;
+  if (/domestic partnership/.test(blob)) return 8;
+  if (/open relationship/.test(blob)) return 9;
+  if (/it'?s complicated/.test(blob)) return 10;
+  if (/\bseparated\b/.test(blob) && pathJoined.includes("relationship")) return 11;
+  if (/\bdivorced\b/.test(blob)) return 12;
+  if (/\bwidowed\b/.test(blob)) return 13;
+  return null;
+}
+
+function coerceRelationshipStatusIds(value: unknown[]): number[] {
+  const out: number[] = [];
+  const seen = new Set<number>();
+  for (const entry of value) {
+    let code: number | null = null;
+    if (typeof entry === "number" && Number.isInteger(entry)) code = entry;
+    else if (typeof entry === "string" && /^\d+$/.test(entry)) code = Number(entry);
+    else if (entry && typeof entry === "object") {
+      const rec = entry as { id?: unknown; name?: string; path?: string[] };
+      code = relationshipStatusCode({
+        id: String(rec.id ?? ""),
+        name: rec.name,
+        path: rec.path,
+      });
+    }
+    if (code == null || code < 1 || code > 13 || seen.has(code)) continue;
+    seen.add(code);
+    out.push(code);
+  }
+  return out;
+}
+
+function isRelationshipStatusItem(item: TargetingSpecEntry): boolean {
+  if (relationshipStatusCode(item) != null) return true;
+  const type = String(item.type ?? "").toLowerCase();
+  const pathJoined = (item.path ?? []).join(" > ").toLowerCase();
+  return type === "demographic" && pathJoined.includes("relationship");
+}
+
 /** Map UI/API item types into Meta flexible_spec keys. */
 export function flexibleSpecKeyForItem(item: TargetingSpecEntry): string | null {
   const type = String(item.type ?? "").toLowerCase();
   const pathJoined = (item.path ?? []).join(" > ").toLowerCase();
+  if (isRelationshipStatusItem(item) || pathJoined.includes("relationship status")) {
+    return relationshipStatusCode(item) != null ? "relationship_statuses" : null;
+  }
   if (type === "behavior" || type === "behaviours") return "behaviors";
   if (type === "life_event" || pathJoined.includes("life event")) return "life_events";
   if (type === "industry" || pathJoined.includes("industry")) return "industries";
@@ -2248,6 +3197,12 @@ export function buildInterestTargetingSpec(args: {
   for (const item of args.items ?? []) {
     const key = flexibleSpecKeyForItem(item);
     if (!key || !item.id) continue;
+    if (key === "relationship_statuses") {
+      const code = relationshipStatusCode(item);
+      if (code == null) continue;
+      push(key, { id: String(code), name: item.name });
+      continue;
+    }
     push(key, { id: item.id, name: item.name });
   }
 
@@ -2333,6 +3288,26 @@ export function buildUnionTargetingSpec(
   };
 }
 
+/** OR-union of many targeting items (Interest Group). Same-key IDs merge; mixed keys stay separate flexible_spec rows. */
+export function buildUnionInterestTargetingSpec(
+  args: Omit<Parameters<typeof buildInterestTargetingSpec>[0], "interests" | "behaviors" | "lifeEvents" | "industries" | "income" | "familyStatuses" | "workEmployers"> & {
+    items: TargetingSpecEntry[];
+  },
+): Record<string, unknown> {
+  const items = (args.items ?? []).filter((item) => item?.id);
+  if (!items.length) {
+    return buildInterestTargetingSpec({ ...args, items: [] });
+  }
+  let spec = buildInterestTargetingSpec({ ...args, items: [items[0]] });
+  for (let i = 1; i < items.length; i++) {
+    spec = buildUnionTargetingSpec(
+      spec,
+      buildInterestTargetingSpec({ ...args, items: [items[i]] }),
+    );
+  }
+  return spec;
+}
+
 function stripNamesFromFlexibleRow(row: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(row)) {
@@ -2375,6 +3350,29 @@ export function buildIntersectionTargetingSpec(
     ...(specA.publisher_platforms ? { publisher_platforms: specA.publisher_platforms } : {}),
     flexible_spec: [...flexA, ...flexB],
   };
+}
+
+/** Each nonempty group is OR (union). Groups are AND (stacked flexible_spec / Narrow). */
+export function buildGroupedInterestTargetingSpec(
+  args: Omit<Parameters<typeof buildUnionInterestTargetingSpec>[0], "items"> & {
+    groups: TargetingSpecEntry[][];
+  },
+): Record<string, unknown> {
+  const { groups: rawGroups, ...shared } = args;
+  const groups = (rawGroups ?? []).filter((group) =>
+    group.some((item) => String(item?.id ?? "").trim()),
+  );
+  if (!groups.length) {
+    return buildInterestTargetingSpec({ ...shared, items: [] });
+  }
+  let spec = buildUnionInterestTargetingSpec({ ...shared, items: groups[0] });
+  for (let i = 1; i < groups.length; i++) {
+    spec = buildIntersectionTargetingSpec(
+      spec,
+      buildUnionInterestTargetingSpec({ ...shared, items: groups[i] }),
+    );
+  }
+  return spec;
 }
 
 /** Approximate overlap from reach A, B, A∪B: max(0, a+b-union). Prefer AND reachestimate. */
