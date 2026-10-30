@@ -221,6 +221,72 @@ describe("MasterThoughtMapTree pills", () => {
     expect(screen.getAllByLabelText("1 below").some((badge) => badge.textContent === "+1")).toBe(true);
   });
 
+  it("writes Pillar - Lead Magnet only on a lead-magnet pillar node", () => {
+    renderMap(
+      [
+        {
+          id: "bt1",
+          code: "BT01",
+          label: "Keinginan",
+          statement: "Alasan",
+          childCount: 1,
+          territories: [
+            {
+              id: "t1",
+              code: "TR01",
+              statement: "Mantan anak motor",
+              childCount: 1,
+              angles: [
+                {
+                  id: "a1",
+                  code: "AN01",
+                  statement: "Motor kebanggaan kini nganggur",
+                  subject: "Motor kebanggaan kini nganggur",
+                  childCount: 1,
+                  ideas: [
+                    {
+                      id: "i1",
+                      code: "ID03",
+                      statement: "Integrasi Keinginan Momen Ini",
+                      childCount: 2,
+                      pillars: [
+                        {
+                          id: "pillar-1",
+                          label: "B-Roll Storytelling",
+                          leadMagnet: true,
+                          executions: [{ id: "e1", label: "Ibu, ada satu pertanyaan.", passed: true, leadMagnet: true }],
+                        },
+                        {
+                          id: "pillar-2",
+                          label: "Checklist Harian",
+                          executions: [{ id: "e2", label: "Checklist biasa.", passed: true }],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      { thoughtId: "bt1", territoryId: "t1", angleId: "a1" },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Keinginan/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mantan anak motor/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Motor kebanggaan kini nganggur/ }));
+    const magnet = screen.getByRole("button", { name: "B-Roll Storytelling" });
+    const ordinary = screen.getByRole("button", { name: "Checklist Harian" });
+    expect(magnet.textContent).toContain("Pillar - Lead Magnet");
+    expect(ordinary.textContent).toContain("Pillar");
+    expect(ordinary.textContent).not.toContain("Lead Magnet");
+    const magnetExecution = screen.getByRole("button", { name: "Ibu, ada satu pertanyaan." });
+    const ordinaryExecution = screen.getByRole("button", { name: "Checklist biasa." });
+    expect(magnetExecution.textContent).toContain("Execution - Lead Magnet");
+    expect(ordinaryExecution.textContent).toContain("Execution");
+    expect(ordinaryExecution.textContent).not.toContain("Lead Magnet");
+  });
+
   it("keeps an execution title short and the full Best Title on hover", () => {
     const title = "Masa depan anak dimulai dari kebahagiaan hari ini.";
     renderMap(

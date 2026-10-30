@@ -58,6 +58,20 @@ describe("ExecutionScriptPanel checklist", () => {
     expect(screen.getByText("Sudut pandang masuk ke orang lain.")).toBeTruthy();
   });
 
+  it("marks an execution born from a lead-magnet pillar", () => {
+    render(
+      <ExecutionScriptPanel
+        pillarName="Did You Know?"
+        leadMagnet
+        statement="Ibu, ada satu pertanyaan."
+        script={script}
+        admission="GENERATE_VALID"
+        facts={facts({ meaningAudit: { cleared: true } })}
+      />,
+    );
+    expect(screen.getByText("Execution - Lead Magnet")).toBeTruthy();
+  });
+
   it("keeps an older row failed while a line issue remains", () => {
     render(
       <ExecutionScriptPanel

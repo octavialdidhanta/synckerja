@@ -25,7 +25,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import { cn } from "@/shared/lib/utils";
-import { isGeminiSpendCapError, isGeminiSpendCapMessage } from "@/shared/ai/geminiSpendCap";
+import { isGeminiBillingNoticeError, isGeminiBillingNoticeMessage } from "@/shared/ai/geminiSpendCap";
 import { askThinkingLab, parseModelJson, setThinkingAuditScope } from "@/thinking-lab/shared/ai";
 import { ACTIVE_SET_CAP } from "@/thinking-lab/shared/limits";
 import type { AncestorStake } from "@/thinking-lab/shared/ancestorStake";
@@ -223,8 +223,8 @@ import {
 } from "@/thinking-lab/idea/generate";
 import { evaluateIdeaLock, selectIdeaStage } from "@/thinking-lab/idea/lock";
 import { loadIdeaComparisonHistory, loadIdeaParentGate, loadIdeaSet, saveIdeaSet, saveIdeaValidation, type LabIdea } from "@/thinking-lab/idea/repository";
-import { developmentForPillar, latestPathReviews, lockedPillarCards, mergeLockedPillar } from "@/thinking-lab/creative-idea/paths";
-import { reviewContentPillars, reviewsToStore } from "@/thinking-lab/creative-idea/recommend";
+import { developmentForPillar, latestPathReviews, leadMagnetBriefForPillar, lockedPillarCards, mergeLockedPillar } from "@/thinking-lab/creative-idea/paths";
+import { leadMagnetPassChecklist, reviewContentPillars, reviewsToStore, type LeadMagnetReviewStep } from "@/thinking-lab/creative-idea/recommend";
 import { saveDevelopmentPath } from "@/thinking-lab/creative-idea/repository";
 import type { CreativeExecutionLink, CreativeFormat, DevelopmentPath, StoredPillarReview } from "@/thinking-lab/creative-idea/types";
 import { readIdeaGeneratePasses } from "@/thinking-lab/idea/generatePasses";
@@ -1277,6 +1277,7 @@ export function ThinkingLabPage() {
   const [executionDirect, setExecutionDirect] = useState<ExecutionSettingsDirect | null>(null);
   const [creativeReviews, setCreativeReviews] = useState<StoredPillarReview[] | null>(null);
   const [creativeReviewReady, setCreativeReviewReady] = useState(false);
+  const [leadMagnetStep, setLeadMagnetStep] = useState<LeadMagnetReviewStep | null>(null);
   const [creativePillarId, setCreativePillarId] = useState<string | null>(null);
   const [creativeFormat, setCreativeFormat] = useState<CreativeFormat | null>(null);
   const creativePathSave = useRef<Promise<void>>(Promise.resolve());
@@ -1489,7 +1490,7 @@ export function ThinkingLabPage() {
   };
 
   const reportStepError = (error: unknown) => {
-    if (isGeminiSpendCapError(error)) return;
+    if (isGeminiBillingNoticeError(error)) return;
     const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code) : "";
     if (code === "23505") {
       toast.error(t("thinkingLab.error.duplicateCode", "That Big Thought code is already saved. Run Generate again."));
@@ -1509,7 +1510,7 @@ export function ThinkingLabPage() {
     try {
       return await work();
     } catch (error) {
-      if (isGeminiSpendCapError(error)) return null;
+      if (isGeminiBillingNoticeError(error)) return null;
       const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code) : "";
       const message = code === "23505"
         ? t("thinkingLab.error.duplicateCode", "That Big Thought code is already saved. Run Generate again.")
@@ -4521,6 +4522,7 @@ export function ThinkingLabPage() {
   const onReviewCreativePillars = () => {
     if (!focusedIdea || focusedIdea.status !== "locked") return;
     const idea = focusedIdea;
+    setLeadMagnetStep(null);
     void run(async () => {
       const context = creativeContextFor(idea);
       const locked = pillarCardsFor(idea);
@@ -4536,6 +4538,57 @@ export function ThinkingLabPage() {
       setCreativeReviews(reviewsToStore(reviews));
       setCreativeReviewReady(true);
     }, "creative-review");
+  };
+
+  const onReviewLeadMagnetPillars = () => {
+    if (!focusedIdea || focusedIdea.status !== "locked") return;
+    const idea = focusedIdea;
+    setLeadMagnetStep({ pillarName: "", drafting: true, checks: leadMagnetPassChecklist() });
+    void run(async () => {
+      setCreativeReviews([]);
+      setCreativeReviewReady(false);
+      const context = creativeContextFor(idea);
+      const locked = pillarCardsFor(idea);
+      const passed: Awaited<ReturnType<typeof reviewContentPillars>> = [];
+      let reviews: Awaited<ReturnType<typeof reviewContentPillars>> = [];
+      try {
+        reviews = await reviewContentPillars({
+          pillars: contentPillars.data ?? [],
+          excludeIds: locked.map((card) => card.contentPillarId),
+          keep: 3,
+          purpose: "lead_magnet",
+          context: [context.masterThought, context.bigThought, context.territory, context.angle, context.parentStatement]
+            .filter(Boolean)
+            .join("\n"),
+          ask: (prompt) => askThinkingLab(prompt, 0),
+          onStep: (step) => setLeadMagnetStep(step),
+          onPass: (review) => {
+            passed.push(review);
+            setCreativeReviews(reviewsToStore(passed));
+            setCreativeReviewReady(true);
+          },
+        });
+        setCreativeReviews(reviewsToStore(reviews));
+        setCreativeReviewReady(true);
+      } finally {
+        const passed = reviews.length > 0;
+        setLeadMagnetStep((current) => {
+          if (passed) {
+            return {
+              pillarName: "",
+              drafting: false,
+              checks: leadMagnetPassChecklist().map((check) => ({ ...check, state: "pass" })),
+            };
+          }
+          if (!current) return current;
+          return {
+            ...current,
+            drafting: false,
+            checks: current.checks.map((check) => (check.state === "running" ? { ...check, state: "pending" } : check)),
+          };
+        });
+      }
+    }, "creative-review-lead-magnet");
   };
 
   const rememberedDevelopment = (contentPillarId: string | null | undefined) => {
@@ -7849,17 +7902,17 @@ export function ThinkingLabPage() {
           try {
             await labExecutions.patchScript.mutateAsync({ id: execution.id, script: error.script });
           } catch (saveError) {
-            if (!isGeminiSpendCapError(saveError)) {
+            if (!isGeminiBillingNoticeError(saveError)) {
               toast.error(saveError instanceof Error ? saveError.message : t("thinkingLab.execution.characterFailed", "The character image could not be made."));
             }
             return;
           }
-          if (!isGeminiSpendCapMessage(error.message)) {
+          if (!isGeminiBillingNoticeMessage(error.message)) {
             toast.error(t("thinkingLab.execution.characterPortraitOnly", "The portrait is saved. The character sheet could not be made."));
           }
           return;
         }
-        if (isGeminiSpendCapError(error)) return;
+        if (isGeminiBillingNoticeError(error)) return;
         toast.error(error instanceof Error && error.message && error.message !== "AUTH" && error.message !== "EMPTY"
           ? error.message
           : t("thinkingLab.execution.characterFailed", "The character image could not be made."));
@@ -7952,6 +8005,7 @@ export function ThinkingLabPage() {
       development: review?.development || saved?.development || "",
       reason: review?.reason || saved?.reason || "",
       format: creativeFormat,
+      leadMagnet: review ? Boolean(review.offer?.trim()) : Boolean(saved?.leadMagnet),
     });
   };
 
@@ -8239,7 +8293,7 @@ export function ThinkingLabPage() {
                                               const cards = pillarCardsFor(idea);
                                               const rows = open ? (labExecutions.data ?? []) : [];
                                               const lockedIds = new Set(cards.map((card) => card.contentPillarId));
-                                              const executionNode = (row: (typeof rows)[number]) => ({
+                                              const executionNode = (row: (typeof rows)[number], leadMagnet = false) => ({
                                                 id: row.id,
                                                 label: row.script?.title.trim() ?? "",
                                                 passed: executionChecklistPassed(
@@ -8247,6 +8301,7 @@ export function ThinkingLabPage() {
                                                   row.admission,
                                                   row.script?.lineIssues.length ?? 0,
                                                 ),
+                                                ...(leadMagnet ? { leadMagnet: true } : {}),
                                               });
                                               return {
                                                 id: idea.id,
@@ -8259,9 +8314,10 @@ export function ThinkingLabPage() {
                                                   ? cards.map((card) => ({
                                                       id: card.contentPillarId,
                                                       label: card.pillarName,
+                                                      leadMagnet: card.leadMagnet,
                                                       executions: rows
                                                         .filter((row) => row.contentPillarId === card.contentPillarId)
-                                                        .map((row) => executionNode(row)),
+                                                        .map((row) => executionNode(row, Boolean(card.leadMagnet))),
                                                     }))
                                                   : [],
                                                 executions: open
@@ -8373,6 +8429,10 @@ export function ThinkingLabPage() {
                             focusedExecution ? (
                               <ExecutionScriptPanel
                                 pillarName={focusedExecution.pillarName}
+                                leadMagnet={Boolean(
+                                  focusedIdea &&
+                                    pillarCardsFor(focusedIdea).find((card) => card.contentPillarId === focusedExecution.contentPillarId)?.leadMagnet,
+                                )}
                                 statement={focusedExecution.statement}
                                 script={focusedExecution.script}
                                 admission={focusedExecution.admission}
@@ -8446,6 +8506,7 @@ export function ThinkingLabPage() {
                                 (contentPillars.data ?? []).find((pillar) => pillar.id === focus.contentPillarId)?.name ||
                                 t("thinkingLab.tree.pillar", "Pillar")
                               }
+                              leadMagnet={focusedPillarCard?.leadMagnet}
                               development={focusedPillarCard?.development ?? ""}
                               reason={focusedPillarCard?.reason ?? ""}
                               format={focusedPillarCard?.format ?? creativeFormat}
@@ -8719,6 +8780,8 @@ export function ThinkingLabPage() {
                                           selectedFormat: null,
                                           lockedPillarIds: lockedIds,
                                           onReview: onReviewCreativePillars,
+                                          onReviewLeadMagnet: onReviewLeadMagnetPillars,
+                                          leadMagnetStep,
                                           onSelectPillar: onLockCreativePillar,
                                           onSelectFormat: onOpenExecutionSettings,
                                         };
@@ -9329,6 +9392,19 @@ export function ThinkingLabPage() {
         }
         lockedTitle={focusedExecution?.script?.title ?? ""}
         lockedPillarId={focusedExecution?.contentPillarId}
+        leadMagnet={
+          focusedIdea &&
+          focusedExecution?.contentPillarId &&
+          pillarCardsFor(focusedIdea).some(
+            (card) => card.contentPillarId === focusedExecution.contentPillarId && card.leadMagnet,
+          )
+            ? leadMagnetBriefForPillar(
+                focusedIdea.developmentPaths,
+                focusedExecution.contentPillarId,
+                creativeReviews,
+              )
+            : null
+        }
         lockedContentTypeName={
           focusedExecution?.script?.medium === "image"
             ? imageContentTypeName(focusedExecution.script.image?.format ?? "single")

@@ -478,19 +478,47 @@ export const META_CONTENT_ALL_TIME_MAX_POSTS = 250;
 export const META_CONTENT_ALL_TIME_MAX_PAGES = 20;
 export const META_CONTENT_DATED_MAX_POSTS = 50;
 
+// shares_count is an insights metric, not an IG Media field. Requesting it on
+// /{ig-user-id}/media makes Graph reject the whole call (v22 #100).
 const IG_MEDIA_LIST_FIELDS =
-  "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,comments_count,like_count,shares_count";
+  "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,comments_count,like_count";
+const IG_MEDIA_LIST_FIELDS_MIN =
+  "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp";
+
+function isUnknownGraphFieldError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /nonexisting field|unknown field|is not available/i.test(msg);
+}
+
+async function graphGetInstagramMediaPage(
+  igUserId: string,
+  accessToken: string,
+  params: Record<string, string>,
+): Promise<{
+  data?: Array<Record<string, unknown>>;
+  paging?: { cursors?: { after?: string } };
+}> {
+  const load = (fields: string) =>
+    graphGet<{
+      data?: Array<Record<string, unknown>>;
+      paging?: { cursors?: { after?: string } };
+    }>(graphUrl(`${igUserId}/media`, { ...params, fields }), accessToken);
+  try {
+    return await load(IG_MEDIA_LIST_FIELDS);
+  } catch (err) {
+    if (!isUnknownGraphFieldError(err)) throw err;
+    return await load(IG_MEDIA_LIST_FIELDS_MIN);
+  }
+}
 
 export async function fetchInstagramMedia(
   igUserId: string,
   accessToken: string,
   limit = 25,
 ): Promise<MetaContentPost[]> {
-  const url = graphUrl(`${igUserId}/media`, {
-    fields: IG_MEDIA_LIST_FIELDS,
+  const data = await graphGetInstagramMediaPage(igUserId, accessToken, {
     limit: String(Math.min(Math.max(limit, 1), 100)),
   });
-  const data = await graphGet<{ data?: Array<Record<string, unknown>> }>(url, accessToken);
   return (data.data ?? []).map(mapIgMedia);
 }
 
@@ -567,16 +595,10 @@ export async function resolveInstagramPostsForMetrics(
   const cap = options?.allTime ? META_CONTENT_ALL_TIME_MAX_POSTS : limit;
 
   for (let page = 0; page < maxPages && inRange.length < cap; page++) {
-    const params: Record<string, string> = {
-      fields: IG_MEDIA_LIST_FIELDS,
-      limit: "50",
-    };
+    const params: Record<string, string> = { limit: "50" };
     if (after) params.after = after;
 
-    const data = await graphGet<{
-      data?: Array<Record<string, unknown>>;
-      paging?: { cursors?: { after?: string } };
-    }>(graphUrl(`${igUserId}/media`, params), accessToken);
+    const data = await graphGetInstagramMediaPage(igUserId, accessToken, params);
 
     const batch = (data.data ?? []).map(mapIgMedia);
     if (batch.length === 0) break;
@@ -961,6 +983,14 @@ const FB_POST_LIST_FIELDS = [
   "reactions.summary(true)",
   "attachments{media_type,type,url,media,target}",
 ].join(",");
+const FB_POST_LIST_FIELDS_MIN = [
+  "id",
+  "message",
+  "created_time",
+  "permalink_url",
+  "full_picture",
+  "attachments{media_type,type,url,media,target}",
+].join(",");
 
 async function fetchFacebookPostsFromEndpoint(
   endpoint: string,
@@ -981,15 +1011,22 @@ async function fetchFacebookPostsFromEndpoint(
 
   for (let page = 0; page < maxPages && inRange.length < cap; page++) {
     const params: Record<string, string> = {
-      fields: FB_POST_LIST_FIELDS,
       limit: paginate ? "50" : String(Math.min(Math.max(limit, 1), 100)),
     };
     if (after) params.after = after;
 
-    const data = await graphGet<{
-      data?: Array<Record<string, unknown>>;
-      paging?: { cursors?: { after?: string } };
-    }>(graphUrl(endpoint, params), accessToken);
+    const load = (fields: string) =>
+      graphGet<{
+        data?: Array<Record<string, unknown>>;
+        paging?: { cursors?: { after?: string } };
+      }>(graphUrl(endpoint, { ...params, fields }), accessToken);
+    let data: Awaited<ReturnType<typeof load>>;
+    try {
+      data = await load(FB_POST_LIST_FIELDS);
+    } catch (err) {
+      if (!isUnknownGraphFieldError(err)) throw err;
+      data = await load(FB_POST_LIST_FIELDS_MIN);
+    }
 
     const batch = (data.data ?? []).map(mapFbPost);
     if (batch.length === 0) break;
@@ -1025,6 +1062,8 @@ async function fetchFacebookPostsFromEndpoint(
 
 export type ResolveFacebookPostsOptions = {
   allTime?: boolean;
+  /** Throw the last Graph error when every feed endpoint fails. */
+  surfaceErrors?: boolean;
 };
 
 /**
@@ -1042,6 +1081,7 @@ export async function resolveFacebookPostsForMetrics(
     `${pageId}/posts`,
     `${pageId}/feed`,
   ];
+  let lastError: unknown = null;
 
   for (const endpoint of listEndpoints) {
     try {
@@ -1055,8 +1095,13 @@ export async function resolveFacebookPostsForMetrics(
       if (posts.length > 0) return posts;
       if (sawAnyBatch) return [];
     } catch (err) {
+      lastError = err;
       console.warn(`resolveFacebookPostsForMetrics ${endpoint}:`, err instanceof Error ? err.message : err);
     }
+  }
+
+  if (options?.surfaceErrors && lastError) {
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   return [];
@@ -1870,11 +1915,18 @@ export async function fetchMetaPosts(
   platform: MetaContentPlatform,
   account: { pageId: string; igBusinessAccountId: string | null; pageAccessToken: string },
   limit?: number,
+  options?: ResolveFacebookPostsOptions,
 ): Promise<MetaContentPost[]> {
   if (platform === "instagram" && account.igBusinessAccountId) {
     return fetchInstagramMedia(account.igBusinessAccountId, account.pageAccessToken, limit);
   }
-  return fetchFacebookPosts(account.pageId, account.pageAccessToken, limit);
+  return resolveFacebookPostsForMetrics(
+    account.pageId,
+    account.pageAccessToken,
+    limit ?? 25,
+    undefined,
+    options,
+  );
 }
 
 export async function fetchMetaComments(

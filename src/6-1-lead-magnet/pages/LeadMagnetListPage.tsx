@@ -174,19 +174,19 @@ export function LeadMagnetListPage() {
           </div>
         ) : (
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <table className="w-full min-w-[1600px] caption-bottom text-sm">
+            <table className="w-full min-w-[2040px] caption-bottom text-sm">
                         <TableHeader className="sticky top-0 z-20 bg-gray-50 shadow-sm">
                           <TableRow className="hover:bg-transparent">
                             <TableHead className="min-w-[200px] bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 align-top">
                               Konten
                             </TableHead>
-                            <TableHead className="bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
+                            <TableHead className="min-w-[360px] bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
                               Campaign
                             </TableHead>
                             <TableHead className="bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
                               Platform
                             </TableHead>
-                            <TableHead className="bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
+                            <TableHead className="min-w-[140px] bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
                               Keyword
                             </TableHead>
                             <TableHead className="min-w-[140px] bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">
@@ -233,11 +233,11 @@ export function LeadMagnetListPage() {
                                   accounts={getCampaignAccounts(c)}
                                 />
                               </TableCell>
-                              <TableCell className="px-3 py-2 align-middle font-medium">{c.name}</TableCell>
+                              <TableCell className="min-w-[360px] px-3 py-2 align-middle font-medium">{c.name}</TableCell>
                               <TableCell className="px-3 py-2 align-middle text-muted-foreground">
                                 {formatCampaignPlatformsLabel(getCampaignAccounts(c))}
                               </TableCell>
-                              <TableCell className="px-3 py-2 align-middle">{c.keyword}</TableCell>
+                              <TableCell className="min-w-[140px] px-3 py-2 align-middle">{c.keyword}</TableCell>
                               <TableCell className="px-3 py-2 align-middle">
                                 <CampaignLeadMagnetCell
                                   campaign={c}

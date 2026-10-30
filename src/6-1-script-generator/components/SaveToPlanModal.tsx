@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogClose,
@@ -25,7 +25,14 @@ import {
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
-import { useSaveToPlan, type NewPlanData } from '../hooks/useSaveToPlan';
+import { useSaveToPlan, type NewPlanData, type SaveToPlanResult } from '../hooks/useSaveToPlan';
+import {
+  prepareLeadMagnetFromPlan,
+  type LeadMagnetAccountChoiceOption,
+  type PrepareLeadMagnetFromPlanInput,
+  type PrepareLeadMagnetFromPlanResult,
+} from '@/6-1-lead-magnet/lib/leadMagnetApi';
+import { LeadMagnetAccountChoiceDialog } from './LeadMagnetAccountChoiceDialog';
 import { parseAIScriptMetadata } from '../utils/parseAIScriptOutput';
 import { dedupeMasterRowsByNamePreferOrg } from '../utils/dedupeMasterRowsByNamePreferOrg';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -57,6 +64,14 @@ interface SaveToPlanModalProps {
   hideConcept?: boolean;
   preserveTableColumns?: boolean;
   syncPlanIdentity?: boolean;
+  /** Set when this execution came from a Lead Magnet pillar. */
+  leadMagnet?: {
+    offer: string;
+    comment: string;
+    trigger: string;
+    pillarName: string;
+    development: string;
+  } | null;
 }
 
 interface Employee {
@@ -80,12 +95,22 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
   hideConcept = false,
   preserveTableColumns = false,
   syncPlanIdentity = false,
+  leadMagnet = null,
 }) => {
   const { t } = useAppTranslation();
   const isMobile = useIsMobile();
   const { organizationId } = useCurrentOrg();
   const { data: currentEmployee } = useCurrentEmployee();
   const { saveToPlan, isSaving } = useSaveToPlan();
+  const [preparingLeadMagnet, setPreparingLeadMagnet] = useState(false);
+  const [accountChoice, setAccountChoice] = useState<{
+    request: PrepareLeadMagnetFromPlanInput;
+    instagram: LeadMagnetAccountChoiceOption[];
+    facebook: LeadMagnetAccountChoiceOption[];
+    instagramId: string;
+    facebookId: string;
+  } | null>(null);
+  const busy = isSaving || preparingLeadMagnet;
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const [selectedDate, setSelectedDate] = useState(today);
@@ -118,6 +143,8 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [masterLoading, setMasterLoading] = useState(false);
   const [masterError, setMasterError] = useState<string | null>(null);
+  const formBootstrapped = useRef(false);
+  const accountChoiceConfirmed = useRef(false);
 
   const loadMasterData = useCallback(async () => {
     if (!organizationId) return;
@@ -160,41 +187,57 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
   }, [organizationId, t]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) {
+      formBootstrapped.current = false;
+      return;
+    }
+    const { title, contentTypeName, contentPillarName } = parseAIScriptMetadata(
+      script,
+      contentTypes.map((ct: { name: string }) => ct.name),
+      contentPillars.map((cp: { name: string }) => cp.name)
+    );
+    const lockedType = lockedContentTypeName
+      ? contentTypes.find((ct: { name: string }) => ct.name.toLowerCase() === lockedContentTypeName.toLowerCase())
+      : null;
+    const contentTypeId = lockedType?.id
+      || formDataForPlan?.content_type_id
+      || (contentTypeName ? contentTypes.find((ct: { name: string }) => ct.name.toLowerCase() === contentTypeName.toLowerCase())?.id : '')
+      || '';
+    const serviceId = formDataForPlan?.service_id || '';
+    const subServiceId = formDataForPlan?.sub_service_id || '';
+    const contentPillarId = lockedPillarId
+      || formDataForPlan?.content_pillar_id
+      || (contentPillarName ? contentPillars.find((cp: { name: string }) => cp.name.toLowerCase() === contentPillarName.toLowerCase())?.id : '')
+      || '';
+    const employeeId = (currentEmployee as unknown as Employee | null)?.id ?? '';
+
+    if (!formBootstrapped.current) {
+      formBootstrapped.current = true;
       setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
       setPlanMode('new');
       setSelectedPlan(null);
       setSaveBrief(true);
       setSaveCaption(true);
       setSaveConcept(!hideConcept);
-      const { title, contentTypeName, contentPillarName } = parseAIScriptMetadata(
-        script,
-        contentTypes.map((ct: { name: string }) => ct.name),
-        contentPillars.map((cp: { name: string }) => cp.name)
-      );
-      // Prefer form data from Script Generator; fallback to parsed metadata from script
-      const lockedType = lockedContentTypeName
-        ? contentTypes.find((ct: { name: string }) => ct.name.toLowerCase() === lockedContentTypeName.toLowerCase())
-        : null;
-      const contentTypeId = lockedType?.id
-        || formDataForPlan?.content_type_id
-        || (contentTypeName ? contentTypes.find((ct: { name: string }) => ct.name.toLowerCase() === contentTypeName.toLowerCase())?.id : '')
-        || '';
-      const serviceId = formDataForPlan?.service_id || '';
-      const subServiceId = formDataForPlan?.sub_service_id || '';
-      const contentPillarId = lockedPillarId
-        || formDataForPlan?.content_pillar_id
-        || (contentPillarName ? contentPillars.find((cp: { name: string }) => cp.name.toLowerCase() === contentPillarName.toLowerCase())?.id : '')
-        || '';
       setNewPlanForm({
         title: lockedTitle ?? title ?? '',
-        pic_id: (currentEmployee as unknown as Employee | null)?.id ?? '',
+        pic_id: employeeId,
         content_type_id: contentTypeId,
         service_id: serviceId,
         sub_service_id: subServiceId,
         content_pillar_id: contentPillarId,
       });
+      return;
     }
+
+    setNewPlanForm((prev) => ({
+      title: prev.title || lockedTitle || title || '',
+      pic_id: prev.pic_id || employeeId,
+      content_type_id: prev.content_type_id || contentTypeId,
+      service_id: prev.service_id || serviceId,
+      sub_service_id: prev.sub_service_id || subServiceId,
+      content_pillar_id: prev.content_pillar_id || contentPillarId,
+    }));
   }, [isOpen, script, formDataForPlan, contentTypes, contentPillars, (currentEmployee as unknown as Employee | null)?.id, lockedTitle, lockedPillarId, lockedContentTypeName, hideConcept]);
 
   useEffect(() => {
@@ -275,10 +318,120 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
     setShowPicker(false);
   };
 
+  const announceLeadMagnet = (result: PrepareLeadMagnetFromPlanResult) => {
+    const code = result.code ?? '';
+    if (code === 'missing_comment') {
+      toast.error(t('scriptGenerator.saveToPlanModal.leadMagnetMissingComment', 'Plan saved. This pillar has no comment keyword, so no lead magnet campaign was created.'));
+      return;
+    }
+    if (code === 'missing_account') {
+      toast.error(t('scriptGenerator.saveToPlanModal.leadMagnetMissingAccount', 'Plan saved. Connect an Instagram or Facebook account with DM and comment permission before the Lead Magnet draft can be created.'));
+      return;
+    }
+    if (code === 'missing_claude_key') {
+      toast.error(t('scriptGenerator.saveToPlanModal.leadMagnetMissingClaude', 'Draft saved. Add a Claude API key in Social Media settings to generate the PDF.'));
+      return;
+    }
+    if (code === 'pdf_limit') {
+      toast.error(t('scriptGenerator.saveToPlanModal.leadMagnetPdfLimit', 'Draft saved. The daily Claude PDF limit for this organization is used up.'));
+      return;
+    }
+    if (result.file === 'failed' || code === 'outline_rejected' || code === 'pdf_failed') {
+      const detail = (result.message ?? '').trim();
+      const base = t('scriptGenerator.saveToPlanModal.leadMagnetFileFailed', 'Draft saved. The PDF step failed. Save again to retry only the file.');
+      toast.error(detail ? `${base} ${detail}` : base);
+      return;
+    }
+    if (result.file === 'ready') {
+      toast.success(t('scriptGenerator.saveToPlanModal.leadMagnetReady', 'Lead magnet draft is ready. The PDF is on Delivery.'));
+    }
+  };
+
+  const afterPlanSaved = async (result: SaveToPlanResult, planTitle: string) => {
+    if (!result.ok) return;
+    if (leadMagnet) {
+      try {
+        const request: PrepareLeadMagnetFromPlanInput = {
+          planId: result.planId,
+          name: planTitle.trim() || leadMagnet.offer,
+          offer: leadMagnet.offer,
+          comment: leadMagnet.comment,
+          trigger: leadMagnet.trigger,
+          pillarName: leadMagnet.pillarName,
+          development: leadMagnet.development,
+        };
+        const prepared = await prepareLeadMagnetFromPlan(request);
+        if (prepared.code === 'choose_account') {
+          setAccountChoice({
+            request,
+            instagram: prepared.instagram ?? [],
+            facebook: prepared.facebook ?? [],
+            instagramId: prepared.instagram_account_id ?? '',
+            facebookId: prepared.facebook_account_id ?? '',
+          });
+          onSuccess?.();
+          onClose();
+          return;
+        }
+        announceLeadMagnet(prepared);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : t('scriptGenerator.saveToPlanModal.leadMagnetFileFailed', 'Draft saved. The PDF step failed. Save again to retry only the file.');
+        toast.error(message);
+      }
+    }
+    onSuccess?.();
+    onClose();
+  };
+
+  const confirmAccountChoice = () => {
+    if (!accountChoice || preparingLeadMagnet) return;
+    const choice = accountChoice;
+    accountChoiceConfirmed.current = true;
+    setAccountChoice(null);
+    setPreparingLeadMagnet(true);
+    toast(t('scriptGenerator.saveToPlanModal.leadMagnetPreparing', 'The Lead Magnet guide is being written. You can keep working.'));
+    void (async () => {
+      try {
+        const prepared = await prepareLeadMagnetFromPlan({
+          ...choice.request,
+          instagramAccountId: choice.instagramId || undefined,
+          facebookAccountId: choice.facebookId || undefined,
+        });
+        if (prepared.code === 'choose_account') {
+          setAccountChoice({
+            ...choice,
+            instagram: prepared.instagram ?? choice.instagram,
+            facebook: prepared.facebook ?? choice.facebook,
+            instagramId: prepared.instagram_account_id ?? choice.instagramId,
+            facebookId: prepared.facebook_account_id ?? choice.facebookId,
+          });
+          return;
+        }
+        announceLeadMagnet(prepared);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : t('common.error', 'Error'));
+      } finally {
+        setPreparingLeadMagnet(false);
+      }
+    })();
+  };
+
+  const cancelAccountChoice = () => {
+    if (accountChoiceConfirmed.current) {
+      accountChoiceConfirmed.current = false;
+      setAccountChoice(null);
+      return;
+    }
+    setAccountChoice(null);
+    if (preparingLeadMagnet) return;
+    toast(t('scriptGenerator.saveToPlanModal.leadMagnetAccountLater', 'Plan saved. Open Save again and choose an account to prepare the Lead Magnet.'));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!saveBrief && !saveCaption && !saveConcept) return;
-
+    if (!saveBrief && !saveCaption && !saveConcept || busy) return;
+    if (leadMagnet) setPreparingLeadMagnet(true);
+    try {
     if (lockedContentTypeName) {
       const match = contentTypes.find((ct: { name: string }) => ct.name.toLowerCase() === lockedContentTypeName.toLowerCase());
       if (!match) {
@@ -289,7 +442,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
 
     if (planMode === 'existing') {
       if (!selectedPlan) return;
-      const success = await saveToPlan({
+      const saved = await saveToPlan({
         script,
         planId: selectedPlan.id,
         postDate: selectedPlan.post_date ? format(new Date(selectedPlan.post_date), 'yyyy-MM-dd') : selectedDate,
@@ -307,10 +460,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
             }
           : undefined,
       });
-      if (success) {
-        onSuccess?.();
-        onClose();
-      }
+      await afterPlanSaved(saved, lockedTitle?.trim() || selectedPlan.title || '');
       return;
     }
 
@@ -324,7 +474,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
       content_pillar_id: newPlanForm.content_pillar_id,
     };
 
-    const success = await saveToPlan({
+    const saved = await saveToPlan({
       script,
       planId: 'new',
       postDate: selectedDate,
@@ -338,9 +488,9 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
         : undefined,
     });
 
-    if (success) {
-      onSuccess?.();
-      onClose();
+    await afterPlanSaved(saved, newPlanData.title);
+    } finally {
+      if (leadMagnet) setPreparingLeadMagnet(false);
     }
   };
 
@@ -447,7 +597,7 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                     type="button"
                     className="-ml-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
                     aria-label={t('common.cancel', 'Cancel')}
-                    disabled={isSaving}
+                    disabled={busy}
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -794,17 +944,21 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
                 variant="outline"
                 size={isMobile ? 'sm' : 'default'}
                 onClick={onClose}
-                disabled={isSaving}
+                disabled={busy}
               >
                 {t('common.cancel', 'Cancel')}
               </Button>
               <Button
                 type="submit"
                 size={isMobile ? 'sm' : 'default'}
-                disabled={isSaving || !canSubmit}
-                className={isMobile ? 'flex min-w-[120px] items-center justify-center gap-1.5' : undefined}
+                disabled={busy || !canSubmit}
+                className={isMobile ? 'flex min-w-[120px] items-center justify-center gap-1.5 whitespace-normal text-center' : 'whitespace-normal'}
               >
-                {isSaving ? t('common.saving', 'Saving...') : t('common.save', 'Save')}
+                {busy
+                  ? t('common.saving', 'Saving...')
+                  : leadMagnet
+                    ? t('scriptGenerator.saveToPlanModal.saveAndPrepareLeadMagnet', 'Save & Siapkan Lead Magnet')
+                    : t('common.save', 'Save')}
               </Button>
             </DialogFooter>
           </form>
@@ -826,6 +980,28 @@ export const SaveToPlanModal: React.FC<SaveToPlanModalProps> = ({
         saveBrief={saveBrief}
         saveCaption={saveCaption}
         saveConcept={saveConcept}
+      />
+
+      <LeadMagnetAccountChoiceDialog
+        open={accountChoice !== null}
+        confirming={preparingLeadMagnet}
+        instagram={accountChoice?.instagram ?? []}
+        facebook={accountChoice?.facebook ?? []}
+        instagramId={accountChoice?.instagramId ?? ''}
+        facebookId={accountChoice?.facebookId ?? ''}
+        onInstagramId={(instagramId) => setAccountChoice((prev) => (prev ? { ...prev, instagramId } : prev))}
+        onFacebookId={(facebookId) => setAccountChoice((prev) => (prev ? { ...prev, facebookId } : prev))}
+        onConfirm={() => { void confirmAccountChoice(); }}
+        onCancel={cancelAccountChoice}
+        title={t('scriptGenerator.saveToPlanModal.leadMagnetChooseTitle', 'Choose the Lead Magnet account')}
+        description={t('scriptGenerator.saveToPlanModal.leadMagnetChooseDescription', 'The plan is saved. Pick the account that will receive this comment and send the material.')}
+        instagramLabel={t('scriptGenerator.saveToPlanModal.leadMagnetInstagram', 'Instagram')}
+        facebookLabel={t('scriptGenerator.saveToPlanModal.leadMagnetFacebook', 'Facebook')}
+        ineligibleLabel={t('scriptGenerator.saveToPlanModal.leadMagnetAccountIneligible', 'DM or comment permission is incomplete')}
+        emptyLabel={t('scriptGenerator.saveToPlanModal.leadMagnetAccountEmpty', 'No connected account')}
+        confirmLabel={t('scriptGenerator.saveToPlanModal.leadMagnetUseAccount', 'Use this account')}
+        cancelLabel={t('scriptGenerator.saveToPlanModal.leadMagnetChooseLater', 'Later')}
+        confirmingLabel={t('common.saving', 'Saving...')}
       />
     </>
   );

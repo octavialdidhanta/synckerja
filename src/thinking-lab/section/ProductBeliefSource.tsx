@@ -11,7 +11,7 @@ import {
 } from "@/shared/components/ui/select";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useProductKnowledge, type ProductKnowledge } from "@/6-1-product-knowledge/hooks/useProductKnowledge";
-import { isGeminiSpendCapError } from "@/shared/ai/geminiSpendCap";
+import { isGeminiBillingNoticeError } from "@/shared/ai/geminiSpendCap";
 import { askThinkingLab, parseModelJson } from "@/thinking-lab/shared/ai";
 import {
   buildProductBeliefPrompt,
@@ -121,7 +121,7 @@ export function ProductBeliefSource({ disabled, onApply, onPoolChange }: Props) 
         ),
       );
     } catch (error) {
-      if (isGeminiSpendCapError(error)) return;
+      if (isGeminiBillingNoticeError(error)) return;
       toast.error(t("thinkingLab.product.failed", "The analysis did not come back. Try again."));
     } finally {
       setPending(false);

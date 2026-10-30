@@ -328,7 +328,7 @@ export function DigitalMarketingReportMonthlyChartsSection({
       })
     : chartSubtitleBase;
 
-  const plotClassName = isMobile ? "h-[220px]" : "min-h-[280px] flex-1";
+  const plotClassName = isMobile ? "h-[220px]" : "h-[240px]";
 
   const sharedChartProps = {
     bootstrapLoading,
@@ -488,13 +488,13 @@ export function DigitalMarketingReportMonthlyChartsSection({
       className={
         isMobile
           ? "min-w-0 border-y border-border bg-card"
-          : "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-4 pb-3 pt-4 shadow-sm"
+          : "flex min-w-0 shrink-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-4 pb-3 pt-4 shadow-sm"
       }
     >
       <Tabs
         value={chartTab}
         onValueChange={(v) => setChartTab(v as MonthlyChartTab)}
-        className={isMobile ? "flex min-w-0 flex-col" : "flex min-h-0 min-w-0 flex-1 flex-col"}
+        className="flex min-w-0 flex-col"
       >
         {isMobile ? (
           <>
@@ -535,7 +535,7 @@ export function DigitalMarketingReportMonthlyChartsSection({
                 <p className="mt-2 text-xs text-muted-foreground">{chartSubtitle}</p>
               ) : null}
             </div>
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col" key={chartTab}>
+            <div className="min-w-0" key={chartTab}>
               {chartBody}
             </div>
           </>

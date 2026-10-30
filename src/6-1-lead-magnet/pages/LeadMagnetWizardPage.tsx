@@ -220,14 +220,14 @@ export function LeadMagnetWizardPage() {
   const igAccountId = getAccountForPlatform(form.accounts, 'instagram');
   const fbAccountId = getAccountForPlatform(form.accounts, 'facebook');
 
-  const { data: igMediaPosts = [], isLoading: loadingIgPosts } = useLeadMagnetMediaPosts(
-    'instagram',
-    igEnabled ? igAccountId : '',
-  );
-  const { data: fbMediaPosts = [], isLoading: loadingFbPosts } = useLeadMagnetMediaPosts(
-    'facebook',
-    fbEnabled ? fbAccountId : '',
-  );
+  const igPostsQuery = useLeadMagnetMediaPosts('instagram', igEnabled ? igAccountId : '');
+  const fbPostsQuery = useLeadMagnetMediaPosts('facebook', fbEnabled ? fbAccountId : '');
+  const igMediaPosts = igPostsQuery.data ?? [];
+  const fbMediaPosts = fbPostsQuery.data ?? [];
+  const loadingIgPosts = igPostsQuery.isLoading;
+  const loadingFbPosts = fbPostsQuery.isLoading;
+  const igPostsError = mediaQueryError(igPostsQuery.error);
+  const fbPostsError = mediaQueryError(fbPostsQuery.error);
 
   const { organizationId } = useCurrentOrg();
   const { orgHasWhatsApp } = useLeadMagnetWhatsAppAccounts();
@@ -602,6 +602,8 @@ export function LeadMagnetWizardPage() {
                             accountId={igAccountId}
                             posts={igMediaPosts}
                             loading={loadingIgPosts}
+                            loadError={igPostsError}
+                            settingsPath={instagramSettingsPath}
                             selected={form.posts}
                             onToggle={togglePost}
                             selectAccountHint={t('leadMagnet.wizard.selectIgAccountFirst')}
@@ -613,6 +615,8 @@ export function LeadMagnetWizardPage() {
                             accountId={fbAccountId}
                             posts={fbMediaPosts}
                             loading={loadingFbPosts}
+                            loadError={fbPostsError}
+                            settingsPath={facebookSettingsPath}
                             selected={form.posts}
                             onToggle={togglePost}
                             selectAccountHint={t('leadMagnet.wizard.selectFbAccountFirst')}
@@ -626,6 +630,8 @@ export function LeadMagnetWizardPage() {
                           accountId={igEnabled ? igAccountId : fbAccountId}
                           posts={igEnabled ? igMediaPosts : fbMediaPosts}
                           loading={igEnabled ? loadingIgPosts : loadingFbPosts}
+                          loadError={igEnabled ? igPostsError : fbPostsError}
+                          settingsPath={igEnabled ? instagramSettingsPath : facebookSettingsPath}
                           selected={form.posts}
                           onToggle={togglePost}
                           selectAccountHint={
@@ -1027,11 +1033,23 @@ function PlatformAccountSection({
   );
 }
 
+function mediaQueryError(error: unknown): string | null {
+  if (!error) return null;
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isMetaAccessTokenError(message: string): boolean {
+  return /validating access token|session has expired/i.test(message);
+}
+
+
 function PostPicker({
   platform,
   accountId,
   posts,
   loading,
+  loadError,
+  settingsPath,
   selected,
   onToggle,
   selectAccountHint,
@@ -1040,6 +1058,8 @@ function PostPicker({
   accountId: string;
   posts: LeadMagnetMediaPost[];
   loading: boolean;
+  loadError: string | null;
+  settingsPath: string;
   selected: LeadMagnetCampaignForm['posts'];
   onToggle: (
     platform: LeadMagnetPlatform,
@@ -1055,6 +1075,29 @@ function PostPicker({
     return <p className="text-sm text-amber-600">{selectAccountHint}</p>;
   }
   if (loading) return <Loader2 className="h-5 w-5 animate-spin" />;
+  if (loadError && isMetaAccessTokenError(loadError)) {
+    return (
+      <p className="text-sm text-amber-700">
+        {t('leadMagnet.wizard.postsReconnect', {
+          defaultValue:
+            'This Meta connection expired, so posts cannot be loaded. Reconnect the account, then return here.',
+        })}{' '}
+        <Link to={settingsPath} className="font-medium text-primary underline">
+          {t('leadMagnet.wizard.postsReconnectAction', { defaultValue: 'Reconnect account' })}
+        </Link>
+      </p>
+    );
+  }
+  if (loadError) {
+    return (
+      <p className="text-sm text-destructive">
+        {t('leadMagnet.wizard.postsLoadFailed', {
+          message: loadError,
+          defaultValue: 'Could not load posts: {{message}}',
+        })}
+      </p>
+    );
+  }
   if (posts.length === 0) {
     return <p className="text-sm text-muted-foreground">{t('leadMagnet.wizard.noPostsForAccount')}</p>;
   }

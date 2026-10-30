@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { isGeminiSpendCapError } from "@/shared/ai/geminiSpendCap";
+import { isGeminiPrepaidDepletedError, isGeminiSpendCapError } from "@/shared/ai/geminiSpendCap";
 import { askThinkingLab } from "@/thinking-lab/shared/ai";
 import {
   diagnoseBigThought,
@@ -45,6 +45,10 @@ export function ManualSemanticDiagnostic({ parentStatement, validSiblings }: Man
       setResult(null);
       if (isGeminiSpendCapError(caught)) {
         setError(t("geminiSpendCap.body", "Proyek Google AI Studio sudah melewati batas belanja bulan ini. Naikkan atau reset batasnya, lalu coba lagi."));
+        return;
+      }
+      if (isGeminiPrepaidDepletedError(caught)) {
+        setError(t("geminiPrepaid.body", "Kredit prabayar Google AI Studio sudah habis. Isi ulang kredit di AI Studio, lalu coba lagi."));
         return;
       }
       setError(caught instanceof Error ? caught.message : t("thinkingLab.error.generic", "Thinking Lab could not finish that step."));

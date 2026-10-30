@@ -39,6 +39,9 @@ interface ScriptAIConfig {
   text_ai_provider?: TextAIProvider;
   api_key_configured: boolean;
   openai_api_key_configured: boolean;
+  claude_api_key_configured?: boolean;
+  claude_model?: string;
+  claude_pdf_daily_limit?: number;
 }
 
 const DEPRECATED_GEMINI_MODELS = [
@@ -87,6 +90,31 @@ const FIREWORKS_MODEL_OPTIONS = [
 
 const PROVIDER_BUTTON_ORDER = ['gemini', 'openai', 'groq', 'fireworks'] as const satisfies readonly TextAIProvider[];
 
+const CLAUDE_PDF_MODEL_OPTIONS = [
+  { value: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5' },
+  { value: 'claude-opus-5-5', label: 'Claude Opus 5.5' },
+  { value: 'claude-haiku-5-5', label: 'Claude Haiku 5.5' },
+] as const;
+
+const DEFAULT_CLAUDE_PDF_MODEL = 'claude-sonnet-5-5';
+
+const CLAUDE_PDF_MODEL_ALIASES: Record<string, string> = {
+  'claude-sonnet-4-5': DEFAULT_CLAUDE_PDF_MODEL,
+  'claude-sonnet-4-5-20250929': DEFAULT_CLAUDE_PDF_MODEL,
+  'claude-opus-4-5': 'claude-opus-5-5',
+  'claude-opus-4-5-20251101': 'claude-opus-5-5',
+  'claude-haiku-4-5': 'claude-haiku-5-5',
+  'claude-haiku-4-5-20251001': 'claude-haiku-5-5',
+};
+
+function normalizeClaudePdfModel(raw: string | null | undefined): string {
+  const value = String(raw ?? '').trim();
+  const mapped = CLAUDE_PDF_MODEL_ALIASES[value] ?? value;
+  if (CLAUDE_PDF_MODEL_OPTIONS.some((option) => option.value === mapped)) return mapped;
+  if (/^claude-[a-z0-9._-]{3,80}$/i.test(mapped)) return mapped;
+  return DEFAULT_CLAUDE_PDF_MODEL;
+}
+
 const OPENAI_MODEL_OPTIONS = [
   { value: 'gpt-4o-mini', label: 'GPT-4o mini' },
   { value: 'gpt-4o', label: 'GPT-4o' },
@@ -94,6 +122,9 @@ const OPENAI_MODEL_OPTIONS = [
 
 const CONFIG_SELECT =
   'id, organization_id, daily_limit, model, is_active, text_ai_provider, api_key_configured, openai_api_key_configured' as const;
+
+const CLAUDE_CONFIG_SELECT =
+  `${CONFIG_SELECT}, claude_api_key_configured, claude_model, claude_pdf_daily_limit` as const;
 
 function normalizeStoredModel(raw: string | null | undefined, provider: TextAIProvider): string {
   const fallback =
@@ -145,8 +176,13 @@ export const ScriptAIConfigSection: React.FC = () => {
   const [textAiProvider, setTextAiProvider] = useState<TextAIProvider>('gemini');
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [openaiKeyInput, setOpenaiKeyInput] = useState('');
+  const [claudeKeyInput, setClaudeKeyInput] = useState('');
+  const [claudeModel, setClaudeModel] = useState(DEFAULT_CLAUDE_PDF_MODEL);
+  const [claudePdfLimit, setClaudePdfLimit] = useState(20);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingClaude, setIsSavingClaude] = useState(false);
   const [showRemoveApiKeyConfirm, setShowRemoveApiKeyConfirm] = useState(false);
+  const [showRemoveClaudeConfirm, setShowRemoveClaudeConfirm] = useState(false);
   const [isRemovingApiKey, setIsRemovingApiKey] = useState(false);
   const [appliedServerKey, setAppliedServerKey] = useState('');
 
@@ -158,19 +194,26 @@ export const ScriptAIConfigSection: React.FC = () => {
         configRow.text_ai_provider,
         configRow.api_key_configured,
         configRow.openai_api_key_configured,
+        configRow.claude_api_key_configured,
+        configRow.claude_model,
+        configRow.claude_pdf_daily_limit,
       ].join(':')
     : '';
-  if (serverKey !== appliedServerKey && !apiKeyInput.trim() && !openaiKeyInput.trim()) {
+  if (serverKey !== appliedServerKey && !apiKeyInput.trim() && !openaiKeyInput.trim() && !claudeKeyInput.trim()) {
     setAppliedServerKey(serverKey);
     if (configRow) {
       setDailyLimit(configRow.daily_limit ?? 50);
       const nextProvider = resolveTextAIProvider(configRow);
       setTextAiProvider(nextProvider);
       setModel(normalizeStoredModel(configRow.model, nextProvider));
+      setClaudeModel(normalizeClaudePdfModel(configRow.claude_model));
+      setClaudePdfLimit(Math.min(200, Math.max(1, Number(configRow.claude_pdf_daily_limit) || 20)));
     } else {
       setDailyLimit(50);
       setModel('gemini-2.5-flash');
       setTextAiProvider('gemini');
+      setClaudeModel(DEFAULT_CLAUDE_PDF_MODEL);
+      setClaudePdfLimit(20);
     }
   }
 
@@ -266,7 +309,10 @@ export const ScriptAIConfigSection: React.FC = () => {
       setModel(normalizeStoredModel(saved.model, nextProvider));
       setApiKeyInput('');
       setOpenaiKeyInput('');
-      queryClient.setQueryData(['script-ai-config', organizationId], saved);
+      queryClient.setQueryData(['script-ai-config', organizationId], (current: ScriptAIConfigRow | null | undefined) => ({
+        ...(current ?? {}),
+        ...saved,
+      }));
       queryClient.invalidateQueries({ queryKey: ['script-ai-config', organizationId] });
       toast.success('Konfigurasi berhasil disimpan');
     } catch (err) {
@@ -274,6 +320,94 @@ export const ScriptAIConfigSection: React.FC = () => {
       toast.error(err instanceof Error ? err.message : 'Gagal menyimpan konfigurasi');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const savedClaudeModel = normalizeClaudePdfModel(configRow?.claude_model);
+  const savedClaudeLimit = Math.min(200, Math.max(1, Number(configRow?.claude_pdf_daily_limit) || 20));
+  const claudeDirty =
+    claudeKeyInput.trim().length > 0 ||
+    claudeModel !== savedClaudeModel ||
+    Number(claudePdfLimit) !== savedClaudeLimit;
+
+  const handleSaveClaude = async () => {
+    if (!organizationId) {
+      toast.error('Tidak ada organisasi aktif');
+      return;
+    }
+    const limit = Math.min(200, Math.max(1, Number(claudePdfLimit) || 20));
+    setIsSavingClaude(true);
+    try {
+      const payload: Record<string, unknown> = {
+        claude_model: normalizeClaudePdfModel(claudeModel),
+        claude_pdf_daily_limit: limit,
+      };
+      if (claudeKeyInput.trim()) {
+        payload.claude_api_key = claudeKeyInput.trim();
+        payload.claude_api_key_configured = true;
+      }
+      let saved: ScriptAIConfigRow | null = null;
+      if (configRow?.id) {
+        const { data, error } = await supabase
+          .from('organization_script_ai_config')
+          .update(payload)
+          .eq('id', configRow.id)
+          .select(CLAUDE_CONFIG_SELECT)
+          .single();
+        if (error) throw error;
+        saved = data as ScriptAIConfigRow | null;
+      } else {
+        const { data, error } = await supabase
+          .from('organization_script_ai_config')
+          .insert({
+            ...payload,
+            organization_id: organizationId,
+            is_active: false,
+            api_key_configured: false,
+            openai_api_key_configured: false,
+            claude_api_key_configured: !!claudeKeyInput.trim(),
+          })
+          .select(CLAUDE_CONFIG_SELECT)
+          .single();
+        if (error) throw error;
+        saved = data as ScriptAIConfigRow | null;
+      }
+      if (!saved) throw new Error('Konfigurasi Claude tidak tersimpan');
+      setClaudeKeyInput('');
+      setClaudeModel(normalizeClaudePdfModel(saved.claude_model));
+      setClaudePdfLimit(Math.min(200, Math.max(1, Number(saved.claude_pdf_daily_limit) || 20)));
+      queryClient.setQueryData(['script-ai-config', organizationId], (current: ScriptAIConfigRow | null | undefined) => ({
+        ...(current ?? {}),
+        ...saved,
+      }));
+      queryClient.invalidateQueries({ queryKey: ['script-ai-config', organizationId] });
+      toast.success('Claude untuk PDF berhasil disimpan');
+    } catch (err) {
+      console.error('Save Claude config error:', err);
+      toast.error(err instanceof Error ? err.message : 'Gagal menyimpan Claude');
+    } finally {
+      setIsSavingClaude(false);
+    }
+  };
+
+  const handleRemoveClaudeKey = async () => {
+    if (!configRow?.id || !organizationId) return;
+    setIsRemovingApiKey(true);
+    try {
+      const { error } = await supabase
+        .from('organization_script_ai_config')
+        .update({ claude_api_key: null, claude_api_key_configured: false })
+        .eq('id', configRow.id);
+      if (error) throw error;
+      setShowRemoveClaudeConfirm(false);
+      setClaudeKeyInput('');
+      queryClient.invalidateQueries({ queryKey: ['script-ai-config', organizationId] });
+      toast.success('Claude API key berhasil dihapus');
+    } catch (err) {
+      console.error('Remove Claude key error:', err);
+      toast.error(err instanceof Error ? err.message : 'Gagal menghapus Claude API key');
+    } finally {
+      setIsRemovingApiKey(false);
     }
   };
 
@@ -478,6 +612,96 @@ export const ScriptAIConfigSection: React.FC = () => {
         )}
       </Button>
 
+      <div className="rounded-lg border p-4 space-y-3">
+        <div>
+          <Label htmlFor="claude-api-key">Claude API Key</Label>
+          <p className="mt-1 text-xs text-gray-500">
+            Hanya untuk PDF Lead Magnet. Tidak mengubah provider skrip.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Input
+            id="claude-api-key"
+            type="password"
+            value={claudeKeyInput}
+            onChange={(e) => setClaudeKeyInput(e.target.value)}
+            placeholder={
+              configRow?.claude_api_key_configured
+                ? '•••••••••••• API key sudah dikonfigurasi'
+                : 'Masukkan API key dari Claude'
+            }
+            autoComplete="off"
+            className="flex-1 font-mono"
+          />
+          {configRow?.claude_api_key_configured && (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 shrink-0 border-red-200 px-4 text-red-600 hover:bg-red-50 hover:text-red-700"
+              onClick={() => setShowRemoveClaudeConfirm(true)}
+              disabled={isSavingClaude}
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              Hapus API Key
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-gray-500">
+          <a
+            href="https://platform.claude.com/settings/keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+          >
+            Buat key
+            <ExternalLink className="h-3 w-3" />
+          </a>
+          . Key tidak ditampilkan setelah disimpan.
+        </p>
+        <div className="space-y-2">
+          <Label htmlFor="claude-model">Model PDF</Label>
+          <Select value={claudeModel} onValueChange={setClaudeModel}>
+            <SelectTrigger id="claude-model">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CLAUDE_PDF_MODEL_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+              {!CLAUDE_PDF_MODEL_OPTIONS.some((opt) => opt.value === claudeModel) && (
+                <SelectItem value={claudeModel}>{claudeModel}</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="claude-pdf-limit">Batas PDF per hari</Label>
+          <Input
+            id="claude-pdf-limit"
+            type="number"
+            min={1}
+            max={200}
+            value={claudePdfLimit}
+            onChange={(e) => setClaudePdfLimit(Math.min(200, Math.max(1, parseInt(e.target.value, 10) || 20)))}
+          />
+          <p className="text-xs text-gray-500">Tidak mengurangi batas generate skrip.</p>
+        </div>
+        <Button type="button" onClick={handleSaveClaude} disabled={isSavingClaude || !claudeDirty}>
+          {isSavingClaude ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Menyimpan...
+            </>
+          ) : claudeDirty ? (
+            'Simpan Claude'
+          ) : (
+            'Tersimpan'
+          )}
+        </Button>
+      </div>
+
       {provider === 'gemini' && (
         <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 space-y-2">
           <div className="flex items-center gap-2">
@@ -515,6 +739,30 @@ export const ScriptAIConfigSection: React.FC = () => {
               onClick={handleRemoveApiKey}
               disabled={isRemovingApiKey}
             >
+              {isRemovingApiKey ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Menghapus...
+                </>
+              ) : (
+                'Hapus API Key'
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showRemoveClaudeConfirm} onOpenChange={setShowRemoveClaudeConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Claude API Key?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Key Claude dihapus dari organisasi ini. PDF Lead Magnet berhenti sampai key baru ditambahkan. Provider skrip tidak berubah.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRemovingApiKey}>Batal</AlertDialogCancel>
+            <Button variant="destructive" onClick={handleRemoveClaudeKey} disabled={isRemovingApiKey}>
               {isRemovingApiKey ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

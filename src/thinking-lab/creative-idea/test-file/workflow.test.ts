@@ -207,6 +207,34 @@ describe("development paths", () => {
     ]);
     const pending = mergeLockedPillar(cards, { contentPillarId: "pillar-c", pillarName: "Surat", development: "Surat untuk diri.", reason: "Cocok.", format: null });
     expect(pending.map((card) => card.pillarName)).toEqual(["Daftar", "Cerita", "Surat"]);
+    expect(cards.every((card) => !card.leadMagnet)).toBe(true);
+  });
+
+  it("marks only a lead-magnet lock for the Pillar - Lead Magnet node", () => {
+    const ordinary = {
+      ...first,
+      format: null,
+      reviews: [{ contentPillarId: "pillar-a", pillarName: "Cerita", status: "RECOMMENDED" as const, reason: "Cocok.", development: "Adegan yang sama." }],
+    };
+    const magnet = {
+      ...second,
+      format: null,
+      reviews: [{
+        contentPillarId: "pillar-b",
+        pillarName: "Daftar",
+        status: "RECOMMENDED" as const,
+        reason: "Cocok.",
+        development: "Daftar yang tertahan.",
+        offer: "PDF tanda anak merasa didengar",
+        comment: "KIRIM TANDA",
+        trigger: "Penonton belum tahu gerakan mana yang menahannya.",
+      }],
+    };
+    const cards = lockedPillarCards([ordinary, magnet]);
+    expect(cards.find((card) => card.contentPillarId === "pillar-a")?.leadMagnet).toBe(false);
+    expect(cards.find((card) => card.contentPillarId === "pillar-b")?.leadMagnet).toBe(true);
+    const kept = mergeLockedPillar(cards, { ...magnet, contentPillarId: "pillar-b", pillarName: "Daftar", development: "Daftar yang tertahan.", reason: "Cocok.", format: "video", leadMagnet: true });
+    expect(kept.find((card) => card.contentPillarId === "pillar-b")?.leadMagnet).toBe(true);
   });
 
   it("keeps a locked pillar beside the format already saved for it", () => {
@@ -311,8 +339,99 @@ describe("pillar review", () => {
     expect(listed).not.toContain("Pillar 0");
     expect(reviewPrompt).toContain("These pillars are already locked.");
     expect(reviewPrompt).toContain("Return exactly 3 recommendations");
+    expect(reviewPrompt).not.toContain("specific comment");
     expect(result.map((item) => item.pillarName)).toEqual(["Pillar 1", "Pillar 2", "Pillar 3"]);
     expect(checked).toHaveLength(3);
+  });
+
+  it("asks for three lead-magnet pillars and drops a recommendation without the comment exchange", async () => {
+    const pillars = [
+      { id: "p0", name: "Pillar 0" },
+      { id: "p1", name: "Cerita tim", description: "Adegan yang diceritakan" },
+      { id: "p2", name: "Daftar", description: "Butir yang terpisah" },
+    ];
+    let reviewPrompt = "";
+    const checks: string[] = [];
+    const steps: Array<{ pillarName: string; drafting: boolean; states: string[] }> = [];
+    const shown: string[] = [];
+    const result = await reviewContentPillars({
+      pillars,
+      context: "Bagaimana jika jejak kerja tampil tanpa skor.",
+      excludeIds: ["p0"],
+      keep: 3,
+      purpose: "lead_magnet",
+      onStep: (step) => {
+        steps.push({
+          pillarName: step.pillarName,
+          drafting: step.drafting,
+          states: step.checks.map((check) => `${check.id}:${check.state}`),
+        });
+      },
+      onPass: (review) => {
+        shown.push(review.pillarName);
+        expect(steps.some((step) => step.pillarName === review.pillarName && step.states.every((state) => state.endsWith(":pass")))).toBe(true);
+      },
+      ask: async (prompt) => {
+        if (prompt.startsWith("Check this lead-magnet requirement.")) {
+          checks.push(prompt);
+          const requirement = prompt.match(/Requirement: (\w+)/)?.[1] ?? "";
+          const ready = prompt.includes("PDF tanda anak merasa didengar") && prompt.includes("KIRIM TANDA") && prompt.includes("belum tahu gerakan mana");
+          return JSON.stringify({
+            pass: ready,
+            reason:
+              ready && requirement === "fit"
+                ? "PDF tanda anak merasa didengar dibuka dengan komentar KIRIM TANDA karena gerakannya belum dibacakan."
+                : ready
+                  ? "Syarat ini tertahan di luar konten."
+                  : "Pemicu unduhan belum menahan strategi di luar konten.",
+          });
+        }
+        reviewPrompt = prompt;
+        return JSON.stringify({
+          reviews: [
+            {
+              pillar: "Cerita tim",
+              development: "Jejak kerja menjadi cerita. Penonton menulis KIRIM TANDA untuk menerima PDF tanda anak merasa didengar.",
+              offer: "PDF tanda anak merasa didengar",
+              comment: "KIRIM TANDA",
+              trigger: "Penonton baru sadar jejak kerja tanpa skor, tetapi belum tahu gerakan mana yang menahannya.",
+              reason: "Klaim awal.",
+            },
+            {
+              pillar: "Daftar",
+              development: "Jejak kerja menjadi daftar butir, lalu tawarkan 5 strategi.",
+              offer: "PDF lima strategi jejak kerja",
+              comment: "MAU STRATEGI",
+              trigger: "5 strategi",
+              reason: "Klaim awal.",
+            },
+          ],
+        });
+      },
+    });
+    const listed = reviewPrompt.split("Pillars to review:")[1] ?? "";
+    expect(listed).not.toContain("Pillar 0");
+    expect(reviewPrompt).toContain("These pillars are already locked.");
+    expect(reviewPrompt).toContain("Return exactly 3 recommendations");
+    expect(reviewPrompt).toContain("exact short phrase");
+    expect(reviewPrompt).toContain("concrete material");
+    expect(reviewPrompt).toContain("Do not read out, list, or teach the steps");
+    expect(checks).toHaveLength(5);
+    expect(checks.map((prompt) => prompt.match(/Requirement: (\w+)/)?.[1])).toEqual(["offer", "comment", "trigger", "withheld", "fit"]);
+    expect(checks[0]).toContain("concrete piece");
+    expect(checks[2]).toContain("still cannot do");
+    expect(checks.every((prompt) => prompt.includes("Withheld trigger:"))).toBe(true);
+    expect(steps[0]).toMatchObject({ drafting: true, pillarName: "" });
+    expect(steps.some((step) => step.states.includes("offer:running") && step.pillarName === "Cerita tim")).toBe(true);
+    expect(steps.some((step) => step.states.includes("trigger:running") && step.states.includes("offer:pass"))).toBe(true);
+    expect(steps.at(-1)?.states).toEqual(["offer:pass", "comment:pass", "trigger:fail", "withheld:pending", "fit:pending"]);
+    expect(steps.at(-1)?.pillarName).toBe("Daftar");
+    expect(shown).toEqual(["Cerita tim"]);
+    expect(result.map((item) => item.pillarName)).toEqual(["Cerita tim"]);
+    expect(result[0]?.offer).toBe("PDF tanda anak merasa didengar");
+    expect(result[0]?.comment).toBe("KIRIM TANDA");
+    expect(result[0]?.trigger).toContain("belum tahu gerakan mana");
+    expect(result[0]?.reason).toBe("PDF tanda anak merasa didengar dibuka dengan komentar KIRIM TANDA karena gerakannya belum dibacakan.");
   });
 });
 

@@ -57,6 +57,8 @@ const bundles = {
     "supabase/functions/_shared/metaContentApi.ts",
     "supabase/functions/_shared/metaContentAuth.ts",
     "supabase/functions/_shared/metaPlatformScopes.ts",
+    "supabase/functions/_shared/metaAdsOrgResolver.ts",
+    "supabase/functions/_shared/metaAdsConfigCrypto.ts",
     "supabase/functions/_shared/waTemplateGraph.ts",
     ...leadMagnetShared,
   ],

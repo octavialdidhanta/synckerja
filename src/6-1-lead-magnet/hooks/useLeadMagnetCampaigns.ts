@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import {
   createLeadMagnetCampaign,
   deleteLeadMagnetCampaign,
@@ -44,11 +45,17 @@ export function useLeadMagnetCampaign(id: string | undefined) {
 }
 
 export function useLeadMagnetMediaPosts(platform: LeadMagnetPlatform, accountId: string) {
-  return useQuery({
-    queryKey: leadMagnetQueryKeys.media(platform, accountId),
-    enabled: Boolean(accountId),
-    queryFn: () => fetchLeadMagnetMediaPosts(platform, accountId),
+  const { organizationId, loading: orgLoading } = useCurrentOrg();
+  const query = useQuery({
+    queryKey: [...leadMagnetQueryKeys.media(platform, accountId), organizationId ?? ''],
+    enabled: Boolean(accountId && organizationId),
+    queryFn: () => fetchLeadMagnetMediaPosts(platform, accountId, organizationId!),
+    retry: 1,
   });
+  return {
+    ...query,
+    isLoading: query.isLoading || (Boolean(accountId) && orgLoading && !organizationId),
+  };
 }
 
 export function useLeadMagnetAnalytics(campaignId: string | undefined) {

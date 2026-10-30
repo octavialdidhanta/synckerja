@@ -2,10 +2,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
+  fetchFacebookAdsPosts,
   fetchMetaMediaPreviewById,
-  resolveFacebookPostsForMetrics,
-  resolveInstagramPostsForMetrics,
+  fetchMetaPosts,
+  mergeFacebookOrganicAndAdsPosts,
+  type MetaContentPost,
 } from "../_shared/metaContentApi.ts";
+import { getMetaAdsAccessToken } from "../_shared/metaAdsOrgResolver.ts";
 import {
   getUserFromBearer,
   metaContentCorsHeaders,
@@ -33,6 +36,7 @@ import {
   validateDeliveryLinksForPublish,
   validateDeliveryLinksLoose,
 } from "../_shared/leadMagnet/deliveryLinks.ts";
+import { prepareLeadMagnetFromExecution } from "../_shared/leadMagnet/prepareFromExecution.ts";
 import {
   applyContactCollectedEventsToMetrics,
   applyEnrollmentRowsToMetrics,
@@ -720,6 +724,63 @@ async function fetchCampaignFull(
   return data;
 }
 
+async function withFacebookAdPosts(
+  admin: ReturnType<typeof createClient>,
+  organizationId: string,
+  pageId: string,
+  pageAccessToken: string,
+  organic: MetaContentPost[],
+): Promise<MetaContentPost[]> {
+  try {
+    const adsUserToken = await getMetaAdsAccessToken(admin, organizationId);
+    const { data: adAccountRows } = adsUserToken
+      ? await admin
+        .from("organization_meta_ads_accounts")
+        .select("ad_account_id")
+        .eq("organization_id", organizationId)
+        .limit(5)
+      : { data: null as Array<{ ad_account_id?: string }> | null };
+    const adAccountIds = (adAccountRows ?? [])
+      .map((row) => String(row.ad_account_id ?? "").trim())
+      .filter(Boolean);
+    const adsFetch = fetchFacebookAdsPosts({
+      pageId,
+      pageAccessToken,
+      adsUserToken,
+      adAccountIds,
+      limit: 20,
+    });
+    const adsResult = await Promise.race([
+      adsFetch,
+      new Promise<Awaited<typeof adsFetch>>((resolve) => {
+        setTimeout(
+          () => resolve({ posts: [], source: "none", warnings: ["ads_fetch_timeout"] }),
+          12_000,
+        );
+      }),
+    ]);
+    return mergeFacebookOrganicAndAdsPosts(organic, adsResult.posts);
+  } catch (err) {
+    console.warn(
+      "[lead-magnet-api] ads posts skipped:",
+      err instanceof Error ? err.message : err,
+    );
+    return organic;
+  }
+}
+
+function toPickerPost(post: MetaContentPost) {
+  return {
+    media_id: post.id,
+    caption: post.caption ?? null,
+    permalink: post.permalink ?? null,
+    timestamp: post.timestamp ?? null,
+    media_type: post.media_type ?? null,
+    media_url: post.media_url ?? null,
+    thumbnail_url: post.thumbnail_url ?? post.media_url ?? null,
+  };
+}
+
 async function resolveAccountToken(
   admin: ReturnType<typeof createClient>,
   organizationId: string,
@@ -962,6 +1023,19 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (req.method === "POST" && campaignId === "prepareFromPlan") {
+      const forbidden = await requireActiveOrg(admin, userRes.userId, orgId);
+      if (forbidden) return forbidden;
+      const prepared = await prepareLeadMagnetFromExecution(
+        admin,
+        orgId,
+        userRes.userId,
+        body,
+        supabaseUrl,
+      );
+      return metaContentJson(prepared.body, prepared.status);
+    }
+
     if (req.method === "POST" && campaignId === "listMedia") {
       const platform = parsePlatform(body.platform);
       const accountId = String(body.account_id ?? "").trim();
@@ -970,25 +1044,41 @@ Deno.serve(async (req: Request) => {
       const forbidden = await requireActiveOrg(admin, userRes.userId, orgId);
       if (forbidden) return forbidden;
 
-      const { token, pageId } = await resolveAccountToken(admin, orgId, platform, accountId);
-      if (!token) return metaContentJson({ error: "Account token not found" }, 404);
+      const resolved = await resolveMetaContentAccount(admin, orgId, platform, accountId);
+      if (!resolved?.pageAccessToken) {
+        return metaContentJson({ error: "Account token not found" }, 404);
+      }
 
-      const posts = platform === "instagram"
-        ? await resolveInstagramPostsForMetrics(accountId, token, 50, undefined, { allTime: true })
-        : pageId
-        ? await resolveFacebookPostsForMetrics(pageId, token, 50, undefined, { allTime: true })
-        : [];
+      let organicError: string | null = null;
+      let posts: MetaContentPost[] = [];
+      try {
+        // Latest page only. Walking the full history (allTime) hits the edge
+        // worker time limit and the picker then looks like the account has no posts.
+        posts = await fetchMetaPosts(platform, {
+          pageId: resolved.pageId,
+          igBusinessAccountId: resolved.igBusinessAccountId,
+          pageAccessToken: resolved.pageAccessToken,
+        }, 50, { surfaceErrors: true });
+      } catch (err) {
+        organicError = err instanceof Error ? err.message : String(err);
+      }
+
+      if (platform === "facebook") {
+        posts = await withFacebookAdPosts(
+          admin,
+          orgId,
+          resolved.pageId,
+          resolved.pageAccessToken,
+          posts,
+        );
+      }
+
+      if (posts.length === 0 && organicError) {
+        return metaContentJson({ error: organicError }, 502);
+      }
 
       return metaContentJson({
-        posts: posts.map((p) => ({
-          media_id: p.id,
-          caption: p.caption ?? null,
-          permalink: p.permalink ?? null,
-          timestamp: p.timestamp ?? null,
-          media_type: p.media_type ?? null,
-          media_url: p.media_url ?? null,
-          thumbnail_url: p.thumbnail_url ?? p.media_url ?? null,
-        })),
+        posts: posts.filter((post) => post.id).map(toPickerPost),
       }, 200);
     }
 

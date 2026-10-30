@@ -12,14 +12,17 @@ import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import {
   closeGeminiSpendCapDialog,
+  GEMINI_PREPAID_URL,
   GEMINI_SPEND_CAP_URL,
-  geminiSpendCapDialogOpen,
+  geminiBillingNotice,
   subscribeGeminiSpendCap,
 } from "@/shared/ai/geminiSpendCap";
 
 export function GeminiSpendCapDialog() {
   const { t } = useAppTranslation();
-  const open = useSyncExternalStore(subscribeGeminiSpendCap, geminiSpendCapDialogOpen, () => false);
+  const notice = useSyncExternalStore(subscribeGeminiSpendCap, geminiBillingNotice, () => null);
+  const open = notice !== null;
+  const prepaid = notice === "prepaid";
 
   return (
     <AlertDialog
@@ -31,13 +34,20 @@ export function GeminiSpendCapDialog() {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {t("geminiSpendCap.title", "Batas belanja Gemini tercapai")}
+            {prepaid
+              ? t("geminiPrepaid.title", "Kredit Gemini habis")
+              : t("geminiSpendCap.title", "Batas belanja Gemini tercapai")}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {t(
-              "geminiSpendCap.body",
-              "Proyek Google AI Studio sudah melewati batas belanja bulan ini. Naikkan atau reset batasnya, lalu coba lagi.",
-            )}
+            {prepaid
+              ? t(
+                  "geminiPrepaid.body",
+                  "Kredit prabayar Google AI Studio sudah habis. Isi ulang kredit di AI Studio, lalu coba lagi.",
+                )
+              : t(
+                  "geminiSpendCap.body",
+                  "Proyek Google AI Studio sudah melewati batas belanja bulan ini. Naikkan atau reset batasnya, lalu coba lagi.",
+                )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -45,7 +55,7 @@ export function GeminiSpendCapDialog() {
           <Button
             type="button"
             onClick={() => {
-              window.open(GEMINI_SPEND_CAP_URL, "_blank", "noopener,noreferrer");
+              window.open(prepaid ? GEMINI_PREPAID_URL : GEMINI_SPEND_CAP_URL, "_blank", "noopener,noreferrer");
             }}
           >
             {t("geminiSpendCap.open", "Buka AI Studio")}

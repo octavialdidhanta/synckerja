@@ -31,7 +31,7 @@ function ReportTableRowSkeleton() {
 export function DigitalMarketingReportPageSkeleton() {
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-2">
         <div className="flex h-full min-h-0 min-w-0 flex-col">
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex min-h-full min-w-0 flex-col">
@@ -47,7 +47,7 @@ export function DigitalMarketingReportPageSkeleton() {
                 />
               </div>
 
-              <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
+              <div className="grid min-h-0 min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col gap-2">
                   {/* Summary bar — grid-cols-2 sm:grid-cols-3 lg:grid-cols-5, 5 slots */}
                   <div
@@ -103,7 +103,7 @@ export function DigitalMarketingReportPageSkeleton() {
                   </div>
 
                   {/* Monthly charts — TabsList h-9, 6 tabs (All services default), channel filter 11.5rem */}
-                  <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-4 pb-3 pt-4 shadow-sm">
+                  <div className="flex min-w-0 shrink-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white px-4 pb-3 pt-4 shadow-sm">
                     <div className="mb-3 min-w-0 shrink-0">
                       <div className="nested-scroll-touch-chain-xy min-w-0 w-full overflow-x-auto overflow-y-hidden">
                         <div className="inline-flex w-max min-w-full items-center gap-2">
@@ -121,13 +121,13 @@ export function DigitalMarketingReportPageSkeleton() {
                       <Skeleton className="mt-2 h-3 w-full max-w-2xl" />
                       <Skeleton className="mt-1 h-3 w-full max-w-lg" />
                     </div>
-                    <Skeleton className="min-h-[280px] w-full flex-1 rounded-md" />
+                    <Skeleton className="h-[240px] w-full rounded-md" />
                   </div>
                 </div>
               </div>
 
               <div
-                className="h-1 flex-shrink-0 [@media(max-height:900px)]:h-1.5 [@media(max-height:760px)]:h-2"
+                className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
                 aria-hidden
               />
             </div>

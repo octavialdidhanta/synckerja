@@ -109,15 +109,106 @@ export async function deleteLeadMagnetCampaign(id: string): Promise<void> {
   await authFetch(`/${encodeURIComponent(id)}`, { method: 'DELETE', body: '{}' });
 }
 
+async function edgeErrorMessage(error: unknown, data: unknown): Promise<string> {
+  if (data && typeof data === 'object' && data !== null && 'error' in data) {
+    const message = (data as { error?: unknown }).error;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  const response = (error as { context?: Response } | null)?.context;
+  if (response && typeof response.clone === 'function') {
+    try {
+      const body = (await response.clone().json()) as { error?: unknown };
+      if (typeof body?.error === 'string' && body.error.trim()) return body.error;
+    } catch {
+      /* non-JSON body */
+    }
+  }
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return 'Request failed';
+}
+
 export async function fetchLeadMagnetMediaPosts(
   platform: LeadMagnetPlatform,
   accountId: string,
+  organizationId: string,
 ): Promise<LeadMagnetMediaPost[]> {
-  const res = await authFetch('/listMedia', {
-    method: 'POST',
-    body: JSON.stringify({ platform, account_id: accountId }),
+  const { data, error } = await supabase.functions.invoke('meta-content-comments', {
+    body: {
+      action: 'listPosts',
+      organization_id: organizationId,
+      platform,
+      account_id: accountId,
+    },
   });
-  return (res as { posts: LeadMagnetMediaPost[] }).posts ?? [];
+  if (error || (data && typeof data === 'object' && data !== null && 'error' in data && (data as { error?: unknown }).error)) {
+    throw new Error(await edgeErrorMessage(error, data));
+  }
+  const rows = (data as { posts?: Array<Record<string, unknown>> } | null)?.posts ?? [];
+  return rows.flatMap((row) => {
+    const mediaId = String(row.media_id ?? row.id ?? '').trim();
+    if (!mediaId) return [];
+    const mediaUrl = typeof row.media_url === 'string' ? row.media_url : null;
+    const thumbnailUrl = typeof row.thumbnail_url === 'string' ? row.thumbnail_url : null;
+    return [{
+      media_id: mediaId,
+      caption: typeof row.caption === 'string' ? row.caption : null,
+      permalink: typeof row.permalink === 'string' ? row.permalink : null,
+      timestamp: typeof row.timestamp === 'string' ? row.timestamp : null,
+      media_type: typeof row.media_type === 'string' ? row.media_type : null,
+      media_url: mediaUrl,
+      thumbnail_url: thumbnailUrl ?? mediaUrl,
+    }];
+  });
+}
+
+export type LeadMagnetAccountChoiceOption = {
+  account_id: string;
+  label: string;
+  eligible: boolean;
+};
+
+export type PrepareLeadMagnetFromPlanInput = {
+  planId: string;
+  name: string;
+  offer: string;
+  comment: string;
+  trigger: string;
+  pillarName: string;
+  development: string;
+  instagramAccountId?: string;
+  facebookAccountId?: string;
+};
+
+export type PrepareLeadMagnetFromPlanResult = {
+  ok: boolean;
+  plan_id?: string;
+  campaign_id?: string | null;
+  file?: 'ready' | 'skipped' | 'failed' | 'none';
+  code?: string | null;
+  message?: string;
+  instagram?: LeadMagnetAccountChoiceOption[];
+  facebook?: LeadMagnetAccountChoiceOption[];
+  instagram_account_id?: string | null;
+  facebook_account_id?: string | null;
+};
+
+export async function prepareLeadMagnetFromPlan(
+  input: PrepareLeadMagnetFromPlanInput,
+): Promise<PrepareLeadMagnetFromPlanResult> {
+  return authFetch('/prepareFromPlan', {
+    method: 'POST',
+    body: JSON.stringify({
+      social_media_plan_id: input.planId,
+      name: input.name,
+      offer: input.offer,
+      comment: input.comment,
+      trigger: input.trigger,
+      pillar_name: input.pillarName,
+      development: input.development,
+      instagram_account_id: input.instagramAccountId || undefined,
+      facebook_account_id: input.facebookAccountId || undefined,
+    }),
+  }) as Promise<PrepareLeadMagnetFromPlanResult>;
 }
 
 export async function fetchLeadMagnetAnalytics(id: string): Promise<{

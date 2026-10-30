@@ -13,6 +13,9 @@ export type ScriptAIConfigRow = {
   text_ai_provider?: 'gemini' | 'groq' | 'fireworks' | 'openai';
   api_key_configured: boolean;
   openai_api_key_configured: boolean;
+  claude_api_key_configured?: boolean;
+  claude_model?: string;
+  claude_pdf_daily_limit?: number;
 };
 
 export function useScriptAIConfig() {
@@ -24,14 +27,27 @@ export function useScriptAIConfig() {
       if (!organizationId) {
         return null;
       }
-      const { data, error } = await supabase
+      const baseSelect =
+        'id, organization_id, daily_limit, model, is_active, text_ai_provider, api_key_configured, openai_api_key_configured';
+      const withClaude =
+        `${baseSelect}, claude_api_key_configured, claude_model, claude_pdf_daily_limit`;
+      const first = await supabase
         .from('organization_script_ai_config')
-        .select('id, organization_id, daily_limit, model, is_active, text_ai_provider, api_key_configured, openai_api_key_configured')
+        .select(withClaude)
         .eq('organization_id', organizationId)
         .maybeSingle();
 
-      if (error) throw error;
-      return data as ScriptAIConfigRow | null;
+      if (first.error && /claude_/i.test(first.error.message)) {
+        const fallback = await supabase
+          .from('organization_script_ai_config')
+          .select(baseSelect)
+          .eq('organization_id', organizationId)
+          .maybeSingle();
+        if (fallback.error) throw fallback.error;
+        return fallback.data as ScriptAIConfigRow | null;
+      }
+      if (first.error) throw first.error;
+      return first.data as ScriptAIConfigRow | null;
     },
     enabled: !!organizationId,
     staleTime: 5 * 60 * 1000,

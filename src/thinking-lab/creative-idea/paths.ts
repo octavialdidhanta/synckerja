@@ -36,9 +36,21 @@ function readReviews(value: unknown): StoredPillarReview[] {
     const status = asFitStatus(row.status);
     const reason = asText(row.reason);
     const development = asText(row.development);
+    const offer = asText(row.offer);
+    const comment = asText(row.comment);
+    const trigger = asText(row.trigger);
     if (!contentPillarId || !pillarName || status !== "RECOMMENDED" || !reason || !development || seen.has(contentPillarId)) return [];
     seen.add(contentPillarId);
-    return [{ contentPillarId, pillarName, status, reason, development }];
+    return [{
+      contentPillarId,
+      pillarName,
+      status,
+      reason,
+      development,
+      ...(offer ? { offer } : {}),
+      ...(comment ? { comment } : {}),
+      ...(trigger ? { trigger } : {}),
+    }];
   });
 }
 
@@ -103,6 +115,8 @@ export type LockedPillarCard = {
   development: string;
   reason: string;
   format: CreativeFormat | null;
+  /** True when this lock came from Review pillar Lead Magnet. */
+  leadMagnet?: boolean;
 };
 
 export function lockedPillarCards(
@@ -123,6 +137,7 @@ export function lockedPillarCards(
       development: review?.development.trim() || previous?.development || "",
       reason: review?.reason.trim() || path.reason.trim() || previous?.reason || "",
       format: path.format ?? previous?.format ?? null,
+      leadMagnet: review ? Boolean(review.offer?.trim()) : Boolean(previous?.leadMagnet),
     });
   }
   return order.flatMap((id) => {
@@ -143,8 +158,43 @@ export function mergeLockedPillar(cards: readonly LockedPillarCard[], pending: L
     development: pending.development.trim() || current.development,
     reason: pending.reason.trim() || current.reason,
     format: pending.format ?? current.format,
+    leadMagnet: pending.leadMagnet ?? current.leadMagnet,
   };
   return next;
+}
+
+export type LeadMagnetPillarBrief = {
+  offer: string;
+  comment: string;
+  trigger: string;
+  pillarName: string;
+  development: string;
+};
+
+/** Review that still carries an offer for this pillar. Comment may be empty. */
+export function leadMagnetBriefForPillar(
+  paths: readonly DevelopmentPath[],
+  contentPillarId: string,
+  reviews?: readonly StoredPillarReview[] | null,
+): LeadMagnetPillarBrief | null {
+  const sources: StoredPillarReview[] = [
+    ...(reviews ?? []),
+    ...[...paths]
+      .sort((left, right) => right.savedAt.localeCompare(left.savedAt))
+      .flatMap((path) => path.reviews),
+  ];
+  const review = sources.find(
+    (item) => item.contentPillarId === contentPillarId && Boolean(item.offer?.trim()),
+  );
+  const offer = review?.offer?.trim() ?? "";
+  if (!review || !offer) return null;
+  return {
+    offer,
+    comment: review.comment?.trim() ?? "",
+    trigger: review.trigger?.trim() ?? "",
+    pillarName: review.pillarName.trim(),
+    development: review.development.trim(),
+  };
 }
 
 export function developmentForPillar(

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Shield } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Shield } from "lucide-react";
 import { pillarBarWidth } from "@/6-1-dashboard/lib/contentPillarTracker";
 import { useContentPillarData } from "@/6-1-dashboard/hook/useContentPillarData";
 import { Button } from "@/shared/components/ui/button";
@@ -67,18 +67,23 @@ export function PillarPickerSheet({
   const [mentionBrand, setMentionBrand] = useState(false);
   const [brandName, setBrandName] = useState("");
   const [cta, setCta] = useState("");
+  const [ctaOpen, setCtaOpen] = useState(false);
+  const ctaMenuRef = useRef<HTMLDivElement>(null);
   const ctas = [
     { id: "link_bio", label: t("thinkingLab.execution.ctaLinkBio", "Klik Link di Bio") },
     { id: "link_below", label: t("thinkingLab.execution.ctaLinkBelow", "Klik Link di Bawah") },
     { id: "shop_now", label: t("thinkingLab.execution.ctaShopNow", "Belanja Sekarang") },
     { id: "order_now", label: t("thinkingLab.execution.ctaOrderNow", "Pesan Sekarang") },
     { id: "like_comment", label: t("thinkingLab.execution.ctaLikeComment", "Like & Comment") },
+    { id: "comment_specific", label: t("thinkingLab.execution.ctaCommentSpecific", "Comment Spesifik") },
     { id: "save_post", label: t("thinkingLab.execution.ctaSavePost", "Save Postingan Ini") },
     { id: "share_friend", label: t("thinkingLab.execution.ctaShareFriend", "Share ke Teman") },
     { id: "follow", label: t("thinkingLab.execution.ctaFollow", "Follow Akun Ini") },
     { id: "dm_whatsapp", label: t("thinkingLab.execution.ctaWhatsapp", "DM / Chat WhatsApp") },
     { id: "check_location", label: t("thinkingLab.execution.ctaLocation", "Cek Lokasi") },
   ];
+  const commentSpecificLabel = ctas.find((item) => item.id === "comment_specific")?.label ?? "";
+  const ctaEmphasized = cta !== "" && cta === commentSpecificLabel;
   const looks: Array<{ id: ScriptLook; label: string }> = [
     { id: "ugc", label: t("thinkingLab.execution.lookUgc", "UGC") },
     { id: "commercial", label: t("thinkingLab.execution.lookCommercial", "Commercial") },
@@ -102,6 +107,19 @@ export function PillarPickerSheet({
     { id: "middle", label: t("thinkingLab.execution.funnelConsideration", "Consideration"), stat: stats.middle },
     { id: "bottom", label: t("thinkingLab.execution.funnelConversion", "Conversion"), stat: stats.bottom },
   ];
+
+  useEffect(() => {
+    if (!audioOpen) setCtaOpen(false);
+  }, [audioOpen]);
+
+  useEffect(() => {
+    if (!ctaOpen) return;
+    const close = (event: PointerEvent) => {
+      if (!ctaMenuRef.current?.contains(event.target as Node)) setCtaOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [ctaOpen]);
 
   useEffect(() => {
     if (direct && !open) {
@@ -423,20 +441,48 @@ export function PillarPickerSheet({
               <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("thinkingLab.execution.cta", "CTA")}
               </h3>
-              <select
-                value={cta}
-                disabled={pending}
-                aria-label={t("thinkingLab.execution.cta", "CTA")}
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onChange={(event) => setCta(event.target.value)}
-              >
-                <option value="">{t("thinkingLab.execution.ctaNone", "None")}</option>
-                {ctas.map((item) => (
-                  <option key={item.id} value={item.label}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
+              <div ref={ctaMenuRef} className="relative">
+                <button
+                  type="button"
+                  disabled={pending}
+                  aria-label={t("thinkingLab.execution.cta", "CTA")}
+                  aria-expanded={ctaOpen}
+                  className={cn(
+                    "flex h-9 w-full items-center justify-between rounded-md border border-border bg-background px-2 text-left text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+                    ctaEmphasized && "font-semibold text-red-600",
+                  )}
+                  onClick={() => setCtaOpen((open) => !open)}
+                >
+                  <span className="min-w-0 truncate">{cta || t("thinkingLab.execution.ctaNone", "None")}</span>
+                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                </button>
+                {ctaOpen ? (
+                  <div className="scrollbar-hide absolute inset-x-0 top-full z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {[{ id: "none", label: t("thinkingLab.execution.ctaNone", "None") }, ...ctas].map((item) => {
+                      const selected = item.id === "none" ? cta === "" : cta === item.label;
+                      const emphasized = item.id === "comment_specific";
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={cn(
+                            "flex w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left text-sm",
+                            selected && !emphasized && "rounded-sm bg-primary/15 font-medium text-primary",
+                            emphasized && "rounded-none bg-red-600 font-semibold text-white",
+                          )}
+                          onClick={() => {
+                            setCta(item.id === "none" ? "" : item.label);
+                            setCtaOpen(false);
+                          }}
+                        >
+                          <Check className={cn("h-4 w-4 shrink-0", selected ? "opacity-100" : "opacity-0")} />
+                          <span className="min-w-0 truncate">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
             </section>
             <section className="space-y-1.5">
               <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

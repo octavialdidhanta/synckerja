@@ -17,11 +17,13 @@ export type MasterMapExecution = {
   id: string;
   label: string;
   passed: boolean;
+  leadMagnet?: boolean;
 };
 
 export type MasterMapPillar = {
   id: string;
   label: string;
+  leadMagnet?: boolean;
   executions?: MasterMapExecution[];
 };
 
@@ -327,6 +329,7 @@ function Pill({
   warning = false,
   stretch = false,
   truncateTitle = false,
+  mark,
   accessory,
   onClick,
 }: {
@@ -334,6 +337,8 @@ function Pill({
   tone: PillTone;
   title: string;
   code?: string;
+  /** Extra words after the level, such as Lead Magnet. */
+  mark?: string;
   fullTitle?: string;
   selected: boolean;
   childCount?: number;
@@ -363,13 +368,14 @@ function Pill({
                 ? t("thinkingLab.execution.label", "Execution")
                 : t("thinkingLab.idea.list", "Idea");
   const badge = code?.trim();
+  const levelText = mark?.trim() ? `${level} - ${mark.trim()}` : badge ? `${level} - ${badge}` : level;
   return (
     <div className={cn("relative col-start-1 row-start-1 min-w-0", stretch && "w-full")} data-map-node={nodeId}>
       <button
         type="button"
         onClick={onClick}
         title={fullTitle && (truncateTitle || fullTitle.trim() !== title.trim()) ? fullTitle.trim() : undefined}
-        aria-label={title.trim() || (badge ? `${level} - ${badge}` : level)}
+        aria-label={title.trim() || levelText}
         aria-current={selected ? "true" : undefined}
         className={cn(
           "items-stretch rounded-[4px] px-2 py-0.5 text-left text-xs font-medium",
@@ -385,7 +391,7 @@ function Pill({
         {solid ? null : <span className={cn("my-0.5 w-0.5 shrink-0 self-stretch rounded-[1px]", ACCENT_BAR[tone])} aria-hidden />}
         <span className={cn("flex flex-col gap-0.5 py-0.5", stretch ? "min-w-0 flex-1" : "w-max")}>
           <span className={cn("text-[10px] font-medium leading-none text-white/90", truncateTitle && "truncate")}>
-            {badge ? `${level} - ${badge}` : level}
+            {levelText}
           </span>
           {title ? (
             <span className={truncateTitle ? "block truncate leading-none" : tone === "master" ? "whitespace-normal break-words leading-snug" : "leading-none"}>{title}</span>
@@ -702,7 +708,15 @@ export function MasterThoughtMapTree({
           ...(angle.ideas ?? []).flatMap((idea) => [
             ideaLabel(idea.statement, idea.subject),
             `${t("thinkingLab.idea.list", "Idea")} - ${idea.code}`,
-            ...(idea.pillars ?? []).map((pillar) => pillar.label),
+            ...(idea.pillars ?? []).flatMap((pillar) => [
+              pillar.label,
+              ...(pillar.leadMagnet
+                ? [`${t("thinkingLab.tree.pillar", "Pillar")} - ${t("thinkingLab.tree.leadMagnet", "Lead Magnet")}`]
+                : []),
+              ...((pillar.executions ?? []).some((execution) => execution.leadMagnet) || (pillar.leadMagnet && (pillar.executions?.length ?? 0) > 0)
+                ? [`${t("thinkingLab.execution.label", "Execution")} - ${t("thinkingLab.tree.leadMagnet", "Lead Magnet")}`]
+                : []),
+            ]),
           ]),
         ]),
       ]),
@@ -1004,6 +1018,7 @@ export function MasterThoughtMapTree({
                                                             tone="execution"
                                                             stretch
                                                             truncateTitle
+                                                            mark={execution.leadMagnet ? t("thinkingLab.tree.leadMagnet", "Lead Magnet") : undefined}
                                                             title={execution.label}
                                                             fullTitle={execution.label}
                                                             selected={inspectedExecutionId === execution.id}
@@ -1039,6 +1054,7 @@ export function MasterThoughtMapTree({
                                                             nodeId={`pl:${idea.id}:${pillar.id}`}
                                                             tone="pillar"
                                                             stretch
+                                                            mark={pillar.leadMagnet ? t("thinkingLab.tree.leadMagnet", "Lead Magnet") : undefined}
                                                             title={pillar.label}
                                                             selected={inspectedPillarId === pillar.id}
                                                             childCount={pillar.executions?.length ?? 0}

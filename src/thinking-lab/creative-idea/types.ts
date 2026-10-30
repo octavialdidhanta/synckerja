@@ -43,6 +43,12 @@ export type StoredPillarReview = {
   reason: string;
   /** What the conceptual idea becomes when this pillar carries it. */
   development: string;
+  /** Lead-magnet material the viewer receives. Absent for an ordinary pillar review. */
+  offer?: string;
+  /** Exact comment the viewer must write to receive the offer. */
+  comment?: string;
+  /** The withheld payoff that makes the viewer want the offer. */
+  trigger?: string;
 };
 
 export type DevelopmentPath = {

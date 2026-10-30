@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { StoryboardActionShell } from "@/6-1-dashboard/modal/StoryboardActionShell";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-import { isGeminiSpendCapError } from "@/shared/ai/geminiSpendCap";
+import { isGeminiBillingNoticeError } from "@/shared/ai/geminiSpendCap";
 import { toast } from "sonner";
 import { useDigitalAssetCharactersListQuery } from "@/6-1-social-media-settings/hooks/useDigitalAssetsListQueries";
 import {
@@ -147,7 +147,7 @@ export function BriefImagePromptDialog({
       onClose();
     } catch (error) {
       console.error(error);
-      if (isGeminiSpendCapError(error)) return;
+      if (isGeminiBillingNoticeError(error)) return;
       const message = error instanceof Error ? error.message : t("briefDialog.layout.generateFailed", "Image generation failed.");
       toast.error(message);
     } finally {

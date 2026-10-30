@@ -1,13 +1,18 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   closeGeminiSpendCapDialog,
+  geminiBillingNotice,
   geminiSpendCapDialogOpen,
+  isGeminiPrepaidDepletedMessage,
   isGeminiSpendCapMessage,
   presentGeminiSpendCap,
 } from "@/shared/ai/geminiSpendCap";
 
 const GOOGLE_SPEND_CAP =
   "Your project has exceeded its monthly spending cap. Please go to AI Studio at https://ai.studio/spend to manage your project spend cap. Learn more at https://ai.google.dev/gemini-api/docs/billing#project-spend-caps.";
+
+const GOOGLE_PREPAID =
+  "Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing. Learn more at https://ai.google.dev/gemini-api/docs/billing#prepay. ";
 
 describe("gemini spend cap", () => {
   afterEach(() => {
@@ -26,8 +31,17 @@ describe("gemini spend cap", () => {
   it("opens one dialog when several requests fail together", () => {
     expect(presentGeminiSpendCap(GOOGLE_SPEND_CAP)).toBe(true);
     expect(geminiSpendCapDialogOpen()).toBe(true);
+    expect(geminiBillingNotice()).toBe("spend_cap");
     expect(presentGeminiSpendCap(GOOGLE_SPEND_CAP)).toBe(true);
     expect(geminiSpendCapDialogOpen()).toBe(true);
     expect(presentGeminiSpendCap("No content generated from AI")).toBe(false);
+  });
+
+  it("opens the prepaid dialog for depleted prepayment credits", () => {
+    expect(isGeminiPrepaidDepletedMessage(GOOGLE_PREPAID)).toBe(true);
+    expect(isGeminiSpendCapMessage(GOOGLE_PREPAID)).toBe(false);
+    expect(presentGeminiSpendCap(`{"error":"${GOOGLE_PREPAID}"}`)).toBe(true);
+    expect(geminiBillingNotice()).toBe("prepaid");
+    expect(geminiSpendCapDialogOpen()).toBe(true);
   });
 });

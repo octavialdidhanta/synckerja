@@ -9,6 +9,7 @@ const FORMAT_ORDER: CreativeFormat[] = ["video", "carousel", "post"];
 
 export function LockedPillarSection({
   name,
+  leadMagnet = false,
   development,
   reason,
   format,
@@ -21,6 +22,7 @@ export function LockedPillarSection({
   onSelectFormat,
 }: {
   name: string;
+  leadMagnet?: boolean;
   development: string;
   reason: string;
   format: CreativeFormat | null;
@@ -38,7 +40,11 @@ export function LockedPillarSection({
       <header className="min-w-0 space-y-3">
         <p className="flex items-center gap-2 text-sm font-semibold text-sky-700">
           <span className="h-3.5 w-3.5 shrink-0 rounded-[4px] bg-sky-500" aria-hidden />
-          <span>{t("thinkingLab.tree.pillar", "Pillar")}</span>
+          <span>
+            {leadMagnet
+              ? `${t("thinkingLab.tree.pillar", "Pillar")} - ${t("thinkingLab.tree.leadMagnet", "Lead Magnet")}`
+              : t("thinkingLab.tree.pillar", "Pillar")}
+          </span>
         </p>
         <h2 className="text-2xl font-bold leading-tight tracking-tight text-slate-900">{name}</h2>
         {development.trim() ? (

@@ -13,7 +13,7 @@ import {
 } from '@/shared/components/ui/dialog';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useScriptAIConfig } from '@/6-1-script-generator/hooks/useScriptAIConfig';
-import { isGeminiSpendCapMessage } from '@/shared/ai/geminiSpendCap';
+import { isGeminiBillingNoticeMessage, isGeminiPrepaidDepletedMessage, isGeminiSpendCapMessage } from '@/shared/ai/geminiSpendCap';
 import { generateScriptWithAI } from '@/6-1-script-generator/services/scriptGeneratorAIService';
 import { buildProductKnowledgePrompt, type AudienceMode } from '../utils/buildProductKnowledgePrompt';
 import { parseProductKnowledgeAiTable, type ProductKnowledgeAiRow } from '../utils/parseProductKnowledgeAiTable';
@@ -157,17 +157,28 @@ export const ProductKnowledgeGeneratePanel: React.FC<ProductKnowledgeGeneratePan
                 'geminiSpendCap.body',
                 'Proyek Google AI Studio sudah melewati batas belanja bulan ini. Naikkan atau reset batasnya, lalu coba lagi.',
               )
-            : msg,
+            : isGeminiPrepaidDepletedMessage(msg)
+              ? t(
+                  'geminiPrepaid.body',
+                  'Kredit prabayar Google AI Studio sudah habis. Isi ulang kredit di AI Studio, lalu coba lagi.',
+                )
+              : msg,
         );
       }
     } catch (err) {
       console.error('Generate with AI error:', err);
-      if (isGeminiSpendCapMessage(err instanceof Error ? err.message : '')) {
+      const caughtMessage = err instanceof Error ? err.message : '';
+      if (isGeminiBillingNoticeMessage(caughtMessage)) {
         setParseError(
-          t(
-            'geminiSpendCap.body',
-            'Proyek Google AI Studio sudah melewati batas belanja bulan ini. Naikkan atau reset batasnya, lalu coba lagi.',
-          ),
+          isGeminiPrepaidDepletedMessage(caughtMessage)
+            ? t(
+                'geminiPrepaid.body',
+                'Kredit prabayar Google AI Studio sudah habis. Isi ulang kredit di AI Studio, lalu coba lagi.',
+              )
+            : t(
+                'geminiSpendCap.body',
+                'Proyek Google AI Studio sudah melewati batas belanja bulan ini. Naikkan atau reset batasnya, lalu coba lagi.',
+              ),
         );
         return;
       }

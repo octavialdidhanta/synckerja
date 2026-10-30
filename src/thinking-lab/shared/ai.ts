@@ -1,4 +1,4 @@
-import { GeminiSpendCapError, isGeminiSpendCapMessage } from "@/shared/ai/geminiSpendCap";
+import { GeminiPrepaidDepletedError, GeminiSpendCapError, isGeminiPrepaidDepletedMessage, isGeminiSpendCapMessage } from "@/shared/ai/geminiSpendCap";
 import {
   generateThinkingJsonWithAI,
   setThinkingAuditScope,
@@ -16,6 +16,9 @@ export async function askThinkingLab(
   const result = await generateThinkingJsonWithAI(prompt, { temperature });
   if (isGeminiSpendCapMessage(result.error)) {
     throw new GeminiSpendCapError(result.error);
+  }
+  if (isGeminiPrepaidDepletedMessage(result.error)) {
+    throw new GeminiPrepaidDepletedError(result.error);
   }
   if (!result.success || !result.script?.trim()) return null;
   return result.script.trim();

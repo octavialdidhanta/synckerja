@@ -195,7 +195,7 @@ export function DigitalMarketingReportMonthlyLeadsByServiceChart({
   const shellClass = embedded
     ? "flex min-h-0 min-w-0 flex-1 flex-col"
     : "overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm";
-  const plotClassName = embedded ? "min-h-[280px] flex-1" : "h-[300px]";
+  const plotClassName = embedded ? "h-[240px]" : "h-[300px]";
 
   return (
     <div className={shellClass}>

@@ -41,6 +41,8 @@ export interface SaveToPlanParams {
   identity?: { title: string; contentPillarId: string | null; contentTypeId?: string | null };
 }
 
+export type SaveToPlanResult = { ok: true; planId: string } | { ok: false };
+
 function isNewPlanDataComplete(data: NewPlanData | undefined): data is NewPlanData {
   if (!data) return false;
   return !!(
@@ -71,17 +73,17 @@ export function useSaveToPlan() {
   const [isSaving, setIsSaving] = useState(false);
 
   const saveToPlan = useCallback(
-    async (params: SaveToPlanParams): Promise<boolean> => {
+    async (params: SaveToPlanParams): Promise<SaveToPlanResult> => {
       const { script, planId, postDate, saveBrief, saveCaption, saveConcept = false, newPlanData, preserveTableColumns = false, identity } = params;
 
       if (!organizationId) {
         toast.error(t('scriptGenerator.saveToPlanModal.errorOrgNotFound', 'Organization not found'));
-        return false;
+        return { ok: false };
       }
 
       if (!saveBrief && !saveCaption && !saveConcept) {
         toast.error(t('scriptGenerator.saveToPlanModal.errorSelectBriefOrCaption', 'Select at least one: Brief, Caption, or Concept'));
-        return false;
+        return { ok: false };
       }
 
       const { brief: rawBrief, caption: parsedCaption, concept } = parseAIScriptOutput(script);
@@ -103,22 +105,22 @@ export function useSaveToPlan() {
 
       if (saveBrief && !brief.trim()) {
         toast.error(t('scriptGenerator.saveToPlanModal.errorNoBrief', 'No Brief content to save'));
-        return false;
+        return { ok: false };
       }
 
       if (saveCaption && !caption.trim()) {
         toast.error(t('scriptGenerator.saveToPlanModal.errorNoCaption', 'No Caption content to save'));
-        return false;
+        return { ok: false };
       }
 
       if (saveConcept && !concept.trim()) {
         toast.error(t('scriptGenerator.saveToPlanModal.errorNoConcept', 'No Concept content to save'));
-        return false;
+        return { ok: false };
       }
 
       if (planId === 'new' && !isNewPlanDataComplete(newPlanData)) {
         toast.error(t('scriptGenerator.saveToPlanModal.errorNewPlanRequired', 'Complete all fields to create new plan'));
-        return false;
+        return { ok: false };
       }
 
       setIsSaving(true);
@@ -128,7 +130,7 @@ export function useSaveToPlan() {
         if (planId === 'new') {
           if (!newPlanData) {
             toast.error(t('scriptGenerator.saveToPlanModal.errorNewPlanRequired', 'Complete all fields to create new plan'));
-            return false;
+            return { ok: false };
           }
           // Create new plan
           const picId = newPlanData.pic_id;
@@ -170,7 +172,7 @@ export function useSaveToPlan() {
           const planRow = newPlan as unknown as { id: string } | null;
           if (!planRow?.id) {
             toast.error(t('scriptGenerator.saveToPlanModal.errorCreateFailed', 'Failed to create new plan'));
-            return false;
+            return { ok: false };
           }
           targetPlanId = planRow.id;
         } else {
@@ -247,11 +249,11 @@ export function useSaveToPlan() {
         queryClient.invalidateQueries({ queryKey: ['social-media-plans', organizationId] });
         queryClient.invalidateQueries({ queryKey: ['social-media-plans-by-date'] });
         toast.success(t('scriptGenerator.saveToPlanSuccess', 'Successfully saved to plan'));
-        return true;
+        return { ok: true, planId: targetPlanId };
       } catch (err) {
         const message = err instanceof Error ? err.message : t('scriptGenerator.saveToPlanModal.errorSaveFailed', 'Failed to save to plan');
         toast.error(message);
-        return false;
+        return { ok: false };
       } finally {
         setIsSaving(false);
       }

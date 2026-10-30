@@ -21,6 +21,7 @@ import type { ScheduledPostRow } from "./scheduledPostTypes.ts";
 import { touchPublishingHeartbeat } from "./publishingHeartbeat.ts";
 import type { SharedPublishContext } from "./sharedPublishContext.ts";
 import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
+import { attachPublishedPostToLeadMagnet } from "../leadMagnet/attachPublishedPost.ts";
 
 export type RunScheduledPostJobResult = {
   id: string;
@@ -237,6 +238,23 @@ export async function runScheduledPostJob(
 
     // Link upsert syncs while this row is still "publishing", which does not count as done.
     await syncPlanCompletionStateForPlan(admin, row.social_media_plan_id);
+
+    if (result.external_post_id && (platform === "Instagram" || platform === "Facebook")) {
+      try {
+        await attachPublishedPostToLeadMagnet(admin, {
+          organizationId: row.organization_id,
+          planId: row.social_media_plan_id,
+          platform,
+          mediaId: result.external_post_id,
+          permalink: result.published_url ?? null,
+        });
+      } catch (attachError) {
+        console.error(
+          "[lead-magnet] attach post failed",
+          attachError instanceof Error ? attachError.message : attachError,
+        );
+      }
+    }
 
     return {
       id: scheduleId,

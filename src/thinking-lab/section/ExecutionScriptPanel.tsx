@@ -604,6 +604,7 @@ function SceneTables({
 
 export function ExecutionScriptPanel({
   pillarName,
+  leadMagnet = false,
   statement,
   script,
   reading = null,
@@ -640,6 +641,7 @@ export function ExecutionScriptPanel({
   savingCharacterVisual = null,
 }: {
   pillarName: string;
+  leadMagnet?: boolean;
   statement: string;
   script: VoiceOverScript | null;
   reading?: VoiceOverScript | null;
@@ -753,7 +755,9 @@ export function ExecutionScriptPanel({
           <div className="min-w-0 flex-1 space-y-3">
             <p className="flex items-center gap-2 text-sm font-semibold text-violet-700">
               <span className="h-3.5 w-3.5 shrink-0 rounded-[4px] bg-violet-500" aria-hidden />
-              {t("thinkingLab.execution.label", "Execution")}
+              {leadMagnet
+                ? `${t("thinkingLab.execution.label", "Execution")} - ${t("thinkingLab.tree.leadMagnet", "Lead Magnet")}`
+                : t("thinkingLab.execution.label", "Execution")}
             </p>
             <h2 className="text-2xl font-bold leading-tight tracking-tight text-slate-900">{pillarName}</h2>
           </div>
