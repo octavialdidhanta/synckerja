@@ -43,6 +43,7 @@ export function useInterestResearchPopulationReach(args: {
   const estimateRowsMutation = useMetaAdsTargetingEstimateRows();
   const [population, setPopulation] = useState<number | null>(null);
   const [sources, setSources] = useState<PopulationSourceRow[]>([]);
+  const [groupSources, setGroupSources] = useState<PopulationSourceRow[]>([]);
   const [officialOverlap, setOfficialOverlap] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -147,6 +148,7 @@ export function useInterestResearchPopulationReach(args: {
     const unique =
       overlap != null && rowSum > 0 ? Math.max(largest, rowSum - overlap) : seedReach;
     setSources(nextSources);
+    setGroupSources([]);
     setOfficialOverlap(overlap);
     setPopulation(unique);
     setError(overlapPairQuery.error instanceof Error ? overlapPairQuery.error.message : null);
@@ -158,6 +160,7 @@ export function useInterestResearchPopulationReach(args: {
     if (!args.enabled || !args.organizationId || !args.adAccountId || !args.filters || !cappedItems.length) {
       setPopulation(null);
       setSources([]);
+      setGroupSources([]);
       setOfficialOverlap(null);
       setLoading(false);
       setError(null);
@@ -166,6 +169,10 @@ export function useInterestResearchPopulationReach(args: {
 
     setLoading(true);
     setError(null);
+    setPopulation(null);
+    setSources([]);
+    setGroupSources([]);
+    setOfficialOverlap(null);
     const requestId = ++requestIdRef.current;
     const filters = args.filters;
     const timer = window.setTimeout(() => {
@@ -191,9 +198,26 @@ export function useInterestResearchPopulationReach(args: {
         filters,
         items: payloadItems,
       });
+      const groupUnionReqs = groupedMode
+        ? groupedTargets.map((group) =>
+            estimateMutation.mutateAsync({
+              organizationId: args.organizationId,
+              adAccountId: args.adAccountId,
+              filters,
+              items: group.map((item) => ({
+                id: item.id,
+                name: item.name,
+                type: item.type,
+                path: item.path,
+              })),
+              union: group.length > 1,
+            }),
+          )
+        : [];
 
-      void Promise.allSettled([unionReq, rowsReq]).then(([unionRes, rowsRes]) => {
+      void Promise.allSettled([unionReq, rowsReq, ...groupUnionReqs]).then((results) => {
         if (requestId !== requestIdRef.current) return;
+        const [unionRes, rowsRes, ...groupUnionResults] = results;
 
         let nextSources: PopulationSourceRow[] = cappedItems.map((item) => ({
           id: item.id,
@@ -224,8 +248,31 @@ export function useInterestResearchPopulationReach(args: {
           setError(null);
         }
 
+        const nextGroups: PopulationSourceRow[] = groupedMode
+          ? groupedTargets.map((group, index) => {
+              const groupRes = groupUnionResults[index];
+              const reach =
+                groupRes?.status === "fulfilled" ? officialReachCount(groupRes.value.estimate) : null;
+              return {
+                id: `group-${index}`,
+                name:
+                  index === 0
+                    ? "Include"
+                    : groupedTargets.length === 2
+                      ? "Narrow"
+                      : `Narrow ${index}`,
+                reach,
+                overlapPct:
+                  unionReach != null && reach
+                    ? Math.min(100, (unionReach / reach) * 100)
+                    : null,
+              };
+            })
+          : [];
+
         setSources(nextSources);
-        setOfficialOverlap(null);
+        setGroupSources(nextGroups);
+        setOfficialOverlap(groupedMode ? unionReach : null);
         setPopulation(unionReach);
         setLoading(false);
       });
@@ -250,6 +297,7 @@ export function useInterestResearchPopulationReach(args: {
   return {
     population,
     sources,
+    groupSources,
     officialOverlap,
     loading: pairMode ? overlapPairQuery.isFetching && !overlapPairQuery.data : loading,
     error: pairMode

@@ -1,3 +1,4 @@
+import { useId, type ReactNode } from "react";
 import type { PopulationSourceRow } from "./useInterestResearchPopulationReach";
 
 const formatNumber = (num: number) => new Intl.NumberFormat("id-ID").format(Math.round(num));
@@ -72,34 +73,42 @@ function vennOffsets(n: number, spread: number): Array<{ x: number; y: number }>
   });
 }
 
-/** SVG path of the lens (intersection) of two circles. */
-function twoCircleLensPath(
-  c1x: number,
-  c1y: number,
-  r1: number,
-  c2x: number,
-  c2y: number,
-  r2: number,
-): string | null {
-  const dx = c2x - c1x;
-  const dy = c2y - c1y;
-  const d = Math.hypot(dx, dy);
-  if (d < 0.5 || d >= r1 + r2 - 0.5 || d <= Math.abs(r1 - r2) + 0.5) return null;
-  const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
-  const hSq = r1 * r1 - a * a;
-  if (hSq <= 0) return null;
-  const h = Math.sqrt(hSq);
-  const mx = c1x + (a * dx) / d;
-  const my = c1y + (a * dy) / d;
-  const px = (-dy * h) / d;
-  const py = (dx * h) / d;
-  const i1x = mx + px;
-  const i1y = my + py;
-  const i2x = mx - px;
-  const i2y = my - py;
-  const cross = dx * (i1y - c1y) - dy * (i1x - c1x);
-  const sweep = cross > 0 ? 0 : 1;
-  return `M ${i1x} ${i1y} A ${r1} ${r1} 0 0 ${sweep} ${i2x} ${i2y} A ${r2} ${r2} 0 0 ${sweep} ${i1x} ${i1y} Z`;
+function twoCircleLensCenter(
+  a: { cx: number; cy: number; r: number },
+  b: { cx: number; cy: number; r: number },
+): { x: number; y: number } {
+  const vx = b.cx - a.cx;
+  const vy = b.cy - a.cy;
+  const dist = Math.hypot(vx, vy);
+  if (dist < 0.5) return { x: (a.cx + b.cx) / 2, y: (a.cy + b.cy) / 2 };
+  const tMin = Math.max(0, dist - b.r);
+  const tMax = Math.min(dist, a.r);
+  const t = (tMin + tMax) / 2;
+  return { x: a.cx + (t * vx) / dist, y: a.cy + (t * vy) / dist };
+}
+
+function NestedClip({ ids, children }: { ids: string[]; children: ReactNode }) {
+  if (!ids.length) return <>{children}</>;
+  const [first, ...rest] = ids;
+  return (
+    <g clipPath={`url(#${first})`}>
+      <NestedClip ids={rest}>{children}</NestedClip>
+    </g>
+  );
+}
+
+function overlapShareLabel(reach: number, unique: number, overlapPct?: number | null): string {
+  const pct =
+    overlapPct != null && Number.isFinite(overlapPct)
+      ? overlapPct
+      : unique <= 0 || reach <= 0
+        ? 0
+        : unique >= reach
+          ? (reach / unique) * 100
+          : (unique / reach) * 100;
+  if (pct < 1) return "< 1%";
+  if (pct > 100) return "100%";
+  return `${Math.round(pct)}%`;
 }
 
 function MultiOverlapCircles({
@@ -107,15 +116,21 @@ function MultiOverlapCircles({
   unique,
   overlap,
   overlapBadge,
+  size = "default",
+  outlineMode = "union",
 }: {
   rows: Array<{ id: string; name: string; reach: number; color: string }>;
   unique: number;
   overlap: number;
   overlapBadge?: string;
+  size?: "default" | "lg";
+  outlineMode?: "union" | "intersection";
 }) {
+  const clipId = useId().replace(/:/g, "");
   const n = rows.length;
-  const maxR = n >= 5 ? 58 : 86;
-  const minR = 14;
+  const large = size === "lg";
+  const maxR = large ? (n >= 5 ? 88 : 128) : n >= 5 ? 58 : 86;
+  const minR = large ? 22 : 14;
   const maxReach = Math.max(...rows.map((row) => row.reach), unique, overlap, 1);
   const sized = rows.map((row) => ({
     ...row,
@@ -159,31 +174,78 @@ function MultiOverlapCircles({
     maxX = Math.max(maxX, row.cx + row.r);
     maxY = Math.max(maxY, row.cy + row.r);
   }
-  const pad = 8;
+  const pad = 10;
   const width = maxX - minX + pad * 2;
   const height = maxY - minY + pad * 2;
   const dx = pad - minX;
   const dy = pad - minY;
-  const lensPath =
-    placed.length === 2
-      ? twoCircleLensPath(
-          placed[0].cx + dx,
-          placed[0].cy + dy,
-          placed[0].r,
-          placed[1].cx + dx,
-          placed[1].cy + dy,
-          placed[1].r,
-        )
-      : null;
+  const a = placed[0]
+    ? { cx: placed[0].cx + dx, cy: placed[0].cy + dy, r: placed[0].r }
+    : null;
+  const b = placed[1]
+    ? { cx: placed[1].cx + dx, cy: placed[1].cy + dy, r: placed[1].r }
+    : null;
+  const showOutline = placed.length >= 2;
+  const lensWidth =
+    a && b ? Math.max(0, a.r + b.r - Math.hypot(b.cx - a.cx, b.cy - a.cy)) : 0;
+  const largestPlaced = placed.reduce(
+    (best, row) => (row.r > best.r ? row : best),
+    placed[0] ?? { cx: 0, cy: 0, r: 0, id: "", name: "", reach: 0, color: "" },
+  );
+  const badgePos =
+    outlineMode === "intersection" && a && b
+      ? twoCircleLensCenter(a, b)
+      : {
+          x: largestPlaced.cx + dx,
+          y: largestPlaced.cy + dy,
+        };
+  const showInSvgBadge = Boolean(
+    overlapBadge && (outlineMode === "union" || lensWidth >= 36 || placed.length === 1),
+  );
 
   return (
+    <div className="flex flex-col items-center gap-1">
     <svg
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
-      className="h-auto max-h-[240px] w-auto max-w-[300px]"
+      className={
+        large
+          ? "h-auto max-h-[380px] w-auto max-w-[520px]"
+          : "h-auto max-h-[240px] w-auto max-w-[300px]"
+      }
       aria-hidden
     >
+      {showOutline ? (
+        <defs>
+          {placed.map((row, index) =>
+            outlineMode === "union" ? (
+              <mask
+                key={`out-${row.id}`}
+                id={`${clipId}-out-${index}`}
+                maskUnits="userSpaceOnUse"
+              >
+                <rect width={width} height={height} fill="white" />
+                {placed
+                  .filter((_, other) => other !== index)
+                  .map((other) => (
+                    <circle
+                      key={`hide-${other.id}`}
+                      cx={other.cx + dx}
+                      cy={other.cy + dy}
+                      r={other.r}
+                      fill="black"
+                    />
+                  ))}
+              </mask>
+            ) : (
+              <clipPath key={row.id} id={`${clipId}-${index}`}>
+                <circle cx={row.cx + dx} cy={row.cy + dy} r={row.r} />
+              </clipPath>
+            ),
+          )}
+        </defs>
+      ) : null}
       {placed.map((row) => (
         <circle
           key={row.id}
@@ -194,30 +256,58 @@ function MultiOverlapCircles({
           fillOpacity="0.55"
         />
       ))}
-      {lensPath ? (
-        <path
-          d={lensPath}
-          fill="none"
-          stroke="#1e293b"
-          strokeWidth="1.75"
-          strokeDasharray="5 3.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ) : null}
-      {overlapBadge && placed.length === 2 ? (
+      {showOutline
+        ? placed.map((row, index) =>
+            outlineMode === "union" ? (
+              <g key={`dash-${row.id}`} mask={`url(#${clipId}-out-${index})`}>
+                <circle
+                  cx={row.cx + dx}
+                  cy={row.cy + dy}
+                  r={row.r}
+                  fill="none"
+                  stroke="#1e293b"
+                  strokeWidth="1.75"
+                  strokeDasharray="5 3.5"
+                  strokeLinecap="round"
+                />
+              </g>
+            ) : (
+              <NestedClip
+                key={`dash-${row.id}`}
+                ids={placed.map((_, other) => `${clipId}-${other}`).filter((id) => id !== `${clipId}-${index}`)}
+              >
+                <circle
+                  cx={row.cx + dx}
+                  cy={row.cy + dy}
+                  r={row.r}
+                  fill="none"
+                  stroke="#1e293b"
+                  strokeWidth="1.75"
+                  strokeDasharray="5 3.5"
+                  strokeLinecap="round"
+                />
+              </NestedClip>
+            ),
+          )
+        : null}
+      {showInSvgBadge && badgePos ? (
         <text
-          x={(placed[0].cx + placed[1].cx) / 2 + dx}
-          y={(placed[0].cy + placed[1].cy) / 2 + dy + 4}
+          x={badgePos.x}
+          y={badgePos.y}
           textAnchor="middle"
+          dominantBaseline="middle"
           fill="#1e293b"
-          fontSize="12"
+          fontSize={large ? 14 : 12}
           fontWeight="700"
         >
           {overlapBadge}
         </text>
       ) : null}
     </svg>
+    {overlapBadge && !showInSvgBadge ? (
+      <p className="text-center text-xs font-semibold text-foreground">{overlapBadge}</p>
+    ) : null}
+    </div>
   );
 }
 
@@ -249,6 +339,9 @@ type PopulationOverlapVizProps = {
   uniqueHint?: string;
   overlapBadge?: string;
   footerNote?: string;
+  size?: "default" | "lg";
+  /** Union (Include OR) outlines the whole Unique. Intersection (Narrow AND) outlines the middle only. */
+  outlineMode?: "union" | "intersection";
 };
 
 export function PopulationOverlapViz({
@@ -259,6 +352,8 @@ export function PopulationOverlapViz({
   uniqueHint,
   overlapBadge,
   footerNote,
+  size = "default",
+  outlineMode,
 }: PopulationOverlapVizProps) {
   const withReach = sources
     .filter((row): row is PopulationSourceRow & { reach: number } => row.reach != null && row.reach > 0)
@@ -277,46 +372,56 @@ export function PopulationOverlapViz({
   }
 
   const unique = union;
+  const resolvedOutline: "union" | "intersection" =
+    outlineMode ?? (unique > overlap * 1.12 ? "union" : "intersection");
+
+  const spacious = size === "lg";
 
   return (
-    <div>
-    <div className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch gap-x-5">
-      <div className="col-start-1 row-span-3 self-center pl-6">
+    <div className={spacious ? "w-full" : undefined}>
+    <div
+      className={
+        spacious
+          ? "grid w-full grid-cols-1 items-center gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-x-6"
+          : "grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-x-4"
+      }
+    >
+      <div className={spacious ? "flex justify-center sm:justify-end" : "col-start-1 row-span-2 self-start"}>
         <MultiOverlapCircles
           rows={withReach}
           unique={unique}
           overlap={overlap}
           overlapBadge={overlapBadge}
+          size={size}
+          outlineMode={resolvedOutline}
         />
       </div>
-      <div className="col-start-2 row-start-2 self-center">
+      <div className={spacious ? "flex items-center justify-center" : "col-start-2 row-span-2 self-center"}>
         <span className="text-2xl font-semibold text-muted-foreground">=</span>
       </div>
-      <div className="col-start-3 row-start-2 min-w-0 self-center">
-        <UniqueMetaLabel value={unique} label={uniqueLabel} hint={uniqueHint} />
-      </div>
-      <div className="col-start-3 row-start-3 mt-7 min-w-0 self-start space-y-1 text-xs">
+      <div className={spacious ? "min-w-0 space-y-5 sm:justify-self-start" : "contents"}>
+        <div className={spacious ? "min-w-0" : "col-start-3 row-start-1 min-w-0 self-start"}>
+          <UniqueMetaLabel value={unique} label={uniqueLabel} hint={uniqueHint} />
+        </div>
+        <div className={spacious ? "min-w-0 space-y-2 text-sm" : "col-start-3 row-start-2 mt-3 min-w-0 self-start space-y-1 text-xs"}>
         {withReach.map((row) => {
-          const pct =
-            row.overlapPct != null && Number.isFinite(row.overlapPct)
-              ? row.overlapPct
-              : unique > 0
-                ? (row.reach / unique) * 100
-                : 0;
-          const pctLabel = pct < 1 ? "< 1%" : `${Math.round(pct)}%`;
+          const pctLabel = overlapShareLabel(row.reach, unique, row.overlapPct);
           return (
-            <p key={row.id} className="flex items-start gap-1.5 text-muted-foreground">
+            <div key={row.id} className="flex min-w-0 items-start gap-2 text-muted-foreground">
               <span
-                className="mt-0.5 inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                className="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: row.color }}
               />
-              <span className="min-w-0 flex-1 leading-snug">{row.name}</span>
-              <span className="shrink-0 tabular-nums">
-                {formatNumber(row.reach)} · {pctLabel}
-              </span>
-            </p>
+              <div className="min-w-0 flex-1">
+                <p className="leading-snug">{row.name}</p>
+                <p className="tabular-nums leading-snug">
+                  {formatNumber(row.reach)} · {pctLabel}
+                </p>
+              </div>
+            </div>
           );
         })}
+        </div>
       </div>
     </div>
       {footerNote ? (

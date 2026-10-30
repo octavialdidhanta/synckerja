@@ -328,9 +328,15 @@ export function InterestResearchWorkspace({
     () => resultItems.filter((i) => selectedIds.has(i.id)),
     [resultItems, selectedIds],
   );
+  const selectedItemsKey = useMemo(
+    () => selectedItems.map((item) => item.id).join(","),
+    [selectedItems],
+  );
   useEffect(() => {
     onSelectedItemsChange?.(selectedItems);
-  }, [onSelectedItemsChange, selectedItems]);
+    // Sync by id list only — a fresh [] every render must not loop the parent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItemsKey, onSelectedItemsChange]);
   const visibleEstimateItems = useMemo(
     () => resultItems.slice(0, INITIAL_ESTIMATE_COUNT),
     [resultItems],

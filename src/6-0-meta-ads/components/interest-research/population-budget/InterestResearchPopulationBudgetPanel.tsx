@@ -61,7 +61,7 @@ export function InterestResearchPopulationBudgetPanel({
   const [cpm, setCpm] = useState("");
   const [frequency, setFrequency] = useState("");
   const [days, setDays] = useState("");
-  const { population, sources, officialOverlap, loading, error, truncated } =
+  const { population, sources, groupSources, officialOverlap, loading, error, truncated } =
     useInterestResearchPopulationReach({
     enabled: true,
     organizationId,
@@ -90,8 +90,11 @@ export function InterestResearchPopulationBudgetPanel({
   const populationLabel = population == null ? "—" : formatNumber(population);
   const rowSum = sources.reduce((sum, row) => sum + (row.reach ?? 0), 0);
   const hasRowReaches = sources.some((row) => row.reach != null);
-  const impliedOverlap =
-    officialOverlap != null
+  const andMode = (targetingGroups ?? []).filter((group) => group.length > 0).length >= 2;
+  const vizSources = andMode && groupSources.length >= 2 ? groupSources : sources;
+  const impliedOverlap = andMode
+    ? population
+    : officialOverlap != null
       ? officialOverlap
       : population != null && hasRowReaches && rowSum > 0
         ? Math.max(0, rowSum - population)
@@ -142,13 +145,26 @@ export function InterestResearchPopulationBudgetPanel({
                       </span>
                     </li>
                   ))}
-                  {hasRowReaches ? (
+                  {andMode && groupSources.length >= 2
+                    ? groupSources.map((row) => (
+                        <li
+                          key={row.id}
+                          className="flex min-w-0 items-baseline justify-between gap-3 border-t pt-1.5 font-medium"
+                        >
+                          <span className="truncate">{row.name}</span>
+                          <span className="shrink-0 tabular-nums">
+                            {row.reach == null ? "—" : formatNumber(row.reach)}
+                          </span>
+                        </li>
+                      ))
+                    : null}
+                  {!andMode && hasRowReaches ? (
                     <li className="flex min-w-0 items-baseline justify-between gap-3 border-t pt-1.5 text-muted-foreground">
                       <span>{t("digitalMarketing.metaAds.populationBudgetRowSum", "Jumlah reach")}</span>
                       <span className="shrink-0 tabular-nums">{formatNumber(rowSum)}</span>
                     </li>
                   ) : null}
-                  {impliedOverlap != null ? (
+                  {!andMode && impliedOverlap != null ? (
                     <li className="flex min-w-0 items-baseline justify-between gap-3 text-muted-foreground">
                       <span>
                         {t("digitalMarketing.metaAds.populationBudgetImpliedOverlap", "Overlap")}
@@ -161,7 +177,14 @@ export function InterestResearchPopulationBudgetPanel({
                     <span className="shrink-0 tabular-nums">{populationLabel}</span>
                   </li>
                 </ul>
-                {hasRowReaches && impliedOverlap != null && population != null ? (
+                {andMode && population != null ? (
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    {t(
+                      "digitalMarketing.metaAds.populationBudgetWhyAnd",
+                      "Unique = Include AND Narrow (bukan ketiga minat di-AND).",
+                    )}
+                  </p>
+                ) : hasRowReaches && impliedOverlap != null && population != null ? (
                   <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                     {t(
                       "digitalMarketing.metaAds.populationBudgetWhyUnion",
@@ -180,8 +203,28 @@ export function InterestResearchPopulationBudgetPanel({
               </div>
               <div className="min-w-0 border-t pt-4 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
                 <p className="text-sm font-semibold">Overlap</p>
-                <div className="mt-3">
-                  <PopulationOverlapViz sources={sources} union={population} overlap={impliedOverlap} />
+                {!andMode ? (
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {t(
+                      "digitalMarketing.metaAds.populationBudgetPctHint",
+                      "Irisan tengah hanya dipakai kalau ada And must also match.",
+                    )}
+                  </p>
+                ) : null}
+                <div className="mt-1">
+                  <PopulationOverlapViz
+                    sources={vizSources}
+                    union={population}
+                    overlap={impliedOverlap}
+                    outlineMode={andMode ? "intersection" : "union"}
+                    overlapBadge={t("digitalMarketing.metaAds.populationBudgetUnionUsed", "Unique")}
+                    uniqueHint={t(
+                      "digitalMarketing.metaAds.populationBudgetUniqueHint",
+                      andMode
+                        ? "Titik putus-putus = irisan (AND). Hanya itu yang dihitung Unique."
+                        : "Include = gabungan. Titik putus-putus = seluruh Unique, bukan irisan tengah.",
+                    )}
+                  />
                 </div>
               </div>
             </div>

@@ -318,12 +318,15 @@ type InterestResearchSavedPanelProps = {
   adAccountId?: string;
   filters?: InterestResearchFilters | null;
   onLoadItems?: (items: MetaTargetingItem[]) => void;
-  onCalculatePopulation?: (session: {
-    listId?: string | null;
-    listName: string;
-    items: MetaTargetingItem[];
-    targetingGroups?: MetaTargetingItem[][];
-  }) => void;
+  onCalculatePopulation?: (
+    session: {
+      listId?: string | null;
+      listName: string;
+      items: MetaTargetingItem[];
+      targetingGroups?: MetaTargetingItem[][];
+    } | null,
+  ) => void;
+  activePopulationListId?: string | null;
   selectedItems?: MetaTargetingItem[];
   topContent?: ReactNode;
 };
@@ -334,6 +337,7 @@ export function InterestResearchSavedPanel({
   filters = null,
   onLoadItems,
   onCalculatePopulation,
+  activePopulationListId = null,
   selectedItems = [],
   topContent,
 }: InterestResearchSavedPanelProps) {
@@ -513,6 +517,22 @@ export function InterestResearchSavedPanel({
   const selectedList = lists.find((list) => list.id === selectedListId) ?? null;
   const selectedListName = selectedList?.name || renameValue.trim() || "this list";
 
+  const listSpecKey = items
+    .map((item) => `${item.match_group ?? 0}:${item.meta_targeting_id}`)
+    .join(",");
+
+  useEffect(() => {
+    if (!activePopulationListId || !onCalculatePopulation) return;
+    if (activePopulationListId !== selectedListId) return;
+    onCalculatePopulation({
+      listId: selectedListId,
+      listName: selectedList?.name ?? selectedListName,
+      items: items.map(listItemToTargeting),
+      targetingGroups,
+    });
+    // Keep the open population session in sync with Include / Narrow edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePopulationListId, selectedListId, listSpecKey]);
   const exportSelected = () => {
     if (!items.length) return;
     const mapped: MetaTargetingItem[] = items.map((i) => ({
@@ -963,6 +983,7 @@ export function InterestResearchSavedPanel({
                 try {
                   const deleted = await mutations.deleteList.mutateAsync(selectedListId);
                   setSelectedListId(null);
+                  if (activePopulationListId === selectedListId) onCalculatePopulation?.(null);
                   setConfirmDeleteList(false);
                   toast.success(t("digitalMarketing.metaAds.interestListDeleted", "List deleted"));
                   if (deleted.meta_sync_error) {
@@ -1078,7 +1099,7 @@ export function InterestResearchSavedPanel({
       </AlertDialog>
 
       <Dialog open={overlapVizOpen} onOpenChange={setOverlapVizOpen}>
-        <DialogContent className="max-w-[560px] bg-white sm:rounded-xl">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-4xl overflow-y-auto bg-white sm:rounded-xl">
           <DialogHeader>
             <DialogTitle>
               {t(
@@ -1093,6 +1114,7 @@ export function InterestResearchSavedPanel({
             </div>
           ) : groupedReach ? (
             <PopulationOverlapViz
+              size="lg"
               sources={[
                 {
                   id: "include",
@@ -1133,12 +1155,13 @@ export function InterestResearchSavedPanel({
               )}
               uniqueHint={t(
                 "digitalMarketing.metaAds.interestListAndAudienceHint",
-                "Hanya irisan tengah (bertuliskan Iklan). Bagian lingkaran yang tidak bertumpuk tidak ditayangkan iklan.",
+                "Iklan hanya tayang di irisan tengah.",
               )}
               overlapBadge={t("digitalMarketing.metaAds.interestListOverlapBadge", "Iklan")}
+              outlineMode="intersection"
               footerNote={t(
                 "digitalMarketing.metaAds.interestListOverlapFooter",
-                "Lingkaran biru = semua orang Include. Lingkaran merah = semua orang Narrow. Area tumpang tindih = Include AND Narrow, dan itulah targeting ad set saat Create draft dari list ini.",
+                "Biru = Include. Merah = Narrow. Irisan = audience iklan.",
               )}
             />
           ) : (

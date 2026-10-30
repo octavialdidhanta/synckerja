@@ -75,6 +75,17 @@ function MetaAdsInterestResearchPageContent() {
   const [researchFilters, setResearchFilters] = useState<InterestResearchFilters | null>(null);
   const [populationBudget, setPopulationBudget] = useState<PopulationBudgetSession | null>(null);
   const [selectedResearchItems, setSelectedResearchItems] = useState<MetaTargetingItem[]>([]);
+  const setSelectedResearchItemsStable = useCallback((items: MetaTargetingItem[]) => {
+    setSelectedResearchItems((prev) => {
+      if (
+        prev.length === items.length &&
+        prev.every((item, index) => item.id === items[index]?.id)
+      ) {
+        return prev;
+      }
+      return items;
+    });
+  }, []);
 
   const oauthConnected = settings?.oauthConnected ?? false;
   const allActiveAccounts = useMemo(
@@ -218,7 +229,7 @@ function MetaAdsInterestResearchPageContent() {
               onResearchFiltersChange={setResearchFilters}
               populationBudget={populationBudget}
               onClosePopulationBudget={() => setPopulationBudget(null)}
-              onSelectedItemsChange={setSelectedResearchItems}
+              onSelectedItemsChange={setSelectedResearchItemsStable}
             />
             <aside className="hidden h-full min-h-0 w-[320px] shrink-0 flex-col overflow-hidden border-l border-gray-200 bg-white xl:flex">
               <InterestResearchSavedPanel
@@ -238,6 +249,7 @@ function MetaAdsInterestResearchPageContent() {
                     </div>
                   ) : null
                 }
+                activePopulationListId={populationBudget?.listId}
               />
             </aside>
           </div>
