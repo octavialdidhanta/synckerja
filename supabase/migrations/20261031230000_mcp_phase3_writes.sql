@@ -166,6 +166,8 @@ BEGIN
     RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
   END IF;
 
+  PERFORM set_config('mcp.plan_brief_user', p_user_id::text, true);
+
   UPDATE public.social_media_plans AS plan
   SET
     title = COALESCE(v_title, plan.title),

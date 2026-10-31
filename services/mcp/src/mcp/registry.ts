@@ -167,7 +167,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "content.plans.update",
     description:
-      "Update the title, post date, or brief of one content plan in the organization locked in this session. Does not change approval, production status, completion, or published links.",
+      "Update the title, post date, or brief of one content plan in the organization locked in this session. A brief change is accepted only when the signed-in member is that plan's PIC. Does not change approval, production status, completion, or published links.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
