@@ -175,7 +175,7 @@ const phase2Pages = [
   { page_path: "/operations/sales", roles_allowed: ["employee"] },
   { page_path: "/kol-management/campaigns", roles_allowed: ["employee"] },
   { page_path: "/kol-management/kol-management", roles_allowed: ["employee"] },
-  { page_path: "/operations/inventory", roles_allowed: ["employee"] },
+  { page_path: "/operations/sales/stock-management", roles_allowed: ["employee"] },
 ];
 
 describe("phase 2 tool visibility", () => {
@@ -209,6 +209,21 @@ describe("phase 2 tool visibility", () => {
     expect(names).not.toContain("finance.income.list");
     expect(names).not.toContain("finance.expenses.list");
     expect(names).not.toContain("inventory.stock.list");
+  });
+
+  it("shows stock for the permission path and hides it for the browser URL alone", () => {
+    const allowed = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase2Scopes },
+      configurations: [{ page_path: "/operations/sales/stock-management", roles_allowed: ["employee"] }],
+    });
+    const browserOnly = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase2Scopes },
+      configurations: [{ page_path: "/operations/inventory", roles_allowed: ["employee"] }],
+    });
+    expect(filterTools(allowed).map((tool) => tool.name)).toContain("inventory.stock.list");
+    expect(filterTools(browserOnly).map((tool) => tool.name)).not.toContain("inventory.stock.list");
   });
 
   it("shows ads accounts when any one ads page is granted", () => {

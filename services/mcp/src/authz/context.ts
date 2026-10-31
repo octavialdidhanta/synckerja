@@ -21,7 +21,8 @@ export const EMPLOYEES_PAGE_PATH = "/employees";
 export const VISITS_PAGE_PATH = "/operations/sales";
 export const KOL_CAMPAIGNS_PAGE_PATH = "/kol-management/campaigns";
 export const KOL_PROFILES_PAGE_PATH = "/kol-management/kol-management";
-export const INVENTORY_PAGE_PATH = "/operations/inventory";
+/** Permission catalog key. The browser URL is /operations/inventory. */
+export const INVENTORY_PAGE_PATH = "/operations/sales/stock-management";
 
 export const MCP_MODULE_KEYS = [
   "digitalMarketing",
