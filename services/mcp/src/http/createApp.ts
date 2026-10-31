@@ -24,6 +24,7 @@ import { OAuthError } from "../oauth/errors";
 import type { GrantStore } from "../oauth/store";
 import { exchangeToken } from "../oauth/token";
 import { verifyAccessToken, type AccessClaims } from "../oauth/tokens";
+import type { SchedulePlanResult } from "../tools/content/plansSchedule";
 
 export type AppDeps = {
   config: McpServiceConfig;
@@ -86,6 +87,8 @@ export type AppDeps = {
       fuPriority: string | null;
     },
   ) => Promise<CrmLeadRow>;
+  scheduleContentPlan: (ctx: McpAuthContext, id: string) => Promise<SchedulePlanResult>;
+  setLeadStatus: (ctx: McpAuthContext, input: { id: string; status: string }) => Promise<CrmLeadRow>;
   now?: () => Date;
 };
 

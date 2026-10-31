@@ -19,10 +19,12 @@ import {
   createCompanyObjective,
   createContentPlan,
   createLead,
+  setLeadStatus,
   updateContentPlan,
   updateLead,
   updateObjective,
 } from "./db/phase3Writes";
+import { scheduleContentPlan } from "./db/scheduleContentPlan";
 import { createApp } from "./http/createApp";
 import { SupabaseGrantStore } from "./oauth/supabaseStore";
 
@@ -54,6 +56,8 @@ const app = createApp({
   updateObjective: (ctx, input) => updateObjective(admin, ctx, input),
   createLead: (ctx, input) => createLead(admin, ctx, input),
   updateLead: (ctx, input) => updateLead(admin, ctx, input),
+  scheduleContentPlan: (ctx, id) => scheduleContentPlan(config, ctx, id),
+  setLeadStatus: (ctx, input) => setLeadStatus(admin, ctx, input),
 });
 
 serve({ fetch: app.fetch, port: config.port }, () => {

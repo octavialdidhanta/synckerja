@@ -18,3 +18,6 @@ export { createObjectiveInput, createObjectiveResult } from "./okr/objectivesCre
 export { updateObjectiveInput, updateObjectiveResult, updateObjectiveSchema } from "./okr/objectivesUpdate";
 export { createLeadInput, createLeadResult } from "./crm/leadsCreate";
 export { updateLeadInput, updateLeadResult, updateLeadSchema } from "./crm/leadsUpdate";
+export { schedulePlanInput, schedulePlanResult } from "./content/plansSchedule";
+export type { SchedulePlanResult } from "./content/plansSchedule";
+export { setLeadStatusInput, setLeadStatusResult } from "./crm/leadsSetStatus";

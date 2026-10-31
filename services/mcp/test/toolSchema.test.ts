@@ -6,6 +6,8 @@ import { contentPlansInput } from "../src/tools/content/plansList";
 import { leadsInput } from "../src/tools/crm/leadsList";
 import { createLeadInput } from "../src/tools/crm/leadsCreate";
 import { updateLeadInput } from "../src/tools/crm/leadsUpdate";
+import { schedulePlanInput } from "../src/tools/content/plansSchedule";
+import { setLeadStatusInput } from "../src/tools/crm/leadsSetStatus";
 import { createPlanInput } from "../src/tools/content/plansCreate";
 import { updatePlanInput, updatePlanSchema } from "../src/tools/content/plansUpdate";
 import { updateObjectiveSchema } from "../src/tools/okr/objectivesUpdate";
@@ -39,10 +41,12 @@ import {
   createCompanyObjective,
   createContentPlan,
   createLead,
+  setLeadStatus,
   updateContentPlan,
   updateLead,
   updateObjective,
 } from "../src/db/phase3Writes";
+import { scheduleContentPlan } from "../src/db/scheduleContentPlan";
 
 describe("phase 0 tool inputs", () => {
   it("rejects an organization_id argument", () => {
@@ -116,6 +120,17 @@ describe("phase 0 tool inputs", () => {
     expect(updateLeadInput.safeParse({ id: planId }).success).toBe(false);
     expect(updateLeadInput.safeParse({ id: planId, client: "Acme" }).success).toBe(true);
     expect(updateLeadInput.safeParse({ id: planId, client: "Acme", organization_id: "org-2" }).success).toBe(false);
+    expect(schedulePlanInput.safeParse({ id: planId }).success).toBe(true);
+    expect(schedulePlanInput.safeParse({ id: planId, organization_id: "org-2" }).success).toBe(false);
+    expect(schedulePlanInput.safeParse({ id: planId, action: "post_now" }).success).toBe(false);
+    expect(schedulePlanInput.safeParse({ id: planId, post_now: true }).success).toBe(false);
+    expect(setLeadStatusInput.safeParse({ id: planId, status: "Open" }).success).toBe(true);
+    expect(setLeadStatusInput.safeParse({ id: planId, status: "Converted" }).success).toBe(false);
+    expect(setLeadStatusInput.safeParse({ id: planId, status: "Closed" }).success).toBe(false);
+    expect(setLeadStatusInput.safeParse({ id: planId, status: "Resolve" }).success).toBe(false);
+    expect(setLeadStatusInput.safeParse({ id: planId, status: "Open", phone_number: "0812" }).success).toBe(false);
+    expect(setLeadStatusInput.safeParse({ id: planId, status: "Open", email: "a@b.c" }).success).toBe(false);
+    expect(setLeadStatusInput.safeParse({ id: planId, status: "Open", assignee: "Ada" }).success).toBe(false);
   });
 
   it("calls the membership-checked RPC with the session organization only", async () => {
@@ -283,6 +298,49 @@ describe("phase 0 tool inputs", () => {
     expect(sent).not.toContain("org-2");
     expect(sent).not.toContain("phone_number");
     expect(sent).not.toContain("post_link");
+    await setLeadStatus(admin, ctx, { id, status: "Open" });
+    expect(rpc).toHaveBeenNthCalledWith(7, "mcp_set_lead_status", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_id: id,
+      p_status: "Open",
+    });
+  });
+
+  it("schedules with the session user and hides the internal secret", async () => {
+    const secret = "schedule-secret-value";
+    const fetchImpl = vi.fn().mockResolvedValue({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        eligible: false,
+        scheduled: 0,
+        blocked: ["approved", secret],
+        skipped: [{ platform: "TikTok", reason: "oauth_disconnected", platform_account_id: "acct-1" }],
+        failed: [{ platform: "YouTube", error: `boom ${secret}`, platform_account_id: "acct-2" }],
+      }),
+    });
+    const result = await scheduleContentPlan(
+      {
+        supabaseUrl: "https://example.supabase.co",
+        supabaseServiceRoleKey: "service-role",
+        scheduledPostsInternalSecret: secret,
+      },
+      { userId: "user-1", organizationId: "org-1" },
+      "11111111-1111-4111-8111-111111111111",
+      fetchImpl as unknown as typeof fetch,
+    );
+    const body = JSON.parse(String(fetchImpl.mock.calls[0][1].body)) as Record<string, unknown>;
+    expect(body).toEqual({
+      organization_id: "org-1",
+      social_media_plan_id: "11111111-1111-4111-8111-111111111111",
+      mcp_user_id: "user-1",
+      internal_secret: secret,
+    });
+    expect(JSON.stringify(result)).not.toContain(secret);
+    expect(result.skipped).toEqual([{ platform: "TikTok", reason: "oauth_disconnected" }]);
+    expect(result.failed).toEqual([{ platform: "YouTube", reason: "boom " }]);
+    expect(result.blocked).toEqual(["approved"]);
   });
 
   it("keeps service-role helpers out of tool files", () => {
@@ -306,6 +364,8 @@ describe("phase 0 tool inputs", () => {
     const updateObjective = readFileSync(new URL("../src/tools/okr/objectivesUpdate.ts", import.meta.url), "utf8");
     const createLead = readFileSync(new URL("../src/tools/crm/leadsCreate.ts", import.meta.url), "utf8");
     const updateLead = readFileSync(new URL("../src/tools/crm/leadsUpdate.ts", import.meta.url), "utf8");
+    const schedulePlan = readFileSync(new URL("../src/tools/content/plansSchedule.ts", import.meta.url), "utf8");
+    const setStatus = readFileSync(new URL("../src/tools/crm/leadsSetStatus.ts", import.meta.url), "utf8");
     const identity = readFileSync(new URL("../src/db/identity.ts", import.meta.url), "utf8");
     const consent = readFileSync(new URL("../src/oauth/consent.ts", import.meta.url), "utf8");
     for (const source of [
@@ -329,6 +389,8 @@ describe("phase 0 tool inputs", () => {
       updateObjective,
       createLead,
       updateLead,
+      schedulePlan,
+      setStatus,
     ]) {
       expect(source).not.toContain("createAdmin");
       expect(source).not.toContain("SERVICE_ROLE");

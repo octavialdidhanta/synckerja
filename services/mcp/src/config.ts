@@ -5,6 +5,7 @@ export type McpServiceConfig = {
   port: number;
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
+  scheduledPostsInternalSecret: string;
 };
 
 type Env = Record<string, string | undefined>;
@@ -25,6 +26,7 @@ export function loadConfig(): McpServiceConfig {
   const jwtSecret = env.MCP_JWT_SECRET || "";
   const supabaseUrl = env.SUPABASE_URL || "";
   const supabaseServiceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY || "";
+  const scheduledPostsInternalSecret = env.SCHEDULED_POSTS_INTERNAL_SECRET || "";
   const port = Number(env.PORT || 8787);
 
   if (jwtSecret.length < 16) {
@@ -33,11 +35,22 @@ export function loadConfig(): McpServiceConfig {
   if (!supabaseUrl || !supabaseServiceRoleKey) {
     throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
   }
+  if (!scheduledPostsInternalSecret) {
+    throw new Error("SCHEDULED_POSTS_INTERNAL_SECRET is required");
+  }
   if (!Number.isFinite(port) || port <= 0) {
     throw new Error("PORT must be a positive number");
   }
 
-  return { publicUrl, officeOrigin, jwtSecret, port, supabaseUrl, supabaseServiceRoleKey };
+  return {
+    publicUrl,
+    officeOrigin,
+    jwtSecret,
+    port,
+    supabaseUrl,
+    supabaseServiceRoleKey,
+    scheduledPostsInternalSecret,
+  };
 }
 
 export function mcpResourceUrl(config: Pick<McpServiceConfig, "publicUrl">): string {

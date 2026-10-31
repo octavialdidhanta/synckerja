@@ -127,6 +127,18 @@ export function createLead(admin: SupabaseClient, ctx: Session, input: LeadCreat
   });
 }
 
+export function setLeadStatus(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { id: string; status: string },
+): Promise<CrmLeadRow> {
+  return callRpcOne(admin, "mcp_set_lead_status", {
+    ...sessionArgs(ctx),
+    p_id: input.id,
+    p_status: input.status,
+  });
+}
+
 export function updateLead(admin: SupabaseClient, ctx: Session, input: LeadUpdate): Promise<CrmLeadRow> {
   return callRpcOne(admin, "mcp_update_lead", {
     ...sessionArgs(ctx),

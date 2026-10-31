@@ -34,7 +34,9 @@ export type McpToolName =
   | "okr.objectives.create"
   | "okr.objectives.update"
   | "crm.leads.create"
-  | "crm.leads.update";
+  | "crm.leads.update"
+  | "content.plans.schedule"
+  | "crm.leads.setStatus";
 
 export type McpTool = {
   name: McpToolName;
@@ -200,6 +202,22 @@ export const MCP_TOOLS: McpTool[] = [
     name: "crm.leads.update",
     description:
       "Update the client, title, category, source, or follow-up priority of one lead in the organization locked in this session. Does not change status, assignee, ticket id, phone number, or email.",
+    scopes: ["crm:write"],
+    moduleKey: "omnichannel",
+    pagePath: LEADS_PAGE_PATH,
+  },
+  {
+    name: "content.plans.schedule",
+    description:
+      "Schedule one already eligible content plan for the organization locked in this session. The plan must already be approved, production-approved, a Reel, and have a post date plus a Google Drive file link. Does not approve the plan, publish it now, or delete a published post.",
+    scopes: ["content:publish"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "crm.leads.setStatus",
+    description:
+      "Set the status of one lead in the organization locked in this session and copy that status onto the linked conversation. Does not send a chat message. Converted, closed, and resolve are rejected. Assignee, phone number, and email stay unchanged.",
     scopes: ["crm:write"],
     moduleKey: "omnichannel",
     pagePath: LEADS_PAGE_PATH,

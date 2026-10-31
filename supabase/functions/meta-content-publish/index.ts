@@ -15,6 +15,10 @@ import { runScheduledPostJob } from "../_shared/scheduledPosts/runScheduledPostJ
 import { runPostNowInBackground } from "../_shared/scheduledPosts/schedulePostNowAsync.ts";
 import { insertPlatformScheduleForTarget } from "../_shared/scheduledPosts/createPlatformScheduleRow.ts";
 import {
+  isActiveOrganizationMember,
+  mcpScheduleUserId,
+} from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
+import {
   getPlanEligibilityMissingReasons,
   isPlanEligibleForFacebookAutoSchedule,
   isPlanEligibleForInstagramAutoSchedule,
@@ -113,9 +117,14 @@ Deno.serve(async (req: Request) => {
 
   const isInternalExecute = action === "execute" &&
     body.internal_secret === Deno.env.get("SCHEDULED_POSTS_INTERNAL_SECRET");
+  const mcpUserId = mcpScheduleUserId(action, body);
 
   let userId: string | null = null;
-  if (!isInternalExecute) {
+  if (mcpUserId) {
+    const member = await isActiveOrganizationMember(admin, mcpUserId, organizationId);
+    if (!member) return metaContentJson({ error: "Forbidden" }, 403);
+    userId = mcpUserId;
+  } else if (!isInternalExecute) {
     const userRes = await getUserFromBearer(admin, req.headers.get("Authorization"));
     if ("error" in userRes) return userRes.error;
     userId = userRes.userId;

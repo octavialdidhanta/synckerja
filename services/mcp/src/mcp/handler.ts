@@ -15,6 +15,7 @@ import type {
   StockRow,
   VisitRow,
 } from "../db/phase2Reads";
+import type { SchedulePlanResult } from "../tools/content/plansSchedule";
 import type { AccessClaims } from "../oauth/tokens";
 import {
   adsAccountsInput,
@@ -43,6 +44,10 @@ import {
   kolProfilesResult,
   leadsInput,
   leadsResult,
+  schedulePlanInput,
+  schedulePlanResult,
+  setLeadStatusInput,
+  setLeadStatusResult,
   objectivesInput,
   objectivesResult,
   stockInput,
@@ -116,6 +121,8 @@ export type McpReadDeps = {
       fuPriority: string | null;
     },
   ) => Promise<CrmLeadRow>;
+  scheduleContentPlan: (ctx: McpAuthContext, id: string) => Promise<SchedulePlanResult>;
+  setLeadStatus: (ctx: McpAuthContext, input: { id: string; status: string }) => Promise<CrmLeadRow>;
 };
 
 type HandlerDeps = McpReadDeps & {
@@ -170,6 +177,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "okr.objectives.update": updateObjectiveSchema,
   "crm.leads.create": createLeadInput,
   "crm.leads.update": updateLeadSchema,
+  "content.plans.schedule": schedulePlanInput,
+  "crm.leads.setStatus": setLeadStatusInput,
 };
 
 async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, deps: McpReadDeps): Promise<unknown> {
@@ -273,6 +282,14 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
           fuPriority: optionalString(args.fu_priority),
         },
         deps.updateLead,
+      );
+    case "content.plans.schedule":
+      return schedulePlanResult(ctx, requiredString(args.id), deps.scheduleContentPlan);
+    case "crm.leads.setStatus":
+      return setLeadStatusResult(
+        ctx,
+        { id: requiredString(args.id), status: requiredString(args.status) },
+        deps.setLeadStatus,
       );
   }
 }

@@ -286,6 +286,8 @@ describe("phase 3 tool visibility", () => {
     expect(names).not.toContain("okr.objectives.update");
     expect(names).not.toContain("crm.leads.create");
     expect(names).not.toContain("crm.leads.update");
+    expect(names).not.toContain("content.plans.schedule");
+    expect(names).not.toContain("crm.leads.setStatus");
   });
 
   it("hides content writes when only the calendar page is granted and still allows whoami", () => {
@@ -311,6 +313,45 @@ describe("phase 3 tool visibility", () => {
     const names = filterTools(ctx).map((tool) => tool.name);
     expect(names).toContain("content.plans.create");
     expect(names).toContain("content.plans.update");
+    expect(names).not.toContain("content.plans.schedule");
     expect(names).not.toContain("okr.objectives.create");
+    expect(names).not.toContain("crm.leads.setStatus");
+  });
+});
+
+const phase4Scopes = [...phase3Scopes, "content:publish"];
+
+describe("phase 4 tool visibility", () => {
+  it("hides scheduling from a content write token", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase3Scopes },
+      configurations: [{ page_path: "/digital-marketing/social-media", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("content.plans.create");
+    expect(names).not.toContain("content.plans.schedule");
+  });
+
+  it("shows scheduling only with the publish scope and the content page", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase4Scopes },
+      configurations: [{ page_path: "/digital-marketing/social-media", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("content.plans.schedule");
+    expect(names).not.toContain("crm.leads.setStatus");
+  });
+
+  it("shows lead status changes with the existing write scope and the leads page", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase3Scopes },
+      configurations: [{ page_path: "/omnichannel/leads", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("crm.leads.setStatus");
+    expect(names).not.toContain("content.plans.schedule");
   });
 });

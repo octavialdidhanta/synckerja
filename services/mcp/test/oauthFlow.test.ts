@@ -19,6 +19,7 @@ const config: McpServiceConfig = {
   port: 8787,
   supabaseUrl: "http://localhost:54321",
   supabaseServiceRoleKey: "service-role-test",
+  scheduledPostsInternalSecret: "schedule-secret",
 };
 
 const USER = "user-1";
@@ -113,6 +114,12 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
       throw new Error("unused");
     },
     updateLead: async () => {
+      throw new Error("unused");
+    },
+    scheduleContentPlan: async () => {
+      throw new Error("unused");
+    },
+    setLeadStatus: async () => {
       throw new Error("unused");
     },
   });

@@ -7,6 +7,7 @@ import {
   resolveScheduledAtUtc,
 } from "./resolveScheduledAtWib.ts";
 import {
+  getPlanEligibilityMissingReasons,
   isPlanEligibleForAutoSchedule,
   type PlanAutoScheduleEligibilityInput,
 } from "./scheduledPostEligibility.ts";
@@ -42,6 +43,8 @@ export type PlanAutoScheduleResult = {
   scheduled: number;
   skipped: AutoScheduleSkipped[];
   failed: AutoScheduleFailed[];
+  blocked: string[];
+  planMissing: boolean;
 };
 
 type RequiredTarget = {
@@ -86,9 +89,10 @@ function buildPublishBody(
     scheduledAtIso: string;
     caption: string;
     title: string | null;
+    internal: { secret: string; userId: string } | null;
   },
 ): Record<string, unknown> {
-  const base = {
+  const base: Record<string, unknown> = {
     action: "schedule",
     organization_id: args.organizationId,
     social_media_plan_id: args.planId,
@@ -97,6 +101,10 @@ function buildPublishBody(
     title: args.title,
     scheduled_at: args.scheduledAtIso,
   };
+  if (args.internal) {
+    base.internal_secret = args.internal.secret;
+    base.mcp_user_id = args.internal.userId;
+  }
 
   switch (platform.trim()) {
     case "TikTok":
@@ -271,9 +279,17 @@ export async function runPlanAutoSchedule(
     authHeader: string;
     supabaseUrl: string;
     anonKey: string;
+    internal?: { secret: string; userId: string } | null;
   },
 ): Promise<PlanAutoScheduleResult> {
-  const empty: PlanAutoScheduleResult = { eligible: false, scheduled: 0, skipped: [], failed: [] };
+  const empty: PlanAutoScheduleResult = {
+    eligible: false,
+    scheduled: 0,
+    skipped: [],
+    failed: [],
+    blocked: [],
+    planMissing: false,
+  };
 
   const { data: planRow, error: planErr } = await admin
     .from("social_media_plans")
@@ -284,7 +300,7 @@ export async function runPlanAutoSchedule(
     .maybeSingle();
 
   if (planErr || !planRow || planRow.organization_id !== opts.organizationId) {
-    return empty;
+    return { ...empty, planMissing: true };
   }
 
   const eligibility: PlanAutoScheduleEligibilityInput = {
@@ -297,7 +313,9 @@ export async function runPlanAutoSchedule(
   };
 
   if (!isPlanEligibleForAutoSchedule(eligibility)) {
-    return empty;
+    const blocked = getPlanEligibilityMissingReasons(eligibility);
+    if (!String(eligibility.service_id ?? "").trim()) blocked.push("service_id");
+    return { ...empty, blocked };
   }
 
   const postDate = eligibility.post_date!;
@@ -314,7 +332,7 @@ export async function runPlanAutoSchedule(
   );
   const scheduledAtIso = resolveScheduledAtUtc(postDate, defaultTime);
   if (!scheduledAtIso) {
-    return { eligible: true, scheduled: 0, skipped: [], failed: [] };
+    return { eligible: true, scheduled: 0, skipped: [], failed: [], blocked: [], planMissing: false };
   }
 
   const { data: briefRow } = await admin
@@ -348,7 +366,7 @@ export async function runPlanAutoSchedule(
     }));
 
   if (!targets.length) {
-    return { eligible: true, scheduled: 0, skipped: [], failed: [] };
+    return { eligible: true, scheduled: 0, skipped: [], failed: [], blocked: [], planMissing: false };
   }
 
   const { data: lockRows } = await admin
@@ -443,6 +461,7 @@ export async function runPlanAutoSchedule(
       scheduledAtIso,
       caption,
       title: (planRow.title as string | null) ?? null,
+      internal: opts.internal ?? null,
     });
 
     const invoke = await invokePlatformSchedule(
@@ -470,5 +489,5 @@ export async function runPlanAutoSchedule(
     }
   }
 
-  return { eligible: true, scheduled, skipped, failed };
+  return { eligible: true, scheduled, skipped, failed, blocked: [], planMissing: false };
 }
