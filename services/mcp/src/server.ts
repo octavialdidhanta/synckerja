@@ -30,6 +30,7 @@ import {
   updateExpenseRecord,
   updateIncomeTransaction,
 } from "./db/phase5Writes";
+import { listPayrollRuns, listPosDailySales } from "./db/payrollPosReads";
 import { scheduleContentPlan } from "./db/scheduleContentPlan";
 import { createApp } from "./http/createApp";
 import { SupabaseGrantStore } from "./oauth/supabaseStore";
@@ -52,7 +53,9 @@ const app = createApp({
   listIncomeTransactions: (ctx, month) => listIncomeTransactions(admin, ctx, month),
   listExpenses: (ctx, month) => listExpenses(admin, ctx, month),
   listEmployees: (ctx) => listEmployees(admin, ctx),
+  listPayrollRuns: (ctx, month) => listPayrollRuns(admin, ctx, month),
   listCustomerVisits: (ctx, month) => listCustomerVisits(admin, ctx, month),
+  listPosDailySales: (ctx, month) => listPosDailySales(admin, ctx, month),
   listKolCampaigns: (ctx) => listKolCampaigns(admin, ctx),
   listKolProfiles: (ctx) => listKolProfiles(admin, ctx),
   listInventoryStock: (ctx) => listInventoryStock(admin, ctx),

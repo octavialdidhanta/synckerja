@@ -18,7 +18,9 @@ export const ADS_PAGE_PATHS = [GOOGLE_ADS_PAGE_PATH, META_ADS_PAGE_PATH, TIKTOK_
 export const INCOME_PAGE_PATH = "/incomes/transaction";
 export const EXPENSES_PAGE_PATH = "/expenses/dashboard";
 export const EMPLOYEES_PAGE_PATH = "/employees";
+export const PAYROLL_PAGE_PATH = "/payroll/calculations";
 export const VISITS_PAGE_PATH = "/operations/sales";
+export const POS_SALES_SUMMARY_PAGE_PATH = "/operations/reports/sales/summary";
 export const KOL_CAMPAIGNS_PAGE_PATH = "/kol-management/campaigns";
 export const KOL_PROFILES_PAGE_PATH = "/kol-management/kol-management";
 /** Permission catalog key. The browser URL is /operations/inventory. */
@@ -100,7 +102,9 @@ export function buildAuthContext(input: {
     INCOME_PAGE_PATH,
     EXPENSES_PAGE_PATH,
     EMPLOYEES_PAGE_PATH,
+    PAYROLL_PAGE_PATH,
     VISITS_PAGE_PATH,
+    POS_SALES_SUMMARY_PAGE_PATH,
     KOL_CAMPAIGNS_PAGE_PATH,
     KOL_PROFILES_PAGE_PATH,
     INVENTORY_PAGE_PATH,

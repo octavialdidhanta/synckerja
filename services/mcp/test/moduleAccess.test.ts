@@ -400,3 +400,45 @@ describe("phase 5 tool visibility", () => {
     expect(names).not.toContain("finance.income.update");
   });
 });
+
+const summaryScopes = [...phase5Scopes, "payroll:read", "pos:read"];
+
+describe("payroll and POS summary visibility", () => {
+  it("hides payroll runs from an hr read token even when the payroll page is granted", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase2Scopes },
+      configurations: [
+        { page_path: "/employees", roles_allowed: ["employee"] },
+        { page_path: "/payroll/calculations", roles_allowed: ["employee"] },
+      ],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("hr.employees.list");
+    expect(names).not.toContain("payroll.runs.list");
+  });
+
+  it("shows payroll runs only on the payroll page", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: summaryScopes },
+      configurations: [{ page_path: "/payroll/calculations", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("payroll.runs.list");
+    expect(names).not.toContain("pos.sales.daily");
+    expect(names).not.toContain("hr.employees.list");
+  });
+
+  it("shows daily sales only on the sales summary page", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: summaryScopes },
+      configurations: [{ page_path: "/operations/reports/sales/summary", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("pos.sales.daily");
+    expect(names).not.toContain("payroll.runs.list");
+    expect(names).not.toContain("sales.visits.list");
+  });
+});

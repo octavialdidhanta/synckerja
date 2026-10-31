@@ -26,6 +26,8 @@ import { stockInput } from "../src/tools/inventory/stockList";
 import { kolCampaignsInput } from "../src/tools/kol/campaignsList";
 import { kolProfilesInput } from "../src/tools/kol/profilesList";
 import { visitsInput } from "../src/tools/sales/visitsList";
+import { payrollRunsInput } from "../src/tools/payroll/runsList";
+import { posDailyInput } from "../src/tools/pos/salesDaily";
 import { cyclesInput } from "../src/tools/okr/cyclesList";
 import { objectivesInput } from "../src/tools/okr/objectivesList";
 import { whoamiInput } from "../src/tools/session/whoami";
@@ -50,6 +52,7 @@ import {
   updateLead,
   updateObjective,
 } from "../src/db/phase3Writes";
+import { listPayrollRuns, listPosDailySales } from "../src/db/payrollPosReads";
 import { scheduleContentPlan } from "../src/db/scheduleContentPlan";
 import {
   createExpenseRecord,
@@ -94,6 +97,13 @@ describe("phase 0 tool inputs", () => {
     expect(kolProfilesInput.safeParse({ phone: "0812" }).success).toBe(false);
     expect(stockInput.safeParse({}).success).toBe(true);
     expect(stockInput.safeParse({ organization_id: "org-2" }).success).toBe(false);
+    expect(payrollRunsInput.safeParse({}).success).toBe(true);
+    expect(payrollRunsInput.safeParse({ month: "2026-10" }).success).toBe(true);
+    expect(payrollRunsInput.safeParse({ month: "2026-13" }).success).toBe(false);
+    expect(payrollRunsInput.safeParse({ organization_id: "org-2" }).success).toBe(false);
+    expect(payrollRunsInput.safeParse({ employee_id: "11111111-1111-4111-8111-111111111111" }).success).toBe(false);
+    expect(posDailyInput.safeParse({ month: "October" }).success).toBe(false);
+    expect(posDailyInput.safeParse({ outlet_id: "11111111-1111-4111-8111-111111111111" }).success).toBe(false);
   });
 
   it("rejects forbidden keys and invalid values on phase 3 inputs", () => {
@@ -317,6 +327,29 @@ describe("phase 0 tool inputs", () => {
     expect(sent).not.toContain("access_token");
   });
 
+  it("calls the payroll and POS RPCs with the session organization and month only", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+    const admin = { rpc } as unknown as SupabaseClient;
+    const ctx = { userId: "user-1", organizationId: "org-1" };
+    await listPayrollRuns(admin, ctx, null);
+    await listPosDailySales(admin, ctx, "2026-10");
+    expect(rpc).toHaveBeenNthCalledWith(1, "mcp_list_payroll_runs", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_month: null,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, "mcp_list_pos_daily_sales", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_month: "2026-10",
+    });
+    const sent = JSON.stringify(rpc.mock.calls);
+    expect(sent).not.toContain("org-2");
+    expect(sent).not.toContain("employee_id");
+    expect(sent).not.toContain("outlet_id");
+    expect(sent).not.toContain("bank_account");
+  });
+
   it("calls the phase 3 RPCs with the session organization only", async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [{ id: "row-1" }], error: null });
     const admin = { rpc } as unknown as SupabaseClient;
@@ -533,6 +566,8 @@ describe("phase 0 tool inputs", () => {
     const campaigns = readFileSync(new URL("../src/tools/kol/campaignsList.ts", import.meta.url), "utf8");
     const profiles = readFileSync(new URL("../src/tools/kol/profilesList.ts", import.meta.url), "utf8");
     const stock = readFileSync(new URL("../src/tools/inventory/stockList.ts", import.meta.url), "utf8");
+    const payrollRuns = readFileSync(new URL("../src/tools/payroll/runsList.ts", import.meta.url), "utf8");
+    const posDaily = readFileSync(new URL("../src/tools/pos/salesDaily.ts", import.meta.url), "utf8");
     const createPlan = readFileSync(new URL("../src/tools/content/plansCreate.ts", import.meta.url), "utf8");
     const updatePlan = readFileSync(new URL("../src/tools/content/plansUpdate.ts", import.meta.url), "utf8");
     const createObjective = readFileSync(new URL("../src/tools/okr/objectivesCreate.ts", import.meta.url), "utf8");
@@ -562,6 +597,8 @@ describe("phase 0 tool inputs", () => {
       campaigns,
       profiles,
       stock,
+      payrollRuns,
+      posDaily,
       createPlan,
       updatePlan,
       createObjective,

@@ -6,6 +6,8 @@ import {
   EXPENSES_PAGE_PATH,
   INCOME_PAGE_PATH,
   INVENTORY_PAGE_PATH,
+  PAYROLL_PAGE_PATH,
+  POS_SALES_SUMMARY_PAGE_PATH,
   KOL_CAMPAIGNS_PAGE_PATH,
   KOL_PROFILES_PAGE_PATH,
   LEADS_PAGE_PATH,
@@ -29,7 +31,9 @@ export type McpToolName =
   | "finance.expenses.create"
   | "finance.expenses.update"
   | "hr.employees.list"
+  | "payroll.runs.list"
   | "sales.visits.list"
+  | "pos.sales.daily"
   | "kol.campaigns.list"
   | "kol.profiles.list"
   | "inventory.stock.list"
@@ -163,12 +167,28 @@ export const MCP_TOOLS: McpTool[] = [
     pagePath: EMPLOYEES_PAGE_PATH,
   },
   {
+    name: "payroll.runs.list",
+    description:
+      "List up to 20 payroll runs for the organization locked in this session. Optional month is YYYY-MM and matches the period start date; omit it for the 20 newest runs. Returns id, run name, period name, start date, end date, status, employee count, and total net pay. Employee names, gross pay, tax, deductions, notes, and bank details are not returned.",
+    scopes: ["payroll:read"],
+    moduleKey: "humanResources",
+    pagePath: PAYROLL_PAGE_PATH,
+  },
+  {
     name: "sales.visits.list",
     description:
       "List up to 50 store visits for the organization locked in this session. Optional month is YYYY-MM in Asia/Jakarta; omit it for the current month. Returns id, visit date, status, match status, lookup kind, and the matched lead client name. Phone numbers and visit notes are not returned.",
     scopes: ["sales:read"],
     moduleKey: "operations",
     pagePath: VISITS_PAGE_PATH,
+  },
+  {
+    name: "pos.sales.daily",
+    description:
+      "List daily store-checkout totals for the organization locked in this session. Optional month is YYYY-MM in Asia/Jakarta; omit it for the current month. Returns up to 31 days that have sales: the date, transaction count, and total collected. Days without sales are omitted. Line items, customer phone numbers, payment methods, and cashier pins are not returned.",
+    scopes: ["pos:read"],
+    moduleKey: "operations",
+    pagePath: POS_SALES_SUMMARY_PAGE_PATH,
   },
   {
     name: "kol.campaigns.list",

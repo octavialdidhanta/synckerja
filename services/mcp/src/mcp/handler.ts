@@ -16,6 +16,7 @@ import type {
   VisitRow,
 } from "../db/phase2Reads";
 import type { ExpenseRecord, IncomeRecord } from "../db/phase5Writes";
+import type { PayrollRunRow, PosDailySalesRow } from "../db/payrollPosReads";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
 import type { AccessClaims } from "../oauth/tokens";
 import {
@@ -55,6 +56,10 @@ import {
   setLeadStatusResult,
   objectivesInput,
   objectivesResult,
+  payrollRunsInput,
+  payrollRunsResult,
+  posDailyInput,
+  posDailyResult,
   stockInput,
   stockResult,
   updateExpenseInput,
@@ -90,7 +95,9 @@ export type McpReadDeps = {
   listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
   listExpenses: (ctx: McpAuthContext, month: string | null) => Promise<ExpenseRow[]>;
   listEmployees: (ctx: McpAuthContext) => Promise<EmployeeRow[]>;
+  listPayrollRuns: (ctx: McpAuthContext, month: string | null) => Promise<PayrollRunRow[]>;
   listCustomerVisits: (ctx: McpAuthContext, month: string | null) => Promise<VisitRow[]>;
+  listPosDailySales: (ctx: McpAuthContext, month: string | null) => Promise<PosDailySalesRow[]>;
   listKolCampaigns: (ctx: McpAuthContext) => Promise<KolCampaignRow[]>;
   listKolProfiles: (ctx: McpAuthContext) => Promise<KolProfileRow[]>;
   listInventoryStock: (ctx: McpAuthContext) => Promise<StockRow[]>;
@@ -235,7 +242,9 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "finance.expenses.create": createExpenseInput,
   "finance.expenses.update": updateExpenseSchema,
   "hr.employees.list": employeesInput,
+  "payroll.runs.list": payrollRunsInput,
   "sales.visits.list": visitsInput,
+  "pos.sales.daily": posDailyInput,
   "kol.campaigns.list": kolCampaignsInput,
   "kol.profiles.list": kolProfilesInput,
   "inventory.stock.list": stockInput,
@@ -325,8 +334,12 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
       );
     case "hr.employees.list":
       return employeesResult(ctx, deps.listEmployees);
+    case "payroll.runs.list":
+      return payrollRunsResult(ctx, optionalString(args.month), deps.listPayrollRuns);
     case "sales.visits.list":
       return visitsResult(ctx, optionalString(args.month), deps.listCustomerVisits);
+    case "pos.sales.daily":
+      return posDailyResult(ctx, optionalString(args.month), deps.listPosDailySales);
     case "kol.campaigns.list":
       return kolCampaignsResult(ctx, deps.listKolCampaigns);
     case "kol.profiles.list":

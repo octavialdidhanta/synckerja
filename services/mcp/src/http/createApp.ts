@@ -16,6 +16,7 @@ import type {
   VisitRow,
 } from "../db/phase2Reads";
 import type { ExpenseRecord, IncomeRecord } from "../db/phase5Writes";
+import type { PayrollRunRow, PosDailySalesRow } from "../db/payrollPosReads";
 import { handleMcpRequest } from "../mcp/handler";
 import { beginAuthorization } from "../oauth/authorize";
 import { registerClient } from "../oauth/clients";
@@ -46,7 +47,9 @@ export type AppDeps = {
   listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
   listExpenses: (ctx: McpAuthContext, month: string | null) => Promise<ExpenseRow[]>;
   listEmployees: (ctx: McpAuthContext) => Promise<EmployeeRow[]>;
+  listPayrollRuns: (ctx: McpAuthContext, month: string | null) => Promise<PayrollRunRow[]>;
   listCustomerVisits: (ctx: McpAuthContext, month: string | null) => Promise<VisitRow[]>;
+  listPosDailySales: (ctx: McpAuthContext, month: string | null) => Promise<PosDailySalesRow[]>;
   listKolCampaigns: (ctx: McpAuthContext) => Promise<KolCampaignRow[]>;
   listKolProfiles: (ctx: McpAuthContext) => Promise<KolProfileRow[]>;
   listInventoryStock: (ctx: McpAuthContext) => Promise<StockRow[]>;
