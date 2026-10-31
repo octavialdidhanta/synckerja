@@ -24,6 +24,12 @@ import {
   updateLead,
   updateObjective,
 } from "./db/phase3Writes";
+import {
+  createExpenseRecord,
+  createIncomeTransaction,
+  updateExpenseRecord,
+  updateIncomeTransaction,
+} from "./db/phase5Writes";
 import { scheduleContentPlan } from "./db/scheduleContentPlan";
 import { createApp } from "./http/createApp";
 import { SupabaseGrantStore } from "./oauth/supabaseStore";
@@ -58,6 +64,10 @@ const app = createApp({
   updateLead: (ctx, input) => updateLead(admin, ctx, input),
   scheduleContentPlan: (ctx, id) => scheduleContentPlan(config, ctx, id),
   setLeadStatus: (ctx, input) => setLeadStatus(admin, ctx, input),
+  createIncomeTransaction: (ctx, input) => createIncomeTransaction(admin, ctx, input),
+  updateIncomeTransaction: (ctx, input) => updateIncomeTransaction(admin, ctx, input),
+  createExpenseRecord: (ctx, input) => createExpenseRecord(admin, ctx, input),
+  updateExpenseRecord: (ctx, input) => updateExpenseRecord(admin, ctx, input),
 });
 
 serve({ fetch: app.fetch, port: config.port }, () => {

@@ -122,6 +122,18 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     setLeadStatus: async () => {
       throw new Error("unused");
     },
+    createIncomeTransaction: async () => {
+      throw new Error("unused");
+    },
+    updateIncomeTransaction: async () => {
+      throw new Error("unused");
+    },
+    createExpenseRecord: async () => {
+      throw new Error("unused");
+    },
+    updateExpenseRecord: async () => {
+      throw new Error("unused");
+    },
   });
   return { app, listed };
 }

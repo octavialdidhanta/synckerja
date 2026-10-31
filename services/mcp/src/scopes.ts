@@ -5,6 +5,7 @@ export const PHASE0_SCOPES = [
   "crm:read",
   "ads:read",
   "finance:read",
+  "finance:write",
   "hr:read",
   "sales:read",
   "kol:read",

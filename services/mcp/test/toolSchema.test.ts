@@ -15,8 +15,12 @@ import { updateLeadSchema } from "../src/tools/crm/leadsUpdate";
 import { createObjectiveInput } from "../src/tools/okr/objectivesCreate";
 import { updateObjectiveInput } from "../src/tools/okr/objectivesUpdate";
 import { adsAccountsInput } from "../src/tools/ads/accountsList";
-import { expensesInput } from "../src/tools/finance/expensesList";
+import { createIncomeInput } from "../src/tools/finance/incomeCreate";
+import { updateIncomeInput, updateIncomeSchema } from "../src/tools/finance/incomeUpdate";
+import { createExpenseInput } from "../src/tools/finance/expensesCreate";
+import { updateExpenseInput, updateExpenseSchema } from "../src/tools/finance/expensesUpdate";
 import { incomeInput } from "../src/tools/finance/incomeList";
+import { expensesInput } from "../src/tools/finance/expensesList";
 import { employeesInput } from "../src/tools/hr/employeesList";
 import { stockInput } from "../src/tools/inventory/stockList";
 import { kolCampaignsInput } from "../src/tools/kol/campaignsList";
@@ -47,6 +51,12 @@ import {
   updateObjective,
 } from "../src/db/phase3Writes";
 import { scheduleContentPlan } from "../src/db/scheduleContentPlan";
+import {
+  createExpenseRecord,
+  createIncomeTransaction,
+  updateExpenseRecord,
+  updateIncomeTransaction,
+} from "../src/db/phase5Writes";
 
 describe("phase 0 tool inputs", () => {
   it("rejects an organization_id argument", () => {
@@ -131,6 +141,88 @@ describe("phase 0 tool inputs", () => {
     expect(setLeadStatusInput.safeParse({ id: planId, status: "Open", phone_number: "0812" }).success).toBe(false);
     expect(setLeadStatusInput.safeParse({ id: planId, status: "Open", email: "a@b.c" }).success).toBe(false);
     expect(setLeadStatusInput.safeParse({ id: planId, status: "Open", assignee: "Ada" }).success).toBe(false);
+  });
+
+  it("rejects payment keys and unpaid-only writes on phase 5 inputs", () => {
+    const rowId = "11111111-1111-4111-8111-111111111111";
+    expect(createIncomeInput.safeParse({
+      transaction_date: "2026-10-31",
+      amount: 15000,
+      customer_name: "Acme",
+      payment_method: "cash",
+    }).success).toBe(true);
+    expect(createIncomeInput.safeParse({ transaction_date: "2026-10-31", amount: 0 }).success).toBe(false);
+    expect(createIncomeInput.safeParse({ transaction_date: "2026-02-31", amount: 10 }).success).toBe(false);
+    expect(createIncomeInput.safeParse({
+      transaction_date: "2026-10-31",
+      amount: 10,
+      payment_method: "bank_transfer",
+    }).success).toBe(false);
+    expect(createIncomeInput.safeParse({
+      transaction_date: "2026-10-31",
+      amount: 10,
+      organization_id: "org-2",
+    }).success).toBe(false);
+    expect(createIncomeInput.safeParse({
+      transaction_date: "2026-10-31",
+      amount: 10,
+      bank_account_id: rowId,
+    }).success).toBe(false);
+    expect(createIncomeInput.safeParse({
+      transaction_date: "2026-10-31",
+      amount: 10,
+      status: "completed",
+    }).success).toBe(false);
+    expect(createIncomeInput.safeParse({
+      transaction_date: "2026-10-31",
+      amount: 10,
+      receipt: "file",
+    }).success).toBe(false);
+    expect(updateIncomeInput.safeParse({ id: rowId }).success).toBe(false);
+    expect(updateIncomeInput.safeParse({ id: rowId, amount: 20 }).success).toBe(true);
+    expect(Object.keys(updateIncomeSchema.shape)).toEqual(expect.arrayContaining([
+      "id",
+      "transaction_date",
+      "amount",
+      "customer_name",
+      "payment_method",
+      "description",
+    ]));
+    expect(createExpenseInput.safeParse({
+      expense_name: "Rent",
+      amount: 500,
+      create_date: "2026-10-31",
+      expense_type: "Operating",
+      category: "Office",
+    }).success).toBe(true);
+    expect(createExpenseInput.safeParse({
+      expense_name: "Rent",
+      amount: 0,
+      create_date: "2026-10-31",
+      expense_type: "Operating",
+      category: "Office",
+    }).success).toBe(false);
+    expect(createExpenseInput.safeParse({
+      expense_name: "Rent",
+      amount: 500,
+      create_date: "2026-10-31",
+      expense_type: "Operating",
+      category: "Office",
+      bank_account_id: rowId,
+      status: "deleted",
+      receipt: "file",
+    }).success).toBe(false);
+    expect(updateExpenseInput.safeParse({ id: rowId }).success).toBe(false);
+    expect(updateExpenseInput.safeParse({ id: rowId, expense_name: "Rent" }).success).toBe(true);
+    expect(Object.keys(updateExpenseSchema.shape)).toEqual(expect.arrayContaining([
+      "id",
+      "expense_name",
+      "amount",
+      "create_date",
+      "expense_type",
+      "category",
+      "description",
+    ]));
   });
 
   it("calls the membership-checked RPC with the session organization only", async () => {
@@ -307,6 +399,89 @@ describe("phase 0 tool inputs", () => {
     });
   });
 
+  it("calls the phase 5 RPCs with the session organization and no payment fields", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [{ id: "row-1" }], error: null });
+    const admin = { rpc } as unknown as SupabaseClient;
+    const ctx = { userId: "user-1", organizationId: "org-1" };
+    const id = "11111111-1111-4111-8111-111111111111";
+    await createIncomeTransaction(admin, ctx, {
+      transactionDate: "2026-10-31",
+      amount: 15000,
+      customerName: "Acme",
+      paymentMethod: "cash",
+      description: null,
+    });
+    await updateIncomeTransaction(admin, ctx, {
+      id,
+      transactionDate: null,
+      amount: 16000,
+      customerName: null,
+      paymentMethod: null,
+      description: null,
+    });
+    await createExpenseRecord(admin, ctx, {
+      expenseName: "Rent",
+      amount: 500,
+      createDate: "2026-10-31",
+      expenseType: "Operating",
+      category: "Office",
+      description: null,
+    });
+    await updateExpenseRecord(admin, ctx, {
+      id,
+      expenseName: "Rent revised",
+      amount: null,
+      createDate: null,
+      expenseType: null,
+      category: null,
+      description: null,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(1, "mcp_create_income_transaction", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_transaction_date: "2026-10-31",
+      p_amount: 15000,
+      p_customer_name: "Acme",
+      p_payment_method: "cash",
+      p_description: null,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, "mcp_update_income_transaction", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_id: id,
+      p_transaction_date: null,
+      p_amount: 16000,
+      p_customer_name: null,
+      p_payment_method: null,
+      p_description: null,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(3, "mcp_create_expense", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_expense_name: "Rent",
+      p_amount: 500,
+      p_create_date: "2026-10-31",
+      p_expense_type: "Operating",
+      p_category: "Office",
+      p_description: null,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(4, "mcp_update_expense", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_id: id,
+      p_expense_name: "Rent revised",
+      p_amount: null,
+      p_create_date: null,
+      p_expense_type: null,
+      p_category: null,
+      p_description: null,
+    });
+    const sent = JSON.stringify(rpc.mock.calls);
+    expect(sent).not.toContain("org-2");
+    expect(sent).not.toContain("bank_account_id");
+    expect(sent).not.toContain("gateway_wallet_provider");
+  });
+
   it("schedules with the session user and hides the internal secret", async () => {
     const secret = "schedule-secret-value";
     const fetchImpl = vi.fn().mockResolvedValue({
@@ -366,6 +541,10 @@ describe("phase 0 tool inputs", () => {
     const updateLead = readFileSync(new URL("../src/tools/crm/leadsUpdate.ts", import.meta.url), "utf8");
     const schedulePlan = readFileSync(new URL("../src/tools/content/plansSchedule.ts", import.meta.url), "utf8");
     const setStatus = readFileSync(new URL("../src/tools/crm/leadsSetStatus.ts", import.meta.url), "utf8");
+    const createIncome = readFileSync(new URL("../src/tools/finance/incomeCreate.ts", import.meta.url), "utf8");
+    const updateIncome = readFileSync(new URL("../src/tools/finance/incomeUpdate.ts", import.meta.url), "utf8");
+    const createExpense = readFileSync(new URL("../src/tools/finance/expensesCreate.ts", import.meta.url), "utf8");
+    const updateExpense = readFileSync(new URL("../src/tools/finance/expensesUpdate.ts", import.meta.url), "utf8");
     const identity = readFileSync(new URL("../src/db/identity.ts", import.meta.url), "utf8");
     const consent = readFileSync(new URL("../src/oauth/consent.ts", import.meta.url), "utf8");
     for (const source of [
@@ -391,6 +570,10 @@ describe("phase 0 tool inputs", () => {
       updateLead,
       schedulePlan,
       setStatus,
+      createIncome,
+      updateIncome,
+      createExpense,
+      updateExpense,
     ]) {
       expect(source).not.toContain("createAdmin");
       expect(source).not.toContain("SERVICE_ROLE");

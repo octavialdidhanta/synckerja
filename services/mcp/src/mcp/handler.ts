@@ -15,6 +15,7 @@ import type {
   StockRow,
   VisitRow,
 } from "../db/phase2Reads";
+import type { ExpenseRecord, IncomeRecord } from "../db/phase5Writes";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
 import type { AccessClaims } from "../oauth/tokens";
 import {
@@ -24,6 +25,10 @@ import {
   calendarResult,
   contentPlansInput,
   contentPlansResult,
+  createExpenseInput,
+  createExpenseResult,
+  createIncomeInput,
+  createIncomeResult,
   createLeadInput,
   createLeadResult,
   createObjectiveInput,
@@ -52,6 +57,12 @@ import {
   objectivesResult,
   stockInput,
   stockResult,
+  updateExpenseInput,
+  updateExpenseResult,
+  updateExpenseSchema,
+  updateIncomeInput,
+  updateIncomeResult,
+  updateIncomeSchema,
   updateLeadInput,
   updateLeadResult,
   updateLeadSchema,
@@ -123,6 +134,50 @@ export type McpReadDeps = {
   ) => Promise<CrmLeadRow>;
   scheduleContentPlan: (ctx: McpAuthContext, id: string) => Promise<SchedulePlanResult>;
   setLeadStatus: (ctx: McpAuthContext, input: { id: string; status: string }) => Promise<CrmLeadRow>;
+  createIncomeTransaction: (
+    ctx: McpAuthContext,
+    input: {
+      transactionDate: string;
+      amount: number;
+      customerName: string | null;
+      paymentMethod: string | null;
+      description: string | null;
+    },
+  ) => Promise<IncomeRecord>;
+  updateIncomeTransaction: (
+    ctx: McpAuthContext,
+    input: {
+      id: string;
+      transactionDate: string | null;
+      amount: number | null;
+      customerName: string | null;
+      paymentMethod: string | null;
+      description: string | null;
+    },
+  ) => Promise<IncomeRecord>;
+  createExpenseRecord: (
+    ctx: McpAuthContext,
+    input: {
+      expenseName: string;
+      amount: number;
+      createDate: string;
+      expenseType: string;
+      category: string;
+      description: string | null;
+    },
+  ) => Promise<ExpenseRecord>;
+  updateExpenseRecord: (
+    ctx: McpAuthContext,
+    input: {
+      id: string;
+      expenseName: string | null;
+      amount: number | null;
+      createDate: string | null;
+      expenseType: string | null;
+      category: string | null;
+      description: string | null;
+    },
+  ) => Promise<ExpenseRecord>;
 };
 
 type HandlerDeps = McpReadDeps & {
@@ -147,6 +202,15 @@ function requiredString(value: unknown): string {
   return value;
 }
 
+function optionalNumber(value: unknown): number | null {
+  return typeof value === "number" ? value : null;
+}
+
+function requiredNumber(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error("invalid_input");
+  return value;
+}
+
 async function reload(deps: HandlerDeps, claims: AccessClaims): Promise<McpAuthContext | null> {
   try {
     return await deps.loadContext(claims);
@@ -165,7 +229,11 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "crm.leads.list": leadsInput,
   "ads.accounts.list": adsAccountsInput,
   "finance.income.list": incomeInput,
+  "finance.income.create": createIncomeInput,
+  "finance.income.update": updateIncomeSchema,
   "finance.expenses.list": expensesInput,
+  "finance.expenses.create": createExpenseInput,
+  "finance.expenses.update": updateExpenseSchema,
   "hr.employees.list": employeesInput,
   "sales.visits.list": visitsInput,
   "kol.campaigns.list": kolCampaignsInput,
@@ -201,6 +269,60 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
       return incomeResult(ctx, optionalString(args.month), deps.listIncomeTransactions);
     case "finance.expenses.list":
       return expensesResult(ctx, optionalString(args.month), deps.listExpenses);
+    case "finance.income.create":
+      return createIncomeResult(
+        ctx,
+        {
+          transactionDate: requiredString(args.transaction_date),
+          amount: requiredNumber(args.amount),
+          customerName: optionalString(args.customer_name),
+          paymentMethod: optionalString(args.payment_method),
+          description: optionalString(args.description),
+        },
+        deps.createIncomeTransaction,
+      );
+    case "finance.income.update":
+      if (!updateIncomeInput.safeParse(args).success) throw new Error("invalid_input");
+      return updateIncomeResult(
+        ctx,
+        {
+          id: requiredString(args.id),
+          transactionDate: optionalString(args.transaction_date),
+          amount: optionalNumber(args.amount),
+          customerName: optionalString(args.customer_name),
+          paymentMethod: optionalString(args.payment_method),
+          description: optionalString(args.description),
+        },
+        deps.updateIncomeTransaction,
+      );
+    case "finance.expenses.create":
+      return createExpenseResult(
+        ctx,
+        {
+          expenseName: requiredString(args.expense_name),
+          amount: requiredNumber(args.amount),
+          createDate: requiredString(args.create_date),
+          expenseType: requiredString(args.expense_type),
+          category: requiredString(args.category),
+          description: optionalString(args.description),
+        },
+        deps.createExpenseRecord,
+      );
+    case "finance.expenses.update":
+      if (!updateExpenseInput.safeParse(args).success) throw new Error("invalid_input");
+      return updateExpenseResult(
+        ctx,
+        {
+          id: requiredString(args.id),
+          expenseName: optionalString(args.expense_name),
+          amount: optionalNumber(args.amount),
+          createDate: optionalString(args.create_date),
+          expenseType: optionalString(args.expense_type),
+          category: optionalString(args.category),
+          description: optionalString(args.description),
+        },
+        deps.updateExpenseRecord,
+      );
     case "hr.employees.list":
       return employeesResult(ctx, deps.listEmployees);
     case "sales.visits.list":

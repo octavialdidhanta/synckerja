@@ -355,3 +355,48 @@ describe("phase 4 tool visibility", () => {
     expect(names).not.toContain("content.plans.schedule");
   });
 });
+
+const phase5Scopes = [...phase4Scopes, "finance:write"];
+
+describe("phase 5 tool visibility", () => {
+  it("hides finance writes from a finance read token even when the pages are granted", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase2Scopes },
+      configurations: phase2Pages,
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("finance.income.list");
+    expect(names).toContain("finance.expenses.list");
+    expect(names).not.toContain("finance.income.create");
+    expect(names).not.toContain("finance.income.update");
+    expect(names).not.toContain("finance.expenses.create");
+    expect(names).not.toContain("finance.expenses.update");
+  });
+
+  it("shows income writes only on the income page", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase5Scopes },
+      configurations: [{ page_path: "/incomes/transaction", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("finance.income.create");
+    expect(names).toContain("finance.income.update");
+    expect(names).not.toContain("finance.expenses.create");
+    expect(names).not.toContain("finance.expenses.update");
+  });
+
+  it("shows expense writes only on the expenses page", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase5Scopes },
+      configurations: [{ page_path: "/expenses/dashboard", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("finance.expenses.create");
+    expect(names).toContain("finance.expenses.update");
+    expect(names).not.toContain("finance.income.create");
+    expect(names).not.toContain("finance.income.update");
+  });
+});

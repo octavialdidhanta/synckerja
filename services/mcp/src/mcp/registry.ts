@@ -23,7 +23,11 @@ export type McpToolName =
   | "crm.leads.list"
   | "ads.accounts.list"
   | "finance.income.list"
+  | "finance.income.create"
+  | "finance.income.update"
   | "finance.expenses.list"
+  | "finance.expenses.create"
+  | "finance.expenses.update"
   | "hr.employees.list"
   | "sales.visits.list"
   | "kol.campaigns.list"
@@ -111,10 +115,42 @@ export const MCP_TOOLS: McpTool[] = [
     pagePath: INCOME_PAGE_PATH,
   },
   {
+    name: "finance.income.create",
+    description:
+      "Record one income transaction for the organization locked in this session. Requires a transaction date and an amount. Optional customer name, payment method, and description. Status stays pending. Does not mark it paid, attach a bank account, or upload a receipt. Bank transfer is rejected.",
+    scopes: ["finance:write"],
+    moduleKey: "finance",
+    pagePath: INCOME_PAGE_PATH,
+  },
+  {
+    name: "finance.income.update",
+    description:
+      "Update the date, amount, customer, payment method, or description of one pending income transaction that has no bank account, deposit confirmation, or allocation. Does not mark it paid, change the bank account, or upload a receipt.",
+    scopes: ["finance:write"],
+    moduleKey: "finance",
+    pagePath: INCOME_PAGE_PATH,
+  },
+  {
     name: "finance.expenses.list",
     description:
       "List up to 50 expenses for the organization locked in this session. Optional month is YYYY-MM in Asia/Jakarta; omit it for the current month. Returns id, name, amount, type, category, create date, and status. Receipts and bank accounts are not returned.",
     scopes: ["finance:read"],
+    moduleKey: "finance",
+    pagePath: EXPENSES_PAGE_PATH,
+  },
+  {
+    name: "finance.expenses.create",
+    description:
+      "Record one expense for the organization locked in this session. Requires a name, amount, date, expense type, and category. Status stays active. Does not pay it, attach a bank account or wallet, or upload a receipt.",
+    scopes: ["finance:write"],
+    moduleKey: "finance",
+    pagePath: EXPENSES_PAGE_PATH,
+  },
+  {
+    name: "finance.expenses.update",
+    description:
+      "Update the name, amount, date, type, category, or description of one active expense that is not paid from a bank, wallet, or debt and is not a payroll, recurring, or purchase-request row. Does not pay it or delete it.",
+    scopes: ["finance:write"],
     moduleKey: "finance",
     pagePath: EXPENSES_PAGE_PATH,
   },

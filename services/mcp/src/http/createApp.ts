@@ -15,6 +15,7 @@ import type {
   StockRow,
   VisitRow,
 } from "../db/phase2Reads";
+import type { ExpenseRecord, IncomeRecord } from "../db/phase5Writes";
 import { handleMcpRequest } from "../mcp/handler";
 import { beginAuthorization } from "../oauth/authorize";
 import { registerClient } from "../oauth/clients";
@@ -89,6 +90,50 @@ export type AppDeps = {
   ) => Promise<CrmLeadRow>;
   scheduleContentPlan: (ctx: McpAuthContext, id: string) => Promise<SchedulePlanResult>;
   setLeadStatus: (ctx: McpAuthContext, input: { id: string; status: string }) => Promise<CrmLeadRow>;
+  createIncomeTransaction: (
+    ctx: McpAuthContext,
+    input: {
+      transactionDate: string;
+      amount: number;
+      customerName: string | null;
+      paymentMethod: string | null;
+      description: string | null;
+    },
+  ) => Promise<IncomeRecord>;
+  updateIncomeTransaction: (
+    ctx: McpAuthContext,
+    input: {
+      id: string;
+      transactionDate: string | null;
+      amount: number | null;
+      customerName: string | null;
+      paymentMethod: string | null;
+      description: string | null;
+    },
+  ) => Promise<IncomeRecord>;
+  createExpenseRecord: (
+    ctx: McpAuthContext,
+    input: {
+      expenseName: string;
+      amount: number;
+      createDate: string;
+      expenseType: string;
+      category: string;
+      description: string | null;
+    },
+  ) => Promise<ExpenseRecord>;
+  updateExpenseRecord: (
+    ctx: McpAuthContext,
+    input: {
+      id: string;
+      expenseName: string | null;
+      amount: number | null;
+      createDate: string | null;
+      expenseType: string | null;
+      category: string | null;
+      description: string | null;
+    },
+  ) => Promise<ExpenseRecord>;
   now?: () => Date;
 };
 
