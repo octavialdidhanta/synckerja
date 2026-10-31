@@ -4,6 +4,7 @@ import type { McpServiceConfig } from "../config";
 import type { McpAuthContext } from "../authz/context";
 import { AuthzError } from "../authz/errors";
 import type { ContentPlanRow } from "../db/listContentPlans";
+import type { CrmLeadRow, OkrCycleRow, OkrObjectiveRow } from "../db/phase1Reads";
 import { handleMcpRequest } from "../mcp/handler";
 import { beginAuthorization } from "../oauth/authorize";
 import { registerClient } from "../oauth/clients";
@@ -25,6 +26,10 @@ export type AppDeps = {
   ) => Promise<{ profileId: string; employeeId: string | null } | null>;
   loadContext: (claims: AccessClaims) => Promise<McpAuthContext>;
   listContentPlans: (ctx: McpAuthContext) => Promise<ContentPlanRow[]>;
+  listContentCalendar: (ctx: McpAuthContext, month: string | null) => Promise<ContentPlanRow[]>;
+  listOkrCycles: (ctx: McpAuthContext) => Promise<OkrCycleRow[]>;
+  listOkrObjectives: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveRow[]>;
+  listCrmLeads: (ctx: McpAuthContext, status: string | null) => Promise<CrmLeadRow[]>;
   now?: () => Date;
 };
 

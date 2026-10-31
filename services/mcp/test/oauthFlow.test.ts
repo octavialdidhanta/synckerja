@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { McpServiceConfig } from "../src/config";
-import type { McpAuthContext } from "../src/authz/context";
+import {
+  CALENDAR_PAGE_PATH,
+  CONTENT_PAGE_PATH,
+  LEADS_PAGE_PATH,
+  OKR_PAGE_PATH,
+  type McpAuthContext,
+} from "../src/authz/context";
 import { createApp } from "../src/http/createApp";
 import { MemoryGrantStore } from "../src/oauth/memoryStore";
 import { pkceS256, sha256Hex } from "../src/oauth/pkce";
@@ -30,8 +36,13 @@ function contextFor(claims: AccessClaims): McpAuthContext {
     roles: ["employee"],
     scopes: claims.scopes,
     clientId: claims.clientId,
-    digitalMarketingEnabled: true,
-    contentPageAllowed: true,
+    modules: { digitalMarketing: true, okr: true, omnichannel: true },
+    pages: {
+      [CONTENT_PAGE_PATH]: true,
+      [CALENDAR_PAGE_PATH]: true,
+      [OKR_PAGE_PATH]: true,
+      [LEADS_PAGE_PATH]: true,
+    },
   };
 }
 
@@ -67,6 +78,10 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
         },
       ];
     },
+    listContentCalendar: async () => [],
+    listOkrCycles: async () => [],
+    listOkrObjectives: async () => [],
+    listCrmLeads: async () => [],
   });
   return { app, listed };
 }
@@ -189,7 +204,7 @@ describe("oauth and mcp http flow", () => {
     expect(tools.status).toBe(200);
     const toolsBody = (await tools.json()) as { result: { tools: { name: string }[] } };
     const names = toolsBody.result.tools.map((tool) => tool.name);
-    expect(names).toEqual(["session.whoami", "content.plans.list"]);
+    expect(names).toEqual(["session.whoami", "content.plans.list", "content.calendar.list"]);
 
     const who = await app.request("http://localhost:8787/mcp", {
       method: "POST",

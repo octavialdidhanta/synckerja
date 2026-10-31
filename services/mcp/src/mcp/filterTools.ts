@@ -1,11 +1,11 @@
 import type { McpAuthContext } from "../authz/context";
-import { PHASE0_TOOLS, type Phase0Tool } from "./registry";
+import { MCP_TOOLS, type McpTool } from "./registry";
 
-export function filterTools(ctx: McpAuthContext, tools: Phase0Tool[] = PHASE0_TOOLS): Phase0Tool[] {
+export function filterTools(ctx: McpAuthContext, tools: McpTool[] = MCP_TOOLS): McpTool[] {
   return tools.filter((tool) => {
     if (!tool.scopes.every((scope) => ctx.scopes.includes(scope))) return false;
-    if (tool.moduleKey === "digitalMarketing" && !ctx.digitalMarketingEnabled) return false;
-    if (tool.requiresContentPage && !ctx.contentPageAllowed) return false;
+    if (tool.moduleKey && !ctx.modules[tool.moduleKey]) return false;
+    if (tool.pagePath && ctx.pages[tool.pagePath] !== true) return false;
     return true;
   });
 }

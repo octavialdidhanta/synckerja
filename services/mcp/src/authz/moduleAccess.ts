@@ -3,18 +3,22 @@ export type ModuleRow = {
   is_enabled: boolean;
 };
 
-export function isDigitalMarketingEnabled(input: {
+export type ModuleEnablement = {
   subscriptionSelfServiceEnabled: boolean | null | undefined;
   salesRows: ModuleRow[] | null;
   subscriptionPlanId: string | null;
   planRows: ModuleRow[] | null;
-}): boolean {
+};
+
+export function isModuleEnabled(moduleKey: string, input: ModuleEnablement): boolean {
   if (input.subscriptionSelfServiceEnabled === false) {
-    return (input.salesRows ?? []).some(
-      (row) => row.module_key === "digitalMarketing" && row.is_enabled,
-    );
+    return (input.salesRows ?? []).some((row) => row.module_key === moduleKey && row.is_enabled);
   }
   if (!input.subscriptionPlanId) return true;
   if (!input.planRows || input.planRows.length === 0) return true;
-  return input.planRows.some((row) => row.module_key === "digitalMarketing" && row.is_enabled);
+  return input.planRows.some((row) => row.module_key === moduleKey && row.is_enabled);
+}
+
+export function isDigitalMarketingEnabled(input: ModuleEnablement): boolean {
+  return isModuleEnabled("digitalMarketing", input);
 }

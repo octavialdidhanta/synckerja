@@ -1,17 +1,41 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import type { ZodRawShape, ZodTypeAny } from "zod";
 import { AuthzError } from "../authz/errors";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
+import type { CrmLeadRow, OkrCycleRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type { AccessClaims } from "../oauth/tokens";
-import { contentPlansInput, contentPlansResult, whoamiInput, whoamiResult } from "../tools";
+import {
+  calendarInput,
+  calendarResult,
+  contentPlansInput,
+  contentPlansResult,
+  cyclesInput,
+  cyclesResult,
+  leadsInput,
+  leadsResult,
+  objectivesInput,
+  objectivesResult,
+  whoamiInput,
+  whoamiResult,
+} from "../tools";
 import { filterTools, isToolVisible } from "./filterTools";
-import { PHASE0_TOOLS } from "./registry";
+import type { McpToolName } from "./registry";
 
-type HandlerDeps = {
-  loadContext: (claims: AccessClaims) => Promise<McpAuthContext>;
+export type McpReadDeps = {
   listContentPlans: (ctx: McpAuthContext) => Promise<ContentPlanRow[]>;
+  listContentCalendar: (ctx: McpAuthContext, month: string | null) => Promise<ContentPlanRow[]>;
+  listOkrCycles: (ctx: McpAuthContext) => Promise<OkrCycleRow[]>;
+  listOkrObjectives: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveRow[]>;
+  listCrmLeads: (ctx: McpAuthContext, status: string | null) => Promise<CrmLeadRow[]>;
 };
+
+type HandlerDeps = McpReadDeps & {
+  loadContext: (claims: AccessClaims) => Promise<McpAuthContext>;
+};
+
+type ToolArgs = Record<string, unknown>;
 
 function forbidden() {
   return {
@@ -20,12 +44,42 @@ function forbidden() {
   };
 }
 
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
 async function reload(deps: HandlerDeps, claims: AccessClaims): Promise<McpAuthContext | null> {
   try {
     return await deps.loadContext(claims);
   } catch (error) {
     if (error instanceof AuthzError) return null;
     throw error;
+  }
+}
+
+const toolInputs: Record<McpToolName, ZodTypeAny> = {
+  "session.whoami": whoamiInput,
+  "content.plans.list": contentPlansInput,
+  "content.calendar.list": calendarInput,
+  "okr.cycles.list": cyclesInput,
+  "okr.objectives.list": objectivesInput,
+  "crm.leads.list": leadsInput,
+};
+
+async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, deps: McpReadDeps): Promise<unknown> {
+  switch (name) {
+    case "session.whoami":
+      return whoamiResult(ctx);
+    case "content.plans.list":
+      return contentPlansResult(ctx, deps.listContentPlans);
+    case "content.calendar.list":
+      return calendarResult(ctx, optionalString(args.month), deps.listContentCalendar);
+    case "okr.cycles.list":
+      return cyclesResult(ctx, deps.listOkrCycles);
+    case "okr.objectives.list":
+      return objectivesResult(ctx, optionalString(args.cycle_id), deps.listOkrObjectives);
+    case "crm.leads.list":
+      return leadsResult(ctx, optionalString(args.status), deps.listCrmLeads);
   }
 }
 
@@ -44,32 +98,16 @@ export async function handleMcpRequest(
     throw error;
   }
 
-  const visible = new Set(filterTools(ctx).map((tool) => tool.name));
   const server = new McpServer({ name: "synckerja", version: "0.1.0" });
-  const whoami = PHASE0_TOOLS.find((tool) => tool.name === "session.whoami");
-  const plans = PHASE0_TOOLS.find((tool) => tool.name === "content.plans.list");
-
-  if (visible.has("session.whoami") && whoami) {
+  for (const tool of filterTools(ctx)) {
     server.registerTool(
-      "session.whoami",
-      { description: whoami.description, inputSchema: whoamiInput },
-      async () => {
+      tool.name,
+      { description: tool.description, inputSchema: toolInputs[tool.name] as unknown as ZodRawShape },
+      async (args) => {
         const fresh = await reload(deps, claims);
-        if (!fresh || !isToolVisible("session.whoami", fresh)) return forbidden();
-        return { content: [{ type: "text", text: JSON.stringify(whoamiResult(fresh)) }] };
-      },
-    );
-  }
-
-  if (visible.has("content.plans.list") && plans) {
-    server.registerTool(
-      "content.plans.list",
-      { description: plans.description, inputSchema: contentPlansInput },
-      async () => {
-        const fresh = await reload(deps, claims);
-        if (!fresh || !isToolVisible("content.plans.list", fresh)) return forbidden();
-        const rows = await contentPlansResult(fresh, deps.listContentPlans);
-        return { content: [{ type: "text", text: JSON.stringify(rows) }] };
+        if (!fresh || !isToolVisible(tool.name, fresh)) return forbidden();
+        const body = await runTool(tool.name, fresh, (args ?? {}) as ToolArgs, deps);
+        return { content: [{ type: "text", text: JSON.stringify(body) }] };
       },
     );
   }

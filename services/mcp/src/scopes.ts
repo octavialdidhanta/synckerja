@@ -1,4 +1,4 @@
-export const PHASE0_SCOPES = ["session:read", "content:read"] as const;
+export const PHASE0_SCOPES = ["session:read", "content:read", "okr:read", "crm:read"] as const;
 
 export type Phase0Scope = (typeof PHASE0_SCOPES)[number];
 

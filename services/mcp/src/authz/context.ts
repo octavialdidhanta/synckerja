@@ -5,9 +5,15 @@ import {
 import { buildEffectiveAccessRoles, hasOwnerRole } from "../../../../src/shared/auth/page-access/accessRoleSet";
 import type { AccessClaims } from "../oauth/tokens";
 import { AuthzError } from "./errors";
-import { isDigitalMarketingEnabled, type ModuleRow } from "./moduleAccess";
+import { isModuleEnabled, type ModuleRow } from "./moduleAccess";
 
 export const CONTENT_PAGE_PATH = "/digital-marketing/social-media";
+export const CALENDAR_PAGE_PATH = "/digital-marketing/social-media/content-calendar";
+export const OKR_PAGE_PATH = "/okr";
+export const LEADS_PAGE_PATH = "/omnichannel/leads";
+
+export const MCP_MODULE_KEYS = ["digitalMarketing", "okr", "omnichannel"] as const;
+export type McpModuleKey = (typeof MCP_MODULE_KEYS)[number];
 
 export type McpAuthContext = {
   userId: string;
@@ -18,8 +24,8 @@ export type McpAuthContext = {
   roles: string[];
   scopes: string[];
   clientId: string;
-  digitalMarketingEnabled: boolean;
-  contentPageAllowed: boolean;
+  modules: Record<McpModuleKey, boolean>;
+  pages: Record<string, boolean>;
 };
 
 export function buildAuthContext(input: {
@@ -53,24 +59,20 @@ export function buildAuthContext(input: {
     throw new AuthzError("terminated", 403);
   }
 
-  const digitalMarketingEnabled = isDigitalMarketingEnabled({
+  const enablement = {
     subscriptionSelfServiceEnabled: input.subscriptionSelfServiceEnabled,
     salesRows: input.salesRows,
     subscriptionPlanId: input.subscriptionPlanId,
     planRows: input.planRows,
-  });
-  const contentPageAllowed = evaluatePageAccess(
-    CONTENT_PAGE_PATH,
-    input.configurations,
-    {
-      roles: input.roles,
-      primaryRole: null,
-      employeeId: input.employeeId,
-      jobLevelId: input.jobLevelId,
-      jobLevelName: input.jobLevelName,
-    },
-    "deny",
-  );
+  };
+  const subject = {
+    roles: input.roles,
+    primaryRole: null,
+    employeeId: input.employeeId,
+    jobLevelId: input.jobLevelId,
+    jobLevelName: input.jobLevelName,
+  };
+  const pagePaths = [CONTENT_PAGE_PATH, CALENDAR_PAGE_PATH, OKR_PAGE_PATH, LEADS_PAGE_PATH];
 
   return {
     userId: input.claims.sub,
@@ -81,7 +83,13 @@ export function buildAuthContext(input: {
     roles: input.roles,
     scopes: input.claims.scopes,
     clientId: input.claims.clientId,
-    digitalMarketingEnabled,
-    contentPageAllowed,
+    modules: {
+      digitalMarketing: isModuleEnabled("digitalMarketing", enablement),
+      okr: isModuleEnabled("okr", enablement),
+      omnichannel: isModuleEnabled("omnichannel", enablement),
+    },
+    pages: Object.fromEntries(
+      pagePaths.map((path) => [path, evaluatePageAccess(path, input.configurations, subject, "deny")]),
+    ),
   };
 }
