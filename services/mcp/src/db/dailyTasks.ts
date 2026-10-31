@@ -199,6 +199,77 @@ export function assignTask(
   });
 }
 
+export type TaskStepRow = {
+  id: string;
+  title: string;
+  order: number;
+  is_completed: boolean;
+  assignee_name: string | null;
+};
+
+export type TaskStepRecord = {
+  id: string;
+  title: string;
+  order: number;
+  is_completed: boolean;
+};
+
+type StepRpcRow = {
+  id: string;
+  title: string;
+  step_order: number;
+  is_completed: boolean;
+  assignee_name?: string | null;
+};
+
+function asStep(row: StepRpcRow): TaskStepRecord {
+  return {
+    id: row.id,
+    title: row.title,
+    order: row.step_order,
+    is_completed: row.is_completed,
+  };
+}
+
+export function listTaskSteps(
+  admin: SupabaseClient,
+  ctx: Session,
+  taskId: string,
+): Promise<TaskStepRow[]> {
+  return callRpc<StepRpcRow>(admin, "mcp_list_task_steps", { ...sessionArgs(ctx), p_task_id: taskId }).then((rows) =>
+    rows.map((row) => ({ ...asStep(row), assignee_name: row.assignee_name ?? null })),
+  );
+}
+
+export function createTaskStep(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { taskId: string; title: string; description: string | null },
+): Promise<TaskStepRecord> {
+  return callRpcOne<StepRpcRow>(admin, "mcp_create_task_step", {
+    ...sessionArgs(ctx),
+    p_task_id: input.taskId,
+    p_title: input.title,
+    p_description: input.description,
+  }).then(asStep);
+}
+
+export function updateTaskStep(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { id: string; title: string },
+): Promise<TaskStepRecord> {
+  return callRpcOne<StepRpcRow>(admin, "mcp_update_task_step", {
+    ...sessionArgs(ctx),
+    p_id: input.id,
+    p_title: input.title,
+  }).then(asStep);
+}
+
+export function deleteTaskStep(admin: SupabaseClient, ctx: Session, id: string): Promise<{ id: string }> {
+  return callRpcOne(admin, "mcp_delete_task_step", { ...sessionArgs(ctx), p_id: id });
+}
+
 export function takeTaskInitiative(
   admin: SupabaseClient,
   ctx: Session,

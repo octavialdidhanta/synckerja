@@ -27,10 +27,13 @@ import type {
   TakeInitiativeResult,
   TaskListRow,
   TaskRecord,
+  TaskStepRecord,
+  TaskStepRow,
   TaskSummary,
   UpdateTaskInput,
   WorkloadRow,
 } from "../db/dailyTasks";
+import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
 import { isAccessRevoked } from "../authz/toolGate";
 import type { ToolCallOutcome } from "../db/toolGate";
 import { handleMcpRequest } from "../mcp/handler";
@@ -166,6 +169,15 @@ export type AppDeps = {
   deleteTask: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
   assignTask: (ctx: McpAuthContext, input: AssignTaskInput) => Promise<AssignTaskResult>;
   takeTaskInitiative: (ctx: McpAuthContext, input: TakeInitiativeInput) => Promise<TakeInitiativeResult>;
+  listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
+  createTaskStep: (
+    ctx: McpAuthContext,
+    input: { taskId: string; title: string; description: string | null },
+  ) => Promise<TaskStepRecord>;
+  updateTaskStep: (ctx: McpAuthContext, input: { id: string; title: string }) => Promise<TaskStepRecord>;
+  deleteTaskStep: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
+  listHabits: (ctx: McpAuthContext, date: string | null) => Promise<HabitDayRow[]>;
+  checkHabit: (ctx: McpAuthContext, input: HabitCheckInput) => Promise<HabitCheckResult>;
   now?: () => Date;
 };
 

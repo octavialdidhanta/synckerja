@@ -14,6 +14,8 @@ export const PHASE0_SCOPES = [
   "commerce:read",
   "tasks:read",
   "tasks:write",
+  "habits:read",
+  "habits:write",
   "content:write",
   "content:publish",
   "okr:write",

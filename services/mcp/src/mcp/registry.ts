@@ -6,6 +6,7 @@ import {
   EXPENSES_PAGE_PATH,
   INCOME_PAGE_PATH,
   DAILY_TASK_PAGE_PATH,
+  HABITS_PAGE_PATH,
   INVENTORY_PAGE_PATH,
   PAYROLL_PAGE_PATH,
   POS_SALES_SUMMARY_PAGE_PATH,
@@ -55,7 +56,13 @@ export type McpToolName =
   | "tasks.update"
   | "tasks.delete"
   | "tasks.assign"
-  | "tasks.initiative.take";
+  | "tasks.initiative.take"
+  | "tasks.steps.list"
+  | "tasks.steps.create"
+  | "tasks.steps.update"
+  | "tasks.steps.delete"
+  | "habits.list"
+  | "habits.check";
 
 export type McpTool = {
   name: McpToolName;
@@ -368,5 +375,53 @@ export const MCP_TOOLS: McpTool[] = [
     scopes: ["tasks:write"],
     moduleKey: "tools",
     pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.steps.list",
+    description:
+      "List up to 50 steps of one daily task in the organization locked in this session. Returns id, title, order, whether it is completed, and the assignee name. A blank assignee means nobody is assigned. Descriptions, comments, and files are not returned.",
+    scopes: ["tasks:read"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.steps.create",
+    description:
+      "Add one unfinished step to a daily task in the organization locked in this session. Requires the task id and a title. The step is placed after the current last step. Does not mark the task completed and does not upload a file.",
+    scopes: ["tasks:write"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.steps.update",
+    description:
+      "Rename one step of a daily task in the organization locked in this session. Does not change completion, status, assignee, or due date.",
+    scopes: ["tasks:write"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.steps.delete",
+    description:
+      "Delete one step of a daily task in the organization locked in this session. Refuses when the step or one of its substeps is assigned, or when the step is linked to a content plan. Unassigned substeps of that step are removed with it.",
+    scopes: ["tasks:write"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "habits.list",
+    description:
+      "List the signed-in member's habits that are scheduled on one day. Optional date is YYYY-MM-DD in Asia/Jakarta; omit it for today. Returns the habit name, frequency, target, and each checklist item with its index, name, and whether it is checked. Other people's habits are not returned.",
+    scopes: ["habits:read"],
+    moduleKey: "tools",
+    pagePath: HABITS_PAGE_PATH,
+  },
+  {
+    name: "habits.check",
+    description:
+      "Check or uncheck one item of the signed-in member's habit on one day. Optional date is YYYY-MM-DD in Asia/Jakarta; omit it for today. Index is required when the habit has more than one checklist item. Does not change another person's habit, create a habit, or move a monthly date.",
+    scopes: ["habits:write"],
+    moduleKey: "tools",
+    pagePath: HABITS_PAGE_PATH,
   },
 ];

@@ -462,6 +462,8 @@ describe("daily task visibility", () => {
     expect(names).not.toContain("tasks.workload");
     expect(names).not.toContain("tasks.completed.list");
     expect(names).not.toContain("tasks.create");
+    expect(names).not.toContain("tasks.steps.list");
+    expect(names).not.toContain("habits.list");
   });
 
   it("shows the five read tools and hides writes", () => {
@@ -477,7 +479,11 @@ describe("daily task visibility", () => {
       "tasks.initiative.list",
       "tasks.workload",
       "tasks.completed.list",
+      "tasks.steps.list",
     ]);
+    expect(names).not.toContain("tasks.steps.create");
+    expect(names).not.toContain("tasks.steps.update");
+    expect(names).not.toContain("tasks.steps.delete");
   });
 
   it("shows no daily task tools when the page is missing", () => {
@@ -501,6 +507,43 @@ describe("daily task visibility", () => {
     expect(names).toContain("tasks.delete");
     expect(names).toContain("tasks.assign");
     expect(names).toContain("tasks.initiative.take");
+    expect(names).toContain("tasks.steps.create");
     expect(names).toContain("tasks.summary");
+    expect(names).not.toContain("habits.list");
+    expect(names).not.toContain("habits.check");
+  });
+});
+
+const habitsPage = [{ page_path: "/tools/habits-tracker", roles_allowed: ["employee"] }];
+
+describe("habit tracker visibility", () => {
+  it("shows the habit list and hides the check tool", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["habits:read"] },
+      configurations: habitsPage,
+    });
+    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(["habits.list"]);
+  });
+
+  it("hides habit tools from a daily-task read token", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["tasks:read"] },
+      configurations: habitsPage,
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).not.toContain("habits.list");
+    expect(names).not.toContain("habits.check");
+    expect(names).not.toContain("tasks.steps.list");
+  });
+
+  it("shows no habit tools when the page is missing", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["habits:write"] },
+      configurations: [],
+    });
+    expect(filterTools(ctx)).toEqual([]);
   });
 });

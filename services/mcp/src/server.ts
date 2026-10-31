@@ -42,7 +42,12 @@ import {
   listTaskWorkload,
   takeTaskInitiative,
   updateTask,
+  createTaskStep,
+  deleteTaskStep,
+  listTaskSteps,
+  updateTaskStep,
 } from "./db/dailyTasks";
+import { checkHabit, listHabits } from "./db/habits";
 import { accessRevokedAt, recordToolCall, takeToolSlot } from "./db/toolGate";
 import { scheduleContentPlan } from "./db/scheduleContentPlan";
 import { createApp } from "./http/createApp";
@@ -97,6 +102,12 @@ const app = createApp({
   deleteTask: (ctx, id) => deleteTask(admin, ctx, id),
   assignTask: (ctx, input) => assignTask(admin, ctx, input),
   takeTaskInitiative: (ctx, input) => takeTaskInitiative(admin, ctx, input),
+  listTaskSteps: (ctx, taskId) => listTaskSteps(admin, ctx, taskId),
+  createTaskStep: (ctx, input) => createTaskStep(admin, ctx, input),
+  updateTaskStep: (ctx, input) => updateTaskStep(admin, ctx, input),
+  deleteTaskStep: (ctx, id) => deleteTaskStep(admin, ctx, id),
+  listHabits: (ctx, date) => listHabits(admin, ctx, date),
+  checkHabit: (ctx, input) => checkHabit(admin, ctx, input),
 });
 
 serve({ fetch: app.fetch, port: config.port }, () => {

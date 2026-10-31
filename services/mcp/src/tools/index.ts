@@ -37,3 +37,9 @@ export { updateTaskInput, updateTaskResult, updateTaskSchema } from "./tasks/upd
 export { deleteTaskInput, deleteTaskResult } from "./tasks/delete";
 export { assignTaskInput, assignTaskResult } from "./tasks/assign";
 export { takeInitiativeInput, takeInitiativeResult } from "./tasks/take";
+export { taskStepsInput, taskStepsResult } from "./tasks/stepsList";
+export { createStepInput, createStepResult } from "./tasks/stepsCreate";
+export { updateStepResult, updateStepSchema } from "./tasks/stepsUpdate";
+export { deleteStepInput, deleteStepResult } from "./tasks/stepsDelete";
+export { habitsListInput, habitsListResult } from "./habits/list";
+export { habitCheckInput, habitCheckResult } from "./habits/check";

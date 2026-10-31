@@ -29,8 +29,11 @@ import type {
   TaskRecord,
   TaskSummary,
   UpdateTaskInput,
+  TaskStepRecord,
+  TaskStepRow,
   WorkloadRow,
 } from "../db/dailyTasks";
+import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
 import type { AccessClaims } from "../oauth/tokens";
 import {
@@ -116,6 +119,18 @@ import {
   assignTaskResult,
   takeInitiativeInput,
   takeInitiativeResult,
+  taskStepsInput,
+  taskStepsResult,
+  createStepInput,
+  createStepResult,
+  updateStepResult,
+  updateStepSchema,
+  deleteStepInput,
+  deleteStepResult,
+  habitsListInput,
+  habitsListResult,
+  habitCheckInput,
+  habitCheckResult,
 } from "../tools";
 import type { ToolCallOutcome } from "../db/toolGate";
 import { filterTools, isToolVisible } from "./filterTools";
@@ -231,6 +246,15 @@ export type McpReadDeps = {
   deleteTask: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
   assignTask: (ctx: McpAuthContext, input: AssignTaskInput) => Promise<AssignTaskResult>;
   takeTaskInitiative: (ctx: McpAuthContext, input: TakeInitiativeInput) => Promise<TakeInitiativeResult>;
+  listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
+  createTaskStep: (
+    ctx: McpAuthContext,
+    input: { taskId: string; title: string; description: string | null },
+  ) => Promise<TaskStepRecord>;
+  updateTaskStep: (ctx: McpAuthContext, input: { id: string; title: string }) => Promise<TaskStepRecord>;
+  deleteTaskStep: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
+  listHabits: (ctx: McpAuthContext, date: string | null) => Promise<HabitDayRow[]>;
+  checkHabit: (ctx: McpAuthContext, input: HabitCheckInput) => Promise<HabitCheckResult>;
 };
 
 type HandlerDeps = McpReadDeps & {
@@ -259,6 +283,11 @@ function requiredString(value: unknown): string {
 
 function optionalNumber(value: unknown): number | null {
   return typeof value === "number" ? value : null;
+}
+
+function requiredBoolean(value: unknown): boolean {
+  if (typeof value !== "boolean") throw new Error("invalid_input");
+  return value;
 }
 
 function requiredNumber(value: unknown): number {
@@ -327,6 +356,12 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "tasks.delete": deleteTaskInput,
   "tasks.assign": assignTaskInput,
   "tasks.initiative.take": takeInitiativeInput,
+  "tasks.steps.list": taskStepsInput,
+  "tasks.steps.create": createStepInput,
+  "tasks.steps.update": updateStepSchema,
+  "tasks.steps.delete": deleteStepInput,
+  "habits.list": habitsListInput,
+  "habits.check": habitCheckInput,
 };
 
 async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, deps: McpReadDeps): Promise<unknown> {
@@ -553,6 +588,39 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
           employeeId: optionalString(args.employee_id),
         },
         deps.takeTaskInitiative,
+      );
+    case "tasks.steps.list":
+      return taskStepsResult(ctx, requiredString(args.task_id), deps.listTaskSteps);
+    case "tasks.steps.create":
+      return createStepResult(
+        ctx,
+        {
+          taskId: requiredString(args.task_id),
+          title: requiredString(args.title),
+          description: optionalString(args.description),
+        },
+        deps.createTaskStep,
+      );
+    case "tasks.steps.update":
+      return updateStepResult(
+        ctx,
+        { id: requiredString(args.id), title: requiredString(args.title) },
+        deps.updateTaskStep,
+      );
+    case "tasks.steps.delete":
+      return deleteStepResult(ctx, requiredString(args.id), deps.deleteTaskStep);
+    case "habits.list":
+      return habitsListResult(ctx, optionalString(args.date), deps.listHabits);
+    case "habits.check":
+      return habitCheckResult(
+        ctx,
+        {
+          habitId: requiredString(args.habit_id),
+          checked: requiredBoolean(args.checked),
+          date: optionalString(args.date),
+          index: optionalNumber(args.index),
+        },
+        deps.checkHabit,
       );
   }
 }

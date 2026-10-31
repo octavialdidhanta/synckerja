@@ -38,9 +38,17 @@ import { updateTaskInput, updateTaskSchema } from "../src/tools/tasks/update";
 import { deleteTaskInput } from "../src/tools/tasks/delete";
 import { assignTaskInput } from "../src/tools/tasks/assign";
 import { takeInitiativeInput } from "../src/tools/tasks/take";
+import { taskStepsInput } from "../src/tools/tasks/stepsList";
+import { createStepInput } from "../src/tools/tasks/stepsCreate";
+import { updateStepSchema } from "../src/tools/tasks/stepsUpdate";
+import { deleteStepInput } from "../src/tools/tasks/stepsDelete";
+import { habitsListInput } from "../src/tools/habits/list";
+import { habitCheckInput } from "../src/tools/habits/check";
+import { checkHabit, listHabits } from "../src/db/habits";
 import {
   assignTask,
   deleteTask,
+  deleteTaskStep,
   listCompletedSteps,
   listTaskInitiative,
   listTaskSummary,
@@ -290,6 +298,24 @@ describe("phase 0 tool inputs", () => {
       id: taskId,
       level: "task",
       due_date: "2026-02-31",
+    }).success).toBe(false);
+    expect(taskStepsInput.safeParse({ task_id: taskId }).success).toBe(true);
+    expect(taskStepsInput.safeParse({ task_id: taskId, organization_id: "org-2" }).success).toBe(false);
+    expect(createStepInput.safeParse({ task_id: taskId, title: "Draft" }).success).toBe(true);
+    expect(createStepInput.safeParse({ task_id: taskId, title: "Draft", email: "a@b.c" }).success).toBe(false);
+    expect(updateStepSchema.safeParse({ id: taskId, title: "Draft" }).success).toBe(true);
+    expect(updateStepSchema.safeParse({ id: taskId }).success).toBe(false);
+    expect(updateStepSchema.safeParse({ id: taskId, title: "Draft", is_completed: true }).success).toBe(false);
+    expect(Object.keys(updateStepSchema.shape)).toEqual(["id", "title"]);
+    expect(deleteStepInput.safeParse({ id: taskId, comment: "gone" }).success).toBe(false);
+    expect(habitsListInput.safeParse({}).success).toBe(true);
+    expect(habitsListInput.safeParse({ date: "2026-11-01", phone: "0812" }).success).toBe(false);
+    expect(habitCheckInput.safeParse({ habit_id: taskId, checked: true }).success).toBe(true);
+    expect(habitCheckInput.safeParse({
+      habit_id: taskId,
+      checked: true,
+      notes: "free text",
+      organization_id: "org-2",
     }).success).toBe(false);
   });
 
@@ -606,6 +632,40 @@ describe("phase 0 tool inputs", () => {
     expect(sent).not.toContain("phone");
   });
 
+  it("calls step delete and habit check with the session and the requested fields only", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [{ id: "task-1" }], error: null });
+    const admin = { rpc } as unknown as SupabaseClient;
+    const ctx = { userId: "user-1", organizationId: "org-1" };
+    const id = "11111111-1111-4111-8111-111111111111";
+    await deleteTaskStep(admin, ctx, id);
+    await listHabits(admin, ctx, null);
+    await checkHabit(admin, ctx, { habitId: id, checked: true, date: "2026-11-01", index: 1 });
+    expect(rpc).toHaveBeenNthCalledWith(1, "mcp_delete_task_step", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_id: id,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, "mcp_list_habits", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_date: null,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(3, "mcp_check_habit", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_habit_id: id,
+      p_checked: true,
+      p_date: "2026-11-01",
+      p_index: 1,
+    });
+    const sent = JSON.stringify(rpc.mock.calls);
+    expect(sent).not.toContain("org-2");
+    expect(sent).not.toContain("is_completed");
+    expect(sent).not.toContain("notes");
+    expect(sent).not.toContain("comment");
+    expect(sent).not.toContain("email");
+  });
+
   it("schedules with the session user and hides the internal secret", async () => {
     const secret = "schedule-secret-value";
     const fetchImpl = vi.fn().mockResolvedValue({
@@ -682,6 +742,13 @@ describe("phase 0 tool inputs", () => {
     const assignTaskSource = readFileSync(new URL("../src/tools/tasks/assign.ts", import.meta.url), "utf8");
     const takeTask = readFileSync(new URL("../src/tools/tasks/take.ts", import.meta.url), "utf8");
     const dailyTasks = readFileSync(new URL("../src/db/dailyTasks.ts", import.meta.url), "utf8");
+    const stepsList = readFileSync(new URL("../src/tools/tasks/stepsList.ts", import.meta.url), "utf8");
+    const stepsCreate = readFileSync(new URL("../src/tools/tasks/stepsCreate.ts", import.meta.url), "utf8");
+    const stepsUpdate = readFileSync(new URL("../src/tools/tasks/stepsUpdate.ts", import.meta.url), "utf8");
+    const stepsDelete = readFileSync(new URL("../src/tools/tasks/stepsDelete.ts", import.meta.url), "utf8");
+    const habitsList = readFileSync(new URL("../src/tools/habits/list.ts", import.meta.url), "utf8");
+    const habitCheck = readFileSync(new URL("../src/tools/habits/check.ts", import.meta.url), "utf8");
+    const habitsDb = readFileSync(new URL("../src/db/habits.ts", import.meta.url), "utf8");
     const identity = readFileSync(new URL("../src/db/identity.ts", import.meta.url), "utf8");
     const consent = readFileSync(new URL("../src/oauth/consent.ts", import.meta.url), "utf8");
     for (const source of [
@@ -724,6 +791,13 @@ describe("phase 0 tool inputs", () => {
       assignTaskSource,
       takeTask,
       dailyTasks,
+      stepsList,
+      stepsCreate,
+      stepsUpdate,
+      stepsDelete,
+      habitsList,
+      habitCheck,
+      habitsDb,
     ]) {
       expect(source).not.toContain("createAdmin");
       expect(source).not.toContain("SERVICE_ROLE");
