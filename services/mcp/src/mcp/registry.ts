@@ -28,7 +28,13 @@ export type McpToolName =
   | "sales.visits.list"
   | "kol.campaigns.list"
   | "kol.profiles.list"
-  | "inventory.stock.list";
+  | "inventory.stock.list"
+  | "content.plans.create"
+  | "content.plans.update"
+  | "okr.objectives.create"
+  | "okr.objectives.update"
+  | "crm.leads.create"
+  | "crm.leads.update";
 
 export type McpTool = {
   name: McpToolName;
@@ -149,5 +155,53 @@ export const MCP_TOOLS: McpTool[] = [
     scopes: ["commerce:read"],
     moduleKey: "operations",
     pagePath: INVENTORY_PAGE_PATH,
+  },
+  {
+    name: "content.plans.create",
+    description:
+      "Create a draft content plan for the organization locked in this session. Requires a title. Optional post_date is YYYY-MM-DD in Asia/Jakarta, and brief is optional. Approval, production, and publish fields stay at their defaults.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "content.plans.update",
+    description:
+      "Update the title, post date, or brief of one content plan in the organization locked in this session. Does not change approval, production status, completion, or published links.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "okr.objectives.create",
+    description:
+      "Create a company objective in one cycle for the organization locked in this session. Requires cycle_id and title. Status is draft or active. Progress stays at zero. Department and individual objectives are not created.",
+    scopes: ["okr:write"],
+    moduleKey: "okr",
+    pagePath: OKR_PAGE_PATH,
+  },
+  {
+    name: "okr.objectives.update",
+    description:
+      "Update the title or status of one company, department, or individual objective in the organization locked in this session. Status is draft, active, completed, or cancelled. Progress, weight, cycle, and owner stay unchanged.",
+    scopes: ["okr:write"],
+    moduleKey: "okr",
+    pagePath: OKR_PAGE_PATH,
+  },
+  {
+    name: "crm.leads.create",
+    description:
+      "Create a lead for the organization locked in this session. Requires client, title, and category. Optional source, follow-up priority, and status name. Does not accept a phone number or email. Converted, closed, and resolve statuses are rejected. The assignee is the signed-in member.",
+    scopes: ["crm:write"],
+    moduleKey: "omnichannel",
+    pagePath: LEADS_PAGE_PATH,
+  },
+  {
+    name: "crm.leads.update",
+    description:
+      "Update the client, title, category, source, or follow-up priority of one lead in the organization locked in this session. Does not change status, assignee, ticket id, phone number, or email.",
+    scopes: ["crm:write"],
+    moduleKey: "omnichannel",
+    pagePath: LEADS_PAGE_PATH,
   },
 ];

@@ -15,6 +15,14 @@ import {
   listKolCampaigns,
   listKolProfiles,
 } from "./db/phase2Reads";
+import {
+  createCompanyObjective,
+  createContentPlan,
+  createLead,
+  updateContentPlan,
+  updateLead,
+  updateObjective,
+} from "./db/phase3Writes";
 import { createApp } from "./http/createApp";
 import { SupabaseGrantStore } from "./oauth/supabaseStore";
 
@@ -40,6 +48,12 @@ const app = createApp({
   listKolCampaigns: (ctx) => listKolCampaigns(admin, ctx),
   listKolProfiles: (ctx) => listKolProfiles(admin, ctx),
   listInventoryStock: (ctx) => listInventoryStock(admin, ctx),
+  createContentPlan: (ctx, input) => createContentPlan(admin, ctx, input),
+  updateContentPlan: (ctx, input) => updateContentPlan(admin, ctx, input.id, input),
+  createCompanyObjective: (ctx, input) => createCompanyObjective(admin, ctx, input),
+  updateObjective: (ctx, input) => updateObjective(admin, ctx, input),
+  createLead: (ctx, input) => createLead(admin, ctx, input),
+  updateLead: (ctx, input) => updateLead(admin, ctx, input),
 });
 
 serve({ fetch: app.fetch, port: config.port }, () => {

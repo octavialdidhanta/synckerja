@@ -264,3 +264,53 @@ describe("phase 2 tool visibility", () => {
     expect(filterTools(ctx).map((tool) => tool.name)).toEqual(["session.whoami"]);
   });
 });
+
+const phase3Scopes = [...phase2Scopes, "content:write", "okr:write", "crm:write"];
+
+describe("phase 3 tool visibility", () => {
+  it("hides write tools from a phase 2 token even when the pages are granted", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase2Scopes },
+      configurations: [
+        ...phase2Pages,
+        { page_path: "/okr", roles_allowed: ["employee"] },
+        { page_path: "/omnichannel/leads", roles_allowed: ["employee"] },
+      ],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("content.plans.list");
+    expect(names).not.toContain("content.plans.create");
+    expect(names).not.toContain("content.plans.update");
+    expect(names).not.toContain("okr.objectives.create");
+    expect(names).not.toContain("okr.objectives.update");
+    expect(names).not.toContain("crm.leads.create");
+    expect(names).not.toContain("crm.leads.update");
+  });
+
+  it("hides content writes when only the calendar page is granted and still allows whoami", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["session:read", "content:write"] },
+      configurations: [
+        { page_path: "/digital-marketing/social-media/content-calendar", roles_allowed: ["employee"] },
+      ],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("session.whoami");
+    expect(names).not.toContain("content.plans.create");
+    expect(names).not.toContain("content.plans.update");
+  });
+
+  it("shows content writes when the content page and write scope are granted", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase3Scopes },
+      configurations: [{ page_path: "/digital-marketing/social-media", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("content.plans.create");
+    expect(names).toContain("content.plans.update");
+    expect(names).not.toContain("okr.objectives.create");
+  });
+});

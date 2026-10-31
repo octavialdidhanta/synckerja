@@ -97,6 +97,24 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     listKolCampaigns: async () => [],
     listKolProfiles: async () => [],
     listInventoryStock: async () => [],
+    createContentPlan: async () => {
+      throw new Error("unused");
+    },
+    updateContentPlan: async () => {
+      throw new Error("unused");
+    },
+    createCompanyObjective: async () => {
+      throw new Error("unused");
+    },
+    updateObjective: async () => {
+      throw new Error("unused");
+    },
+    createLead: async () => {
+      throw new Error("unused");
+    },
+    updateLead: async () => {
+      throw new Error("unused");
+    },
   });
   return { app, listed };
 }

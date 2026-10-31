@@ -9,6 +9,9 @@ export const PHASE0_SCOPES = [
   "sales:read",
   "kol:read",
   "commerce:read",
+  "content:write",
+  "okr:write",
+  "crm:write",
 ] as const;
 
 export type Phase0Scope = (typeof PHASE0_SCOPES)[number];

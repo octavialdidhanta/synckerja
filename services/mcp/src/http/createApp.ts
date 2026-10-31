@@ -48,6 +48,44 @@ export type AppDeps = {
   listKolCampaigns: (ctx: McpAuthContext) => Promise<KolCampaignRow[]>;
   listKolProfiles: (ctx: McpAuthContext) => Promise<KolProfileRow[]>;
   listInventoryStock: (ctx: McpAuthContext) => Promise<StockRow[]>;
+  createContentPlan: (
+    ctx: McpAuthContext,
+    input: { title: string; postDate: string | null; brief: string | null },
+  ) => Promise<ContentPlanRow>;
+  updateContentPlan: (
+    ctx: McpAuthContext,
+    input: { id: string; title: string | null; postDate: string | null; brief: string | null },
+  ) => Promise<ContentPlanRow>;
+  createCompanyObjective: (
+    ctx: McpAuthContext,
+    input: { cycleId: string; title: string; whyImportant: string | null; status: string | null },
+  ) => Promise<OkrObjectiveRow>;
+  updateObjective: (
+    ctx: McpAuthContext,
+    input: { id: string; level: "company" | "department" | "individual"; title: string | null; status: string | null },
+  ) => Promise<OkrObjectiveRow>;
+  createLead: (
+    ctx: McpAuthContext,
+    input: {
+      client: string;
+      title: string;
+      category: string;
+      source: string | null;
+      fuPriority: string | null;
+      status: string | null;
+    },
+  ) => Promise<CrmLeadRow>;
+  updateLead: (
+    ctx: McpAuthContext,
+    input: {
+      id: string;
+      client: string | null;
+      title: string | null;
+      category: string | null;
+      source: string | null;
+      fuPriority: string | null;
+    },
+  ) => Promise<CrmLeadRow>;
   now?: () => Date;
 };
 

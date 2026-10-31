@@ -23,6 +23,12 @@ import {
   calendarResult,
   contentPlansInput,
   contentPlansResult,
+  createLeadInput,
+  createLeadResult,
+  createObjectiveInput,
+  createObjectiveResult,
+  createPlanInput,
+  createPlanResult,
   cyclesInput,
   cyclesResult,
   employeesInput,
@@ -41,6 +47,12 @@ import {
   objectivesResult,
   stockInput,
   stockResult,
+  updateLeadInput,
+  updateLeadResult,
+  updateObjectiveInput,
+  updateObjectiveResult,
+  updatePlanInput,
+  updatePlanResult,
   visitsInput,
   visitsResult,
   whoamiInput,
@@ -63,6 +75,44 @@ export type McpReadDeps = {
   listKolCampaigns: (ctx: McpAuthContext) => Promise<KolCampaignRow[]>;
   listKolProfiles: (ctx: McpAuthContext) => Promise<KolProfileRow[]>;
   listInventoryStock: (ctx: McpAuthContext) => Promise<StockRow[]>;
+  createContentPlan: (
+    ctx: McpAuthContext,
+    input: { title: string; postDate: string | null; brief: string | null },
+  ) => Promise<ContentPlanRow>;
+  updateContentPlan: (
+    ctx: McpAuthContext,
+    input: { id: string; title: string | null; postDate: string | null; brief: string | null },
+  ) => Promise<ContentPlanRow>;
+  createCompanyObjective: (
+    ctx: McpAuthContext,
+    input: { cycleId: string; title: string; whyImportant: string | null; status: string | null },
+  ) => Promise<OkrObjectiveRow>;
+  updateObjective: (
+    ctx: McpAuthContext,
+    input: { id: string; level: "company" | "department" | "individual"; title: string | null; status: string | null },
+  ) => Promise<OkrObjectiveRow>;
+  createLead: (
+    ctx: McpAuthContext,
+    input: {
+      client: string;
+      title: string;
+      category: string;
+      source: string | null;
+      fuPriority: string | null;
+      status: string | null;
+    },
+  ) => Promise<CrmLeadRow>;
+  updateLead: (
+    ctx: McpAuthContext,
+    input: {
+      id: string;
+      client: string | null;
+      title: string | null;
+      category: string | null;
+      source: string | null;
+      fuPriority: string | null;
+    },
+  ) => Promise<CrmLeadRow>;
 };
 
 type HandlerDeps = McpReadDeps & {
@@ -80,6 +130,11 @@ function forbidden() {
 
 function optionalString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+function requiredString(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0) throw new Error("invalid_input");
+  return value;
 }
 
 async function reload(deps: HandlerDeps, claims: AccessClaims): Promise<McpAuthContext | null> {
@@ -106,6 +161,12 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "kol.campaigns.list": kolCampaignsInput,
   "kol.profiles.list": kolProfilesInput,
   "inventory.stock.list": stockInput,
+  "content.plans.create": createPlanInput,
+  "content.plans.update": updatePlanInput,
+  "okr.objectives.create": createObjectiveInput,
+  "okr.objectives.update": updateObjectiveInput,
+  "crm.leads.create": createLeadInput,
+  "crm.leads.update": updateLeadInput,
 };
 
 async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, deps: McpReadDeps): Promise<unknown> {
@@ -138,6 +199,75 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
       return kolProfilesResult(ctx, deps.listKolProfiles);
     case "inventory.stock.list":
       return stockResult(ctx, deps.listInventoryStock);
+    case "content.plans.create":
+      return createPlanResult(
+        ctx,
+        {
+          title: requiredString(args.title),
+          postDate: optionalString(args.post_date),
+          brief: optionalString(args.brief),
+        },
+        deps.createContentPlan,
+      );
+    case "content.plans.update":
+      return updatePlanResult(
+        ctx,
+        {
+          id: requiredString(args.id),
+          title: optionalString(args.title),
+          postDate: optionalString(args.post_date),
+          brief: optionalString(args.brief),
+        },
+        deps.updateContentPlan,
+      );
+    case "okr.objectives.create":
+      return createObjectiveResult(
+        ctx,
+        {
+          cycleId: requiredString(args.cycle_id),
+          title: requiredString(args.title),
+          whyImportant: optionalString(args.why_important),
+          status: optionalString(args.status),
+        },
+        deps.createCompanyObjective,
+      );
+    case "okr.objectives.update":
+      return updateObjectiveResult(
+        ctx,
+        {
+          id: requiredString(args.id),
+          level: requiredString(args.level) as "company" | "department" | "individual",
+          title: optionalString(args.title),
+          status: optionalString(args.status),
+        },
+        deps.updateObjective,
+      );
+    case "crm.leads.create":
+      return createLeadResult(
+        ctx,
+        {
+          client: requiredString(args.client),
+          title: requiredString(args.title),
+          category: requiredString(args.category),
+          source: optionalString(args.source),
+          fuPriority: optionalString(args.fu_priority),
+          status: optionalString(args.status),
+        },
+        deps.createLead,
+      );
+    case "crm.leads.update":
+      return updateLeadResult(
+        ctx,
+        {
+          id: requiredString(args.id),
+          client: optionalString(args.client),
+          title: optionalString(args.title),
+          category: optionalString(args.category),
+          source: optionalString(args.source),
+          fuPriority: optionalString(args.fu_priority),
+        },
+        deps.updateLead,
+      );
   }
 }
 
