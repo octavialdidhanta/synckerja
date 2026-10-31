@@ -25,6 +25,7 @@ export const KOL_CAMPAIGNS_PAGE_PATH = "/kol-management/campaigns";
 export const KOL_PROFILES_PAGE_PATH = "/kol-management/kol-management";
 /** Permission catalog key. The browser URL is /operations/inventory. */
 export const INVENTORY_PAGE_PATH = "/operations/sales/stock-management";
+export const DAILY_TASK_PAGE_PATH = "/tools/daily-task";
 
 export const MCP_MODULE_KEYS = [
   "digitalMarketing",
@@ -33,6 +34,7 @@ export const MCP_MODULE_KEYS = [
   "finance",
   "humanResources",
   "operations",
+  "tools",
 ] as const;
 export type McpModuleKey = (typeof MCP_MODULE_KEYS)[number];
 
@@ -108,6 +110,7 @@ export function buildAuthContext(input: {
     KOL_CAMPAIGNS_PAGE_PATH,
     KOL_PROFILES_PAGE_PATH,
     INVENTORY_PAGE_PATH,
+    DAILY_TASK_PAGE_PATH,
   ];
 
   return {
@@ -126,6 +129,7 @@ export function buildAuthContext(input: {
       finance: isModuleEnabled("finance", enablement),
       humanResources: isModuleEnabled("humanResources", enablement),
       operations: isModuleEnabled("operations", enablement),
+      tools: isModuleEnabled("tools", enablement),
     },
     pages: Object.fromEntries(
       pagePaths.map((path) => [path, evaluatePageAccess(path, input.configurations, subject, "deny")]),

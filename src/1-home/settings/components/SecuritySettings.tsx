@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { AlertCircle, CheckCircle, Eye, EyeOff, Key } from "lucide-react";
+import { ClaudeSecuritySection } from "@/1-home/settings/components/ClaudeSecuritySection";
 import { TwoFactorSecuritySection } from "@/1-home/settings/components/TwoFactorSecuritySection";
 import { PasswordStrengthIndicator } from "@/1-home/settings/components/PasswordStrengthIndicator";
 import { SecurityTipsSection } from "@/1-home/settings/components/SecurityTipsSection";
@@ -142,6 +143,8 @@ export function SecuritySettings() {
           </form>
         </CardContent>
       </Card>
+
+      <ClaudeSecuritySection />
 
       <TwoFactorSecuritySection />
 

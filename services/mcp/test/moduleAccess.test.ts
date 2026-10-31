@@ -15,6 +15,7 @@ const claims: AccessClaims = {
   scopes: ["session:read", "content:read"],
   clientId: "mcp_client",
   jti: "jti-1",
+  iat: 1_700_000_000,
 };
 
 const base = {
@@ -440,5 +441,66 @@ describe("payroll and POS summary visibility", () => {
     expect(names).toContain("pos.sales.daily");
     expect(names).not.toContain("payroll.runs.list");
     expect(names).not.toContain("sales.visits.list");
+  });
+});
+
+const taskReadScopes = [...summaryScopes, "tasks:read"];
+const taskWriteScopes = [...taskReadScopes, "tasks:write"];
+const dailyTaskPage = [{ page_path: "/tools/daily-task", roles_allowed: ["employee"] }];
+
+describe("daily task visibility", () => {
+  it("hides daily tasks from an hr read token even when the daily task page is granted", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase2Scopes },
+      configurations: dailyTaskPage,
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).not.toContain("tasks.summary");
+    expect(names).not.toContain("tasks.list");
+    expect(names).not.toContain("tasks.initiative.list");
+    expect(names).not.toContain("tasks.workload");
+    expect(names).not.toContain("tasks.completed.list");
+    expect(names).not.toContain("tasks.create");
+  });
+
+  it("shows the five read tools and hides writes", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: taskReadScopes },
+      configurations: dailyTaskPage,
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names.filter((name) => name.startsWith("tasks."))).toEqual([
+      "tasks.summary",
+      "tasks.list",
+      "tasks.initiative.list",
+      "tasks.workload",
+      "tasks.completed.list",
+    ]);
+  });
+
+  it("shows no daily task tools when the page is missing", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["tasks:write"] },
+      configurations: [],
+    });
+    expect(filterTools(ctx)).toEqual([]);
+  });
+
+  it("shows writes only when the daily task page and write scope are both present", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: taskWriteScopes },
+      configurations: dailyTaskPage,
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("tasks.create");
+    expect(names).toContain("tasks.update");
+    expect(names).toContain("tasks.delete");
+    expect(names).toContain("tasks.assign");
+    expect(names).toContain("tasks.initiative.take");
+    expect(names).toContain("tasks.summary");
   });
 });

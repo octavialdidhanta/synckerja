@@ -27,3 +27,13 @@ export { updateLeadInput, updateLeadResult, updateLeadSchema } from "./crm/leads
 export { schedulePlanInput, schedulePlanResult } from "./content/plansSchedule";
 export type { SchedulePlanResult } from "./content/plansSchedule";
 export { setLeadStatusInput, setLeadStatusResult } from "./crm/leadsSetStatus";
+export { taskSummaryInput, taskSummaryResult } from "./tasks/summary";
+export { taskListInput, taskListResult } from "./tasks/list";
+export { taskInitiativeInput, taskInitiativeResult } from "./tasks/initiativeList";
+export { taskWorkloadInput, taskWorkloadResult } from "./tasks/workload";
+export { completedStepsInput, completedStepsResult } from "./tasks/completedList";
+export { createTaskInput, createTaskResult } from "./tasks/create";
+export { updateTaskInput, updateTaskResult, updateTaskSchema } from "./tasks/update";
+export { deleteTaskInput, deleteTaskResult } from "./tasks/delete";
+export { assignTaskInput, assignTaskResult } from "./tasks/assign";
+export { takeInitiativeInput, takeInitiativeResult } from "./tasks/take";

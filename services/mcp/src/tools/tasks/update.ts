@@ -1,0 +1,23 @@
+import { z } from "zod";
+import type { McpAuthContext } from "../../authz/context";
+import type { TaskRecord, UpdateTaskInput } from "../../db/dailyTasks";
+import { taskDue, taskId, taskPriority, taskTitle } from "./fields";
+
+export const updateTaskSchema = z.object({
+  id: taskId,
+  title: taskTitle.optional(),
+  priority: taskPriority.optional(),
+  due_date: taskDue.optional(),
+}).strict();
+
+export const updateTaskInput = updateTaskSchema.refine((value) =>
+  value.title != null || value.priority != null || value.due_date != null,
+);
+
+export function updateTaskResult(
+  ctx: McpAuthContext,
+  input: UpdateTaskInput,
+  update: (ctx: McpAuthContext, input: UpdateTaskInput) => Promise<TaskRecord>,
+): Promise<TaskRecord> {
+  return update(ctx, input);
+}

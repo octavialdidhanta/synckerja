@@ -81,4 +81,13 @@ export class MemoryGrantStore implements GrantStore {
     row.revokedAt = revokedAt;
     return copy(row);
   }
+
+  async supersedeOlderConnections(userId: string, organizationId: string, keepClientId: string): Promise<void> {
+    const now = new Date().toISOString();
+    for (const row of this.refreshTokens.values()) {
+      if (row.userId !== userId || row.organizationId !== organizationId || row.revokedAt) continue;
+      if (row.clientId === keepClientId) continue;
+      row.revokedAt = now;
+    }
+  }
 }

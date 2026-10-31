@@ -31,6 +31,19 @@ import {
   updateIncomeTransaction,
 } from "./db/phase5Writes";
 import { listPayrollRuns, listPosDailySales } from "./db/payrollPosReads";
+import {
+  assignTask,
+  createTask,
+  deleteTask,
+  listCompletedSteps,
+  listTaskInitiative,
+  listTaskSummary,
+  listTasks,
+  listTaskWorkload,
+  takeTaskInitiative,
+  updateTask,
+} from "./db/dailyTasks";
+import { accessRevokedAt, recordToolCall, takeToolSlot } from "./db/toolGate";
 import { scheduleContentPlan } from "./db/scheduleContentPlan";
 import { createApp } from "./http/createApp";
 import { SupabaseGrantStore } from "./oauth/supabaseStore";
@@ -44,6 +57,9 @@ const app = createApp({
   isActiveMember: (userId, organizationId) => isActiveMember(admin, userId, organizationId),
   loadIdentity: (userId, organizationId) => loadConsentIdentity(admin, userId, organizationId),
   loadContext: (claims) => loadContext(admin, claims),
+  accessRevokedAt: (claims) => accessRevokedAt(admin, claims),
+  takeToolSlot: (ctx) => takeToolSlot(admin, ctx),
+  recordToolCall: (ctx, toolName, outcome) => recordToolCall(admin, ctx, toolName, outcome),
   listContentPlans: (ctx) => listContentPlans(admin, ctx),
   listContentCalendar: (ctx, month) => listContentCalendar(admin, ctx, month),
   listOkrCycles: (ctx) => listOkrCycles(admin, ctx),
@@ -71,6 +87,16 @@ const app = createApp({
   updateIncomeTransaction: (ctx, input) => updateIncomeTransaction(admin, ctx, input),
   createExpenseRecord: (ctx, input) => createExpenseRecord(admin, ctx, input),
   updateExpenseRecord: (ctx, input) => updateExpenseRecord(admin, ctx, input),
+  listTaskSummary: (ctx, month) => listTaskSummary(admin, ctx, month),
+  listTasks: (ctx, status) => listTasks(admin, ctx, status),
+  listTaskInitiative: (ctx) => listTaskInitiative(admin, ctx),
+  listTaskWorkload: (ctx, timeframe) => listTaskWorkload(admin, ctx, timeframe),
+  listCompletedSteps: (ctx, month) => listCompletedSteps(admin, ctx, month),
+  createTask: (ctx, input) => createTask(admin, ctx, input),
+  updateTask: (ctx, input) => updateTask(admin, ctx, input),
+  deleteTask: (ctx, id) => deleteTask(admin, ctx, id),
+  assignTask: (ctx, input) => assignTask(admin, ctx, input),
+  takeTaskInitiative: (ctx, input) => takeTaskInitiative(admin, ctx, input),
 });
 
 serve({ fetch: app.fetch, port: config.port }, () => {

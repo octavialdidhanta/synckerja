@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { useChangePasswordSettings } from "@/1-home/settings/hooks/useChangePasswordSettings";
 import { PasswordStrengthIndicator } from "@/1-home/settings/components/PasswordStrengthIndicator";
 import { SecurityTipsSection } from "@/1-home/settings/components/SecurityTipsSection";
+import { ClaudeSecuritySection } from "@/1-home/settings/components/ClaudeSecuritySection";
 import { TwoFactorSecuritySection } from "@/1-home/settings/components/TwoFactorSecuritySection";
 import { useMfaFactors } from "@/shared/auth/mfa";
 import { useMobileKeyboardViewport } from "@/shared/hooks/useMobileKeyboardViewport";
@@ -169,6 +170,8 @@ export default function MobileSecuritySettingsContent() {
           </form>
         </div>
       </Card>
+
+      <ClaudeSecuritySection compact />
 
       <TwoFactorSecuritySection />
 

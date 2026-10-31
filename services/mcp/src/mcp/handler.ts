@@ -17,6 +17,20 @@ import type {
 } from "../db/phase2Reads";
 import type { ExpenseRecord, IncomeRecord } from "../db/phase5Writes";
 import type { PayrollRunRow, PosDailySalesRow } from "../db/payrollPosReads";
+import type {
+  AssignTaskInput,
+  AssignTaskResult,
+  CompletedStepRow,
+  CreateTaskInput,
+  InitiativeRow,
+  TakeInitiativeInput,
+  TakeInitiativeResult,
+  TaskListRow,
+  TaskRecord,
+  TaskSummary,
+  UpdateTaskInput,
+  WorkloadRow,
+} from "../db/dailyTasks";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
 import type { AccessClaims } from "../oauth/tokens";
 import {
@@ -81,7 +95,29 @@ import {
   visitsResult,
   whoamiInput,
   whoamiResult,
+  taskSummaryInput,
+  taskSummaryResult,
+  taskListInput,
+  taskListResult,
+  taskInitiativeInput,
+  taskInitiativeResult,
+  taskWorkloadInput,
+  taskWorkloadResult,
+  completedStepsInput,
+  completedStepsResult,
+  createTaskInput,
+  createTaskResult,
+  updateTaskInput,
+  updateTaskResult,
+  updateTaskSchema,
+  deleteTaskInput,
+  deleteTaskResult,
+  assignTaskInput,
+  assignTaskResult,
+  takeInitiativeInput,
+  takeInitiativeResult,
 } from "../tools";
+import type { ToolCallOutcome } from "../db/toolGate";
 import { filterTools, isToolVisible } from "./filterTools";
 import type { McpToolName } from "./registry";
 
@@ -185,10 +221,22 @@ export type McpReadDeps = {
       description: string | null;
     },
   ) => Promise<ExpenseRecord>;
+  listTaskSummary: (ctx: McpAuthContext, month: string | null) => Promise<TaskSummary>;
+  listTasks: (ctx: McpAuthContext, status: string | null) => Promise<TaskListRow[]>;
+  listTaskInitiative: (ctx: McpAuthContext) => Promise<InitiativeRow[]>;
+  listTaskWorkload: (ctx: McpAuthContext, timeframe: string | null) => Promise<WorkloadRow[]>;
+  listCompletedSteps: (ctx: McpAuthContext, month: string | null) => Promise<CompletedStepRow[]>;
+  createTask: (ctx: McpAuthContext, input: CreateTaskInput) => Promise<TaskRecord>;
+  updateTask: (ctx: McpAuthContext, input: UpdateTaskInput) => Promise<TaskRecord>;
+  deleteTask: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
+  assignTask: (ctx: McpAuthContext, input: AssignTaskInput) => Promise<AssignTaskResult>;
+  takeTaskInitiative: (ctx: McpAuthContext, input: TakeInitiativeInput) => Promise<TakeInitiativeResult>;
 };
 
 type HandlerDeps = McpReadDeps & {
   loadContext: (claims: AccessClaims) => Promise<McpAuthContext>;
+  takeToolSlot: (ctx: McpAuthContext) => Promise<{ allowed: boolean; recordDenial: boolean }>;
+  recordToolCall: (ctx: McpAuthContext, toolName: string, outcome: ToolCallOutcome) => Promise<void>;
 };
 
 type ToolArgs = Record<string, unknown>;
@@ -216,6 +264,19 @@ function optionalNumber(value: unknown): number | null {
 function requiredNumber(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) throw new Error("invalid_input");
   return value;
+}
+
+async function noteCall(
+  deps: HandlerDeps,
+  ctx: McpAuthContext,
+  toolName: McpToolName,
+  outcome: ToolCallOutcome,
+): Promise<void> {
+  try {
+    await deps.recordToolCall(ctx, toolName, outcome);
+  } catch {
+    // A missed audit row does not hide a finished tool result or turn a denial into a success.
+  }
 }
 
 async function reload(deps: HandlerDeps, claims: AccessClaims): Promise<McpAuthContext | null> {
@@ -256,6 +317,16 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "crm.leads.update": updateLeadSchema,
   "content.plans.schedule": schedulePlanInput,
   "crm.leads.setStatus": setLeadStatusInput,
+  "tasks.summary": taskSummaryInput,
+  "tasks.list": taskListInput,
+  "tasks.initiative.list": taskInitiativeInput,
+  "tasks.workload": taskWorkloadInput,
+  "tasks.completed.list": completedStepsInput,
+  "tasks.create": createTaskInput,
+  "tasks.update": updateTaskSchema,
+  "tasks.delete": deleteTaskInput,
+  "tasks.assign": assignTaskInput,
+  "tasks.initiative.take": takeInitiativeInput,
 };
 
 async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, deps: McpReadDeps): Promise<unknown> {
@@ -426,6 +497,63 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
         { id: requiredString(args.id), status: requiredString(args.status) },
         deps.setLeadStatus,
       );
+    case "tasks.summary":
+      return taskSummaryResult(ctx, optionalString(args.month), deps.listTaskSummary);
+    case "tasks.list":
+      return taskListResult(ctx, optionalString(args.status), deps.listTasks);
+    case "tasks.initiative.list":
+      return taskInitiativeResult(ctx, deps.listTaskInitiative);
+    case "tasks.workload":
+      return taskWorkloadResult(ctx, optionalString(args.timeframe), deps.listTaskWorkload);
+    case "tasks.completed.list":
+      return completedStepsResult(ctx, optionalString(args.month), deps.listCompletedSteps);
+    case "tasks.create":
+      return createTaskResult(
+        ctx,
+        {
+          title: requiredString(args.title),
+          description: optionalString(args.description),
+          priority: optionalString(args.priority),
+          dueDate: optionalString(args.due_date),
+          employeeId: optionalString(args.employee_id),
+        },
+        deps.createTask,
+      );
+    case "tasks.update":
+      if (!updateTaskInput.safeParse(args).success) throw new Error("invalid_input");
+      return updateTaskResult(
+        ctx,
+        {
+          id: requiredString(args.id),
+          title: optionalString(args.title),
+          priority: optionalString(args.priority),
+          dueDate: optionalString(args.due_date),
+        },
+        deps.updateTask,
+      );
+    case "tasks.delete":
+      return deleteTaskResult(ctx, requiredString(args.id), deps.deleteTask);
+    case "tasks.assign":
+      return assignTaskResult(
+        ctx,
+        {
+          id: requiredString(args.id),
+          employeeId: requiredString(args.employee_id),
+          dueDate: optionalString(args.due_date),
+        },
+        deps.assignTask,
+      );
+    case "tasks.initiative.take":
+      return takeInitiativeResult(
+        ctx,
+        {
+          id: requiredString(args.id),
+          level: requiredString(args.level),
+          dueDate: requiredString(args.due_date),
+          employeeId: optionalString(args.employee_id),
+        },
+        deps.takeTaskInitiative,
+      );
   }
 }
 
@@ -450,10 +578,24 @@ export async function handleMcpRequest(
       tool.name,
       { description: tool.description, inputSchema: toolInputs[tool.name] as unknown as ZodRawShape },
       async (args) => {
+        const slot = await deps.takeToolSlot(ctx);
+        if (!slot.allowed) {
+          if (slot.recordDenial) await noteCall(deps, ctx, tool.name, "rate_limited");
+          return { isError: true as const, content: [{ type: "text" as const, text: "rate_limited" }] };
+        }
         const fresh = await reload(deps, claims);
-        if (!fresh || !isToolVisible(tool.name, fresh)) return forbidden();
-        const body = await runTool(tool.name, fresh, (args ?? {}) as ToolArgs, deps);
-        return { content: [{ type: "text", text: JSON.stringify(body) }] };
+        if (!fresh || !isToolVisible(tool.name, fresh)) {
+          await noteCall(deps, fresh ?? ctx, tool.name, "forbidden");
+          return forbidden();
+        }
+        try {
+          const body = await runTool(tool.name, fresh, (args ?? {}) as ToolArgs, deps);
+          await noteCall(deps, fresh, tool.name, "ok");
+          return { content: [{ type: "text" as const, text: JSON.stringify(body) }] };
+        } catch (error) {
+          await noteCall(deps, fresh, tool.name, "error");
+          throw error;
+        }
       },
     );
   }

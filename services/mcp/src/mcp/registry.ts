@@ -5,6 +5,7 @@ import {
   EMPLOYEES_PAGE_PATH,
   EXPENSES_PAGE_PATH,
   INCOME_PAGE_PATH,
+  DAILY_TASK_PAGE_PATH,
   INVENTORY_PAGE_PATH,
   PAYROLL_PAGE_PATH,
   POS_SALES_SUMMARY_PAGE_PATH,
@@ -44,7 +45,17 @@ export type McpToolName =
   | "crm.leads.create"
   | "crm.leads.update"
   | "content.plans.schedule"
-  | "crm.leads.setStatus";
+  | "crm.leads.setStatus"
+  | "tasks.summary"
+  | "tasks.list"
+  | "tasks.initiative.list"
+  | "tasks.workload"
+  | "tasks.completed.list"
+  | "tasks.create"
+  | "tasks.update"
+  | "tasks.delete"
+  | "tasks.assign"
+  | "tasks.initiative.take";
 
 export type McpTool = {
   name: McpToolName;
@@ -277,5 +288,85 @@ export const MCP_TOOLS: McpTool[] = [
     scopes: ["crm:write"],
     moduleKey: "omnichannel",
     pagePath: LEADS_PAGE_PATH,
+  },
+  {
+    name: "tasks.summary",
+    description:
+      "Count daily tasks for the organization locked in this session. Optional month is YYYY-MM in Asia/Jakarta; omit it for the current month. Returns pending, in progress, completed, cancelled, and overdue counts. Overdue means an unfinished task whose due date has passed.",
+    scopes: ["tasks:read"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.list",
+    description:
+      "List up to 30 daily tasks for the organization locked in this session. Optional status is pending, in_progress, completed, or cancelled. Returns id, title, status, priority, due date, assignee name, and creator name. Descriptions, comments, and files are not returned.",
+    scopes: ["tasks:read"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.initiative.list",
+    description:
+      "List up to 50 unfinished daily-task items that someone can take. Each row is a task, step, or substep, with its parent task title, priority, due date, and the name of the person who already took it. A blank assignee means nobody has taken it yet.",
+    scopes: ["tasks:read"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.workload",
+    description:
+      "Show who is busy or idle on daily tasks for the organization locked in this session. Optional timeframe is day, week, or month in Asia/Jakarta; omit it for the current Monday-Sunday week. Overdue work outside the range still counts. Returns up to 50 active employees with name, active assignment count, whether they are idle, and the longest wait in days. Email and phone are not returned.",
+    scopes: ["tasks:read"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.completed.list",
+    description:
+      "List up to 20 recently completed daily-task steps for the organization locked in this session. Optional month is YYYY-MM in Asia/Jakarta; omit it for the latest completions. Returns the task title, step title, completion time, and assignee name.",
+    scopes: ["tasks:read"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.create",
+    description:
+      "Create one pending daily task for the organization locked in this session. Requires a title. Optional description, priority, due date, and assignee. Status stays pending. Does not upload a file or add a comment.",
+    scopes: ["tasks:write"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.update",
+    description:
+      "Update the title, priority, or due date of one daily task in the organization locked in this session. Does not change its status, so completion approval is not bypassed.",
+    scopes: ["tasks:write"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.delete",
+    description:
+      "Delete one daily task in the organization locked in this session. Refuses when the task or one of its steps is already assigned.",
+    scopes: ["tasks:write"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.assign",
+    description:
+      "Assign one daily task to an employee in the organization locked in this session and optionally set its due date. Replaces the previous assignee. Owners, admins, and HR may assign another person. Other members may assign only themselves.",
+    scopes: ["tasks:write"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.initiative.take",
+    description:
+      "Take one unfinished daily-task item and set its due date. The level is task, step, or substep. Replaces the previous assignee. Owners, admins, and HR may choose another employee. Other members take it for themselves.",
+    scopes: ["tasks:write"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
   },
 ];

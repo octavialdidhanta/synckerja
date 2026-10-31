@@ -911,6 +911,31 @@
         "complexity": "Gabungkan huruf besar, kecil, angka, dan simbol",
         "noPersonalInfo": "Hindari nama, tanggal lahir, atau kata umum",
         "changeRegularly": "Ganti kata sandi jika Anda curiga sudah diketahui orang lain"
+      },
+      "claude": {
+        "title": "Koneksi Claude",
+        "description": "Cabut koneksi agar Claude berhenti pada permintaan berikutnya. Catatan hanya menyimpan nama alat, hasil, dan waktu.",
+        "loading": "Memuat koneksi…",
+        "noOrganization": "Pilih organisasi terlebih dahulu.",
+        "connections": "Koneksi yang hidup",
+        "emptyConnections": "Tidak ada koneksi Claude yang hidup.",
+        "activity": "Catatan pemanggilan",
+        "emptyActivity": "Belum ada pemanggilan.",
+        "revoke": "Cabut",
+        "confirm": "Cabut koneksi ini?",
+        "confirmAction": "Ya, cabut",
+        "cancel": "Batal",
+        "revoking": "Mencabut…",
+        "unknownUser": "Pengguna",
+        "unknownClient": "Claude",
+        "loadError": "Gagal memuat koneksi Claude.",
+        "revokeError": "Gagal mencabut koneksi.",
+        "outcomes": {
+          "ok": "Berhasil",
+          "error": "Gagal",
+          "forbidden": "Ditolak",
+          "rate_limited": "Dibatasi"
+        }
       }
     }
   },

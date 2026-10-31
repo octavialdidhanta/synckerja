@@ -911,6 +911,31 @@
         "complexity": "Mix uppercase, lowercase, numbers, and symbols",
         "noPersonalInfo": "Avoid names, birthdays, or common words",
         "changeRegularly": "Change your password if you suspect it is known"
+      },
+      "claude": {
+        "title": "Claude connection",
+        "description": "Disconnect Claude so the next request stops. The activity list stores the tool name, result, and time only.",
+        "loading": "Loading connections…",
+        "noOrganization": "Choose an organization first.",
+        "connections": "Live connections",
+        "emptyConnections": "No live Claude connection.",
+        "activity": "Recent calls",
+        "emptyActivity": "No calls yet.",
+        "revoke": "Disconnect",
+        "confirm": "Disconnect this connection?",
+        "confirmAction": "Yes, disconnect",
+        "cancel": "Cancel",
+        "revoking": "Disconnecting…",
+        "unknownUser": "User",
+        "unknownClient": "Claude",
+        "loadError": "Could not load the Claude connection.",
+        "revokeError": "Could not disconnect.",
+        "outcomes": {
+          "ok": "Succeeded",
+          "error": "Failed",
+          "forbidden": "Denied",
+          "rate_limited": "Limited"
+        }
       }
     }
   },

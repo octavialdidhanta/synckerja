@@ -44,6 +44,7 @@ function contextFor(claims: AccessClaims): McpAuthContext {
       finance: true,
       humanResources: true,
       operations: true,
+      tools: true,
     },
     pages: {
       [CONTENT_PAGE_PATH]: true,
@@ -73,6 +74,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
       }
       return contextFor(claims);
     },
+    accessRevokedAt: async () => null,
+    takeToolSlot: async () => ({ allowed: true, recordDenial: false }),
+    recordToolCall: async () => {},
     listContentPlans: async (ctx) => {
       listed.push(ctx.organizationId);
       return [
@@ -134,6 +138,28 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
       throw new Error("unused");
     },
     updateExpenseRecord: async () => {
+      throw new Error("unused");
+    },
+    listTaskSummary: async () => {
+      throw new Error("unused");
+    },
+    listTasks: async () => [],
+    listTaskInitiative: async () => [],
+    listTaskWorkload: async () => [],
+    listCompletedSteps: async () => [],
+    createTask: async () => {
+      throw new Error("unused");
+    },
+    updateTask: async () => {
+      throw new Error("unused");
+    },
+    deleteTask: async () => {
+      throw new Error("unused");
+    },
+    assignTask: async () => {
+      throw new Error("unused");
+    },
+    takeTaskInitiative: async () => {
       throw new Error("unused");
     },
   });

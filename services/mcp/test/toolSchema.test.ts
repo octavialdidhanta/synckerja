@@ -28,6 +28,25 @@ import { kolProfilesInput } from "../src/tools/kol/profilesList";
 import { visitsInput } from "../src/tools/sales/visitsList";
 import { payrollRunsInput } from "../src/tools/payroll/runsList";
 import { posDailyInput } from "../src/tools/pos/salesDaily";
+import { taskSummaryInput } from "../src/tools/tasks/summary";
+import { taskListInput } from "../src/tools/tasks/list";
+import { taskInitiativeInput } from "../src/tools/tasks/initiativeList";
+import { taskWorkloadInput } from "../src/tools/tasks/workload";
+import { completedStepsInput } from "../src/tools/tasks/completedList";
+import { createTaskInput } from "../src/tools/tasks/create";
+import { updateTaskInput, updateTaskSchema } from "../src/tools/tasks/update";
+import { deleteTaskInput } from "../src/tools/tasks/delete";
+import { assignTaskInput } from "../src/tools/tasks/assign";
+import { takeInitiativeInput } from "../src/tools/tasks/take";
+import {
+  assignTask,
+  deleteTask,
+  listCompletedSteps,
+  listTaskInitiative,
+  listTaskSummary,
+  listTasks,
+  listTaskWorkload,
+} from "../src/db/dailyTasks";
 import { cyclesInput } from "../src/tools/okr/cyclesList";
 import { objectivesInput } from "../src/tools/okr/objectivesList";
 import { whoamiInput } from "../src/tools/session/whoami";
@@ -233,6 +252,45 @@ describe("phase 0 tool inputs", () => {
       "category",
       "description",
     ]));
+    const taskId = "11111111-1111-4111-8111-111111111111";
+    expect(taskSummaryInput.safeParse({}).success).toBe(true);
+    expect(taskSummaryInput.safeParse({ month: "2026-10" }).success).toBe(true);
+    expect(taskSummaryInput.safeParse({ organization_id: "org-2" }).success).toBe(false);
+    expect(taskListInput.safeParse({ status: "pending" }).success).toBe(true);
+    expect(taskListInput.safeParse({ status: "done" }).success).toBe(false);
+    expect(taskListInput.safeParse({ email: "a@b.c" }).success).toBe(false);
+    expect(taskInitiativeInput.safeParse({ phone: "0812" }).success).toBe(false);
+    expect(taskWorkloadInput.safeParse({}).success).toBe(true);
+    expect(taskWorkloadInput.safeParse({ timeframe: "year" }).success).toBe(false);
+    expect(completedStepsInput.safeParse({ month: "2026-13" }).success).toBe(false);
+    expect(createTaskInput.safeParse({ title: "Follow up" }).success).toBe(true);
+    expect(createTaskInput.safeParse({ title: "Follow up", priority: "critical" }).success).toBe(false);
+    expect(createTaskInput.safeParse({
+      title: "Follow up",
+      organization_id: "org-2",
+      email: "a@b.c",
+      phone: "0812",
+    }).success).toBe(false);
+    expect(updateTaskInput.safeParse({ id: taskId }).success).toBe(false);
+    expect(updateTaskInput.safeParse({ id: taskId, priority: "high" }).success).toBe(true);
+    expect(updateTaskSchema.safeParse({ id: taskId, status: "completed" }).success).toBe(false);
+    expect(Object.keys(updateTaskSchema.shape)).toEqual(["id", "title", "priority", "due_date"]);
+    expect(deleteTaskInput.safeParse({ id: taskId, comment: "remove" }).success).toBe(false);
+    expect(assignTaskInput.safeParse({
+      id: taskId,
+      employee_id: taskId,
+      file: "note.txt",
+    }).success).toBe(false);
+    expect(takeInitiativeInput.safeParse({
+      id: taskId,
+      level: "task",
+      due_date: "2026-11-02",
+    }).success).toBe(true);
+    expect(takeInitiativeInput.safeParse({
+      id: taskId,
+      level: "task",
+      due_date: "2026-02-31",
+    }).success).toBe(false);
   });
 
   it("calls the membership-checked RPC with the session organization only", async () => {
@@ -515,6 +573,39 @@ describe("phase 0 tool inputs", () => {
     expect(sent).not.toContain("gateway_wallet_provider");
   });
 
+  it("calls delete and assign with the session and the requested ids only", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [{ id: "task-1" }], error: null });
+    const admin = { rpc } as unknown as SupabaseClient;
+    const ctx = { userId: "user-1", organizationId: "org-1" };
+    const id = "11111111-1111-4111-8111-111111111111";
+    await listTaskSummary(admin, ctx, null);
+    await listTasks(admin, ctx, "pending");
+    await listTaskInitiative(admin, ctx);
+    await listTaskWorkload(admin, ctx, "week");
+    await listCompletedSteps(admin, ctx, "2026-10");
+    await deleteTask(admin, ctx, id);
+    await assignTask(admin, ctx, { id, employeeId: id, dueDate: "2026-11-02" });
+    expect(rpc).toHaveBeenNthCalledWith(6, "mcp_delete_task", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_id: id,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(7, "mcp_assign_task", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_id: id,
+      p_employee_id: id,
+      p_due_date: "2026-11-02",
+    });
+    const sent = JSON.stringify(rpc.mock.calls);
+    expect(sent).not.toContain("org-2");
+    expect(sent).not.toContain("comment");
+    expect(sent).not.toContain("file");
+    expect(sent).not.toContain("attachment");
+    expect(sent).not.toContain("email");
+    expect(sent).not.toContain("phone");
+  });
+
   it("schedules with the session user and hides the internal secret", async () => {
     const secret = "schedule-secret-value";
     const fetchImpl = vi.fn().mockResolvedValue({
@@ -580,6 +671,17 @@ describe("phase 0 tool inputs", () => {
     const updateIncome = readFileSync(new URL("../src/tools/finance/incomeUpdate.ts", import.meta.url), "utf8");
     const createExpense = readFileSync(new URL("../src/tools/finance/expensesCreate.ts", import.meta.url), "utf8");
     const updateExpense = readFileSync(new URL("../src/tools/finance/expensesUpdate.ts", import.meta.url), "utf8");
+    const taskSummary = readFileSync(new URL("../src/tools/tasks/summary.ts", import.meta.url), "utf8");
+    const taskList = readFileSync(new URL("../src/tools/tasks/list.ts", import.meta.url), "utf8");
+    const taskInitiative = readFileSync(new URL("../src/tools/tasks/initiativeList.ts", import.meta.url), "utf8");
+    const taskWorkload = readFileSync(new URL("../src/tools/tasks/workload.ts", import.meta.url), "utf8");
+    const completedSteps = readFileSync(new URL("../src/tools/tasks/completedList.ts", import.meta.url), "utf8");
+    const createTask = readFileSync(new URL("../src/tools/tasks/create.ts", import.meta.url), "utf8");
+    const updateTask = readFileSync(new URL("../src/tools/tasks/update.ts", import.meta.url), "utf8");
+    const deleteTaskSource = readFileSync(new URL("../src/tools/tasks/delete.ts", import.meta.url), "utf8");
+    const assignTaskSource = readFileSync(new URL("../src/tools/tasks/assign.ts", import.meta.url), "utf8");
+    const takeTask = readFileSync(new URL("../src/tools/tasks/take.ts", import.meta.url), "utf8");
+    const dailyTasks = readFileSync(new URL("../src/db/dailyTasks.ts", import.meta.url), "utf8");
     const identity = readFileSync(new URL("../src/db/identity.ts", import.meta.url), "utf8");
     const consent = readFileSync(new URL("../src/oauth/consent.ts", import.meta.url), "utf8");
     for (const source of [
@@ -611,6 +713,17 @@ describe("phase 0 tool inputs", () => {
       updateIncome,
       createExpense,
       updateExpense,
+      taskSummary,
+      taskList,
+      taskInitiative,
+      taskWorkload,
+      completedSteps,
+      createTask,
+      updateTask,
+      deleteTaskSource,
+      assignTaskSource,
+      takeTask,
+      dailyTasks,
     ]) {
       expect(source).not.toContain("createAdmin");
       expect(source).not.toContain("SERVICE_ROLE");

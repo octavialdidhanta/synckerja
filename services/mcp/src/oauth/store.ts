@@ -66,4 +66,5 @@ export interface GrantStore {
   insertRefresh(token: RefreshTokenRecord): Promise<void>;
   findRefresh(tokenHash: string): Promise<RefreshTokenRecord | null>;
   revokeRefresh(tokenHash: string, revokedAt: string): Promise<RefreshTokenRecord | null>;
+  supersedeOlderConnections(userId: string, organizationId: string, keepClientId: string): Promise<void>;
 }

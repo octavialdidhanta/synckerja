@@ -54,7 +54,7 @@ async function exchangeCode(
     throw new OAuthError("invalid_grant", "PKCE verification failed", 400);
   }
 
-  return issueTokenPair(
+  const issued = await issueTokenPair(
     config,
     store,
     {
@@ -67,6 +67,8 @@ async function exchangeCode(
     },
     now,
   );
+  await store.supersedeOlderConnections(row.userId, row.organizationId, row.clientId);
+  return issued;
 }
 
 async function exchangeRefresh(

@@ -15,6 +15,7 @@ export type AccessClaims = {
   scopes: string[];
   clientId: string;
   jti: string;
+  iat: number;
 };
 
 export type IssuedTokens = {
@@ -70,6 +71,7 @@ export async function verifyAccessToken(
     if (typeof payload.scope !== "string" || typeof payload.client_id !== "string" || typeof payload.jti !== "string") {
       return null;
     }
+    if (typeof payload.iat !== "number") return null;
     const employeeId = payload.employee_id;
     return {
       sub: payload.sub,
@@ -79,6 +81,7 @@ export async function verifyAccessToken(
       scopes: payload.scope.split(/\s+/).filter(Boolean),
       clientId: payload.client_id,
       jti: payload.jti,
+      iat: payload.iat,
     };
   } catch {
     return null;

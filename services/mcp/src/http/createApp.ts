@@ -17,6 +17,22 @@ import type {
 } from "../db/phase2Reads";
 import type { ExpenseRecord, IncomeRecord } from "../db/phase5Writes";
 import type { PayrollRunRow, PosDailySalesRow } from "../db/payrollPosReads";
+import type {
+  AssignTaskInput,
+  AssignTaskResult,
+  CompletedStepRow,
+  CreateTaskInput,
+  InitiativeRow,
+  TakeInitiativeInput,
+  TakeInitiativeResult,
+  TaskListRow,
+  TaskRecord,
+  TaskSummary,
+  UpdateTaskInput,
+  WorkloadRow,
+} from "../db/dailyTasks";
+import { isAccessRevoked } from "../authz/toolGate";
+import type { ToolCallOutcome } from "../db/toolGate";
 import { handleMcpRequest } from "../mcp/handler";
 import { beginAuthorization } from "../oauth/authorize";
 import { registerClient } from "../oauth/clients";
@@ -38,6 +54,9 @@ export type AppDeps = {
     organizationId: string,
   ) => Promise<{ profileId: string; employeeId: string | null } | null>;
   loadContext: (claims: AccessClaims) => Promise<McpAuthContext>;
+  accessRevokedAt: (claims: AccessClaims) => Promise<string | null>;
+  takeToolSlot: (ctx: McpAuthContext) => Promise<{ allowed: boolean; recordDenial: boolean }>;
+  recordToolCall: (ctx: McpAuthContext, toolName: string, outcome: ToolCallOutcome) => Promise<void>;
   listContentPlans: (ctx: McpAuthContext) => Promise<ContentPlanRow[]>;
   listContentCalendar: (ctx: McpAuthContext, month: string | null) => Promise<ContentPlanRow[]>;
   listOkrCycles: (ctx: McpAuthContext) => Promise<OkrCycleRow[]>;
@@ -137,6 +156,16 @@ export type AppDeps = {
       description: string | null;
     },
   ) => Promise<ExpenseRecord>;
+  listTaskSummary: (ctx: McpAuthContext, month: string | null) => Promise<TaskSummary>;
+  listTasks: (ctx: McpAuthContext, status: string | null) => Promise<TaskListRow[]>;
+  listTaskInitiative: (ctx: McpAuthContext) => Promise<InitiativeRow[]>;
+  listTaskWorkload: (ctx: McpAuthContext, timeframe: string | null) => Promise<WorkloadRow[]>;
+  listCompletedSteps: (ctx: McpAuthContext, month: string | null) => Promise<CompletedStepRow[]>;
+  createTask: (ctx: McpAuthContext, input: CreateTaskInput) => Promise<TaskRecord>;
+  updateTask: (ctx: McpAuthContext, input: UpdateTaskInput) => Promise<TaskRecord>;
+  deleteTask: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
+  assignTask: (ctx: McpAuthContext, input: AssignTaskInput) => Promise<AssignTaskResult>;
+  takeTaskInitiative: (ctx: McpAuthContext, input: TakeInitiativeInput) => Promise<TakeInitiativeResult>;
   now?: () => Date;
 };
 
@@ -179,6 +208,17 @@ function allowedOrigins(config: McpServiceConfig): string[] {
   return origins;
 }
 
+function unauthorized(config: McpServiceConfig): Response {
+  const metadataUrl = `${config.publicUrl}/.well-known/oauth-protected-resource`;
+  return new Response(JSON.stringify({ error: "unauthorized" }), {
+    status: 401,
+    headers: {
+      "Content-Type": "application/json",
+      "WWW-Authenticate": `Bearer realm="synckerja", resource_metadata="${metadataUrl}"`,
+    },
+  });
+}
+
 export function createApp(deps: AppDeps) {
   const app = new Hono();
   const now = () => deps.now?.() ?? new Date();
@@ -192,6 +232,8 @@ export function createApp(deps: AppDeps) {
       allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
     }),
   );
+
+  app.get("/health", (c) => c.json({ ok: true }));
 
   app.get("/.well-known/oauth-protected-resource", (c) => c.json(protectedResourceMetadata(deps.config)));
   app.get("/.well-known/oauth-protected-resource/mcp", (c) => c.json(protectedResourceMetadata(deps.config)));
@@ -266,15 +308,12 @@ export function createApp(deps: AppDeps) {
     const header = c.req.header("authorization") || "";
     const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
     const claims = token ? await verifyAccessToken(deps.config, token) : null;
-    if (!claims) {
-      const metadataUrl = `${deps.config.publicUrl}/.well-known/oauth-protected-resource`;
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401,
-        headers: {
-          "Content-Type": "application/json",
-          "WWW-Authenticate": `Bearer realm="synckerja", resource_metadata="${metadataUrl}"`,
-        },
-      });
+    if (!claims) return unauthorized(deps.config);
+    try {
+      const revokedAt = await deps.accessRevokedAt(claims);
+      if (isAccessRevoked(claims.iat, revokedAt)) return unauthorized(deps.config);
+    } catch {
+      return unauthorized(deps.config);
     }
     try {
       return await handleMcpRequest(c.req.raw, claims, deps);

@@ -261,4 +261,13 @@ export class SupabaseGrantStore implements GrantStore {
     if (error) throw new Error(error.message);
     return data ? refreshFromRow(data as RefreshRow) : null;
   }
+
+  async supersedeOlderConnections(userId: string, organizationId: string, keepClientId: string): Promise<void> {
+    const { error } = await this.admin.rpc("mcp_supersede_connections", {
+      p_user_id: userId,
+      p_organization_id: organizationId,
+      p_keep_client_id: keepClientId,
+    });
+    if (error) throw new Error(error.message);
+  }
 }
