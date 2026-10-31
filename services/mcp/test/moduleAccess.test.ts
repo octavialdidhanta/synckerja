@@ -155,3 +155,97 @@ describe("buildAuthContext", () => {
     expect(names).not.toContain("okr.objectives.list");
   });
 });
+
+const phase2Scopes = [
+  ...allScopes,
+  "ads:read",
+  "finance:read",
+  "hr:read",
+  "sales:read",
+  "kol:read",
+  "commerce:read",
+];
+
+const phase2Pages = [
+  { page_path: "/digital-marketing/social-media", roles_allowed: ["employee"] },
+  { page_path: "/digital-marketing/google-ads", roles_allowed: ["employee"] },
+  { page_path: "/incomes/transaction", roles_allowed: ["employee"] },
+  { page_path: "/expenses/dashboard", roles_allowed: ["employee"] },
+  { page_path: "/employees", roles_allowed: ["employee"] },
+  { page_path: "/operations/sales", roles_allowed: ["employee"] },
+  { page_path: "/kol-management/campaigns", roles_allowed: ["employee"] },
+  { page_path: "/kol-management/kol-management", roles_allowed: ["employee"] },
+  { page_path: "/operations/inventory", roles_allowed: ["employee"] },
+];
+
+describe("phase 2 tool visibility", () => {
+  it("hides phase 2 tools from a phase 1 token even when those pages are granted", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: allScopes },
+      configurations: phase2Pages,
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("content.plans.list");
+    expect(names).not.toContain("ads.accounts.list");
+    expect(names).not.toContain("finance.income.list");
+    expect(names).not.toContain("finance.expenses.list");
+    expect(names).not.toContain("hr.employees.list");
+    expect(names).not.toContain("sales.visits.list");
+    expect(names).not.toContain("kol.campaigns.list");
+    expect(names).not.toContain("kol.profiles.list");
+    expect(names).not.toContain("inventory.stock.list");
+  });
+
+  it("shows employees and hides finance and stock when only the employees page is granted", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase2Scopes },
+      configurations: [{ page_path: "/employees", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("session.whoami");
+    expect(names).toContain("hr.employees.list");
+    expect(names).not.toContain("finance.income.list");
+    expect(names).not.toContain("finance.expenses.list");
+    expect(names).not.toContain("inventory.stock.list");
+  });
+
+  it("shows ads accounts when any one ads page is granted", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase2Scopes },
+      configurations: [{ page_path: "/digital-marketing/tiktok-ads", roles_allowed: ["employee"] }],
+    });
+    expect(filterTools(ctx).map((tool) => tool.name)).toContain("ads.accounts.list");
+  });
+
+  it("hides income and expenses when the finance module is off and still allows whoami", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase2Scopes },
+      subscriptionSelfServiceEnabled: false,
+      salesRows: [
+        { module_key: "finance", is_enabled: false },
+        { module_key: "humanResources", is_enabled: true },
+        { module_key: "operations", is_enabled: true },
+        { module_key: "digitalMarketing", is_enabled: true },
+      ],
+      configurations: phase2Pages,
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("session.whoami");
+    expect(names).toContain("hr.employees.list");
+    expect(names).not.toContain("finance.income.list");
+    expect(names).not.toContain("finance.expenses.list");
+  });
+
+  it("hides data tools when the page matrix is empty", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase2Scopes },
+      configurations: [],
+    });
+    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(["session.whoami"]);
+  });
+});

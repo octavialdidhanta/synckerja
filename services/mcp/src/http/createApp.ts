@@ -5,6 +5,16 @@ import type { McpAuthContext } from "../authz/context";
 import { AuthzError } from "../authz/errors";
 import type { ContentPlanRow } from "../db/listContentPlans";
 import type { CrmLeadRow, OkrCycleRow, OkrObjectiveRow } from "../db/phase1Reads";
+import type {
+  AdsAccountRow,
+  EmployeeRow,
+  ExpenseRow,
+  IncomeRow,
+  KolCampaignRow,
+  KolProfileRow,
+  StockRow,
+  VisitRow,
+} from "../db/phase2Reads";
 import { handleMcpRequest } from "../mcp/handler";
 import { beginAuthorization } from "../oauth/authorize";
 import { registerClient } from "../oauth/clients";
@@ -30,6 +40,14 @@ export type AppDeps = {
   listOkrCycles: (ctx: McpAuthContext) => Promise<OkrCycleRow[]>;
   listOkrObjectives: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveRow[]>;
   listCrmLeads: (ctx: McpAuthContext, status: string | null) => Promise<CrmLeadRow[]>;
+  listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
+  listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
+  listExpenses: (ctx: McpAuthContext, month: string | null) => Promise<ExpenseRow[]>;
+  listEmployees: (ctx: McpAuthContext) => Promise<EmployeeRow[]>;
+  listCustomerVisits: (ctx: McpAuthContext, month: string | null) => Promise<VisitRow[]>;
+  listKolCampaigns: (ctx: McpAuthContext) => Promise<KolCampaignRow[]>;
+  listKolProfiles: (ctx: McpAuthContext) => Promise<KolProfileRow[]>;
+  listInventoryStock: (ctx: McpAuthContext) => Promise<StockRow[]>;
   now?: () => Date;
 };
 

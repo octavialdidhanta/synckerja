@@ -5,18 +5,44 @@ import { AuthzError } from "../authz/errors";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
 import type { CrmLeadRow, OkrCycleRow, OkrObjectiveRow } from "../db/phase1Reads";
+import type {
+  AdsAccountRow,
+  EmployeeRow,
+  ExpenseRow,
+  IncomeRow,
+  KolCampaignRow,
+  KolProfileRow,
+  StockRow,
+  VisitRow,
+} from "../db/phase2Reads";
 import type { AccessClaims } from "../oauth/tokens";
 import {
+  adsAccountsInput,
+  adsAccountsResult,
   calendarInput,
   calendarResult,
   contentPlansInput,
   contentPlansResult,
   cyclesInput,
   cyclesResult,
+  employeesInput,
+  employeesResult,
+  expensesInput,
+  expensesResult,
+  incomeInput,
+  incomeResult,
+  kolCampaignsInput,
+  kolCampaignsResult,
+  kolProfilesInput,
+  kolProfilesResult,
   leadsInput,
   leadsResult,
   objectivesInput,
   objectivesResult,
+  stockInput,
+  stockResult,
+  visitsInput,
+  visitsResult,
   whoamiInput,
   whoamiResult,
 } from "../tools";
@@ -29,6 +55,14 @@ export type McpReadDeps = {
   listOkrCycles: (ctx: McpAuthContext) => Promise<OkrCycleRow[]>;
   listOkrObjectives: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveRow[]>;
   listCrmLeads: (ctx: McpAuthContext, status: string | null) => Promise<CrmLeadRow[]>;
+  listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
+  listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
+  listExpenses: (ctx: McpAuthContext, month: string | null) => Promise<ExpenseRow[]>;
+  listEmployees: (ctx: McpAuthContext) => Promise<EmployeeRow[]>;
+  listCustomerVisits: (ctx: McpAuthContext, month: string | null) => Promise<VisitRow[]>;
+  listKolCampaigns: (ctx: McpAuthContext) => Promise<KolCampaignRow[]>;
+  listKolProfiles: (ctx: McpAuthContext) => Promise<KolProfileRow[]>;
+  listInventoryStock: (ctx: McpAuthContext) => Promise<StockRow[]>;
 };
 
 type HandlerDeps = McpReadDeps & {
@@ -64,6 +98,14 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "okr.cycles.list": cyclesInput,
   "okr.objectives.list": objectivesInput,
   "crm.leads.list": leadsInput,
+  "ads.accounts.list": adsAccountsInput,
+  "finance.income.list": incomeInput,
+  "finance.expenses.list": expensesInput,
+  "hr.employees.list": employeesInput,
+  "sales.visits.list": visitsInput,
+  "kol.campaigns.list": kolCampaignsInput,
+  "kol.profiles.list": kolProfilesInput,
+  "inventory.stock.list": stockInput,
 };
 
 async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, deps: McpReadDeps): Promise<unknown> {
@@ -80,6 +122,22 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
       return objectivesResult(ctx, optionalString(args.cycle_id), deps.listOkrObjectives);
     case "crm.leads.list":
       return leadsResult(ctx, optionalString(args.status), deps.listCrmLeads);
+    case "ads.accounts.list":
+      return adsAccountsResult(ctx, deps.listAdsAccounts);
+    case "finance.income.list":
+      return incomeResult(ctx, optionalString(args.month), deps.listIncomeTransactions);
+    case "finance.expenses.list":
+      return expensesResult(ctx, optionalString(args.month), deps.listExpenses);
+    case "hr.employees.list":
+      return employeesResult(ctx, deps.listEmployees);
+    case "sales.visits.list":
+      return visitsResult(ctx, optionalString(args.month), deps.listCustomerVisits);
+    case "kol.campaigns.list":
+      return kolCampaignsResult(ctx, deps.listKolCampaigns);
+    case "kol.profiles.list":
+      return kolProfilesResult(ctx, deps.listKolProfiles);
+    case "inventory.stock.list":
+      return stockResult(ctx, deps.listInventoryStock);
   }
 }
 

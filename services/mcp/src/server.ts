@@ -5,6 +5,16 @@ import { createAdmin } from "./db/admin";
 import { isActiveMember, loadConsentIdentity, verifySupabaseUser } from "./db/identity";
 import { listContentPlans } from "./db/listContentPlans";
 import { listContentCalendar, listCrmLeads, listOkrCycles, listOkrObjectives } from "./db/phase1Reads";
+import {
+  listAdsAccounts,
+  listCustomerVisits,
+  listEmployees,
+  listExpenses,
+  listIncomeTransactions,
+  listInventoryStock,
+  listKolCampaigns,
+  listKolProfiles,
+} from "./db/phase2Reads";
 import { createApp } from "./http/createApp";
 import { SupabaseGrantStore } from "./oauth/supabaseStore";
 
@@ -22,6 +32,14 @@ const app = createApp({
   listOkrCycles: (ctx) => listOkrCycles(admin, ctx),
   listOkrObjectives: (ctx, cycleId) => listOkrObjectives(admin, ctx, cycleId),
   listCrmLeads: (ctx, status) => listCrmLeads(admin, ctx, status),
+  listAdsAccounts: (ctx) => listAdsAccounts(admin, ctx),
+  listIncomeTransactions: (ctx, month) => listIncomeTransactions(admin, ctx, month),
+  listExpenses: (ctx, month) => listExpenses(admin, ctx, month),
+  listEmployees: (ctx) => listEmployees(admin, ctx),
+  listCustomerVisits: (ctx, month) => listCustomerVisits(admin, ctx, month),
+  listKolCampaigns: (ctx) => listKolCampaigns(admin, ctx),
+  listKolProfiles: (ctx) => listKolProfiles(admin, ctx),
+  listInventoryStock: (ctx) => listInventoryStock(admin, ctx),
 });
 
 serve({ fetch: app.fetch, port: config.port }, () => {

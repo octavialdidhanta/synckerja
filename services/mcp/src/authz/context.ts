@@ -11,8 +11,26 @@ export const CONTENT_PAGE_PATH = "/digital-marketing/social-media";
 export const CALENDAR_PAGE_PATH = "/digital-marketing/social-media/content-calendar";
 export const OKR_PAGE_PATH = "/okr";
 export const LEADS_PAGE_PATH = "/omnichannel/leads";
+export const GOOGLE_ADS_PAGE_PATH = "/digital-marketing/google-ads";
+export const META_ADS_PAGE_PATH = "/digital-marketing/meta-ads";
+export const TIKTOK_ADS_PAGE_PATH = "/digital-marketing/tiktok-ads";
+export const ADS_PAGE_PATHS = [GOOGLE_ADS_PAGE_PATH, META_ADS_PAGE_PATH, TIKTOK_ADS_PAGE_PATH] as const;
+export const INCOME_PAGE_PATH = "/incomes/transaction";
+export const EXPENSES_PAGE_PATH = "/expenses/dashboard";
+export const EMPLOYEES_PAGE_PATH = "/employees";
+export const VISITS_PAGE_PATH = "/operations/sales";
+export const KOL_CAMPAIGNS_PAGE_PATH = "/kol-management/campaigns";
+export const KOL_PROFILES_PAGE_PATH = "/kol-management/kol-management";
+export const INVENTORY_PAGE_PATH = "/operations/inventory";
 
-export const MCP_MODULE_KEYS = ["digitalMarketing", "okr", "omnichannel"] as const;
+export const MCP_MODULE_KEYS = [
+  "digitalMarketing",
+  "okr",
+  "omnichannel",
+  "finance",
+  "humanResources",
+  "operations",
+] as const;
 export type McpModuleKey = (typeof MCP_MODULE_KEYS)[number];
 
 export type McpAuthContext = {
@@ -72,7 +90,20 @@ export function buildAuthContext(input: {
     jobLevelId: input.jobLevelId,
     jobLevelName: input.jobLevelName,
   };
-  const pagePaths = [CONTENT_PAGE_PATH, CALENDAR_PAGE_PATH, OKR_PAGE_PATH, LEADS_PAGE_PATH];
+  const pagePaths = [
+    CONTENT_PAGE_PATH,
+    CALENDAR_PAGE_PATH,
+    OKR_PAGE_PATH,
+    LEADS_PAGE_PATH,
+    ...ADS_PAGE_PATHS,
+    INCOME_PAGE_PATH,
+    EXPENSES_PAGE_PATH,
+    EMPLOYEES_PAGE_PATH,
+    VISITS_PAGE_PATH,
+    KOL_CAMPAIGNS_PAGE_PATH,
+    KOL_PROFILES_PAGE_PATH,
+    INVENTORY_PAGE_PATH,
+  ];
 
   return {
     userId: input.claims.sub,
@@ -87,6 +118,9 @@ export function buildAuthContext(input: {
       digitalMarketing: isModuleEnabled("digitalMarketing", enablement),
       okr: isModuleEnabled("okr", enablement),
       omnichannel: isModuleEnabled("omnichannel", enablement),
+      finance: isModuleEnabled("finance", enablement),
+      humanResources: isModuleEnabled("humanResources", enablement),
+      operations: isModuleEnabled("operations", enablement),
     },
     pages: Object.fromEntries(
       pagePaths.map((path) => [path, evaluatePageAccess(path, input.configurations, subject, "deny")]),

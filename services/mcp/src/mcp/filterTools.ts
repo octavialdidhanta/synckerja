@@ -5,7 +5,9 @@ export function filterTools(ctx: McpAuthContext, tools: McpTool[] = MCP_TOOLS): 
   return tools.filter((tool) => {
     if (!tool.scopes.every((scope) => ctx.scopes.includes(scope))) return false;
     if (tool.moduleKey && !ctx.modules[tool.moduleKey]) return false;
-    if (tool.pagePath && ctx.pages[tool.pagePath] !== true) return false;
+    if (tool.pagePaths && tool.pagePaths.length > 0) {
+      if (!tool.pagePaths.some((path) => ctx.pages[path] === true)) return false;
+    } else if (tool.pagePath && ctx.pages[tool.pagePath] !== true) return false;
     return true;
   });
 }

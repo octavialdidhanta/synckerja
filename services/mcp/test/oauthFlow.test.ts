@@ -36,7 +36,14 @@ function contextFor(claims: AccessClaims): McpAuthContext {
     roles: ["employee"],
     scopes: claims.scopes,
     clientId: claims.clientId,
-    modules: { digitalMarketing: true, okr: true, omnichannel: true },
+    modules: {
+      digitalMarketing: true,
+      okr: true,
+      omnichannel: true,
+      finance: true,
+      humanResources: true,
+      operations: true,
+    },
     pages: {
       [CONTENT_PAGE_PATH]: true,
       [CALENDAR_PAGE_PATH]: true,
@@ -82,6 +89,14 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     listOkrCycles: async () => [],
     listOkrObjectives: async () => [],
     listCrmLeads: async () => [],
+    listAdsAccounts: async () => [],
+    listIncomeTransactions: async () => [],
+    listExpenses: async () => [],
+    listEmployees: async () => [],
+    listCustomerVisits: async () => [],
+    listKolCampaigns: async () => [],
+    listKolProfiles: async () => [],
+    listInventoryStock: async () => [],
   });
   return { app, listed };
 }
