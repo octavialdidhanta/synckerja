@@ -49,10 +49,13 @@ import {
   stockResult,
   updateLeadInput,
   updateLeadResult,
+  updateLeadSchema,
   updateObjectiveInput,
   updateObjectiveResult,
+  updateObjectiveSchema,
   updatePlanInput,
   updatePlanResult,
+  updatePlanSchema,
   visitsInput,
   visitsResult,
   whoamiInput,
@@ -162,11 +165,11 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "kol.profiles.list": kolProfilesInput,
   "inventory.stock.list": stockInput,
   "content.plans.create": createPlanInput,
-  "content.plans.update": updatePlanInput,
+  "content.plans.update": updatePlanSchema,
   "okr.objectives.create": createObjectiveInput,
-  "okr.objectives.update": updateObjectiveInput,
+  "okr.objectives.update": updateObjectiveSchema,
   "crm.leads.create": createLeadInput,
-  "crm.leads.update": updateLeadInput,
+  "crm.leads.update": updateLeadSchema,
 };
 
 async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, deps: McpReadDeps): Promise<unknown> {
@@ -210,6 +213,7 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
         deps.createContentPlan,
       );
     case "content.plans.update":
+      if (!updatePlanInput.safeParse(args).success) throw new Error("invalid_input");
       return updatePlanResult(
         ctx,
         {
@@ -232,6 +236,7 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
         deps.createCompanyObjective,
       );
     case "okr.objectives.update":
+      if (!updateObjectiveInput.safeParse(args).success) throw new Error("invalid_input");
       return updateObjectiveResult(
         ctx,
         {
@@ -256,6 +261,7 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
         deps.createLead,
       );
     case "crm.leads.update":
+      if (!updateLeadInput.safeParse(args).success) throw new Error("invalid_input");
       return updateLeadResult(
         ctx,
         {

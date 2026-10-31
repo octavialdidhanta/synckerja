@@ -7,7 +7,9 @@ import { leadsInput } from "../src/tools/crm/leadsList";
 import { createLeadInput } from "../src/tools/crm/leadsCreate";
 import { updateLeadInput } from "../src/tools/crm/leadsUpdate";
 import { createPlanInput } from "../src/tools/content/plansCreate";
-import { updatePlanInput } from "../src/tools/content/plansUpdate";
+import { updatePlanInput, updatePlanSchema } from "../src/tools/content/plansUpdate";
+import { updateObjectiveSchema } from "../src/tools/okr/objectivesUpdate";
+import { updateLeadSchema } from "../src/tools/crm/leadsUpdate";
 import { createObjectiveInput } from "../src/tools/okr/objectivesCreate";
 import { updateObjectiveInput } from "../src/tools/okr/objectivesUpdate";
 import { adsAccountsInput } from "../src/tools/ads/accountsList";
@@ -90,6 +92,9 @@ describe("phase 0 tool inputs", () => {
     expect(createPlanInput.safeParse({ title: "Launch", post_link: "https://example.com" }).success).toBe(false);
     expect(createPlanInput.safeParse({ title: "Launch", google_drive_link: "https://drive" }).success).toBe(false);
     expect(updatePlanInput.safeParse({ id: planId }).success).toBe(false);
+    expect(Object.keys(updatePlanSchema.shape)).toEqual(expect.arrayContaining(["id", "title", "post_date", "brief"]));
+    expect(Object.keys(updateObjectiveSchema.shape)).toEqual(expect.arrayContaining(["id", "level", "title", "status"]));
+    expect(Object.keys(updateLeadSchema.shape)).toEqual(expect.arrayContaining(["id", "client", "title", "fu_priority"]));
     expect(updatePlanInput.safeParse({ id: planId, title: "Rename" }).success).toBe(true);
     expect(createObjectiveInput.safeParse({
       cycle_id: planId,
