@@ -12,6 +12,11 @@ import {
 } from "./departmentPageAccessCache";
 import { buildEffectiveAccessRoles, hasOwnerRole } from "./accessRoleSet";
 import {
+  evaluatePageAccess,
+  normalizePagePath,
+  pageAccessConfigsToEvaluate,
+} from "./evaluatePageAccess";
+import {
   isSubscriptionModulePath,
   isSubscriptionSelfServiceEnabled,
 } from "@/10-subscription/shared/subscriptionSelfService";
@@ -82,14 +87,6 @@ export const useDepartmentAccess = () => {
       );
 
     const canAccessPage = (pagePath: string): boolean => {
-      const normalizePath = (p?: string) => {
-        if (!p) return "/";
-        let s = p.trim();
-        if (!s.startsWith("/")) s = "/" + s;
-        if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
-        return s.toLowerCase();
-      };
-
       const effForPath = buildEffectiveAccessRoles(organizationMemberRoles, userRole);
       const hasOwner = hasOwnerRole(effForPath, userRole);
 
@@ -112,7 +109,7 @@ export const useDepartmentAccess = () => {
         }
       }
 
-      const current = normalizePath(pagePath);
+      const current = normalizePagePath(pagePath);
       if (
         isSubscriptionModulePath(current) &&
         !isSubscriptionSelfServiceEnabled(organization?.subscription_self_service_enabled)
@@ -155,11 +152,9 @@ export const useDepartmentAccess = () => {
         return false;
       }
 
-      const currentPath = current;
-
       const verbosePermissions = import.meta.env.VITE_VERBOSE_PERMISSIONS === "true";
 
-      const cacheKey = `${currentPath}-${effForPath.slice().sort().join("|")}-${employee?.id || "no-emp"}`;
+      const cacheKey = `${current}-${effForPath.slice().sort().join("|")}-${employee?.id || "no-emp"}`;
       const cached = accessCache.get(cacheKey);
       if (
         cached &&
@@ -169,121 +164,42 @@ export const useDepartmentAccess = () => {
         return cached.result;
       }
 
-      const configMatchesPath = (configBase: string, path: string) =>
-        path === configBase || path.startsWith(`${configBase}/`);
-
-      const matchingConfigs = configurations
-        .filter((c) => {
-          const base = normalizePath(c.page_path);
-          if (configMatchesPath(base, currentPath)) return true;
-          if (currentPath === "/" && base === "/dashboard") return true;
-          return false;
-        })
-        .sort(
-          (a, b) => normalizePath(b.page_path).length - normalizePath(a.page_path).length,
-        );
-
-      const pickMostSpecific = (list: typeof matchingConfigs) => list[0];
-
-      let configsToEvaluate: typeof matchingConfigs;
-      if (currentPath === "/") {
-        const homeMatches = matchingConfigs
-          .filter((c) => {
-            const b = normalizePath(c.page_path);
-            return b === "/" || b === "/dashboard";
+      const employeeLevel = employee as
+        | (typeof employee & {
+            job_level_id?: string | null;
+            job_levels?: { id?: string; name?: string } | null;
           })
-          .sort(
-            (a, b) => normalizePath(b.page_path).length - normalizePath(a.page_path).length,
-          );
-        const exactRoot = homeMatches.filter((c) => normalizePath(c.page_path) === "/");
-        const legacyDashboard = homeMatches.filter(
-          (c) => normalizePath(c.page_path) === "/dashboard",
-        );
-        const homeConfig = pickMostSpecific(exactRoot) || pickMostSpecific(legacyDashboard);
-        configsToEvaluate = homeConfig ? [homeConfig] : [];
-      } else {
-        configsToEvaluate = matchingConfigs;
-      }
+        | null;
 
       if (isDev && verbosePermissions) {
         logger.debug(`PERMISSION DEBUG: ${pagePath}`, {
-          current: currentPath,
+          current,
           userRole,
           eff: effForPath,
-          configsToEvaluate,
+          configsToEvaluate: pageAccessConfigsToEvaluate(current, configurations),
         });
       }
 
-      // No row in Page Access matrix → do not lock/deny (only configured paths are restricted).
-      if (configsToEvaluate.length === 0) {
-        const result = true;
-        accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
-        return result;
-      }
-
-      const isExceptionPathForConfig = (cfg: (typeof matchingConfigs)[number]) =>
-        (cfg.exception_paths ?? []).some((exceptionPath) => {
-          const ex = normalizePath(exceptionPath);
-          return current === ex || current.startsWith(`${ex}/`);
-        });
-
-      if (configsToEvaluate.some(isExceptionPathForConfig)) {
-        const result = true;
-        accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
-        return result;
-      }
-
-      if (hasOwnerRole(effForPath, userRole)) {
-        const result = true;
-        accessCache.set(cacheKey, { result, timestamp: Date.now(), configHash });
-        return result;
-      }
-
-      const configAllowsUser = (config: (typeof matchingConfigs)[number]): boolean => {
-        if (config.is_active === false) return false;
-
-        if (effForPath.length === 0) return false;
-
-        const allowedInConfig = (config.roles_allowed || []).map((r) => (r || "").toLowerCase().trim());
-        const hasRoleAccess = effForPath.some((r) => allowedInConfig.includes(r));
-
-        const isException =
-          !!employee?.id && (config.exceptions || []).includes(employee.id);
-
-        let finalResult = hasRoleAccess || isException;
-
-        const allowedJobLevels = (config.job_levels_allowed || [])
-          .map((l) => (l || "").toLowerCase().trim())
-          .filter(Boolean);
-        if (finalResult && allowedJobLevels.length > 0 && !isException) {
-          const emp = employee as
-            | (typeof employee & {
-                job_level_id?: string | null;
-                job_levels?: { id?: string; name?: string } | null;
-              })
-            | null;
-          const levelId = (emp?.job_level_id || emp?.job_levels?.id || "").toLowerCase();
-          const levelName = (emp?.job_levels?.name || "").toLowerCase();
-          const levelMatches = allowedJobLevels.some(
-            (token) =>
-              (levelId && token === levelId) || (levelName && token === levelName),
-          );
-          finalResult = levelMatches;
-        }
-
-        return finalResult;
-      };
-
-      // Hierarchical paths: every matching ancestor must allow (e.g. `/omnichannel` off blocks `/omnichannel/settings/...`).
-      const finalResult = configsToEvaluate.every(configAllowsUser);
+      const result = evaluatePageAccess(
+        current,
+        configurations,
+        {
+          roles: organizationMemberRoles,
+          primaryRole: userRole,
+          employeeId: employee?.id ?? null,
+          jobLevelId: employeeLevel?.job_level_id || employeeLevel?.job_levels?.id || null,
+          jobLevelName: employeeLevel?.job_levels?.name || null,
+        },
+        "allow",
+      );
 
       accessCache.set(cacheKey, {
-        result: finalResult,
+        result,
         timestamp: Date.now(),
         configHash,
       });
 
-      return finalResult;
+      return result;
     };
 
     const hasAccessToAnySubPath = (basePath: string, subPaths: string[]): boolean => {

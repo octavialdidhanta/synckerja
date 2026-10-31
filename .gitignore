@@ -23,9 +23,11 @@ dist-ssr
 # TypeScript incremental cache (e.g. after `tsc --build`)
 *.tsbuildinfo
 
-# Env (keep secrets out of git)
+# Env (keep secrets out of git). Example files stay in the repo.
 .env
 .env.*
+!.env.example
+!.env.example
 
 # Cursor agent scratch (not source)
 .cursor/_payroll*

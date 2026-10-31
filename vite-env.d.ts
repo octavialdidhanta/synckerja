@@ -28,6 +28,8 @@ interface ImportMetaEnv {
   readonly VITE_THREADS_APP_ID?: string;
   /** Optional override when Meta whitelist differs from window.location.origin (must match opener origin for popup). */
   readonly VITE_THREADS_OAUTH_REDIRECT_URI?: string;
+  /** Origin of the MCP gateway. Consent posts the chosen organization here. */
+  readonly VITE_MCP_PUBLIC_URL?: string;
 }
 
 declare module "*.json" {

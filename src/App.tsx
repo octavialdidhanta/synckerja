@@ -552,6 +552,9 @@ const CompanyOrganizationPage = lazy(() => import("@/2-8-organization/pages/Comp
 const LoginRouteElement = lazy(() =>
   import("@/shared/components/mobile/authOnboardingRouteElements").then((m) => ({ default: m.LoginRouteElement })),
 );
+const OAuthConsentRouteElement = lazy(() =>
+  import("@/0-auth/oauth-consent/OAuthConsentPage").then((m) => ({ default: m.OAuthConsentPage })),
+);
 /** Single Suspense boundary for POS auth — child steps are eager inside the chunk. */
 const PosAuthFunnelApp = lazy(() => import("@/pos-mobile/0-auth/PosAuthFunnelApp"));
 const PosCashierPage = lazy(() => import("@/pos-mobile/2-cashier/pages/PosCashierPage"));
@@ -3732,6 +3735,7 @@ const App = () => (
                   <Suspense fallback={<AppRoutesSuspenseFallback />}>
                     <Routes>
                   <Route path="/login" element={<LoginRouteElement />} />
+                  <Route path="/oauth/consent" element={<OAuthConsentRouteElement />} />
                   <Route path="/pos/*" element={<PosAuthFunnelApp />} />
                   <Route path="/login/mfa" element={<MfaVerifyRouteElement />} />
                   <Route path="/first-login" element={<FirstLoginRouteElement />} />

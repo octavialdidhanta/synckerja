@@ -147,7 +147,7 @@ export function BriefImagePromptDialog({
       onClose();
     } catch (error) {
       console.error(error);
-      if (isGeminiBillingNoticeError(error)) return;
+      if (isGeminiSpendCapError(error)) return;
       const message = error instanceof Error ? error.message : t("briefDialog.layout.generateFailed", "Image generation failed.");
       toast.error(message);
     } finally {
