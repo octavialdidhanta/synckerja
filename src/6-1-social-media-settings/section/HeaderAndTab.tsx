@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, BookOpen, Settings, FileText, Lock } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, Settings, FileText, Lock, Sparkles } from 'lucide-react';
 import { useHeaderTabPageAccess } from '@/shared/auth/page-access/useHeaderTabPageAccess';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
@@ -45,6 +45,14 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
       route: '/digital-marketing/social-media/script-generator'
     },
     {
+      id: 'thinking-lab',
+      label: 'Thinking Lab',
+      icon: Sparkles,
+      description: 'Confirm one Master Thought, then keep distinct material supports.',
+      route: '/digital-marketing/social-media/thinking-lab',
+      accessPath: '/thinking-lab'
+    },
+    {
       id: 'settings',
       label: 'Settings',
       icon: Settings,
@@ -68,6 +76,9 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
     if (location.pathname.includes('script-generator')) {
       return 'script-generator';
     }
+    if (location.pathname.includes('thinking-lab')) {
+      return 'thinking-lab';
+    }
     if (location.pathname.includes('settings')) {
       return 'settings';
     }
@@ -88,7 +99,7 @@ export const HeaderAndTab = ({ activeMainTab, handleTabChange }: HeaderAndTabPro
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = getActiveTab() === tab.id;
-            const locked = isTabLocked(tab.route);
+            const locked = isTabLocked("accessPath" in tab && tab.accessPath ? tab.accessPath : tab.route);
 
             return (
               <div

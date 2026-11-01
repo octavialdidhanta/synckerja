@@ -156,7 +156,7 @@ export const mainNavItems: MainNavItem[] = [
       {
         titleKey: "sidebar.digitalMarketing.socialMedia.title",
         path: "/digital-marketing/social-media/dashboard",
-        activePathPrefixes: ["/digital-marketing/social-media"],
+        activePathPrefixes: ["/digital-marketing/social-media", "/thinking-lab"],
       },
       {
         titleKey: "sidebar.digitalMarketing.leadMagnet.title",
@@ -184,11 +184,6 @@ export const mainNavItems: MainNavItem[] = [
         titleKey: "sidebar.digitalMarketing.kolManagement.title",
         path: "/kol-management/dashboard",
         activePathPrefixes: ["/kol-management"],
-      },
-      {
-        titleKey: "sidebar.digitalMarketing.thinkingLab.title",
-        path: "/thinking-lab",
-        activePathPrefixes: ["/thinking-lab"],
       },
     ],
   },

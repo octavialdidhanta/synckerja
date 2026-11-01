@@ -1109,6 +1109,10 @@ function AppRoutes() {
               />
               <Route
                 path="/thinking-lab"
+                element={<Navigate to="/digital-marketing/social-media/thinking-lab" replace />}
+              />
+              <Route
+                path="/digital-marketing/social-media/thinking-lab"
                 element={
                   <PageAccessGuard
                     pagePath="/thinking-lab"
@@ -4082,15 +4086,7 @@ const App = () => (
                         />
                         <Route
                           path="/thinking-lab"
-                          element={
-                            <PageAccessGuard
-                              pagePath="/thinking-lab"
-                              loadingShell={<ThinkingLabPageSkeleton />}
-                              loadingShellWrapperClassName="bg-gray-100"
-                            >
-                              <ThinkingLabRouteElement />
-                            </PageAccessGuard>
-                          }
+                          element={<Navigate to="/digital-marketing/social-media/thinking-lab" replace />}
                         />
                         <Route
                           path="/employees"
@@ -5509,6 +5505,18 @@ const App = () => (
                               <SocialMediaScriptGeneratorSuspense>
                                 <SocialMediaScriptGeneratorPage />
                               </SocialMediaScriptGeneratorSuspense>
+                            </PageAccessGuard>
+                          }
+                        />
+                        <Route
+                          path="/digital-marketing/social-media/thinking-lab"
+                          element={
+                            <PageAccessGuard
+                              pagePath="/thinking-lab"
+                              loadingShell={<ThinkingLabPageSkeleton />}
+                              loadingShellWrapperClassName="bg-gray-100"
+                            >
+                              <ThinkingLabRouteElement />
                             </PageAccessGuard>
                           }
                         />

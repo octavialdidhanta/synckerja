@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { ClipboardCheck, Loader2, MoreVertical, Sparkles } from "lucide-react";
+import { ArrowRight, ClipboardCheck, Loader2, MoreVertical, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -21,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
 import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
@@ -437,6 +439,7 @@ import { ExecutionScriptPanel, ExecutionScriptTable, type CharacterGenerateState
 import type { CharacterStudioTab } from "@/thinking-lab/section/CharacterVisualStudio";
 import { CharacterSheetError, copyStoredCharacterVisual, generateCharacterVisuals, removeCharacterVisual, storeCharacterVisual } from "@/thinking-lab/execution/generateCharacterVisual";
 import { invalidateContentPillarQueries } from "@/6-1-dashboard/lib/contentPillarTracker";
+import { HeaderAndTab } from "@/6-1-content-calendar/container/HeaderAndTab";
 import { SaveToPlanModal } from "@/6-1-script-generator/components/SaveToPlanModal";
 import { PillarPickerSheet, type ExecutionSettingsDirect } from "@/thinking-lab/section/PillarPickerSheet";
 import { ExecutionConfirmDialog } from "@/thinking-lab/section/ExecutionConfirmDialog";
@@ -477,8 +480,41 @@ function ideaLiveReport(
   return { gate: latest.id, phase: "checked", outcome: "unverified" };
 }
 
+function TruncatedBeliefLine({ text, className }: { text: string; className?: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [overflow, setOverflow] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setOverflow(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text]);
+
+  return (
+    <Tooltip {...(overflow ? {} : { open: false })}>
+      <TooltipTrigger asChild>
+        <p
+          ref={ref}
+          tabIndex={overflow ? 0 : undefined}
+          className={cn("mt-1 block min-w-0 max-w-full truncate outline-none", overflow && "cursor-help", className)}
+        >
+          {text}
+        </p>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-md whitespace-normal break-words text-left">
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function ThinkingLabPage() {
   const { t } = useAppTranslation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const masters = useMasterThought();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -8052,30 +8088,32 @@ export function ThinkingLabPage() {
       ? (pillarCardsFor(focusedIdea).find((card) => card.contentPillarId === focus.contentPillarId) ?? null)
       : null;
 
+  const handleTabChange = (newTab: string) => {
+    navigate(`/digital-marketing/social-media/${newTab}`);
+  };
+
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
       <div className={cn("flex min-h-0 min-w-0 w-full flex-1", !showContent && "pointer-events-none invisible select-none")} aria-hidden={!showContent}>
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 pb-2">
-          <div className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-muted/40">
-                <div className="mb-1 flex shrink-0 items-start justify-between gap-3 py-2">
-                  <div className="min-w-0">
-                    <h1 className="text-lg font-semibold text-foreground">{t("thinkingLab.page.title", "Thinking Lab")}</h1>
-                    <p className="text-sm text-muted-foreground">
-                      {t("thinkingLab.page.subtitle", "Confirm one Master Thought, then keep distinct material supports.")}
-                    </p>
-                  </div>
-                  {hasMasters && !composerOpen ? (
-                    <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => setComposerOpen(true)}>
-                      {t("thinkingLab.action.newMaster", "New Master Thought")}
-                    </Button>
-                  ) : null}
-                  {hasMasters && composerOpen ? (
-                    <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={closeComposer}>
-                      {t("thinkingLab.action.closeComposer", "Close")}
-                    </Button>
-                  ) : null}
-                </div>
-                <ModuleShellContentGate pagePath="/thinking-lab">
+          <div className="relative mb-1 flex-shrink-0">
+            <HeaderAndTab activeMainTab="thinking-lab" handleTabChange={handleTabChange} />
+            {hasMasters ? (
+              <div className="absolute right-1 top-3 z-20">
+                {!composerOpen ? (
+                  <Button type="button" size="sm" variant="outline" onClick={() => setComposerOpen(true)}>
+                    {t("thinkingLab.action.newMaster", "New Master Thought")}
+                  </Button>
+                ) : (
+                  <Button type="button" size="sm" variant="ghost" onClick={closeComposer}>
+                    {t("thinkingLab.action.closeComposer", "Close")}
+                  </Button>
+                )}
+              </div>
+            ) : null}
+          </div>
+          <div className="mt-0 flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
+                <ModuleShellContentGate pagePath="/thinking-lab" className="mt-0 flex min-h-0 min-w-0 flex-1 flex-col">
                   {scriptTableOpen && focusedExecution?.script ? (
                     <ExecutionScriptTable
                       pillarName={focusedExecution.pillarName}
@@ -8103,20 +8141,25 @@ export function ThinkingLabPage() {
                       <div className={LAB_LEFT_SECTION}>
                         <div className={LAB_MT_CARD}>
                           {!showComposer && selected?.priorBelief ? (
-                            <div className="flex shrink-0 flex-col gap-3 border-b border-white/15 bg-brand-blue px-5 py-4 text-white">
-                              <div className="min-w-0">
-                                <p className="text-[11px] leading-4 text-white">
+                            <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch border-b border-white/15 bg-brand-blue text-white">
+                              <div className="min-w-0 px-5 py-3">
+                                <p className="text-[11px] leading-4 text-white/80">
                                   {t("thinkingLab.master.shiftFrom", "Keyakinan lama yang mau digeser")}
                                 </p>
-                                <p className="mt-1 max-w-[46rem] whitespace-normal break-words text-sm leading-snug text-white">{selected.priorBelief}</p>
+                                <TruncatedBeliefLine text={selected.priorBelief} className="text-sm leading-snug text-white" />
                               </div>
-                              <div className="min-w-0">
-                                <p className="text-[11px] leading-4 text-white">
-                                  {t("thinkingLab.tree.masterThought", "Master Thought")}:
+                              <div className="flex items-center gap-3 py-3" aria-hidden>
+                                <span className="w-px self-stretch bg-white/40" />
+                                <ArrowRight className="h-4 w-4 shrink-0 text-white" />
+                              </div>
+                              <div className="min-w-0 px-5 py-3">
+                                <p className="text-[11px] leading-4 text-white/80">
+                                  {t("thinkingLab.tree.masterThought", "Master Thought")}
                                 </p>
-                                <p className="mt-1 max-w-[46rem] whitespace-normal break-words text-sm font-medium leading-snug text-white">
-                                  {selected.statement || selected.originalInput}
-                                </p>
+                                <TruncatedBeliefLine
+                                  text={selected.statement || selected.originalInput}
+                                  className="text-sm font-medium leading-snug text-white"
+                                />
                               </div>
                             </div>
                           ) : null}

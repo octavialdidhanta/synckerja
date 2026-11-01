@@ -484,6 +484,8 @@ function prefetchSocialMediaModuleTabs(): void {
       ),
     () => import("@/6-1-product-knowledge/ProductKnowledgePage"),
     () => import("@/6-1-script-generator/ScriptGeneratorPage"),
+    () =>
+      import("@/thinking-lab/page/ThinkingLabPage").then((module) => ({ default: module.ThinkingLabPage })),
     () => import("@/6-1-social-media-settings/SettingsPage"),
   ];
   for (const fn of fns) void fn();
