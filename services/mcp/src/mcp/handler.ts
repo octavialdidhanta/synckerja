@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import type { ZodRawShape, ZodTypeAny } from "zod";
+import { z, type ZodRawShape, type ZodTypeAny } from "zod";
 import { AuthzError } from "../authz/errors";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
@@ -389,6 +389,16 @@ async function reload(deps: HandlerDeps, claims: AccessClaims): Promise<McpAuthC
     if (error instanceof AuthzError) return null;
     throw error;
   }
+}
+
+/** SDK `registerTool` wraps this shape with `z.object`. Passing the Zod object itself drops `plan_month`. */
+export function publishedToolShape(schema: ZodTypeAny): ZodRawShape {
+  if (schema instanceof z.ZodObject) return schema.shape;
+  if (schema instanceof z.ZodEffects) {
+    const inner = schema.innerType();
+    if (inner instanceof z.ZodObject) return inner.shape;
+  }
+  throw new Error("invalid_tool_schema");
 }
 
 const toolInputs: Record<McpToolName, ZodTypeAny> = {
@@ -822,7 +832,7 @@ export async function handleMcpRequest(
   for (const tool of filterTools(ctx)) {
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: toolInputs[tool.name] as unknown as ZodRawShape },
+      { description: tool.description, inputSchema: publishedToolShape(toolInputs[tool.name]) },
       async (args) => {
         const slot = await deps.takeToolSlot(ctx);
         if (!slot.allowed) {

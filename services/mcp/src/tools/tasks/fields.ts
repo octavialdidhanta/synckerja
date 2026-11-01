@@ -10,7 +10,13 @@ export const taskDue = z
   .string()
   .refine((value) => dayPattern.test(value) && isCalendarDay(value))
   .describe("Due date as YYYY-MM-DD. It may fall in a different month from plan_month.");
-export const taskPlanMonth = z.string().trim().min(1).max(7);
+export const taskPlanMonth = z
+  .string()
+  .trim()
+  .min(1)
+  .max(7)
+  .refine((value) => monthPattern.test(value))
+  .describe("Plan month as YYYY-MM. It is independent of due_date and may be a different month.");
 export const taskListMonth = taskPlanMonth.refine((value) => monthPattern.test(value));
 export const taskId = z.string().uuid();
 

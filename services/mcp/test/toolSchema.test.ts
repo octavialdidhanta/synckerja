@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -52,6 +53,7 @@ import { taskListInput } from "../src/tools/tasks/list";
 import { taskInitiativeInput } from "../src/tools/tasks/initiativeList";
 import { taskWorkloadInput } from "../src/tools/tasks/workload";
 import { completedStepsInput } from "../src/tools/tasks/completedList";
+import { publishedToolShape } from "../src/mcp/handler";
 import { createTaskInput, createTaskResult } from "../src/tools/tasks/create";
 import { assertPlanMonth } from "../src/tools/tasks/fields";
 import { updateTaskInput, updateTaskResult, updateTaskSchema } from "../src/tools/tasks/update";
@@ -341,13 +343,32 @@ describe("phase 0 tool inputs", () => {
     expect(createTaskInput.safeParse({ title: "Follow up" }).success).toBe(false);
     expect(createTaskInput.safeParse({ title: "Follow up", plan_month: "2026-11" }).success).toBe(true);
     expect(createTaskInput.safeParse({ title: "Follow up", plan_month: "2026-11-27" }).success).toBe(false);
+    expect(createTaskInput.safeParse({ title: "Follow up", plan_month: "2026-13" }).success).toBe(false);
+    expect(createTaskInput.safeParse({
+      title: "Tes Task List - Validasi Planned Month",
+      plan_month: "2026-11",
+      due_date: "2026-12-01",
+      priority: "low",
+    }).success).toBe(true);
+    const planMonthSchema = {
+      type: "string",
+      minLength: 1,
+      maxLength: 7,
+      description: "Plan month as YYYY-MM. It is independent of due_date and may be a different month.",
+    };
     const createSchema = zodToJsonSchema(createTaskInput) as {
       properties: Record<string, { type?: string; pattern?: string; description?: string; minLength?: number; maxLength?: number }>;
       required?: string[];
     };
     expect(createSchema.required).toEqual(["title", "plan_month"]);
-    expect(createSchema.properties.plan_month).toEqual({ type: "string", minLength: 1, maxLength: 7 });
+    expect(createSchema.required).not.toContain("due_date");
+    expect(createSchema.properties.plan_month).toEqual(planMonthSchema);
     expect(JSON.stringify(createSchema)).not.toContain("pattern");
+    const published = zodToJsonSchema(z.object(publishedToolShape(createTaskInput))) as typeof createSchema;
+    expect(published.required).toEqual(["title", "plan_month"]);
+    expect(published.required).not.toContain("due_date");
+    expect(published.properties.plan_month).toEqual(planMonthSchema);
+    expect(published.properties.due_date?.type).toBe("string");
     expect(assertPlanMonth("2026-11")).toBeUndefined();
     expect(() => assertPlanMonth("2026-13")).toThrow("invalid_input");
     expect(createSchema.properties.due_date?.pattern).toBeUndefined();
@@ -386,7 +407,12 @@ describe("phase 0 tool inputs", () => {
       properties: Record<string, { type?: string; pattern?: string; minLength?: number; maxLength?: number }>;
       required?: string[];
     };
-    expect(updateSchema.properties.plan_month).toEqual({ type: "string", minLength: 1, maxLength: 7 });
+    expect(updateSchema.properties.plan_month).toEqual({
+      type: "string",
+      minLength: 1,
+      maxLength: 7,
+      description: "Plan month as YYYY-MM. It is independent of due_date and may be a different month.",
+    });
     expect(updateSchema.required ?? []).toEqual(["id"]);
     expect(updateTaskSchema.safeParse({ id: taskId, status: "completed" }).success).toBe(false);
     expect(Object.keys(updateTaskSchema.shape)).toEqual(["id", "title", "priority", "due_date", "plan_month"]);
