@@ -378,6 +378,40 @@ BEGIN
     RAISE EXCEPTION 'plan door set an approval flag';
   END IF;
 
+  PERFORM set_config('request.jwt.claim.sub', v_member::text, true);
+  PERFORM set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_member, 'role', 'authenticated')::text,
+    true
+  );
+  PERFORM pg_temp.assert_denied(
+    format(
+      'UPDATE public.social_media_plans SET brief = %L WHERE id = %L',
+      'Brief curian', v_plan
+    ),
+    'Only the PIC can edit brief content'
+  );
+
+  INSERT INTO public.ai_employee_brief_tickets (plan_id, token)
+  VALUES (v_plan, 'tiket-asli');
+  PERFORM set_config('ai_employee.brief_write', 'tiket-palsu', true);
+  PERFORM pg_temp.assert_denied(
+    format(
+      'UPDATE public.social_media_plans SET brief = %L WHERE id = %L',
+      'Brief tiket palsu', v_plan
+    ),
+    'Only the PIC can edit brief content'
+  );
+  PERFORM set_config('ai_employee.brief_write', '', true);
+  DELETE FROM public.ai_employee_brief_tickets WHERE plan_id = v_plan;
+
+  IF EXISTS (
+    SELECT 1 FROM public.social_media_plans
+    WHERE id = v_plan AND brief IS DISTINCT FROM 'Uji pintu'
+  ) THEN
+    RAISE EXCEPTION 'non-PIC or forged ticket changed the brief';
+  END IF;
+
   PERFORM public.ai_employee_perform(
     v_ai, v_run, 'content.briefs.create',
     jsonb_build_object('plan_id', v_plan, 'brief', 'Brief uji')

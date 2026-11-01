@@ -18,8 +18,6 @@ BEGIN
     EXECUTE 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM ai_employee_runner';
     EXECUTE 'REVOKE USAGE ON SCHEMA public FROM ai_employee_runner';
     EXECUTE 'REVOKE ai_employee_runner FROM authenticator';
+    DROP ROLE ai_employee_runner;
   END IF;
 END $$;
-
--- DROP ROLE tidak boleh berada di dalam blok DO.
-DROP ROLE IF EXISTS ai_employee_runner;

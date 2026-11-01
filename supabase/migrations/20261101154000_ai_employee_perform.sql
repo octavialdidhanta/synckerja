@@ -2,37 +2,13 @@
 -- Role hanya menerima EXECUTE. Tidak ada SELECT tabel dan tidak BYPASSRLS.
 -- service_role tidak menerima EXECUTE. Cadangan itu diputuskan di step 6.
 
--- CREATE ROLE tidak boleh di dalam transaksi migration.
--- dblink menjalankan perintah itu di koneksi terpisah, lalu GRANT tetap di file ini.
-CREATE SCHEMA IF NOT EXISTS extensions;
-
+-- CREATE ROLE boleh di dalam transaksi. Dokumentasi Postgres hanya melarang
+-- perintah yang disebut eksplisit, misalnya CREATE DATABASE.
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'dblink') THEN
-    CREATE EXTENSION dblink SCHEMA extensions;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ai_employee_runner') THEN
+    CREATE ROLE ai_employee_runner NOLOGIN NOINHERIT;
   END IF;
-END $$;
-
-DO $$
-DECLARE
-  v_schema text;
-  v_ignored text;
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ai_employee_runner') THEN
-    RETURN;
-  END IF;
-
-  SELECT n.nspname INTO v_schema
-  FROM pg_extension e
-  JOIN pg_namespace n ON n.oid = e.extnamespace
-  WHERE e.extname = 'dblink';
-
-  EXECUTE format(
-    'SELECT %I.dblink_exec(%L, %L)',
-    v_schema,
-    'dbname=postgres user=postgres',
-    'CREATE ROLE ai_employee_runner NOLOGIN NOINHERIT'
-  ) INTO v_ignored;
 END $$;
 
 ALTER ROLE ai_employee_runner NOBYPASSRLS;
@@ -512,6 +488,8 @@ BEGIN
     RETURN;
   END IF;
 
+  -- Penyebut sementara: run SOP1 yang sudah ditutup. Penyebut yang benar adalah
+  -- minggu yang dijadwalkan. Itu diperbaiki di step 5 saat instance jadwal ada.
   SELECT
     COUNT(*) FILTER (
       WHERE status IN ('succeeded', 'late', 'failed', 'deferred', 'returned')
@@ -693,6 +671,7 @@ DECLARE
   v_post timestamptz;
   v_order integer;
   v_entity text;
+  v_brief_token text;
 BEGIN
   v_org := public.ai_employee_require_run(p_employee_id, p_run_id);
 
@@ -829,10 +808,12 @@ BEGIN
       IF v_brief IS NULL THEN
         RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
       END IF;
-      -- guard_social_media_plan_brief_pic menolak perubahan brief jika auth.uid()
-      -- bukan PIC. Karyawan AI tidak punya user_id, jadi pemicu itu dimatikan
-      -- hanya untuk pernyataan ini. Perubahan tetap ikut rollback transaksi.
-      ALTER TABLE public.social_media_plans DISABLE TRIGGER social_media_plans_brief_pic_guard;
+      v_brief_token := gen_random_uuid()::text;
+      INSERT INTO public.ai_employee_brief_tickets (plan_id, token)
+      VALUES (v_id, v_brief_token)
+      ON CONFLICT (plan_id) DO UPDATE
+        SET token = EXCLUDED.token, created_at = now();
+      PERFORM set_config('ai_employee.brief_write', v_brief_token, true);
       UPDATE public.social_media_plans
       SET brief = v_brief,
           production_status = 'Need Review',
@@ -840,7 +821,9 @@ BEGIN
           production_approved = false,
           updated_at = now()
       WHERE id = v_id;
-      ALTER TABLE public.social_media_plans ENABLE TRIGGER social_media_plans_brief_pic_guard;
+      DELETE FROM public.ai_employee_brief_tickets
+      WHERE plan_id = v_id AND token = v_brief_token;
+      PERFORM set_config('ai_employee.brief_write', '', true);
     ELSE
       IF jsonb_exists(v_payload, 'title') THEN
         v_title := NULLIF(btrim(v_payload->>'title'), '');
@@ -862,7 +845,12 @@ BEGIN
           RAISE EXCEPTION 'invalid_input' USING ERRCODE = '22023';
         END IF;
       END IF;
-      ALTER TABLE public.social_media_plans DISABLE TRIGGER social_media_plans_brief_pic_guard;
+      v_brief_token := gen_random_uuid()::text;
+      INSERT INTO public.ai_employee_brief_tickets (plan_id, token)
+      VALUES (v_id, v_brief_token)
+      ON CONFLICT (plan_id) DO UPDATE
+        SET token = EXCLUDED.token, created_at = now();
+      PERFORM set_config('ai_employee.brief_write', v_brief_token, true);
       UPDATE public.social_media_plans
       SET title = COALESCE(v_title, title),
           brief = CASE WHEN jsonb_exists(v_payload, 'brief') THEN v_payload->>'brief' ELSE brief END,
@@ -874,7 +862,9 @@ BEGIN
           production_approved = false,
           updated_at = now()
       WHERE id = v_id;
-      ALTER TABLE public.social_media_plans ENABLE TRIGGER social_media_plans_brief_pic_guard;
+      DELETE FROM public.ai_employee_brief_tickets
+      WHERE plan_id = v_id AND token = v_brief_token;
+      PERFORM set_config('ai_employee.brief_write', '', true);
     END IF;
 
     RETURN jsonb_build_object('ok', true, 'id', v_id);
