@@ -1,7 +1,7 @@
-import { claimMaterialLines } from "@/thinking-lab/execution/confirm";
-import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
-import { everydaySpeechJudgeRules, everydaySpeechWriterRules, parseExecutionPassCheck, storedPassChecks } from "@/thinking-lab/execution/passChecklist";
-import type { ImageSettings, VoiceOverScript } from "@/thinking-lab/execution/script";
+import { claimMaterialLines } from "./confirm";
+import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
+import { everydaySpeechJudgeRules, everydaySpeechWriterRules, parseExecutionPassCheck, storedPassChecks } from "./passChecklist";
+import type { ImageSettings, VoiceOverScript } from "./script";
 import {
   isFailedMeaningAudit,
   type ExecutionAuditLesson,
@@ -10,7 +10,7 @@ import {
   type ExecutionRelation,
   type ExecutionSemanticFacts,
   type ExecutionTriState,
-} from "@/thinking-lab/execution/types";
+} from "./types";
 
 export const IMAGE_PASS_CHECK_IDS = [
   "imageShape",

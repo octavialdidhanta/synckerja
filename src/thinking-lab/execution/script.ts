@@ -1,10 +1,10 @@
-import { stringifyMarkdownTable } from "@/6-1-dashboard/utils/markdownTableUtils";
-import { createBriefSequence, upsertBriefSequencesInMarkdown } from "@/6-1-dashboard/modal/briefSequences";
-import { serializeBriefConcept } from "@/6-1-dashboard/modal/briefConceptAssets";
-import type { ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
-import { isFlashSalePillar } from "@/thinking-lab/execution/types";
-import { confirmedDecisionRules, readPointOfView, readScriptDecisions, type ScriptDecision } from "@/thinking-lab/execution/confirm";
-import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
+import { stringifyMarkdownTable } from "../../6-1-dashboard/utils/markdownTableUtils";
+import { createBriefSequence, upsertBriefSequencesInMarkdown } from "../../6-1-dashboard/modal/briefSequences";
+import { serializeBriefConcept } from "../../6-1-dashboard/modal/briefConceptAssets";
+import type { ExecutionSemanticFacts } from "./types";
+import { isFlashSalePillar } from "./types";
+import { confirmedDecisionRules, readPointOfView, readScriptDecisions, type ScriptDecision } from "./confirm";
+import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 
 const PLAN_TABLE_HEADERS = [
   "Timing",
@@ -350,6 +350,9 @@ export function parseVoiceOverScript(raw: unknown): VoiceOverScript | null {
     return [{ lineId, reason, kind }] as const;
   });
   const look = readScriptLook(row.look);
+  const durationSeconds = readDurationSeconds(row.durationSeconds);
+  const brandName = readBrandName(row.brandName);
+  const callToAction = readCallToAction(row.cta);
   return {
     title: asText(row.title ?? row.postTitle ?? row.headline ?? row.judul),
     caption: asText(row.caption ?? row.postCaption),
@@ -364,9 +367,9 @@ export function parseVoiceOverScript(raw: unknown): VoiceOverScript | null {
     audio: readScriptAudio(row.audio),
     ...(look ? { look } : {}),
     ...(speech ? { speech } : {}),
-    ...(readDurationSeconds(row.durationSeconds) ? { durationSeconds: readDurationSeconds(row.durationSeconds) } : {}),
-    ...(readBrandName(row.brandName) ? { brandName: readBrandName(row.brandName) ?? undefined } : {}),
-    ...(readCallToAction(row.cta) ? { cta: readCallToAction(row.cta) ?? undefined } : {}),
+    ...(durationSeconds ? { durationSeconds } : {}),
+    ...(brandName ? { brandName } : {}),
+    ...(callToAction ? { cta: callToAction } : {}),
     ...(readScriptDecisions(row.decisions).length > 0 ? { decisions: readScriptDecisions(row.decisions) } : {}),
     ...(readPointOfView(row.pointOfView, row.confirmations, row.decisions)
       ? { pointOfView: readPointOfView(row.pointOfView, row.confirmations, row.decisions) ?? undefined }

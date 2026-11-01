@@ -1,5 +1,5 @@
-import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
-import type { ExecutionSemanticFacts } from "@/thinking-lab/execution/types";
+import type { IndividualAdmission } from "../shared/verdict";
+import type { ExecutionSemanticFacts } from "./types";
 
 const REJECT_RELATIONS = new Set<ExecutionSemanticFacts["relationToParent"]>([
   "MESSAGE_ADDED",

@@ -5,7 +5,7 @@ import { isUsageUuid, officialTokenSplit, recordContentUsage } from "../_shared/
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-synckerja-internal-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Max-Age": "86400",
 };
@@ -75,23 +75,59 @@ Deno.serve(async (req: Request) => {
     });
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-    const { data: { user }, error: userError } = await supabaseWithUser.auth.getUser(token);
-    if (userError || !user) {
-      return jsonResponse({ error: "Invalid token" }, 401);
+    const internalHeader = (req.headers.get("x-synckerja-internal-secret") ?? "").trim();
+    const internalSecret = (Deno.env.get("SCHEDULED_POSTS_INTERNAL_SECRET") ?? "").trim();
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    let user: { id: string };
+    let orgId: string | null;
+    let body: Record<string, unknown>;
+
+    if (internalHeader) {
+      if (!internalSecret || internalHeader !== internalSecret) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      body = await req.json().catch(() => ({}));
+      const organizationId = String(body.organization_id ?? "").trim();
+      const userId = String(body.user_id ?? "").trim();
+      const purpose = String(body.purpose ?? "").trim();
+      const internalPrompt = body.prompt != null ? String(body.prompt) : "";
+      if (purpose !== "thinking_json" || !uuidPattern.test(organizationId) || !uuidPattern.test(userId)) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      if (internalPrompt.length > 40000) {
+        return jsonResponse({ error: "Missing prompt" }, 400);
+      }
+      const { data: member, error: memberError } = await supabaseAdmin
+        .from("user_organizations")
+        .select("user_id")
+        .eq("user_id", userId)
+        .eq("organization_id", organizationId)
+        .or("is_active.is.null,is_active.eq.true")
+        .maybeSingle();
+      if (memberError || !member) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+      user = { id: userId };
+      orgId = organizationId;
+    } else {
+      const { data: userData, error: userError } = await supabaseWithUser.auth.getUser(token);
+      if (userError || !userData.user) {
+        return jsonResponse({ error: "Invalid token" }, 401);
+      }
+
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("active_organization_id")
+        .eq("user_id", userData.user.id)
+        .single();
+
+      user = { id: userData.user.id };
+      orgId = profile?.active_organization_id ?? null;
+      if (!orgId) {
+        return jsonResponse({ error: "No active organization" }, 400);
+      }
+      body = await req.json().catch(() => ({}));
     }
-
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("active_organization_id")
-      .eq("user_id", user.id)
-      .single();
-
-    const orgId = profile?.active_organization_id ?? null;
-    if (!orgId) {
-      return jsonResponse({ error: "No active organization" }, 400);
-    }
-
-    const body = await req.json().catch(() => ({}));
     const prompt = body.prompt != null ? String(body.prompt).trim() : "";
     const originalText = body.originalText != null ? String(body.originalText).trim() : "";
     const fullScript = body.fullScript != null ? String(body.fullScript).trim() : "";

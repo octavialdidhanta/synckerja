@@ -1,4 +1,4 @@
-import { stripBriefIntroductorySentence } from '@/shared/utils/briefUtils';
+import { stripBriefIntroductorySentence } from "../../shared/utils/briefUtils";
 
 /**
  * Extracts the Concept section from AI-generated script.

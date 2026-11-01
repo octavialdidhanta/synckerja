@@ -1,5 +1,5 @@
-import type { CreativeFormat, DevelopmentPath, PillarFitStatus, StoredPillarReview } from "@/thinking-lab/creative-idea/types";
-import { CREATIVE_FORMATS } from "@/thinking-lab/creative-idea/types";
+import type { CreativeFormat, DevelopmentPath, PillarFitStatus, StoredPillarReview } from "./types";
+import { CREATIVE_FORMATS } from "./types";
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";

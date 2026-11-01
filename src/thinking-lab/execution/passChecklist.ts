@@ -1,8 +1,8 @@
-import { parseModelJson } from "@/thinking-lab/shared/ai";
-import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
-import { fixScopeLines, type FixScope } from "@/thinking-lab/shared/fixScope";
-import { claimMaterialLines, pillarDevelopmentLines } from "@/thinking-lab/execution/confirm";
-import { chainNarrationLines, mergeNarrationRepairs, type VoiceOverScript } from "@/thinking-lab/execution/script";
+import { parseModelJson } from "../shared/parseModelJson";
+import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
+import { fixScopeLines, type FixScope } from "../shared/fixScope";
+import { claimMaterialLines, pillarDevelopmentLines } from "./confirm";
+import { chainNarrationLines, mergeNarrationRepairs, type VoiceOverScript } from "./script";
 import {
   isFailedMeaningAudit,
   type ExecutionAuditLesson,
@@ -13,7 +13,7 @@ import {
   type ExecutionSubjectMatch,
   type ExecutionTriState,
   type ExecutionViewerClimb,
-} from "@/thinking-lab/execution/types";
+} from "./types";
 
 export const EXECUTION_PASS_CHECK_IDS = [
   "hookHolds",
@@ -518,7 +518,7 @@ function linesFor(
 
 function failedCheck(
   id: ExecutionPassCheckId,
-  parsed: { reason: string; lineIds: string[] },
+  parsed: { reason: string; lineIds: string[]; repeat?: boolean },
   lines: Array<{ id: string }>,
 ): ExecutionPassCheck {
   if (id === "hookHolds") {
@@ -698,7 +698,7 @@ export function executionChecksFromAudit(audit: ExecutionMeaningAudit | null | u
     );
   }
   if (!isFailedMeaningAudit(audit)) return emptyExecutionPassChecklist();
-  const failedAt = EXECUTION_PASS_CHECK_IDS.indexOf(audit.id);
+  const failedAt = (EXECUTION_PASS_CHECK_IDS as readonly string[]).indexOf(audit.id);
   return EXECUTION_PASS_CHECK_IDS.map((id, index) => {
     if (id === audit.id) return { id, state: "fail", enabled: true, reason: audit.reason, lineIds: audit.lineIds };
     if (!videoCheckOnByDefault(id)) return { id, state: "pass", enabled: false };
@@ -711,7 +711,7 @@ export function executionChecksFromAudit(audit: ExecutionMeaningAudit | null | u
 export function executionFailureMoved(before: ExecutionPassCheckId, checks: readonly ExecutionPassCheck[]): boolean {
   const next = checks.find((check) => check.state === "fail");
   if (!next) return false;
-  return EXECUTION_PASS_CHECK_IDS.indexOf(next.id) > EXECUTION_PASS_CHECK_IDS.indexOf(before);
+  return (EXECUTION_PASS_CHECK_IDS as readonly string[]).indexOf(next.id) > (EXECUTION_PASS_CHECK_IDS as readonly string[]).indexOf(before);
 }
 
 /** Re-ask the checks that failed or have not run. Checks that already passed stay passed. */

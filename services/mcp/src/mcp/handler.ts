@@ -6,6 +6,10 @@ import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
 import type { ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
 import type { LeadMagnetDeliveryResult, LeadMagnetDraft } from "../db/leadMagnet";
+import type { ThinkingChain, ThinkingCheckResult, ThinkingIdeaRow, ThinkingPlanResult } from "../db/thinkingLab";
+import type { ThinkingScriptDraft } from "../tools/thinking/scriptInput";
+import type { ThinkingPlanDirectInput } from "../tools/thinking/planDirect";
+import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type {
   AdsAccountRow,
@@ -147,6 +151,16 @@ import {
   draftReadResult,
   deliveryAttachInput,
   deliveryAttachResult,
+  ideasListInput,
+  ideasListResult,
+  chainReadInput,
+  chainReadResult,
+  executionCheckInput,
+  executionCheckResult,
+  planSaveInput,
+  planSaveResult,
+  planDirectInput,
+  planDirectResult,
   habitsListInput,
   habitsListResult,
   habitCheckInput,
@@ -184,6 +198,14 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     input: { campaignId: string; fileUrl: string },
   ) => Promise<LeadMagnetDeliveryResult>;
+  listThinkingIdeas: (ctx: McpAuthContext) => Promise<ThinkingIdeaRow[]>;
+  readThinkingChain: (ctx: McpAuthContext, ideaId: string) => Promise<ThinkingChain>;
+  checkThinkingExecution: (
+    ctx: McpAuthContext,
+    input: { ideaId: string; contentPillarId: string; script: ThinkingScriptDraft },
+  ) => Promise<ThinkingCheckResult>;
+  saveThinkingPlan: (ctx: McpAuthContext, input: ThinkingPlanSaveInput) => Promise<ThinkingPlanResult>;
+  saveThinkingPlanDirect: (ctx: McpAuthContext, input: ThinkingPlanDirectInput) => Promise<ThinkingPlanResult>;
   updateContentPlan: (
     ctx: McpAuthContext,
     input: { id: string; title: string | null; postDate: string | null; brief: string | null },
@@ -422,6 +444,11 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "tasks.steps.delete": deleteStepInput,
   "habits.list": habitsListInput,
   "habits.check": habitCheckInput,
+  "thinking.ideas.list": ideasListInput,
+  "thinking.chain.read": chainReadInput,
+  "thinking.execution.check": executionCheckInput,
+  "thinking.plan.save": planSaveInput,
+  "thinking.plan.direct": planDirectInput,
 };
 
 async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, deps: McpReadDeps): Promise<unknown> {
@@ -752,6 +779,16 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
       return deleteStepResult(ctx, requiredString(args.id), deps.deleteTaskStep);
     case "habits.list":
       return habitsListResult(ctx, optionalString(args.date), deps.listHabits);
+    case "thinking.ideas.list":
+      return ideasListResult(ctx, deps.listThinkingIdeas);
+    case "thinking.chain.read":
+      return chainReadResult(ctx, requiredString(args.idea_id), deps.readThinkingChain);
+    case "thinking.execution.check":
+      return executionCheckResult(ctx, args, deps.checkThinkingExecution);
+    case "thinking.plan.save":
+      return planSaveResult(ctx, args, deps.saveThinkingPlan);
+    case "thinking.plan.direct":
+      return planDirectResult(ctx, args, deps.saveThinkingPlanDirect);
     case "habits.check":
       return habitCheckResult(
         ctx,

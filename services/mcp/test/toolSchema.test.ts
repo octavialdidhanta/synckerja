@@ -14,6 +14,13 @@ import { createBriefInput } from "../src/tools/content/briefsCreate";
 import { buildBriefConcept, buildBriefMarkdown } from "../src/tools/content/briefMarkdown";
 import { createContentBrief } from "../src/db/contentBriefs";
 import { attachLeadMagnetDelivery, listLeadMagnetDrafts } from "../src/db/leadMagnet";
+import {
+  checkThinkingExecution,
+  readThinkingChain,
+  saveThinkingPlan,
+  saveThinkingPlanDirect,
+} from "../src/db/thinkingLab";
+import { executionCheckInput, planDirectInput, planSaveInput } from "../src/tools/thinking/scriptInput";
 import { draftReadInput } from "../src/tools/leadmagnet/draftRead";
 import { assertPublicHttpsUrl } from "../src/tools/leadmagnet/safePdfUrl";
 import { updatePlanInput, updatePlanSchema } from "../src/tools/content/plansUpdate";
@@ -1124,6 +1131,13 @@ describe("phase 0 tool inputs", () => {
     const draftRead = readFileSync(new URL("../src/tools/leadmagnet/draftRead.ts", import.meta.url), "utf8");
     const deliveryAttach = readFileSync(new URL("../src/tools/leadmagnet/deliveryAttach.ts", import.meta.url), "utf8");
     const leadMagnet = readFileSync(new URL("../src/db/leadMagnet.ts", import.meta.url), "utf8");
+    const thinkingIdeas = readFileSync(new URL("../src/tools/thinking/ideasList.ts", import.meta.url), "utf8");
+    const thinkingChain = readFileSync(new URL("../src/tools/thinking/chainRead.ts", import.meta.url), "utf8");
+    const thinkingCheck = readFileSync(new URL("../src/tools/thinking/executionCheck.ts", import.meta.url), "utf8");
+    const thinkingSave = readFileSync(new URL("../src/tools/thinking/planSave.ts", import.meta.url), "utf8");
+    const thinkingDirect = readFileSync(new URL("../src/tools/thinking/planDirect.ts", import.meta.url), "utf8");
+    const thinkingScript = readFileSync(new URL("../src/tools/thinking/scriptInput.ts", import.meta.url), "utf8");
+    const thinkingDb = readFileSync(new URL("../src/db/thinkingLab.ts", import.meta.url), "utf8");
     const identity = readFileSync(new URL("../src/db/identity.ts", import.meta.url), "utf8");
     const consent = readFileSync(new URL("../src/oauth/consent.ts", import.meta.url), "utf8");
     for (const source of [
@@ -1184,6 +1198,13 @@ describe("phase 0 tool inputs", () => {
       draftRead,
       deliveryAttach,
       leadMagnet,
+      thinkingIdeas,
+      thinkingChain,
+      thinkingCheck,
+      thinkingSave,
+      thinkingDirect,
+      thinkingScript,
+      thinkingDb,
     ]) {
       expect(source).not.toContain("createAdmin");
       expect(source).not.toContain("SERVICE_ROLE");
@@ -1193,5 +1214,188 @@ describe("phase 0 tool inputs", () => {
     expect(identity).not.toContain(".update(");
     expect(consent).not.toContain("active_organization_id");
     expect(consent).not.toContain(".update(");
+  });
+});
+
+const ideaId = "11111111-1111-4111-8111-111111111111";
+const pillarId = "22222222-2222-4222-8222-222222222222";
+const typeId = "33333333-3333-4333-8333-333333333333";
+const executionId = "44444444-4444-4444-8444-444444444444";
+
+const thinkingScript = {
+  title: "Monday report",
+  medium: "video" as const,
+  speech: "vo" as const,
+  scenes: [{
+    lines: [{
+      narration: "The Monday report is still manual.",
+      shots: [{ role: "Close", angle: "Eye level", visual_function: "Show the desk", prompt: "A crowded desk" }],
+    }],
+  }],
+};
+
+const judgeConfig = {
+  supabaseUrl: "https://db.example",
+  supabaseServiceRoleKey: "service-role-test",
+  scheduledPostsInternalSecret: "schedule-secret",
+};
+
+const thinkingCtx = { userId: "user-1", organizationId: "org-1" };
+
+function chainPayload() {
+  return {
+    idea_id: ideaId,
+    idea_statement: "The Monday report is still manual.",
+    master_statement: "Manual work hides the real delay.",
+    master_subject: "delay",
+    big_thought_statement: "The delay is the work itself.",
+    territory_statement: "Monday reports",
+    angle_statement: "Stop the manual report",
+    development_paths: [],
+    pillars: [{ id: pillarId, name: "Stories", category: "story", description: "Tell the scene." }],
+    executions: [],
+  };
+}
+
+describe("thinking lab connector", () => {
+  it("rejects an organization id, an image path, and a pass status", () => {
+    const check = {
+      idea_id: ideaId,
+      content_pillar_id: pillarId,
+      script: thinkingScript,
+    };
+    expect(executionCheckInput.safeParse({ ...check, organization_id: "org-1" }).success).toBe(false);
+    expect(executionCheckInput.safeParse({ ...check, passed: true }).success).toBe(false);
+    expect(executionCheckInput.safeParse({
+      ...check,
+      script: {
+        ...thinkingScript,
+        characters: [{ name: "Ayu", portraitPath: "org/portrait.png" }],
+      },
+    }).success).toBe(false);
+    expect(planDirectInput.safeParse({
+      ...check,
+      content_type_id: typeId,
+      admission: "GENERATE_VALID",
+    }).success).toBe(false);
+    expect(planSaveInput.safeParse({
+      execution_id: executionId,
+      content_type_id: typeId,
+      passed: true,
+    }).success).toBe(false);
+  });
+
+  it("returns not_found when the idea is not locked and passed", async () => {
+    const rpc = vi.fn(async () => ({ data: null, error: { message: "not_found" } }));
+    const admin = { rpc } as unknown as SupabaseClient;
+    await expect(readThinkingChain(admin, thinkingCtx, ideaId)).rejects.toThrow("not_found");
+    expect(rpc).toHaveBeenCalledWith("mcp_get_thinking_chain", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_idea_id: ideaId,
+    });
+  });
+
+  it("does not write an execution when the first check fails", async () => {
+    const rpc = vi.fn(async (fn: string) => {
+      if (fn === "mcp_get_thinking_chain") return { data: chainPayload(), error: null };
+      return { data: [{ id: executionId }], error: null };
+    });
+    const fetchImpl = vi.fn(async (_input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { organization_id?: string; purpose?: string };
+      expect(body.organization_id).toBe("org-1");
+      expect(body.purpose).toBe("thinking_json");
+      expect(new Headers(init?.headers).get("x-synckerja-internal-secret")).toBe("schedule-secret");
+      return new Response(JSON.stringify({ script: '{"pass":false,"reason":"The opening is unclear."}' }), { status: 200 });
+    }) as typeof fetch;
+    const admin = { rpc } as unknown as SupabaseClient;
+    const result = await checkThinkingExecution(admin, judgeConfig, thinkingCtx, {
+      ideaId,
+      contentPillarId: pillarId,
+      script: thinkingScript,
+    }, { fetchImpl });
+    expect(result).toEqual({ passed: false, check_id: "hookHolds", reason: "The opening is unclear." });
+    expect(rpc.mock.calls.map((call) => call[0])).toEqual(["mcp_get_thinking_chain"]);
+  });
+
+  it("rejects a plan when the execution has not passed and does not send approval or a lead magnet", async () => {
+    const rpc = vi.fn(async (fn: string) => {
+      if (fn === "mcp_get_thinking_execution") {
+        return {
+          data: [{
+            id: executionId,
+            idea_id: ideaId,
+            content_pillar_id: pillarId,
+            pillar_name: "Stories",
+            script: { title: "Monday report", scenes: [] },
+            admission: "GENERATE_VALID",
+            canonical_semantic: {
+              pillar: "Stories",
+              relationToParent: "HOOK_MISSED",
+              resolution: "RESOLVED",
+              unresolvedReasons: [],
+              passChecks: [{ id: "hookHolds", enabled: true, state: "fail", reason: "The opening is unclear." }],
+            },
+          }],
+          error: null,
+        };
+      }
+      return { data: [{ id: "plan-1", title: "Monday report" }], error: null };
+    });
+    const admin = { rpc } as unknown as SupabaseClient;
+    await expect(saveThinkingPlan(admin, thinkingCtx, {
+      executionId,
+      contentTypeId: typeId,
+      serviceId: null,
+      subServiceId: null,
+      featureId: null,
+      postDate: null,
+    })).rejects.toThrow("not_passed");
+    expect(rpc.mock.calls.map((call) => call[0])).toEqual(["mcp_get_thinking_execution"]);
+  });
+
+  it("saves a direct plan without calling the execution function", async () => {
+    const rpc = vi.fn(async (fn: string) => {
+      if (fn === "mcp_get_thinking_chain") return { data: chainPayload(), error: null };
+      return { data: [{ id: "plan-1", title: "Monday report" }], error: null };
+    });
+    const admin = { rpc } as unknown as SupabaseClient;
+    const saved = await saveThinkingPlanDirect(admin, thinkingCtx, {
+      ideaId,
+      contentPillarId: pillarId,
+      script: thinkingScript,
+      contentTypeId: typeId,
+      serviceId: null,
+      subServiceId: null,
+      featureId: null,
+      postDate: null,
+    });
+    expect(saved).toEqual({ id: "plan-1", title: "Monday report" });
+    expect(rpc.mock.calls.map((call) => call[0])).toEqual(["mcp_get_thinking_chain", "mcp_create_thinking_plan"]);
+    const planCall = rpc.mock.calls[1] as unknown as [string, Record<string, unknown>];
+    const args = planCall[1];
+    const packed = JSON.stringify(args);
+    expect(packed).not.toContain("approved");
+    expect(packed).not.toContain("lead_magnet");
+    expect(packed).not.toContain("prepareLeadMagnet");
+    expect(packed).not.toContain("portraitPath");
+    expect(args.p_content_pillar_id).toBe(pillarId);
+    expect(String(args.p_brief)).toContain("Shot");
+    expect(String(args.p_brief)).toContain("Veo 3 prompt");
+    expect(String(args.p_brief)).toContain("Master prompt");
+  });
+
+  it("keeps the lab gate in SQL and the judge on the session organization", () => {
+    const sql = readFileSync(new URL("../../../supabase/migrations/20261101090000_mcp_thinking_execution.sql", import.meta.url), "utf8");
+    expect(sql).toContain("validation->>'decision' = 'LOLOS'");
+    expect(sql).toContain("idea.status = 'locked'");
+    expect(sql).not.toContain("prepareLeadMagnet");
+    expect(sql).not.toContain("google_drive_link");
+    const edge = readFileSync(new URL("../../../supabase/functions/generate-script-ai/index.ts", import.meta.url), "utf8");
+    const headerAt = edge.indexOf("x-synckerja-internal-secret");
+    const activeAt = edge.indexOf("active_organization_id");
+    expect(headerAt).toBeGreaterThan(0);
+    expect(activeAt).toBeGreaterThan(headerAt);
+    expect(edge).toContain("user_organizations");
   });
 });

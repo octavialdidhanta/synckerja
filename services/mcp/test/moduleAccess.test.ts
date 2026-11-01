@@ -627,3 +627,70 @@ describe("lead magnet delivery visibility", () => {
     expect(names).toContain("leadmagnet.delivery.attach");
   });
 });
+
+describe("thinking lab connector visibility", () => {
+  const thinkingTools = [
+    "thinking.ideas.list",
+    "thinking.chain.read",
+    "thinking.execution.check",
+    "thinking.plan.save",
+    "thinking.plan.direct",
+  ];
+
+  it("hides every thinking tool without the Thinking Lab page", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["content:read", "content:write"] },
+      configurations: [{ page_path: "/digital-marketing/social-media", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    for (const name of thinkingTools) expect(names).not.toContain(name);
+  });
+
+  it("shows the reads with content read and hides the writes", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["content:read"] },
+      configurations: [{ page_path: "/thinking-lab", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("thinking.ideas.list");
+    expect(names).toContain("thinking.chain.read");
+    expect(names).not.toContain("thinking.execution.check");
+    expect(names).not.toContain("thinking.plan.save");
+    expect(names).not.toContain("thinking.plan.direct");
+  });
+
+  it("hides the plan tools when either page is missing", () => {
+    const labOnly = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["content:read", "content:write"] },
+      configurations: [{ page_path: "/thinking-lab", roles_allowed: ["employee"] }],
+    });
+    const socialOnly = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["content:read", "content:write"] },
+      configurations: [{ page_path: "/digital-marketing/social-media", roles_allowed: ["employee"] }],
+    });
+    expect(filterTools(labOnly).map((tool) => tool.name)).toContain("thinking.execution.check");
+    expect(filterTools(labOnly).map((tool) => tool.name)).not.toContain("thinking.plan.save");
+    expect(filterTools(labOnly).map((tool) => tool.name)).not.toContain("thinking.plan.direct");
+    expect(filterTools(socialOnly).map((tool) => tool.name)).not.toContain("thinking.plan.save");
+  });
+
+  it("shows both plan tools only when both pages and content write are granted", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["content:read", "content:write"] },
+      configurations: [
+        { page_path: "/thinking-lab", roles_allowed: ["employee"] },
+        { page_path: "/digital-marketing/social-media", roles_allowed: ["employee"] },
+      ],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("thinking.ideas.list");
+    expect(names).toContain("thinking.execution.check");
+    expect(names).toContain("thinking.plan.save");
+    expect(names).toContain("thinking.plan.direct");
+  });
+});

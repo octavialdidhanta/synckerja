@@ -116,6 +116,19 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     attachLeadMagnetDelivery: async () => {
       throw new Error("unused");
     },
+    listThinkingIdeas: async () => [],
+    readThinkingChain: async () => {
+      throw new Error("unused");
+    },
+    checkThinkingExecution: async () => {
+      throw new Error("unused");
+    },
+    saveThinkingPlan: async () => {
+      throw new Error("unused");
+    },
+    saveThinkingPlanDirect: async () => {
+      throw new Error("unused");
+    },
     updateContentPlan: async () => {
       throw new Error("unused");
     },

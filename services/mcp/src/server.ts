@@ -6,6 +6,13 @@ import { isActiveMember, loadConsentIdentity, verifySupabaseUser } from "./db/id
 import { listContentPlans } from "./db/listContentPlans";
 import { createContentBrief, listContentCatalog } from "./db/contentBriefs";
 import { attachLeadMagnetDelivery, listLeadMagnetDrafts } from "./db/leadMagnet";
+import {
+  checkThinkingExecution,
+  listThinkingIdeas,
+  readThinkingChain,
+  saveThinkingPlan,
+  saveThinkingPlanDirect,
+} from "./db/thinkingLab";
 import { listContentCalendar, listCrmLeads, listOkrCycles, listOkrDepartments, listOkrObjectives } from "./db/phase1Reads";
 import {
   listAdsAccounts,
@@ -91,6 +98,11 @@ const app = createApp({
   createContentBrief: (ctx, input) => createContentBrief(admin, ctx, input),
   listLeadMagnetDrafts: (ctx, campaignId) => listLeadMagnetDrafts(admin, ctx, campaignId),
   attachLeadMagnetDelivery: (ctx, input) => attachLeadMagnetDelivery(admin, config.supabaseUrl, ctx, input),
+  listThinkingIdeas: (ctx) => listThinkingIdeas(admin, ctx),
+  readThinkingChain: (ctx, ideaId) => readThinkingChain(admin, ctx, ideaId),
+  checkThinkingExecution: (ctx, input) => checkThinkingExecution(admin, config, ctx, input),
+  saveThinkingPlan: (ctx, input) => saveThinkingPlan(admin, ctx, input),
+  saveThinkingPlanDirect: (ctx, input) => saveThinkingPlanDirect(admin, ctx, input),
   updateContentPlan: (ctx, input) => updateContentPlan(admin, ctx, input.id, input),
   createCompanyObjective: (ctx, input) => createCompanyObjective(admin, ctx, input),
   updateObjective: (ctx, input) => updateObjective(admin, ctx, input),

@@ -1,4 +1,4 @@
-import { ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
+import { ancestorStakeBlock, type AncestorStake } from "../shared/ancestorStake";
 
 export type DecisionBind = "viewpoint" | "frame" | "story";
 

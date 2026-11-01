@@ -22,7 +22,7 @@ export function extractBriefTitle(text: string): string | null {
     const boldOnlyMatch = t.match(/^\*\*(.+?)\*\*\s*$/);
     if (boldOnlyMatch?.[1]?.trim()) return boldOnlyMatch[1].trim();
     // **Judul Script:** value (same line) or **Judul Script:**\nvalue (next line)
-    const judulSameLine = t.match(/^\*\*Judul\s+Script\*\*\s*:?\s*(.+)$/i);
+    const judulSameLine: RegExpMatchArray | null = t.match(/^\*\*Judul\s+Script\*\*\s*:?\s*(.+)$/i);
     if (judulSameLine && judulSameLine[1]?.trim()) return judulSameLine[1].trim();
     const judulLabelOnly = /^\*\*Judul\s+Script\*\*\s*:?\s*$/i.test(t);
     if (judulLabelOnly && i + 1 < lines.length) {
@@ -70,7 +70,7 @@ export function removeBriefTitleFromStart(text: string): string {
       continue;
     }
     // **Judul Script:** value (same line)
-    const judulSameLine = t.match(/^\*\*Judul\s+Script\*\*\s*:?\s*(.+)$/i);
+    const judulSameLine: RegExpMatchArray | null = t.match(/^\*\*Judul\s+Script\*\*\s*:?\s*(.+)$/i);
     if (judulSameLine && judulSameLine[1]?.trim() === title) {
       removed = true;
       continue;

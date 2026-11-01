@@ -51,3 +51,8 @@ export { habitsListInput, habitsListResult } from "./habits/list";
 export { habitCheckInput, habitCheckResult } from "./habits/check";
 export { draftReadInput, draftReadResult } from "./leadmagnet/draftRead";
 export { deliveryAttachInput, deliveryAttachResult } from "./leadmagnet/deliveryAttach";
+export { ideasListInput, ideasListResult } from "./thinking/ideasList";
+export { chainReadInput, chainReadResult } from "./thinking/chainRead";
+export { executionCheckInput, executionCheckResult } from "./thinking/executionCheck";
+export { planSaveInput, planSaveResult } from "./thinking/planSave";
+export { planDirectInput, planDirectResult } from "./thinking/planDirect";

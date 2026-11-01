@@ -6,6 +6,10 @@ import { AuthzError } from "../authz/errors";
 import type { ContentPlanRow } from "../db/listContentPlans";
 import type { ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
 import type { LeadMagnetDeliveryResult, LeadMagnetDraft } from "../db/leadMagnet";
+import type { ThinkingChain, ThinkingCheckResult, ThinkingIdeaRow, ThinkingPlanResult } from "../db/thinkingLab";
+import type { ThinkingPlanDirectInput } from "../tools/thinking/planDirect";
+import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
+import type { ThinkingScriptDraft } from "../tools/thinking/scriptInput";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type {
   AdsAccountRow,
@@ -91,6 +95,14 @@ export type AppDeps = {
     ctx: McpAuthContext,
     input: { campaignId: string; fileUrl: string },
   ) => Promise<LeadMagnetDeliveryResult>;
+  listThinkingIdeas: (ctx: McpAuthContext) => Promise<ThinkingIdeaRow[]>;
+  readThinkingChain: (ctx: McpAuthContext, ideaId: string) => Promise<ThinkingChain>;
+  checkThinkingExecution: (
+    ctx: McpAuthContext,
+    input: { ideaId: string; contentPillarId: string; script: ThinkingScriptDraft },
+  ) => Promise<ThinkingCheckResult>;
+  saveThinkingPlan: (ctx: McpAuthContext, input: ThinkingPlanSaveInput) => Promise<ThinkingPlanResult>;
+  saveThinkingPlanDirect: (ctx: McpAuthContext, input: ThinkingPlanDirectInput) => Promise<ThinkingPlanResult>;
   updateContentPlan: (
     ctx: McpAuthContext,
     input: { id: string; title: string | null; postDate: string | null; brief: string | null },

@@ -28,6 +28,7 @@ export const INVENTORY_PAGE_PATH = "/operations/sales/stock-management";
 export const DAILY_TASK_PAGE_PATH = "/tools/daily-task";
 export const HABITS_PAGE_PATH = "/tools/habits-tracker";
 export const LEAD_MAGNET_PAGE_PATH = "/digital-marketing/lead-magnet";
+export const THINKING_LAB_PAGE_PATH = "/thinking-lab";
 
 export const MCP_MODULE_KEYS = [
   "digitalMarketing",
@@ -115,6 +116,7 @@ export function buildAuthContext(input: {
     DAILY_TASK_PAGE_PATH,
     HABITS_PAGE_PATH,
     LEAD_MAGNET_PAGE_PATH,
+    THINKING_LAB_PAGE_PATH,
   ];
 
   return {

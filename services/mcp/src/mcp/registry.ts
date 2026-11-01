@@ -14,6 +14,7 @@ import {
   KOL_PROFILES_PAGE_PATH,
   LEADS_PAGE_PATH,
   LEAD_MAGNET_PAGE_PATH,
+  THINKING_LAB_PAGE_PATH,
   OKR_PAGE_PATH,
   VISITS_PAGE_PATH,
   type McpModuleKey,
@@ -71,7 +72,12 @@ export type McpToolName =
   | "tasks.steps.update"
   | "tasks.steps.delete"
   | "habits.list"
-  | "habits.check";
+  | "habits.check"
+  | "thinking.ideas.list"
+  | "thinking.chain.read"
+  | "thinking.execution.check"
+  | "thinking.plan.save"
+  | "thinking.plan.direct";
 
 export type McpTool = {
   name: McpToolName;
@@ -80,6 +86,7 @@ export type McpTool = {
   moduleKey?: McpModuleKey;
   pagePath?: string;
   pagePaths?: readonly string[];
+  pagePathsAll?: readonly string[];
 };
 
 export const MCP_TOOLS: McpTool[] = [
@@ -352,6 +359,46 @@ export const MCP_TOOLS: McpTool[] = [
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: LEAD_MAGNET_PAGE_PATH,
+  },
+  {
+    name: "thinking.ideas.list",
+    description:
+      "List up to 30 Ideas that already passed and are locked in Thinking Lab for the organization locked in this session. Returns the id, Idea sentence, Master Thought sentence, and Angle sentence. Does not create or change the tree.",
+    scopes: ["content:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.chain.read",
+    description:
+      "Read one locked, passed Idea and its Master Thought chain for the organization locked in this session. Returns the Master Thought, its subject when stored, the Big Thought, Territory, Angle, Idea, and active content pillars. Existing executions return only id, pillar name, title, and whether they passed. Image paths, keys, and judge prompts are not returned. If the user has not chosen a path, use thinking.execution.check next.",
+    scopes: ["content:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.execution.check",
+    description:
+      "Check a structured script for one locked, passed Idea against the Thinking Lab rules for the organization locked in this session. Requires idea_id, content_pillar_id, and the script. Stops at the first failed check and does not save. When every active check passes, saves the Execution and returns execution_id with passed true. Does not create a content plan. Use this path unless the user explicitly chooses to save a plan directly.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: THINKING_LAB_PAGE_PATH,
+  },
+  {
+    name: "thinking.plan.save",
+    description:
+      "Save a draft content plan from one Thinking Lab Execution that already passed, for the organization locked in this session. Requires execution_id and content_type_id. Optional service_id, sub_service_id, feature_id, and post_date. The signed-in member becomes PIC. Does not approve, schedule, publish, or create a lead-magnet campaign.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePathsAll: [THINKING_LAB_PAGE_PATH, CONTENT_PAGE_PATH],
+  },
+  {
+    name: "thinking.plan.direct",
+    description:
+      "Save a draft content plan directly from one locked, passed Idea when the user explicitly chooses to skip the Thinking Lab check. Requires idea_id, content_pillar_id, content_type_id, and a structured script. Optional service_id, sub_service_id, feature_id, and post_date. Does not write an Execution and does not mark anything passed. The signed-in member becomes PIC. Does not approve, schedule, publish, or create a lead-magnet campaign. Call this only after the user explicitly chooses the direct path.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePathsAll: [THINKING_LAB_PAGE_PATH, CONTENT_PAGE_PATH],
   },
   {
     name: "crm.leads.setStatus",
