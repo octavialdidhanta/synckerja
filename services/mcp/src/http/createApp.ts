@@ -43,6 +43,7 @@ import type {
   WorkloadRow,
 } from "../db/dailyTasks";
 import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
+import type { TaskStepImageRecord } from "../db/stepImages";
 import { isAccessRevoked } from "../authz/toolGate";
 import type { ToolCallOutcome } from "../db/toolGate";
 import { handleMcpRequest } from "../mcp/handler";
@@ -229,6 +230,7 @@ export type AppDeps = {
   ) => Promise<TaskStepRecord>;
   deleteTaskStep: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
   createTaskSubstep: (ctx: McpAuthContext, input: { stepId: string; title: string }) => Promise<TaskSubstepRecord>;
+  attachTaskStepImage: (ctx: McpAuthContext, input: { stepId: string; imageUrl: string }) => Promise<TaskStepImageRecord>;
   listHabits: (ctx: McpAuthContext, date: string | null) => Promise<HabitDayRow[]>;
   checkHabit: (ctx: McpAuthContext, input: HabitCheckInput) => Promise<HabitCheckResult>;
   now?: () => Date;

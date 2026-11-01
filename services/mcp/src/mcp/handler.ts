@@ -43,6 +43,7 @@ import type {
   WorkloadRow,
 } from "../db/dailyTasks";
 import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
+import type { TaskStepImageRecord } from "../db/stepImages";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
 import type { AccessClaims } from "../oauth/tokens";
 import {
@@ -150,6 +151,8 @@ import {
   deleteStepResult,
   createSubstepInput,
   createSubstepResult,
+  addStepImageInput,
+  addStepImageResult,
   draftReadInput,
   draftReadResult,
   deliveryAttachInput,
@@ -334,6 +337,7 @@ export type McpReadDeps = {
   ) => Promise<TaskStepRecord>;
   deleteTaskStep: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
   createTaskSubstep: (ctx: McpAuthContext, input: { stepId: string; title: string }) => Promise<TaskSubstepRecord>;
+  attachTaskStepImage: (ctx: McpAuthContext, input: { stepId: string; imageUrl: string }) => Promise<TaskStepImageRecord>;
   listHabits: (ctx: McpAuthContext, date: string | null) => Promise<HabitDayRow[]>;
   checkHabit: (ctx: McpAuthContext, input: HabitCheckInput) => Promise<HabitCheckResult>;
 };
@@ -460,6 +464,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "tasks.steps.update": updateStepSchema,
   "tasks.steps.delete": deleteStepInput,
   "tasks.substeps.create": createSubstepInput,
+  "tasks.steps.image.add": addStepImageInput,
   "habits.list": habitsListInput,
   "habits.check": habitCheckInput,
   "thinking.ideas.list": ideasListInput,
@@ -804,6 +809,12 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
         ctx,
         { stepId: requiredString(args.step_id), title: requiredString(args.title) },
         deps.createTaskSubstep,
+      );
+    case "tasks.steps.image.add":
+      return addStepImageResult(
+        ctx,
+        { stepId: requiredString(args.step_id), imageUrl: requiredString(args.image_url) },
+        deps.attachTaskStepImage,
       );
     case "habits.list":
       return habitsListResult(ctx, optionalString(args.date), deps.listHabits);

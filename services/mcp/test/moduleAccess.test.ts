@@ -525,6 +525,7 @@ describe("daily task visibility", () => {
     expect(names).not.toContain("tasks.steps.update");
     expect(names).not.toContain("tasks.steps.delete");
     expect(names).not.toContain("tasks.substeps.create");
+    expect(names).not.toContain("tasks.steps.image.add");
     expect(names).not.toContain("tasks.objective.link");
   });
 
@@ -551,6 +552,7 @@ describe("daily task visibility", () => {
     expect(names).toContain("tasks.initiative.take");
     expect(names).toContain("tasks.steps.create");
     expect(names).toContain("tasks.substeps.create");
+    expect(names).toContain("tasks.steps.image.add");
     expect(names).toContain("tasks.objective.link");
     expect(names).toContain("tasks.summary");
     expect(names).not.toContain("habits.list");

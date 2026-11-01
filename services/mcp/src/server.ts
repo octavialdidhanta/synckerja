@@ -61,6 +61,7 @@ import {
   updateTaskStep,
 } from "./db/dailyTasks";
 import { checkHabit, listHabits } from "./db/habits";
+import { attachTaskStepImage } from "./db/stepImages";
 import { accessRevokedAt, recordToolCall, takeToolSlot } from "./db/toolGate";
 import { scheduleContentPlan } from "./db/scheduleContentPlan";
 import { createApp } from "./http/createApp";
@@ -133,6 +134,7 @@ const app = createApp({
   updateTaskStep: (ctx, input) => updateTaskStep(admin, ctx, input),
   deleteTaskStep: (ctx, id) => deleteTaskStep(admin, ctx, id),
   createTaskSubstep: (ctx, input) => createTaskSubstep(admin, ctx, input),
+  attachTaskStepImage: (ctx, input) => attachTaskStepImage(admin, config.supabaseUrl, ctx, input),
   listHabits: (ctx, date) => listHabits(admin, ctx, date),
   checkHabit: (ctx, input) => checkHabit(admin, ctx, input),
 });

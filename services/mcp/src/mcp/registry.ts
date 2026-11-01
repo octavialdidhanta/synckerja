@@ -72,6 +72,7 @@ export type McpToolName =
   | "tasks.steps.update"
   | "tasks.steps.delete"
   | "tasks.substeps.create"
+  | "tasks.steps.image.add"
   | "habits.list"
   | "habits.check"
   | "thinking.ideas.list"
@@ -533,6 +534,14 @@ export const MCP_TOOLS: McpTool[] = [
     name: "tasks.substeps.create",
     description:
       "Add one unfinished sub-step under one existing step. Requires step_id, the id of that step from tasks.steps.list, and a title. Does not create a new step and does not accept a task id. The sub-step is ordered after the last sub-step of that step. A completed parent step becomes unfinished. Does not assign anyone or upload a file.",
+    scopes: ["tasks:write"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.steps.image.add",
+    description:
+      "Attach one image to an existing step, separate from its description. Requires step_id and image_url. image_url is a public https URL of a JPEG, PNG, GIF, or WebP image no larger than 5 MB. The image is stored with that step's files and opens from the step, including a tutorial picture. It does not change the description, title, completion, or assignee. Redirects are not followed. Call once per image.",
     scopes: ["tasks:write"],
     moduleKey: "tools",
     pagePath: DAILY_TASK_PAGE_PATH,

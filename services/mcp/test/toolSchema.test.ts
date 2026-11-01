@@ -63,6 +63,8 @@ import { takeInitiativeInput } from "../src/tools/tasks/take";
 import { taskStepsInput } from "../src/tools/tasks/stepsList";
 import { createStepInput } from "../src/tools/tasks/stepsCreate";
 import { createSubstepInput } from "../src/tools/tasks/substepsCreate";
+import { addStepImageInput } from "../src/tools/tasks/stepImage";
+import { attachTaskStepImage } from "../src/db/stepImages";
 import { updateStepSchema } from "../src/tools/tasks/stepsUpdate";
 import { deleteStepInput } from "../src/tools/tasks/stepsDelete";
 import { habitsListInput } from "../src/tools/habits/list";
@@ -444,6 +446,19 @@ describe("phase 0 tool inputs", () => {
     expect(createSubstepInput.safeParse({ step_id: taskId, title: "Identify prospects", description: "notes" }).success).toBe(false);
     expect(createSubstepInput.safeParse({ title: "Identify prospects" }).success).toBe(false);
     expect(createSubstepInput.safeParse({ step_id: taskId }).success).toBe(false);
+    expect(addStepImageInput.safeParse({
+      step_id: taskId,
+      image_url: "https://cdn.example/tutorial.png",
+    }).success).toBe(true);
+    expect(addStepImageInput.safeParse({ step_id: taskId, image_url: "https://cdn.example/tutorial.png", description: "notes" }).success).toBe(false);
+    expect(addStepImageInput.safeParse({ image_url: "https://cdn.example/tutorial.png" }).success).toBe(false);
+    const imageSchema = zodToJsonSchema(z.object(publishedToolShape(addStepImageInput))) as {
+      properties: Record<string, { type?: string }>;
+      required?: string[];
+    };
+    expect(imageSchema.required).toEqual(["step_id", "image_url"]);
+    expect(imageSchema.properties.image_url?.type).toBe("string");
+    expect(JSON.stringify(imageSchema)).not.toContain("pattern");
     expect(updateStepSchema.safeParse({ id: taskId, title: "Draft" }).success).toBe(true);
     expect(updateStepSchema.safeParse({ id: taskId, title: "Draft", description: "Detail the step" }).success).toBe(true);
     expect(updateStepSchema.safeParse({ id: taskId, title: "Draft", description: null }).success).toBe(true);
@@ -1219,6 +1234,68 @@ describe("phase 0 tool inputs", () => {
       fetchImpl,
       resolveHost: async () => ["10.0.0.8"],
     })).rejects.toThrow("invalid_input");
+  });
+
+  it("stores a step image as a file and leaves the description unchanged", async () => {
+    const stepId = "11111111-1111-4111-8111-111111111111";
+    const fileId = "22222222-2222-4222-8222-222222222222";
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0, 0]);
+    const upload = vi.fn(async () => ({ data: { path: "stored.png" }, error: null }));
+    const remove = vi.fn(async () => ({ data: [], error: null }));
+    const rpc = vi.fn(async () => ({
+      data: [{
+        id: fileId,
+        step_id: stepId,
+        filename: "tutorial.png",
+        file_url: "https://db.example/storage/v1/object/public/task-files/task-step-files/tutorial.png",
+      }],
+      error: null,
+    }));
+    const admin = { rpc, storage: { from: () => ({ upload, remove }) } } as unknown as SupabaseClient;
+    const ctx = { userId: "user-1", organizationId: "org-1" };
+    const fetchImpl = vi.fn(async () => new Response(png, { status: 200, headers: { "content-type": "image/png" } }));
+    const saved = await attachTaskStepImage(admin, "https://db.example", ctx, {
+      stepId,
+      imageUrl: "https://cdn.example/tutorial.png",
+    }, { fetchImpl, resolveHost: async () => ["1.1.1.1"] });
+    expect(saved.step_id).toBe(stepId);
+    expect(saved.filename).toBe("tutorial.png");
+    expect(upload).toHaveBeenCalledTimes(1);
+    const uploadPath = String(upload.mock.calls[0]?.[1] ? "" : upload.mock.calls[0]?.[0]);
+    expect(String(upload.mock.calls[0]?.[0])).toMatch(/^task-step-files\/11111111-1111-4111-8111-111111111111\/.+\.png$/);
+    expect(rpc).toHaveBeenCalledWith("mcp_attach_task_step_image", expect.objectContaining({
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_step_id: stepId,
+      p_filename: "tutorial.png",
+      p_file_size: png.byteLength,
+    }));
+    const sent = JSON.stringify(rpc.mock.calls);
+    expect(sent).not.toContain("description");
+    expect(sent).not.toContain("is_completed");
+    expect(sent).toContain("https://db.example/storage/v1/object/public/task-files/task-step-files/");
+    expect(remove).not.toHaveBeenCalled();
+    expect(uploadPath).not.toContain("description");
+
+    fetchImpl.mockResolvedValue(new Response(png, { status: 302, headers: { location: "https://cdn.example/other.png" } }));
+    await expect(attachTaskStepImage(admin, "https://db.example", ctx, {
+      stepId,
+      imageUrl: "https://cdn.example/tutorial.png",
+    }, { fetchImpl, resolveHost: async () => ["1.1.1.1"] })).rejects.toThrow("invalid_input");
+
+    fetchImpl.mockResolvedValue(new Response(Uint8Array.from([60, 104, 116, 109, 108]), {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    }));
+    await expect(attachTaskStepImage(admin, "https://db.example", ctx, {
+      stepId,
+      imageUrl: "https://cdn.example/tutorial.png",
+    }, { fetchImpl, resolveHost: async () => ["1.1.1.1"] })).rejects.toThrow("invalid_input");
+
+    await expect(attachTaskStepImage(admin, "https://db.example", ctx, {
+      stepId,
+      imageUrl: "https://cdn.example/tutorial.png",
+    }, { fetchImpl, resolveHost: async () => ["10.1.1.1"] })).rejects.toThrow("invalid_input");
   });
 
   it("keeps service-role helpers out of tool files", () => {
