@@ -14,6 +14,8 @@ import {
   useTaskRealtime,
   getPlanDateQueryBounds,
   buildDailyTaskCacheKey,
+  jakartaOverdueCutoffIso,
+  mergeTasksById,
   type TaskFilters,
 } from '@/shared/hooks/daily-task';
 import { logger } from '@/shared/lib/logger';
@@ -606,10 +608,7 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
           : allAssignedTaskIds.slice(0, MAX_ASSIGNED_TASK_IDS);
 
       const planBounds = getPlanDateQueryBounds(filters.planDateRange, filters.customPlanMonth);
-
-      let dailyTasksQuery = supabase
-        .from('daily_tasks')
-        .select(`
+      const taskListColumns = `
           id,
           title,
           description,
@@ -627,39 +626,70 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
           daily_template_id,
           created_at,
           updated_at
-        `)
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false });
+        `;
+      const scopedTaskQuery = () => {
+        let query = supabase
+          .from('daily_tasks')
+          .select(taskListColumns)
+          .eq('organization_id', organizationId)
+          .order('created_at', { ascending: false });
+        if (taskIdsToFetch) {
+          query = query.in('id', taskIdsToFetch);
+        } else {
+          query = query.limit(1000);
+        }
+        return query;
+      };
 
-      if (taskIdsToFetch) {
-        dailyTasksQuery = dailyTasksQuery.in('id', taskIdsToFetch);
-      } else {
-        dailyTasksQuery = dailyTasksQuery.limit(1000);
-      }
+      let monthQuery = scopedTaskQuery();
       if (planBounds) {
-        dailyTasksQuery = dailyTasksQuery.gte('plan_date', planBounds.start).lt('plan_date', planBounds.end);
+        monthQuery = monthQuery.gte('plan_date', planBounds.start).lt('plan_date', planBounds.end);
       }
 
-      const { data, error } = await dailyTasksQuery;
-
-      if (error) {
-        console.error('âŒ Error fetching tasks:', error);
+      const monthResult = await monthQuery;
+      if (monthResult.error) {
+        console.error('âŒ Error fetching tasks:', monthResult.error);
         console.error('Error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
+          message: monthResult.error.message,
+          details: monthResult.error.details,
+          hint: monthResult.error.hint,
+          code: monthResult.error.code,
           organizationId
         });
-        throw error;
+        throw monthResult.error;
       }
-      
+
+      let carryRows: typeof monthResult.data = [];
+      if (planBounds) {
+        let carryQuery = supabase
+          .from('daily_tasks')
+          .select(taskListColumns)
+          .eq('organization_id', organizationId)
+          .lt('plan_date', planBounds.start)
+          .not('due_date', 'is', null)
+          .lt('due_date', jakartaOverdueCutoffIso())
+          .in('status', ['pending', 'in_progress'])
+          .order('created_at', { ascending: false })
+          .limit(1000);
+        if (taskIdsToFetch) {
+          carryQuery = carryQuery.in('id', taskIdsToFetch);
+        }
+        const carryResult = await carryQuery;
+        if (carryResult.error) {
+          console.error('âŒ Error fetching overdue carry-over tasks:', carryResult.error);
+          throw carryResult.error;
+        }
+        carryRows = carryResult.data ?? [];
+      }
+
+      const data = mergeTasksById(monthResult.data ?? [], carryRows ?? []);
+
       if (isDev) {
         logger.query('âœ… Fetched tasks (basic data):', data);
         logger.query('ðŸ“Š Task count:', data?.length || 0);
       }
       // Debug: Log if no tasks found
-      if (!data || data.length === 0) {
+      if (data.length === 0) {
         console.warn('âš ï¸ No tasks found for organization:', organizationId);
         setTasks([]);
         hasLoadedOnceRef.current = true;

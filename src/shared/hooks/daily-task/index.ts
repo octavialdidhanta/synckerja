@@ -3,6 +3,7 @@ export {
   getPlanDateQueryBounds,
   buildDailyTaskCacheKey,
 } from './getPlanDateQueryBounds';
+export { jakartaOverdueCutoffIso, mergeTasksById } from './overdueCarryOver';
 export {
   useTaskFilterState,
   DEFAULT_PLAN_DATE_RANGE,

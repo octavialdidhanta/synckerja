@@ -2,8 +2,9 @@ import { useMemo, useCallback } from 'react';
 import { Task, TaskStep } from '@/8-2-DailyTask/types';
 import type { SummaryData } from '@/8-2-DailyTask/types';
 import { calculateProgress } from '@/8-2-DailyTask/utils/taskUtils';
-import { startOfMonth, isSameMonth, addMonths, subMonths } from 'date-fns';
-import { isOverdueIncomplete, stepBelongsInTodayQueue, taskMatchesTodayWorkQueue } from './todayWorkQueue';
+import { stepBelongsInTodayQueue, taskMatchesTodayWorkQueue } from './todayWorkQueue';
+import { belongsInSelectedPlanMonth, isJakartaDateBeforeToday, isOpenOverdueInJakarta } from './overdueCarryOver';
+import { getPlanDateQueryBounds } from './getPlanDateQueryBounds';
 
 export interface TaskFilters {
   search: string;
@@ -187,12 +188,7 @@ export const useTaskFilters = ({
         }
       };
 
-      // Helper: determine overdue (date in past) for task or step
-      const isOverdueDate = (isoDate?: string | null): boolean => {
-        if (!isoDate) return false;
-        const date = new Date(isoDate);
-        return date.getTime() < now.getTime();
-      };
+      const isOverdueDate = (isoDate?: string | null): boolean => isJakartaDateBeforeToday(isoDate, now);
 
       // Match if task-level due date is in range
       if (isInActiveRange(task.due_date)) {
@@ -212,7 +208,7 @@ export const useTaskFilters = ({
       const isStrictRange = ['yesterday', 'this_week', 'custom'].includes(filters.dateRange);
       if (!isStrictRange) {
         // - Task overdue (task.due_date past) and task not completed
-        if (isOverdueDate(task.due_date) && (task.status !== 'completed')) {
+        if (isOpenOverdueInJakarta(task.due_date, task.status, now)) {
           return true;
         }
         // - Any step overdue (step.assigned_due_date past) and step not completed
@@ -241,37 +237,10 @@ export const useTaskFilters = ({
         return true;
       }
 
-      // If task has no plan_date, exclude it when plan date filter is active
-      if (!task.plan_date) {
-        return false;
-      }
-
-      const planDate = startOfMonth(new Date(task.plan_date));
-      const now = new Date();
-      const currentMonth = startOfMonth(now);
-
-      switch (filters.planDateRange) {
-        case 'this_month_plan': {
-          return isSameMonth(planDate, currentMonth);
-        }
-        case 'next_month_plan': {
-          const nextMonth = addMonths(currentMonth, 1);
-          return isSameMonth(planDate, nextMonth);
-        }
-        case 'last_month_plan': {
-          const lastMonth = subMonths(currentMonth, 1);
-          return isSameMonth(planDate, lastMonth);
-        }
-        case 'custom_month_plan': {
-          if (filters.customPlanMonth) {
-            const customMonth = startOfMonth(new Date(filters.customPlanMonth));
-            return isSameMonth(planDate, customMonth);
-          }
-          return true;
-        }
-        default:
-          return true;
-      }
+      const bounds = getPlanDateQueryBounds(filters.planDateRange, filters.customPlanMonth);
+      if (!bounds) return true;
+      if (!task.plan_date) return false;
+      return belongsInSelectedPlanMonth(task, bounds.start);
     },
     [filters.planDateRange, filters.customPlanMonth]
   );
@@ -950,13 +919,12 @@ export const useTaskFilters = ({
       overdue: list.filter((t) => {
         if (!t) return false;
         const display = getDisplayStatus(t);
-        if (display === 'completed' || display === 'cancelled') return false;
-        if (isOverdueIncomplete(t.due_date, false)) return true;
+        if (isOpenOverdueInJakarta(t.due_date, display)) return true;
         return (t.steps ?? []).some(
           (step) =>
-            isOverdueIncomplete(step.assigned_due_date, step.is_completed === true) ||
-            (step.sub_steps ?? []).some((subStep) =>
-              isOverdueIncomplete(subStep.assigned_due_date, subStep.is_completed === true),
+            (!step.is_completed && isJakartaDateBeforeToday(step.assigned_due_date)) ||
+            (step.sub_steps ?? []).some(
+              (subStep) => !subStep.is_completed && isJakartaDateBeforeToday(subStep.assigned_due_date),
             ),
         );
       }).length,

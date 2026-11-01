@@ -4,6 +4,7 @@ import { Flag } from 'lucide-react';
 import { differenceInDays, startOfDay } from 'date-fns';
 import type { Task } from '../../types';
 import { getEffectiveProgressAndCount } from '../../utils/taskUtils';
+import { isOpenOverdueInJakarta } from '@/shared/hooks/daily-task/overdueCarryOver';
 
 export function getStatusBadge(status: string) {
   const variants: Record<string, string> = {
@@ -55,8 +56,7 @@ export function formatDate(dateString: string) {
 }
 
 export function isOverdue(dueDate: string | null, status: string) {
-  if (!dueDate || status === 'completed') return false;
-  return new Date(dueDate) < new Date();
+  return isOpenOverdueInJakarta(dueDate, status);
 }
 
 export function getDaysRemaining(dueDate: string | null, status: string): number | null {
