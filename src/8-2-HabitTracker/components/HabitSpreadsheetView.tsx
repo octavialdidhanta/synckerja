@@ -38,7 +38,11 @@ export const HabitSpreadsheetView = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedHabit, setSelectedHabit] = useState<string | null>(null);
   const [habitToDelete, setHabitToDelete] = useState<{ id: string; name: string } | null>(null);
-  const [entryToRemove, setEntryToRemove] = useState<{ entryId: string; date: Date; habitName: string } | null>(null);
+  const [entryConfirm, setEntryConfirm] = useState<
+    | { action: "log"; habitId: string; date: Date; habitName: string }
+    | { action: "remove"; entryId: string; date: Date; habitName: string }
+    | null
+  >(null);
   const [targetCountModal, setTargetCountModal] = useState<{ habitId: string; date: Date } | null>(null);
   const [monthlyHabitConfirmModal, setMonthlyHabitConfirmModal] = useState<{ habitId: string; date: Date; newDate: number; oldDate: number | null } | null>(
     null,
@@ -192,17 +196,11 @@ export const HabitSpreadsheetView = () => {
       return;
     }
 
-    const dateStr = format(date, "yyyy-MM-dd");
     const existingEntry = getEntryForDate(habitId, date);
-    try {
-      if (checked && !existingEntry) {
-        await addEntry(habitId, dateStr, 1);
-        toast({ title: "Entry logged", description: `Habit logged for ${format(date, "MMM d")}` });
-      } else if (!checked && existingEntry) {
-        setEntryToRemove({ entryId: existingEntry.id, date, habitName: habit.name });
-      }
-    } catch {
-      toast({ title: "Error", description: "Failed to update entry", variant: "destructive" });
+    if (checked && !existingEntry) {
+      setEntryConfirm({ action: "log", habitId, date, habitName: habit.name });
+    } else if (!checked && existingEntry) {
+      setEntryConfirm({ action: "remove", entryId: existingEntry.id, date, habitName: habit.name });
     }
   };
 
@@ -656,38 +654,54 @@ export const HabitSpreadsheetView = () => {
       {editingHabit && <HabitFormModal isOpen={!!editingHabit} onClose={() => setEditingHabit(null)} habitId={editingHabit} />}
       {targetCountModal && <HabitTargetCountModal isOpen={!!targetCountModal} onClose={() => setTargetCountModal(null)} habitId={targetCountModal.habitId} date={targetCountModal.date} />}
 
-      <AlertDialog open={!!entryToRemove} onOpenChange={(open) => !open && setEntryToRemove(null)}>
+      <AlertDialog open={!!entryConfirm} onOpenChange={(open) => !open && setEntryConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("habitTracker.removeEntryTitle", "Remove this check?")}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {entryConfirm?.action === "log"
+                ? t("habitTracker.logEntryTitle", "Log this habit?")
+                : t("habitTracker.removeEntryTitle", "Remove this check?")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {entryToRemove
+              {entryConfirm
                 ? t(
-                    "habitTracker.removeEntryDescription",
-                    "The check for {{name}} on {{date}} will be removed.",
+                    entryConfirm.action === "log" ? "habitTracker.logEntryDescription" : "habitTracker.removeEntryDescription",
+                    entryConfirm.action === "log"
+                      ? "The check for {{name}} on {{date}} will be saved."
+                      : "The check for {{name}} on {{date}} will be removed.",
                     {
-                      name: entryToRemove.habitName,
-                      date: format(entryToRemove.date, "d MMM yyyy", { locale: dateFnsLocale }),
+                      name: entryConfirm.habitName,
+                      date: format(entryConfirm.date, "d MMM yyyy", { locale: dateFnsLocale }),
                     },
                   )
                 : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setEntryToRemove(null)}>{t("common.cancel", "Cancel")}</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setEntryConfirm(null)}>{t("common.cancel", "Cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
-                if (!entryToRemove) return;
-                const pending = entryToRemove;
+                if (!entryConfirm) return;
+                const pending = entryConfirm;
                 try {
-                  await deleteEntry(pending.entryId);
-                  setEntryToRemove(null);
-                  toast({
-                    title: t("habitTracker.entryRemoved", "Entry removed"),
-                    description: t("habitTracker.entryRemovedFor", "Entry removed for {{date}}", {
-                      date: format(pending.date, "MMM d", { locale: dateFnsLocale }),
-                    }),
-                  });
+                  if (pending.action === "log") {
+                    await addEntry(pending.habitId, format(pending.date, "yyyy-MM-dd"), 1);
+                    toast({
+                      title: t("habitTracker.entryLogged", "Entry logged"),
+                      description: t("habitTracker.entryLoggedFor", "Habit logged for {{date}}", {
+                        date: format(pending.date, "MMM d", { locale: dateFnsLocale }),
+                      }),
+                    });
+                  } else {
+                    await deleteEntry(pending.entryId);
+                    toast({
+                      title: t("habitTracker.entryRemoved", "Entry removed"),
+                      description: t("habitTracker.entryRemovedFor", "Entry removed for {{date}}", {
+                        date: format(pending.date, "MMM d", { locale: dateFnsLocale }),
+                      }),
+                    });
+                  }
+                  setEntryConfirm(null);
                 } catch {
                   toast({
                     title: t("habitTracker.updateFailed", "Error"),
@@ -696,9 +710,11 @@ export const HabitSpreadsheetView = () => {
                   });
                 }
               }}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              className={entryConfirm?.action === "remove" ? "bg-red-600 hover:bg-red-700 focus:ring-red-600" : undefined}
             >
-              {t("habitTracker.removeEntryConfirm", "Remove")}
+              {entryConfirm?.action === "log"
+                ? t("habitTracker.logEntryConfirm", "Log")
+                : t("habitTracker.removeEntryConfirm", "Remove")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
