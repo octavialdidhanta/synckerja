@@ -183,7 +183,7 @@ export type AppDeps = {
     },
   ) => Promise<ExpenseRecord>;
   listTaskSummary: (ctx: McpAuthContext, month: string | null) => Promise<TaskSummary>;
-  listTasks: (ctx: McpAuthContext, status: string | null) => Promise<TaskListRow[]>;
+  listTasks: (ctx: McpAuthContext, status: string | null, month: string | null) => Promise<TaskListRow[]>;
   listTaskInitiative: (ctx: McpAuthContext) => Promise<InitiativeRow[]>;
   listTaskWorkload: (ctx: McpAuthContext, timeframe: string | null) => Promise<WorkloadRow[]>;
   listCompletedSteps: (ctx: McpAuthContext, month: string | null) => Promise<CompletedStepRow[]>;

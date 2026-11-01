@@ -59,6 +59,24 @@ export interface ReportContextType {
 
 const ReportContext = createContext<ReportContextType | undefined>(undefined);
 
+function oneRecord<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+function latestByTask(assignments: any[]): any[] {
+  const byTask = new Map<string, any>();
+  for (const row of assignments) {
+    const taskId = row.daily_task_id as string | null;
+    if (!taskId) continue;
+    const current = byTask.get(taskId);
+    if (!current || new Date(row.assigned_at).getTime() >= new Date(current.assigned_at).getTime()) {
+      byTask.set(taskId, row);
+    }
+  }
+  return [...byTask.values()];
+}
+
 export const useDailyTaskReport = () => {
   const ctx = useContext(ReportContext);
   if (!ctx) throw new Error("useDailyTaskReport must be used within DailyTaskReportProvider");
@@ -96,7 +114,7 @@ export const DailyTaskReportProvider = ({ children }: { children: React.ReactNod
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const cacheKey = `report_${organizationId}_${user.id}`;
+          const cacheKey = `report_v2_${organizationId}_${user.id}`;
           const cached = getCached<{ rows: AssignmentRow[]; blockers: any[]; recentUpdates: any[] }>(cacheKey, 60000);
           if (cached) {
             if (!isActive) return;
@@ -109,23 +127,100 @@ export const DailyTaskReportProvider = ({ children }: { children: React.ReactNod
           }
         }
 
-        const stepAssignsResult = await supabase
-          .from("task_steps_assigned")
-          .select("id, task_step_id, assigned_at, employee:employees!employee_id(id, full_name, email, pending_removal, employee_statuses(name)), step:task_steps(id, title, updated_at, completed_at, is_completed, task:daily_tasks(id, title)), task_steps_assigned_duedate(due_date, created_at)")
-          .eq("organization_id", organizationId)
-          .limit(1000);
+        const [stepAssignsResult, taskAssignsResult] = await Promise.all([
+          supabase
+            .from("task_steps_assigned")
+            .select("id, task_step_id, assigned_at, employee:employees!employee_id(id, full_name, email, pending_removal, employee_statuses(name)), step:task_steps(id, title, updated_at, completed_at, is_completed, task:daily_tasks(id, title)), task_steps_assigned_duedate(due_date, created_at)")
+            .eq("organization_id", organizationId)
+            .limit(1000),
+          supabase
+            .from("daily_tasks_assigned")
+            .select("id, daily_task_id, assigned_at, employee:employees!employee_id(id, full_name, email, pending_removal, employee_statuses(name)), daily_task:daily_task_id(id, title, status, due_date, finish_date)")
+            .eq("organization_id", organizationId)
+            .order("assigned_at", { ascending: false })
+            .limit(1000),
+        ]);
         if (stepAssignsResult.error) throw stepAssignsResult.error;
+        if (taskAssignsResult.error) throw taskAssignsResult.error;
 
         const stepMapped: AssignmentRow[] = (stepAssignsResult.data || []).map((a: any) => ({
           id: a.id,
           type: "step",
           task_step_id: a.task_step_id,
           assigned_at: a.assigned_at,
-          employee: a.employee || null,
-          step: a.step || null,
+          employee: oneRecord(a.employee),
+          step: oneRecord(a.step),
           due_date: (a.task_steps_assigned_duedate || []).sort((x: any, y: any) => new Date(y.created_at).getTime() - new Date(x.created_at).getTime())[0]?.due_date || null,
         }));
-        const stepIds = [...new Set(stepMapped.map((r) => r.step?.id).filter(Boolean))] as string[];
+        const assignedStepIds = new Set(stepMapped.map((r) => r.task_step_id).filter(Boolean));
+        const currentTaskAssignments = latestByTask(taskAssignsResult.data || []);
+        const assignedTaskIds = currentTaskAssignments.map((row) => row.daily_task_id as string);
+        const taskSteps: any[] = [];
+        for (let offset = 0; offset < assignedTaskIds.length; offset += 200) {
+          const chunk = assignedTaskIds.slice(offset, offset + 200);
+          const stepsResult = await supabase
+            .from("task_steps")
+            .select("id, task_id, title, updated_at, completed_at, is_completed, order")
+            .in("task_id", chunk)
+            .limit(5000);
+          if (stepsResult.error) throw stepsResult.error;
+          taskSteps.push(...(stepsResult.data || []));
+        }
+        const stepsByTask = new Map<string, any[]>();
+        taskSteps.forEach((step) => {
+          const list = stepsByTask.get(step.task_id) || [];
+          list.push(step);
+          stepsByTask.set(step.task_id, list);
+        });
+
+        currentTaskAssignments.forEach((assignment) => {
+          const task = oneRecord<any>(assignment.daily_task);
+          if (!task?.id) return;
+          const employee = oneRecord<AssignmentRow["employee"]>(assignment.employee);
+          const steps = stepsByTask.get(task.id) || [];
+          const uncovered = steps
+            .filter((step) => !assignedStepIds.has(step.id))
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+          if (uncovered.length === 0 && steps.length === 0) {
+            const completed = String(task.status || "").toLowerCase() === "completed" || !!task.finish_date;
+            stepMapped.push({
+              id: `task:${assignment.id}`,
+              type: "step",
+              assigned_at: assignment.assigned_at,
+              employee,
+              step: {
+                id: `task-row:${task.id}`,
+                title: "-",
+                updated_at: null,
+                completed_at: task.finish_date || null,
+                is_completed: completed,
+                task: { id: task.id, title: task.title || "-" },
+              },
+              due_date: task.due_date || null,
+            });
+            return;
+          }
+          uncovered.forEach((step) => {
+            stepMapped.push({
+              id: `task-step:${assignment.id}:${step.id}`,
+              type: "step",
+              task_step_id: step.id,
+              assigned_at: assignment.assigned_at,
+              employee,
+              step: {
+                id: step.id,
+                title: step.title || "-",
+                updated_at: step.updated_at || null,
+                completed_at: step.completed_at || null,
+                is_completed: !!step.is_completed,
+                task: { id: task.id, title: task.title || "-" },
+              },
+              due_date: task.due_date || null,
+            });
+          });
+        });
+
+        const stepIds = [...new Set(stepMapped.map((r) => r.task_step_id).filter(Boolean))] as string[];
         const taskIds = [...new Set(stepMapped.map((r) => r.step?.task?.id).filter(Boolean))] as string[];
 
         const [subStepRowsResult, historyResult] = await Promise.all([
@@ -221,7 +316,7 @@ export const DailyTaskReportProvider = ({ children }: { children: React.ReactNod
         try {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-            setCache(`report_${organizationId}_${user.id}`, {
+            setCache(`report_v2_${organizationId}_${user.id}`, {
               rows: stepMapped,
               blockers: unresolvedBlockers,
               recentUpdates: recent,
@@ -230,6 +325,9 @@ export const DailyTaskReportProvider = ({ children }: { children: React.ReactNod
         } catch (cacheError) {
           logger.warn("Failed to save cache", cacheError);
         }
+      } catch (error) {
+        logger.error("Failed to load daily task report", error);
+        if (isActive) setRefreshError("Gagal memuat laporan.");
       } finally {
         if (isActive) setLoading(false);
       }
@@ -275,7 +373,7 @@ export const DailyTaskReportProvider = ({ children }: { children: React.ReactNod
           assignmentId: r.id,
           employeeId: r.employee?.id || null,
           employeeName: r.employee?.full_name || "Unknown",
-          stepId: r.step?.id || null,
+          stepId: r.step?.id && r.step.id.startsWith("task-row:") ? null : r.step?.id || null,
           stepTitle: r.step?.title || "-",
           taskTitle: r.step?.task?.title || "-",
           assignedAt: r.assigned_at || null,

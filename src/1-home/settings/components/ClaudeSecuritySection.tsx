@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Unplug } from "lucide-react";
+import { Check, Copy, Unplug } from "lucide-react";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
@@ -28,7 +28,7 @@ function rowKey(row: { user_id: string; client_id: string }): string {
 }
 
 function formatWhen(value: string, language: string): string {
-  const date = new Date(value);
+  const origin = String(import.meta.env.VITE_MCP_PUBLIC_URL || "https://mcp.synckerja.com").replace(/\/+$/, "");
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(language.startsWith("id") ? "id-ID" : "en-GB", {
     dateStyle: "medium",
@@ -51,6 +51,18 @@ export function ClaudeSecuritySection({ compact = false }: { compact?: boolean }
     setLoading(true);
     setLoadError(null);
     const [connectionResult, auditResult] = await Promise.all([
+  const [copied, setCopied] = useState(false);
+  const serverUrl = mcpServerUrl();
+
+  const copyServerUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(serverUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
       supabase.rpc("mcp_list_connections", { p_organization_id: orgId }),
       supabase.rpc("mcp_list_tool_audit", { p_organization_id: orgId }),
     ]);
@@ -132,6 +144,13 @@ export function ClaudeSecuritySection({ compact = false }: { compact?: boolean }
           <Alert variant="destructive">
             <AlertDescription>{loadError || revokeError}</AlertDescription>
           </Alert>
+        <div className="flex items-center gap-2">
+          <code className={`${text} min-w-0 flex-1 truncate text-foreground`}>{serverUrl}</code>
+          <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => void copyServerUrl()}>
+            {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
+            {copied ? t("settings.security.claude.copied") : t("settings.security.claude.copy")}
+          </Button>
+        </div>
         ) : null}
         {organizationId && loading ? (
           <p className={`${text} text-muted-foreground`} aria-live="polite">

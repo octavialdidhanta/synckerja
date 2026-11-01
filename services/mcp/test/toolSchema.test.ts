@@ -59,6 +59,8 @@ import {
   listTaskSummary,
   listTasks,
   listTaskWorkload,
+  createTask,
+  updateTask,
 } from "../src/db/dailyTasks";
 import { cyclesInput } from "../src/tools/okr/cyclesList";
 import { objectivesInput } from "../src/tools/okr/objectivesList";
@@ -311,24 +313,32 @@ describe("phase 0 tool inputs", () => {
     expect(taskSummaryInput.safeParse({ month: "2026-10" }).success).toBe(true);
     expect(taskSummaryInput.safeParse({ organization_id: "org-2" }).success).toBe(false);
     expect(taskListInput.safeParse({ status: "pending" }).success).toBe(true);
+    expect(taskListInput.safeParse({ status: "pending", month: "2026-11" }).success).toBe(true);
+    expect(taskListInput.safeParse({ month: "2026-13" }).success).toBe(false);
+    expect(taskListInput.safeParse({ month: "2026-11-01" }).success).toBe(false);
     expect(taskListInput.safeParse({ status: "done" }).success).toBe(false);
     expect(taskListInput.safeParse({ email: "a@b.c" }).success).toBe(false);
     expect(taskInitiativeInput.safeParse({ phone: "0812" }).success).toBe(false);
     expect(taskWorkloadInput.safeParse({}).success).toBe(true);
     expect(taskWorkloadInput.safeParse({ timeframe: "year" }).success).toBe(false);
     expect(completedStepsInput.safeParse({ month: "2026-13" }).success).toBe(false);
-    expect(createTaskInput.safeParse({ title: "Follow up" }).success).toBe(true);
-    expect(createTaskInput.safeParse({ title: "Follow up", priority: "critical" }).success).toBe(false);
+    expect(createTaskInput.safeParse({ title: "Follow up" }).success).toBe(false);
+    expect(createTaskInput.safeParse({ title: "Follow up", plan_month: "2026-11" }).success).toBe(true);
+    expect(createTaskInput.safeParse({ title: "Follow up", plan_month: "2026-11-27" }).success).toBe(false);
+    expect(createTaskInput.safeParse({ title: "Follow up", plan_month: "2026-11", priority: "critical" }).success).toBe(false);
     expect(createTaskInput.safeParse({
       title: "Follow up",
+      plan_month: "2026-11",
       organization_id: "org-2",
       email: "a@b.c",
       phone: "0812",
     }).success).toBe(false);
     expect(updateTaskInput.safeParse({ id: taskId }).success).toBe(false);
     expect(updateTaskInput.safeParse({ id: taskId, priority: "high" }).success).toBe(true);
+    expect(updateTaskInput.safeParse({ id: taskId, plan_month: "2026-11" }).success).toBe(true);
+    expect(updateTaskInput.safeParse({ id: taskId, plan_month: "2026-11-27" }).success).toBe(false);
     expect(updateTaskSchema.safeParse({ id: taskId, status: "completed" }).success).toBe(false);
-    expect(Object.keys(updateTaskSchema.shape)).toEqual(["id", "title", "priority", "due_date"]);
+    expect(Object.keys(updateTaskSchema.shape)).toEqual(["id", "title", "priority", "due_date", "plan_month"]);
     expect(deleteTaskInput.safeParse({ id: taskId, comment: "remove" }).success).toBe(false);
     expect(assignTaskInput.safeParse({
       id: taskId,
@@ -654,12 +664,18 @@ describe("phase 0 tool inputs", () => {
     const ctx = { userId: "user-1", organizationId: "org-1" };
     const id = "11111111-1111-4111-8111-111111111111";
     await listTaskSummary(admin, ctx, null);
-    await listTasks(admin, ctx, "pending");
+    await listTasks(admin, ctx, "pending", "2026-11");
     await listTaskInitiative(admin, ctx);
     await listTaskWorkload(admin, ctx, "week");
     await listCompletedSteps(admin, ctx, "2026-10");
     await deleteTask(admin, ctx, id);
     await assignTask(admin, ctx, { id, employeeId: id, dueDate: "2026-11-02" });
+    expect(rpc).toHaveBeenNthCalledWith(2, "mcp_list_tasks", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_status: "pending",
+      p_month: "2026-11",
+    });
     expect(rpc).toHaveBeenNthCalledWith(6, "mcp_delete_task", {
       p_user_id: "user-1",
       p_organization_id: "org-1",
@@ -679,6 +695,50 @@ describe("phase 0 tool inputs", () => {
     expect(sent).not.toContain("attachment");
     expect(sent).not.toContain("email");
     expect(sent).not.toContain("phone");
+  });
+
+  it("calls create and update with the plan month and not a client plan date", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [{ id: "task-1", plan_month: "2026-11" }], error: null });
+    const admin = { rpc } as unknown as SupabaseClient;
+    const ctx = { userId: "user-1", organizationId: "org-1" };
+    const id = "11111111-1111-4111-8111-111111111111";
+    await createTask(admin, ctx, {
+      title: "Follow up",
+      description: null,
+      priority: null,
+      dueDate: "2026-12-02",
+      employeeId: null,
+      planMonth: "2026-11",
+    });
+    await updateTask(admin, ctx, {
+      id,
+      title: null,
+      priority: null,
+      dueDate: null,
+      planMonth: "2026-11",
+    });
+    expect(rpc).toHaveBeenNthCalledWith(1, "mcp_create_task", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_title: "Follow up",
+      p_description: null,
+      p_priority: null,
+      p_due_date: "2026-12-02",
+      p_employee_id: null,
+      p_plan_month: "2026-11",
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, "mcp_update_task", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_id: id,
+      p_title: null,
+      p_priority: null,
+      p_due_date: null,
+      p_plan_month: "2026-11",
+    });
+    const sent = JSON.stringify(rpc.mock.calls);
+    expect(sent).not.toContain("plan_date");
+    expect(sent).not.toContain("2026-11-27");
   });
 
   it("calls step delete and habit check with the session and the requested fields only", async () => {

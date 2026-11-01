@@ -335,7 +335,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "tasks.list",
     description:
-      "List up to 30 daily tasks for the organization locked in this session. Optional status is pending, in_progress, completed, or cancelled. Returns id, title, status, priority, due date, assignee name, and creator name. Descriptions, comments, and files are not returned.",
+      "List up to 30 daily tasks for the organization locked in this session. Optional status is pending, in_progress, completed, or cancelled. Optional month is YYYY-MM and keeps only tasks whose plan month is that month; tasks with no plan month are left out. Omit month for the latest tasks of any month. Returns id, title, status, priority, plan month, due date, assignee name, and creator name. A November plan with a December due date stays in November. Descriptions, comments, and files are not returned.",
     scopes: ["tasks:read"],
     moduleKey: "tools",
     pagePath: DAILY_TASK_PAGE_PATH,
@@ -367,7 +367,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "tasks.create",
     description:
-      "Create one pending daily task for the organization locked in this session. Requires a title. Optional description, priority, due date, and assignee. Status stays pending. Does not upload a file or add a comment.",
+      "Create one pending daily task for the organization locked in this session. Requires a title and plan_month as YYYY-MM. The plan month is the month bucket shown in Office and is stored as the first day of that month. Due date is a separate calendar day and may fall in another month, for example plan_month 2026-11 with due_date 2026-12-02. Optional description, priority, due date, and assignee. Status stays pending. Does not upload a file or add a comment.",
     scopes: ["tasks:write"],
     moduleKey: "tools",
     pagePath: DAILY_TASK_PAGE_PATH,
@@ -375,7 +375,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "tasks.update",
     description:
-      "Update the title, priority, or due date of one daily task in the organization locked in this session. Does not change its status, so completion approval is not bypassed.",
+      "Update the title, priority, due date, or plan month of one daily task in the organization locked in this session. plan_month is YYYY-MM. Omitting it leaves the plan month unchanged. A plan month and a due date in different months stay as sent. Does not change its status, so completion approval is not bypassed.",
     scopes: ["tasks:write"],
     moduleKey: "tools",
     pagePath: DAILY_TASK_PAGE_PATH,

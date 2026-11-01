@@ -18,6 +18,7 @@ export type TaskListRow = {
   due_date: string | null;
   assignee_name: string | null;
   creator_name: string | null;
+  plan_month: string | null;
 };
 
 export type InitiativeRow = {
@@ -52,6 +53,7 @@ export type TaskRecord = {
   status: string;
   priority: string | null;
   due_date: string | null;
+  plan_month: string | null;
 };
 
 export type AssignTaskResult = {
@@ -73,6 +75,7 @@ export type CreateTaskInput = {
   priority: string | null;
   dueDate: string | null;
   employeeId: string | null;
+  planMonth: string;
 };
 
 export type UpdateTaskInput = {
@@ -80,6 +83,7 @@ export type UpdateTaskInput = {
   title: string | null;
   priority: string | null;
   dueDate: string | null;
+  planMonth: string | null;
 };
 
 export type AssignTaskInput = {
@@ -129,8 +133,9 @@ export function listTasks(
   admin: SupabaseClient,
   ctx: Session,
   status: string | null,
+  month: string | null,
 ): Promise<TaskListRow[]> {
-  return callRpc(admin, "mcp_list_tasks", { ...sessionArgs(ctx), p_status: status });
+  return callRpc(admin, "mcp_list_tasks", { ...sessionArgs(ctx), p_status: status, p_month: month });
 }
 
 export function listTaskInitiative(admin: SupabaseClient, ctx: Session): Promise<InitiativeRow[]> {
@@ -165,6 +170,7 @@ export function createTask(
     p_priority: input.priority,
     p_due_date: input.dueDate,
     p_employee_id: input.employeeId,
+    p_plan_month: input.planMonth,
   });
 }
 
@@ -179,6 +185,7 @@ export function updateTask(
     p_title: input.title,
     p_priority: input.priority,
     p_due_date: input.dueDate,
+    p_plan_month: input.planMonth,
   });
 }
 

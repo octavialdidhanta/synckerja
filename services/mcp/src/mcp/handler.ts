@@ -268,7 +268,7 @@ export type McpReadDeps = {
     },
   ) => Promise<ExpenseRecord>;
   listTaskSummary: (ctx: McpAuthContext, month: string | null) => Promise<TaskSummary>;
-  listTasks: (ctx: McpAuthContext, status: string | null) => Promise<TaskListRow[]>;
+  listTasks: (ctx: McpAuthContext, status: string | null, month: string | null) => Promise<TaskListRow[]>;
   listTaskInitiative: (ctx: McpAuthContext) => Promise<InitiativeRow[]>;
   listTaskWorkload: (ctx: McpAuthContext, timeframe: string | null) => Promise<WorkloadRow[]>;
   listCompletedSteps: (ctx: McpAuthContext, month: string | null) => Promise<CompletedStepRow[]>;
@@ -600,7 +600,7 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
     case "tasks.summary":
       return taskSummaryResult(ctx, optionalString(args.month), deps.listTaskSummary);
     case "tasks.list":
-      return taskListResult(ctx, optionalString(args.status), deps.listTasks);
+      return taskListResult(ctx, optionalString(args.status), optionalString(args.month), deps.listTasks);
     case "tasks.initiative.list":
       return taskInitiativeResult(ctx, deps.listTaskInitiative);
     case "tasks.workload":
@@ -616,6 +616,7 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
           priority: optionalString(args.priority),
           dueDate: optionalString(args.due_date),
           employeeId: optionalString(args.employee_id),
+          planMonth: requiredString(args.plan_month),
         },
         deps.createTask,
       );
@@ -628,6 +629,7 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
           title: optionalString(args.title),
           priority: optionalString(args.priority),
           dueDate: optionalString(args.due_date),
+          planMonth: optionalString(args.plan_month),
         },
         deps.updateTask,
       );

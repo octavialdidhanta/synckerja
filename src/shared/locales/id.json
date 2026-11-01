@@ -915,6 +915,8 @@
       "claude": {
         "title": "Koneksi Claude",
         "description": "Cabut koneksi agar Claude berhenti pada permintaan berikutnya. Catatan hanya menyimpan nama alat, hasil, dan waktu.",
+        "copy": "Salin",
+        "copied": "Tersalin",
         "loading": "Memuat koneksi…",
         "noOrganization": "Pilih organisasi terlebih dahulu.",
         "connections": "Koneksi yang hidup",

@@ -1,10 +1,11 @@
 import { z } from "zod";
 import type { McpAuthContext } from "../../authz/context";
 import type { CreateTaskInput, TaskRecord } from "../../db/dailyTasks";
-import { taskDescription, taskDue, taskId, taskPriority, taskTitle } from "./fields";
+import { taskDescription, taskDue, taskId, taskPlanMonth, taskPriority, taskTitle } from "./fields";
 
 export const createTaskInput = z.object({
   title: taskTitle,
+  plan_month: taskPlanMonth,
   description: taskDescription.optional(),
   priority: taskPriority.optional(),
   due_date: taskDue.optional(),
