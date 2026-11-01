@@ -15,20 +15,17 @@ type ConnectionRow = {
   connected_at: string;
 };
 
-type AuditRow = {
-  user_id: string;
-  full_name: string | null;
-  tool_name: string;
-  outcome: "ok" | "error" | "forbidden" | "rate_limited";
-  created_at: string;
-};
-
 function rowKey(row: { user_id: string; client_id: string }): string {
   return `${row.user_id}:${row.client_id}`;
 }
 
-function formatWhen(value: string, language: string): string {
+function mcpServerUrl(): string {
   const origin = String(import.meta.env.VITE_MCP_PUBLIC_URL || "https://mcp.synckerja.com").replace(/\/+$/, "");
+  return origin.endsWith("/mcp") ? origin : `${origin}/mcp`;
+}
+
+function formatWhen(value: string, language: string): string {
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(language.startsWith("id") ? "id-ID" : "en-GB", {
     dateStyle: "medium",
@@ -40,17 +37,11 @@ export function ClaudeSecuritySection({ compact = false }: { compact?: boolean }
   const { t, i18n } = useTranslation();
   const { organizationId } = useCurrentOrg();
   const [connections, setConnections] = useState<ConnectionRow[]>([]);
-  const [activity, setActivity] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [revokeError, setRevokeError] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [revokingKey, setRevokingKey] = useState<string | null>(null);
-
-  const load = useCallback(async (orgId: string) => {
-    setLoading(true);
-    setLoadError(null);
-    const [connectionResult, auditResult] = await Promise.all([
   const [copied, setCopied] = useState(false);
   const serverUrl = mcpServerUrl();
 
@@ -63,16 +54,16 @@ export function ClaudeSecuritySection({ compact = false }: { compact?: boolean }
       setCopied(false);
     }
   };
-      supabase.rpc("mcp_list_connections", { p_organization_id: orgId }),
-      supabase.rpc("mcp_list_tool_audit", { p_organization_id: orgId }),
-    ]);
-    if (connectionResult.error || auditResult.error) {
+
+  const load = useCallback(async (orgId: string) => {
+    setLoading(true);
+    setLoadError(null);
+    const { data, error } = await supabase.rpc("mcp_list_connections", { p_organization_id: orgId });
+    if (error) {
       setLoadError(t("settings.security.claude.loadError"));
       setConnections([]);
-      setActivity([]);
     } else {
-      setConnections((connectionResult.data ?? []) as ConnectionRow[]);
-      setActivity((auditResult.data ?? []) as AuditRow[]);
+      setConnections((data ?? []) as ConnectionRow[]);
     }
     setLoading(false);
   }, [t]);
@@ -80,7 +71,6 @@ export function ClaudeSecuritySection({ compact = false }: { compact?: boolean }
   useEffect(() => {
     if (!organizationId) {
       setConnections([]);
-      setActivity([]);
       setLoading(false);
       return;
     }
@@ -88,18 +78,13 @@ export function ClaudeSecuritySection({ compact = false }: { compact?: boolean }
     void (async () => {
       setLoading(true);
       setLoadError(null);
-      const [connectionResult, auditResult] = await Promise.all([
-        supabase.rpc("mcp_list_connections", { p_organization_id: organizationId }),
-        supabase.rpc("mcp_list_tool_audit", { p_organization_id: organizationId }),
-      ]);
+      const { data, error } = await supabase.rpc("mcp_list_connections", { p_organization_id: organizationId });
       if (cancelled) return;
-      if (connectionResult.error || auditResult.error) {
+      if (error) {
         setLoadError(t("settings.security.claude.loadError"));
         setConnections([]);
-        setActivity([]);
       } else {
-        setConnections((connectionResult.data ?? []) as ConnectionRow[]);
-        setActivity((auditResult.data ?? []) as AuditRow[]);
+        setConnections((data ?? []) as ConnectionRow[]);
       }
       setLoading(false);
     })();
@@ -139,11 +124,6 @@ export function ClaudeSecuritySection({ compact = false }: { compact?: boolean }
         <CardDescription className={text}>{t("settings.security.claude.description")}</CardDescription>
       </CardHeader>
       <CardContent className={compact ? "space-y-4 p-3 pt-0" : "space-y-6"}>
-        {!organizationId ? <p className={`${text} text-muted-foreground`}>{t("settings.security.claude.noOrganization")}</p> : null}
-        {loadError || revokeError ? (
-          <Alert variant="destructive">
-            <AlertDescription>{loadError || revokeError}</AlertDescription>
-          </Alert>
         <div className="flex items-center gap-2">
           <code className={`${text} min-w-0 flex-1 truncate text-foreground`}>{serverUrl}</code>
           <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => void copyServerUrl()}>
@@ -151,6 +131,11 @@ export function ClaudeSecuritySection({ compact = false }: { compact?: boolean }
             {copied ? t("settings.security.claude.copied") : t("settings.security.claude.copy")}
           </Button>
         </div>
+        {!organizationId ? <p className={`${text} text-muted-foreground`}>{t("settings.security.claude.noOrganization")}</p> : null}
+        {loadError || revokeError ? (
+          <Alert variant="destructive">
+            <AlertDescription>{loadError || revokeError}</AlertDescription>
+          </Alert>
         ) : null}
         {organizationId && loading ? (
           <p className={`${text} text-muted-foreground`} aria-live="polite">
@@ -159,8 +144,7 @@ export function ClaudeSecuritySection({ compact = false }: { compact?: boolean }
         ) : null}
 
         {organizationId && !loading && !loadError ? (
-          <>
-            <section className="space-y-2">
+          <section className="space-y-2">
               <h3 className={`${text} font-medium text-foreground`}>{t("settings.security.claude.connections")}</h3>
               {connections.length === 0 ? (
                 <p className={`${text} text-muted-foreground`}>{t("settings.security.claude.emptyConnections")}</p>
@@ -203,28 +187,6 @@ export function ClaudeSecuritySection({ compact = false }: { compact?: boolean }
                 </ul>
               )}
             </section>
-
-            <section className="space-y-2">
-              <h3 className={`${text} font-medium text-foreground`}>{t("settings.security.claude.activity")}</h3>
-              {activity.length === 0 ? (
-                <p className={`${text} text-muted-foreground`}>{t("settings.security.claude.emptyActivity")}</p>
-              ) : (
-                <ul className="space-y-1">
-                  {activity.map((row, index) => (
-                    <li key={`${row.user_id}-${row.created_at}-${index}`} className={`${text} text-muted-foreground`}>
-                      <span className="text-foreground">{row.tool_name}</span>
-                      {" · "}
-                      {t(`settings.security.claude.outcomes.${row.outcome}`, { defaultValue: row.outcome })}
-                      {" · "}
-                      {row.full_name?.trim() || t("settings.security.claude.unknownUser")}
-                      {" · "}
-                      {formatWhen(row.created_at, i18n.language)}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </>
         ) : null}
       </CardContent>
     </Card>

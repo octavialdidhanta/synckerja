@@ -914,7 +914,7 @@
       },
       "claude": {
         "title": "Claude connection",
-        "description": "Disconnect Claude so the next request stops. The activity list stores the tool name, result, and time only.",
+        "description": "Disconnect Claude so the next request stops.",
         "copy": "Copy",
         "copied": "Copied",
         "loading": "Loading connections…",
