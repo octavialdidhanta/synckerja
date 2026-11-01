@@ -1,18 +1,55 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PageAccessConfig } from "../../../../src/shared/auth/page-access/evaluatePageAccess";
+import { activeOrganizationId, listActiveMemberships, resolveConnectorSession } from "../db/connectorSession";
 import type { AccessClaims } from "../oauth/tokens";
 import { AuthzError } from "./errors";
 import { buildAuthContext, type McpAuthContext } from "./context";
 import type { ModuleRow } from "./moduleAccess";
 
 export async function loadContext(admin: SupabaseClient, claims: AccessClaims): Promise<McpAuthContext> {
+  const session = await resolveConnectorSession(admin, claims);
+  const organizationId = activeOrganizationId(session, claims);
+  if (!organizationId) throw new AuthzError("organization_lookup_failed", 401);
+
+  const organizations = await listActiveMemberships(admin, claims.sub);
+
   const { data: member, error: memberError } = await admin
     .from("user_organizations")
     .select("is_active")
     .eq("user_id", claims.sub)
-    .eq("organization_id", claims.orgId)
+    .eq("organization_id", organizationId)
     .maybeSingle();
   if (memberError) throw new AuthzError("membership_lookup_failed", 401);
+  const activeMember = Boolean(member) && member?.is_active !== false;
+
+  const { data: org, error: orgError } = await admin
+    .from("organizations")
+    .select("company_name, subscription_self_service_enabled")
+    .eq("id", organizationId)
+    .maybeSingle();
+  if (orgError) throw new AuthzError("organization_lookup_failed", 401);
+  if (!org && activeMember) throw new AuthzError("organization_lookup_failed", 401);
+
+  if (!activeMember || !org) {
+    return buildAuthContext({
+      claims,
+      member: false,
+      organizationId,
+      organizations,
+      profileId: claims.profileId,
+      employeeId: null,
+      employeeStatus: null,
+      jobLevelId: null,
+      jobLevelName: null,
+      roles: [],
+      companyName: String(org?.company_name ?? ""),
+      configurations: [],
+      subscriptionSelfServiceEnabled: null,
+      salesRows: null,
+      subscriptionPlanId: null,
+      planRows: null,
+    });
+  }
 
   const { data: profile, error: profileError } = await admin
     .from("profiles")
@@ -25,7 +62,7 @@ export async function loadContext(admin: SupabaseClient, claims: AccessClaims): 
     .from("employees")
     .select("id, employee_status_id, job_level_id")
     .eq("user_id", claims.sub)
-    .eq("organization_id", claims.orgId)
+    .eq("organization_id", organizationId)
     .maybeSingle();
   if (employeeError) throw new AuthzError("employee_lookup_failed", 401);
 
@@ -54,20 +91,13 @@ export async function loadContext(admin: SupabaseClient, claims: AccessClaims): 
     .from("user_roles")
     .select("role")
     .eq("user_id", claims.sub)
-    .eq("organization_id", claims.orgId);
+    .eq("organization_id", organizationId);
   if (roleError) throw new AuthzError("role_lookup_failed", 401);
-
-  const { data: org, error: orgError } = await admin
-    .from("organizations")
-    .select("company_name, subscription_self_service_enabled")
-    .eq("id", claims.orgId)
-    .maybeSingle();
-  if (orgError || !org) throw new AuthzError("organization_lookup_failed", 401);
 
   const { data: configs, error: configError } = await admin
     .from("permission_configurations")
     .select("page_path, is_active, roles_allowed, job_levels_allowed, exceptions, exception_paths")
-    .eq("organization_id", claims.orgId);
+    .eq("organization_id", organizationId);
   if (configError) throw new AuthzError("permission_lookup_failed", 401);
 
   let salesRows: ModuleRow[] | null = null;
@@ -77,14 +107,14 @@ export async function loadContext(admin: SupabaseClient, claims: AccessClaims): 
     const { data, error } = await admin
       .from("organization_sales_module_access")
       .select("module_key, is_enabled")
-      .eq("organization_id", claims.orgId);
+      .eq("organization_id", organizationId);
     if (error) throw new AuthzError("module_lookup_failed", 401);
     salesRows = data ?? [];
   } else {
     const { data: sub, error: subError } = await admin
       .from("organization_subscriptions")
       .select("subscription_plan_id")
-      .eq("organization_id", claims.orgId)
+      .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -102,7 +132,9 @@ export async function loadContext(admin: SupabaseClient, claims: AccessClaims): 
 
   return buildAuthContext({
     claims,
-    member: Boolean(member) && member?.is_active !== false,
+    member: true,
+    organizationId,
+    organizations,
     profileId: profile?.id ?? null,
     employeeId: employee?.id ?? null,
     employeeStatus,

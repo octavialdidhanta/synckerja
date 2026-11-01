@@ -26,6 +26,7 @@ describe("latest connection", () => {
       profileId: "profile-1",
       organizationId: "org-1",
       employeeId: null,
+      connectionId: null,
       scope: "session:read",
       expiresAt: "2026-12-01T00:00:00.000Z",
       revokedAt: null,

@@ -41,10 +41,18 @@ export type RefreshTokenRecord = {
   profileId: string;
   organizationId: string;
   employeeId: string | null;
+  connectionId: string | null;
   scope: string;
   clientId: string;
   expiresAt: string;
   revokedAt: string | null;
+};
+
+export type ConnectorSessionRecord = {
+  userId: string;
+  clientId: string;
+  connectionId: string;
+  activeOrganizationId: string;
 };
 
 export type ConsentIdentity = {
@@ -67,4 +75,9 @@ export interface GrantStore {
   findRefresh(tokenHash: string): Promise<RefreshTokenRecord | null>;
   revokeRefresh(tokenHash: string, revokedAt: string): Promise<RefreshTokenRecord | null>;
   supersedeOlderConnections(userId: string, organizationId: string, keepClientId: string): Promise<void>;
+  findConnectorSession(userId: string, clientId: string): Promise<ConnectorSessionRecord | null>;
+  /** Inserts the session. An existing row keeps its active organization. */
+  ensureConnectorSession(session: ConnectorSessionRecord): Promise<ConnectorSessionRecord>;
+  /** New consent adopts the chosen organization and keeps the existing connection id. */
+  upsertConnectorSession(session: ConnectorSessionRecord): Promise<ConnectorSessionRecord>;
 }

@@ -118,6 +118,11 @@ import {
   visitsResult,
   whoamiInput,
   whoamiResult,
+  orgsListInput,
+  orgsListResult,
+  switchOrgInput,
+  switchOrgResult,
+  stampOrganization,
   taskSummaryInput,
   taskSummaryResult,
   taskListInput,
@@ -340,6 +345,7 @@ export type McpReadDeps = {
   attachTaskStepImage: (ctx: McpAuthContext, input: { stepId: string; imageUrl: string }) => Promise<TaskStepImageRecord>;
   listHabits: (ctx: McpAuthContext, date: string | null) => Promise<HabitDayRow[]>;
   checkHabit: (ctx: McpAuthContext, input: HabitCheckInput) => Promise<HabitCheckResult>;
+  switchOrganization: (ctx: McpAuthContext, organizationId: string) => Promise<void>;
 };
 
 type HandlerDeps = McpReadDeps & {
@@ -414,6 +420,8 @@ export function publishedToolShape(schema: ZodTypeAny): ZodRawShape {
 
 const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "session.whoami": whoamiInput,
+  "session.orgs.list": orgsListInput,
+  "session.switchOrg": switchOrgInput,
   "content.plans.list": contentPlansInput,
   "content.calendar.list": calendarInput,
   "content.catalog.list": catalogInput,
@@ -474,10 +482,28 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "thinking.plan.direct": planDirectInput,
 };
 
-async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, deps: McpReadDeps): Promise<unknown> {
+async function runTool(
+  name: McpToolName,
+  ctx: McpAuthContext,
+  args: ToolArgs,
+  deps: HandlerDeps,
+  claims: AccessClaims,
+): Promise<unknown> {
   switch (name) {
     case "session.whoami":
       return whoamiResult(ctx);
+    case "session.orgs.list":
+      return orgsListResult(ctx);
+    case "session.switchOrg":
+      if (!switchOrgInput.safeParse(args).success) throw new Error("invalid_input");
+      return switchOrgResult(ctx, args, {
+        switchOrganization: (organizationId) => deps.switchOrganization(ctx, organizationId),
+        reload: async () => {
+          const next = await reload(deps, claims);
+          if (!next) throw new Error("not_a_member");
+          return next;
+        },
+      });
     case "content.plans.list":
       return contentPlansResult(ctx, deps.listContentPlans);
     case "content.calendar.list":
@@ -863,7 +889,9 @@ export async function handleMcpRequest(
       tool.name,
       { description: tool.description, inputSchema: publishedToolShape(toolInputs[tool.name]) },
       async (args) => {
-        const slot = await deps.takeToolSlot(ctx);
+        const slot = ctx.membershipActive
+          ? await deps.takeToolSlot(ctx)
+          : { allowed: true, recordDenial: false };
         if (!slot.allowed) {
           if (slot.recordDenial) await noteCall(deps, ctx, tool.name, "rate_limited");
           return { isError: true as const, content: [{ type: "text" as const, text: "rate_limited" }] };
@@ -874,9 +902,10 @@ export async function handleMcpRequest(
           return forbidden();
         }
         try {
-          const body = await runTool(tool.name, fresh, (args ?? {}) as ToolArgs, deps);
+          const body = await runTool(tool.name, fresh, (args ?? {}) as ToolArgs, deps, claims);
+          const stamped = tool.mutates ? stampOrganization(body, fresh) : body;
           await noteCall(deps, fresh, tool.name, "ok");
-          return { content: [{ type: "text" as const, text: JSON.stringify(body) }] };
+          return { content: [{ type: "text" as const, text: JSON.stringify(stamped) }] };
         } catch (error) {
           await noteCall(deps, fresh, tool.name, "error");
           throw error;

@@ -54,14 +54,21 @@ async function exchangeCode(
     throw new OAuthError("invalid_grant", "PKCE verification failed", 400);
   }
 
+  const session = await store.upsertConnectorSession({
+    userId: row.userId,
+    clientId: row.clientId,
+    connectionId: crypto.randomUUID(),
+    activeOrganizationId: row.organizationId,
+  });
   const issued = await issueTokenPair(
     config,
     store,
     {
       userId: row.userId,
       profileId: row.profileId,
-      organizationId: row.organizationId,
+      organizationId: session.activeOrganizationId,
       employeeId: row.employeeId,
+      connectionId: session.connectionId,
       scope: row.scope,
       clientId: row.clientId,
     },
@@ -90,14 +97,25 @@ async function exchangeRefresh(
   if (!revoked) {
     throw new OAuthError("invalid_grant", "Refresh token is invalid", 400);
   }
+  const existing = await store.findConnectorSession(row.userId, row.clientId);
+  const connectionId = existing?.connectionId ?? row.connectionId ?? crypto.randomUUID();
+  const organizationId = existing?.activeOrganizationId ?? row.organizationId;
+  const employeeId = existing && existing.activeOrganizationId !== row.organizationId ? null : row.employeeId;
+  const session = await store.ensureConnectorSession({
+    userId: row.userId,
+    clientId: row.clientId,
+    connectionId,
+    activeOrganizationId: organizationId,
+  });
   return issueTokenPair(
     config,
     store,
     {
       userId: row.userId,
       profileId: row.profileId,
-      organizationId: row.organizationId,
-      employeeId: row.employeeId,
+      organizationId: session.activeOrganizationId,
+      employeeId,
+      connectionId: session.connectionId,
       scope: row.scope,
       clientId: row.clientId,
     },

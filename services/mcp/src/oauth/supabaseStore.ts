@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   AuthCodeRecord,
+  ConnectorSessionRecord,
   ConsentIdentity,
   GrantStore,
   OAuthClientRecord,
@@ -45,11 +46,15 @@ type RefreshRow = {
   profile_id: string;
   organization_id: string;
   employee_id: string | null;
+  connection_id: string | null;
   scope: string;
   client_id: string;
   expires_at: string;
   revoked_at: string | null;
 };
+
+const REFRESH_COLUMNS =
+  "token_hash, user_id, profile_id, organization_id, employee_id, connection_id, scope, client_id, expires_at, revoked_at";
 
 function requestFromRow(row: RequestRow): OAuthRequestRecord {
   return {
@@ -93,6 +98,7 @@ function refreshFromRow(row: RefreshRow): RefreshTokenRecord {
     profileId: row.profile_id,
     organizationId: row.organization_id,
     employeeId: row.employee_id,
+    connectionId: row.connection_id,
     scope: row.scope,
     clientId: row.client_id,
     expiresAt: row.expires_at,
@@ -229,6 +235,7 @@ export class SupabaseGrantStore implements GrantStore {
       profile_id: token.profileId,
       organization_id: token.organizationId,
       employee_id: token.employeeId,
+      connection_id: token.connectionId,
       scope: token.scope,
       client_id: token.clientId,
       expires_at: token.expiresAt,
@@ -239,9 +246,7 @@ export class SupabaseGrantStore implements GrantStore {
   async findRefresh(tokenHash: string): Promise<RefreshTokenRecord | null> {
     const { data, error } = await this.admin
       .from("mcp_oauth_refresh_tokens")
-      .select(
-        "token_hash, user_id, profile_id, organization_id, employee_id, scope, client_id, expires_at, revoked_at",
-      )
+      .select(REFRESH_COLUMNS)
       .eq("token_hash", tokenHash)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -254,9 +259,7 @@ export class SupabaseGrantStore implements GrantStore {
       .update({ revoked_at: revokedAt })
       .eq("token_hash", tokenHash)
       .is("revoked_at", null)
-      .select(
-        "token_hash, user_id, profile_id, organization_id, employee_id, scope, client_id, expires_at, revoked_at",
-      )
+      .select(REFRESH_COLUMNS)
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data ? refreshFromRow(data as RefreshRow) : null;
@@ -269,5 +272,66 @@ export class SupabaseGrantStore implements GrantStore {
       p_keep_client_id: keepClientId,
     });
     if (error) throw new Error(error.message);
+  }
+
+  async findConnectorSession(userId: string, clientId: string): Promise<ConnectorSessionRecord | null> {
+    const { data, error } = await this.admin
+      .from("mcp_connector_sessions")
+      .select("user_id, client_id, connection_id, active_organization_id")
+      .eq("user_id", userId)
+      .eq("client_id", clientId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    return {
+      userId: data.user_id,
+      clientId: data.client_id,
+      connectionId: data.connection_id,
+      activeOrganizationId: data.active_organization_id,
+    };
+  }
+
+  async ensureConnectorSession(session: ConnectorSessionRecord): Promise<ConnectorSessionRecord> {
+    const existing = await this.findConnectorSession(session.userId, session.clientId);
+    if (existing) return existing;
+    const { error } = await this.admin.from("mcp_connector_sessions").insert({
+      user_id: session.userId,
+      client_id: session.clientId,
+      connection_id: session.connectionId,
+      active_organization_id: session.activeOrganizationId,
+    });
+    if (error) {
+      if (error.code === "23505") {
+        const raced = await this.findConnectorSession(session.userId, session.clientId);
+        if (raced) return raced;
+      }
+      throw new Error(error.message);
+    }
+    return session;
+  }
+
+  async upsertConnectorSession(session: ConnectorSessionRecord): Promise<ConnectorSessionRecord> {
+    const existing = await this.findConnectorSession(session.userId, session.clientId);
+    const connectionId = existing?.connectionId ?? session.connectionId;
+    if (!existing) {
+      const { error } = await this.admin.from("mcp_connector_sessions").insert({
+        user_id: session.userId,
+        client_id: session.clientId,
+        connection_id: connectionId,
+        active_organization_id: session.activeOrganizationId,
+      });
+      if (error) throw new Error(error.message);
+      return { ...session, connectionId };
+    }
+    const { error } = await this.admin
+      .from("mcp_connector_sessions")
+      .update({
+        active_organization_id: session.activeOrganizationId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", session.userId)
+      .eq("client_id", session.clientId);
+    if (error) throw new Error(error.message);
+    return { ...existing, connectionId, activeOrganizationId: session.activeOrganizationId };
   }
 }

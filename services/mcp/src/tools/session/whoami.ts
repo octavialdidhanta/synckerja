@@ -11,5 +11,12 @@ export function whoamiResult(ctx: McpAuthContext) {
     employee_id: ctx.employeeId,
     roles: ctx.roles,
     scopes: ctx.scopes,
+    membership_active: ctx.membershipActive,
+    organizations: ctx.organizations.map((organization) => ({
+      id: organization.id,
+      name: organization.name,
+      roles: organization.roles,
+      active: organization.id === ctx.organizationId,
+    })),
   };
 }

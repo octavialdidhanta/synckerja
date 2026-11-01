@@ -1,11 +1,16 @@
 import type {
   AuthCodeRecord,
+  ConnectorSessionRecord,
   ConsentIdentity,
   GrantStore,
   OAuthClientRecord,
   OAuthRequestRecord,
   RefreshTokenRecord,
 } from "./store";
+
+export function connectorSessionKey(userId: string, clientId: string): string {
+  return `${userId}\0${clientId}`;
+}
 
 function copy<T>(value: T): T {
   return structuredClone(value);
@@ -16,6 +21,7 @@ export class MemoryGrantStore implements GrantStore {
   readonly requests = new Map<string, OAuthRequestRecord>();
   readonly codes = new Map<string, AuthCodeRecord>();
   readonly refreshTokens = new Map<string, RefreshTokenRecord>();
+  readonly sessions = new Map<string, ConnectorSessionRecord>();
 
   async insertClient(client: OAuthClientRecord): Promise<void> {
     this.clients.set(client.clientId, copy(client));
@@ -89,5 +95,31 @@ export class MemoryGrantStore implements GrantStore {
       if (row.clientId === keepClientId) continue;
       row.revokedAt = now;
     }
+  }
+
+  async findConnectorSession(userId: string, clientId: string): Promise<ConnectorSessionRecord | null> {
+    const row = this.sessions.get(connectorSessionKey(userId, clientId));
+    return row ? copy(row) : null;
+  }
+
+  async ensureConnectorSession(session: ConnectorSessionRecord): Promise<ConnectorSessionRecord> {
+    const key = connectorSessionKey(session.userId, session.clientId);
+    const existing = this.sessions.get(key);
+    if (existing) return copy(existing);
+    this.sessions.set(key, copy(session));
+    return copy(session);
+  }
+
+  async upsertConnectorSession(session: ConnectorSessionRecord): Promise<ConnectorSessionRecord> {
+    const key = connectorSessionKey(session.userId, session.clientId);
+    const existing = this.sessions.get(key);
+    const next: ConnectorSessionRecord = {
+      userId: session.userId,
+      clientId: session.clientId,
+      connectionId: existing?.connectionId ?? session.connectionId,
+      activeOrganizationId: session.activeOrganizationId,
+    };
+    this.sessions.set(key, copy(next));
+    return copy(next);
   }
 }

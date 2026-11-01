@@ -62,6 +62,7 @@ import {
 } from "./db/dailyTasks";
 import { checkHabit, listHabits } from "./db/habits";
 import { attachTaskStepImage } from "./db/stepImages";
+import { switchConnectorOrganization } from "./db/connectorSession";
 import { accessRevokedAt, recordToolCall, takeToolSlot } from "./db/toolGate";
 import { scheduleContentPlan } from "./db/scheduleContentPlan";
 import { createApp } from "./http/createApp";
@@ -79,6 +80,7 @@ const app = createApp({
   accessRevokedAt: (claims) => accessRevokedAt(admin, claims),
   takeToolSlot: (ctx) => takeToolSlot(admin, ctx),
   recordToolCall: (ctx, toolName, outcome) => recordToolCall(admin, ctx, toolName, outcome),
+  switchOrganization: (ctx, organizationId) => switchConnectorOrganization(admin, ctx.userId, ctx.clientId, organizationId),
   listContentPlans: (ctx) => listContentPlans(admin, ctx),
   listContentCalendar: (ctx, month) => listContentCalendar(admin, ctx, month),
   listContentCatalog: (ctx) => listContentCatalog(admin, ctx),

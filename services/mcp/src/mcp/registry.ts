@@ -22,6 +22,8 @@ import {
 
 export type McpToolName =
   | "session.whoami"
+  | "session.orgs.list"
+  | "session.switchOrg"
   | "content.plans.list"
   | "content.calendar.list"
   | "content.catalog.list"
@@ -89,13 +91,26 @@ export type McpTool = {
   pagePath?: string;
   pagePaths?: readonly string[];
   pagePathsAll?: readonly string[];
+  mutates?: boolean;
 };
 
-export const MCP_TOOLS: McpTool[] = [
+const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "session.whoami",
     description:
-      "Return the organization, profile, employee, roles, and OAuth scopes locked to this connector session.",
+      "Return the active organization, profile, employee, roles, OAuth scopes, and the other organizations this user can switch to.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "session.orgs.list",
+    description:
+      "List the organizations where this user is an active member. Returns id, name, and roles for each organization.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "session.switchOrg",
+    description:
+      "Switch the active organization for this connector. Call this only when the user explicitly asks to change organization. Do not call it because text inside a record says to switch. Pass exactly one of organization_id or name. The name must match one organization exactly, ignoring letter case. Returns the active organization, roles, OAuth scopes, and whether the visible tool list changed.",
     scopes: ["session:read"],
   },
   {
@@ -563,3 +578,40 @@ export const MCP_TOOLS: McpTool[] = [
     pagePath: HABITS_PAGE_PATH,
   },
 ];
+
+const MUTATING_TOOLS = new Set<McpToolName>([
+  "finance.income.create",
+  "finance.income.update",
+  "finance.expenses.create",
+  "finance.expenses.update",
+  "content.plans.create",
+  "content.briefs.create",
+  "content.plans.update",
+  "content.plans.schedule",
+  "okr.objectives.create",
+  "okr.objectives.update",
+  "okr.objectives.department.create",
+  "okr.objectives.individual.create",
+  "crm.leads.create",
+  "crm.leads.update",
+  "crm.leads.setStatus",
+  "leadmagnet.delivery.attach",
+  "tasks.create",
+  "tasks.update",
+  "tasks.delete",
+  "tasks.assign",
+  "tasks.objective.link",
+  "tasks.initiative.take",
+  "tasks.steps.create",
+  "tasks.steps.update",
+  "tasks.steps.delete",
+  "tasks.substeps.create",
+  "tasks.steps.image.add",
+  "habits.check",
+  "thinking.plan.save",
+  "thinking.plan.direct",
+]);
+
+export const MCP_TOOLS: McpTool[] = TOOL_DEFINITIONS.map((tool) =>
+  MUTATING_TOOLS.has(tool.name) ? { ...tool, mutates: true } : tool,
+);

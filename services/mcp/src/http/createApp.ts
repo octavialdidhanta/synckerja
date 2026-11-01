@@ -70,6 +70,7 @@ export type AppDeps = {
   accessRevokedAt: (claims: AccessClaims) => Promise<string | null>;
   takeToolSlot: (ctx: McpAuthContext) => Promise<{ allowed: boolean; recordDenial: boolean }>;
   recordToolCall: (ctx: McpAuthContext, toolName: string, outcome: ToolCallOutcome) => Promise<void>;
+  switchOrganization: (ctx: McpAuthContext, organizationId: string) => Promise<void>;
   listContentPlans: (ctx: McpAuthContext) => Promise<ContentPlanRow[]>;
   listContentCalendar: (ctx: McpAuthContext, month: string | null) => Promise<ContentPlanRow[]>;
   listContentCatalog: (ctx: McpAuthContext) => Promise<ContentCatalogRow[]>;

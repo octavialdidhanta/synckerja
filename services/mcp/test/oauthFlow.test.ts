@@ -8,9 +8,9 @@ import {
   type McpAuthContext,
 } from "../src/authz/context";
 import { createApp } from "../src/http/createApp";
-import { MemoryGrantStore } from "../src/oauth/memoryStore";
+import { connectorSessionKey, MemoryGrantStore } from "../src/oauth/memoryStore";
 import { pkceS256, sha256Hex } from "../src/oauth/pkce";
-import type { AccessClaims } from "../src/oauth/tokens";
+import { verifyAccessToken, type AccessClaims } from "../src/oauth/tokens";
 
 const config: McpServiceConfig = {
   publicUrl: "http://localhost:8787",
@@ -27,16 +27,18 @@ const ORG = "org-1";
 const PROFILE = "profile-1";
 const REDIRECT = "http://127.0.0.1:6274/oauth/callback";
 
-function contextFor(claims: AccessClaims): McpAuthContext {
+function contextFor(claims: AccessClaims, organizationId = claims.orgId ?? ORG): McpAuthContext {
   return {
     userId: claims.sub,
     profileId: claims.profileId,
-    organizationId: claims.orgId,
+    organizationId,
     employeeId: claims.employeeId,
     companyName: "Acme",
     roles: ["employee"],
     scopes: claims.scopes,
     clientId: claims.clientId,
+    membershipActive: true,
+    organizations: [{ id: organizationId, name: "Acme", roles: ["employee"] }],
     modules: {
       digitalMarketing: true,
       okr: true,
@@ -68,13 +70,18 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
       return { profileId: PROFILE, employeeId: "emp-1" };
     },
     loadContext: async (claims) => {
-      if (!members.has(`${claims.sub}:${claims.orgId}`)) {
+      const session = await store.findConnectorSession(claims.sub, claims.clientId);
+      const organizationId = session?.activeOrganizationId ?? claims.orgId;
+      if (!organizationId || !members.has(`${claims.sub}:${organizationId}`)) {
         const { AuthzError } = await import("../src/authz/errors");
         throw new AuthzError("not_a_member", 401);
       }
-      return contextFor(claims);
+      return contextFor(claims, organizationId);
     },
     accessRevokedAt: async () => null,
+    switchOrganization: async () => {
+      throw new Error("unused");
+    },
     takeToolSlot: async () => ({ allowed: true, recordDenial: false }),
     recordToolCall: async () => {},
     listContentPlans: async (ctx) => {
@@ -337,6 +344,8 @@ describe("oauth and mcp http flow", () => {
     const names = toolsBody.result.tools.map((tool) => tool.name);
     expect(names).toEqual([
       "session.whoami",
+      "session.orgs.list",
+      "session.switchOrg",
       "content.plans.list",
       "content.calendar.list",
       "content.catalog.list",
@@ -378,6 +387,55 @@ describe("oauth and mcp http flow", () => {
     expect(listed).toEqual([ORG]);
     expect(store.codes.size).toBe(1);
     expect([...store.codes.values()][0]?.consumedAt).toBeTruthy();
+  });
+
+  it("keeps a switched organization when the refresh token is rotated", async () => {
+    const store = new MemoryGrantStore();
+    const { app } = appFor(store);
+    const clientId = await register(app);
+    const verifier = "verifier-for-refresh-keeps-org";
+    const authorize = await app.request(authorizeUrl(clientId, verifier));
+    const requestId = new URL(authorize.headers.get("location") || "").searchParams.get("request") || "";
+    const consented = await consent(app, requestId);
+    const code = new URL(((await consented.json()) as { redirect_url: string }).redirect_url).searchParams.get("code") || "";
+    const tokenResponse = await app.request("http://localhost:8787/token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: REDIRECT,
+        client_id: clientId,
+        code_verifier: verifier,
+      }),
+    });
+    const issued = (await tokenResponse.json()) as { access_token: string; refresh_token: string };
+    const firstClaims = await verifyAccessToken(config, issued.access_token);
+    expect(firstClaims?.orgId).toBeNull();
+    expect(firstClaims?.connectionId).toBeTruthy();
+
+    const session = store.sessions.get(connectorSessionKey(USER, clientId));
+    expect(session?.activeOrganizationId).toBe(ORG);
+    if (!session) throw new Error("missing session");
+    session.activeOrganizationId = "org-2";
+
+    const refreshed = await app.request("http://localhost:8787/token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        grant_type: "refresh_token",
+        refresh_token: issued.refresh_token,
+        client_id: clientId,
+      }),
+    });
+    expect(refreshed.status).toBe(200);
+    const next = (await refreshed.json()) as { access_token: string };
+    const nextClaims = await verifyAccessToken(config, next.access_token);
+    expect(nextClaims?.orgId).toBeNull();
+    expect(nextClaims?.connectionId).toBe(firstClaims?.connectionId);
+    const live = [...store.refreshTokens.values()].find((row) => !row.revokedAt);
+    expect(live?.organizationId).toBe("org-2");
+    expect(store.sessions.get(connectorSessionKey(USER, clientId))?.activeOrganizationId).toBe("org-2");
   });
 
   it("rejects a bad PKCE verifier and does not accept that code afterwards", async () => {

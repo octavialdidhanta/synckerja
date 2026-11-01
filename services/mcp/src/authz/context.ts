@@ -41,6 +41,12 @@ export const MCP_MODULE_KEYS = [
 ] as const;
 export type McpModuleKey = (typeof MCP_MODULE_KEYS)[number];
 
+export type OrganizationMembership = {
+  id: string;
+  name: string;
+  roles: string[];
+};
+
 export type McpAuthContext = {
   userId: string;
   profileId: string;
@@ -50,13 +56,27 @@ export type McpAuthContext = {
   roles: string[];
   scopes: string[];
   clientId: string;
+  membershipActive: boolean;
+  organizations: OrganizationMembership[];
   modules: Record<McpModuleKey, boolean>;
   pages: Record<string, boolean>;
+};
+
+const NO_MODULES: Record<McpModuleKey, boolean> = {
+  digitalMarketing: false,
+  okr: false,
+  omnichannel: false,
+  finance: false,
+  humanResources: false,
+  operations: false,
+  tools: false,
 };
 
 export function buildAuthContext(input: {
   claims: AccessClaims;
   member: boolean;
+  organizationId?: string | null;
+  organizations?: OrganizationMembership[];
   profileId: string | null;
   employeeId: string | null;
   employeeStatus: string | null;
@@ -70,12 +90,29 @@ export function buildAuthContext(input: {
   subscriptionPlanId: string | null;
   planRows: ModuleRow[] | null;
 }): McpAuthContext {
-  if (!input.member) throw new AuthzError("not_a_member", 401);
+  const organizationId = input.organizationId ?? input.claims.orgId;
+  if (!organizationId) throw new AuthzError("organization_lookup_failed", 401);
+  const organizations = input.organizations ?? [];
+
+  if (!input.member) {
+    return {
+      userId: input.claims.sub,
+      profileId: input.claims.profileId,
+      organizationId,
+      employeeId: null,
+      companyName: input.companyName,
+      roles: [],
+      scopes: input.claims.scopes,
+      clientId: input.claims.clientId,
+      membershipActive: false,
+      organizations,
+      modules: NO_MODULES,
+      pages: {},
+    };
+  }
+
   if (!input.profileId || input.profileId !== input.claims.profileId) {
     throw new AuthzError("profile_mismatch", 401);
-  }
-  if (input.claims.employeeId && input.claims.employeeId !== input.employeeId) {
-    throw new AuthzError("employee_mismatch", 401);
   }
 
   const effective = buildEffectiveAccessRoles(input.roles, null);
@@ -122,12 +159,14 @@ export function buildAuthContext(input: {
   return {
     userId: input.claims.sub,
     profileId: input.profileId,
-    organizationId: input.claims.orgId,
+    organizationId,
     employeeId: input.employeeId,
     companyName: input.companyName,
     roles: input.roles,
     scopes: input.claims.scopes,
     clientId: input.claims.clientId,
+    membershipActive: true,
+    organizations,
     modules: {
       digitalMarketing: isModuleEnabled("digitalMarketing", enablement),
       okr: isModuleEnabled("okr", enablement),

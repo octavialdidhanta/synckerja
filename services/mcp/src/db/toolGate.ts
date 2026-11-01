@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { activeOrganizationId, resolveConnectorSession } from "./connectorSession";
 import type { AccessClaims } from "../oauth/tokens";
 
 export type ToolCallOutcome = "ok" | "error" | "forbidden" | "rate_limited";
@@ -8,9 +9,12 @@ type Session = { userId: string; organizationId: string; clientId: string };
 type SlotRow = { allowed: boolean; record_denial: boolean };
 
 export async function accessRevokedAt(admin: SupabaseClient, claims: AccessClaims): Promise<string | null> {
+  const session = await resolveConnectorSession(admin, claims);
+  const organizationId = activeOrganizationId(session, claims);
+  if (!organizationId) return null;
   const { data, error } = await admin.rpc("mcp_access_cutoff", {
     p_user_id: claims.sub,
-    p_organization_id: claims.orgId,
+    p_organization_id: organizationId,
     p_client_id: claims.clientId,
   });
   if (error) throw new Error(error.message);

@@ -1,4 +1,7 @@
 export { whoamiInput, whoamiResult } from "./session/whoami";
+export { orgsListInput, orgsListResult } from "./session/orgsList";
+export { switchOrgInput, switchOrgResult } from "./session/switchOrg";
+export { stampOrganization } from "./session/stampOrganization";
 export { contentPlansInput, contentPlansResult } from "./content/plansList";
 export { calendarInput, calendarResult } from "./content/calendarList";
 export { catalogInput, catalogResult } from "./content/catalogList";

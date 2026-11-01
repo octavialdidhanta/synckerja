@@ -12,11 +12,14 @@ const claims: AccessClaims = {
   profileId: "profile-1",
   orgId: "org-1",
   employeeId: "emp-1",
+  connectionId: null,
   scopes: ["session:read", "content:read"],
   clientId: "mcp_client",
   jti: "jti-1",
   iat: 1_700_000_000,
 };
+
+const sessionTools = ["session.whoami", "session.orgs.list", "session.switchOrg"];
 
 const base = {
   claims,
@@ -70,12 +73,24 @@ describe("buildAuthContext", () => {
     ).not.toThrow();
   });
 
+  it("keeps only the session tools when the active organization membership is gone", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      member: false,
+      claims: { ...claims, scopes: allScopes },
+      roles: [],
+      configurations: [],
+    });
+    expect(ctx.membershipActive).toBe(false);
+    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(sessionTools);
+  });
+
   it("hides content plans when the token did not grant content:read", () => {
     const ctx = buildAuthContext({
       ...base,
       claims: { ...claims, scopes: ["session:read"] },
     });
-    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(["session.whoami"]);
+    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(sessionTools);
   });
 
   it("hides content plans when the sales module is off and still allows whoami", () => {
@@ -106,7 +121,7 @@ describe("buildAuthContext", () => {
       configurations: [],
       subscriptionSelfServiceEnabled: true,
     });
-    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(["session.whoami"]);
+    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(sessionTools);
   });
 
   it("shows the calendar with content plans and hides OKR and leads for a content-only page", () => {
@@ -115,7 +130,7 @@ describe("buildAuthContext", () => {
       claims: { ...claims, scopes: allScopes },
     });
     expect(filterTools(ctx).map((tool) => tool.name)).toEqual([
-      "session.whoami",
+      ...sessionTools,
       "content.plans.list",
       "content.calendar.list",
       "content.catalog.list",
@@ -265,7 +280,7 @@ describe("phase 2 tool visibility", () => {
       claims: { ...claims, scopes: phase2Scopes },
       configurations: [],
     });
-    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(["session.whoami"]);
+    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(sessionTools);
   });
 });
 
