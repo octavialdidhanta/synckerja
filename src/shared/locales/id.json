@@ -176,6 +176,16 @@
       "errors": {
         "generic": "Tidak dapat memperbarui kata sandi. Coba lagi atau minta tautan reset baru."
       }
+    },
+    "oauthConsent": {
+      "title": "Hubungkan aplikasi",
+      "subtitle": "Pilih organisasi untuk sesi ini. Organisasi aktif di browser tidak berubah.",
+      "failed": "Tidak bisa menghubungkan connector.",
+      "missingRequest": "Permintaan otorisasi tidak ditemukan.",
+      "loading": "Memuat organisasi",
+      "orgLegend": "Organisasi",
+      "noOrg": "Akun ini belum punya organisasi aktif.",
+      "continue": "Lanjutkan"
     }
   },
   "onboarding": {

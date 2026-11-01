@@ -5,6 +5,7 @@ import { AuthzError } from "../authz/errors";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
 import type { ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
+import type { LeadMagnetDeliveryResult, LeadMagnetDraft } from "../db/leadMagnet";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type {
   AdsAccountRow,
@@ -142,6 +143,10 @@ import {
   updateStepSchema,
   deleteStepInput,
   deleteStepResult,
+  draftReadInput,
+  draftReadResult,
+  deliveryAttachInput,
+  deliveryAttachResult,
   habitsListInput,
   habitsListResult,
   habitCheckInput,
@@ -174,6 +179,11 @@ export type McpReadDeps = {
     input: { title: string; postDate: string | null; brief: string | null },
   ) => Promise<ContentPlanRow>;
   createContentBrief: (ctx: McpAuthContext, input: ContentBriefWrite) => Promise<ContentBriefRecord>;
+  listLeadMagnetDrafts: (ctx: McpAuthContext, campaignId: string | null) => Promise<LeadMagnetDraft[]>;
+  attachLeadMagnetDelivery: (
+    ctx: McpAuthContext,
+    input: { campaignId: string; fileUrl: string },
+  ) => Promise<LeadMagnetDeliveryResult>;
   updateContentPlan: (
     ctx: McpAuthContext,
     input: { id: string; title: string | null; postDate: string | null; brief: string | null },
@@ -392,6 +402,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "crm.leads.create": createLeadInput,
   "crm.leads.update": updateLeadSchema,
   "content.plans.schedule": schedulePlanInput,
+  "leadmagnet.draft.read": draftReadInput,
+  "leadmagnet.delivery.attach": deliveryAttachInput,
   "crm.leads.setStatus": setLeadStatusInput,
   "tasks.summary": taskSummaryInput,
   "tasks.list": taskListInput,
@@ -636,6 +648,14 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
       );
     case "content.plans.schedule":
       return schedulePlanResult(ctx, requiredString(args.id), deps.scheduleContentPlan);
+    case "leadmagnet.draft.read":
+      return draftReadResult(ctx, optionalString(args.campaign_id), deps.listLeadMagnetDrafts);
+    case "leadmagnet.delivery.attach":
+      return deliveryAttachResult(
+        ctx,
+        { campaignId: requiredString(args.campaign_id), fileUrl: requiredString(args.file_url) },
+        deps.attachLeadMagnetDelivery,
+      );
     case "crm.leads.setStatus":
       return setLeadStatusResult(
         ctx,

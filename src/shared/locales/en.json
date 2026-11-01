@@ -176,6 +176,16 @@
       "errors": {
         "generic": "Could not update your password. Try again or request a new reset link."
       }
+    },
+    "oauthConsent": {
+      "title": "Connect an app",
+      "subtitle": "Choose the organization for this session. The active organization in the browser stays the same.",
+      "failed": "Could not connect the app.",
+      "missingRequest": "The authorization request was not found.",
+      "loading": "Loading organizations",
+      "orgLegend": "Organization",
+      "noOrg": "This account has no active organization.",
+      "continue": "Continue"
     }
   },
   "onboarding": {

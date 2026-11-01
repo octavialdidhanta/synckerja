@@ -5,6 +5,7 @@ import { createAdmin } from "./db/admin";
 import { isActiveMember, loadConsentIdentity, verifySupabaseUser } from "./db/identity";
 import { listContentPlans } from "./db/listContentPlans";
 import { createContentBrief, listContentCatalog } from "./db/contentBriefs";
+import { attachLeadMagnetDelivery, listLeadMagnetDrafts } from "./db/leadMagnet";
 import { listContentCalendar, listCrmLeads, listOkrCycles, listOkrDepartments, listOkrObjectives } from "./db/phase1Reads";
 import {
   listAdsAccounts,
@@ -88,6 +89,8 @@ const app = createApp({
   listInventoryStock: (ctx) => listInventoryStock(admin, ctx),
   createContentPlan: (ctx, input) => createContentPlan(admin, ctx, input),
   createContentBrief: (ctx, input) => createContentBrief(admin, ctx, input),
+  listLeadMagnetDrafts: (ctx, campaignId) => listLeadMagnetDrafts(admin, ctx, campaignId),
+  attachLeadMagnetDelivery: (ctx, input) => attachLeadMagnetDelivery(admin, config.supabaseUrl, ctx, input),
   updateContentPlan: (ctx, input) => updateContentPlan(admin, ctx, input.id, input),
   createCompanyObjective: (ctx, input) => createCompanyObjective(admin, ctx, input),
   updateObjective: (ctx, input) => updateObjective(admin, ctx, input),

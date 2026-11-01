@@ -102,7 +102,7 @@ export function OAuthConsentPage() {
     <AuthSplitLayout>
       <div className="flex w-full flex-col gap-4">
         <div>
-          <h1 className={authFormTitleClass}>{t("auth.oauthConsent.title", "Hubungkan Claude")}</h1>
+          <h1 className={authFormTitleClass}>{t("auth.oauthConsent.title", "Hubungkan aplikasi")}</h1>
           <p className={authFormSubtitleClass}>
             {t(
               "auth.oauthConsent.subtitle",

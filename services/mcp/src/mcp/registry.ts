@@ -13,6 +13,7 @@ import {
   KOL_CAMPAIGNS_PAGE_PATH,
   KOL_PROFILES_PAGE_PATH,
   LEADS_PAGE_PATH,
+  LEAD_MAGNET_PAGE_PATH,
   OKR_PAGE_PATH,
   VISITS_PAGE_PATH,
   type McpModuleKey,
@@ -51,6 +52,8 @@ export type McpToolName =
   | "crm.leads.create"
   | "crm.leads.update"
   | "content.plans.schedule"
+  | "leadmagnet.draft.read"
+  | "leadmagnet.delivery.attach"
   | "crm.leads.setStatus"
   | "tasks.summary"
   | "tasks.list"
@@ -257,7 +260,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "content.plans.create",
     description:
-      "Create a draft content plan for the organization locked in this session. Requires a title. Optional post_date is YYYY-MM-DD in Asia/Jakarta, and brief is an optional short note. A storyboard table, concept, and caption are created with content.briefs.create, not with this brief field. Approval, production, and publish fields stay at their defaults.",
+      "Create a draft content plan for the organization locked in this session. Requires a title. Optional post_date is YYYY-MM-DD in Asia/Jakarta, and brief is an optional short note of at most 4000 characters. The signed-in member becomes the PIC. A storyboard table, concept, and caption are created with content.briefs.create, not with this brief field. Approval, production, and publish fields stay at their defaults.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
@@ -273,7 +276,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "content.plans.update",
     description:
-      "Update the title, post date, or brief of one content plan in the organization locked in this session. A brief change is accepted only when the signed-in member is that plan's PIC. Does not change approval, production status, completion, or published links.",
+      "Update the title, post date, or short brief of one content plan in the organization locked in this session. The brief stays at most 4000 characters. A brief change is accepted when the signed-in member is that plan's PIC. If the plan has no PIC yet, that member becomes the PIC. A storyboard belongs in content.briefs.create. Does not change approval, production status, completion, or published links.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
@@ -333,6 +336,22 @@ export const MCP_TOOLS: McpTool[] = [
     scopes: ["content:publish"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "leadmagnet.draft.read",
+    description:
+      "Read up to 30 draft lead-magnet campaigns for the organization locked in this session. Optional campaign_id reads one draft. Returns the name, target market, comment keyword, reply text, follow text, offer text, delivery text, and whether a delivery file is already stored. Judge in the chat whether the offer, keyword, and messages are clear. Do not save a PDF until the user gives an https link. Account ids, tokens, and sent messages are not returned.",
+    scopes: ["content:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: LEAD_MAGNET_PAGE_PATH,
+  },
+  {
+    name: "leadmagnet.delivery.attach",
+    description:
+      "Store one https PDF as the delivery file of one draft lead-magnet campaign in the organization locked in this session. Requires campaign_id and file_url. The file must be a PDF of at most 25 MB. Redirects are not followed. Does not change the campaign status, account, keyword, or message text, and does not send a comment or a DM.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: LEAD_MAGNET_PAGE_PATH,
   },
   {
     name: "crm.leads.setStatus",

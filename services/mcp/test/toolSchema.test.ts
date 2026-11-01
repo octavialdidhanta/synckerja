@@ -13,6 +13,9 @@ import { catalogInput } from "../src/tools/content/catalogList";
 import { createBriefInput } from "../src/tools/content/briefsCreate";
 import { buildBriefConcept, buildBriefMarkdown } from "../src/tools/content/briefMarkdown";
 import { createContentBrief } from "../src/db/contentBriefs";
+import { attachLeadMagnetDelivery, listLeadMagnetDrafts } from "../src/db/leadMagnet";
+import { draftReadInput } from "../src/tools/leadmagnet/draftRead";
+import { assertPublicHttpsUrl } from "../src/tools/leadmagnet/safePdfUrl";
 import { updatePlanInput, updatePlanSchema } from "../src/tools/content/plansUpdate";
 import { updateObjectiveSchema } from "../src/tools/okr/objectivesUpdate";
 import { updateLeadSchema } from "../src/tools/crm/leadsUpdate";
@@ -987,6 +990,82 @@ describe("phase 0 tool inputs", () => {
     expect(JSON.stringify(createCall[1])).not.toContain("approved");
   });
 
+  it("reads a lead-magnet draft and stores only a real https pdf", async () => {
+    expect(draftReadInput.safeParse({ organization_id: "org-1" }).success).toBe(false);
+    expect(draftReadInput.safeParse({ account_id: "acct-1" }).success).toBe(false);
+    expect(draftReadInput.safeParse({}).success).toBe(true);
+    expect(() => assertPublicHttpsUrl("http://example.com/guide.pdf")).toThrow("invalid_input");
+    expect(() => assertPublicHttpsUrl("https://localhost/guide.pdf")).toThrow("invalid_input");
+    expect(() => assertPublicHttpsUrl("https://169.254.169.254/latest")).toThrow("invalid_input");
+    expect(() => assertPublicHttpsUrl("https://127.0.0.1/guide.pdf")).toThrow("invalid_input");
+
+    const organizationId = "11111111-1111-4111-8111-111111111111";
+    const campaignId = "22222222-2222-4222-8222-222222222222";
+    const calls: Array<[string, Record<string, unknown>]> = [];
+    const upload = vi.fn(async () => ({ data: { path: "stored.pdf" }, error: null }));
+    const remove = vi.fn(async () => ({ data: [], error: null }));
+    const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
+      calls.push([fn, args]);
+      if (fn === "mcp_list_lead_magnet_drafts") {
+        return {
+          data: [{ id: campaignId, name: "Offer", has_file: false, file_name: null }],
+          error: null,
+        };
+      }
+      return {
+        data: [{
+          id: campaignId,
+          file_name: "guide.pdf",
+          has_file: true,
+          previous_storage_path: "11111111-1111-4111-8111-111111111111/old.pdf",
+        }],
+        error: null,
+      };
+    });
+    const admin = { rpc, storage: { from: () => ({ upload, remove }) } } as unknown as SupabaseClient;
+    const ctx = { userId: "user-1", organizationId };
+    const fetchImpl = vi.fn(async () => new Response(Uint8Array.from([1, 2, 3, 4, 5]), { status: 200 }));
+    await expect(attachLeadMagnetDelivery(admin, "https://db.example", ctx, {
+      campaignId,
+      fileUrl: "https://files.example/guide.pdf",
+    }, {
+      fetchImpl,
+      resolveHost: async () => ["1.1.1.1"],
+    })).rejects.toThrow("invalid_input");
+    expect(upload).not.toHaveBeenCalled();
+
+    fetchImpl.mockResolvedValue(new Response(Uint8Array.from([0x25, 0x50, 0x44, 0x46, 0x2d]), { status: 200 }));
+    const saved = await attachLeadMagnetDelivery(admin, "https://db.example", ctx, {
+      campaignId,
+      fileUrl: "https://files.example/guide.pdf",
+    }, {
+      fetchImpl,
+      resolveHost: async () => ["1.1.1.1"],
+    });
+    expect(saved).toEqual({ id: campaignId, file_name: "guide.pdf", has_file: true });
+    expect(calls[0][0]).toBe("mcp_list_lead_magnet_drafts");
+    const setCall = calls.find((call) => call[0] === "mcp_set_lead_magnet_delivery");
+    expect(setCall?.[1].p_campaign_id).toBe(campaignId);
+    expect(setCall?.[1].p_mime).toBe("application/pdf");
+    expect(String(setCall?.[1].p_storage_path)).toMatch(/_guide\.pdf$/);
+    expect(JSON.stringify(setCall?.[1])).not.toContain("account_id");
+    expect(JSON.stringify(setCall?.[1])).not.toContain("active");
+    expect(remove).toHaveBeenCalledWith(["11111111-1111-4111-8111-111111111111/old.pdf"]);
+
+    calls.length = 0;
+    await listLeadMagnetDrafts(admin, ctx, null);
+    expect(calls[0][0]).toBe("mcp_list_lead_magnet_drafts");
+    expect(calls[0][1].p_campaign_id).toBeNull();
+
+    await expect(attachLeadMagnetDelivery(admin, "https://db.example", ctx, {
+      campaignId,
+      fileUrl: "https://files.example/guide.pdf",
+    }, {
+      fetchImpl,
+      resolveHost: async () => ["10.0.0.8"],
+    })).rejects.toThrow("invalid_input");
+  });
+
   it("keeps service-role helpers out of tool files", () => {
     const whoami = readFileSync(new URL("../src/tools/session/whoami.ts", import.meta.url), "utf8");
     const plans = readFileSync(new URL("../src/tools/content/plansList.ts", import.meta.url), "utf8");
@@ -1042,6 +1121,9 @@ describe("phase 0 tool inputs", () => {
     const habitsList = readFileSync(new URL("../src/tools/habits/list.ts", import.meta.url), "utf8");
     const habitCheck = readFileSync(new URL("../src/tools/habits/check.ts", import.meta.url), "utf8");
     const habitsDb = readFileSync(new URL("../src/db/habits.ts", import.meta.url), "utf8");
+    const draftRead = readFileSync(new URL("../src/tools/leadmagnet/draftRead.ts", import.meta.url), "utf8");
+    const deliveryAttach = readFileSync(new URL("../src/tools/leadmagnet/deliveryAttach.ts", import.meta.url), "utf8");
+    const leadMagnet = readFileSync(new URL("../src/db/leadMagnet.ts", import.meta.url), "utf8");
     const identity = readFileSync(new URL("../src/db/identity.ts", import.meta.url), "utf8");
     const consent = readFileSync(new URL("../src/oauth/consent.ts", import.meta.url), "utf8");
     for (const source of [
@@ -1099,6 +1181,9 @@ describe("phase 0 tool inputs", () => {
       habitsList,
       habitCheck,
       habitsDb,
+      draftRead,
+      deliveryAttach,
+      leadMagnet,
     ]) {
       expect(source).not.toContain("createAdmin");
       expect(source).not.toContain("SERVICE_ROLE");

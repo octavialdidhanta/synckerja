@@ -589,3 +589,41 @@ describe("habit tracker visibility", () => {
     expect(filterTools(ctx)).toEqual([]);
   });
 });
+
+describe("lead magnet delivery visibility", () => {
+  it("hides both tools when the lead magnet page is not granted", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: [...allScopes, "content:write"] },
+      configurations: [{ page_path: "/digital-marketing/social-media", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("content.plans.list");
+    expect(names).toContain("content.catalog.list");
+    expect(names).not.toContain("leadmagnet.draft.read");
+    expect(names).not.toContain("leadmagnet.delivery.attach");
+  });
+
+  it("shows the draft read with content read and hides the save", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["content:read"] },
+      configurations: [{ page_path: "/digital-marketing/lead-magnet", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("leadmagnet.draft.read");
+    expect(names).not.toContain("leadmagnet.delivery.attach");
+    expect(names).not.toContain("content.plans.list");
+  });
+
+  it("shows the save only with content write", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["content:read", "content:write"] },
+      configurations: [{ page_path: "/digital-marketing/lead-magnet", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("leadmagnet.draft.read");
+    expect(names).toContain("leadmagnet.delivery.attach");
+  });
+});
