@@ -361,6 +361,14 @@ describe("phase 0 tool inputs", () => {
     expect(updateTaskInput.safeParse({ id: taskId, priority: "high" }).success).toBe(true);
     expect(updateTaskInput.safeParse({ id: taskId, plan_month: "2026-11" }).success).toBe(true);
     expect(updateTaskInput.safeParse({ id: taskId, plan_month: "2026-11-27" }).success).toBe(false);
+    const updateSchema = zodToJsonSchema(updateTaskSchema) as {
+      properties: Record<string, { type?: string; pattern?: string; description?: string }>;
+      required?: string[];
+    };
+    expect(updateSchema.properties.plan_month?.type).toBe("string");
+    expect(updateSchema.properties.plan_month?.pattern).toBeUndefined();
+    expect(updateSchema.properties.plan_month?.description).toContain("YYYY-MM");
+    expect(updateSchema.required ?? []).not.toContain("plan_month");
     expect(updateTaskSchema.safeParse({ id: taskId, status: "completed" }).success).toBe(false);
     expect(Object.keys(updateTaskSchema.shape)).toEqual(["id", "title", "priority", "due_date", "plan_month"]);
     expect(deleteTaskInput.safeParse({ id: taskId, comment: "remove" }).success).toBe(false);
