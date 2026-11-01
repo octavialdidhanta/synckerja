@@ -4,6 +4,7 @@ import { loadContext } from "./authz/loadContext";
 import { createAdmin } from "./db/admin";
 import { isActiveMember, loadConsentIdentity, verifySupabaseUser } from "./db/identity";
 import { listContentPlans } from "./db/listContentPlans";
+import { createContentBrief, listContentCatalog } from "./db/contentBriefs";
 import { listContentCalendar, listCrmLeads, listOkrCycles, listOkrDepartments, listOkrObjectives } from "./db/phase1Reads";
 import {
   listAdsAccounts,
@@ -70,6 +71,7 @@ const app = createApp({
   recordToolCall: (ctx, toolName, outcome) => recordToolCall(admin, ctx, toolName, outcome),
   listContentPlans: (ctx) => listContentPlans(admin, ctx),
   listContentCalendar: (ctx, month) => listContentCalendar(admin, ctx, month),
+  listContentCatalog: (ctx) => listContentCatalog(admin, ctx),
   listOkrCycles: (ctx) => listOkrCycles(admin, ctx),
   listOkrObjectives: (ctx, cycleId) => listOkrObjectives(admin, ctx, cycleId),
   listOkrDepartments: (ctx) => listOkrDepartments(admin, ctx),
@@ -85,6 +87,7 @@ const app = createApp({
   listKolProfiles: (ctx) => listKolProfiles(admin, ctx),
   listInventoryStock: (ctx) => listInventoryStock(admin, ctx),
   createContentPlan: (ctx, input) => createContentPlan(admin, ctx, input),
+  createContentBrief: (ctx, input) => createContentBrief(admin, ctx, input),
   updateContentPlan: (ctx, input) => updateContentPlan(admin, ctx, input.id, input),
   createCompanyObjective: (ctx, input) => createCompanyObjective(admin, ctx, input),
   updateObjective: (ctx, input) => updateObjective(admin, ctx, input),

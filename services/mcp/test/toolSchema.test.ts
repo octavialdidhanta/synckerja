@@ -9,6 +9,10 @@ import { updateLeadInput } from "../src/tools/crm/leadsUpdate";
 import { schedulePlanInput } from "../src/tools/content/plansSchedule";
 import { setLeadStatusInput } from "../src/tools/crm/leadsSetStatus";
 import { createPlanInput } from "../src/tools/content/plansCreate";
+import { catalogInput } from "../src/tools/content/catalogList";
+import { createBriefInput } from "../src/tools/content/briefsCreate";
+import { buildBriefConcept, buildBriefMarkdown } from "../src/tools/content/briefMarkdown";
+import { createContentBrief } from "../src/db/contentBriefs";
 import { updatePlanInput, updatePlanSchema } from "../src/tools/content/plansUpdate";
 import { updateObjectiveSchema } from "../src/tools/okr/objectivesUpdate";
 import { updateLeadSchema } from "../src/tools/crm/leadsUpdate";
@@ -868,6 +872,121 @@ describe("phase 0 tool inputs", () => {
     expect(sent).not.toContain("notes");
   });
 
+  it("builds a canonical storyboard and keeps concept images out of the payload", async () => {
+    const typeId = "22222222-2222-4222-8222-222222222222";
+    const valid = {
+      title: "Launch",
+      content_type_id: typeId,
+      sequences: [{ name: "Sequence 1", shots: [{ timing: "Slide 1" }] }],
+    };
+    expect(catalogInput.safeParse({}).success).toBe(true);
+    expect(catalogInput.safeParse({ organization_id: "org-2" }).success).toBe(false);
+    expect(createBriefInput.safeParse(valid).success).toBe(true);
+    expect(createBriefInput.safeParse({ title: "Launch", sequences: valid.sequences }).success).toBe(false);
+    expect(createBriefInput.safeParse({ ...valid, organization_id: "org-2" }).success).toBe(false);
+    expect(createBriefInput.safeParse({ ...valid, approved: true }).success).toBe(false);
+    expect(createBriefInput.safeParse({ ...valid, brief: "A paragraph without a table" }).success).toBe(false);
+    expect(createBriefInput.safeParse({ ...valid, google_drive_link: "https://drive" }).success).toBe(false);
+    expect(createBriefInput.safeParse({
+      ...valid,
+      characters: [{ name: "Ayu", description: "host", portraitPath: "org/brief/x.jpg" }],
+    }).success).toBe(false);
+
+    const brief = buildBriefMarkdown([
+      {
+        name: "Sequence 1",
+        shots: [
+          { timing: "0-2s", visual: "a|b\nnext", vo: "Hello", element: "prop", tagging: "#tag" },
+          { timing: "2-4s", visual: "", vo: "Again", element: "", tagging: "" },
+        ],
+      },
+      { name: "Sequence 2", shots: [{ timing: "Slide 1", visual: "wide", vo: "", element: "", tagging: "" }] },
+    ]);
+    const lines = brief.split("\n");
+    expect(lines[0]).toBe("| Timing | Visual | VO (Voice Over) | Scene Visual | Element Lainnya | Tagging |");
+    const cells = lines[2].split("|").slice(1, -1).map((cell) => cell.trim());
+    expect(cells[1]).toBe("");
+    expect(cells[3]).toBe("a/b<br>next");
+    const comment = brief.match(/<!--synckerja-brief-sequences:(\[[\s\S]*?\])-->/);
+    expect(comment?.[1]).toBeTruthy();
+    const sequences = JSON.parse(comment?.[1] ?? "[]") as Array<{ name: string; rowCount: number }>;
+    expect(sequences.map((sequence) => sequence.rowCount)).toEqual([2, 1]);
+    expect(sequences[0]?.name).toBe("Sequence 1");
+
+    const tooMany = Array.from({ length: 8 }, (_, index) => ({
+      name: `Sequence ${index + 1}`,
+      shots: Array.from({ length: 4 }, () => ({ timing: "1" })),
+    }));
+    expect(() => buildBriefMarkdown(tooMany)).toThrow("invalid_input");
+
+    const reel = buildBriefConcept({
+      postAspect: "4:5",
+      characters: [{ name: "Ayu", description: "host" }],
+    }, "Reel");
+    expect(reel).not.toContain("postAspect");
+    expect(reel).toContain("@character_ayu");
+    expect(reel).not.toContain("portraitPath");
+    const carousel = buildBriefConcept({
+      postAspect: "4:5",
+      characters: [{ name: "Ayu", description: "host" }],
+    }, "Carousel");
+    expect(carousel).toContain('"postAspect":"4:5"');
+    expect(carousel?.startsWith('{"v":1')).toBe(true);
+
+    const rpc = vi.fn(async (fn: string) => {
+      if (fn === "mcp_list_content_catalog") {
+        return {
+          data: [{ kind: "type", id: typeId, name: "Carousel", service_id: null, sub_service_id: null }],
+          error: null,
+        };
+      }
+      return {
+        data: [{
+          id: "plan-1",
+          title: "Launch",
+          content_type_name: "Carousel",
+          service_name: null,
+          sub_service_name: null,
+          feature_name: null,
+          shot_count: 1,
+        }],
+        error: null,
+      };
+    });
+    const admin = { rpc } as unknown as SupabaseClient;
+    await createContentBrief(admin, { userId: "user-1", organizationId: "org-1" }, {
+      title: "Launch",
+      postDate: null,
+      contentTypeId: typeId,
+      serviceId: null,
+      subServiceId: null,
+      featureId: null,
+      postAspect: "4:5",
+      voiceOver: null,
+      characters: [{ name: "Ayu", description: "host" }],
+      locations: [],
+      properties: [],
+      caption: "Buy now",
+      sequences: [{ name: "Sequence 1", shots: [{ timing: "Slide 1", visual: "desk", vo: "Hello", element: "", tagging: "" }] }],
+    });
+    expect(rpc).toHaveBeenNthCalledWith(1, "mcp_list_content_catalog", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+    });
+    const createCall = rpc.mock.calls[1] as unknown as [string, Record<string, string | null>];
+    expect(createCall[0]).toBe("mcp_create_content_brief");
+    expect(createCall[1].p_brief).toContain("| Timing | Visual | VO (Voice Over) |");
+    expect(createCall[1].p_brief).toContain("| Slide 1 |  | Hello | desk |");
+    expect(createCall[1].p_brief).not.toContain("A paragraph without a table");
+    expect(createCall[1].p_concept).toContain('"postAspect":"4:5"');
+    expect(createCall[1].p_concept).toContain("@character_ayu");
+    expect(createCall[1].p_concept).not.toContain("portraitPath");
+    expect(createCall[1].p_caption).toBe("Buy now");
+    expect(createCall[1].p_post_aspect).toBe("4:5");
+    expect(JSON.stringify(createCall[1])).not.toContain("google_drive");
+    expect(JSON.stringify(createCall[1])).not.toContain("approved");
+  });
+
   it("keeps service-role helpers out of tool files", () => {
     const whoami = readFileSync(new URL("../src/tools/session/whoami.ts", import.meta.url), "utf8");
     const plans = readFileSync(new URL("../src/tools/content/plansList.ts", import.meta.url), "utf8");
@@ -886,6 +1005,10 @@ describe("phase 0 tool inputs", () => {
     const payrollRuns = readFileSync(new URL("../src/tools/payroll/runsList.ts", import.meta.url), "utf8");
     const posDaily = readFileSync(new URL("../src/tools/pos/salesDaily.ts", import.meta.url), "utf8");
     const createPlan = readFileSync(new URL("../src/tools/content/plansCreate.ts", import.meta.url), "utf8");
+    const catalog = readFileSync(new URL("../src/tools/content/catalogList.ts", import.meta.url), "utf8");
+    const createBrief = readFileSync(new URL("../src/tools/content/briefsCreate.ts", import.meta.url), "utf8");
+    const briefMarkdown = readFileSync(new URL("../src/tools/content/briefMarkdown.ts", import.meta.url), "utf8");
+    const contentBriefs = readFileSync(new URL("../src/db/contentBriefs.ts", import.meta.url), "utf8");
     const updatePlan = readFileSync(new URL("../src/tools/content/plansUpdate.ts", import.meta.url), "utf8");
     const createObjective = readFileSync(new URL("../src/tools/okr/objectivesCreate.ts", import.meta.url), "utf8");
     const updateObjective = readFileSync(new URL("../src/tools/okr/objectivesUpdate.ts", import.meta.url), "utf8");
@@ -939,6 +1062,10 @@ describe("phase 0 tool inputs", () => {
       payrollRuns,
       posDaily,
       createPlan,
+      catalog,
+      createBrief,
+      briefMarkdown,
+      contentBriefs,
       updatePlan,
       createObjective,
       updateObjective,

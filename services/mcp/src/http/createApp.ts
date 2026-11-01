@@ -4,6 +4,7 @@ import type { McpServiceConfig } from "../config";
 import type { McpAuthContext } from "../authz/context";
 import { AuthzError } from "../authz/errors";
 import type { ContentPlanRow } from "../db/listContentPlans";
+import type { ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type {
   AdsAccountRow,
@@ -64,6 +65,7 @@ export type AppDeps = {
   recordToolCall: (ctx: McpAuthContext, toolName: string, outcome: ToolCallOutcome) => Promise<void>;
   listContentPlans: (ctx: McpAuthContext) => Promise<ContentPlanRow[]>;
   listContentCalendar: (ctx: McpAuthContext, month: string | null) => Promise<ContentPlanRow[]>;
+  listContentCatalog: (ctx: McpAuthContext) => Promise<ContentCatalogRow[]>;
   listOkrCycles: (ctx: McpAuthContext) => Promise<OkrCycleRow[]>;
   listOkrObjectives: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveListRow[]>;
   listOkrDepartments: (ctx: McpAuthContext) => Promise<OkrDepartmentRow[]>;
@@ -82,6 +84,7 @@ export type AppDeps = {
     ctx: McpAuthContext,
     input: { title: string; postDate: string | null; brief: string | null },
   ) => Promise<ContentPlanRow>;
+  createContentBrief: (ctx: McpAuthContext, input: ContentBriefWrite) => Promise<ContentBriefRecord>;
   updateContentPlan: (
     ctx: McpAuthContext,
     input: { id: string; title: string | null; postDate: string | null; brief: string | null },

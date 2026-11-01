@@ -22,6 +22,7 @@ export type McpToolName =
   | "session.whoami"
   | "content.plans.list"
   | "content.calendar.list"
+  | "content.catalog.list"
   | "okr.cycles.list"
   | "okr.objectives.list"
   | "okr.departments.list"
@@ -41,6 +42,7 @@ export type McpToolName =
   | "kol.profiles.list"
   | "inventory.stock.list"
   | "content.plans.create"
+  | "content.briefs.create"
   | "content.plans.update"
   | "okr.objectives.create"
   | "okr.objectives.update"
@@ -99,6 +101,14 @@ export const MCP_TOOLS: McpTool[] = [
     scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CALENDAR_PAGE_PATH,
+  },
+  {
+    name: "content.catalog.list",
+    description:
+      "List the content types, categories, subcategories, and features that can be assigned to a content plan in the organization locked in this session. Returns kind, id, name, service_id, and sub_service_id. Kinds are type, service, sub_service, and feature. Feature descriptions are not returned.",
+    scopes: ["content:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
   },
   {
     name: "okr.cycles.list",
@@ -247,7 +257,15 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "content.plans.create",
     description:
-      "Create a draft content plan for the organization locked in this session. Requires a title. Optional post_date is YYYY-MM-DD in Asia/Jakarta, and brief is optional. Approval, production, and publish fields stay at their defaults.",
+      "Create a draft content plan for the organization locked in this session. Requires a title. Optional post_date is YYYY-MM-DD in Asia/Jakarta, and brief is an optional short note. A storyboard table, concept, and caption are created with content.briefs.create, not with this brief field. Approval, production, and publish fields stay at their defaults.",
+    scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "content.briefs.create",
+    description:
+      "Create one content plan with a storyboard table, optional concept, and optional caption for the organization locked in this session. The same table is used for Carousel, Post, Reel, Story, Youtube, and any other active content type. Requires a title, content_type_id, and at least one sequence of shots. Call content.catalog.list first and pass those ids. Optional service_id, sub_service_id, and feature_id must belong to this organization. A subcategory must belong to the selected category. A feature locked to one subcategory selects that subcategory. Optional post_date is YYYY-MM-DD in Asia/Jakarta. Each shot has timing, visual, vo, element, and tagging. Carousel timing is Slide 1, Slide 2, and so on. Reel and Story timing is seconds. Youtube timing is chapters. A Post is usually one shot. The visual field is a scene description. The image cell stays empty because images are added in Office. post_aspect is 4:5 or 1:1 and is stored only for Post and Carousel. Optional characters, locations, and properties are a name plus a description. Optional voice_over and caption are plain text. The signed-in member becomes the PIC. Does not approve, schedule, upload an image, or set a Drive link or a published link.",
     scopes: ["content:write"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,

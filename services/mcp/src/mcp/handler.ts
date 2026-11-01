@@ -4,6 +4,7 @@ import type { ZodRawShape, ZodTypeAny } from "zod";
 import { AuthzError } from "../authz/errors";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
+import type { ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type {
   AdsAccountRow,
@@ -55,6 +56,10 @@ import {
   createObjectiveResult,
   createPlanInput,
   createPlanResult,
+  catalogInput,
+  catalogResult,
+  createBriefInput,
+  createBriefResult,
   cyclesInput,
   cyclesResult,
   departmentsInput,
@@ -149,6 +154,7 @@ import type { McpToolName } from "./registry";
 export type McpReadDeps = {
   listContentPlans: (ctx: McpAuthContext) => Promise<ContentPlanRow[]>;
   listContentCalendar: (ctx: McpAuthContext, month: string | null) => Promise<ContentPlanRow[]>;
+  listContentCatalog: (ctx: McpAuthContext) => Promise<ContentCatalogRow[]>;
   listOkrCycles: (ctx: McpAuthContext) => Promise<OkrCycleRow[]>;
   listOkrObjectives: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveListRow[]>;
   listOkrDepartments: (ctx: McpAuthContext) => Promise<OkrDepartmentRow[]>;
@@ -167,6 +173,7 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     input: { title: string; postDate: string | null; brief: string | null },
   ) => Promise<ContentPlanRow>;
+  createContentBrief: (ctx: McpAuthContext, input: ContentBriefWrite) => Promise<ContentBriefRecord>;
   updateContentPlan: (
     ctx: McpAuthContext,
     input: { id: string; title: string | null; postDate: string | null; brief: string | null },
@@ -356,6 +363,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "session.whoami": whoamiInput,
   "content.plans.list": contentPlansInput,
   "content.calendar.list": calendarInput,
+  "content.catalog.list": catalogInput,
   "okr.cycles.list": cyclesInput,
   "okr.objectives.list": objectivesInput,
   "okr.departments.list": departmentsInput,
@@ -375,6 +383,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "kol.profiles.list": kolProfilesInput,
   "inventory.stock.list": stockInput,
   "content.plans.create": createPlanInput,
+  "content.briefs.create": createBriefInput,
   "content.plans.update": updatePlanSchema,
   "okr.objectives.create": createObjectiveInput,
   "okr.objectives.update": updateObjectiveSchema,
@@ -411,6 +420,8 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
       return contentPlansResult(ctx, deps.listContentPlans);
     case "content.calendar.list":
       return calendarResult(ctx, optionalString(args.month), deps.listContentCalendar);
+    case "content.catalog.list":
+      return catalogResult(ctx, deps.listContentCatalog);
     case "okr.cycles.list":
       return cyclesResult(ctx, deps.listOkrCycles);
     case "okr.objectives.list":
@@ -503,6 +514,40 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
         },
         deps.createContentPlan,
       );
+    case "content.briefs.create": {
+      const parsed = createBriefInput.safeParse(args);
+      if (!parsed.success) throw new Error("invalid_input");
+      const data = parsed.data;
+      const blank = (value: string | undefined) => value ?? "";
+      return createBriefResult(
+        ctx,
+        {
+          title: data.title,
+          postDate: data.post_date ?? null,
+          contentTypeId: data.content_type_id,
+          serviceId: data.service_id ?? null,
+          subServiceId: data.sub_service_id ?? null,
+          featureId: data.feature_id ?? null,
+          postAspect: data.post_aspect ?? null,
+          voiceOver: data.voice_over ?? null,
+          characters: data.characters ?? [],
+          locations: data.locations ?? [],
+          properties: data.properties ?? [],
+          caption: data.caption ?? null,
+          sequences: data.sequences.map((sequence) => ({
+            name: sequence.name,
+            shots: sequence.shots.map((shot) => ({
+              timing: blank(shot.timing),
+              visual: blank(shot.visual),
+              vo: blank(shot.vo),
+              element: blank(shot.element),
+              tagging: blank(shot.tagging),
+            })),
+          })),
+        },
+        deps.createContentBrief,
+      );
+    }
     case "content.plans.update":
       if (!updatePlanInput.safeParse(args).success) throw new Error("invalid_input");
       return updatePlanResult(

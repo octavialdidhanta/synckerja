@@ -38,6 +38,7 @@ export const HabitSpreadsheetView = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedHabit, setSelectedHabit] = useState<string | null>(null);
   const [habitToDelete, setHabitToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [entryToRemove, setEntryToRemove] = useState<{ entryId: string; date: Date; habitName: string } | null>(null);
   const [targetCountModal, setTargetCountModal] = useState<{ habitId: string; date: Date } | null>(null);
   const [monthlyHabitConfirmModal, setMonthlyHabitConfirmModal] = useState<{ habitId: string; date: Date; newDate: number; oldDate: number | null } | null>(
     null,
@@ -198,8 +199,7 @@ export const HabitSpreadsheetView = () => {
         await addEntry(habitId, dateStr, 1);
         toast({ title: "Entry logged", description: `Habit logged for ${format(date, "MMM d")}` });
       } else if (!checked && existingEntry) {
-        await deleteEntry(existingEntry.id);
-        toast({ title: "Entry removed", description: `Entry removed for ${format(date, "MMM d")}` });
+        setEntryToRemove({ entryId: existingEntry.id, date, habitName: habit.name });
       }
     } catch {
       toast({ title: "Error", description: "Failed to update entry", variant: "destructive" });
@@ -655,6 +655,54 @@ export const HabitSpreadsheetView = () => {
       {showAddModal && <HabitFormModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} />}
       {editingHabit && <HabitFormModal isOpen={!!editingHabit} onClose={() => setEditingHabit(null)} habitId={editingHabit} />}
       {targetCountModal && <HabitTargetCountModal isOpen={!!targetCountModal} onClose={() => setTargetCountModal(null)} habitId={targetCountModal.habitId} date={targetCountModal.date} />}
+
+      <AlertDialog open={!!entryToRemove} onOpenChange={(open) => !open && setEntryToRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("habitTracker.removeEntryTitle", "Remove this check?")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {entryToRemove
+                ? t(
+                    "habitTracker.removeEntryDescription",
+                    "The check for {{name}} on {{date}} will be removed.",
+                    {
+                      name: entryToRemove.habitName,
+                      date: format(entryToRemove.date, "d MMM yyyy", { locale: dateFnsLocale }),
+                    },
+                  )
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setEntryToRemove(null)}>{t("common.cancel", "Cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!entryToRemove) return;
+                const pending = entryToRemove;
+                try {
+                  await deleteEntry(pending.entryId);
+                  setEntryToRemove(null);
+                  toast({
+                    title: t("habitTracker.entryRemoved", "Entry removed"),
+                    description: t("habitTracker.entryRemovedFor", "Entry removed for {{date}}", {
+                      date: format(pending.date, "MMM d", { locale: dateFnsLocale }),
+                    }),
+                  });
+                } catch {
+                  toast({
+                    title: t("habitTracker.updateFailed", "Error"),
+                    description: t("habitTracker.updateFailed", "Failed to update entry"),
+                    variant: "destructive",
+                  });
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {t("habitTracker.removeEntryConfirm", "Remove")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!habitToDelete} onOpenChange={(open) => !open && setHabitToDelete(null)}>
         <AlertDialogContent>

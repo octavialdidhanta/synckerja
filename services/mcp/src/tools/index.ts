@@ -1,6 +1,7 @@
 export { whoamiInput, whoamiResult } from "./session/whoami";
 export { contentPlansInput, contentPlansResult } from "./content/plansList";
 export { calendarInput, calendarResult } from "./content/calendarList";
+export { catalogInput, catalogResult } from "./content/catalogList";
 export { cyclesInput, cyclesResult } from "./okr/cyclesList";
 export { objectivesInput, objectivesResult } from "./okr/objectivesList";
 export { departmentsInput, departmentsResult } from "./okr/departmentsList";
@@ -20,6 +21,7 @@ export { kolCampaignsInput, kolCampaignsResult } from "./kol/campaignsList";
 export { kolProfilesInput, kolProfilesResult } from "./kol/profilesList";
 export { stockInput, stockResult } from "./inventory/stockList";
 export { createPlanInput, createPlanResult } from "./content/plansCreate";
+export { createBriefInput, createBriefResult } from "./content/briefsCreate";
 export { updatePlanInput, updatePlanResult, updatePlanSchema } from "./content/plansUpdate";
 export { createObjectiveInput, createObjectiveResult } from "./okr/objectivesCreate";
 export { updateObjectiveInput, updateObjectiveResult, updateObjectiveSchema } from "./okr/objectivesUpdate";

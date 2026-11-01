@@ -91,6 +91,7 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
       ];
     },
     listContentCalendar: async () => [],
+    listContentCatalog: async () => [],
     listOkrCycles: async () => [],
     listOkrObjectives: async () => [],
     listOkrDepartments: async () => [],
@@ -106,6 +107,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     listKolProfiles: async () => [],
     listInventoryStock: async () => [],
     createContentPlan: async () => {
+      throw new Error("unused");
+    },
+    createContentBrief: async () => {
       throw new Error("unused");
     },
     updateContentPlan: async () => {
@@ -308,7 +312,12 @@ describe("oauth and mcp http flow", () => {
     expect(tools.status).toBe(200);
     const toolsBody = (await tools.json()) as { result: { tools: { name: string }[] } };
     const names = toolsBody.result.tools.map((tool) => tool.name);
-    expect(names).toEqual(["session.whoami", "content.plans.list", "content.calendar.list"]);
+    expect(names).toEqual([
+      "session.whoami",
+      "content.plans.list",
+      "content.calendar.list",
+      "content.catalog.list",
+    ]);
 
     const who = await app.request("http://localhost:8787/mcp", {
       method: "POST",

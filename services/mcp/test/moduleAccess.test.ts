@@ -87,6 +87,8 @@ describe("buildAuthContext", () => {
     const names = filterTools(ctx).map((tool) => tool.name);
     expect(names).toContain("session.whoami");
     expect(names).not.toContain("content.plans.list");
+    expect(names).not.toContain("content.catalog.list");
+    expect(names).not.toContain("content.briefs.create");
   });
 
   it("shows content plans for a mandiri tenant when the page allows the role", () => {
@@ -116,6 +118,7 @@ describe("buildAuthContext", () => {
       "session.whoami",
       "content.plans.list",
       "content.calendar.list",
+      "content.catalog.list",
     ]);
   });
 
@@ -281,7 +284,9 @@ describe("phase 3 tool visibility", () => {
     });
     const names = filterTools(ctx).map((tool) => tool.name);
     expect(names).toContain("content.plans.list");
+    expect(names).toContain("content.catalog.list");
     expect(names).not.toContain("content.plans.create");
+    expect(names).not.toContain("content.briefs.create");
     expect(names).not.toContain("content.plans.update");
     expect(names).not.toContain("okr.objectives.create");
     expect(names).not.toContain("okr.objectives.update");
@@ -304,6 +309,8 @@ describe("phase 3 tool visibility", () => {
     const names = filterTools(ctx).map((tool) => tool.name);
     expect(names).toContain("session.whoami");
     expect(names).not.toContain("content.plans.create");
+    expect(names).not.toContain("content.briefs.create");
+    expect(names).not.toContain("content.catalog.list");
     expect(names).not.toContain("content.plans.update");
   });
 
@@ -315,6 +322,8 @@ describe("phase 3 tool visibility", () => {
     });
     const names = filterTools(ctx).map((tool) => tool.name);
     expect(names).toContain("content.plans.create");
+    expect(names).toContain("content.briefs.create");
+    expect(names).toContain("content.catalog.list");
     expect(names).toContain("content.plans.update");
     expect(names).not.toContain("content.plans.schedule");
     expect(names).not.toContain("okr.objectives.create");
