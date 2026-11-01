@@ -4,7 +4,7 @@ import type { ZodRawShape, ZodTypeAny } from "zod";
 import { AuthzError } from "../authz/errors";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
-import type { CrmLeadRow, OkrCycleRow, OkrObjectiveRow } from "../db/phase1Reads";
+import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type {
   AdsAccountRow,
   EmployeeRow,
@@ -16,6 +16,7 @@ import type {
   VisitRow,
 } from "../db/phase2Reads";
 import type { ExpenseRecord, IncomeRecord } from "../db/phase5Writes";
+import type { DepartmentObjectiveRecord, IndividualObjectiveRecord } from "../db/phase3Writes";
 import type { PayrollRunRow, PosDailySalesRow } from "../db/payrollPosReads";
 import type {
   AssignTaskInput,
@@ -29,6 +30,7 @@ import type {
   TaskRecord,
   TaskSummary,
   UpdateTaskInput,
+  TaskObjectiveLink,
   TaskStepRecord,
   TaskStepRow,
   WorkloadRow,
@@ -55,6 +57,12 @@ import {
   createPlanResult,
   cyclesInput,
   cyclesResult,
+  departmentsInput,
+  departmentsResult,
+  createDepartmentObjectiveInput,
+  createDepartmentObjectiveResult,
+  createIndividualObjectiveInput,
+  createIndividualObjectiveResult,
   employeesInput,
   employeesResult,
   expensesInput,
@@ -117,6 +125,8 @@ import {
   deleteTaskResult,
   assignTaskInput,
   assignTaskResult,
+  linkTaskObjectiveInput,
+  linkTaskObjectiveResult,
   takeInitiativeInput,
   takeInitiativeResult,
   taskStepsInput,
@@ -140,7 +150,8 @@ export type McpReadDeps = {
   listContentPlans: (ctx: McpAuthContext) => Promise<ContentPlanRow[]>;
   listContentCalendar: (ctx: McpAuthContext, month: string | null) => Promise<ContentPlanRow[]>;
   listOkrCycles: (ctx: McpAuthContext) => Promise<OkrCycleRow[]>;
-  listOkrObjectives: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveRow[]>;
+  listOkrObjectives: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveListRow[]>;
+  listOkrDepartments: (ctx: McpAuthContext) => Promise<OkrDepartmentRow[]>;
   listCrmLeads: (ctx: McpAuthContext, status: string | null) => Promise<CrmLeadRow[]>;
   listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
   listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
@@ -168,6 +179,26 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     input: { id: string; level: "company" | "department" | "individual"; title: string | null; status: string | null },
   ) => Promise<OkrObjectiveRow>;
+  createDepartmentObjective: (
+    ctx: McpAuthContext,
+    input: {
+      companyObjectiveId: string;
+      departmentId: string;
+      title: string;
+      description: string | null;
+      status: string | null;
+    },
+  ) => Promise<DepartmentObjectiveRecord>;
+  createIndividualObjective: (
+    ctx: McpAuthContext,
+    input: {
+      departmentObjectiveId: string;
+      title: string;
+      description: string | null;
+      status: string | null;
+      employeeId: string | null;
+    },
+  ) => Promise<IndividualObjectiveRecord>;
   createLead: (
     ctx: McpAuthContext,
     input: {
@@ -245,6 +276,10 @@ export type McpReadDeps = {
   updateTask: (ctx: McpAuthContext, input: UpdateTaskInput) => Promise<TaskRecord>;
   deleteTask: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
   assignTask: (ctx: McpAuthContext, input: AssignTaskInput) => Promise<AssignTaskResult>;
+  linkTaskObjective: (
+    ctx: McpAuthContext,
+    input: { taskId: string; individualObjectiveId: string },
+  ) => Promise<TaskObjectiveLink>;
   takeTaskInitiative: (ctx: McpAuthContext, input: TakeInitiativeInput) => Promise<TakeInitiativeResult>;
   listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
   createTaskStep: (
@@ -323,6 +358,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "content.calendar.list": calendarInput,
   "okr.cycles.list": cyclesInput,
   "okr.objectives.list": objectivesInput,
+  "okr.departments.list": departmentsInput,
   "crm.leads.list": leadsInput,
   "ads.accounts.list": adsAccountsInput,
   "finance.income.list": incomeInput,
@@ -342,6 +378,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "content.plans.update": updatePlanSchema,
   "okr.objectives.create": createObjectiveInput,
   "okr.objectives.update": updateObjectiveSchema,
+  "okr.objectives.department.create": createDepartmentObjectiveInput,
+  "okr.objectives.individual.create": createIndividualObjectiveInput,
   "crm.leads.create": createLeadInput,
   "crm.leads.update": updateLeadSchema,
   "content.plans.schedule": schedulePlanInput,
@@ -355,6 +393,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "tasks.update": updateTaskSchema,
   "tasks.delete": deleteTaskInput,
   "tasks.assign": assignTaskInput,
+  "tasks.objective.link": linkTaskObjectiveInput,
   "tasks.initiative.take": takeInitiativeInput,
   "tasks.steps.list": taskStepsInput,
   "tasks.steps.create": createStepInput,
@@ -376,6 +415,8 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
       return cyclesResult(ctx, deps.listOkrCycles);
     case "okr.objectives.list":
       return objectivesResult(ctx, optionalString(args.cycle_id), deps.listOkrObjectives);
+    case "okr.departments.list":
+      return departmentsResult(ctx, deps.listOkrDepartments);
     case "crm.leads.list":
       return leadsResult(ctx, optionalString(args.status), deps.listCrmLeads);
     case "ads.accounts.list":
@@ -497,6 +538,30 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
         },
         deps.updateObjective,
       );
+    case "okr.objectives.department.create":
+      return createDepartmentObjectiveResult(
+        ctx,
+        {
+          companyObjectiveId: requiredString(args.company_objective_id),
+          departmentId: requiredString(args.department_id),
+          title: requiredString(args.title),
+          description: optionalString(args.description),
+          status: optionalString(args.status),
+        },
+        deps.createDepartmentObjective,
+      );
+    case "okr.objectives.individual.create":
+      return createIndividualObjectiveResult(
+        ctx,
+        {
+          departmentObjectiveId: requiredString(args.department_objective_id),
+          title: requiredString(args.title),
+          description: optionalString(args.description),
+          status: optionalString(args.status),
+          employeeId: optionalString(args.employee_id),
+        },
+        deps.createIndividualObjective,
+      );
     case "crm.leads.create":
       return createLeadResult(
         ctx,
@@ -577,6 +642,15 @@ async function runTool(name: McpToolName, ctx: McpAuthContext, args: ToolArgs, d
           dueDate: optionalString(args.due_date),
         },
         deps.assignTask,
+      );
+    case "tasks.objective.link":
+      return linkTaskObjectiveResult(
+        ctx,
+        {
+          taskId: requiredString(args.task_id),
+          individualObjectiveId: requiredString(args.individual_objective_id),
+        },
+        deps.linkTaskObjective,
       );
     case "tasks.initiative.take":
       return takeInitiativeResult(

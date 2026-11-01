@@ -285,6 +285,8 @@ describe("phase 3 tool visibility", () => {
     expect(names).not.toContain("content.plans.update");
     expect(names).not.toContain("okr.objectives.create");
     expect(names).not.toContain("okr.objectives.update");
+    expect(names).not.toContain("okr.objectives.department.create");
+    expect(names).not.toContain("okr.objectives.individual.create");
     expect(names).not.toContain("crm.leads.create");
     expect(names).not.toContain("crm.leads.update");
     expect(names).not.toContain("content.plans.schedule");
@@ -316,7 +318,36 @@ describe("phase 3 tool visibility", () => {
     expect(names).toContain("content.plans.update");
     expect(names).not.toContain("content.plans.schedule");
     expect(names).not.toContain("okr.objectives.create");
+    expect(names).not.toContain("okr.objectives.department.create");
+    expect(names).not.toContain("okr.objectives.individual.create");
     expect(names).not.toContain("crm.leads.setStatus");
+  });
+});
+
+describe("okr hierarchy visibility", () => {
+  it("shows the department list and hides the new writes", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["okr:read"] },
+      configurations: [{ page_path: "/okr", roles_allowed: ["employee"] }],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).toContain("okr.departments.list");
+    expect(names).toContain("okr.objectives.list");
+    expect(names).not.toContain("okr.objectives.department.create");
+    expect(names).not.toContain("okr.objectives.individual.create");
+    expect(names).not.toContain("tasks.objective.link");
+  });
+
+  it("hides department and individual creates when the OKR page is missing", () => {
+    const ctx = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: ["okr:write"] },
+      configurations: [],
+    });
+    const names = filterTools(ctx).map((tool) => tool.name);
+    expect(names).not.toContain("okr.objectives.department.create");
+    expect(names).not.toContain("okr.objectives.individual.create");
   });
 });
 
@@ -484,6 +515,7 @@ describe("daily task visibility", () => {
     expect(names).not.toContain("tasks.steps.create");
     expect(names).not.toContain("tasks.steps.update");
     expect(names).not.toContain("tasks.steps.delete");
+    expect(names).not.toContain("tasks.objective.link");
   });
 
   it("shows no daily task tools when the page is missing", () => {
@@ -508,6 +540,7 @@ describe("daily task visibility", () => {
     expect(names).toContain("tasks.assign");
     expect(names).toContain("tasks.initiative.take");
     expect(names).toContain("tasks.steps.create");
+    expect(names).toContain("tasks.objective.link");
     expect(names).toContain("tasks.summary");
     expect(names).not.toContain("habits.list");
     expect(names).not.toContain("habits.check");

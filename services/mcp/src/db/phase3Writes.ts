@@ -101,6 +101,72 @@ export function createCompanyObjective(
   });
 }
 
+export type DepartmentObjectiveCreate = {
+  companyObjectiveId: string;
+  departmentId: string;
+  title: string;
+  description?: string | null;
+  status?: string | null;
+};
+
+export type DepartmentObjectiveRecord = {
+  id: string;
+  title: string;
+  status: string;
+  progress_percentage: number;
+  cycle_id: string;
+  company_objective_id: string;
+  department_id: string;
+};
+
+export type IndividualObjectiveCreate = {
+  departmentObjectiveId: string;
+  title: string;
+  description?: string | null;
+  status?: string | null;
+  employeeId?: string | null;
+};
+
+export type IndividualObjectiveRecord = {
+  id: string;
+  title: string;
+  status: string;
+  progress_percentage: number;
+  cycle_id: string;
+  department_objective_id: string;
+  employee_id: string;
+};
+
+export function createDepartmentObjective(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: DepartmentObjectiveCreate,
+): Promise<DepartmentObjectiveRecord> {
+  return callRpcOne(admin, "mcp_create_department_objective", {
+    ...sessionArgs(ctx),
+    p_company_objective_id: input.companyObjectiveId,
+    p_department_id: input.departmentId,
+    p_title: input.title,
+    p_description: input.description ?? null,
+    p_status: input.status ?? null,
+  });
+}
+
+export function createIndividualObjective(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: IndividualObjectiveCreate,
+): Promise<IndividualObjectiveRecord> {
+  return callRpcOne(admin, "mcp_create_individual_objective", {
+    ...sessionArgs(ctx),
+    p_department_objective_id: input.departmentObjectiveId,
+    p_title: input.title,
+    p_description: input.description ?? null,
+    p_status: input.status ?? null,
+    p_employee_id: input.employeeId ?? null,
+  });
+}
+
 export function updateObjective(
   admin: SupabaseClient,
   ctx: Session,

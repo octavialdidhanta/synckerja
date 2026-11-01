@@ -24,6 +24,7 @@ export type McpToolName =
   | "content.calendar.list"
   | "okr.cycles.list"
   | "okr.objectives.list"
+  | "okr.departments.list"
   | "crm.leads.list"
   | "ads.accounts.list"
   | "finance.income.list"
@@ -43,6 +44,8 @@ export type McpToolName =
   | "content.plans.update"
   | "okr.objectives.create"
   | "okr.objectives.update"
+  | "okr.objectives.department.create"
+  | "okr.objectives.individual.create"
   | "crm.leads.create"
   | "crm.leads.update"
   | "content.plans.schedule"
@@ -56,6 +59,7 @@ export type McpToolName =
   | "tasks.update"
   | "tasks.delete"
   | "tasks.assign"
+  | "tasks.objective.link"
   | "tasks.initiative.take"
   | "tasks.steps.list"
   | "tasks.steps.create"
@@ -107,7 +111,15 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "okr.objectives.list",
     description:
-      "List up to 50 company, department, and individual objectives for the organization locked in this session. Optional cycle_id limits the rows to one cycle. Returns id, level, title, status, progress percentage, cycle id, and a display name. Key results are not included.",
+      "List up to 50 company, department, and individual objectives for the organization locked in this session. Optional cycle_id limits the rows to one cycle. Returns id, level, title, status, progress percentage, cycle id, a display name, parent id, department id, department name, and employee id. Key result numbers are not included.",
+    scopes: ["okr:read"],
+    moduleKey: "okr",
+    pagePath: OKR_PAGE_PATH,
+  },
+  {
+    name: "okr.departments.list",
+    description:
+      "List up to 50 active departments for the organization locked in this session. Returns id and name. Descriptions are not returned.",
     scopes: ["okr:read"],
     moduleKey: "okr",
     pagePath: OKR_PAGE_PATH,
@@ -251,7 +263,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "okr.objectives.create",
     description:
-      "Create a company objective in one cycle for the organization locked in this session. Requires cycle_id and title. Status is draft or active. Progress stays at zero. Department and individual objectives are not created.",
+      "Create a company objective in one cycle for the organization locked in this session. Requires cycle_id and title. Status is draft or active. Progress stays at zero. A percentage key result from 0 to 100 is stored on the company objective. A department key result is created separately with okr.objectives.department.create.",
     scopes: ["okr:write"],
     moduleKey: "okr",
     pagePath: OKR_PAGE_PATH,
@@ -260,6 +272,22 @@ export const MCP_TOOLS: McpTool[] = [
     name: "okr.objectives.update",
     description:
       "Update the title or status of one company, department, or individual objective in the organization locked in this session. Status is draft, active, completed, or cancelled. Progress, weight, cycle, and owner stay unchanged.",
+    scopes: ["okr:write"],
+    moduleKey: "okr",
+    pagePath: OKR_PAGE_PATH,
+  },
+  {
+    name: "okr.objectives.department.create",
+    description:
+      "Create a department objective under one company objective for the organization locked in this session. This is the key result a department carries for that company objective. Requires company_objective_id, department_id, and title. The cycle is copied from the company objective. Progress stays at zero. A percentage key result is stored on the department objective. Does not create an individual objective or a task.",
+    scopes: ["okr:write"],
+    moduleKey: "okr",
+    pagePath: OKR_PAGE_PATH,
+  },
+  {
+    name: "okr.objectives.individual.create",
+    description:
+      "Create an individual objective under one department objective for the organization locked in this session. This is the key result one employee carries for that department objective. Requires department_objective_id and title. Optional employee_id assigns another person only for an owner, admin, or hr member; omit it to use the signed-in member. The employee must belong to that department. The cycle is copied from the department objective. Progress stays at zero. A percentage key result is stored on the individual objective. Does not create a task.",
     scopes: ["okr:write"],
     moduleKey: "okr",
     pagePath: OKR_PAGE_PATH,
@@ -364,6 +392,14 @@ export const MCP_TOOLS: McpTool[] = [
     name: "tasks.assign",
     description:
       "Assign one daily task to an employee in the organization locked in this session and optionally set its due date. Replaces the previous assignee. Owners, admins, and HR may assign another person. Other members may assign only themselves.",
+    scopes: ["tasks:write"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.objective.link",
+    description:
+      "Link one daily task to one individual objective in the organization locked in this session. Requires task_id and individual_objective_id. Does not change the task status, steps, or OKR progress, and does not create a task.",
     scopes: ["tasks:write"],
     moduleKey: "tools",
     pagePath: DAILY_TASK_PAGE_PATH,

@@ -4,7 +4,7 @@ import type { McpServiceConfig } from "../config";
 import type { McpAuthContext } from "../authz/context";
 import { AuthzError } from "../authz/errors";
 import type { ContentPlanRow } from "../db/listContentPlans";
-import type { CrmLeadRow, OkrCycleRow, OkrObjectiveRow } from "../db/phase1Reads";
+import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type {
   AdsAccountRow,
   EmployeeRow,
@@ -16,6 +16,7 @@ import type {
   VisitRow,
 } from "../db/phase2Reads";
 import type { ExpenseRecord, IncomeRecord } from "../db/phase5Writes";
+import type { DepartmentObjectiveRecord, IndividualObjectiveRecord } from "../db/phase3Writes";
 import type { PayrollRunRow, PosDailySalesRow } from "../db/payrollPosReads";
 import type {
   AssignTaskInput,
@@ -26,6 +27,7 @@ import type {
   TakeInitiativeInput,
   TakeInitiativeResult,
   TaskListRow,
+  TaskObjectiveLink,
   TaskRecord,
   TaskStepRecord,
   TaskStepRow,
@@ -63,7 +65,8 @@ export type AppDeps = {
   listContentPlans: (ctx: McpAuthContext) => Promise<ContentPlanRow[]>;
   listContentCalendar: (ctx: McpAuthContext, month: string | null) => Promise<ContentPlanRow[]>;
   listOkrCycles: (ctx: McpAuthContext) => Promise<OkrCycleRow[]>;
-  listOkrObjectives: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveRow[]>;
+  listOkrObjectives: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveListRow[]>;
+  listOkrDepartments: (ctx: McpAuthContext) => Promise<OkrDepartmentRow[]>;
   listCrmLeads: (ctx: McpAuthContext, status: string | null) => Promise<CrmLeadRow[]>;
   listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
   listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
@@ -91,6 +94,26 @@ export type AppDeps = {
     ctx: McpAuthContext,
     input: { id: string; level: "company" | "department" | "individual"; title: string | null; status: string | null },
   ) => Promise<OkrObjectiveRow>;
+  createDepartmentObjective: (
+    ctx: McpAuthContext,
+    input: {
+      companyObjectiveId: string;
+      departmentId: string;
+      title: string;
+      description: string | null;
+      status: string | null;
+    },
+  ) => Promise<DepartmentObjectiveRecord>;
+  createIndividualObjective: (
+    ctx: McpAuthContext,
+    input: {
+      departmentObjectiveId: string;
+      title: string;
+      description: string | null;
+      status: string | null;
+      employeeId: string | null;
+    },
+  ) => Promise<IndividualObjectiveRecord>;
   createLead: (
     ctx: McpAuthContext,
     input: {
@@ -168,6 +191,10 @@ export type AppDeps = {
   updateTask: (ctx: McpAuthContext, input: UpdateTaskInput) => Promise<TaskRecord>;
   deleteTask: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
   assignTask: (ctx: McpAuthContext, input: AssignTaskInput) => Promise<AssignTaskResult>;
+  linkTaskObjective: (
+    ctx: McpAuthContext,
+    input: { taskId: string; individualObjectiveId: string },
+  ) => Promise<TaskObjectiveLink>;
   takeTaskInitiative: (ctx: McpAuthContext, input: TakeInitiativeInput) => Promise<TakeInitiativeResult>;
   listTaskSteps: (ctx: McpAuthContext, taskId: string) => Promise<TaskStepRow[]>;
   createTaskStep: (

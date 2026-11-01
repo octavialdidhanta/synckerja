@@ -13,6 +13,10 @@ import { updatePlanInput, updatePlanSchema } from "../src/tools/content/plansUpd
 import { updateObjectiveSchema } from "../src/tools/okr/objectivesUpdate";
 import { updateLeadSchema } from "../src/tools/crm/leadsUpdate";
 import { createObjectiveInput } from "../src/tools/okr/objectivesCreate";
+import { departmentsInput } from "../src/tools/okr/departmentsList";
+import { createDepartmentObjectiveInput } from "../src/tools/okr/departmentCreate";
+import { createIndividualObjectiveInput } from "../src/tools/okr/individualCreate";
+import { linkTaskObjectiveInput } from "../src/tools/tasks/objectiveLink";
 import { updateObjectiveInput } from "../src/tools/okr/objectivesUpdate";
 import { adsAccountsInput } from "../src/tools/ads/accountsList";
 import { createIncomeInput } from "../src/tools/finance/incomeCreate";
@@ -49,6 +53,7 @@ import {
   assignTask,
   deleteTask,
   deleteTaskStep,
+  linkTaskObjective,
   listCompletedSteps,
   listTaskInitiative,
   listTaskSummary,
@@ -59,7 +64,7 @@ import { cyclesInput } from "../src/tools/okr/cyclesList";
 import { objectivesInput } from "../src/tools/okr/objectivesList";
 import { whoamiInput } from "../src/tools/session/whoami";
 import { listContentPlans } from "../src/db/listContentPlans";
-import { listContentCalendar, listCrmLeads, listOkrCycles, listOkrObjectives } from "../src/db/phase1Reads";
+import { listContentCalendar, listCrmLeads, listOkrCycles, listOkrDepartments, listOkrObjectives } from "../src/db/phase1Reads";
 import {
   listAdsAccounts,
   listCustomerVisits,
@@ -73,6 +78,8 @@ import {
 import {
   createCompanyObjective,
   createContentPlan,
+  createDepartmentObjective,
+  createIndividualObjective,
   createLead,
   setLeadStatus,
   updateContentPlan,
@@ -156,6 +163,45 @@ describe("phase 0 tool inputs", () => {
     expect(updateObjectiveInput.safeParse({ id: planId, level: "company", status: "cancelled" }).success).toBe(true);
     expect(updateObjectiveInput.safeParse({ id: planId, level: "company", status: "published" }).success).toBe(false);
     expect(updateObjectiveInput.safeParse({ id: planId, level: "company", progress_percentage: 40 }).success).toBe(false);
+    expect(departmentsInput.safeParse({}).success).toBe(true);
+    expect(departmentsInput.safeParse({ organization_id: "org-2" }).success).toBe(false);
+    expect(createDepartmentObjectiveInput.safeParse({
+      company_objective_id: planId,
+      department_id: planId,
+      title: "Pipeline",
+    }).success).toBe(true);
+    expect(createDepartmentObjectiveInput.safeParse({
+      company_objective_id: planId,
+      department_id: planId,
+      title: "Pipeline",
+      organization_id: "org-2",
+      email: "a@b.c",
+      phone: "0812",
+      progress_percentage: 40,
+    }).success).toBe(false);
+    expect(createIndividualObjectiveInput.safeParse({
+      department_objective_id: planId,
+      title: "Calls",
+    }).success).toBe(true);
+    expect(createIndividualObjectiveInput.safeParse({
+      department_objective_id: planId,
+      title: "Calls",
+      organization_id: "org-2",
+      email: "a@b.c",
+      phone: "0812",
+      progress_percentage: 10,
+    }).success).toBe(false);
+    expect(linkTaskObjectiveInput.safeParse({
+      task_id: planId,
+      individual_objective_id: planId,
+    }).success).toBe(true);
+    expect(linkTaskObjectiveInput.safeParse({
+      task_id: planId,
+      individual_objective_id: planId,
+      organization_id: "org-2",
+      email: "a@b.c",
+      progress_percentage: 1,
+    }).success).toBe(false);
     expect(createLeadInput.safeParse({ client: "Acme", title: "Need", category: "Clinic", fu_priority: "High" }).success).toBe(true);
     expect(createLeadInput.safeParse({ client: "Acme", title: "Need", category: "Clinic", fu_priority: "Urgent" }).success).toBe(false);
     expect(createLeadInput.safeParse({ client: "Acme", title: "Need", category: "Clinic", status: "Converted" }).success).toBe(false);
@@ -475,6 +521,9 @@ describe("phase 0 tool inputs", () => {
       p_why_important: null,
       p_status: "draft",
     });
+    const companyPayload = JSON.stringify(rpc.mock.calls[2]);
+    expect(companyPayload).not.toContain("progress");
+    expect(companyPayload).not.toContain("weight");
     expect(rpc).toHaveBeenNthCalledWith(4, "mcp_update_objective", {
       p_user_id: "user-1",
       p_organization_id: "org-1",
@@ -702,6 +751,63 @@ describe("phase 0 tool inputs", () => {
     expect(result.blocked).toEqual(["approved"]);
   });
 
+  it("calls the hierarchy RPCs with the session and the requested ids only", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [{ id: "row-1" }], error: null });
+    const admin = { rpc } as unknown as SupabaseClient;
+    const ctx = { userId: "user-1", organizationId: "org-1" };
+    const id = "11111111-1111-4111-8111-111111111111";
+    await listOkrDepartments(admin, ctx);
+    await createDepartmentObjective(admin, ctx, {
+      companyObjectiveId: id,
+      departmentId: id,
+      title: "Pipeline",
+      description: null,
+      status: "active",
+    });
+    await createIndividualObjective(admin, ctx, {
+      departmentObjectiveId: id,
+      title: "Calls",
+      description: null,
+      status: null,
+      employeeId: null,
+    });
+    await linkTaskObjective(admin, ctx, { taskId: id, individualObjectiveId: id });
+    expect(rpc).toHaveBeenNthCalledWith(1, "mcp_list_okr_departments", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, "mcp_create_department_objective", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_company_objective_id: id,
+      p_department_id: id,
+      p_title: "Pipeline",
+      p_description: null,
+      p_status: "active",
+    });
+    expect(rpc).toHaveBeenNthCalledWith(3, "mcp_create_individual_objective", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_department_objective_id: id,
+      p_title: "Calls",
+      p_description: null,
+      p_status: null,
+      p_employee_id: null,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(4, "mcp_link_task_objective", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_task_id: id,
+      p_individual_objective_id: id,
+    });
+    const sent = JSON.stringify(rpc.mock.calls);
+    expect(sent).not.toContain("weight");
+    expect(sent).not.toContain("progress");
+    expect(sent).not.toContain("email");
+    expect(sent).not.toContain("phone");
+    expect(sent).not.toContain("notes");
+  });
+
   it("keeps service-role helpers out of tool files", () => {
     const whoami = readFileSync(new URL("../src/tools/session/whoami.ts", import.meta.url), "utf8");
     const plans = readFileSync(new URL("../src/tools/content/plansList.ts", import.meta.url), "utf8");
@@ -723,6 +829,10 @@ describe("phase 0 tool inputs", () => {
     const updatePlan = readFileSync(new URL("../src/tools/content/plansUpdate.ts", import.meta.url), "utf8");
     const createObjective = readFileSync(new URL("../src/tools/okr/objectivesCreate.ts", import.meta.url), "utf8");
     const updateObjective = readFileSync(new URL("../src/tools/okr/objectivesUpdate.ts", import.meta.url), "utf8");
+    const departments = readFileSync(new URL("../src/tools/okr/departmentsList.ts", import.meta.url), "utf8");
+    const createDepartment = readFileSync(new URL("../src/tools/okr/departmentCreate.ts", import.meta.url), "utf8");
+    const createIndividual = readFileSync(new URL("../src/tools/okr/individualCreate.ts", import.meta.url), "utf8");
+    const linkObjective = readFileSync(new URL("../src/tools/tasks/objectiveLink.ts", import.meta.url), "utf8");
     const createLead = readFileSync(new URL("../src/tools/crm/leadsCreate.ts", import.meta.url), "utf8");
     const updateLead = readFileSync(new URL("../src/tools/crm/leadsUpdate.ts", import.meta.url), "utf8");
     const schedulePlan = readFileSync(new URL("../src/tools/content/plansSchedule.ts", import.meta.url), "utf8");
@@ -772,6 +882,10 @@ describe("phase 0 tool inputs", () => {
       updatePlan,
       createObjective,
       updateObjective,
+      departments,
+      createDepartment,
+      createIndividual,
+      linkObjective,
       createLead,
       updateLead,
       schedulePlan,

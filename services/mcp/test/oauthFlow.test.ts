@@ -93,6 +93,7 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     listContentCalendar: async () => [],
     listOkrCycles: async () => [],
     listOkrObjectives: async () => [],
+    listOkrDepartments: async () => [],
     listCrmLeads: async () => [],
     listAdsAccounts: async () => [],
     listIncomeTransactions: async () => [],
@@ -114,6 +115,12 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
       throw new Error("unused");
     },
     updateObjective: async () => {
+      throw new Error("unused");
+    },
+    createDepartmentObjective: async () => {
+      throw new Error("unused");
+    },
+    createIndividualObjective: async () => {
       throw new Error("unused");
     },
     createLead: async () => {
@@ -157,6 +164,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
       throw new Error("unused");
     },
     assignTask: async () => {
+      throw new Error("unused");
+    },
+    linkTaskObjective: async () => {
       throw new Error("unused");
     },
     takeTaskInitiative: async () => {

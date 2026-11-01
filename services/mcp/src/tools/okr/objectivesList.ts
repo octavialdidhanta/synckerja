@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpAuthContext } from "../../authz/context";
-import type { OkrObjectiveRow } from "../../db/phase1Reads";
+import type { OkrObjectiveListRow } from "../../db/phase1Reads";
 
 export const objectivesInput = z.object({
   cycle_id: z.string().uuid().optional(),
@@ -9,7 +9,7 @@ export const objectivesInput = z.object({
 export async function objectivesResult(
   ctx: McpAuthContext,
   cycleId: string | null,
-  list: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveRow[]>,
-): Promise<OkrObjectiveRow[]> {
+  list: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveListRow[]>,
+): Promise<OkrObjectiveListRow[]> {
   return list(ctx, cycleId);
 }

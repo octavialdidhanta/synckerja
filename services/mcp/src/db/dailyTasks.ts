@@ -182,6 +182,24 @@ export function updateTask(
   });
 }
 
+export type TaskObjectiveLink = {
+  id: string;
+  title: string;
+  objective_id: string;
+};
+
+export function linkTaskObjective(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { taskId: string; individualObjectiveId: string },
+): Promise<TaskObjectiveLink> {
+  return callRpcOne(admin, "mcp_link_task_objective", {
+    ...sessionArgs(ctx),
+    p_task_id: input.taskId,
+    p_individual_objective_id: input.individualObjectiveId,
+  });
+}
+
 export function deleteTask(admin: SupabaseClient, ctx: Session, id: string): Promise<{ id: string }> {
   return callRpcOne(admin, "mcp_delete_task", { ...sessionArgs(ctx), p_id: id });
 }

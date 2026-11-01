@@ -22,6 +22,18 @@ export type OkrObjectiveRow = {
   owner_name: string | null;
 };
 
+export type OkrObjectiveListRow = OkrObjectiveRow & {
+  parent_id: string | null;
+  department_id: string | null;
+  department_name: string | null;
+  employee_id: string | null;
+};
+
+export type OkrDepartmentRow = {
+  id: string;
+  name: string;
+};
+
 export type CrmLeadRow = {
   id: string;
   ticket_id: string;
@@ -65,11 +77,18 @@ export async function listOkrObjectives(
   admin: SupabaseClient,
   ctx: Session,
   cycleId: string | null,
-): Promise<OkrObjectiveRow[]> {
-  return callRpc<OkrObjectiveRow>(admin, "mcp_list_okr_objectives", {
+): Promise<OkrObjectiveListRow[]> {
+  return callRpc<OkrObjectiveListRow>(admin, "mcp_list_okr_objectives", {
     p_user_id: ctx.userId,
     p_organization_id: ctx.organizationId,
     p_cycle_id: cycleId,
+  });
+}
+
+export async function listOkrDepartments(admin: SupabaseClient, ctx: Session): Promise<OkrDepartmentRow[]> {
+  return callRpc<OkrDepartmentRow>(admin, "mcp_list_okr_departments", {
+    p_user_id: ctx.userId,
+    p_organization_id: ctx.organizationId,
   });
 }
 

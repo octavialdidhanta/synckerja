@@ -4,7 +4,7 @@ import { loadContext } from "./authz/loadContext";
 import { createAdmin } from "./db/admin";
 import { isActiveMember, loadConsentIdentity, verifySupabaseUser } from "./db/identity";
 import { listContentPlans } from "./db/listContentPlans";
-import { listContentCalendar, listCrmLeads, listOkrCycles, listOkrObjectives } from "./db/phase1Reads";
+import { listContentCalendar, listCrmLeads, listOkrCycles, listOkrDepartments, listOkrObjectives } from "./db/phase1Reads";
 import {
   listAdsAccounts,
   listCustomerVisits,
@@ -18,6 +18,8 @@ import {
 import {
   createCompanyObjective,
   createContentPlan,
+  createDepartmentObjective,
+  createIndividualObjective,
   createLead,
   setLeadStatus,
   updateContentPlan,
@@ -35,6 +37,7 @@ import {
   assignTask,
   createTask,
   deleteTask,
+  linkTaskObjective,
   listCompletedSteps,
   listTaskInitiative,
   listTaskSummary,
@@ -69,6 +72,7 @@ const app = createApp({
   listContentCalendar: (ctx, month) => listContentCalendar(admin, ctx, month),
   listOkrCycles: (ctx) => listOkrCycles(admin, ctx),
   listOkrObjectives: (ctx, cycleId) => listOkrObjectives(admin, ctx, cycleId),
+  listOkrDepartments: (ctx) => listOkrDepartments(admin, ctx),
   listCrmLeads: (ctx, status) => listCrmLeads(admin, ctx, status),
   listAdsAccounts: (ctx) => listAdsAccounts(admin, ctx),
   listIncomeTransactions: (ctx, month) => listIncomeTransactions(admin, ctx, month),
@@ -84,6 +88,8 @@ const app = createApp({
   updateContentPlan: (ctx, input) => updateContentPlan(admin, ctx, input.id, input),
   createCompanyObjective: (ctx, input) => createCompanyObjective(admin, ctx, input),
   updateObjective: (ctx, input) => updateObjective(admin, ctx, input),
+  createDepartmentObjective: (ctx, input) => createDepartmentObjective(admin, ctx, input),
+  createIndividualObjective: (ctx, input) => createIndividualObjective(admin, ctx, input),
   createLead: (ctx, input) => createLead(admin, ctx, input),
   updateLead: (ctx, input) => updateLead(admin, ctx, input),
   scheduleContentPlan: (ctx, id) => scheduleContentPlan(config, ctx, id),
@@ -101,6 +107,7 @@ const app = createApp({
   updateTask: (ctx, input) => updateTask(admin, ctx, input),
   deleteTask: (ctx, id) => deleteTask(admin, ctx, id),
   assignTask: (ctx, input) => assignTask(admin, ctx, input),
+  linkTaskObjective: (ctx, input) => linkTaskObjective(admin, ctx, input),
   takeTaskInitiative: (ctx, input) => takeTaskInitiative(admin, ctx, input),
   listTaskSteps: (ctx, taskId) => listTaskSteps(admin, ctx, taskId),
   createTaskStep: (ctx, input) => createTaskStep(admin, ctx, input),
