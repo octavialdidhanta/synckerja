@@ -47,6 +47,7 @@ export { taskStepsInput, taskStepsResult } from "./tasks/stepsList";
 export { createStepInput, createStepResult } from "./tasks/stepsCreate";
 export { updateStepResult, updateStepSchema } from "./tasks/stepsUpdate";
 export { deleteStepInput, deleteStepResult } from "./tasks/stepsDelete";
+export { createSubstepInput, createSubstepResult } from "./tasks/substepsCreate";
 export { habitsListInput, habitsListResult } from "./habits/list";
 export { habitCheckInput, habitCheckResult } from "./habits/check";
 export { draftReadInput, draftReadResult } from "./leadmagnet/draftRead";

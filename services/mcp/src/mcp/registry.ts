@@ -71,6 +71,7 @@ export type McpToolName =
   | "tasks.steps.create"
   | "tasks.steps.update"
   | "tasks.steps.delete"
+  | "tasks.substeps.create"
   | "habits.list"
   | "habits.check"
   | "thinking.ideas.list"
@@ -499,7 +500,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "tasks.steps.list",
     description:
-      "List up to 50 steps of one daily task in the organization locked in this session. Returns id, title, order, whether it is completed, and the assignee name. A blank assignee means nobody is assigned. Descriptions, comments, and files are not returned.",
+      "List up to 50 steps of one daily task in the organization locked in this session. Returns id, title, order, whether it is completed, and the assignee name. Use the returned id as step_id for tasks.substeps.create. A blank assignee means nobody is assigned. Sub-steps, descriptions, comments, and files are not returned.",
     scopes: ["tasks:read"],
     moduleKey: "tools",
     pagePath: DAILY_TASK_PAGE_PATH,
@@ -507,7 +508,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "tasks.steps.create",
     description:
-      "Add one unfinished step to a daily task in the organization locked in this session. Requires the task id and a title. The step is placed after the current last step. Does not mark the task completed and does not upload a file.",
+      "Add one unfinished step to a daily task in the organization locked in this session. Requires the task id and a title. The step is placed after the current last step. To add a sub-step under an existing step, use tasks.substeps.create with that step id. Does not mark the task completed and does not upload a file.",
     scopes: ["tasks:write"],
     moduleKey: "tools",
     pagePath: DAILY_TASK_PAGE_PATH,
@@ -515,7 +516,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "tasks.steps.update",
     description:
-      "Rename one step of a daily task in the organization locked in this session. Does not change completion, status, assignee, or due date.",
+      "Update the title and, when supplied, the description of one step in the organization locked in this session. Title is required. Omit description or send null to keep the saved description. Send an empty description to clear it. Does not change completion, status, assignee, order, or due date.",
     scopes: ["tasks:write"],
     moduleKey: "tools",
     pagePath: DAILY_TASK_PAGE_PATH,
@@ -524,6 +525,14 @@ export const MCP_TOOLS: McpTool[] = [
     name: "tasks.steps.delete",
     description:
       "Delete one step of a daily task in the organization locked in this session. Refuses when the step or one of its substeps is assigned, or when the step is linked to a content plan. Unassigned substeps of that step are removed with it.",
+    scopes: ["tasks:write"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.substeps.create",
+    description:
+      "Add one unfinished sub-step under one existing step. Requires step_id, the id of that step from tasks.steps.list, and a title. Does not create a new step and does not accept a task id. The sub-step is ordered after the last sub-step of that step. A completed parent step becomes unfinished. Does not assign anyone or upload a file.",
     scopes: ["tasks:write"],
     moduleKey: "tools",
     pagePath: DAILY_TASK_PAGE_PATH,

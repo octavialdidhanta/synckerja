@@ -203,6 +203,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     deleteTaskStep: async () => {
       throw new Error("unused");
     },
+    createTaskSubstep: async () => {
+      throw new Error("unused");
+    },
     listHabits: async () => [],
     checkHabit: async () => {
       throw new Error("unused");

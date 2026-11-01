@@ -237,6 +237,7 @@ export type TaskStepRecord = {
   title: string;
   order: number;
   is_completed: boolean;
+  description?: string | null;
 };
 
 type StepRpcRow = {
@@ -244,6 +245,7 @@ type StepRpcRow = {
   title: string;
   step_order: number;
   is_completed: boolean;
+  description?: string | null;
   assignee_name?: string | null;
 };
 
@@ -253,6 +255,7 @@ function asStep(row: StepRpcRow): TaskStepRecord {
     title: row.title,
     order: row.step_order,
     is_completed: row.is_completed,
+    ...(Object.prototype.hasOwnProperty.call(row, "description") ? { description: row.description ?? null } : {}),
   };
 }
 
@@ -282,17 +285,52 @@ export function createTaskStep(
 export function updateTaskStep(
   admin: SupabaseClient,
   ctx: Session,
-  input: { id: string; title: string },
+  input: { id: string; title: string; description: string | null },
 ): Promise<TaskStepRecord> {
   return callRpcOne<StepRpcRow>(admin, "mcp_update_task_step", {
     ...sessionArgs(ctx),
     p_id: input.id,
     p_title: input.title,
+    p_description: input.description,
   }).then(asStep);
 }
 
 export function deleteTaskStep(admin: SupabaseClient, ctx: Session, id: string): Promise<{ id: string }> {
   return callRpcOne(admin, "mcp_delete_task_step", { ...sessionArgs(ctx), p_id: id });
+}
+
+export type TaskSubstepRecord = {
+  id: string;
+  step_id: string;
+  title: string;
+  order: number;
+  is_completed: boolean;
+};
+
+type SubstepRpcRow = {
+  id: string;
+  step_id: string;
+  title: string;
+  substep_order: number;
+  is_completed: boolean;
+};
+
+export function createTaskSubstep(
+  admin: SupabaseClient,
+  ctx: Session,
+  input: { stepId: string; title: string },
+): Promise<TaskSubstepRecord> {
+  return callRpcOne<SubstepRpcRow>(admin, "mcp_create_task_substep", {
+    ...sessionArgs(ctx),
+    p_step_id: input.stepId,
+    p_title: input.title,
+  }).then((row) => ({
+    id: row.id,
+    step_id: row.step_id,
+    title: row.title,
+    order: row.substep_order,
+    is_completed: row.is_completed,
+  }));
 }
 
 export function takeTaskInitiative(

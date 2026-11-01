@@ -62,6 +62,7 @@ import { assignTaskInput } from "../src/tools/tasks/assign";
 import { takeInitiativeInput } from "../src/tools/tasks/take";
 import { taskStepsInput } from "../src/tools/tasks/stepsList";
 import { createStepInput } from "../src/tools/tasks/stepsCreate";
+import { createSubstepInput } from "../src/tools/tasks/substepsCreate";
 import { updateStepSchema } from "../src/tools/tasks/stepsUpdate";
 import { deleteStepInput } from "../src/tools/tasks/stepsDelete";
 import { habitsListInput } from "../src/tools/habits/list";
@@ -78,7 +79,9 @@ import {
   listTasks,
   listTaskWorkload,
   createTask,
+  createTaskSubstep,
   updateTask,
+  updateTaskStep,
 } from "../src/db/dailyTasks";
 import { cyclesInput } from "../src/tools/okr/cyclesList";
 import { objectivesInput } from "../src/tools/okr/objectivesList";
@@ -436,10 +439,28 @@ describe("phase 0 tool inputs", () => {
     expect(taskStepsInput.safeParse({ task_id: taskId, organization_id: "org-2" }).success).toBe(false);
     expect(createStepInput.safeParse({ task_id: taskId, title: "Draft" }).success).toBe(true);
     expect(createStepInput.safeParse({ task_id: taskId, title: "Draft", email: "a@b.c" }).success).toBe(false);
+    expect(createSubstepInput.safeParse({ step_id: taskId, title: "Identify prospects" }).success).toBe(true);
+    expect(createSubstepInput.safeParse({ step_id: taskId, title: "Identify prospects", task_id: taskId }).success).toBe(false);
+    expect(createSubstepInput.safeParse({ step_id: taskId, title: "Identify prospects", description: "notes" }).success).toBe(false);
+    expect(createSubstepInput.safeParse({ title: "Identify prospects" }).success).toBe(false);
+    expect(createSubstepInput.safeParse({ step_id: taskId }).success).toBe(false);
     expect(updateStepSchema.safeParse({ id: taskId, title: "Draft" }).success).toBe(true);
+    expect(updateStepSchema.safeParse({ id: taskId, title: "Draft", description: "Detail the step" }).success).toBe(true);
+    expect(updateStepSchema.safeParse({ id: taskId, title: "Draft", description: null }).success).toBe(true);
+    expect(updateStepSchema.safeParse({ id: taskId, title: "Draft", description: "" }).success).toBe(true);
+    expect(updateStepSchema.safeParse({ id: taskId, description: "Detail the step" }).success).toBe(false);
     expect(updateStepSchema.safeParse({ id: taskId }).success).toBe(false);
     expect(updateStepSchema.safeParse({ id: taskId, title: "Draft", is_completed: true }).success).toBe(false);
-    expect(Object.keys(updateStepSchema.shape)).toEqual(["id", "title"]);
+    expect(updateStepSchema.safeParse({ id: taskId, title: "Draft", description: "x".repeat(2001) }).success).toBe(false);
+    expect(Object.keys(updateStepSchema.shape)).toEqual(["id", "title", "description"]);
+    const updateStepJson = zodToJsonSchema(z.object(publishedToolShape(updateStepSchema))) as {
+      properties: Record<string, { type?: string; anyOf?: Array<{ type?: string }>; description?: string }>;
+      required?: string[];
+    };
+    expect(updateStepJson.required).toEqual(["id", "title"]);
+    expect(updateStepJson.required).not.toContain("description");
+    expect(updateStepJson.properties.description?.anyOf?.map((item) => item.type)).toEqual(["string", "null"]);
+    expect(JSON.stringify(updateStepJson)).not.toContain("pattern");
     expect(deleteStepInput.safeParse({ id: taskId, comment: "gone" }).success).toBe(false);
     expect(habitsListInput.safeParse({}).success).toBe(true);
     expect(habitsListInput.safeParse({ date: "2026-11-01", phone: "0812" }).success).toBe(false);
@@ -850,6 +871,70 @@ describe("phase 0 tool inputs", () => {
     expect(sent).not.toContain("notes");
     expect(sent).not.toContain("comment");
     expect(sent).not.toContain("email");
+  });
+
+  it("creates a sub-step under the requested step id", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ id, step_id: id, title: "Identify prospects", substep_order: 2, is_completed: false }],
+      error: null,
+    });
+    const admin = { rpc } as unknown as SupabaseClient;
+    const ctx = { userId: "user-1", organizationId: "org-1" };
+    await expect(createTaskSubstep(admin, ctx, { stepId: id, title: "Identify prospects" })).resolves.toEqual({
+      id,
+      step_id: id,
+      title: "Identify prospects",
+      order: 2,
+      is_completed: false,
+    });
+    expect(rpc).toHaveBeenCalledWith("mcp_create_task_substep", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_step_id: id,
+      p_title: "Identify prospects",
+    });
+    expect(JSON.stringify(rpc.mock.calls)).not.toContain("task_id");
+  });
+
+  it("updates a step description without sending completion or assignee fields", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ id, title: "Draft", description: "Detail the step", step_order: 1, is_completed: false }],
+      error: null,
+    });
+    const admin = { rpc } as unknown as SupabaseClient;
+    const ctx = { userId: "user-1", organizationId: "org-1" };
+    await expect(updateTaskStep(admin, ctx, {
+      id,
+      title: "Draft",
+      description: "Detail the step",
+    })).resolves.toEqual({
+      id,
+      title: "Draft",
+      description: "Detail the step",
+      order: 1,
+      is_completed: false,
+    });
+    await updateTaskStep(admin, ctx, { id, title: "Draft", description: null });
+    expect(rpc).toHaveBeenNthCalledWith(1, "mcp_update_task_step", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_id: id,
+      p_title: "Draft",
+      p_description: "Detail the step",
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, "mcp_update_task_step", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_id: id,
+      p_title: "Draft",
+      p_description: null,
+    });
+    const sent = JSON.stringify(rpc.mock.calls);
+    expect(sent).not.toContain("is_completed");
+    expect(sent).not.toContain("assignee");
+    expect(sent).not.toContain("order");
   });
 
   it("schedules with the session user and hides the internal secret", async () => {

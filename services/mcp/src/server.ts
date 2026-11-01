@@ -55,6 +55,7 @@ import {
   takeTaskInitiative,
   updateTask,
   createTaskStep,
+  createTaskSubstep,
   deleteTaskStep,
   listTaskSteps,
   updateTaskStep,
@@ -131,6 +132,7 @@ const app = createApp({
   createTaskStep: (ctx, input) => createTaskStep(admin, ctx, input),
   updateTaskStep: (ctx, input) => updateTaskStep(admin, ctx, input),
   deleteTaskStep: (ctx, id) => deleteTaskStep(admin, ctx, id),
+  createTaskSubstep: (ctx, input) => createTaskSubstep(admin, ctx, input),
   listHabits: (ctx, date) => listHabits(admin, ctx, date),
   checkHabit: (ctx, input) => checkHabit(admin, ctx, input),
 });
