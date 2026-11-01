@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { throttle, clearCache } from '@/8-2-DailyTask/utils/optimizationUtils';
+import { clearCache } from '@/8-2-DailyTask/utils/optimizationUtils';
+import { globalTaskIdsCache } from '@/8-2-DailyTask/utils/globalTaskIdsCache';
 import { logger } from '@/shared/lib/logger';
 
 interface UseTaskRealtimeOptions {
@@ -9,28 +10,53 @@ interface UseTaskRealtimeOptions {
   recentlyUpdatedTasksRef: React.MutableRefObject<Set<string>>;
 }
 
+const REFRESH_DEBOUNCE_MS = 400;
+
+type TaskChangePayload = {
+  eventType?: string;
+  new?: { id?: string };
+  old?: { id?: string };
+};
+
 /**
- * Hook to handle real-time subscriptions for tasks
+ * Refresh the daily task list when the org's tasks change.
+ * Step, sub-step, assignment, and due-date writes bump daily_tasks.updated_at,
+ * so this single subscription covers those updates too.
  */
 export const useTaskRealtime = ({
   organizationId,
   onRefresh,
   recentlyUpdatedTasksRef,
 }: UseTaskRealtimeOptions) => {
+  const onRefreshRef = useRef(onRefresh);
+  onRefreshRef.current = onRefresh;
+
   useEffect(() => {
     if (!organizationId) return;
 
-    // Create throttled refresh function (max once every 5 seconds)
-    const throttledRefresh = throttle(() => {
-      logger.realtime('🔄 Throttled refresh triggered');
-      clearCache(`tasks_${organizationId}_*`); // Clear cache for all users to get fresh data
-      onRefresh(); // Force refresh to bypass cache
-    }, 5000); // 5 seconds
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        logger.realtime('Refreshing daily tasks from realtime');
+        clearCache(`tasks_${organizationId}_*`);
+        globalTaskIdsCache.clearCache();
+        onRefreshRef.current();
+      }, REFRESH_DEBOUNCE_MS);
+    };
 
-    // OPTIMIZED: Only subscribe to main tasks table
-    // All changes to steps, files, etc will be reflected through tasks
+    const onTaskChange = (payload: TaskChangePayload) => {
+      const taskId = payload.new?.id || payload.old?.id;
+      if (taskId && recentlyUpdatedTasksRef.current.has(taskId)) {
+        logger.realtime('Skipping refresh for locally updated task:', taskId);
+        return;
+      }
+      scheduleRefresh();
+    };
+
     const tasksChannel = supabase
-      .channel('daily-tasks-main')
+      .channel(`daily-tasks-${organizationId}`)
       .on(
         'postgres_changes',
         {
@@ -39,29 +65,19 @@ export const useTaskRealtime = ({
           table: 'daily_tasks',
           filter: `organization_id=eq.${organizationId}`,
         },
-        (payload) => {
-          logger.realtime('📡 Real-time tasks update:', payload.eventType);
-
-          // Skip refresh if this task was recently updated by us (optimization for status updates)
-          const taskId = payload.new?.id || payload.old?.id;
-          if (taskId && recentlyUpdatedTasksRef.current.has(taskId)) {
-            logger.realtime('⏭️ Skipping refresh for recently updated task:', taskId);
-            return;
-          }
-
-          throttledRefresh();
-        }
+        onTaskChange,
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          logger.realtime('Daily task realtime subscribed');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          logger.warn('Daily task realtime subscription failed:', status);
+        }
+      });
 
-    logger.realtime('✅ Real-time subscriptions setup (OPTIMIZED)');
-
-    // Cleanup subscriptions
     return () => {
-      logger.realtime('🧹 Cleaning up real-time subscriptions');
+      if (timer) clearTimeout(timer);
       supabase.removeChannel(tasksChannel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId]); // Only depend on organizationId, onRefresh is stable from useCallback
+  }, [organizationId, recentlyUpdatedTasksRef]);
 };
-

@@ -1,11 +1,11 @@
 import { z } from "zod";
 import type { McpAuthContext } from "../../authz/context";
 import type { TaskListRow } from "../../db/dailyTasks";
-import { taskPlanMonth, taskStatus } from "./fields";
+import { taskListMonth, taskStatus } from "./fields";
 
 export const taskListInput = z.object({
   status: taskStatus.optional(),
-  month: taskPlanMonth.optional(),
+  month: taskListMonth.optional(),
 }).strict();
 
 export function taskListResult(

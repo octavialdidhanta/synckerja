@@ -52,8 +52,9 @@ import { taskListInput } from "../src/tools/tasks/list";
 import { taskInitiativeInput } from "../src/tools/tasks/initiativeList";
 import { taskWorkloadInput } from "../src/tools/tasks/workload";
 import { completedStepsInput } from "../src/tools/tasks/completedList";
-import { createTaskInput } from "../src/tools/tasks/create";
-import { updateTaskInput, updateTaskSchema } from "../src/tools/tasks/update";
+import { createTaskInput, createTaskResult } from "../src/tools/tasks/create";
+import { assertPlanMonth } from "../src/tools/tasks/fields";
+import { updateTaskInput, updateTaskResult, updateTaskSchema } from "../src/tools/tasks/update";
 import { deleteTaskInput } from "../src/tools/tasks/delete";
 import { assignTaskInput } from "../src/tools/tasks/assign";
 import { takeInitiativeInput } from "../src/tools/tasks/take";
@@ -243,7 +244,7 @@ describe("phase 0 tool inputs", () => {
     expect(setLeadStatusInput.safeParse({ id: planId, status: "Open", assignee: "Ada" }).success).toBe(false);
   });
 
-  it("rejects payment keys and unpaid-only writes on phase 5 inputs", () => {
+  it("rejects payment keys and unpaid-only writes on phase 5 inputs", async () => {
     const rowId = "11111111-1111-4111-8111-111111111111";
     expect(createIncomeInput.safeParse({
       transaction_date: "2026-10-31",
@@ -341,14 +342,34 @@ describe("phase 0 tool inputs", () => {
     expect(createTaskInput.safeParse({ title: "Follow up", plan_month: "2026-11" }).success).toBe(true);
     expect(createTaskInput.safeParse({ title: "Follow up", plan_month: "2026-11-27" }).success).toBe(false);
     const createSchema = zodToJsonSchema(createTaskInput) as {
-      properties: Record<string, { type?: string; pattern?: string; description?: string }>;
+      properties: Record<string, { type?: string; pattern?: string; description?: string; minLength?: number; maxLength?: number }>;
       required?: string[];
     };
-    expect(createSchema.required).toContain("plan_month");
-    expect(createSchema.properties.plan_month?.type).toBe("string");
-    expect(createSchema.properties.plan_month?.pattern).toBeUndefined();
-    expect(createSchema.properties.plan_month?.description).toContain("YYYY-MM");
+    expect(createSchema.required).toEqual(["title", "plan_month"]);
+    expect(createSchema.properties.plan_month).toEqual({ type: "string", minLength: 1, maxLength: 7 });
+    expect(JSON.stringify(createSchema)).not.toContain("pattern");
+    expect(assertPlanMonth("2026-11")).toBeUndefined();
+    expect(() => assertPlanMonth("2026-13")).toThrow("invalid_input");
     expect(createSchema.properties.due_date?.pattern).toBeUndefined();
+    const create = vi.fn();
+    await expect(createTaskResult({} as never, {
+      title: "Follow up",
+      description: null,
+      priority: null,
+      dueDate: null,
+      employeeId: null,
+      planMonth: "2026-13",
+    }, create)).rejects.toThrow("invalid_input");
+    expect(create).not.toHaveBeenCalled();
+    const update = vi.fn();
+    await expect(updateTaskResult({} as never, {
+      id: taskId,
+      title: null,
+      priority: null,
+      dueDate: null,
+      planMonth: "2026-13",
+    }, update)).rejects.toThrow("invalid_input");
+    expect(update).not.toHaveBeenCalled();
     expect(createTaskInput.safeParse({ title: "Follow up", plan_month: "2026-11", priority: "critical" }).success).toBe(false);
     expect(createTaskInput.safeParse({
       title: "Follow up",
@@ -362,13 +383,11 @@ describe("phase 0 tool inputs", () => {
     expect(updateTaskInput.safeParse({ id: taskId, plan_month: "2026-11" }).success).toBe(true);
     expect(updateTaskInput.safeParse({ id: taskId, plan_month: "2026-11-27" }).success).toBe(false);
     const updateSchema = zodToJsonSchema(updateTaskSchema) as {
-      properties: Record<string, { type?: string; pattern?: string; description?: string }>;
+      properties: Record<string, { type?: string; pattern?: string; minLength?: number; maxLength?: number }>;
       required?: string[];
     };
-    expect(updateSchema.properties.plan_month?.type).toBe("string");
-    expect(updateSchema.properties.plan_month?.pattern).toBeUndefined();
-    expect(updateSchema.properties.plan_month?.description).toContain("YYYY-MM");
-    expect(updateSchema.required ?? []).not.toContain("plan_month");
+    expect(updateSchema.properties.plan_month).toEqual({ type: "string", minLength: 1, maxLength: 7 });
+    expect(updateSchema.required ?? []).toEqual(["id"]);
     expect(updateTaskSchema.safeParse({ id: taskId, status: "completed" }).success).toBe(false);
     expect(Object.keys(updateTaskSchema.shape)).toEqual(["id", "title", "priority", "due_date", "plan_month"]);
     expect(deleteTaskInput.safeParse({ id: taskId, comment: "remove" }).success).toBe(false);

@@ -31,7 +31,7 @@ export function DailyTaskReportModuleShell({
         <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
           <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
             <div className={cn(MAIN_SCROLL, "min-w-0")}>
-              <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
+              <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-muted/40">
                 <div className="mb-1 min-w-0 shrink-0">
                   <ToolsHeaderAndTab activeTab="daily-task-report" onTabChange={() => {}} />
                 </div>

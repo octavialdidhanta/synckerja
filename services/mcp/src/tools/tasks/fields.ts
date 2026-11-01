@@ -10,8 +10,10 @@ export const taskDue = z
   .string()
   .refine((value) => dayPattern.test(value) && isCalendarDay(value))
   .describe("Due date as YYYY-MM-DD. It may fall in a different month from plan_month.");
-export const taskPlanMonth = z
-  .string()
-  .refine((value) => monthPattern.test(value))
-  .describe("Plan month as YYYY-MM, for example 2026-11. This is the Office month bucket and is separate from the due date.");
+export const taskPlanMonth = z.string().trim().min(1).max(7);
+export const taskListMonth = taskPlanMonth.refine((value) => monthPattern.test(value));
 export const taskId = z.string().uuid();
+
+export function assertPlanMonth(value: string): void {
+  if (!monthPattern.test(value)) throw new Error("invalid_input");
+}

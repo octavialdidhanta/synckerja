@@ -205,20 +205,20 @@ export const PerformanceTable = () => {
         </div>
         {dateRangeDisplay && <div className="text-xs text-gray-500 mt-1">{dateRangeDisplay}</div>}
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto seamless-scroll nested-scroll-touch-chain">
+      <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain min-h-0 flex-1 overflow-x-auto overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {viewMode === "performance" ? (
           <table className="text-sm" style={{ minWidth: "100%", tableLayout: "auto" }}>
-            <thead className="sticky top-0 z-20 bg-brand-blue/[0.06] text-gray-600 shadow-sm">
+            <thead className="sticky top-0 z-20 bg-brand-blue-soft text-gray-600 shadow-sm [&_th]:bg-brand-blue-soft">
               <tr>
-                <th className="bg-brand-blue/[0.06] px-3 py-2 text-left" style={{ width: "120px", minWidth: "120px" }}>PIC</th>
-                <th className="bg-brand-blue/[0.06] px-3 py-2 text-left" style={{ minWidth: "150px" }}>Task</th>
-                <th className="bg-brand-blue/[0.06] px-3 py-2 text-left" style={{ minWidth: "150px" }}>Step</th>
-                <th className="bg-brand-blue/[0.06] px-3 py-2 text-left" style={{ minWidth: "150px" }}>Sub Step</th>
-                <th className="bg-brand-blue/[0.06] px-3 py-2 text-left" style={{ width: "140px", minWidth: "140px" }}>Blocker</th>
-                <th className="bg-brand-blue/[0.06] px-3 py-2 text-left" style={{ width: "140px", minWidth: "140px" }}>Assigned At</th>
-                <th className="bg-brand-blue/[0.06] px-3 py-2 text-left" style={{ width: "100px", minWidth: "100px" }}>Due Date</th>
-                <th className="bg-brand-blue/[0.06] px-3 py-2 text-left" style={{ width: "160px", minWidth: "160px" }}>Finished</th>
-                <th className="bg-brand-blue/[0.06] px-3 py-2 text-left" style={{ width: "112px", minWidth: "112px" }}>Status</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left" style={{ width: "120px", minWidth: "120px" }}>PIC</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left" style={{ minWidth: "150px" }}>Task</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left" style={{ minWidth: "150px" }}>Step</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left" style={{ minWidth: "150px" }}>Sub Step</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left" style={{ width: "140px", minWidth: "140px" }}>Blocker</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left" style={{ width: "140px", minWidth: "140px" }}>Assigned At</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left" style={{ width: "100px", minWidth: "100px" }}>Due Date</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left" style={{ width: "160px", minWidth: "160px" }}>Finished</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left" style={{ width: "112px", minWidth: "112px" }}>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -272,16 +272,16 @@ export const PerformanceTable = () => {
           </table>
         ) : (
           <table className="w-full text-sm">
-            <thead className="sticky top-0 z-20 bg-brand-blue/[0.06] text-gray-600 shadow-sm">
+            <thead className="sticky top-0 z-20 bg-brand-blue-soft text-gray-600 shadow-sm [&_th]:bg-brand-blue-soft">
               <tr>
-                <th className="text-left px-3 py-2">Task</th>
-                <th className="text-left px-3 py-2">Step</th>
-                <th className="text-left px-3 py-2">Sub-step</th>
-                <th className="text-left px-3 py-2">Resolved At</th>
-                <th className="text-left px-3 py-2">Blocker</th>
-                <th className="text-left px-3 py-2">Resolution Details</th>
-                <th className="text-center px-3 py-2">Days Resolved</th>
-                <th className="text-center px-3 py-2">Actions</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left">Task</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left">Step</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left">Sub-step</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left">Resolved At</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left">Blocker</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-left">Resolution Details</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-center">Days Resolved</th>
+                <th className="bg-brand-blue-soft px-3 py-2 text-center">Actions</th>
               </tr>
             </thead>
             <tbody>

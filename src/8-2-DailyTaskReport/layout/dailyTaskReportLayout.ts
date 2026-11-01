@@ -1,9 +1,14 @@
-/** Grid 9+3 — selaras `/expenses/reminder-bills`. */
+/**
+ * Grid 9+3 mengisi sisa tinggi di bawah header modul.
+ * Tinggi dikunci ke viewport agar baris tabel tidak memanjangkan halaman.
+ * Di bawah `xl`, tabel dan sidebar berbagi tinggi (dua baris) dan tetap di dalam viewport.
+ */
 export const DAILY_TASK_REPORT_MAIN_GRID =
-  'grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch [@media(max-height:900px)]:min-h-[640px] [@media(max-height:900px)]:flex-none [@media(max-height:760px)]:min-h-[700px] xl:grid-rows-1 xl:items-stretch';
+  'grid h-full min-h-0 max-h-full min-w-0 w-full flex-1 grid-cols-12 gap-2 overflow-hidden [grid-template-rows:minmax(0,1fr)_minmax(0,1fr)] items-stretch xl:grid-rows-1 xl:items-stretch';
 
+/** Kartu tabel mengisi sisa tinggi di bawah overview + filter; scroll ada di dalam tabel. */
 export const DAILY_TASK_REPORT_TABLE_CARD =
-  'flex min-h-[560px] min-w-0 flex-1 flex-col overflow-hidden [@media(max-height:900px)]:min-h-[620px] [@media(max-height:760px)]:min-h-[680px]';
+  'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden';
 
 export const DAILY_TASK_REPORT_PERFORMANCE_CARD =
   'flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white ring-1 ring-brand-blue/10';
@@ -11,7 +16,7 @@ export const DAILY_TASK_REPORT_PERFORMANCE_CARD =
 export const DAILY_TASK_REPORT_SIDEBAR_CARD =
   'flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-brand-blue/20 bg-white ring-1 ring-brand-blue/10';
 
-/** Scroll wrapper — selaras [DailyTaskReportModuleShell](../layout/DailyTaskReportModuleShell.tsx). */
+/** Kolom utama — mengisi shell, tidak memanjang mengikuti jumlah baris. */
 export const DAILY_TASK_REPORT_MAIN_SCROLL =
-  'scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+  'scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 

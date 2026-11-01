@@ -2885,14 +2885,14 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
     fetchRejectedReasons();
   }, [fetchRejectedReasons]);
 
-  // Real-time subscriptions using custom hook
-  // Create a stable refresh callback that calls fetchTasks
+  // Always call the latest fetchTasks (current filters and role), without putting
+  // that function in the realtime effect dependency list.
+  const fetchTasksRef = useRef(fetchTasks);
+  fetchTasksRef.current = fetchTasks;
+
   const handleRefresh = useCallback(() => {
-    if (organizationId) {
-      // fetchTasks is defined in component scope and uses organizationId from closure
-      fetchTasks(true);
-    }
-  }, [organizationId]);
+    void fetchTasksRef.current(true);
+  }, []);
 
   useTaskRealtime({
     organizationId,

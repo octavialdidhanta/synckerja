@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-export const monthPattern = /^[0-9]{4}-(?:0[1-9]|1[0-2])$/;
-export const dayPattern = /^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$/;
+export const monthPattern = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
+export const dayPattern = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
 
 export function isCalendarDay(value: string): boolean {
   const [year, month, day] = value.split("-").map(Number);

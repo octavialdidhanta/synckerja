@@ -18,8 +18,8 @@ const DailyTaskReportContent = () => {
   return (
     <DailyTaskReportModuleShell showContent={showContent}>
       <div className={DAILY_TASK_REPORT_MAIN_GRID}>
-        <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-9">
-          <div className="flex h-full min-w-0 flex-1 flex-col gap-2">
+        <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col overflow-hidden xl:col-span-9">
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
             {refreshError && (
               <div className="flex shrink-0 items-center justify-between gap-2 rounded-md border border-brand-blue/25 bg-brand-blue/[0.08] px-3 py-1.5 text-sm text-brand-blue">
                 <span>Data mungkin tidak terbaru.</span>
@@ -47,7 +47,7 @@ const DailyTaskReportContent = () => {
           </div>
         </div>
 
-        <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-3">
+        <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col overflow-hidden xl:col-span-3">
           <BlockersAndUpdatesPanel />
         </div>
       </div>

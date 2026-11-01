@@ -33,7 +33,7 @@ export function DailyTaskReportPageSkeleton() {
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pb-2">
         <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
           <div className={DAILY_TASK_REPORT_MAIN_SCROLL}>
-            <div className="flex min-h-full min-w-0 flex-col bg-muted/40">
+            <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-muted/40">
               {/* Mirror ToolsHeaderAndTab */}
               <div className="mb-1 min-w-0 shrink-0">
                 <div className="px-1 py-3">
@@ -63,8 +63,8 @@ export function DailyTaskReportPageSkeleton() {
 
               {/* Mirror ModuleShellContentGate → page grid */}
               <div className={DAILY_TASK_REPORT_MAIN_GRID}>
-                <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-9">
-                  <div className="flex h-full min-w-0 flex-1 flex-col gap-2">
+                <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col overflow-hidden xl:col-span-9">
+                  <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
                     {/* OverviewCards */}
                     <div className="shrink-0">
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
@@ -115,7 +115,7 @@ export function DailyTaskReportPageSkeleton() {
                           <Skeleton className="mt-1 h-3 w-56" />
                         </div>
                         <div className="min-h-0 flex-1 overflow-hidden">
-                          <div className="sticky top-0 z-20 flex gap-3 border-b border-brand-blue/15 bg-brand-blue/[0.06] px-3 py-2 shadow-sm">
+                          <div className="sticky top-0 z-20 flex gap-3 border-b border-brand-blue/15 bg-brand-blue-soft px-3 py-2 shadow-sm">
                             {["w-16", "w-20", "w-24", "w-14", "w-12", "w-14", "w-12"].map((w, i) => (
                               <Skeleton key={i} className={`h-3 shrink-0 ${w}`} />
                             ))}
@@ -147,7 +147,7 @@ export function DailyTaskReportPageSkeleton() {
                 </div>
 
                 {/* BlockersAndUpdatesPanel */}
-                <div className="col-span-12 flex h-full min-w-0 flex-col xl:col-span-3">
+                <div className="col-span-12 flex h-full min-h-0 min-w-0 flex-col overflow-hidden xl:col-span-3">
                   <div className={DAILY_TASK_REPORT_SIDEBAR_CARD}>
                     <div className="shrink-0 border-b border-brand-blue/15 bg-brand-blue/[0.06]">
                       <div className="flex w-full gap-0 p-0">
