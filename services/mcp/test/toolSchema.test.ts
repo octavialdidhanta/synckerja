@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { calendarInput } from "../src/tools/content/calendarList";
@@ -339,6 +340,15 @@ describe("phase 0 tool inputs", () => {
     expect(createTaskInput.safeParse({ title: "Follow up" }).success).toBe(false);
     expect(createTaskInput.safeParse({ title: "Follow up", plan_month: "2026-11" }).success).toBe(true);
     expect(createTaskInput.safeParse({ title: "Follow up", plan_month: "2026-11-27" }).success).toBe(false);
+    const createSchema = zodToJsonSchema(createTaskInput) as {
+      properties: Record<string, { type?: string; pattern?: string; description?: string }>;
+      required?: string[];
+    };
+    expect(createSchema.required).toContain("plan_month");
+    expect(createSchema.properties.plan_month?.type).toBe("string");
+    expect(createSchema.properties.plan_month?.pattern).toBeUndefined();
+    expect(createSchema.properties.plan_month?.description).toContain("YYYY-MM");
+    expect(createSchema.properties.due_date?.pattern).toBeUndefined();
     expect(createTaskInput.safeParse({ title: "Follow up", plan_month: "2026-11", priority: "critical" }).success).toBe(false);
     expect(createTaskInput.safeParse({
       title: "Follow up",
