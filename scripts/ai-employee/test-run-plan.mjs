@@ -3,11 +3,13 @@ import test from "node:test";
 import crypto from "node:crypto";
 import {
   authorizeCaller,
+  buildChatPrompt,
   buildSop2Prompt,
   decodeJwtPayload,
   interpretReserve,
   jakartaToday,
   nextWeekDays,
+  parseChatReply,
   parsePlanDraft,
   publicModelFailure,
   resolvePostDate,
@@ -183,6 +185,20 @@ test("tanggal posting ditentukan server, bukan model", () => {
   });
   assert.match(openPrompt, /Hari ini \(Asia\/Jakarta\): 2026-11-02/);
   assert.match(openPrompt, /Rentang tanggal yang boleh: 2026-11-09 sampai 2026-11-15/);
+});
+
+test("obrolan mengembalikan reply dan tidak meminta plan", () => {
+  const prompt = buildChatPrompt({
+    name: "Naya",
+    jobTitle: "Content Planner",
+    sops: [{ code: "SOP2", title: "Tugas dadakan" }],
+    message: "Hai, apa kabar?",
+  });
+  assert.match(prompt, /Sebut dirimu Naya/);
+  assert.match(prompt, /Jangan membuat content plan/);
+  assert.match(prompt, /Hai, apa kabar\?/);
+  assert.equal(parseChatReply("```json\n{\"reply\":\"Hai, aku Naya.\"}\n```"), "Hai, aku Naya.");
+  assert.equal(parseChatReply("{\"title\":\"bukan obrolan\"}"), null);
 });
 
 test("JSON model diterima hanya bila pillar ada di context", () => {

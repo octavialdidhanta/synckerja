@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { McpAuthContext } from "../authz/context";
 import {
   assertOrgOwnerOrAdmin,
+  chatOutsideReply,
   judgeJobDesk,
   matchEmployeeName,
   modelAllowance,
@@ -243,6 +244,44 @@ export type AiEmployeeCaller = {
   scheduledPostsInternalSecret: string;
 };
 
+async function postAiEmployeeRun(
+  caller: AiEmployeeCaller,
+  payload: Record<string, unknown>,
+  fetchImpl: typeof fetch,
+) {
+  const response = await fetchImpl(`${caller.supabaseUrl.replace(/\/+$/, "")}/functions/v1/ai-employee-run`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${caller.supabaseServiceRoleKey}`,
+      apikey: caller.supabaseServiceRoleKey,
+      "Content-Type": "application/json",
+      "x-synckerja-internal-secret": caller.scheduledPostsInternalSecret,
+    },
+    body: JSON.stringify(payload),
+  });
+  const text = await response.text();
+  let body: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (parsed && typeof parsed === "object") body = parsed as Record<string, unknown>;
+  } catch {
+    body = { error: "non_json" };
+  }
+  return { status: response.status, body };
+}
+
+function publicRunFields(status: number, body: Record<string, unknown>) {
+  return {
+    ok: body.ok === true,
+    http_status: status,
+    error: typeof body.error === "string" ? body.error.slice(0, 200) : null,
+    run_id: typeof body.run_id === "string" ? body.run_id : null,
+    model_calls: typeof body.model_calls === "number" ? body.model_calls : null,
+    model_status: typeof body.model_status === "number" ? body.model_status : null,
+    model_error: typeof body.model_error === "string" ? body.model_error.slice(0, 200) : null,
+  };
+}
+
 export async function aiEmployeeCommand(
   admin: SupabaseClient,
   caller: AiEmployeeCaller,
@@ -263,37 +302,58 @@ export async function aiEmployeeCommand(
     };
   }
   const dryRun = input.dryRun !== false;
-  const response = await fetchImpl(`${caller.supabaseUrl.replace(/\/+$/, "")}/functions/v1/ai-employee-run`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${caller.supabaseServiceRoleKey}`,
-      apikey: caller.supabaseServiceRoleKey,
-      "Content-Type": "application/json",
-      "x-synckerja-internal-secret": caller.scheduledPostsInternalSecret,
-    },
-    body: JSON.stringify({
-      employee_id: employee.id,
-      instruction: input.instruction,
-      dry_run: dryRun,
-    }),
-  });
-  const text = await response.text();
-  let body: Record<string, unknown> = {};
-  try {
-    const parsed = JSON.parse(text) as unknown;
-    if (parsed && typeof parsed === "object") body = parsed as Record<string, unknown>;
-  } catch {
-    body = { error: "non_json" };
+  const result = await postAiEmployeeRun(caller, {
+    employee_id: employee.id,
+    instruction: input.instruction,
+    dry_run: dryRun,
+  }, fetchImpl);
+  return {
+    ...publicRunFields(result.status, result.body),
+    dry_run: result.body.dry_run === true,
+    draft: result.body.draft && typeof result.body.draft === "object" ? result.body.draft : null,
+  };
+}
+
+export async function aiEmployeeChat(
+  admin: SupabaseClient,
+  caller: AiEmployeeCaller,
+  ctx: McpAuthContext,
+  input: { employeeName: string; message: string },
+  fetchImpl: typeof fetch = fetch,
+) {
+  const employee = await requireNamedEmployee(admin, ctx, input.employeeName);
+  if ("error" in employee) return employee;
+  const desk = judgeJobDesk(input.message);
+  if (!desk.ok) {
+    return {
+      ok: true,
+      name: employee.full_name,
+      reply: chatOutsideReply(desk),
+      outside_job_desk: true,
+      model_calls: 0,
+    };
+  }
+  const result = await postAiEmployeeRun(caller, {
+    employee_id: employee.id,
+    instruction: input.message,
+    mode: "chat",
+    dry_run: true,
+  }, fetchImpl);
+  const reply = typeof result.body.reply === "string" ? result.body.reply.slice(0, 800) : "";
+  if (!reply || result.body.mode !== "chat") {
+    const fields = publicRunFields(result.status, result.body);
+    return {
+      ...fields,
+      ok: false,
+      error: fields.error ?? "chat_unavailable",
+      name: employee.full_name,
+      reply: null,
+    };
   }
   return {
-    ok: body.ok === true,
-    http_status: response.status,
-    error: typeof body.error === "string" ? body.error.slice(0, 200) : null,
-    dry_run: body.dry_run === true,
-    run_id: typeof body.run_id === "string" ? body.run_id : null,
-    model_calls: typeof body.model_calls === "number" ? body.model_calls : null,
-    model_status: typeof body.model_status === "number" ? body.model_status : null,
-    model_error: typeof body.model_error === "string" ? body.model_error.slice(0, 200) : null,
-    draft: body.draft && typeof body.draft === "object" ? body.draft : null,
+    ...publicRunFields(result.status, result.body),
+    name: typeof result.body.name === "string" && result.body.name ? result.body.name : employee.full_name,
+    reply,
+    outside_job_desk: false,
   };
 }

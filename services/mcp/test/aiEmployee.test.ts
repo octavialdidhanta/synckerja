@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { McpAuthContext } from "../src/authz/context";
+import { MCP_SERVER_INSTRUCTIONS } from "../src/mcp/instructions";
 import { MCP_TOOLS } from "../src/mcp/registry";
-import { aiEmployeeCommand, listAiEmployees } from "../src/db/aiEmployee";
+import { aiEmployeeChat, aiEmployeeCommand, listAiEmployees } from "../src/db/aiEmployee";
 import {
   assertOrgOwnerOrAdmin,
+  chatOutsideReply,
   judgeJobDesk,
   matchEmployeeName,
   modelAllowance,
@@ -48,11 +50,17 @@ describe("ai employee access", () => {
   it("matches one name without caring about letter case", () => {
     const rows = [{ full_name: "Naya" }, { full_name: "Bima" }];
     expect(matchEmployeeName(rows, " naya ").ok).toBe(true);
+    const nickname = matchEmployeeName(rows, "Nay");
+    expect(nickname.ok).toBe(true);
+    if (nickname.ok) expect(nickname.employee.full_name).toBe("Naya");
     const missing = matchEmployeeName(rows, "Sari");
     expect(missing.ok).toBe(false);
     if (!missing.ok) expect(missing.names).toEqual(["Naya", "Bima"]);
     const duplicated = matchEmployeeName([{ full_name: "Naya" }, { full_name: "naya" }], "Naya");
     expect(duplicated.ok).toBe(false);
+    const ambiguous = matchEmployeeName([{ full_name: "Naya" }, { full_name: "Nayara" }], "Nay");
+    expect(ambiguous.ok).toBe(false);
+    expect(matchEmployeeName(rows, "N").ok).toBe(false);
   });
 
   it("rejects work outside the content job and keeps a content request", () => {
@@ -135,10 +143,60 @@ describe("ai employee queries", () => {
     expect(request[1].headers["x-synckerja-internal-secret"]).toBe("internal-secret");
     expect(request[1].body).not.toContain("internal-secret");
   });
+
+  it("answers an out-of-desk chat without calling the model", async () => {
+    const { admin } = recordingAdmin({
+      employees: [{ id: "emp-1", full_name: "Naya" }],
+    });
+    const fetchImpl = vi.fn();
+    const caller = {
+      supabaseUrl: "https://db.example",
+      supabaseServiceRoleKey: "service-key",
+      scheduledPostsInternalSecret: "internal-secret",
+    };
+    const refused = await aiEmployeeChat(admin, caller, owner, {
+      employeeName: "Nay",
+      message: "kasih report hrd",
+    }, fetchImpl);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(refused).toMatchObject({
+      ok: true,
+      name: "Naya",
+      outside_job_desk: true,
+      model_calls: 0,
+    });
+    if ("reply" in refused && typeof refused.reply === "string") {
+      expect(refused.reply).toBe(chatOutsideReply(judgeJobDesk("kasih report hrd") as { reason: string; can_do: readonly string[] }));
+      expect(refused.reply.toLowerCase()).toContain("hr");
+    }
+
+    const greeted = await aiEmployeeChat(admin, caller, owner, {
+      employeeName: "Naya",
+      message: "Hai, apa kabar?",
+    }, fetchImpl.mockImplementation(async () => new Response(JSON.stringify({
+      ok: true,
+      mode: "chat",
+      reply: "Hai, aku Naya. Lagi siap bantu konten.",
+      model_calls: 1,
+    }), { status: 200 })));
+    expect(greeted).toMatchObject({
+      ok: true,
+      name: "Naya",
+      reply: "Hai, aku Naya. Lagi siap bantu konten.",
+      model_calls: 1,
+    });
+    const request = fetchImpl.mock.calls[0] as unknown as [string, { body: string }];
+    expect(JSON.parse(request[1].body)).toEqual({
+      employee_id: "emp-1",
+      instruction: "Hai, apa kabar?",
+      mode: "chat",
+      dry_run: true,
+    });
+  });
 });
 
 describe("ai employee tool list", () => {
-  it("publishes the five read and command tools", () => {
+  it("publishes the employee tools and the server routing instructions", () => {
     const names = MCP_TOOLS.map((tool) => tool.name);
     expect(names).toEqual(expect.arrayContaining([
       "ai_employee.list",
@@ -146,6 +204,13 @@ describe("ai employee tool list", () => {
       "ai_employee.runs.list",
       "ai_employee.report",
       "ai_employee.command",
+      "ai_employee.chat",
     ]));
+    expect(MCP_SERVER_INSTRUCTIONS).toContain("ai_employee.command");
+    expect(MCP_SERVER_INSTRUCTIONS).toContain("outside_job_desk");
+    expect(MCP_SERVER_INSTRUCTIONS).toContain("Naya:");
+    const chat = MCP_TOOLS.find((tool) => tool.name === "ai_employee.chat");
+    expect(chat?.description).toContain("Nay");
+    expect(chat?.description).toContain("Does not create a content plan");
   });
 });

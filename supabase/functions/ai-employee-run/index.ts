@@ -4,12 +4,14 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   authorizeCaller,
+  buildChatPrompt,
   buildSop2Prompt,
   interpretReserve,
   isDay,
   isUuid,
   jakartaToday,
   nextWeekDays,
+  parseChatReply,
   parsePlanDraft,
   projectRefFromUrl,
   publicModelFailure,
@@ -84,6 +86,9 @@ Deno.serve(async (req: Request) => {
   if (!isUuid(employeeId) || !instruction || instruction.length > 4000) return json({ error: "invalid_input" }, 400);
   if (requestedDate && (!isDay(requestedDate) || requestedDate < today)) return json({ error: "invalid_input" }, 400);
   if (body.dry_run != null && typeof body.dry_run !== "boolean") return json({ error: "invalid_input" }, 400);
+  const mode = body.mode == null || body.mode === "" ? "plan" : String(body.mode);
+  if (mode !== "plan" && mode !== "chat") return json({ error: "invalid_input" }, 400);
+  const chat = mode === "chat";
   const dryRun = body.dry_run === true;
 
   const internalHeader = req.headers.get("x-synckerja-internal-secret");
@@ -104,7 +109,7 @@ Deno.serve(async (req: Request) => {
 
   const employeeResult = await admin
     .from("employees")
-    .select("id, organization_id, is_ai")
+    .select("id, organization_id, is_ai, full_name")
     .eq("id", employeeId)
     .maybeSingle();
   const employee = employeeResult.data;
@@ -183,10 +188,80 @@ Deno.serve(async (req: Request) => {
   try {
     const started = await rpc("ai_employee_run_start", {
       p_employee_id: employeeId,
-      p_sop_code: "SOP2",
+      p_sop_code: chat ? "CHAT" : "SOP2",
     });
     runId = typeof started.body === "string" && isUuid(started.body) ? started.body : null;
     if (!runId) return json({ error: "run_start_failed" }, started.status === 401 ? 500 : 502);
+
+    if (chat) {
+      const profileResult = await admin
+        .from("ai_employee_profiles")
+        .select("job_title")
+        .eq("employee_id", employeeId)
+        .eq("organization_id", employee.organization_id)
+        .maybeSingle();
+      const sopResult = await admin
+        .from("ai_employee_sops")
+        .select("code, title")
+        .eq("employee_id", employeeId)
+        .eq("organization_id", employee.organization_id)
+        .eq("is_current", true);
+      if (profileResult.error || sopResult.error) throw new Error("context_failed");
+      const reserved = await rpc("ai_employee_reserve_model_call", {
+        p_employee_id: employeeId,
+        p_run_id: runId,
+        p_commit: true,
+      });
+      const reserveDecision = interpretReserve(reserved.status, reserved.body);
+      if (reserveDecision.kind === "quota") {
+        await finish("deferred");
+        return json({ ok: false, status: "deferred", error: "quota_exceeded", run_id: runId, mode: "chat" }, 200);
+      }
+      if (reserveDecision.kind !== "ok") throw new Error("reserve_failed");
+      modelCalls = 1;
+      const prompt = buildChatPrompt({
+        name: String(employee.full_name ?? ""),
+        jobTitle: profileResult.data?.job_title ?? "",
+        sops: sopResult.data ?? [],
+        message: instruction,
+      });
+      const modelCall = scriptAiCall({
+        url: supabaseUrl,
+        serviceRoleKey,
+        anonKey,
+        internalSecret,
+        organizationId: employee.organization_id,
+        userId: modelUserId,
+        prompt,
+      });
+      const modelResponse = await fetch(modelCall.url, modelCall.init);
+      const modelBody = await readJson(modelResponse) as { script?: unknown; error?: unknown; message?: unknown };
+      if (!modelResponse.ok || typeof modelBody?.script !== "string") {
+        const detail = publicModelFailure(modelResponse.status, modelBody);
+        const note = `model_failed ${detail.status} ${detail.message}`.slice(0, 200);
+        console.error("ai-employee-run chat:", detail.status);
+        await finish("failed", note);
+        return json({
+          ok: false,
+          error: "model_failed",
+          mode: "chat",
+          model_status: detail.status,
+          model_error: detail.message,
+          run_id: runId,
+        }, 500);
+      }
+      const reply = parseChatReply(modelBody.script);
+      if (!reply) throw new Error("invalid_model_output");
+      await finish("succeeded", "chat");
+      return json({
+        ok: true,
+        mode: "chat",
+        run_id: runId,
+        model_calls: modelCalls,
+        name: String(employee.full_name ?? ""),
+        reply,
+      });
+    }
 
     const context: Record<string, unknown[]> = {};
     for (const scope of ["pillars", "catalog", "thinking", "plans"]) {

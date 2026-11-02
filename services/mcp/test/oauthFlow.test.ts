@@ -236,6 +236,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     aiEmployeeCommand: async () => {
       throw new Error("unused");
     },
+    aiEmployeeChat: async () => {
+      throw new Error("unused");
+    },
   });
   return { app, listed };
 }
@@ -345,6 +348,10 @@ describe("oauth and mcp http flow", () => {
       }),
     });
     expect(init.status).toBe(200);
+    const initBody = (await init.json()) as { result?: { instructions?: string } };
+    expect(initBody.result?.instructions ?? "").toContain("ai_employee.chat");
+    expect(initBody.result?.instructions ?? "").toContain("outside_job_desk");
+    expect(initBody.result?.instructions ?? "").toContain("Naya:");
 
     const tools = await app.request("http://localhost:8787/mcp", {
       method: "POST",
@@ -370,6 +377,7 @@ describe("oauth and mcp http flow", () => {
       "ai_employee.runs.list",
       "ai_employee.report",
       "ai_employee.command",
+      "ai_employee.chat",
     ]);
 
     const who = await app.request("http://localhost:8787/mcp", {
