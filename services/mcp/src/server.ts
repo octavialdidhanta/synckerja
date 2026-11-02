@@ -68,7 +68,7 @@ import { accessRevokedAt, recordToolCall, takeToolSlot } from "./db/toolGate";
 import { scheduleContentPlan } from "./db/scheduleContentPlan";
 import { createApp } from "./http/createApp";
 import { SupabaseGrantStore } from "./oauth/supabaseStore";
-import { aiEmployeeChat, aiEmployeeCommand, aiEmployeeReport, aiEmployeeRuns, aiEmployeeScheduleUpdate, aiEmployeeStatus, listAiEmployees } from "./db/aiEmployee";
+import { aiEmployeeBriefGet, aiEmployeeBriefUpdate, aiEmployeeChat, aiEmployeeCommand, aiEmployeeReport, aiEmployeeRuns, aiEmployeeScheduleUpdate, aiEmployeeStatus, listAiEmployees } from "./db/aiEmployee";
 
 const config = loadConfig();
 const admin = createAdmin(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -149,6 +149,8 @@ const app = createApp({
   aiEmployeeCommand: (ctx, input) => aiEmployeeCommand(admin, config, ctx, input),
   aiEmployeeChat: (ctx, input) => aiEmployeeChat(admin, config, ctx, input),
   aiEmployeeScheduleUpdate: (ctx, input) => aiEmployeeScheduleUpdate(admin, ctx, input),
+  aiEmployeeBriefGet: (ctx, employeeName) => aiEmployeeBriefGet(admin, ctx, employeeName),
+  aiEmployeeBriefUpdate: (ctx, employeeName, brief) => aiEmployeeBriefUpdate(admin, ctx, employeeName, brief),
 });
 
 serve({ fetch: app.fetch, port: config.port }, () => {

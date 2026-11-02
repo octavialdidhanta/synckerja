@@ -261,6 +261,21 @@ export type AppDeps = {
       isActive: boolean;
     },
   ) => Promise<unknown>;
+  aiEmployeeBriefGet: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
+  aiEmployeeBriefUpdate: (
+    ctx: McpAuthContext,
+    employeeName: string,
+    brief: {
+      serviceIds: string[];
+      audience: string;
+      personaIds: string[];
+      voice: string;
+      requiredNotes: string;
+      forbiddenNotes: string;
+      pillarIds: string[];
+      splitRule: string;
+    },
+  ) => Promise<unknown>;
   now?: () => Date;
 };
 

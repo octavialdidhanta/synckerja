@@ -465,3 +465,74 @@ export async function aiEmployeeScheduleUpdate(
     schedule: scheduleView(data as Row),
   };
 }
+
+function throwBrief(error: { message?: string }): never {
+  const message = error.message ?? "";
+  if (message.includes("forbidden")) throw new Error("forbidden");
+  if (message.includes("not_found")) throw new Error("not_found");
+  if (message.includes("invalid_input")) throw new Error("invalid_input");
+  throw new Error("query_failed");
+}
+
+async function briefCall(admin: SupabaseClient, fn: string, args: Record<string, unknown>) {
+  const { data, error } = await admin.rpc(fn, args);
+  if (error) throwBrief(error);
+  return data as { ok?: boolean; brief?: unknown; previous?: unknown };
+}
+
+export async function aiEmployeeBriefGet(
+  admin: SupabaseClient,
+  ctx: McpAuthContext,
+  employeeName: string,
+) {
+  assertOrgOwner(ctx);
+  const employee = await requireNamedEmployee(admin, ctx, employeeName);
+  if ("error" in employee) return employee;
+  const result = await briefCall(admin, "ai_employee_brief_read", {
+    p_user_id: ctx.userId,
+    p_organization_id: ctx.organizationId,
+    p_employee_id: employee.id,
+  });
+  return { ok: true as const, name: employee.full_name, brief: result.brief ?? null };
+}
+
+export async function aiEmployeeBriefUpdate(
+  admin: SupabaseClient,
+  ctx: McpAuthContext,
+  employeeName: string,
+  brief: {
+    serviceIds: string[];
+    audience: string;
+    personaIds: string[];
+    voice: string;
+    requiredNotes: string;
+    forbiddenNotes: string;
+    pillarIds: string[];
+    splitRule: string;
+  },
+) {
+  assertOrgOwner(ctx);
+  const employee = await requireNamedEmployee(admin, ctx, employeeName);
+  if ("error" in employee) return employee;
+  const result = await briefCall(admin, "ai_employee_brief_write", {
+    p_user_id: ctx.userId,
+    p_organization_id: ctx.organizationId,
+    p_employee_id: employee.id,
+    p_brief: {
+      service_ids: brief.serviceIds,
+      audience: brief.audience,
+      persona_ids: brief.personaIds,
+      voice: brief.voice,
+      required_notes: brief.requiredNotes,
+      forbidden_notes: brief.forbiddenNotes,
+      pillar_ids: brief.pillarIds,
+      split_rule: brief.splitRule,
+    },
+  });
+  return {
+    ok: true as const,
+    name: employee.full_name,
+    previous: result.previous ?? null,
+    brief: result.brief ?? null,
+  };
+}

@@ -185,6 +185,8 @@ import {
   aiEmployeeReportInput,
   aiEmployeeCommandInput,
   aiEmployeeChatInput,
+  aiEmployeeBriefGetInput,
+  aiEmployeeBriefUpdateInput,
   aiEmployeeScheduleUpdateInput,
 } from "../tools";
 import type { ToolCallOutcome } from "../db/toolGate";
@@ -383,6 +385,21 @@ export type McpReadDeps = {
       isActive: boolean;
     },
   ) => Promise<unknown>;
+  aiEmployeeBriefGet: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
+  aiEmployeeBriefUpdate: (
+    ctx: McpAuthContext,
+    employeeName: string,
+    brief: {
+      serviceIds: string[];
+      audience: string;
+      personaIds: string[];
+      voice: string;
+      requiredNotes: string;
+      forbiddenNotes: string;
+      pillarIds: string[];
+      splitRule: string;
+    },
+  ) => Promise<unknown>;
   switchOrganization: (ctx: McpAuthContext, organizationId: string) => Promise<void>;
 };
 
@@ -526,6 +543,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "ai_employee.command": aiEmployeeCommandInput,
   "ai_employee.chat": aiEmployeeChatInput,
   "ai_employee.schedule.update": aiEmployeeScheduleUpdateInput,
+  "ai_employee.brief.get": aiEmployeeBriefGetInput,
+  "ai_employee.brief.update": aiEmployeeBriefUpdateInput,
 };
 
 async function runTool(
@@ -943,6 +962,19 @@ async function runTool(
         startLocal: requiredString(args.start_local),
         dueLocal: requiredString(args.due_local),
         isActive: requiredBoolean(args.is_active),
+      });
+    case "ai_employee.brief.get":
+      return deps.aiEmployeeBriefGet(ctx, requiredString(args.employee_name));
+    case "ai_employee.brief.update":
+      return deps.aiEmployeeBriefUpdate(ctx, requiredString(args.employee_name), {
+        serviceIds: Array.isArray(args.service_ids) ? args.service_ids.map((id) => String(id)) : [],
+        audience: typeof args.audience === "string" ? args.audience : "",
+        personaIds: Array.isArray(args.persona_ids) ? args.persona_ids.map((id) => String(id)) : [],
+        voice: typeof args.voice === "string" ? args.voice : "",
+        requiredNotes: typeof args.required_notes === "string" ? args.required_notes : "",
+        forbiddenNotes: typeof args.forbidden_notes === "string" ? args.forbidden_notes : "",
+        pillarIds: Array.isArray(args.pillar_ids) ? args.pillar_ids.map((id) => String(id)) : [],
+        splitRule: typeof args.split_rule === "string" ? args.split_rule : "",
       });
   }
 }

@@ -89,7 +89,9 @@ export type McpToolName =
   | "ai_employee.report"
   | "ai_employee.command"
   | "ai_employee.chat"
-  | "ai_employee.schedule.update";
+  | "ai_employee.schedule.update"
+  | "ai_employee.brief.get"
+  | "ai_employee.brief.update";
 
 export type McpTool = {
   name: McpToolName;
@@ -635,6 +637,18 @@ const TOOL_DEFINITIONS: McpTool[] = [
       "Change one AI employee's weekly schedule in the active organization. Owner only; an admin is rejected. Requires employee_name, sop_code, weekday 1 (Monday) through 7 (Sunday), start_local, due_local, and is_active. Times are HH:MM in the employee profile time zone, and due_local must be after start_local. Recomputes next_run_at. Show the previous schedule and the new schedule, including next_run_at, as the confirmation.",
     scopes: ["session:read"],
   },
+  {
+    name: "ai_employee.brief.get",
+    description:
+      "Read one AI employee's work brief in the active organization. Owner only. Returns catalog focus, audience, customer persona ids and their audience text, brand voice, required notes, forbidden notes, priority pillars, and the split rule.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.brief.update",
+    description:
+      "Replace one AI employee's work brief in the active organization. Owner only; an admin is rejected. service_ids are catalog ids, persona_ids are product knowledge ids, and pillar_ids are content pillar ids. Show the previous brief and the new brief.",
+    scopes: ["session:read"],
+  },
 ];
 
 const MUTATING_TOOLS = new Set<McpToolName>([
@@ -670,6 +684,7 @@ const MUTATING_TOOLS = new Set<McpToolName>([
   "thinking.plan.direct",
   "ai_employee.command",
   "ai_employee.schedule.update",
+  "ai_employee.brief.update",
 ]);
 
 export const MCP_TOOLS: McpTool[] = TOOL_DEFINITIONS.map((tool) =>

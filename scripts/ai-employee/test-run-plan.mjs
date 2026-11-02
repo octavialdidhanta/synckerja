@@ -6,7 +6,10 @@ import {
   buildChatPrompt,
   buildSop1Prompt,
   buildSop2Prompt,
+  chooseBrandFocus,
   chooseSop1Pillar,
+  executionVerdict,
+  EXECUTION_CHECK_IDS,
   fourWeekBounds,
   greetingPeriod,
   greetingReply,
@@ -21,6 +24,7 @@ import {
   nextWeeklyRun,
   openPlanDays,
   parseChatReply,
+  pickUnusedIdea,
   parseExecutionCheck,
   parsePlanDraft,
   publicModelFailure,
@@ -391,6 +395,88 @@ test("panggilan model memakai generate-script-ai yang sudah ada", () => {
   assert.equal(call.init.headers.apikey, "service-key");
   assert.equal(call.init.headers.Authorization, "Bearer service-key");
   assert.equal(call.init.headers["x-synckerja-internal-secret"], "internal-secret");
+});
+
+test("brief, persona, dan fokus brand masuk ke prompt", () => {
+  const brief = {
+    service_ids: ["svc-a", "svc-b"],
+    services: [{ id: "svc-a", name: "Sate Sultan" }, { id: "svc-b", name: "Kopi Sultan" }],
+    audience: "keluarga",
+    personas: [{ id: "persona-1", audience: "ibu muda" }],
+    voice: "hangat",
+    required_notes: "sebut sate",
+    forbidden_notes: "jangan harga",
+    split_rule: "bergiliran",
+    pillar_ids: [],
+  };
+  const clock = { date: "2026-11-02", time: "18:00", hour: 18, timeZone: "Asia/Jakarta" };
+  const chat = buildChatPrompt({ name: "Naya", message: "halo", brief, clock });
+  assert.match(chat, /ibu muda/);
+  assert.match(chat, /hangat/);
+  const sop1 = buildSop1Prompt({
+    day: "2026-11-09",
+    pillar: { id: "pillar-1", name: "Produk" },
+    steps: [],
+    catalog: brief.services,
+    thinking: [],
+    feedback: [],
+    plans: [{ post_date: "2026-11-09", author_name: "Bukan Naya", pillar_name: "Produk", service_name: "Sate Sultan" }],
+    brief,
+    performance: [{ kind: "ads", platform: "meta", connected_accounts: 1, spend: null }],
+    service: { id: "svc-a", name: "Sate Sultan" },
+  });
+  assert.match(sop1, /svc-a/);
+  assert.match(sop1, /jangan harga/);
+  assert.match(sop1, /connected_accounts/);
+  assert.match(sop1, /Bukan Naya/);
+  const sop3 = buildSop2Prompt({
+    instruction: "perbaiki plan yang ditolak",
+    today: "2026-11-02",
+    allowedDates: ["2026-11-09"],
+    pillars: [],
+    catalog: brief.services,
+    thinking: [],
+    plans: [],
+    brief,
+    revision: true,
+  });
+  assert.match(sop3, /SOP3/);
+  assert.match(sop3, /ibu muda/);
+  assert.equal(chooseBrandFocus({ brief, catalog: [...brief.services, { id: "svc-c", name: "Lain" }], dayIndex: 1 }).id, "svc-b");
+  assert.equal(chooseBrandFocus({
+    brief,
+    catalog: [...brief.services, { id: "svc-c", name: "Lain" }],
+    instruction: "buat untuk Lain",
+    allowOverride: true,
+  }).id, "svc-c");
+  assert.equal(chooseBrandFocus({
+    brief,
+    catalog: [...brief.services, { id: "svc-c", name: "Lain" }],
+    instruction: "buat untuk Lain",
+    allowOverride: false,
+  }).id, "svc-a");
+  assert.deepEqual(openPlanDays(["2026-11-09", "2026-11-10"], [{ post_date: "2026-11-09", author_name: "Bukan Naya" }]), ["2026-11-10"]);
+  assert.equal(pickUnusedIdea([{ idea_id: "used", used: true }, { idea_id: "open", used: false }]).idea_id, "open");
+});
+
+test("cek execution menolak accepted true tanpa sepuluh cek", () => {
+  assert.equal(executionVerdict({ accepted: true }).ok, false);
+  const checks = EXECUTION_CHECK_IDS.map((id) => ({ id, state: "pass" }));
+  const passed = executionVerdict({
+    statement: "Makan malam keluarga",
+    checks,
+    facts: { resolution: "RESOLVED", relationToParent: "VALID_EXECUTION", unresolvedReasons: [] },
+    script: { title: "Makan malam" },
+  });
+  assert.equal(passed.ok, true);
+  const missing = executionVerdict({
+    statement: "Makan malam keluarga",
+    checks: checks.slice(1),
+    facts: { resolution: "RESOLVED", relationToParent: "VALID_EXECUTION", unresolvedReasons: [] },
+    script: { title: "Makan malam" },
+  });
+  assert.equal(missing.ok, false);
+  assert.equal(missing.check_id, "hookHolds");
 });
 
 test("pesan gagal model pendek dan tanpa token", () => {

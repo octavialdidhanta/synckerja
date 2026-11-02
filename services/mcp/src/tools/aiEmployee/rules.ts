@@ -202,3 +202,29 @@ export const aiEmployeeScheduleUpdateInput = aiEmployeeNameInput.extend({
   due_local: z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/),
   is_active: z.boolean(),
 }).strict();
+
+const briefId = z.string().uuid();
+
+export const aiEmployeeBriefGetInput = aiEmployeeNameInput;
+
+export const aiEmployeeBriefUpdateInput = aiEmployeeNameInput.extend({
+  service_ids: z.array(briefId).max(12),
+  audience: z.string().max(1000),
+  persona_ids: z.array(briefId).max(12),
+  voice: z.string().max(1000),
+  required_notes: z.string().max(2000),
+  forbidden_notes: z.string().max(2000),
+  pillar_ids: z.array(briefId).max(12),
+  split_rule: z.string().max(1000),
+}).strict();
+
+export type AiEmployeeBriefInput = {
+  serviceIds: string[];
+  audience: string;
+  personaIds: string[];
+  voice: string;
+  requiredNotes: string;
+  forbiddenNotes: string;
+  pillarIds: string[];
+  splitRule: string;
+};
