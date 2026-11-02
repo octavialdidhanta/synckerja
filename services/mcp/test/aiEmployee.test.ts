@@ -365,6 +365,7 @@ describe("ai employee brief update", () => {
     requiredNotes: "sebut sate",
     forbiddenNotes: "jangan harga",
     pillarIds: [],
+    productKnowledgeIds: ["33333333-3333-4333-8333-333333333333"],
     splitRule: "bergiliran",
   };
 
@@ -415,6 +416,7 @@ describe("ai employee brief update", () => {
       audience: "keluarga",
       voice: "hangat",
       persona_ids: ["22222222-2222-4222-8222-222222222222"],
+      product_knowledge_ids: ["33333333-3333-4333-8333-333333333333"],
     });
   });
 });

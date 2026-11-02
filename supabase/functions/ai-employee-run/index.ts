@@ -10,6 +10,8 @@ import {
   buildSop1Prompt,
   buildSop2Prompt,
   chooseBrandFocus,
+  chooseProduct,
+  chooseProductFields,
   chooseSop1Pillar,
   fourWeekBounds,
   greetingReply,
@@ -236,6 +238,23 @@ Deno.serve(async (req: Request) => {
     runId = typeof started.body === "string" && isUuid(started.body) ? started.body : null;
     if (!runId) return json({ error: "run_start_failed" }, started.status === 401 ? 500 : 502);
 
+    const loadProduct = async () => {
+      const loaded = await rpc("ai_employee_context", {
+        p_employee_id: employeeId,
+        p_run_id: runId,
+        p_scope: "product",
+        p_params: {},
+      });
+      const detail = JSON.stringify(loaded.body ?? "");
+      if (loaded.status < 200 || loaded.status >= 300) {
+        if (detail.includes("scope_forbidden")) return [];
+        throw new Error("context_failed");
+      }
+      const rows = loaded.body && typeof loaded.body === "object" ? (loaded.body as { rows?: unknown }).rows : null;
+      if (!Array.isArray(rows)) throw new Error("context_failed");
+      return rows as Record<string, unknown>[];
+    };
+
     if (chat) {
       const profileResult = await admin
         .from("ai_employee_profiles")
@@ -317,6 +336,7 @@ Deno.serve(async (req: Request) => {
         ? (briefLoaded.body as { rows?: unknown }).rows
         : null;
       if (briefLoaded.status < 200 || briefLoaded.status >= 300 || !Array.isArray(briefRows)) throw new Error("context_failed");
+      const product = await loadProduct();
       const prompt = buildChatPrompt({
         name: String(employee.full_name ?? ""),
         jobTitle: profileResult.data?.job_title ?? "",
@@ -326,6 +346,7 @@ Deno.serve(async (req: Request) => {
         reviewerName,
         clock: chatClock,
         brief: briefRows[0] ?? null,
+        product,
       });
       const modelCall = scriptAiCall({
         url: supabaseUrl,
@@ -472,6 +493,7 @@ Deno.serve(async (req: Request) => {
       const feedback = await loadScope("feedback", {});
       const briefRows = await loadScope("brief", {});
       const performance = await loadScope("performance", {});
+      const product = await loadProduct();
       const brief = briefRows[0] ?? null;
       const serviceIds = Array.isArray(brief?.service_ids) ? brief.service_ids : [];
       if (serviceIds.length === 0) {
@@ -509,7 +531,7 @@ Deno.serve(async (req: Request) => {
         }
         const idea = pickUnusedIdea(thinking);
         const drafted = await withRetry(async () => {
-          const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief, performance, service, idea }));
+          const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief, performance, service, idea, product }));
           if (result.kind !== "ok") return result;
           const parsed = parsePlanDraft(result.script);
           if (parsed) {
@@ -539,7 +561,7 @@ Deno.serve(async (req: Request) => {
           if (checked.kind === "failed") { stop = "failed"; failure = checked.detail; break; }
           if (parseExecutionVerdict(checked.script)?.ok !== true) {
             const repaired = await withRetry(async () => {
-              const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief, performance, service, idea }));
+              const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief, performance, service, idea, product }));
               if (result.kind !== "ok") return result;
               const next = parsePlanDraft(result.script);
               if (next) {
@@ -596,7 +618,17 @@ Deno.serve(async (req: Request) => {
           if (checked.kind === "failed") { stop = "failed"; failure = checked.detail; break; }
           if (parseExecutionCheck(checked.script)?.ok !== true) continue;
         }
+        const productId = chooseProduct(product, plan.product_knowledge_id);
+        const chosen = productId ? product.find((row) => row.id === productId) : undefined;
+        plan.product_knowledge_id = productId;
+        plan.product_knowledge_fields = chooseProductFields(plan.product_knowledge_fields, chosen);
+        const takeProduct = () => {
+          if (!productId) return;
+          const chosen = product.find((row) => row.id === productId);
+          if (chosen) chosen.unused = false;
+        };
         if (dryRun) {
+          takeProduct();
           drafts.push(plan);
           calendar.push({ post_date: day, content_pillar_id: choice.id });
           nayaPlans.push({ post_date: day, content_pillar_id: choice.id, author_employee_id: employeeId });
@@ -614,6 +646,7 @@ Deno.serve(async (req: Request) => {
           ? (performed.body as { id?: unknown }).id
           : null;
         if (performed.status < 200 || performed.status >= 300 || !isUuid(createdId)) throw new Error("perform_failed");
+        takeProduct();
         planIds.push(String(createdId));
         calendar.push({ post_date: day, content_pillar_id: choice.id });
         nayaPlans.push({ post_date: day, content_pillar_id: choice.id, author_employee_id: employeeId });
@@ -701,6 +734,7 @@ Deno.serve(async (req: Request) => {
       });
     if (serviceIds.length > 0 && !service) throw new Error("brief_missing");
     const idea = pickUnusedIdea(context.thinking);
+    const product = await loadProduct();
     const prompt = buildSop2Prompt({
       instruction,
       today,
@@ -713,6 +747,7 @@ Deno.serve(async (req: Request) => {
       brief,
       performance: context.performance,
       service,
+      product,
       revision: sop3,
     });
     const modelCall = scriptAiCall({
@@ -751,7 +786,15 @@ Deno.serve(async (req: Request) => {
       plans: context.plans,
     });
     if (!dated.ok) throw new Error("invalid_model_output");
-    const plan = { ...validated.plan, post_date: dated.postDate, service_id: service?.id ?? null };
+    const productId = chooseProduct(product, validated.plan.product_knowledge_id);
+    const chosen = productId ? product.find((row) => row.id === productId) : undefined;
+    const plan = {
+      ...validated.plan,
+      post_date: dated.postDate,
+      service_id: service?.id ?? null,
+      product_knowledge_id: productId,
+      product_knowledge_fields: chooseProductFields(validated.plan.product_knowledge_fields, chosen),
+    };
 
     if (dryRun) {
       await finish("succeeded");

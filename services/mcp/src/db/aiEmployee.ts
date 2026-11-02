@@ -508,6 +508,7 @@ export async function aiEmployeeBriefUpdate(
     requiredNotes: string;
     forbiddenNotes: string;
     pillarIds: string[];
+    productKnowledgeIds: string[];
     splitRule: string;
   },
 ) {
@@ -526,6 +527,7 @@ export async function aiEmployeeBriefUpdate(
       required_notes: brief.requiredNotes,
       forbidden_notes: brief.forbiddenNotes,
       pillar_ids: brief.pillarIds,
+      product_knowledge_ids: brief.productKnowledgeIds,
       split_rule: brief.splitRule,
     },
   });

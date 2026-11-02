@@ -25,6 +25,8 @@ import {
   openPlanDays,
   parseChatReply,
   pickUnusedIdea,
+  chooseProduct,
+  chooseProductFields,
   parseExecutionCheck,
   parsePlanDraft,
   publicModelFailure,
@@ -486,4 +488,48 @@ test("pesan gagal model pendek dan tanpa token", () => {
   assert.equal(failure.status, 401);
   assert.equal(failure.message.includes("eyJ"), false);
   assert.equal(failure.message.length <= 200, true);
+});
+
+test("product knowledge yang tidak dikirim tidak masuk prompt dan baris terpakai dilewati", () => {
+  const kept = "11111111-1111-4111-8111-111111111111";
+  const open = "22222222-2222-4222-8222-222222222222";
+  const product = [
+    { id: kept, feature_name: "Sate sudah terpakai", unused: false },
+    { id: open, feature_name: "Sate belum terpakai", unused: true },
+  ];
+  const prompt = buildChatPrompt({
+    name: "Naya",
+    message: "buat ide",
+    product,
+    clock: { date: "2026-11-02", time: "18:00", hour: 18, timeZone: "Asia/Jakarta" },
+  });
+  assert.match(prompt, /Sate belum terpakai/);
+  assert.match(prompt, /tidak boleh mengubah Angle atau Idea/);
+  assert.match(prompt, /sumber fakta dan insight/);
+  assert.match(prompt, /Jangan mengarang fitur, komposisi, angka, atau klaim/);
+  assert.equal(prompt.includes("Pakai what makes them stop sebagai hook"), false);
+  assert.equal(prompt.includes("Fitur yang tidak dikirim"), false);
+  const sop1 = buildSop1Prompt({
+    day: "2026-11-09",
+    pillar: { id: "pillar-1", name: "Produk" },
+    steps: [],
+    product,
+  });
+  assert.match(sop1, /product_knowledge_fields/);
+  assert.match(sop1, /Prioritas 1/);
+  const sop3 = buildSop2Prompt({
+    instruction: "perbaiki",
+    today: "2026-11-02",
+    allowedDates: ["2026-11-09"],
+    revision: true,
+    product,
+  });
+  assert.match(sop3, /product_knowledge_fields/);
+  assert.match(sop3, /Prioritas 3/);
+  assert.equal(chooseProduct(product, kept), open);
+  assert.equal(chooseProduct(product, open), open);
+  assert.equal(chooseProduct([], open), null);
+  const row = { feature_name: "Sate belum terpakai", false_belief: "mitos", impact: "  " };
+  assert.deepEqual(chooseProductFields(["impact", "rahasia", "false_belief", "false_belief"], row), ["false_belief"]);
+  assert.deepEqual(chooseProductFields(["feature_name"], null), []);
 });

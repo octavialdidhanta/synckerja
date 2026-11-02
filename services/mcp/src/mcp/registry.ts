@@ -27,6 +27,7 @@ export type McpToolName =
   | "content.plans.list"
   | "content.calendar.list"
   | "content.catalog.list"
+  | "product_knowledge.list"
   | "okr.cycles.list"
   | "okr.objectives.list"
   | "okr.departments.list"
@@ -143,6 +144,14 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "content.catalog.list",
     description:
       "List the content types, categories, subcategories, and features that can be assigned to a content plan in the organization locked in this session. Returns kind, id, name, service_id, and sub_service_id. Kinds are type, service, sub_service, and feature. Feature descriptions are not returned.",
+    scopes: ["content:read"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "product_knowledge.list",
+    description:
+      "Read Product Knowledge rows for the organization locked in this session. Optional service_id, sub_service_id, search, and limit. Returns category, subcategory, feature, description, solution, competitive advantage, audience, problem, impact, wants, needs, hidden needs, false belief, and what makes them stop. Image paths and files are not returned. Read only. Owner or admin only.",
     scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
@@ -640,13 +649,13 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "ai_employee.brief.get",
     description:
-      "Read one AI employee's work brief in the active organization. Owner only. Returns catalog focus, audience, customer persona ids and their audience text, brand voice, required notes, forbidden notes, priority pillars, and the split rule.",
+      "Read one AI employee's work brief in the active organization. Owner only. Returns catalog focus, audience, customer persona ids and their audience text, brand voice, required notes, forbidden notes, priority pillars, the split rule, and a short summary of the selected Product Knowledge rows.",
     scopes: ["session:read"],
   },
   {
     name: "ai_employee.brief.update",
     description:
-      "Replace one AI employee's work brief in the active organization. Owner only; an admin is rejected. service_ids are catalog ids, persona_ids are product knowledge ids, and pillar_ids are content pillar ids. Show the previous brief and the new brief.",
+      "Replace one AI employee's work brief in the active organization. Owner only; an admin is rejected. service_ids are catalog ids, persona_ids and product_knowledge_ids are Product Knowledge row ids, and pillar_ids are content pillar ids. product_knowledge_ids must belong to the selected catalogs. Show the previous brief and the new brief.",
     scopes: ["session:read"],
   },
 ];

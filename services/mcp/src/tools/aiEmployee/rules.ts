@@ -215,7 +215,15 @@ export const aiEmployeeBriefUpdateInput = aiEmployeeNameInput.extend({
   required_notes: z.string().max(2000),
   forbidden_notes: z.string().max(2000),
   pillar_ids: z.array(briefId).max(12),
+  product_knowledge_ids: z.array(briefId).max(12),
   split_rule: z.string().max(1000),
+}).strict();
+
+export const productKnowledgeListInput = z.object({
+  service_id: z.string().uuid().optional(),
+  sub_service_id: z.string().uuid().optional(),
+  search: z.string().max(80).optional(),
+  limit: z.number().int().min(1).max(20).optional(),
 }).strict();
 
 export type AiEmployeeBriefInput = {
@@ -226,5 +234,6 @@ export type AiEmployeeBriefInput = {
   requiredNotes: string;
   forbiddenNotes: string;
   pillarIds: string[];
+  productKnowledgeIds: string[];
   splitRule: string;
 };

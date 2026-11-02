@@ -65,6 +65,7 @@ export { planDirectInput, planDirectResult } from "./thinking/planDirect";
 export {
   aiEmployeeBriefGetInput,
   aiEmployeeBriefUpdateInput,
+  productKnowledgeListInput,
   aiEmployeeChatInput,
   aiEmployeeCommandInput,
   aiEmployeeScheduleUpdateInput,
