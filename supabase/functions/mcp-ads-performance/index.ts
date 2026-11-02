@@ -1,7 +1,11 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { isActiveOrganizationMember } from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
+import {
+  credentialShape,
+  describeOrganizationMembership,
+  internalSecretMatches,
+} from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
 
 const MAX_ACCOUNTS = 12;
 const MAX_CAMPAIGNS = 25;
@@ -97,15 +101,37 @@ function failRow(
   };
 }
 
-function authorized(req: Request, body: Record<string, unknown>): boolean {
+function reject(reason: string, error: string, status: number, extra: Record<string, unknown> = {}): Response {
+  console.error("mcp-ads-performance: rejected", { reason, ...extra });
+  return json({ error }, status);
+}
+
+/** Secret match is the door. The service-role string is logged, not required. */
+function internalDoor(req: Request, body: Record<string, unknown>): Response | null {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const secret = Deno.env.get("SCHEDULED_POSTS_INTERNAL_SECRET") ?? "";
   const provided = typeof body.internal_secret === "string" ? body.internal_secret : "";
-  if (!serviceRoleKey || !secret || provided !== secret) return false;
   const header = req.headers.get("Authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   const apiKey = (req.headers.get("apikey") ?? "").trim();
-  return token === serviceRoleKey || apiKey === serviceRoleKey;
+  if (!secret) {
+    return reject("secret_missing", "misconfigured", 500);
+  }
+  if (!internalSecretMatches(provided, secret)) {
+    return reject("secret_rejected", "forbidden: internal credential rejected", 403, {
+      bearerShape: credentialShape(token),
+      apiKeyShape: credentialShape(apiKey),
+      envKeyShape: credentialShape(serviceRoleKey),
+    });
+  }
+  if (serviceRoleKey && token !== serviceRoleKey && apiKey !== serviceRoleKey) {
+    console.warn("mcp-ads-performance: internal secret accepted with a different service credential", {
+      bearerShape: credentialShape(token),
+      apiKeyShape: credentialShape(apiKey),
+      envKeyShape: credentialShape(serviceRoleKey),
+    });
+  }
+  return null;
 }
 
 function parseYmd(value: unknown): string | null {
@@ -229,8 +255,9 @@ class MetricsCallError extends Error {
   }
 }
 
-function reconnectMessage(error: unknown, reconnect: string): string {
+function performanceErrorMessage(error: unknown, reconnect: string): string {
   const raw = error instanceof Error ? error.message : "";
+  if (raw.startsWith("upstream_error:")) return raw.slice(0, 180);
   const code = error instanceof MetricsCallError ? error.code : "";
   if (
     code === "TOKEN_REFRESH_FAILED"
@@ -240,6 +267,13 @@ function reconnectMessage(error: unknown, reconnect: string): string {
     return reconnect;
   }
   return publicError(error);
+}
+
+function platformOf(functionName: string): string {
+  if (functionName.startsWith("meta")) return "meta";
+  if (functionName.startsWith("google")) return "google";
+  if (functionName.startsWith("tiktok")) return "tiktok";
+  return "ads";
 }
 
 async function postDashboard(
@@ -261,6 +295,18 @@ async function postDashboard(
   if (!response.ok || typeof payload.error === "string") {
     const message = typeof payload.error === "string" ? payload.error : `HTTP ${response.status}`;
     const code = typeof payload.code === "string" ? payload.code : "";
+    if (response.status === 401 || response.status === 403) {
+      const platform = platformOf(functionName);
+      console.error("mcp-ads-performance: upstream rejected", {
+        platform,
+        status: response.status,
+        error: publicError(message),
+      });
+      throw new MetricsCallError(
+        `upstream_error: ${platform} ${response.status} ${publicError(message)}`.slice(0, 180),
+        code || String(response.status),
+      );
+    }
     throw new MetricsCallError(message, code);
   }
   return payload;
@@ -366,7 +412,7 @@ async function googlePerformance(
       note: notes.join(" "),
     };
   } catch (error) {
-    return failRow(account, reconnectMessage(error, "Google Ads authorization expired. Reconnect the account."), "conversions");
+    return failRow(account, performanceErrorMessage(error, "Google Ads authorization expired. Reconnect the account."), "conversions");
   }
 }
 
@@ -439,7 +485,7 @@ async function metaPerformance(
       note: notes.join(" "),
     };
   } catch (error) {
-    return failRow(account, reconnectMessage(error, "Meta Ads authorization expired. Reconnect the account."), "purchases");
+    return failRow(account, performanceErrorMessage(error, "Meta Ads authorization expired. Reconnect the account."), "purchases");
   }
 }
 
@@ -493,7 +539,7 @@ async function tiktokPerformance(
   } catch (error) {
     return failRow(
       account,
-      reconnectMessage(error, "TikTok Ads authorization expired. Reconnect the account."),
+      performanceErrorMessage(error, "TikTok Ads authorization expired. Reconnect the account."),
       "conversions",
     );
   }
@@ -516,7 +562,8 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json({ error: "invalid_input" }, 400);
   }
-  if (!authorized(req, body)) return json({ error: "forbidden" }, 403);
+  const door = internalDoor(req, body);
+  if (door) return door;
 
   const userId = String(body.mcp_user_id ?? "").trim();
   const organizationId = String(body.organization_id ?? "").trim();
@@ -532,8 +579,26 @@ Deno.serve(async (req: Request) => {
   if (!start || !end || start > end) return json({ error: "invalid_input" }, 400);
 
   const admin = createClient(supabaseUrl, serviceRoleKey);
-  const member = await isActiveOrganizationMember(admin, userId, organizationId);
-  if (!member) return json({ error: "forbidden" }, 403);
+  const membership = await describeOrganizationMembership(admin, userId, organizationId);
+  if (membership.state === "policy") {
+    return reject("database_policy", "forbidden: database policy denied (table user_organizations)", 403, {
+      organizationId,
+      userId,
+    });
+  }
+  if (membership.state === "query_failed") {
+    return reject("database_query_failed", "performance_unavailable", 500, {
+      organizationId,
+      userId,
+      table: membership.table,
+    });
+  }
+  if (membership.state !== "active") {
+    return reject("organization_mismatch", "forbidden: organization mismatch", 403, {
+      organizationId,
+      userId,
+    });
+  }
 
   let clipped = false;
   if (inclusiveDays(start, end) > MAX_INCLUSIVE_DAYS) {

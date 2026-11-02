@@ -245,6 +245,12 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     aiEmployeeScheduleUpdate: async () => {
       throw new Error("unused");
     },
+    aiEmployeeRoutinesList: async () => {
+      throw new Error("unused");
+    },
+    aiEmployeeRoutineUpsert: async () => {
+      throw new Error("unused");
+    },
     aiEmployeeBriefGet: async () => {
       throw new Error("unused");
     },
@@ -395,6 +401,8 @@ describe("oauth and mcp http flow", () => {
       "ai_employee.queue.list",
       "ai_employee.command",
       "ai_employee.chat",
+      "ai_employee.routines.list",
+      "ai_employee.routine.upsert",
       "ai_employee.schedule.update",
       "ai_employee.brief.get",
       "ai_employee.brief.update",

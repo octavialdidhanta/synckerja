@@ -49,6 +49,7 @@ import type { AccessClaims } from "../oauth/tokens";
 import {
   adsAccountsInput,
   adsAccountsResult,
+  adsPerformanceDenial,
   adsPerformanceInput,
   adsPerformanceResult,
   parseAdsPerformanceQuery,
@@ -188,6 +189,7 @@ import {
   aiEmployeeBriefGetInput,
   aiEmployeeBriefUpdateInput,
   productKnowledgeListInput,
+  aiEmployeeRoutineUpsertInput,
   aiEmployeeScheduleUpdateInput,
 } from "../tools";
 import type { ToolCallOutcome } from "../db/toolGate";
@@ -387,6 +389,19 @@ export type McpReadDeps = {
       isActive: boolean;
     },
   ) => Promise<unknown>;
+  aiEmployeeRoutinesList: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
+  aiEmployeeRoutineUpsert: (
+    ctx: McpAuthContext,
+    input: {
+      employeeName: string;
+      actionCode: string;
+      cadence: string;
+      weekday: number | null;
+      weekdays?: number[] | null;
+      timeLocal: string;
+      isActive: boolean;
+    },
+  ) => Promise<unknown>;
   aiEmployeeBriefGet: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
   aiEmployeeBriefUpdate: (
     ctx: McpAuthContext,
@@ -551,6 +566,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "ai_employee.command": aiEmployeeCommandInput,
   "ai_employee.chat": aiEmployeeChatInput,
   "ai_employee.schedule.update": aiEmployeeScheduleUpdateInput,
+  "ai_employee.routines.list": aiEmployeeNameInput,
+  "ai_employee.routine.upsert": aiEmployeeRoutineUpsertInput,
   "ai_employee.brief.get": aiEmployeeBriefGetInput,
   "ai_employee.brief.update": aiEmployeeBriefUpdateInput,
   "product_knowledge.list": productKnowledgeListInput,
@@ -974,6 +991,18 @@ async function runTool(
         dueLocal: requiredString(args.due_local),
         isActive: requiredBoolean(args.is_active),
       });
+    case "ai_employee.routines.list":
+      return deps.aiEmployeeRoutinesList(ctx, requiredString(args.employee_name));
+    case "ai_employee.routine.upsert":
+      return deps.aiEmployeeRoutineUpsert(ctx, {
+        employeeName: requiredString(args.employee_name),
+        actionCode: requiredString(args.action_code),
+        cadence: requiredString(args.cadence),
+        weekday: optionalNumber(args.weekday),
+        weekdays: Array.isArray(args.weekdays) ? args.weekdays.filter((day): day is number => typeof day === "number") : null,
+        timeLocal: requiredString(args.time_local),
+        isActive: requiredBoolean(args.is_active),
+      });
     case "ai_employee.brief.get":
       return deps.aiEmployeeBriefGet(ctx, requiredString(args.employee_name));
     case "ai_employee.brief.update":
@@ -1032,6 +1061,18 @@ export async function handleMcpRequest(
         const fresh = await reload(deps, claims);
         if (!fresh || !isToolVisible(tool.name, fresh)) {
           await noteCall(deps, fresh ?? ctx, tool.name, "forbidden");
+          if (tool.name === "ads.performance.summary") {
+            const message = adsPerformanceDenial(fresh);
+            console.error("ads.performance.summary: denied", {
+              reason: message,
+              organizationId: fresh?.organizationId ?? ctx.organizationId,
+              userId: fresh?.userId ?? ctx.userId,
+            });
+            return {
+              isError: true as const,
+              content: [{ type: "text" as const, text: message }],
+            };
+          }
           return forbidden();
         }
         try {

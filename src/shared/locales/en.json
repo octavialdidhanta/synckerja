@@ -294,6 +294,7 @@
     "nav": {
       "dashboard": "Dashboard",
       "okr": "OKR",
+      "aiEmployees": "AI Employees",
       "humanResources": "Human Resources",
       "subscription": "Subscription"
     },

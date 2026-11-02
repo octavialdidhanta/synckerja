@@ -1,4 +1,4 @@
-import type { McpAuthContext } from "../../authz/context";
+import { ADS_PAGE_PATHS, type McpAuthContext } from "../../authz/context";
 import { calendarDay, monthPattern } from "../inputs";
 import { z } from "zod";
 
@@ -486,6 +486,23 @@ export function presentAdsPerformance(source: AdsPerformanceSource): AdsPerforma
     readings,
     notes,
   };
+}
+
+export function adsPerformanceDenial(ctx: McpAuthContext | null): string {
+  if (!ctx?.organizationId || ctx.membershipActive === false) return "forbidden: organization mismatch";
+  if (!ctx.scopes.includes("ads:read")) return "forbidden: missing scope ads:read";
+  if (!ctx.modules.digitalMarketing) return "forbidden: module digitalMarketing disabled";
+  const pageAllowed = ADS_PAGE_PATHS.some((path) => ctx.pages[path] === true);
+  if (!pageAllowed) {
+    const ownerOrAdmin = ctx.roles.some((role) => {
+      const name = role.trim().toLowerCase();
+      return name === "owner" || name === "admin";
+    });
+    return ownerOrAdmin
+      ? "forbidden: page access denied"
+      : "forbidden: role not allowed (owner/admin required)";
+  }
+  return "forbidden: organization mismatch";
 }
 
 export function adsPerformanceResult(

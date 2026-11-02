@@ -221,12 +221,16 @@ verify_jwt = false
 [functions.tiktok-ads-metrics]
 verify_jwt = false
 
-# MCP ads performance. Service-role bearer plus SCHEDULED_POSTS_INTERNAL_SECRET, checked inside.
+# MCP ads performance. SCHEDULED_POSTS_INTERNAL_SECRET, checked inside. The bearer is not compared to SUPABASE_SERVICE_ROLE_KEY.
 [functions.mcp-ads-performance]
 verify_jwt = false
 
 # AI employee runtime. User JWT or internal secret, checked inside. Runner JWT is minted in the function.
 [functions.ai-employee-run]
+verify_jwt = false
+
+# AI employee routine email. Internal secret checked inside. No user JWT.
+[functions.ai-employee-routine]
 verify_jwt = false
 
 # TikTok Content Insight: user JWT validated inside; OAuth callback has no JWT.

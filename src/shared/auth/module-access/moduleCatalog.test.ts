@@ -36,6 +36,8 @@ describe("moduleCatalog", () => {
     expect(resolveSalesModuleForPath("/okr/company-objective")).toBe("okr");
     expect(resolveSalesModuleForPath("/thinking-lab")).toBe("digitalMarketing");
     expect(resolveSalesModuleForPath("/employees")).toBe("humanResources");
+    expect(resolveSalesModuleForPath("/ai-employees")).toBe("humanResources");
+    expect(resolveSalesModuleForPath("/ai-employees/00000000-0000-4000-8000-000000000001")).toBe("humanResources");
     expect(resolveSalesModuleForPath("/incomes/dashboard")).toBe("finance");
     expect(resolveSalesModuleForPath("/expenses/dashboard")).toBe("finance");
     expect(resolveSalesModuleForPath("/digital-marketing/traffic")).toBe("digitalMarketing");

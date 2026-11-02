@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { McpAuthContext } from "../src/authz/context";
 import { MCP_SERVER_INSTRUCTIONS } from "../src/mcp/instructions";
 import { MCP_TOOLS } from "../src/mcp/registry";
-import { aiEmployeeBriefUpdate, aiEmployeeChat, aiEmployeeCommand, aiEmployeeScheduleUpdate, listAiEmployees } from "../src/db/aiEmployee";
+import { aiEmployeeBriefUpdate, aiEmployeeChat, aiEmployeeCommand, aiEmployeeRoutineUpsert, aiEmployeeRoutinesList, aiEmployeeScheduleUpdate, aiEmployeeStatus, listAiEmployees } from "../src/db/aiEmployee";
 import {
   assertOrgOwner,
   assertOrgOwnerOrAdmin,
@@ -15,6 +15,7 @@ import {
   modelAllowance,
   politeAddress,
   resolveReportPeriod,
+  validateRoutineUpdate,
   validateScheduleUpdate,
 } from "../src/tools/aiEmployee/rules";
 
@@ -246,11 +247,15 @@ describe("ai employee tool list", () => {
       "ai_employee.command",
       "ai_employee.chat",
       "ai_employee.schedule.update",
+      "ai_employee.routines.list",
+      "ai_employee.routine.upsert",
       "ai_employee.brief.get",
       "ai_employee.brief.update",
     ]));
     expect(MCP_SERVER_INSTRUCTIONS).toContain("ai_employee.command");
     expect(MCP_SERVER_INSTRUCTIONS).toContain("ai_employee.schedule.update");
+    expect(MCP_SERVER_INSTRUCTIONS).toContain("ai_employee.routine.upsert");
+    expect(MCP_SERVER_INSTRUCTIONS).toContain("invalid_action");
     expect(MCP_SERVER_INSTRUCTIONS).toContain("outside_job_desk");
     expect(MCP_SERVER_INSTRUCTIONS).toContain("Naya:");
     const chat = MCP_TOOLS.find((tool) => tool.name === "ai_employee.chat");
@@ -418,6 +423,139 @@ describe("ai employee brief update", () => {
       voice: "hangat",
       persona_ids: ["22222222-2222-4222-8222-222222222222"],
       product_knowledge_ids: ["33333333-3333-4333-8333-333333333333"],
+    });
+  });
+});
+
+describe("ai employee routines", () => {
+  const routineRow = {
+    action_code: "work_report.weekly",
+    cadence: "weekly",
+    weekday: null,
+    time_local: "09:00:00",
+    is_active: true,
+    next_run_at: "2026-11-03T02:00:00+00",
+    last_sent_at: null,
+    last_status: null,
+  };
+
+  function routineAdmin(routines: Record<string, unknown>[] = [routineRow]) {
+    const calls: { fn: string; args: Record<string, unknown> }[] = [];
+    const admin = {
+      from(table: string) {
+        const builder = {
+          select() { return builder; },
+          eq() { return builder; },
+          order() { return builder; },
+          in() { return builder; },
+          gte() { return builder; },
+          lt() { return builder; },
+          limit() { return builder; },
+          then(resolve: (value: { data: Record<string, unknown>[]; error: null }) => void) {
+            const data = table === "employees"
+              ? [{ id: "emp-1", full_name: "Naya" }]
+              : table === "ai_employee_routines"
+                ? routines
+                : [];
+            resolve({ data, error: null });
+          },
+        };
+        return builder;
+      },
+      async rpc(fn: string, args: Record<string, unknown>) {
+        calls.push({ fn, args });
+        if (fn === "mcp_list_ai_employee_routines") {
+          return { data: [{ ...routineRow, reviewer_name: "Octa", deliveries: [] }], error: null };
+        }
+        return {
+          data: { ok: true, previous: null, routine: { ...routineRow, time_local: "09:00" } },
+          error: null,
+        };
+      },
+    };
+    return { admin: admin as unknown as SupabaseClient, calls };
+  }
+
+  it("includes active routines on status and lists deliveries without an email address", async () => {
+    const { admin } = routineAdmin();
+    const status = await aiEmployeeStatus(admin, { ...owner, userId: "user-1" } as McpAuthContext, "nay");
+    expect(status).toMatchObject({
+      name: "Naya",
+      routines: [{ action_code: "work_report.weekly", cadence: "weekly", time_local: "09:00:00" }],
+    });
+    const listed = await aiEmployeeRoutinesList(admin, { ...owner, userId: "user-1" } as McpAuthContext, "nay");
+    expect(listed).toMatchObject({
+      name: "Naya",
+      routines: [{ reviewer_name: "Octa", deliveries: [] }],
+    });
+    if (!("routines" in listed)) throw new Error("routines missing");
+    expect(listed.routines[0]).not.toHaveProperty("recipient_email");
+    expect(listed.routines[0]).not.toHaveProperty("reviewer_email");
+    expect(JSON.stringify(listed)).not.toContain("@");
+  });
+
+  it("rejects an unknown action and an admin, and sends the owner payload", async () => {
+    expect(validateRoutineUpdate({ actionCode: "hr.report", cadence: "days", weekday: null, weekdays: [1], timeLocal: "09:00" })).toEqual({
+      ok: false,
+      error: "invalid_action",
+    });
+    expect(validateRoutineUpdate({ actionCode: "work_report.daily", cadence: "mon_thu", weekday: null, timeLocal: "09:00" })).toEqual({
+      ok: false,
+      error: "invalid_cadence",
+    });
+    expect(validateRoutineUpdate({ actionCode: "work_report.daily", cadence: "days", weekday: null, weekdays: [], timeLocal: "09:00" })).toEqual({
+      ok: false,
+      error: "invalid_weekday",
+    });
+    expect(validateRoutineUpdate({ actionCode: "work_report.email", cadence: "weekly", weekday: 1, timeLocal: "23:50" })).toEqual({
+      ok: false,
+      error: "invalid_action",
+    });
+    expect(validateRoutineUpdate({ actionCode: "work_report.weekly", cadence: "weekly", weekday: null, timeLocal: "09:00" })).toEqual({
+      ok: false,
+      error: "invalid_weekday",
+    });
+    const { admin, calls } = routineAdmin();
+    const rejected = await aiEmployeeRoutineUpsert(admin, { ...owner, userId: "user-1" } as McpAuthContext, {
+      employeeName: "nay",
+      actionCode: "hr.report",
+      cadence: "days",
+      weekday: null,
+      weekdays: [1],
+      timeLocal: "09:00",
+      isActive: true,
+    });
+    expect(rejected).toMatchObject({ ok: false, error: "invalid_action" });
+    expect(calls).toHaveLength(0);
+    await expect(aiEmployeeRoutineUpsert(admin, { ...owner, userId: "user-1", roles: ["admin"] } as McpAuthContext, {
+      employeeName: "nay",
+      actionCode: "work_report.email",
+      cadence: "weekly",
+      weekday: 1,
+      timeLocal: "09:00",
+      isActive: true,
+    })).rejects.toThrow("forbidden");
+    const saved = await aiEmployeeRoutineUpsert(admin, { ...owner, userId: "user-1" } as McpAuthContext, {
+      employeeName: "nay",
+      actionCode: "work_report.daily",
+      cadence: "days",
+      weekday: 5,
+      weekdays: [5, 1, 1],
+      timeLocal: "09:00",
+      isActive: true,
+    });
+    expect(saved).toMatchObject({ ok: true, name: "Naya", previous: null });
+    expect(calls[0]?.fn).toBe("ai_employee_routine_write");
+    expect(calls[0]?.args).toMatchObject({
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_employee_id: "emp-1",
+      p_action_code: "work_report.daily",
+      p_cadence: "days",
+      p_weekday: null,
+      p_weekdays: [1, 5],
+      p_time_local: "09:00",
+      p_is_active: true,
     });
   });
 });

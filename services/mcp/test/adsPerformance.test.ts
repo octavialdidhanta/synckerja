@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { MCP_TOOLS } from "../src/mcp/registry";
 import { listAdsPerformance } from "../src/db/adsPerformance";
+import type { McpAuthContext } from "../src/authz/context";
 import {
+  adsPerformanceDenial,
   parseAdsPerformanceQuery,
   presentAdsPerformance,
   resolveAdsPerformancePeriod,
@@ -317,14 +319,70 @@ describe("ads performance fetch", () => {
     expect(summary.notes).toContain("The requested range was longer than 366 days, so it was cut to the latest 366 days.");
   });
 
-  it("turns a forbidden response into forbidden", async () => {
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ error: "forbidden" }), { status: 403 }));
-    await expect(listAdsPerformance(config, ctx, {
-      month: "2020-01",
+  it("keeps a specific door rejection and replaces a generic forbidden", async () => {
+    const query = {
+      month: "2020-01" as const,
       dateStart: null,
       dateEnd: null,
       platform: null,
-    }, fetchImpl as typeof fetch)).rejects.toThrow("forbidden");
+    };
+    const mismatch = vi.fn(async () => new Response(
+      JSON.stringify({ error: "forbidden: organization mismatch" }),
+      { status: 403 },
+    ));
+    await expect(listAdsPerformance(config, ctx, query, mismatch as typeof fetch))
+      .rejects.toThrow("forbidden: organization mismatch");
+
+    const generic = vi.fn(async () => new Response(JSON.stringify({ error: "forbidden" }), { status: 403 }));
+    await expect(listAdsPerformance(config, ctx, query, generic as typeof fetch))
+      .rejects.toThrow("forbidden: performance door rejected");
+
+    const upstream = vi.fn(async () => new Response(
+      JSON.stringify({ error: "upstream_error: meta 403 permission" }),
+      { status: 403 },
+    ));
+    await expect(listAdsPerformance(config, ctx, query, upstream as typeof fetch))
+      .rejects.toThrow("upstream_error: meta 403 permission");
+  });
+});
+
+function denialContext(overrides: Partial<McpAuthContext>): McpAuthContext {
+  return {
+    userId: "user-1",
+    profileId: "profile-1",
+    organizationId: "org-1",
+    employeeId: null,
+    companyName: "Office",
+    roles: ["owner"],
+    scopes: ["ads:read"],
+    clientId: "client-1",
+    membershipActive: true,
+    organizations: [],
+    modules: {
+      digitalMarketing: true,
+      okr: true,
+      omnichannel: true,
+      finance: true,
+      humanResources: true,
+      operations: true,
+      tools: true,
+    },
+    pages: { "/digital-marketing/meta-ads": true },
+    ...overrides,
+  };
+}
+
+describe("ads performance denial", () => {
+  it("names the missing scope, the role, and an organization mismatch", () => {
+    expect(adsPerformanceDenial(denialContext({ scopes: ["session:read"] })))
+      .toBe("forbidden: missing scope ads:read");
+    expect(adsPerformanceDenial(denialContext({
+      roles: ["employee"],
+      pages: {},
+    }))).toBe("forbidden: role not allowed (owner/admin required)");
+    expect(adsPerformanceDenial(null)).toBe("forbidden: organization mismatch");
+    expect(adsPerformanceDenial(denialContext({ membershipActive: false })))
+      .toBe("forbidden: organization mismatch");
   });
 });
 
