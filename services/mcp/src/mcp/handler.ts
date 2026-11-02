@@ -185,6 +185,7 @@ import {
   aiEmployeeReportInput,
   aiEmployeeCommandInput,
   aiEmployeeChatInput,
+  aiEmployeeScheduleUpdateInput,
 } from "../tools";
 import type { ToolCallOutcome } from "../db/toolGate";
 import { filterTools, isToolVisible } from "./filterTools";
@@ -371,6 +372,17 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     input: { employeeName: string; message: string },
   ) => Promise<unknown>;
+  aiEmployeeScheduleUpdate: (
+    ctx: McpAuthContext,
+    input: {
+      employeeName: string;
+      sopCode: string;
+      weekday: number;
+      startLocal: string;
+      dueLocal: string;
+      isActive: boolean;
+    },
+  ) => Promise<unknown>;
   switchOrganization: (ctx: McpAuthContext, organizationId: string) => Promise<void>;
 };
 
@@ -513,6 +525,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "ai_employee.report": aiEmployeeReportInput,
   "ai_employee.command": aiEmployeeCommandInput,
   "ai_employee.chat": aiEmployeeChatInput,
+  "ai_employee.schedule.update": aiEmployeeScheduleUpdateInput,
 };
 
 async function runTool(
@@ -921,6 +934,15 @@ async function runTool(
       return deps.aiEmployeeChat(ctx, {
         employeeName: requiredString(args.employee_name),
         message: requiredString(args.message),
+      });
+    case "ai_employee.schedule.update":
+      return deps.aiEmployeeScheduleUpdate(ctx, {
+        employeeName: requiredString(args.employee_name),
+        sopCode: requiredString(args.sop_code),
+        weekday: requiredNumber(args.weekday),
+        startLocal: requiredString(args.start_local),
+        dueLocal: requiredString(args.due_local),
+        isActive: requiredBoolean(args.is_active),
       });
   }
 }

@@ -239,6 +239,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     aiEmployeeChat: async () => {
       throw new Error("unused");
     },
+    aiEmployeeScheduleUpdate: async () => {
+      throw new Error("unused");
+    },
   });
   return { app, listed };
 }
@@ -378,6 +381,7 @@ describe("oauth and mcp http flow", () => {
       "ai_employee.report",
       "ai_employee.command",
       "ai_employee.chat",
+      "ai_employee.schedule.update",
     ]);
 
     const who = await app.request("http://localhost:8787/mcp", {

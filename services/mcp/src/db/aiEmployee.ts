@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { McpAuthContext } from "../authz/context";
 import {
+  assertOrgOwner,
   assertOrgOwnerOrAdmin,
   chatOutsideReply,
   greetingReply,
@@ -10,6 +11,7 @@ import {
   politeAddress,
   modelAllowance,
   resolveReportPeriod,
+  validateScheduleUpdate,
 } from "../tools/aiEmployee/rules";
 
 type Row = Record<string, unknown>;
@@ -394,5 +396,72 @@ export async function aiEmployeeChat(
     name: typeof result.body.name === "string" && result.body.name ? result.body.name : employee.full_name,
     reply,
     outside_job_desk: false,
+  };
+}
+
+function scheduleView(row: Row) {
+  return {
+    sop_code: String(row.sop_code ?? ""),
+    weekday: Number(row.weekday),
+    start_local: String(row.start_local ?? ""),
+    due_local: String(row.due_local ?? ""),
+    is_active: row.is_active !== false,
+    next_run_at: row.next_run_at ?? null,
+  };
+}
+
+export async function aiEmployeeScheduleUpdate(
+  admin: SupabaseClient,
+  ctx: McpAuthContext,
+  input: {
+    employeeName: string;
+    sopCode: string;
+    weekday: number;
+    startLocal: string;
+    dueLocal: string;
+    isActive: boolean;
+  },
+) {
+  assertOrgOwner(ctx);
+  const valid = validateScheduleUpdate({
+    weekday: input.weekday,
+    startLocal: input.startLocal,
+    dueLocal: input.dueLocal,
+  });
+  if (!valid.ok) return { ok: false as const, error: valid.error };
+  const employee = await requireNamedEmployee(admin, ctx, input.employeeName);
+  if ("error" in employee) return employee;
+  const schedules = await rows(
+    admin,
+    "ai_employee_schedules",
+    "id, sop_code, weekday, start_local, due_local, is_active, next_run_at",
+    (query) => query
+      .eq("organization_id", ctx.organizationId)
+      .eq("employee_id", employee.id)
+      .eq("sop_code", input.sopCode),
+  );
+  const matches = schedules.filter((row) => String(row.sop_code ?? "") === input.sopCode);
+  if (matches.length === 0) return { ok: false as const, error: "schedule_not_found", name: employee.full_name };
+  if (matches.length > 1) return { ok: false as const, error: "schedule_ambiguous", name: employee.full_name };
+  const previous = matches[0];
+  const { data, error } = await admin
+    .from("ai_employee_schedules")
+    .update({
+      weekday: input.weekday,
+      start_local: input.startLocal,
+      due_local: input.dueLocal,
+      is_active: input.isActive,
+    })
+    .eq("id", previous.id)
+    .eq("organization_id", ctx.organizationId)
+    .eq("employee_id", employee.id)
+    .select("sop_code, weekday, start_local, due_local, is_active, next_run_at")
+    .maybeSingle();
+  if (error || !data) throw new Error("query_failed");
+  return {
+    ok: true as const,
+    name: employee.full_name,
+    previous: scheduleView(previous),
+    schedule: scheduleView(data as Row),
   };
 }

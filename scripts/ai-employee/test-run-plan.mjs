@@ -4,15 +4,24 @@ import crypto from "node:crypto";
 import {
   authorizeCaller,
   buildChatPrompt,
+  buildSop1Prompt,
   buildSop2Prompt,
+  chooseSop1Pillar,
+  fourWeekBounds,
+  greetingPeriod,
   greetingReply,
   isSimpleChatGreeting,
   politeAddress,
+  sop1CloseStatus,
+  zonedClock,
   decodeJwtPayload,
   interpretReserve,
   jakartaToday,
   nextWeekDays,
+  nextWeeklyRun,
+  openPlanDays,
   parseChatReply,
+  parseExecutionCheck,
   parsePlanDraft,
   publicModelFailure,
   resolvePostDate,
@@ -211,12 +220,132 @@ test("obrolan mengembalikan reply dan tidak meminta plan", () => {
   });
   assert.match(spoken, /Pak Aldi/);
   assert.match(spoken, /Dia reviewer kamu/);
+  assert.match(spoken, /pukul \d{2}:\d{2} \(Asia\/Jakarta\)/);
+  assert.match(spoken, /Selamat (pagi|siang|sore|malam)/);
   assert.equal(isSimpleChatGreeting("nay", "Naya"), true);
   assert.equal(isSimpleChatGreeting("gw bos lu", "Naya"), false);
   assert.equal(politeAddress("Octa Vialdi", "owner"), "Pak Aldi");
-  assert.match(greetingReply("Naya", "Pak Aldi"), /Halo Pak Aldi, aku Naya/);
+  assert.match(greetingReply("Naya", "Pak Aldi", { hour: 17 }), /Selamat sore Pak Aldi, aku Naya/);
   assert.equal(parseChatReply("```json\n{\"reply\":\"Hai, aku Naya.\"}\n```"), "Hai, aku Naya.");
   assert.equal(parseChatReply("{\"title\":\"bukan obrolan\"}"), null);
+});
+
+test("salam mengikuti jam di zona waktu profil", () => {
+  const samples = [
+    ["2026-11-02T21:00:00.000Z", "2026-11-03", "04:00", "pagi"],
+    ["2026-11-02T03:59:00.000Z", "2026-11-02", "10:59", "pagi"],
+    ["2026-11-02T04:00:00.000Z", "2026-11-02", "11:00", "siang"],
+    ["2026-11-02T07:59:00.000Z", "2026-11-02", "14:59", "siang"],
+    ["2026-11-02T08:00:00.000Z", "2026-11-02", "15:00", "sore"],
+    ["2026-11-02T10:50:00.000Z", "2026-11-02", "17:50", "sore"],
+    ["2026-11-02T10:59:00.000Z", "2026-11-02", "17:59", "sore"],
+    ["2026-11-02T11:00:00.000Z", "2026-11-02", "18:00", "malam"],
+    ["2026-11-02T20:59:00.000Z", "2026-11-03", "03:59", "malam"],
+  ];
+  for (const [instant, date, time, period] of samples) {
+    const clock = zonedClock("Asia/Jakarta", new Date(instant));
+    assert.equal(clock.date, date, instant);
+    assert.equal(clock.time, time, instant);
+    assert.equal(greetingPeriod(clock.hour), period, instant);
+    assert.match(greetingReply("Naya", "Pak Aldi", clock), new RegExp(`Selamat ${period} Pak Aldi`));
+  }
+  assert.equal(greetingPeriod(4), "pagi");
+  assert.equal(greetingPeriod(10), "pagi");
+  assert.equal(greetingPeriod(11), "siang");
+  assert.equal(greetingPeriod(14), "siang");
+  assert.equal(greetingPeriod(15), "sore");
+  assert.equal(greetingPeriod(17), "sore");
+  assert.equal(greetingPeriod(18), "malam");
+  assert.equal(greetingPeriod(3), "malam");
+  const fallback = zonedClock("Bukan/Zona", new Date("2026-11-02T10:50:00.000Z"));
+  assert.equal(fallback.timeZone, "Asia/Jakarta");
+  assert.equal(fallback.time, "17:50");
+  const prompt = buildChatPrompt({
+    name: "Naya",
+    jobTitle: "Content Planner",
+    sops: [],
+    message: "hari ini mau posting apa?",
+    clock: { timeZone: "Asia/Jakarta", date: "2026-11-02", time: "17:50", hour: 17 },
+  });
+  assert.match(prompt, /Sekarang 2026-11-02 pukul 17:50 \(Asia\/Jakarta\)/);
+  assert.match(prompt, /Selamat sore/);
+  assert.match(prompt, /"hari ini" adalah 2026-11-02/);
+});
+
+test("SOP1 mengisi hari kosong dan menahan pillar di atas 40 persen", () => {
+  const fridayMorning = new Date("2026-11-06T07:59:00.000Z");
+  const fridayStart = new Date("2026-11-06T08:00:00.000Z");
+  const before = nextWeeklyRun({ weekday: 5, startLocal: "15:00", timeZone: "Asia/Jakarta", after: fridayMorning });
+  const after = nextWeeklyRun({ weekday: 5, startLocal: "15:00", timeZone: "Asia/Jakarta", after: fridayStart });
+  assert.deepEqual(before, { timeZone: "Asia/Jakarta", date: "2026-11-06", time: "15:00:00" });
+  assert.deepEqual(after, { timeZone: "Asia/Jakarta", date: "2026-11-13", time: "15:00:00" });
+  const fromMonday = nextWeeklyRun({
+    weekday: 5,
+    startLocal: "15:00:00",
+    timeZone: "Not/AZone",
+    after: new Date("2026-11-02T03:00:00.000Z"),
+  });
+  assert.equal(fromMonday.timeZone, "Asia/Jakarta");
+  assert.equal(fromMonday.date, "2026-11-06");
+
+  const windowDays = ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15"];
+  assert.deepEqual(fourWeekBounds(windowDays), { start: "2026-10-19", end: "2026-11-15" });
+  const open = openPlanDays(windowDays, [
+    { post_date: "2026-11-09" },
+    { post_date: "2026-11-11" },
+    { post_date: "2026-10-19" },
+  ]);
+  assert.deepEqual(open, ["2026-11-10", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15"]);
+  assert.deepEqual(openPlanDays(windowDays, windowDays.map((post_date) => ({ post_date }))), []);
+
+  const alfa = { id: "alfa", name: "Alfa" };
+  const beta = { id: "beta", name: "Beta" };
+  assert.equal(chooseSop1Pillar([beta, alfa], []).id, "alfa");
+  assert.equal(chooseSop1Pillar([alfa, beta], [{ content_pillar_id: "alfa" }, { content_pillar_id: "alfa" }]).id, "beta");
+  const crowded = [
+    { content_pillar_id: "alfa" },
+    { content_pillar_id: "alfa" },
+    { content_pillar_id: "beta" },
+    { content_pillar_id: "beta" },
+    { content_pillar_id: "gamma" },
+  ];
+  assert.equal(chooseSop1Pillar([
+    { id: "alfa", name: "Alfa" },
+    { id: "beta", name: "Beta" },
+    { id: "gamma", name: "Gamma" },
+  ], crowded).id, "gamma");
+  assert.equal(chooseSop1Pillar([{ id: "alfa", name: "Alfa" }], crowded), null);
+
+  assert.equal(sop1CloseStatus({
+    weekday: 5,
+    dueLocal: "17:00:00",
+    clock: { date: "2026-11-06", time: "17:50" },
+  }), "late");
+  assert.equal(sop1CloseStatus({
+    weekday: 5,
+    dueLocal: "17:00",
+    clock: { date: "2026-11-06", time: "16:59" },
+  }), "succeeded");
+  assert.equal(sop1CloseStatus({
+    weekday: 5,
+    dueLocal: "17:00",
+    clock: { date: "2026-11-02", time: "18:00" },
+  }), "succeeded");
+
+  const prompt = buildSop1Prompt({
+    day: "2026-11-10",
+    pillar: { id: "alfa", name: "Alfa" },
+    steps: [{ step_no: 1, instruction: "Baca kalender" }],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+  });
+  assert.match(prompt, /2026-11-10/);
+  assert.match(prompt, /alfa/);
+  assert.match(prompt, /Jangan menyetujui/);
+  assert.deepEqual(parseExecutionCheck("{\"ok\":false}"), { ok: false });
+  assert.equal(parseExecutionCheck("{\"title\":\"bukan cek\"}"), null);
 });
 
 test("JSON model diterima hanya bila pillar ada di context", () => {

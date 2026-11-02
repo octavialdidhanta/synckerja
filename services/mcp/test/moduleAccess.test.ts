@@ -27,6 +27,7 @@ const aiEmployeeTools = [
   "ai_employee.report",
   "ai_employee.command",
   "ai_employee.chat",
+  "ai_employee.schedule.update",
 ];
 
 const base = {

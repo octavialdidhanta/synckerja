@@ -29,6 +29,34 @@ export function assertOrgOwnerOrAdmin(ctx: { organizationId: string; roles: read
   if (!ctx.organizationId || !isOrgOwnerOrAdmin(ctx.roles)) throw new Error("forbidden");
 }
 
+export function assertOrgOwner(ctx: { organizationId: string; roles: readonly string[] }): void {
+  const owner = ctx.roles.some((role) => String(role ?? "").trim().toLowerCase() === "owner");
+  if (!ctx.organizationId || !owner) throw new Error("forbidden");
+}
+
+const LOCAL_TIME = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
+
+function clockSeconds(value: string): number | null {
+  const match = LOCAL_TIME.exec(value.trim());
+  if (!match) return null;
+  return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3] ?? "0");
+}
+
+export function validateScheduleUpdate(input: {
+  weekday: number;
+  startLocal: string;
+  dueLocal: string;
+}): { ok: true } | { ok: false; error: "invalid_weekday" | "invalid_time" | "due_not_after_start" } {
+  if (!Number.isInteger(input.weekday) || input.weekday < 1 || input.weekday > 7) {
+    return { ok: false, error: "invalid_weekday" };
+  }
+  const start = clockSeconds(input.startLocal);
+  const due = clockSeconds(input.dueLocal);
+  if (start == null || due == null) return { ok: false, error: "invalid_time" };
+  if (due <= start) return { ok: false, error: "due_not_after_start" };
+  return { ok: true };
+}
+
 export function matchEmployeeName<T extends { full_name: string }>(
   employees: readonly T[],
   rawName: string,
@@ -165,4 +193,12 @@ export const aiEmployeeCommandInput = aiEmployeeNameInput.extend({
 
 export const aiEmployeeChatInput = aiEmployeeNameInput.extend({
   message: z.string().trim().min(1).max(4000),
+}).strict();
+
+export const aiEmployeeScheduleUpdateInput = aiEmployeeNameInput.extend({
+  sop_code: z.string().trim().min(1).max(20),
+  weekday: z.number().int().min(1).max(7),
+  start_local: z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/),
+  due_local: z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/),
+  is_active: z.boolean(),
 }).strict();

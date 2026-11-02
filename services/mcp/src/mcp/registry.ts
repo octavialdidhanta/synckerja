@@ -88,7 +88,8 @@ export type McpToolName =
   | "ai_employee.runs.list"
   | "ai_employee.report"
   | "ai_employee.command"
-  | "ai_employee.chat";
+  | "ai_employee.chat"
+  | "ai_employee.schedule.update";
 
 export type McpTool = {
   name: McpToolName;
@@ -628,6 +629,12 @@ const TOOL_DEFINITIONS: McpTool[] = [
       "Talk with one AI employee. Owner or admin only. Requires employee_name and message. Call this when the user message is or starts with the employee name or nickname, including a single word such as Nay or Naya. employee_name may be that nickname. Does not create a content plan. Greetings and questions about the employee are answered in her voice. Display reply as \"Naya: ...\". Only a work request outside content, such as payroll or HR, is refused. Do not answer the greeting yourself.",
     scopes: ["session:read"],
   },
+  {
+    name: "ai_employee.schedule.update",
+    description:
+      "Change one AI employee's weekly schedule in the active organization. Owner only; an admin is rejected. Requires employee_name, sop_code, weekday 1 (Monday) through 7 (Sunday), start_local, due_local, and is_active. Times are HH:MM in the employee profile time zone, and due_local must be after start_local. Recomputes next_run_at. Show the previous schedule and the new schedule, including next_run_at, as the confirmation.",
+    scopes: ["session:read"],
+  },
 ];
 
 const MUTATING_TOOLS = new Set<McpToolName>([
@@ -662,6 +669,7 @@ const MUTATING_TOOLS = new Set<McpToolName>([
   "thinking.plan.save",
   "thinking.plan.direct",
   "ai_employee.command",
+  "ai_employee.schedule.update",
 ]);
 
 export const MCP_TOOLS: McpTool[] = TOOL_DEFINITIONS.map((tool) =>
