@@ -32,6 +32,7 @@ export type McpToolName =
   | "okr.departments.list"
   | "crm.leads.list"
   | "ads.accounts.list"
+  | "ads.performance.summary"
   | "finance.income.list"
   | "finance.income.create"
   | "finance.income.update"
@@ -81,7 +82,12 @@ export type McpToolName =
   | "thinking.chain.read"
   | "thinking.execution.check"
   | "thinking.plan.save"
-  | "thinking.plan.direct";
+  | "thinking.plan.direct"
+  | "ai_employee.list"
+  | "ai_employee.status"
+  | "ai_employee.runs.list"
+  | "ai_employee.report"
+  | "ai_employee.command";
 
 export type McpTool = {
   name: McpToolName;
@@ -172,7 +178,15 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "ads.accounts.list",
     description:
-      "List connected Google, Meta, and TikTok ad accounts for the organization locked in this session. Returns platform, label, account id, whether the account is active, whether the last connection test succeeded, and when it was connected. Access tokens, page tokens, and ad spend are not returned.",
+      "List connected Google, Meta, and TikTok ad accounts for the organization locked in this session. Returns platform, label, account id, whether the account is active, whether the last connection test succeeded, and when it was connected. Access tokens and page tokens are not returned. This tool does not include spend, clicks, CTR, CPC, ROAS, or other performance metrics. For which account or metric is performing, call ads.performance.summary.",
+    scopes: ["ads:read"],
+    moduleKey: "digitalMarketing",
+    pagePaths: ADS_PAGE_PATHS,
+  },
+  {
+    name: "ads.performance.summary",
+    description:
+      "Compare paid ads for the organization locked in this session using the same campaign tab as the Synckerja ads pages. Call this when the user asks which ad account or campaign is performing, which metric is performing, or how Google, Meta, or TikTok ads are doing. Omit month and dates for the last 30 days in Asia/Jakarta, the page default. Optional month is YYYY-MM. Optional date_start and date_end are YYYY-MM-DD and replace month. Optional platform is google, meta, or tiktok. Follow how_to_read. When matches_dashboard is true, account totals are the summary bar and campaigns are the highest-spend rows on that tab. Google uses Delivery on and Enabled off. Meta clicks are link clicks and Meta results are purchases. TikTok omits purchases and ROAS because that tab does not show them. If the screen uses another date or filter, say the ranges differ instead of treating the numbers as the same. Ranges longer than 366 days are cut to the latest 366 days. Access tokens are not returned.",
     scopes: ["ads:read"],
     moduleKey: "digitalMarketing",
     pagePaths: ADS_PAGE_PATHS,
@@ -577,6 +591,36 @@ const TOOL_DEFINITIONS: McpTool[] = [
     moduleKey: "tools",
     pagePath: HABITS_PAGE_PATH,
   },
+  {
+    name: "ai_employee.list",
+    description:
+      "List AI employees in the organization locked in this session. Owner or admin only. Returns name, job title, performance status, and whether the profile is active.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.status",
+    description:
+      "Read one AI employee in the active organization by exact name, ignoring letter case. Owner or admin only. Returns the profile, current SOPs, active schedule, permissions, and remaining model calls for today in Asia/Jakarta.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.runs.list",
+    description:
+      "List the latest work logs for one AI employee in the active organization. Owner or admin only. Requires employee_name. Optional limit is 1 to 50 and defaults to 10. Returns start, SOP, status, plan count, model calls, and note.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.report",
+    description:
+      "Summarize one AI employee for a period in the active organization. Owner or admin only. Period is today, 7d, 30d, or YYYY-MM. Returns succeeded and failed runs, plans created, and the current KR1 to KR5 values.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.command",
+    description:
+      "Ask one AI employee to do an ad-hoc content task. Owner or admin only. Requires employee_name and instruction. dry_run defaults to true and does not create a content plan. Rejects payroll, finance, HR, CRM, and ads work. A matching name must be unique.",
+    scopes: ["session:read"],
+  },
 ];
 
 const MUTATING_TOOLS = new Set<McpToolName>([
@@ -610,6 +654,7 @@ const MUTATING_TOOLS = new Set<McpToolName>([
   "habits.check",
   "thinking.plan.save",
   "thinking.plan.direct",
+  "ai_employee.command",
 ]);
 
 export const MCP_TOOLS: McpTool[] = TOOL_DEFINITIONS.map((tool) =>

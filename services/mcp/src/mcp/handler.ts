@@ -49,6 +49,9 @@ import type { AccessClaims } from "../oauth/tokens";
 import {
   adsAccountsInput,
   adsAccountsResult,
+  adsPerformanceInput,
+  adsPerformanceResult,
+  parseAdsPerformanceQuery,
   calendarInput,
   calendarResult,
   contentPlansInput,
@@ -176,6 +179,11 @@ import {
   habitsListResult,
   habitCheckInput,
   habitCheckResult,
+  aiEmployeeListInput,
+  aiEmployeeNameInput,
+  aiEmployeeRunsInput,
+  aiEmployeeReportInput,
+  aiEmployeeCommandInput,
 } from "../tools";
 import type { ToolCallOutcome } from "../db/toolGate";
 import { filterTools, isToolVisible } from "./filterTools";
@@ -190,6 +198,10 @@ export type McpReadDeps = {
   listOkrDepartments: (ctx: McpAuthContext) => Promise<OkrDepartmentRow[]>;
   listCrmLeads: (ctx: McpAuthContext, status: string | null) => Promise<CrmLeadRow[]>;
   listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
+  listAdsPerformance: (
+    ctx: McpAuthContext,
+    query: import("../tools/ads/performanceSummary").AdsPerformanceQuery,
+  ) => Promise<import("../tools/ads/performanceSummary").AdsPerformanceSummary>;
   listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
   listExpenses: (ctx: McpAuthContext, month: string | null) => Promise<ExpenseRow[]>;
   listEmployees: (ctx: McpAuthContext) => Promise<EmployeeRow[]>;
@@ -345,6 +357,14 @@ export type McpReadDeps = {
   attachTaskStepImage: (ctx: McpAuthContext, input: { stepId: string; imageUrl: string }) => Promise<TaskStepImageRecord>;
   listHabits: (ctx: McpAuthContext, date: string | null) => Promise<HabitDayRow[]>;
   checkHabit: (ctx: McpAuthContext, input: HabitCheckInput) => Promise<HabitCheckResult>;
+  listAiEmployees: (ctx: McpAuthContext) => Promise<import("../db/aiEmployee").AiEmployeeListItem[]>;
+  aiEmployeeStatus: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
+  aiEmployeeRuns: (ctx: McpAuthContext, employeeName: string, limit: number | null) => Promise<unknown>;
+  aiEmployeeReport: (ctx: McpAuthContext, employeeName: string, period: string) => Promise<unknown>;
+  aiEmployeeCommand: (
+    ctx: McpAuthContext,
+    input: { employeeName: string; instruction: string; dryRun: boolean | null },
+  ) => Promise<unknown>;
   switchOrganization: (ctx: McpAuthContext, organizationId: string) => Promise<void>;
 };
 
@@ -430,6 +450,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "okr.departments.list": departmentsInput,
   "crm.leads.list": leadsInput,
   "ads.accounts.list": adsAccountsInput,
+  "ads.performance.summary": adsPerformanceInput,
   "finance.income.list": incomeInput,
   "finance.income.create": createIncomeInput,
   "finance.income.update": updateIncomeSchema,
@@ -480,6 +501,11 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "thinking.execution.check": executionCheckInput,
   "thinking.plan.save": planSaveInput,
   "thinking.plan.direct": planDirectInput,
+  "ai_employee.list": aiEmployeeListInput,
+  "ai_employee.status": aiEmployeeNameInput,
+  "ai_employee.runs.list": aiEmployeeRunsInput,
+  "ai_employee.report": aiEmployeeReportInput,
+  "ai_employee.command": aiEmployeeCommandInput,
 };
 
 async function runTool(
@@ -520,6 +546,11 @@ async function runTool(
       return leadsResult(ctx, optionalString(args.status), deps.listCrmLeads);
     case "ads.accounts.list":
       return adsAccountsResult(ctx, deps.listAdsAccounts);
+    case "ads.performance.summary": {
+      const query = parseAdsPerformanceQuery(args);
+      if (!query) throw new Error("invalid_input");
+      return adsPerformanceResult(ctx, query, deps.listAdsPerformance);
+    }
     case "finance.income.list":
       return incomeResult(ctx, optionalString(args.month), deps.listIncomeTransactions);
     case "finance.expenses.list":
@@ -865,6 +896,20 @@ async function runTool(
         },
         deps.checkHabit,
       );
+    case "ai_employee.list":
+      return deps.listAiEmployees(ctx);
+    case "ai_employee.status":
+      return deps.aiEmployeeStatus(ctx, requiredString(args.employee_name));
+    case "ai_employee.runs.list":
+      return deps.aiEmployeeRuns(ctx, requiredString(args.employee_name), optionalNumber(args.limit));
+    case "ai_employee.report":
+      return deps.aiEmployeeReport(ctx, requiredString(args.employee_name), requiredString(args.period));
+    case "ai_employee.command":
+      return deps.aiEmployeeCommand(ctx, {
+        employeeName: requiredString(args.employee_name),
+        instruction: requiredString(args.instruction),
+        dryRun: typeof args.dry_run === "boolean" ? args.dry_run : null,
+      });
   }
 }
 

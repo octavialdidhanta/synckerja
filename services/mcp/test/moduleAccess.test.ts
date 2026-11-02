@@ -20,6 +20,13 @@ const claims: AccessClaims = {
 };
 
 const sessionTools = ["session.whoami", "session.orgs.list", "session.switchOrg"];
+const aiEmployeeTools = [
+  "ai_employee.list",
+  "ai_employee.status",
+  "ai_employee.runs.list",
+  "ai_employee.report",
+  "ai_employee.command",
+];
 
 const base = {
   claims,
@@ -82,7 +89,7 @@ describe("buildAuthContext", () => {
       configurations: [],
     });
     expect(ctx.membershipActive).toBe(false);
-    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(sessionTools);
+    expect(filterTools(ctx).map((tool) => tool.name)).toEqual([...sessionTools, ...aiEmployeeTools]);
   });
 
   it("hides content plans when the token did not grant content:read", () => {
@@ -90,7 +97,7 @@ describe("buildAuthContext", () => {
       ...base,
       claims: { ...claims, scopes: ["session:read"] },
     });
-    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(sessionTools);
+    expect(filterTools(ctx).map((tool) => tool.name)).toEqual([...sessionTools, ...aiEmployeeTools]);
   });
 
   it("hides content plans when the sales module is off and still allows whoami", () => {
@@ -121,7 +128,7 @@ describe("buildAuthContext", () => {
       configurations: [],
       subscriptionSelfServiceEnabled: true,
     });
-    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(sessionTools);
+    expect(filterTools(ctx).map((tool) => tool.name)).toEqual([...sessionTools, ...aiEmployeeTools]);
   });
 
   it("shows the calendar with content plans and hides OKR and leads for a content-only page", () => {
@@ -134,6 +141,7 @@ describe("buildAuthContext", () => {
       "content.plans.list",
       "content.calendar.list",
       "content.catalog.list",
+      ...aiEmployeeTools,
     ]);
   });
 
@@ -207,6 +215,7 @@ describe("phase 2 tool visibility", () => {
     const names = filterTools(ctx).map((tool) => tool.name);
     expect(names).toContain("content.plans.list");
     expect(names).not.toContain("ads.accounts.list");
+    expect(names).not.toContain("ads.performance.summary");
     expect(names).not.toContain("finance.income.list");
     expect(names).not.toContain("finance.expenses.list");
     expect(names).not.toContain("hr.employees.list");
@@ -252,6 +261,7 @@ describe("phase 2 tool visibility", () => {
       configurations: [{ page_path: "/digital-marketing/tiktok-ads", roles_allowed: ["employee"] }],
     });
     expect(filterTools(ctx).map((tool) => tool.name)).toContain("ads.accounts.list");
+    expect(filterTools(ctx).map((tool) => tool.name)).toContain("ads.performance.summary");
   });
 
   it("hides income and expenses when the finance module is off and still allows whoami", () => {
@@ -280,7 +290,7 @@ describe("phase 2 tool visibility", () => {
       claims: { ...claims, scopes: phase2Scopes },
       configurations: [],
     });
-    expect(filterTools(ctx).map((tool) => tool.name)).toEqual(sessionTools);
+    expect(filterTools(ctx).map((tool) => tool.name)).toEqual([...sessionTools, ...aiEmployeeTools]);
   });
 });
 

@@ -79,6 +79,10 @@ export type AppDeps = {
   listOkrDepartments: (ctx: McpAuthContext) => Promise<OkrDepartmentRow[]>;
   listCrmLeads: (ctx: McpAuthContext, status: string | null) => Promise<CrmLeadRow[]>;
   listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
+  listAdsPerformance: (
+    ctx: McpAuthContext,
+    query: import("../tools/ads/performanceSummary").AdsPerformanceQuery,
+  ) => Promise<import("../tools/ads/performanceSummary").AdsPerformanceSummary>;
   listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
   listExpenses: (ctx: McpAuthContext, month: string | null) => Promise<ExpenseRow[]>;
   listEmployees: (ctx: McpAuthContext) => Promise<EmployeeRow[]>;
@@ -234,6 +238,14 @@ export type AppDeps = {
   attachTaskStepImage: (ctx: McpAuthContext, input: { stepId: string; imageUrl: string }) => Promise<TaskStepImageRecord>;
   listHabits: (ctx: McpAuthContext, date: string | null) => Promise<HabitDayRow[]>;
   checkHabit: (ctx: McpAuthContext, input: HabitCheckInput) => Promise<HabitCheckResult>;
+  listAiEmployees: (ctx: McpAuthContext) => Promise<import("../db/aiEmployee").AiEmployeeListItem[]>;
+  aiEmployeeStatus: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
+  aiEmployeeRuns: (ctx: McpAuthContext, employeeName: string, limit: number | null) => Promise<unknown>;
+  aiEmployeeReport: (ctx: McpAuthContext, employeeName: string, period: string) => Promise<unknown>;
+  aiEmployeeCommand: (
+    ctx: McpAuthContext,
+    input: { employeeName: string; instruction: string; dryRun: boolean | null },
+  ) => Promise<unknown>;
   now?: () => Date;
 };
 

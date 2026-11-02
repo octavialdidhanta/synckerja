@@ -1306,6 +1306,8 @@ describe("phase 0 tool inputs", () => {
     const objectives = readFileSync(new URL("../src/tools/okr/objectivesList.ts", import.meta.url), "utf8");
     const leads = readFileSync(new URL("../src/tools/crm/leadsList.ts", import.meta.url), "utf8");
     const ads = readFileSync(new URL("../src/tools/ads/accountsList.ts", import.meta.url), "utf8");
+    const adsPerformance = readFileSync(new URL("../src/tools/ads/performanceSummary.ts", import.meta.url), "utf8");
+    const adsPerformanceDb = readFileSync(new URL("../src/db/adsPerformance.ts", import.meta.url), "utf8");
     const income = readFileSync(new URL("../src/tools/finance/incomeList.ts", import.meta.url), "utf8");
     const expenses = readFileSync(new URL("../src/tools/finance/expensesList.ts", import.meta.url), "utf8");
     const employees = readFileSync(new URL("../src/tools/hr/employeesList.ts", import.meta.url), "utf8");
@@ -1373,6 +1375,8 @@ describe("phase 0 tool inputs", () => {
       objectives,
       leads,
       ads,
+      adsPerformance,
+      adsPerformanceDb,
       income,
       expenses,
       employees,

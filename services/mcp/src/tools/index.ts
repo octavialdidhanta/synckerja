@@ -10,6 +10,7 @@ export { objectivesInput, objectivesResult } from "./okr/objectivesList";
 export { departmentsInput, departmentsResult } from "./okr/departmentsList";
 export { leadsInput, leadsResult } from "./crm/leadsList";
 export { adsAccountsInput, adsAccountsResult } from "./ads/accountsList";
+export { adsPerformanceInput, adsPerformanceResult, parseAdsPerformanceQuery } from "./ads/performanceSummary";
 export { incomeInput, incomeResult } from "./finance/incomeList";
 export { createIncomeInput, createIncomeResult } from "./finance/incomeCreate";
 export { updateIncomeInput, updateIncomeResult, updateIncomeSchema } from "./finance/incomeUpdate";
@@ -61,3 +62,10 @@ export { chainReadInput, chainReadResult } from "./thinking/chainRead";
 export { executionCheckInput, executionCheckResult } from "./thinking/executionCheck";
 export { planSaveInput, planSaveResult } from "./thinking/planSave";
 export { planDirectInput, planDirectResult } from "./thinking/planDirect";
+export {
+  aiEmployeeCommandInput,
+  aiEmployeeListInput,
+  aiEmployeeNameInput,
+  aiEmployeeReportInput,
+  aiEmployeeRunsInput,
+} from "./aiEmployee/rules";
