@@ -242,6 +242,7 @@ describe("ai employee tool list", () => {
       "ai_employee.status",
       "ai_employee.runs.list",
       "ai_employee.report",
+      "ai_employee.queue.list",
       "ai_employee.command",
       "ai_employee.chat",
       "ai_employee.schedule.update",

@@ -88,6 +88,7 @@ export type McpToolName =
   | "ai_employee.status"
   | "ai_employee.runs.list"
   | "ai_employee.report"
+  | "ai_employee.queue.list"
   | "ai_employee.command"
   | "ai_employee.chat"
   | "ai_employee.schedule.update"
@@ -625,7 +626,13 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "ai_employee.report",
     description:
-      "Summarize one AI employee's own work for a period in the active organization. Owner or admin only. employee_name may be a unique short nickname. Period is today, 7d, 30d, or YYYY-MM. Returns succeeded and failed runs, plans created, and the current KR1 to KR5 values. This is not an HR or payroll report. If the user asks Naya for an HR report, call ai_employee.command and show the outside_job_desk refusal as \"Naya: ...\" instead of calling HR tools.",
+      "Summarize one AI employee's own work for a period in the active organization. Owner or admin only. employee_name may be a unique short nickname. Period is today, 7d, 30d, or YYYY-MM. Returns succeeded and failed runs, plans created, the current KR1 to KR5 values, and how many queue jobs finished as done, rejected, or failed in that period. This is not an HR or payroll report. If the user asks Naya for an HR report, call ai_employee.command and show the outside_job_desk refusal as \"Naya: ...\" instead of calling HR tools.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.queue.list",
+    description:
+      "List the latest queue jobs for one AI employee in the active organization. Owner or admin only. employee_name may be a unique short nickname. Returns source, priority, status, attempts, reason, and timestamps. It does not start a job or call the model.",
     scopes: ["session:read"],
   },
   {

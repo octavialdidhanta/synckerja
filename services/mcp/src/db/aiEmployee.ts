@@ -187,6 +187,25 @@ export async function aiEmployeeRuns(
   };
 }
 
+export async function aiEmployeeQueueList(
+  admin: SupabaseClient,
+  ctx: McpAuthContext,
+  employeeName: string,
+) {
+  const employee = await requireNamedEmployee(admin, ctx, employeeName);
+  if ("error" in employee) return employee;
+  const { data, error } = await admin.rpc("mcp_list_ai_employee_jobs", {
+    p_user_id: ctx.userId,
+    p_organization_id: ctx.organizationId,
+    p_employee_id: employee.id,
+  });
+  if (error) throw new Error("query_failed");
+  return {
+    name: employee.full_name,
+    jobs: Array.isArray(data) ? data : [],
+  };
+}
+
 export async function aiEmployeeReport(
   admin: SupabaseClient,
   ctx: McpAuthContext,
@@ -223,6 +242,17 @@ export async function aiEmployeeReport(
   const succeeded = runs.filter((row) => row.status === "succeeded").length;
   const failed = runs.filter((row) => row.status === "failed").length;
   const plans = runs.reduce((sum, row) => sum + (asNumber(row.plan_count) ?? 0), 0);
+  const counted = await admin.rpc("mcp_ai_employee_job_counts", {
+    p_user_id: ctx.userId,
+    p_organization_id: ctx.organizationId,
+    p_employee_id: employee.id,
+    p_start: start,
+    p_end: end.toISOString(),
+  });
+  if (counted.error) throw new Error("query_failed");
+  const jobs = counted.data && typeof counted.data === "object"
+    ? counted.data as { done?: unknown; rejected?: unknown; failed?: unknown }
+    : {};
   return {
     name: employee.full_name,
     period: window,
@@ -230,6 +260,9 @@ export async function aiEmployeeReport(
     runs_failed: failed,
     runs_other: runs.length - succeeded - failed,
     plans_created: plans,
+    jobs_done: asNumber(jobs.done) ?? 0,
+    jobs_rejected: asNumber(jobs.rejected) ?? 0,
+    jobs_failed: asNumber(jobs.failed) ?? 0,
     key_results: keyResults
       .filter((row) => typeof row.ai_kr_code === "string")
       .map((row) => ({
