@@ -8,6 +8,10 @@ import {
   requireOrgAdmin,
 } from "../_shared/googleAdsAuth.ts";
 import {
+  isActiveOrganizationMember,
+  mcpServiceInternalUserId,
+} from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
+import {
   fetchAllGaqlListRows,
   gaqlSearchPage,
   isManagerCustomerAccount,
@@ -1200,8 +1204,6 @@ Deno.serve(async (req: Request) => {
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey);
-  const userRes = await getUserFromBearer(admin, req.headers.get("Authorization"));
-  if ("error" in userRes) return userRes.error;
 
   let body: Record<string, unknown>;
   try {
@@ -1216,20 +1218,32 @@ Deno.serve(async (req: Request) => {
     return googleAdsJson({ error: "Missing organization_id" }, 400);
   }
 
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("active_organization_id")
-    .eq("user_id", userRes.userId)
-    .maybeSingle();
-  const activeOrg = profile?.active_organization_id != null
-    ? String(profile.active_organization_id)
-    : "";
-  if (!activeOrg || activeOrg !== organizationId) {
-    return googleAdsJson({ error: "Forbidden" }, 403);
-  }
+  const mcpUserId = mcpServiceInternalUserId(req, body);
+  let userRes: { userId: string };
+  if (mcpUserId) {
+    const member = await isActiveOrganizationMember(admin, mcpUserId, organizationId);
+    if (!member) return googleAdsJson({ error: "Forbidden" }, 403);
+    userRes = { userId: mcpUserId };
+  } else {
+    const bearer = await getUserFromBearer(admin, req.headers.get("Authorization"));
+    if ("error" in bearer) return bearer.error;
+    userRes = bearer;
 
-  const forbidden = await requireOrgAdmin(admin, userRes.userId, organizationId);
-  if (forbidden) return forbidden;
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("active_organization_id")
+      .eq("user_id", userRes.userId)
+      .maybeSingle();
+    const activeOrg = profile?.active_organization_id != null
+      ? String(profile.active_organization_id)
+      : "";
+    if (!activeOrg || activeOrg !== organizationId) {
+      return googleAdsJson({ error: "Forbidden" }, 403);
+    }
+
+    const forbidden = await requireOrgAdmin(admin, userRes.userId, organizationId);
+    if (forbidden) return forbidden;
+  }
 
   if (action === "listMetricCatalog") {
     const entity = parseEntity(body.entity);

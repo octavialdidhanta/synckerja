@@ -98,7 +98,7 @@ CREATE POLICY ai_employee_model_calls_select ON public.ai_employee_model_calls
     EXISTS (
       SELECT 1
       FROM public.employees e
-      WHERE e.id = employee_id
+      WHERE e.id = ai_employee_model_calls.employee_id
         AND e.organization_id IN (SELECT public.user_organization_ids())
     )
   );

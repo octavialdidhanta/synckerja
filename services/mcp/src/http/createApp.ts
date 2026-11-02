@@ -79,6 +79,10 @@ export type AppDeps = {
   listOkrDepartments: (ctx: McpAuthContext) => Promise<OkrDepartmentRow[]>;
   listCrmLeads: (ctx: McpAuthContext, status: string | null) => Promise<CrmLeadRow[]>;
   listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
+  listAdsPerformance: (
+    ctx: McpAuthContext,
+    query: import("../tools/ads/performanceSummary").AdsPerformanceQuery,
+  ) => Promise<import("../tools/ads/performanceSummary").AdsPerformanceSummary>;
   listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
   listExpenses: (ctx: McpAuthContext, month: string | null) => Promise<ExpenseRow[]>;
   listEmployees: (ctx: McpAuthContext) => Promise<EmployeeRow[]>;

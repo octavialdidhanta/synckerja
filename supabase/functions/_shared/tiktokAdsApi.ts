@@ -233,13 +233,18 @@ export async function fetchTikTokIntegratedReport(
     page += 1;
   }
 
+  const completePaymentRoas = parseFloat(String(totalMetrics.complete_payment_roas ?? ""));
   const summary = {
     spend: parseFloat(String(totalMetrics.spend ?? 0)) || 0,
     impressions: parseFloat(String(totalMetrics.impressions ?? 0)) || 0,
     clicks: parseFloat(String(totalMetrics.clicks ?? 0)) || 0,
     reach: parseFloat(String(totalMetrics.reach ?? 0)) || 0,
     conversion: parseFloat(String(totalMetrics.conversion ?? 0)) || 0,
-    currency: String(totalMetrics.currency ?? "USD"),
+    complete_payment: parseFloat(String(totalMetrics.complete_payment ?? 0)) || 0,
+    complete_payment_roas: Number.isFinite(completePaymentRoas) ? completePaymentRoas : null,
+    currency: totalMetrics.currency != null && String(totalMetrics.currency).trim() !== ""
+      ? String(totalMetrics.currency)
+      : null,
   };
 
   return { rows: allRows, summary };

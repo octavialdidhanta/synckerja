@@ -39,6 +39,25 @@ export async function isActiveOrganizationMember(
   return (data as { is_active?: boolean | null }).is_active !== false;
 }
 
+const MCP_USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Ads dashboard reads from MCP. The caller must present the service-role bearer
+ * and the internal secret. A user JWT never takes this path.
+ */
+export function mcpServiceInternalUserId(req: Request, body: Record<string, unknown>): string | null {
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const secret = Deno.env.get("SCHEDULED_POSTS_INTERNAL_SECRET") ?? "";
+  const header = req.headers.get("Authorization") ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  const provided = typeof body.internal_secret === "string" ? body.internal_secret : "";
+  const userId = typeof body.mcp_user_id === "string" ? body.mcp_user_id.trim() : "";
+  if (!serviceRoleKey || !secret || token !== serviceRoleKey || provided !== secret || !MCP_USER_ID.test(userId)) {
+    return null;
+  }
+  return userId;
+}
+
 /** Service role JWT or SCHEDULED_POSTS_INTERNAL_SECRET (pg_cron). */
 export function isScheduledPostsInternalAuthorized(req: Request): boolean {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";

@@ -49,6 +49,9 @@ import type { AccessClaims } from "../oauth/tokens";
 import {
   adsAccountsInput,
   adsAccountsResult,
+  adsPerformanceInput,
+  adsPerformanceResult,
+  parseAdsPerformanceQuery,
   calendarInput,
   calendarResult,
   contentPlansInput,
@@ -190,6 +193,10 @@ export type McpReadDeps = {
   listOkrDepartments: (ctx: McpAuthContext) => Promise<OkrDepartmentRow[]>;
   listCrmLeads: (ctx: McpAuthContext, status: string | null) => Promise<CrmLeadRow[]>;
   listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
+  listAdsPerformance: (
+    ctx: McpAuthContext,
+    query: import("../tools/ads/performanceSummary").AdsPerformanceQuery,
+  ) => Promise<import("../tools/ads/performanceSummary").AdsPerformanceSummary>;
   listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
   listExpenses: (ctx: McpAuthContext, month: string | null) => Promise<ExpenseRow[]>;
   listEmployees: (ctx: McpAuthContext) => Promise<EmployeeRow[]>;
@@ -430,6 +437,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "okr.departments.list": departmentsInput,
   "crm.leads.list": leadsInput,
   "ads.accounts.list": adsAccountsInput,
+  "ads.performance.summary": adsPerformanceInput,
   "finance.income.list": incomeInput,
   "finance.income.create": createIncomeInput,
   "finance.income.update": updateIncomeSchema,
@@ -520,6 +528,11 @@ async function runTool(
       return leadsResult(ctx, optionalString(args.status), deps.listCrmLeads);
     case "ads.accounts.list":
       return adsAccountsResult(ctx, deps.listAdsAccounts);
+    case "ads.performance.summary": {
+      const query = parseAdsPerformanceQuery(args);
+      if (!query) throw new Error("invalid_input");
+      return adsPerformanceResult(ctx, query, deps.listAdsPerformance);
+    }
     case "finance.income.list":
       return incomeResult(ctx, optionalString(args.month), deps.listIncomeTransactions);
     case "finance.expenses.list":

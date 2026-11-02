@@ -9,6 +9,10 @@ import {
   tiktokAdsJson,
 } from "../_shared/tiktokAdsAuth.ts";
 import {
+  isActiveOrganizationMember,
+  mcpServiceInternalUserId,
+} from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
+import {
   fetchTikTokIntegratedReport,
   type TikTokMetricEntity,
 } from "../_shared/tiktokAdsApi.ts";
@@ -239,8 +243,6 @@ Deno.serve(async (req: Request) => {
   if (platformForbidden) return platformForbidden;
 
   const admin = createClient(supabaseUrl, serviceRoleKey);
-  const userRes = await getUserFromBearer(admin, req.headers.get("Authorization"));
-  if ("error" in userRes) return userRes.error;
 
   let body: Record<string, unknown>;
   try {
@@ -252,8 +254,19 @@ Deno.serve(async (req: Request) => {
   const organizationId = String(body.organization_id ?? "").trim();
   if (!organizationId) return tiktokAdsJson({ error: "Missing organization_id" }, 400);
 
-  const orgForbidden = await requireActiveOrg(admin, userRes.userId, organizationId);
-  if (orgForbidden) return orgForbidden;
+  const mcpUserId = mcpServiceInternalUserId(req, body);
+  let userRes: { userId: string };
+  if (mcpUserId) {
+    const member = await isActiveOrganizationMember(admin, mcpUserId, organizationId);
+    if (!member) return tiktokAdsJson({ error: "Forbidden" }, 403);
+    userRes = { userId: mcpUserId };
+  } else {
+    const bearer = await getUserFromBearer(admin, req.headers.get("Authorization"));
+    if ("error" in bearer) return bearer.error;
+    userRes = bearer;
+    const orgForbidden = await requireActiveOrg(admin, userRes.userId, organizationId);
+    if (orgForbidden) return orgForbidden;
+  }
 
   const action = String(body.action ?? "").trim();
   const now = new Date();
@@ -401,7 +414,7 @@ Deno.serve(async (req: Request) => {
       impressions: summary.impressions,
       clicks: summary.clicks,
       reach: summary.reach,
-      currency: summary.currency,
+      currency: summary.currency ?? "USD",
     },
     entity,
     advertiser_id: account.advertiser_id,

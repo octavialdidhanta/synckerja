@@ -207,6 +207,7 @@ describe("phase 2 tool visibility", () => {
     const names = filterTools(ctx).map((tool) => tool.name);
     expect(names).toContain("content.plans.list");
     expect(names).not.toContain("ads.accounts.list");
+    expect(names).not.toContain("ads.performance.summary");
     expect(names).not.toContain("finance.income.list");
     expect(names).not.toContain("finance.expenses.list");
     expect(names).not.toContain("hr.employees.list");
@@ -252,6 +253,7 @@ describe("phase 2 tool visibility", () => {
       configurations: [{ page_path: "/digital-marketing/tiktok-ads", roles_allowed: ["employee"] }],
     });
     expect(filterTools(ctx).map((tool) => tool.name)).toContain("ads.accounts.list");
+    expect(filterTools(ctx).map((tool) => tool.name)).toContain("ads.performance.summary");
   });
 
   it("hides income and expenses when the finance module is off and still allows whoami", () => {

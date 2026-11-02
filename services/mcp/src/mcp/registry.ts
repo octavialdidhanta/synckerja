@@ -32,6 +32,7 @@ export type McpToolName =
   | "okr.departments.list"
   | "crm.leads.list"
   | "ads.accounts.list"
+  | "ads.performance.summary"
   | "finance.income.list"
   | "finance.income.create"
   | "finance.income.update"
@@ -172,7 +173,15 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "ads.accounts.list",
     description:
-      "List connected Google, Meta, and TikTok ad accounts for the organization locked in this session. Returns platform, label, account id, whether the account is active, whether the last connection test succeeded, and when it was connected. Access tokens, page tokens, and ad spend are not returned.",
+      "List connected Google, Meta, and TikTok ad accounts for the organization locked in this session. Returns platform, label, account id, whether the account is active, whether the last connection test succeeded, and when it was connected. Access tokens and page tokens are not returned. This tool does not include spend, clicks, CTR, CPC, ROAS, or other performance metrics. For which account or metric is performing, call ads.performance.summary.",
+    scopes: ["ads:read"],
+    moduleKey: "digitalMarketing",
+    pagePaths: ADS_PAGE_PATHS,
+  },
+  {
+    name: "ads.performance.summary",
+    description:
+      "Compare paid ads for the organization locked in this session using the same campaign tab as the Synckerja ads pages. Call this when the user asks which ad account or campaign is performing, which metric is performing, or how Google, Meta, or TikTok ads are doing. Omit month and dates for the last 30 days in Asia/Jakarta, the page default. Optional month is YYYY-MM. Optional date_start and date_end are YYYY-MM-DD and replace month. Optional platform is google, meta, or tiktok. Follow how_to_read. When matches_dashboard is true, account totals are the summary bar and campaigns are the highest-spend rows on that tab. Google uses Delivery on and Enabled off. Meta clicks are link clicks and Meta results are purchases. TikTok omits purchases and ROAS because that tab does not show them. If the screen uses another date or filter, say the ranges differ instead of treating the numbers as the same. Ranges longer than 366 days are cut to the latest 366 days. Access tokens are not returned.",
     scopes: ["ads:read"],
     moduleKey: "digitalMarketing",
     pagePaths: ADS_PAGE_PATHS,
