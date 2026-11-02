@@ -367,6 +367,7 @@ export type McpReadDeps = {
   aiEmployeeStatus: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
   aiEmployeeRuns: (ctx: McpAuthContext, employeeName: string, limit: number | null) => Promise<unknown>;
   aiEmployeeReport: (ctx: McpAuthContext, employeeName: string, period: string) => Promise<unknown>;
+  aiEmployeeQueueList: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
   aiEmployeeCommand: (
     ctx: McpAuthContext,
     input: { employeeName: string; instruction: string; dryRun: boolean | null },
@@ -546,6 +547,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "ai_employee.status": aiEmployeeNameInput,
   "ai_employee.runs.list": aiEmployeeRunsInput,
   "ai_employee.report": aiEmployeeReportInput,
+  "ai_employee.queue.list": aiEmployeeNameInput,
   "ai_employee.command": aiEmployeeCommandInput,
   "ai_employee.chat": aiEmployeeChatInput,
   "ai_employee.schedule.update": aiEmployeeScheduleUpdateInput,
@@ -950,6 +952,8 @@ async function runTool(
       return deps.aiEmployeeRuns(ctx, requiredString(args.employee_name), optionalNumber(args.limit));
     case "ai_employee.report":
       return deps.aiEmployeeReport(ctx, requiredString(args.employee_name), requiredString(args.period));
+    case "ai_employee.queue.list":
+      return deps.aiEmployeeQueueList(ctx, requiredString(args.employee_name));
     case "ai_employee.command":
       return deps.aiEmployeeCommand(ctx, {
         employeeName: requiredString(args.employee_name),

@@ -290,6 +290,33 @@ export function chooseProduct(rows, requestedId) {
   return (list.find(open) ?? list[0])?.id ?? null;
 }
 
+const JOB_CONTENT_REQUEST = /\b(content plan|konten|brief|caption|posting|pillar|kalender)\b/i;
+
+const JOB_OUTSIDE = [
+  { label: "payroll", pattern: /\b(payroll|penggajian|slip gaji|gaji)\b/i },
+  { label: "keuangan", pattern: /\b(keuangan|finance|invoice|hutang|piutang|pengeluaran|pemasukan)\b/i },
+  { label: "HR", pattern: /\b(hrd?|rekrutmen|rekrut|cuti|phk|absensi)\b/i },
+  { label: "CRM", pattern: /\b(crm|prospek)\b/i },
+  { label: "ads", pattern: /\b(ads|iklan|google ads|meta ads|tiktok ads)\b/i },
+];
+
+export function withJobClaim(payload, claimToken) {
+  if (typeof claimToken !== "string" || claimToken.length === 0) return payload;
+  const base = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  return { ...base, claim_token: claimToken };
+}
+
+export function judgeJobDesk(instruction) {
+  const text = String(instruction ?? "").trim();
+  if (JOB_CONTENT_REQUEST.test(text)) return { ok: true };
+  const areas = JOB_OUTSIDE.filter((item) => item.pattern.test(text)).map((item) => item.label);
+  if (areas.length === 0) return { ok: true };
+  return {
+    ok: false,
+    reason: `Instruksi ini masuk wilayah ${areas.join(", ")}. Naya mengerjakan content plan, brief, dan ide konten.`,
+  };
+}
+
 export function chooseProductFields(requested, row) {
   if (!row) return [];
   const seen = new Set();

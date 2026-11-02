@@ -68,7 +68,7 @@ import { accessRevokedAt, recordToolCall, takeToolSlot } from "./db/toolGate";
 import { scheduleContentPlan } from "./db/scheduleContentPlan";
 import { createApp } from "./http/createApp";
 import { SupabaseGrantStore } from "./oauth/supabaseStore";
-import { aiEmployeeBriefGet, aiEmployeeBriefUpdate, aiEmployeeChat, aiEmployeeCommand, aiEmployeeReport, aiEmployeeRuns, aiEmployeeScheduleUpdate, aiEmployeeStatus, listAiEmployees } from "./db/aiEmployee";
+import { aiEmployeeBriefGet, aiEmployeeBriefUpdate, aiEmployeeChat, aiEmployeeCommand, aiEmployeeQueueList, aiEmployeeReport, aiEmployeeRuns, aiEmployeeScheduleUpdate, aiEmployeeStatus, listAiEmployees } from "./db/aiEmployee";
 import { listProductKnowledge } from "./db/productKnowledge";
 
 const config = loadConfig();
@@ -147,6 +147,7 @@ const app = createApp({
   aiEmployeeStatus: (ctx, employeeName) => aiEmployeeStatus(admin, ctx, employeeName),
   aiEmployeeRuns: (ctx, employeeName, limit) => aiEmployeeRuns(admin, ctx, employeeName, limit),
   aiEmployeeReport: (ctx, employeeName, period) => aiEmployeeReport(admin, ctx, employeeName, period),
+  aiEmployeeQueueList: (ctx, employeeName) => aiEmployeeQueueList(admin, ctx, employeeName),
   aiEmployeeCommand: (ctx, input) => aiEmployeeCommand(admin, config, ctx, input),
   aiEmployeeChat: (ctx, input) => aiEmployeeChat(admin, config, ctx, input),
   aiEmployeeScheduleUpdate: (ctx, input) => aiEmployeeScheduleUpdate(admin, ctx, input),

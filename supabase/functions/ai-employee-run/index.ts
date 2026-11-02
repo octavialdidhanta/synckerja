@@ -12,6 +12,8 @@ import {
   chooseBrandFocus,
   chooseProduct,
   chooseProductFields,
+  judgeJobDesk,
+  withJobClaim,
   chooseSop1Pillar,
   fourWeekBounds,
   greetingReply,
@@ -103,11 +105,14 @@ Deno.serve(async (req: Request) => {
   const requestedDate = body.post_date == null || body.post_date === "" ? "" : String(body.post_date).trim();
   const today = jakartaToday();
   const mode = body.mode == null || body.mode === "" ? "plan" : String(body.mode);
-  if (mode !== "plan" && mode !== "chat" && mode !== "sop1" && mode !== "sop3") return json({ error: "invalid_input" }, 400);
+  if (mode !== "plan" && mode !== "chat" && mode !== "sop1" && mode !== "sop3" && mode !== "job") return json({ error: "invalid_input" }, 400);
   const chat = mode === "chat";
   const sop1 = mode === "sop1";
   const sop3 = mode === "sop3";
-  if (!isUuid(employeeId) || instruction.length > 4000 || (!sop1 && !instruction)) return json({ error: "invalid_input" }, 400);
+  const jobMode = mode === "job";
+  const jobId = typeof body.job_id === "string" ? body.job_id.trim() : "";
+  if (jobMode && (!isUuid(jobId) || body.dry_run === true)) return json({ error: "invalid_input" }, 400);
+  if (!isUuid(employeeId) || instruction.length > 4000 || (!sop1 && !jobMode && !instruction)) return json({ error: "invalid_input" }, 400);
   if (requestedDate && (!isDay(requestedDate) || requestedDate < today)) return json({ error: "invalid_input" }, 400);
   if (body.dry_run != null && typeof body.dry_run !== "boolean") return json({ error: "invalid_input" }, 400);
   const dryRun = body.dry_run === true;
@@ -190,6 +195,14 @@ Deno.serve(async (req: Request) => {
   let runId: string | null = null;
   let modelCalls = 0;
   let planId: string | null = null;
+  let workInstruction = instruction;
+  let jobTaken = false;
+  let claimToken: string | null = null;
+  let jobClosed = false;
+  let jobSource: string | null = null;
+  let jobPlanId: string | null = null;
+  let jobText = "";
+  let jobDoneRevisions = 0;
   const planIds: string[] = [];
   let closed = false;
   const finish = async (status: "succeeded" | "failed" | "deferred" | "late", note = status) => {
@@ -206,6 +219,28 @@ Deno.serve(async (req: Request) => {
     });
     if (result.status < 200 || result.status >= 300) throw new Error("finish_failed");
     closed = true;
+  };
+  const closeJob = async (
+    status: "done" | "failed" | "rejected" | "deferred",
+    reason = "",
+    savedPlan: string | null = null,
+    title = "",
+    brief = "",
+  ) => {
+    if (!jobTaken || jobClosed || !jobId) return;
+    jobClosed = true;
+    const result = await rpc("ai_employee_job_finish", {
+      p_employee_id: employeeId,
+      p_job_id: jobId,
+      p_run_id: runId,
+      p_status: status,
+      p_reason: reason.slice(0, 500),
+      p_plan_id: savedPlan,
+      p_title: title.slice(0, 200),
+      p_brief: brief.slice(0, 8000),
+      p_claim_token: claimToken,
+    });
+    if (result.status < 200 || result.status >= 300) throw new Error("job_finish_failed");
   };
 
   let chatClock = zonedClock("Asia/Jakarta");
@@ -231,12 +266,79 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    if (jobMode) {
+      const taken = await rpc("ai_employee_job_take", {
+        p_employee_id: employeeId,
+        p_job_id: jobId,
+      });
+      const row = taken.body && typeof taken.body === "object" ? taken.body as Record<string, unknown> : null;
+      const source = row ? String(row.source ?? "") : "";
+      const takenToken = row?.claim_token;
+      if (
+        taken.status < 200 || taken.status >= 300
+        || (source !== "task" && source !== "revision")
+        || typeof takenToken !== "string"
+        || !isUuid(takenToken)
+      ) {
+        return json({ ok: false, error: "job_not_claimed", run_id: null }, 409);
+      }
+      claimToken = takenToken;
+      jobTaken = true;
+      jobSource = source;
+      jobPlanId = typeof row?.plan_id === "string" ? row.plan_id : null;
+      jobDoneRevisions = Number(row?.done_revisions ?? 0);
+      const title = String(row?.task_title ?? row?.plan_title ?? "");
+      const description = String(row?.task_description ?? "");
+      const reason = String(row?.reason ?? "");
+      const planBrief = String(row?.plan_brief ?? "");
+      jobText = source === "revision"
+        ? `Revisi plan.\nJudul: ${title}\nBrief sekarang:\n${planBrief}\nAlasan penolakan: ${reason}`
+        : `${title}\n${description}`.trim();
+    }
+
     const started = await rpc("ai_employee_run_start", {
       p_employee_id: employeeId,
-      p_sop_code: sop1 ? "SOP1" : chat ? "CHAT" : sop3 ? "SOP3" : "SOP2",
+      p_sop_code: sop1 ? "SOP1" : chat ? "CHAT" : (sop3 || jobSource === "revision") ? "SOP3" : "SOP2",
     });
     runId = typeof started.body === "string" && isUuid(started.body) ? started.body : null;
-    if (!runId) return json({ error: "run_start_failed" }, started.status === 401 ? 500 : 502);
+    if (!runId) {
+      if (jobTaken) await closeJob("failed", "run_start_failed").catch(() => undefined);
+      return json({ error: "run_start_failed" }, started.status === 401 ? 500 : 502);
+    }
+
+    if (jobMode) {
+      const bound = await rpc("ai_employee_job_bind", {
+        p_employee_id: employeeId,
+        p_job_id: jobId,
+        p_run_id: runId,
+        p_claim_token: claimToken,
+      });
+      if (bound.status < 200 || bound.status >= 300) {
+        await closeJob("failed", "job_bind_failed").catch(() => undefined);
+        await finish("failed", "job_bind_failed").catch(() => undefined);
+        return json({ ok: false, error: "job_bind_failed", run_id: runId }, 409);
+      }
+      if (jobSource === "task") {
+        const desk = judgeJobDesk(jobText);
+        if (!desk.ok) {
+          await closeJob("rejected", desk.reason);
+          await finish("failed", "outside_job_desk");
+          return json({
+            ok: false,
+            error: "outside_job_desk",
+            reason: desk.reason,
+            run_id: runId,
+            model_calls: 0,
+          }, 200);
+        }
+      }
+      if (jobSource === "revision" && jobDoneRevisions >= 2) {
+        await closeJob("rejected", "Revisi sudah 2 kali. Plan kembali ke reviewer.");
+        await finish("failed", "revision_limit");
+        return json({ ok: false, error: "revision_limit", run_id: runId, model_calls: 0 }, 200);
+      }
+      workInstruction = jobText.slice(0, 4000);
+    }
 
     const loadProduct = async () => {
       const loaded = await rpc("ai_employee_context", {
@@ -589,14 +691,14 @@ Deno.serve(async (req: Request) => {
               p_employee_id: employeeId,
               p_run_id: runId,
               p_action: "thinking.execution.check",
-              p_payload: {
+              p_payload: withJobClaim({
                 idea_id: String(idea.idea_id ?? idea.id ?? ""),
                 content_pillar_id: choice.id,
                 statement: verdict.statement,
                 checks: verdict.checks,
                 facts: verdict.facts,
                 script: verdict.script,
-              },
+              }, claimToken),
             });
             const accepted = judged.body && typeof judged.body === "object"
               ? (judged.body as { accepted?: unknown; execution_id?: unknown })
@@ -638,9 +740,9 @@ Deno.serve(async (req: Request) => {
           p_employee_id: employeeId,
           p_run_id: runId,
           p_action: idea ? "thinking.plan.save" : "content.plans.create",
-          p_payload: idea
+          p_payload: withJobClaim(idea
             ? { ...plan, idea_id: String(idea.idea_id ?? idea.id ?? ""), execution_id: executionId }
-            : plan,
+            : plan, claimToken),
         });
         const createdId = performed.body && typeof performed.body === "object"
           ? (performed.body as { id?: unknown }).id
@@ -703,6 +805,7 @@ Deno.serve(async (req: Request) => {
       context[scope] = rows;
     }
     if (context.pillars.length === 0) {
+      if (jobTaken) await closeJob("failed", "no_pillars");
       await finish("failed");
       return json({ ok: false, error: "no_pillars", run_id: runId }, 422);
     }
@@ -714,6 +817,7 @@ Deno.serve(async (req: Request) => {
     });
     const reserveDecision = interpretReserve(reserved.status, reserved.body);
     if (reserveDecision.kind === "quota") {
+      if (jobTaken) await closeJob("deferred", "Kuota model habis.");
       await finish("deferred");
       return json({ ok: false, status: "deferred", error: "quota_exceeded", run_id: runId }, 200);
     }
@@ -729,14 +833,14 @@ Deno.serve(async (req: Request) => {
         brief,
         catalog: context.catalog,
         dayIndex: 0,
-        instruction,
+        instruction: workInstruction,
         allowOverride: true,
       });
     if (serviceIds.length > 0 && !service) throw new Error("brief_missing");
     const idea = pickUnusedIdea(context.thinking);
     const product = await loadProduct();
     const prompt = buildSop2Prompt({
-      instruction,
+      instruction: workInstruction,
       today,
       allowedDates,
       postDate: requestedDate,
@@ -765,6 +869,7 @@ Deno.serve(async (req: Request) => {
       const detail = publicModelFailure(modelResponse.status, modelBody);
       const note = `model_failed ${detail.status} ${detail.message}`.slice(0, 200);
       console.error("ai-employee-run model:", detail.status);
+      if (jobTaken) await closeJob("failed", note);
       await finish("failed", note);
       return json({
         ok: false,
@@ -796,6 +901,22 @@ Deno.serve(async (req: Request) => {
       product_knowledge_fields: chooseProductFields(validated.plan.product_knowledge_fields, chosen),
     };
 
+    if (jobSource === "revision") {
+      await closeJob("done", "", jobPlanId, String(plan.title ?? ""), String(plan.brief ?? ""));
+      planId = jobPlanId;
+      await finish("succeeded");
+      return json({
+        ok: true,
+        mode: "job",
+        source: "revision",
+        dry_run: false,
+        run_id: runId,
+        plan_id: planId,
+        model_calls: modelCalls,
+        draft: plan,
+      });
+    }
+
     if (dryRun) {
       await finish("succeeded");
       return json({
@@ -816,6 +937,7 @@ Deno.serve(async (req: Request) => {
       });
       const checkDecision = interpretReserve(reservedCheck.status, reservedCheck.body);
       if (checkDecision.kind === "quota") {
+        if (jobTaken) await closeJob("deferred", "Kuota model habis.");
         await finish("deferred");
         return json({ ok: false, status: "deferred", error: "quota_exceeded", run_id: runId }, 200);
       }
@@ -845,14 +967,14 @@ Deno.serve(async (req: Request) => {
         p_employee_id: employeeId,
         p_run_id: runId,
         p_action: "thinking.execution.check",
-        p_payload: {
+        p_payload: withJobClaim({
           idea_id: String(idea.idea_id ?? idea.id ?? ""),
           content_pillar_id: plan.content_pillar_id,
           statement: verdict.statement,
           checks: verdict.checks,
           facts: verdict.facts,
           script: verdict.script,
-        },
+        }, claimToken),
       });
       const accepted = judged.body && typeof judged.body === "object"
         ? (judged.body as { accepted?: unknown; execution_id?: unknown })
@@ -867,15 +989,16 @@ Deno.serve(async (req: Request) => {
       p_employee_id: employeeId,
       p_run_id: runId,
       p_action: idea ? "thinking.plan.save" : "content.plans.create",
-      p_payload: idea
+      p_payload: withJobClaim(idea
         ? { ...plan, idea_id: String(idea.idea_id ?? idea.id ?? ""), execution_id: executionId }
-        : plan,
+        : plan, claimToken),
     });
     const createdId = performed.body && typeof performed.body === "object"
       ? (performed.body as { id?: unknown }).id
       : null;
     if (performed.status < 200 || performed.status >= 300 || !isUuid(createdId)) throw new Error("perform_failed");
     planId = String(createdId);
+    if (jobMode) await closeJob("done", "", planId, String(plan.title ?? ""), String(plan.brief ?? ""));
     await finish("succeeded");
     return json({
       ok: true,
@@ -887,6 +1010,7 @@ Deno.serve(async (req: Request) => {
     });
   } catch (error) {
     console.error("ai-employee-run:", publicError(error));
+    if (jobTaken && !jobClosed) await closeJob("failed", publicError(error)).catch(() => undefined);
     if (runId && !closed) await finish("failed").catch(() => undefined);
     return json({ ok: false, error: publicError(error), run_id: runId }, 500);
   }

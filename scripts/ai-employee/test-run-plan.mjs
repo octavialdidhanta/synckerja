@@ -27,6 +27,8 @@ import {
   pickUnusedIdea,
   chooseProduct,
   chooseProductFields,
+  judgeJobDesk,
+  withJobClaim,
   parseExecutionCheck,
   parsePlanDraft,
   publicModelFailure,
@@ -532,4 +534,19 @@ test("product knowledge yang tidak dikirim tidak masuk prompt dan baris terpakai
   const row = { feature_name: "Sate belum terpakai", false_belief: "mitos", impact: "  " };
   assert.deepEqual(chooseProductFields(["impact", "rahasia", "false_belief", "false_belief"], row), ["false_belief"]);
   assert.deepEqual(chooseProductFields(["feature_name"], null), []);
+});
+
+test("job desk menolak payroll dan menerima content plan", () => {
+  const payroll = judgeJobDesk("hitung gaji karyawan");
+  assert.equal(payroll.ok, false);
+  if (!payroll.ok) assert.match(payroll.reason, /payroll/);
+  assert.equal(judgeJobDesk("buat content plan untuk minggu depan").ok, true);
+  assert.equal(judgeJobDesk("buat content plan tentang gaji").ok, true);
+});
+
+test("withJobClaim hanya menempelkan token klaim yang ada", () => {
+  const token = "11111111-1111-4111-8111-111111111111";
+  assert.deepEqual(withJobClaim({ title: "A" }, token), { title: "A", claim_token: token });
+  assert.deepEqual(withJobClaim({ title: "A" }, ""), { title: "A" });
+  assert.deepEqual(withJobClaim({ title: "A" }, null), { title: "A" });
 });

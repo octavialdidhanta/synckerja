@@ -242,6 +242,7 @@ export type AppDeps = {
   aiEmployeeStatus: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
   aiEmployeeRuns: (ctx: McpAuthContext, employeeName: string, limit: number | null) => Promise<unknown>;
   aiEmployeeReport: (ctx: McpAuthContext, employeeName: string, period: string) => Promise<unknown>;
+  aiEmployeeQueueList: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
   aiEmployeeCommand: (
     ctx: McpAuthContext,
     input: { employeeName: string; instruction: string; dryRun: boolean | null },
