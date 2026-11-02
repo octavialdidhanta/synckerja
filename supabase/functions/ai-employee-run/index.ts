@@ -6,6 +6,10 @@ import {
   authorizeCaller,
   buildChatPrompt,
   buildSop2Prompt,
+  greetingReply,
+  isSimpleChatGreeting,
+  politeAddress,
+  readChatSpeaker,
   interpretReserve,
   isDay,
   isUuid,
@@ -185,6 +189,18 @@ Deno.serve(async (req: Request) => {
     closed = true;
   };
 
+  if (chat && isSimpleChatGreeting(instruction, String(employee.full_name ?? ""))) {
+    const known = readChatSpeaker(body.speaker);
+    const address = known?.address || politeAddress(known?.name ?? "", known?.role ?? "");
+    return json({
+      ok: true,
+      mode: "chat",
+      model_calls: 0,
+      name: String(employee.full_name ?? ""),
+      reply: greetingReply(String(employee.full_name ?? ""), address),
+    });
+  }
+
   try {
     const started = await rpc("ai_employee_run_start", {
       p_employee_id: employeeId,
@@ -196,7 +212,7 @@ Deno.serve(async (req: Request) => {
     if (chat) {
       const profileResult = await admin
         .from("ai_employee_profiles")
-        .select("job_title")
+        .select("job_title, reviewer_employee_id")
         .eq("employee_id", employeeId)
         .eq("organization_id", employee.organization_id)
         .maybeSingle();
@@ -207,6 +223,51 @@ Deno.serve(async (req: Request) => {
         .eq("organization_id", employee.organization_id)
         .eq("is_current", true);
       if (profileResult.error || sopResult.error) throw new Error("context_failed");
+      let reviewerName = "";
+      const reviewerId = profileResult.data?.reviewer_employee_id;
+      if (reviewerId) {
+        const reviewerResult = await admin
+          .from("employees")
+          .select("full_name, user_id")
+          .eq("id", reviewerId)
+          .eq("organization_id", employee.organization_id)
+          .maybeSingle();
+        if (reviewerResult.error) throw new Error("context_failed");
+        reviewerName = String(reviewerResult.data?.full_name ?? "");
+        if (reviewerResult.data?.user_id) {
+          const reviewerRoles = await admin
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", reviewerResult.data.user_id)
+            .eq("organization_id", employee.organization_id);
+          if (reviewerRoles.error) throw new Error("context_failed");
+          const reviewerIsOwner = (reviewerRoles.data ?? []).some((row: { role?: string }) => String(row.role ?? "").trim().toLowerCase() === "owner");
+          if (reviewerIsOwner) reviewerName = politeAddress(reviewerName, "owner") || reviewerName;
+        }
+      }
+      let speaker = internalHeaderPresent ? readChatSpeaker(body.speaker) : null;
+      if (!speaker && userId) {
+        const callerProfile = await admin.from("profiles").select("full_name").eq("user_id", userId).maybeSingle();
+        const callerEmployee = await admin
+          .from("employees")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("organization_id", employee.organization_id)
+          .maybeSingle();
+        if (callerProfile.error || callerEmployee.error) throw new Error("context_failed");
+        const callerRole = roles.some((role) => role.trim().toLowerCase() === "owner")
+          ? "owner"
+          : roles.some((role) => role.trim().toLowerCase() === "admin")
+            ? "admin"
+            : "member";
+        const callerName = String(callerProfile.data?.full_name ?? "");
+        speaker = {
+          name: callerName,
+          role: callerRole,
+          address: politeAddress(callerName, callerRole),
+          isReviewer: Boolean(callerEmployee.data?.id && callerEmployee.data.id === reviewerId),
+        };
+      }
       const reserved = await rpc("ai_employee_reserve_model_call", {
         p_employee_id: employeeId,
         p_run_id: runId,
@@ -224,6 +285,8 @@ Deno.serve(async (req: Request) => {
         jobTitle: profileResult.data?.job_title ?? "",
         sops: sopResult.data ?? [],
         message: instruction,
+        speaker,
+        reviewerName,
       });
       const modelCall = scriptAiCall({
         url: supabaseUrl,

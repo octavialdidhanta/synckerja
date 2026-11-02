@@ -5,6 +5,9 @@ import {
   authorizeCaller,
   buildChatPrompt,
   buildSop2Prompt,
+  greetingReply,
+  isSimpleChatGreeting,
+  politeAddress,
   decodeJwtPayload,
   interpretReserve,
   jakartaToday,
@@ -196,7 +199,22 @@ test("obrolan mengembalikan reply dan tidak meminta plan", () => {
   });
   assert.match(prompt, /Sebut dirimu Naya/);
   assert.match(prompt, /Jangan membuat content plan/);
+  assert.match(prompt, /Jangan menolak sapaan/);
   assert.match(prompt, /Hai, apa kabar\?/);
+  const spoken = buildChatPrompt({
+    name: "Naya",
+    jobTitle: "Content Planner",
+    sops: [],
+    message: "gw bos lu",
+    speaker: { name: "Octa Vialdi", role: "owner", address: "Pak Aldi", isReviewer: true },
+    reviewerName: "Pak Aldi",
+  });
+  assert.match(spoken, /Pak Aldi/);
+  assert.match(spoken, /Dia reviewer kamu/);
+  assert.equal(isSimpleChatGreeting("nay", "Naya"), true);
+  assert.equal(isSimpleChatGreeting("gw bos lu", "Naya"), false);
+  assert.equal(politeAddress("Octa Vialdi", "owner"), "Pak Aldi");
+  assert.match(greetingReply("Naya", "Pak Aldi"), /Halo Pak Aldi, aku Naya/);
   assert.equal(parseChatReply("```json\n{\"reply\":\"Hai, aku Naya.\"}\n```"), "Hai, aku Naya.");
   assert.equal(parseChatReply("{\"title\":\"bukan obrolan\"}"), null);
 });

@@ -3,8 +3,11 @@ import type { McpAuthContext } from "../authz/context";
 import {
   assertOrgOwnerOrAdmin,
   chatOutsideReply,
+  greetingReply,
+  isSimpleChatGreeting,
   judgeJobDesk,
   matchEmployeeName,
+  politeAddress,
   modelAllowance,
   resolveReportPeriod,
 } from "../tools/aiEmployee/rules";
@@ -314,6 +317,31 @@ export async function aiEmployeeCommand(
   };
 }
 
+async function chatSpeaker(admin: SupabaseClient, ctx: McpAuthContext, employeeId: string) {
+  const role = ctx.roles.some((item) => item.trim().toLowerCase() === "owner")
+    ? "owner"
+    : ctx.roles.some((item) => item.trim().toLowerCase() === "admin")
+      ? "admin"
+      : "member";
+  const [profiles, reviewers] = await Promise.all([
+    ctx.userId
+      ? rows(admin, "profiles", "full_name", (query) => query.eq("user_id", ctx.userId).limit(1))
+      : Promise.resolve([]),
+    rows(admin, "ai_employee_profiles", "reviewer_employee_id", (query) => query
+      .eq("organization_id", ctx.organizationId)
+      .eq("employee_id", employeeId)
+      .limit(1)),
+  ]);
+  const name = asText(profiles[0]?.full_name) ?? "";
+  const reviewerId = asText(reviewers[0]?.reviewer_employee_id);
+  return {
+    name,
+    role,
+    address: politeAddress(name, role),
+    is_reviewer: Boolean(ctx.employeeId && reviewerId && ctx.employeeId === reviewerId),
+  };
+}
+
 export async function aiEmployeeChat(
   admin: SupabaseClient,
   caller: AiEmployeeCaller,
@@ -323,6 +351,16 @@ export async function aiEmployeeChat(
 ) {
   const employee = await requireNamedEmployee(admin, ctx, input.employeeName);
   if ("error" in employee) return employee;
+  const speaker = await chatSpeaker(admin, ctx, employee.id);
+  if (isSimpleChatGreeting(input.message, employee.full_name)) {
+    return {
+      ok: true,
+      name: employee.full_name,
+      reply: greetingReply(employee.full_name, speaker.address),
+      outside_job_desk: false,
+      model_calls: 0,
+    };
+  }
   const desk = judgeJobDesk(input.message);
   if (!desk.ok) {
     return {
@@ -338,6 +376,7 @@ export async function aiEmployeeChat(
     instruction: input.message,
     mode: "chat",
     dry_run: true,
+    speaker,
   }, fetchImpl);
   const reply = typeof result.body.reply === "string" ? result.body.reply.slice(0, 800) : "";
   if (!reply || result.body.mode !== "chat") {

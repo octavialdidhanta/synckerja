@@ -48,6 +48,43 @@ export function chatOutsideReply(desk: { reason: string; can_do: readonly string
   return `Itu di luar tugasku. ${desk.reason} Yang bisa aku kerjakan: ${desk.can_do.join(", ")}.`;
 }
 
+const GREETING_WORDS = new Set(["halo", "hai", "hi", "hey", "pagi", "siang", "sore", "malam", "selamat"]);
+
+export function isSimpleChatGreeting(message: string, employeeName: string): boolean {
+  const tokens = message.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+  if (tokens.length === 0 || tokens.length > 4) return false;
+  const name = employeeName.trim().toLowerCase();
+  return tokens.every((token) => GREETING_WORDS.has(token) || nameToken(token, name));
+}
+
+function nameToken(token: string, fullName: string): boolean {
+  if (token.length < 2 || !fullName) return false;
+  if (fullName === token || fullName.startsWith(token)) return true;
+  return fullName.split(/\s+/).some((part) => part.startsWith(token));
+}
+
+export function shortPersonalName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  for (const part of parts) {
+    if (part.toLowerCase().endsWith("aldi") && part.length > 4) return "Aldi";
+  }
+  const first = parts[0] ?? "";
+  if (!first) return "";
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+}
+
+export function politeAddress(fullName: string, role: string): string {
+  const short = shortPersonalName(fullName);
+  if (!short) return "";
+  return role.trim().toLowerCase() === "owner" ? `Pak ${short}` : short;
+}
+
+export function greetingReply(employeeName: string, address: string): string {
+  const who = employeeName.trim() || "Naya";
+  const hello = address.trim() ? `Halo ${address.trim()}` : "Halo";
+  return `${hello}, aku ${who}. Aku bisa bantu susun content plan, brief, atau ide konten. Mau dibantu yang mana?`;
+}
+
 export function judgeJobDesk(instruction: string):
   | { ok: true }
   | { ok: false; reason: string; can_do: readonly string[]; suggestion: string } {

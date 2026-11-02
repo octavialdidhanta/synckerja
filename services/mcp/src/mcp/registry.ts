@@ -595,7 +595,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "ai_employee.list",
     description:
-      "List AI employees in the organization locked in this session. Owner or admin only. Returns name, job title, performance status, and whether the profile is active. If the user addresses one of these employees by name or nickname, do not answer with other tools. Forward that message to ai_employee.command, ai_employee.report, ai_employee.status, or ai_employee.chat and show the result as \"Name: ...\".",
+      "List AI employees in the organization locked in this session. Owner or admin only. Returns name, job title, performance status, and whether the profile is active. If a user message might be an employee name and you are not sure, call this before answering. A match, including a single word such as nay or naya, then goes to ai_employee.chat.",
     scopes: ["session:read"],
   },
   {
@@ -625,7 +625,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "ai_employee.chat",
     description:
-      "Have a short read-only conversation with one AI employee. Owner or admin only. Requires employee_name and message. employee_name may be a unique short nickname such as Nay for Naya. Does not create a content plan. A reply uses that employee's model-call quota and is Indonesian, casual, and in the employee's own voice. Display reply as \"Naya: ...\". If the topic is outside the content job desk, the reply politely says so. Do not answer the greeting yourself and do not call HR, payroll, finance, CRM, or ads tools for it.",
+      "Talk with one AI employee. Owner or admin only. Requires employee_name and message. Call this when the user message is or starts with the employee name or nickname, including a single word such as Nay or Naya. employee_name may be that nickname. Does not create a content plan. Greetings and questions about the employee are answered in her voice. Display reply as \"Naya: ...\". Only a work request outside content, such as payroll or HR, is refused. Do not answer the greeting yourself.",
     scopes: ["session:read"],
   },
 ];
