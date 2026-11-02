@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { McpAuthContext } from "../src/authz/context";
 import { MCP_SERVER_INSTRUCTIONS } from "../src/mcp/instructions";
 import { MCP_TOOLS } from "../src/mcp/registry";
-import { aiEmployeeChat, aiEmployeeCommand, aiEmployeeScheduleUpdate, listAiEmployees } from "../src/db/aiEmployee";
+import { aiEmployeeBriefUpdate, aiEmployeeChat, aiEmployeeCommand, aiEmployeeScheduleUpdate, listAiEmployees } from "../src/db/aiEmployee";
 import {
   assertOrgOwner,
   assertOrgOwnerOrAdmin,
@@ -245,6 +245,8 @@ describe("ai employee tool list", () => {
       "ai_employee.command",
       "ai_employee.chat",
       "ai_employee.schedule.update",
+      "ai_employee.brief.get",
+      "ai_employee.brief.update",
     ]));
     expect(MCP_SERVER_INSTRUCTIONS).toContain("ai_employee.command");
     expect(MCP_SERVER_INSTRUCTIONS).toContain("ai_employee.schedule.update");
@@ -257,6 +259,10 @@ describe("ai employee tool list", () => {
     expect(schedule?.description).toContain("Owner only");
     expect(schedule?.description).toContain("next_run_at");
     expect(schedule?.mutates).toBe(true);
+    const brief = MCP_TOOLS.find((tool) => tool.name === "ai_employee.brief.update");
+    expect(brief?.description).toContain("Owner only");
+    expect(brief?.mutates).toBe(true);
+    expect(MCP_TOOLS.find((tool) => tool.name === "ai_employee.brief.get")?.mutates).toBeFalsy();
   });
 });
 
@@ -345,5 +351,70 @@ describe("ai employee schedule update", () => {
     expect(missing).toMatchObject({ ok: false, error: "schedule_not_found" });
     const ambiguous = await aiEmployeeScheduleUpdate(scheduleAdmin([current, { ...current, id: "sch-2" }]).admin, owner, change);
     expect(ambiguous).toMatchObject({ ok: false, error: "schedule_ambiguous" });
+  });
+});
+
+describe("ai employee brief update", () => {
+  const previous = { audience: "", voice: "" };
+  const next = { audience: "keluarga", voice: "hangat", personas: [{ id: "persona-1", audience: "ibu muda" }] };
+  const input = {
+    serviceIds: ["11111111-1111-4111-8111-111111111111"],
+    audience: "keluarga",
+    personaIds: ["22222222-2222-4222-8222-222222222222"],
+    voice: "hangat",
+    requiredNotes: "sebut sate",
+    forbiddenNotes: "jangan harga",
+    pillarIds: [],
+    splitRule: "bergiliran",
+  };
+
+  function briefAdmin() {
+    const calls: { fn: string; args: Record<string, unknown> }[] = [];
+    const admin = {
+      from(table: string) {
+        const builder = {
+          select() { return builder; },
+          eq() { return builder; },
+          order() { return builder; },
+          in() { return builder; },
+          gte() { return builder; },
+          lt() { return builder; },
+          limit() { return builder; },
+          then(resolve: (value: { data: Record<string, unknown>[]; error: null }) => void) {
+            resolve({
+              data: table === "employees" ? [{ id: "emp-1", full_name: "Naya" }] : [],
+              error: null,
+            });
+          },
+        };
+        return builder;
+      },
+      async rpc(fn: string, args: Record<string, unknown>) {
+        calls.push({ fn, args });
+        return { data: { ok: true, previous, brief: next }, error: null };
+      },
+    };
+    return { admin: admin as unknown as SupabaseClient, calls };
+  }
+
+  it("rejects an admin before writing", async () => {
+    const { admin, calls } = briefAdmin();
+    await expect(aiEmployeeBriefUpdate(admin, { ...owner, userId: "user-1", roles: ["admin"] } as McpAuthContext, "nay", input)).rejects.toThrow("forbidden");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("shows the previous brief and the new one", async () => {
+    const { admin, calls } = briefAdmin();
+    const saved = await aiEmployeeBriefUpdate(admin, { ...owner, userId: "user-1" } as McpAuthContext, "nay", input);
+    expect(saved).toMatchObject({ ok: true, name: "Naya", previous, brief: next });
+    expect(calls[0]?.fn).toBe("ai_employee_brief_write");
+    expect(calls[0]?.args.p_user_id).toBe("user-1");
+    expect(calls[0]?.args.p_organization_id).toBe("org-1");
+    expect(calls[0]?.args.p_employee_id).toBe("emp-1");
+    expect(calls[0]?.args.p_brief).toMatchObject({
+      audience: "keluarga",
+      voice: "hangat",
+      persona_ids: ["22222222-2222-4222-8222-222222222222"],
+    });
   });
 });

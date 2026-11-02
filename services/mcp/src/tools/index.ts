@@ -63,6 +63,8 @@ export { executionCheckInput, executionCheckResult } from "./thinking/executionC
 export { planSaveInput, planSaveResult } from "./thinking/planSave";
 export { planDirectInput, planDirectResult } from "./thinking/planDirect";
 export {
+  aiEmployeeBriefGetInput,
+  aiEmployeeBriefUpdateInput,
   aiEmployeeChatInput,
   aiEmployeeCommandInput,
   aiEmployeeScheduleUpdateInput,

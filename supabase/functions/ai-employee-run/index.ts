@@ -5,9 +5,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   authorizeCaller,
   buildChatPrompt,
+  buildExecutionCheckPrompt,
   buildSop1CheckPrompt,
   buildSop1Prompt,
   buildSop2Prompt,
+  chooseBrandFocus,
   chooseSop1Pillar,
   fourWeekBounds,
   greetingReply,
@@ -23,6 +25,8 @@ import {
   openPlanDays,
   parseChatReply,
   parseExecutionCheck,
+  parseExecutionVerdict,
+  pickUnusedIdea,
   parsePlanDraft,
   plansInRange,
   sop1CloseStatus,
@@ -97,9 +101,10 @@ Deno.serve(async (req: Request) => {
   const requestedDate = body.post_date == null || body.post_date === "" ? "" : String(body.post_date).trim();
   const today = jakartaToday();
   const mode = body.mode == null || body.mode === "" ? "plan" : String(body.mode);
-  if (mode !== "plan" && mode !== "chat" && mode !== "sop1") return json({ error: "invalid_input" }, 400);
+  if (mode !== "plan" && mode !== "chat" && mode !== "sop1" && mode !== "sop3") return json({ error: "invalid_input" }, 400);
   const chat = mode === "chat";
   const sop1 = mode === "sop1";
+  const sop3 = mode === "sop3";
   if (!isUuid(employeeId) || instruction.length > 4000 || (!sop1 && !instruction)) return json({ error: "invalid_input" }, 400);
   if (requestedDate && (!isDay(requestedDate) || requestedDate < today)) return json({ error: "invalid_input" }, 400);
   if (body.dry_run != null && typeof body.dry_run !== "boolean") return json({ error: "invalid_input" }, 400);
@@ -226,7 +231,7 @@ Deno.serve(async (req: Request) => {
   try {
     const started = await rpc("ai_employee_run_start", {
       p_employee_id: employeeId,
-      p_sop_code: sop1 ? "SOP1" : chat ? "CHAT" : "SOP2",
+      p_sop_code: sop1 ? "SOP1" : chat ? "CHAT" : sop3 ? "SOP3" : "SOP2",
     });
     runId = typeof started.body === "string" && isUuid(started.body) ? started.body : null;
     if (!runId) return json({ error: "run_start_failed" }, started.status === 401 ? 500 : 502);
@@ -302,6 +307,16 @@ Deno.serve(async (req: Request) => {
       }
       if (reserveDecision.kind !== "ok") throw new Error("reserve_failed");
       modelCalls = 1;
+      const briefLoaded = await rpc("ai_employee_context", {
+        p_employee_id: employeeId,
+        p_run_id: runId,
+        p_scope: "brief",
+        p_params: {},
+      });
+      const briefRows = briefLoaded.body && typeof briefLoaded.body === "object"
+        ? (briefLoaded.body as { rows?: unknown }).rows
+        : null;
+      if (briefLoaded.status < 200 || briefLoaded.status >= 300 || !Array.isArray(briefRows)) throw new Error("context_failed");
       const prompt = buildChatPrompt({
         name: String(employee.full_name ?? ""),
         jobTitle: profileResult.data?.job_title ?? "",
@@ -310,6 +325,7 @@ Deno.serve(async (req: Request) => {
         speaker,
         reviewerName,
         clock: chatClock,
+        brief: briefRows[0] ?? null,
       });
       const modelCall = scriptAiCall({
         url: supabaseUrl,
@@ -449,12 +465,24 @@ Deno.serve(async (req: Request) => {
       const bounds = fourWeekBounds(windowDays);
       if (!bounds) throw new Error("context_failed");
       const calendar = await loadScope("calendar", { from: bounds.start, to: bounds.end });
-      const pillars = await loadScope("pillars", {});
+      const nayaPlans = await loadScope("plans", { from: bounds.start, to: bounds.end });
+      const pillarRows = await loadScope("pillars", {});
       const catalog = await loadScope("catalog", {});
       const thinking = await loadScope("thinking", {});
       const feedback = await loadScope("feedback", {});
-      const plans = calendar.slice();
-      const open = openPlanDays(windowDays, plans);
+      const briefRows = await loadScope("brief", {});
+      const performance = await loadScope("performance", {});
+      const brief = briefRows[0] ?? null;
+      const serviceIds = Array.isArray(brief?.service_ids) ? brief.service_ids : [];
+      if (serviceIds.length === 0) {
+        await closeSop1("failed", "brief_missing", 0);
+        return json({ ok: false, error: "brief_missing", mode: "sop1", run_id: runId, model_calls: 0 }, 422);
+      }
+      const preferredPillars = new Set(Array.isArray(brief?.pillar_ids) ? brief.pillar_ids.filter((id: unknown) => typeof id === "string") : []);
+      const pillars = preferredPillars.size > 0
+        ? pillarRows.filter((row) => preferredPillars.has(String(row.id ?? "")))
+        : pillarRows;
+      const open = openPlanDays(windowDays, calendar);
       if (open.length === 0) {
         await closeSop1("succeeded", "window_full", 0);
         return json({ ok: true, mode: "sop1", status: "succeeded", run_id: runId, model_calls: 0, plan_count: 0, plan_ids: [] });
@@ -468,13 +496,20 @@ Deno.serve(async (req: Request) => {
       let stop: "done" | "quota" | "pillar_cap" | "failed" = "done";
       let failure = { status: 0, message: "model_failed" };
       for (const day of open) {
-        const choice = chooseSop1Pillar(pillars, plansInRange(plans, bounds.start, bounds.end));
+        const choice = chooseSop1Pillar(pillars, plansInRange(nayaPlans, bounds.start, bounds.end));
         if (!choice) {
           stop = "pillar_cap";
           break;
         }
+        const service = chooseBrandFocus({ brief, catalog, dayIndex: open.indexOf(day), allowOverride: false });
+        if (!service) {
+          stop = "failed";
+          failure = { status: 0, message: "brief_missing" };
+          break;
+        }
+        const idea = pickUnusedIdea(thinking);
         const drafted = await withRetry(async () => {
-          const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans }));
+          const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief, performance, service, idea }));
           if (result.kind !== "ok") return result;
           const parsed = parsePlanDraft(result.script);
           if (parsed) {
@@ -489,21 +524,22 @@ Deno.serve(async (req: Request) => {
         if (drafted.kind === "failed") { stop = "failed"; failure = drafted.detail; break; }
         const parsed = parsePlanDraft(drafted.script);
         if (!parsed) { stop = "failed"; failure = { status: 0, message: "invalid_model_output" }; break; }
-        let plan = { ...parsed, post_date: day, content_pillar_id: choice.id };
-        if (thinking.length > 0) {
+        let plan = { ...parsed, post_date: day, content_pillar_id: choice.id, service_id: service.id };
+        let executionId: string | null = null;
+        if (idea) {
           const judge = async (draft: typeof plan) => withRetry(async () => {
-            const result = await modelScript(buildSop1CheckPrompt({ day, pillar: choice, draft }));
+            const result = await modelScript(buildExecutionCheckPrompt({ day, pillar: choice, idea, draft }));
             if (result.kind !== "ok") return result;
-            return parseExecutionCheck(result.script)
+            return parseExecutionVerdict(result.script)
               ? { kind: "ok" as const, script: result.script }
               : { kind: "failed" as const, detail: { status: 0, message: "invalid_model_output" } };
           });
           let checked = await judge(plan);
           if (checked.kind === "quota") { stop = "quota"; break; }
           if (checked.kind === "failed") { stop = "failed"; failure = checked.detail; break; }
-          if (parseExecutionCheck(checked.script)?.ok !== true) {
+          if (parseExecutionVerdict(checked.script)?.ok !== true) {
             const repaired = await withRetry(async () => {
-              const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans }));
+              const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief, performance, service, idea }));
               if (result.kind !== "ok") return result;
               const next = parsePlanDraft(result.script);
               if (next) {
@@ -518,30 +554,69 @@ Deno.serve(async (req: Request) => {
             if (repaired.kind === "failed") { stop = "failed"; failure = repaired.detail; break; }
             const repairedPlan = parsePlanDraft(repaired.script);
             if (!repairedPlan) continue;
-            plan = { ...repairedPlan, post_date: day, content_pillar_id: choice.id };
+            plan = { ...repairedPlan, post_date: day, content_pillar_id: choice.id, service_id: service.id };
             checked = await judge(plan);
             if (checked.kind === "quota") { stop = "quota"; break; }
             if (checked.kind === "failed") { stop = "failed"; failure = checked.detail; break; }
-            if (parseExecutionCheck(checked.script)?.ok !== true) continue;
+            if (parseExecutionVerdict(checked.script)?.ok !== true) continue;
           }
+          const verdict = parseExecutionVerdict(checked.script);
+          if (!verdict?.ok) continue;
+          if (!dryRun) {
+            const judged = await rpc("ai_employee_perform", {
+              p_employee_id: employeeId,
+              p_run_id: runId,
+              p_action: "thinking.execution.check",
+              p_payload: {
+                idea_id: String(idea.idea_id ?? idea.id ?? ""),
+                content_pillar_id: choice.id,
+                statement: verdict.statement,
+                checks: verdict.checks,
+                facts: verdict.facts,
+                script: verdict.script,
+              },
+            });
+            const accepted = judged.body && typeof judged.body === "object"
+              ? (judged.body as { accepted?: unknown; execution_id?: unknown })
+              : null;
+            if (judged.status < 200 || judged.status >= 300 || accepted?.accepted !== true || !isUuid(accepted.execution_id)) continue;
+            executionId = String(accepted.execution_id);
+          }
+          idea.used = true;
+        } else if (thinking.length > 0) {
+          const judge = async (draft: typeof plan) => withRetry(async () => {
+            const result = await modelScript(buildSop1CheckPrompt({ day, pillar: choice, draft }));
+            if (result.kind !== "ok") return result;
+            return parseExecutionCheck(result.script)
+              ? { kind: "ok" as const, script: result.script }
+              : { kind: "failed" as const, detail: { status: 0, message: "invalid_model_output" } };
+          });
+          let checked = await judge(plan);
+          if (checked.kind === "quota") { stop = "quota"; break; }
+          if (checked.kind === "failed") { stop = "failed"; failure = checked.detail; break; }
+          if (parseExecutionCheck(checked.script)?.ok !== true) continue;
         }
         if (dryRun) {
           drafts.push(plan);
-          plans.push({ post_date: day, content_pillar_id: choice.id });
+          calendar.push({ post_date: day, content_pillar_id: choice.id });
+          nayaPlans.push({ post_date: day, content_pillar_id: choice.id, author_employee_id: employeeId });
           continue;
         }
         const performed = await rpc("ai_employee_perform", {
           p_employee_id: employeeId,
           p_run_id: runId,
-          p_action: "content.plans.create",
-          p_payload: plan,
+          p_action: idea ? "thinking.plan.save" : "content.plans.create",
+          p_payload: idea
+            ? { ...plan, idea_id: String(idea.idea_id ?? idea.id ?? ""), execution_id: executionId }
+            : plan,
         });
         const createdId = performed.body && typeof performed.body === "object"
           ? (performed.body as { id?: unknown }).id
           : null;
         if (performed.status < 200 || performed.status >= 300 || !isUuid(createdId)) throw new Error("perform_failed");
         planIds.push(String(createdId));
-        plans.push({ post_date: day, content_pillar_id: choice.id });
+        calendar.push({ post_date: day, content_pillar_id: choice.id });
+        nayaPlans.push({ post_date: day, content_pillar_id: choice.id, author_employee_id: employeeId });
       }
 
       if (stop === "failed") {
@@ -581,7 +656,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const context: Record<string, unknown[]> = {};
-    for (const scope of ["pillars", "catalog", "thinking", "plans"]) {
+    for (const scope of ["pillars", "catalog", "thinking", "plans", "brief", "performance"]) {
       const loaded = await rpc("ai_employee_context", {
         p_employee_id: employeeId,
         p_run_id: runId,
@@ -613,6 +688,19 @@ Deno.serve(async (req: Request) => {
     modelCalls = 1;
 
     const allowedDates = requestedDate ? [requestedDate] : nextWeekDays(today);
+    const brief = (context.brief?.[0] ?? null) as { service_ids?: unknown } | null;
+    const serviceIds = Array.isArray(brief?.service_ids) ? brief.service_ids : [];
+    const service = serviceIds.length === 0
+      ? null
+      : chooseBrandFocus({
+        brief,
+        catalog: context.catalog,
+        dayIndex: 0,
+        instruction,
+        allowOverride: true,
+      });
+    if (serviceIds.length > 0 && !service) throw new Error("brief_missing");
+    const idea = pickUnusedIdea(context.thinking);
     const prompt = buildSop2Prompt({
       instruction,
       today,
@@ -622,6 +710,10 @@ Deno.serve(async (req: Request) => {
       catalog: context.catalog,
       thinking: context.thinking,
       plans: context.plans,
+      brief,
+      performance: context.performance,
+      service,
+      revision: sop3,
     });
     const modelCall = scriptAiCall({
       url: supabaseUrl,
@@ -659,7 +751,7 @@ Deno.serve(async (req: Request) => {
       plans: context.plans,
     });
     if (!dated.ok) throw new Error("invalid_model_output");
-    const plan = { ...validated.plan, post_date: dated.postDate };
+    const plan = { ...validated.plan, post_date: dated.postDate, service_id: service?.id ?? null };
 
     if (dryRun) {
       await finish("succeeded");
@@ -672,11 +764,69 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    let executionId: string | null = null;
+    if (idea) {
+      const reservedCheck = await rpc("ai_employee_reserve_model_call", {
+        p_employee_id: employeeId,
+        p_run_id: runId,
+        p_commit: true,
+      });
+      const checkDecision = interpretReserve(reservedCheck.status, reservedCheck.body);
+      if (checkDecision.kind === "quota") {
+        await finish("deferred");
+        return json({ ok: false, status: "deferred", error: "quota_exceeded", run_id: runId }, 200);
+      }
+      if (checkDecision.kind !== "ok") throw new Error("reserve_failed");
+      modelCalls += 1;
+      const checkCall = scriptAiCall({
+        url: supabaseUrl,
+        serviceRoleKey,
+        anonKey,
+        internalSecret,
+        organizationId: employee.organization_id,
+        userId: modelUserId,
+        prompt: buildExecutionCheckPrompt({
+          day: plan.post_date,
+          pillar: { id: plan.content_pillar_id },
+          idea,
+          draft: plan,
+        }),
+      });
+      const checkResponse = await fetch(checkCall.url, checkCall.init);
+      const checkBody = await readJson(checkResponse) as { script?: unknown };
+      const verdict = checkResponse.ok && typeof checkBody?.script === "string"
+        ? parseExecutionVerdict(checkBody.script)
+        : null;
+      if (!verdict?.ok) throw new Error("invalid_model_output");
+      const judged = await rpc("ai_employee_perform", {
+        p_employee_id: employeeId,
+        p_run_id: runId,
+        p_action: "thinking.execution.check",
+        p_payload: {
+          idea_id: String(idea.idea_id ?? idea.id ?? ""),
+          content_pillar_id: plan.content_pillar_id,
+          statement: verdict.statement,
+          checks: verdict.checks,
+          facts: verdict.facts,
+          script: verdict.script,
+        },
+      });
+      const accepted = judged.body && typeof judged.body === "object"
+        ? (judged.body as { accepted?: unknown; execution_id?: unknown })
+        : null;
+      if (judged.status < 200 || judged.status >= 300 || accepted?.accepted !== true || !isUuid(accepted.execution_id)) {
+        throw new Error("execution_rejected");
+      }
+      executionId = String(accepted.execution_id);
+      idea.used = true;
+    }
     const performed = await rpc("ai_employee_perform", {
       p_employee_id: employeeId,
       p_run_id: runId,
-      p_action: "content.plans.create",
-      p_payload: plan,
+      p_action: idea ? "thinking.plan.save" : "content.plans.create",
+      p_payload: idea
+        ? { ...plan, idea_id: String(idea.idea_id ?? idea.id ?? ""), execution_id: executionId }
+        : plan,
     });
     const createdId = performed.body && typeof performed.body === "object"
       ? (performed.body as { id?: unknown }).id
