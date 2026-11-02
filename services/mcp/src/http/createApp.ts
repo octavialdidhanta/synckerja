@@ -238,6 +238,14 @@ export type AppDeps = {
   attachTaskStepImage: (ctx: McpAuthContext, input: { stepId: string; imageUrl: string }) => Promise<TaskStepImageRecord>;
   listHabits: (ctx: McpAuthContext, date: string | null) => Promise<HabitDayRow[]>;
   checkHabit: (ctx: McpAuthContext, input: HabitCheckInput) => Promise<HabitCheckResult>;
+  listAiEmployees: (ctx: McpAuthContext) => Promise<import("../db/aiEmployee").AiEmployeeListItem[]>;
+  aiEmployeeStatus: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
+  aiEmployeeRuns: (ctx: McpAuthContext, employeeName: string, limit: number | null) => Promise<unknown>;
+  aiEmployeeReport: (ctx: McpAuthContext, employeeName: string, period: string) => Promise<unknown>;
+  aiEmployeeCommand: (
+    ctx: McpAuthContext,
+    input: { employeeName: string; instruction: string; dryRun: boolean | null },
+  ) => Promise<unknown>;
   now?: () => Date;
 };
 

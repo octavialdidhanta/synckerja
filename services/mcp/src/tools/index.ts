@@ -62,3 +62,10 @@ export { chainReadInput, chainReadResult } from "./thinking/chainRead";
 export { executionCheckInput, executionCheckResult } from "./thinking/executionCheck";
 export { planSaveInput, planSaveResult } from "./thinking/planSave";
 export { planDirectInput, planDirectResult } from "./thinking/planDirect";
+export {
+  aiEmployeeCommandInput,
+  aiEmployeeListInput,
+  aiEmployeeNameInput,
+  aiEmployeeReportInput,
+  aiEmployeeRunsInput,
+} from "./aiEmployee/rules";

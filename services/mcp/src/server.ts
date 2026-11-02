@@ -68,6 +68,7 @@ import { accessRevokedAt, recordToolCall, takeToolSlot } from "./db/toolGate";
 import { scheduleContentPlan } from "./db/scheduleContentPlan";
 import { createApp } from "./http/createApp";
 import { SupabaseGrantStore } from "./oauth/supabaseStore";
+import { aiEmployeeCommand, aiEmployeeReport, aiEmployeeRuns, aiEmployeeStatus, listAiEmployees } from "./db/aiEmployee";
 
 const config = loadConfig();
 const admin = createAdmin(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -141,6 +142,11 @@ const app = createApp({
   attachTaskStepImage: (ctx, input) => attachTaskStepImage(admin, config.supabaseUrl, ctx, input),
   listHabits: (ctx, date) => listHabits(admin, ctx, date),
   checkHabit: (ctx, input) => checkHabit(admin, ctx, input),
+  listAiEmployees: (ctx) => listAiEmployees(admin, ctx),
+  aiEmployeeStatus: (ctx, employeeName) => aiEmployeeStatus(admin, ctx, employeeName),
+  aiEmployeeRuns: (ctx, employeeName, limit) => aiEmployeeRuns(admin, ctx, employeeName, limit),
+  aiEmployeeReport: (ctx, employeeName, period) => aiEmployeeReport(admin, ctx, employeeName, period),
+  aiEmployeeCommand: (ctx, input) => aiEmployeeCommand(admin, config, ctx, input),
 });
 
 serve({ fetch: app.fetch, port: config.port }, () => {

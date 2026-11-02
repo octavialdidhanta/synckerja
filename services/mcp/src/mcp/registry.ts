@@ -82,7 +82,12 @@ export type McpToolName =
   | "thinking.chain.read"
   | "thinking.execution.check"
   | "thinking.plan.save"
-  | "thinking.plan.direct";
+  | "thinking.plan.direct"
+  | "ai_employee.list"
+  | "ai_employee.status"
+  | "ai_employee.runs.list"
+  | "ai_employee.report"
+  | "ai_employee.command";
 
 export type McpTool = {
   name: McpToolName;
@@ -586,6 +591,36 @@ const TOOL_DEFINITIONS: McpTool[] = [
     moduleKey: "tools",
     pagePath: HABITS_PAGE_PATH,
   },
+  {
+    name: "ai_employee.list",
+    description:
+      "List AI employees in the organization locked in this session. Owner or admin only. Returns name, job title, performance status, and whether the profile is active.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.status",
+    description:
+      "Read one AI employee in the active organization by exact name, ignoring letter case. Owner or admin only. Returns the profile, current SOPs, active schedule, permissions, and remaining model calls for today in Asia/Jakarta.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.runs.list",
+    description:
+      "List the latest work logs for one AI employee in the active organization. Owner or admin only. Requires employee_name. Optional limit is 1 to 50 and defaults to 10. Returns start, SOP, status, plan count, model calls, and note.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.report",
+    description:
+      "Summarize one AI employee for a period in the active organization. Owner or admin only. Period is today, 7d, 30d, or YYYY-MM. Returns succeeded and failed runs, plans created, and the current KR1 to KR5 values.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.command",
+    description:
+      "Ask one AI employee to do an ad-hoc content task. Owner or admin only. Requires employee_name and instruction. dry_run defaults to true and does not create a content plan. Rejects payroll, finance, HR, CRM, and ads work. A matching name must be unique.",
+    scopes: ["session:read"],
+  },
 ];
 
 const MUTATING_TOOLS = new Set<McpToolName>([
@@ -619,6 +654,7 @@ const MUTATING_TOOLS = new Set<McpToolName>([
   "habits.check",
   "thinking.plan.save",
   "thinking.plan.direct",
+  "ai_employee.command",
 ]);
 
 export const MCP_TOOLS: McpTool[] = TOOL_DEFINITIONS.map((tool) =>

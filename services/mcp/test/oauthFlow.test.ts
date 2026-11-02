@@ -223,6 +223,19 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     checkHabit: async () => {
       throw new Error("unused");
     },
+    listAiEmployees: async () => [],
+    aiEmployeeStatus: async () => {
+      throw new Error("unused");
+    },
+    aiEmployeeRuns: async () => {
+      throw new Error("unused");
+    },
+    aiEmployeeReport: async () => {
+      throw new Error("unused");
+    },
+    aiEmployeeCommand: async () => {
+      throw new Error("unused");
+    },
   });
   return { app, listed };
 }
@@ -352,6 +365,11 @@ describe("oauth and mcp http flow", () => {
       "content.plans.list",
       "content.calendar.list",
       "content.catalog.list",
+      "ai_employee.list",
+      "ai_employee.status",
+      "ai_employee.runs.list",
+      "ai_employee.report",
+      "ai_employee.command",
     ]);
 
     const who = await app.request("http://localhost:8787/mcp", {
