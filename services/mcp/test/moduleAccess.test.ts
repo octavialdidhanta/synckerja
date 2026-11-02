@@ -26,6 +26,7 @@ const aiEmployeeTools = [
   "ai_employee.runs.list",
   "ai_employee.report",
   "ai_employee.command",
+  "ai_employee.chat",
 ];
 
 const base = {

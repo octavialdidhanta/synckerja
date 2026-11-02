@@ -35,9 +35,17 @@ export function matchEmployeeName<T extends { full_name: string }>(
 ): { ok: true; employee: T } | { ok: false; names: string[] } {
   const wanted = rawName.trim().toLowerCase();
   const names = employees.map((employee) => employee.full_name);
-  const matches = employees.filter((employee) => employee.full_name.trim().toLowerCase() === wanted);
-  if (matches.length !== 1) return { ok: false, names };
-  return { ok: true, employee: matches[0] };
+  if (!wanted) return { ok: false, names };
+  const exact = employees.filter((employee) => employee.full_name.trim().toLowerCase() === wanted);
+  if (exact.length === 1) return { ok: true, employee: exact[0] };
+  if (exact.length > 1 || wanted.length < 2) return { ok: false, names };
+  const nicknames = employees.filter((employee) => employee.full_name.trim().toLowerCase().startsWith(wanted));
+  if (nicknames.length !== 1) return { ok: false, names };
+  return { ok: true, employee: nicknames[0] };
+}
+
+export function chatOutsideReply(desk: { reason: string; can_do: readonly string[] }): string {
+  return `Itu di luar tugasku. ${desk.reason} Yang bisa aku kerjakan: ${desk.can_do.join(", ")}.`;
 }
 
 export function judgeJobDesk(instruction: string):
@@ -116,4 +124,8 @@ export const aiEmployeeReportInput = aiEmployeeNameInput.extend({
 export const aiEmployeeCommandInput = aiEmployeeNameInput.extend({
   instruction: z.string().trim().min(1).max(4000),
   dry_run: z.boolean().optional(),
+}).strict();
+
+export const aiEmployeeChatInput = aiEmployeeNameInput.extend({
+  message: z.string().trim().min(1).max(4000),
 }).strict();

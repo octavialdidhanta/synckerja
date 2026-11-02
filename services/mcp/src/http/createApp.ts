@@ -246,6 +246,10 @@ export type AppDeps = {
     ctx: McpAuthContext,
     input: { employeeName: string; instruction: string; dryRun: boolean | null },
   ) => Promise<unknown>;
+  aiEmployeeChat: (
+    ctx: McpAuthContext,
+    input: { employeeName: string; message: string },
+  ) => Promise<unknown>;
   now?: () => Date;
 };
 

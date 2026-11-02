@@ -87,7 +87,8 @@ export type McpToolName =
   | "ai_employee.status"
   | "ai_employee.runs.list"
   | "ai_employee.report"
-  | "ai_employee.command";
+  | "ai_employee.command"
+  | "ai_employee.chat";
 
 export type McpTool = {
   name: McpToolName;
@@ -594,31 +595,37 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "ai_employee.list",
     description:
-      "List AI employees in the organization locked in this session. Owner or admin only. Returns name, job title, performance status, and whether the profile is active.",
+      "List AI employees in the organization locked in this session. Owner or admin only. Returns name, job title, performance status, and whether the profile is active. If the user addresses one of these employees by name or nickname, do not answer with other tools. Forward that message to ai_employee.command, ai_employee.report, ai_employee.status, or ai_employee.chat and show the result as \"Name: ...\".",
     scopes: ["session:read"],
   },
   {
     name: "ai_employee.status",
     description:
-      "Read one AI employee in the active organization by exact name, ignoring letter case. Owner or admin only. Returns the profile, current SOPs, active schedule, permissions, and remaining model calls for today in Asia/Jakarta.",
+      "Read one AI employee in the active organization. Owner or admin only. employee_name is the full name or a unique short nickname such as Nay for Naya, ignoring letter case. Returns the profile, current SOPs, active schedule, permissions, and remaining model calls for today in Asia/Jakarta. Use this when the user asks that employee about profile, SOP, schedule, or quota. Show it as \"Naya: ...\" and do not call another tool for that request.",
     scopes: ["session:read"],
   },
   {
     name: "ai_employee.runs.list",
     description:
-      "List the latest work logs for one AI employee in the active organization. Owner or admin only. Requires employee_name. Optional limit is 1 to 50 and defaults to 10. Returns start, SOP, status, plan count, model calls, and note.",
+      "List the latest work logs for one AI employee in the active organization. Owner or admin only. Requires employee_name, which may be a unique short nickname. Optional limit is 1 to 50 and defaults to 10. Returns start, SOP, status, plan count, model calls, and note.",
     scopes: ["session:read"],
   },
   {
     name: "ai_employee.report",
     description:
-      "Summarize one AI employee for a period in the active organization. Owner or admin only. Period is today, 7d, 30d, or YYYY-MM. Returns succeeded and failed runs, plans created, and the current KR1 to KR5 values.",
+      "Summarize one AI employee's own work for a period in the active organization. Owner or admin only. employee_name may be a unique short nickname. Period is today, 7d, 30d, or YYYY-MM. Returns succeeded and failed runs, plans created, and the current KR1 to KR5 values. This is not an HR or payroll report. If the user asks Naya for an HR report, call ai_employee.command and show the outside_job_desk refusal as \"Naya: ...\" instead of calling HR tools.",
     scopes: ["session:read"],
   },
   {
     name: "ai_employee.command",
     description:
-      "Ask one AI employee to do an ad-hoc content task. Owner or admin only. Requires employee_name and instruction. dry_run defaults to true and does not create a content plan. Rejects payroll, finance, HR, CRM, and ads work. A matching name must be unique.",
+      "Ask one AI employee to do an ad-hoc content task. Owner or admin only. Requires employee_name and instruction. employee_name may be a unique short nickname such as Nay for Naya. dry_run defaults to true and does not create a content plan. Rejects payroll, finance, HR, CRM, and ads with error outside_job_desk. When that error is returned, show reason, can_do, and suggestion unchanged as \"Naya: ...\" and do not do the work with any other tool.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.chat",
+    description:
+      "Have a short read-only conversation with one AI employee. Owner or admin only. Requires employee_name and message. employee_name may be a unique short nickname such as Nay for Naya. Does not create a content plan. A reply uses that employee's model-call quota and is Indonesian, casual, and in the employee's own voice. Display reply as \"Naya: ...\". If the topic is outside the content job desk, the reply politely says so. Do not answer the greeting yourself and do not call HR, payroll, finance, CRM, or ads tools for it.",
     scopes: ["session:read"],
   },
 ];

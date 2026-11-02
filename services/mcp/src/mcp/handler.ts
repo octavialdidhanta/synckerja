@@ -184,9 +184,11 @@ import {
   aiEmployeeRunsInput,
   aiEmployeeReportInput,
   aiEmployeeCommandInput,
+  aiEmployeeChatInput,
 } from "../tools";
 import type { ToolCallOutcome } from "../db/toolGate";
 import { filterTools, isToolVisible } from "./filterTools";
+import { MCP_SERVER_INSTRUCTIONS } from "./instructions";
 import type { McpToolName } from "./registry";
 
 export type McpReadDeps = {
@@ -365,6 +367,10 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     input: { employeeName: string; instruction: string; dryRun: boolean | null },
   ) => Promise<unknown>;
+  aiEmployeeChat: (
+    ctx: McpAuthContext,
+    input: { employeeName: string; message: string },
+  ) => Promise<unknown>;
   switchOrganization: (ctx: McpAuthContext, organizationId: string) => Promise<void>;
 };
 
@@ -506,6 +512,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "ai_employee.runs.list": aiEmployeeRunsInput,
   "ai_employee.report": aiEmployeeReportInput,
   "ai_employee.command": aiEmployeeCommandInput,
+  "ai_employee.chat": aiEmployeeChatInput,
 };
 
 async function runTool(
@@ -910,6 +917,11 @@ async function runTool(
         instruction: requiredString(args.instruction),
         dryRun: typeof args.dry_run === "boolean" ? args.dry_run : null,
       });
+    case "ai_employee.chat":
+      return deps.aiEmployeeChat(ctx, {
+        employeeName: requiredString(args.employee_name),
+        message: requiredString(args.message),
+      });
   }
 }
 
@@ -928,7 +940,10 @@ export async function handleMcpRequest(
     throw error;
   }
 
-  const server = new McpServer({ name: "synckerja", version: "0.1.0" });
+  const server = new McpServer(
+    { name: "synckerja", version: "0.1.0" },
+    { instructions: MCP_SERVER_INSTRUCTIONS },
+  );
   for (const tool of filterTools(ctx)) {
     server.registerTool(
       tool.name,
