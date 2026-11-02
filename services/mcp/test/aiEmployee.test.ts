@@ -7,9 +7,12 @@ import { aiEmployeeChat, aiEmployeeCommand, listAiEmployees } from "../src/db/ai
 import {
   assertOrgOwnerOrAdmin,
   chatOutsideReply,
+  greetingReply,
+  isSimpleChatGreeting,
   judgeJobDesk,
   matchEmployeeName,
   modelAllowance,
+  politeAddress,
   resolveReportPeriod,
 } from "../src/tools/aiEmployee/rules";
 
@@ -186,12 +189,46 @@ describe("ai employee queries", () => {
       model_calls: 1,
     });
     const request = fetchImpl.mock.calls[0] as unknown as [string, { body: string }];
-    expect(JSON.parse(request[1].body)).toEqual({
+    expect(JSON.parse(request[1].body)).toMatchObject({
       employee_id: "emp-1",
       instruction: "Hai, apa kabar?",
       mode: "chat",
       dry_run: true,
+      speaker: { role: "owner", is_reviewer: false },
     });
+  });
+
+  it("answers a one-word greeting without calling the model and names the owner", async () => {
+    const { admin, calls } = recordingAdmin({
+      employees: [{ id: "emp-1", full_name: "Naya" }],
+      profiles: [{ full_name: "Octa Vialdi" }],
+      ai_employee_profiles: [{ reviewer_employee_id: "boss-1" }],
+    });
+    const fetchImpl = vi.fn();
+    const caller = {
+      supabaseUrl: "https://db.example",
+      supabaseServiceRoleKey: "service-key",
+      scheduledPostsInternalSecret: "internal-secret",
+    };
+    const speaking = { ...owner, userId: "user-1", employeeId: "boss-1" } as McpAuthContext;
+    const greeted = await aiEmployeeChat(admin, caller, speaking, {
+      employeeName: "nay",
+      message: "nay",
+    }, fetchImpl);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(greeted).toEqual({
+      ok: true,
+      name: "Naya",
+      reply: greetingReply("Naya", "Pak Aldi"),
+      outside_job_desk: false,
+      model_calls: 0,
+    });
+    expect(isSimpleChatGreeting("halo", "Naya")).toBe(true);
+    expect(isSimpleChatGreeting("pagi", "Naya")).toBe(true);
+    expect(isSimpleChatGreeting("gw bos lu", "Naya")).toBe(false);
+    expect(politeAddress("Budi Santoso", "owner")).toBe("Pak Budi");
+    expect(calls.some((call) => call.table === "profiles" && call.eqs.some(([column, value]) => column === "user_id" && value === "user-1"))).toBe(true);
+    expect(calls.some((call) => call.table === "ai_employee_profiles" && call.eqs.some(([column, value]) => column === "organization_id" && value === "org-1"))).toBe(true);
   });
 });
 
