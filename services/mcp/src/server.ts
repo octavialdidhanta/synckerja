@@ -69,6 +69,7 @@ import { scheduleContentPlan } from "./db/scheduleContentPlan";
 import { createApp } from "./http/createApp";
 import { SupabaseGrantStore } from "./oauth/supabaseStore";
 import { aiEmployeeBriefGet, aiEmployeeBriefUpdate, aiEmployeeChat, aiEmployeeCommand, aiEmployeeReport, aiEmployeeRuns, aiEmployeeScheduleUpdate, aiEmployeeStatus, listAiEmployees } from "./db/aiEmployee";
+import { listProductKnowledge } from "./db/productKnowledge";
 
 const config = loadConfig();
 const admin = createAdmin(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -151,6 +152,7 @@ const app = createApp({
   aiEmployeeScheduleUpdate: (ctx, input) => aiEmployeeScheduleUpdate(admin, ctx, input),
   aiEmployeeBriefGet: (ctx, employeeName) => aiEmployeeBriefGet(admin, ctx, employeeName),
   aiEmployeeBriefUpdate: (ctx, employeeName, brief) => aiEmployeeBriefUpdate(admin, ctx, employeeName, brief),
+  listProductKnowledge: (ctx, input) => listProductKnowledge(admin, ctx, input),
 });
 
 serve({ fetch: app.fetch, port: config.port }, () => {

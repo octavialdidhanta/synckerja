@@ -187,6 +187,7 @@ import {
   aiEmployeeChatInput,
   aiEmployeeBriefGetInput,
   aiEmployeeBriefUpdateInput,
+  productKnowledgeListInput,
   aiEmployeeScheduleUpdateInput,
 } from "../tools";
 import type { ToolCallOutcome } from "../db/toolGate";
@@ -397,8 +398,13 @@ export type McpReadDeps = {
       requiredNotes: string;
       forbiddenNotes: string;
       pillarIds: string[];
+      productKnowledgeIds: string[];
       splitRule: string;
     },
+  ) => Promise<unknown>;
+  listProductKnowledge: (
+    ctx: McpAuthContext,
+    input: { serviceId: string | null; subServiceId: string | null; search: string | null; limit: number | null },
   ) => Promise<unknown>;
   switchOrganization: (ctx: McpAuthContext, organizationId: string) => Promise<void>;
 };
@@ -545,6 +551,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "ai_employee.schedule.update": aiEmployeeScheduleUpdateInput,
   "ai_employee.brief.get": aiEmployeeBriefGetInput,
   "ai_employee.brief.update": aiEmployeeBriefUpdateInput,
+  "product_knowledge.list": productKnowledgeListInput,
 };
 
 async function runTool(
@@ -974,7 +981,15 @@ async function runTool(
         requiredNotes: typeof args.required_notes === "string" ? args.required_notes : "",
         forbiddenNotes: typeof args.forbidden_notes === "string" ? args.forbidden_notes : "",
         pillarIds: Array.isArray(args.pillar_ids) ? args.pillar_ids.map((id) => String(id)) : [],
+        productKnowledgeIds: Array.isArray(args.product_knowledge_ids) ? args.product_knowledge_ids.map((id) => String(id)) : [],
         splitRule: typeof args.split_rule === "string" ? args.split_rule : "",
+      });
+    case "product_knowledge.list":
+      return deps.listProductKnowledge(ctx, {
+        serviceId: optionalString(args.service_id),
+        subServiceId: optionalString(args.sub_service_id),
+        search: optionalString(args.search),
+        limit: optionalNumber(args.limit),
       });
   }
 }

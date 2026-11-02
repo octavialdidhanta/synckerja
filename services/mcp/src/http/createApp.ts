@@ -273,8 +273,13 @@ export type AppDeps = {
       requiredNotes: string;
       forbiddenNotes: string;
       pillarIds: string[];
+      productKnowledgeIds: string[];
       splitRule: string;
     },
+  ) => Promise<unknown>;
+  listProductKnowledge: (
+    ctx: McpAuthContext,
+    input: { serviceId: string | null; subServiceId: string | null; search: string | null; limit: number | null },
   ) => Promise<unknown>;
   now?: () => Date;
 };

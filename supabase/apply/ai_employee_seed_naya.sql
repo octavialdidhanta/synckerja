@@ -328,6 +328,7 @@ BEGIN
   FROM (
     VALUES
       ('content.plans.list'),
+      ('product.knowledge.list'),
       ('content.calendar.list'),
       ('content.catalog.list'),
       ('thinking.ideas.list'),

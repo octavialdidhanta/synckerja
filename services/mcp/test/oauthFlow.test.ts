@@ -248,6 +248,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     aiEmployeeBriefUpdate: async () => {
       throw new Error("unused");
     },
+    listProductKnowledge: async () => {
+      throw new Error("unused");
+    },
   });
   return { app, listed };
 }
@@ -381,6 +384,7 @@ describe("oauth and mcp http flow", () => {
       "content.plans.list",
       "content.calendar.list",
       "content.catalog.list",
+      "product_knowledge.list",
       "ai_employee.list",
       "ai_employee.status",
       "ai_employee.runs.list",

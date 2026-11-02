@@ -145,6 +145,7 @@ describe("buildAuthContext", () => {
       "content.plans.list",
       "content.calendar.list",
       "content.catalog.list",
+      "product_knowledge.list",
       ...aiEmployeeTools,
     ]);
   });
