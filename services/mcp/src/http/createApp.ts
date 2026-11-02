@@ -250,6 +250,17 @@ export type AppDeps = {
     ctx: McpAuthContext,
     input: { employeeName: string; message: string },
   ) => Promise<unknown>;
+  aiEmployeeScheduleUpdate: (
+    ctx: McpAuthContext,
+    input: {
+      employeeName: string;
+      sopCode: string;
+      weekday: number;
+      startLocal: string;
+      dueLocal: string;
+      isActive: boolean;
+    },
+  ) => Promise<unknown>;
   now?: () => Date;
 };
 

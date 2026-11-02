@@ -8,4 +8,5 @@ export const MCP_SERVER_INSTRUCTIONS = [
   "If ai_employee.command returns error outside_job_desk, show reason, can_do, and suggestion unchanged. Do not replace the refusal with your own work.",
   "Use report only for that employee's own runs and KR1 to KR5, not for an HR or payroll report.",
   "Use status for the profile, active SOPs, schedule, and remaining model calls today.",
+  "To change that weekly schedule, call ai_employee.schedule.update. Only the organization owner can change it. Show the previous schedule and the new schedule.",
 ].join(" ");

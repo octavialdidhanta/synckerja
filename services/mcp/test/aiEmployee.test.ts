@@ -3,8 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { McpAuthContext } from "../src/authz/context";
 import { MCP_SERVER_INSTRUCTIONS } from "../src/mcp/instructions";
 import { MCP_TOOLS } from "../src/mcp/registry";
-import { aiEmployeeChat, aiEmployeeCommand, listAiEmployees } from "../src/db/aiEmployee";
+import { aiEmployeeChat, aiEmployeeCommand, aiEmployeeScheduleUpdate, listAiEmployees } from "../src/db/aiEmployee";
 import {
+  assertOrgOwner,
   assertOrgOwnerOrAdmin,
   chatOutsideReply,
   greetingReply,
@@ -14,6 +15,7 @@ import {
   modelAllowance,
   politeAddress,
   resolveReportPeriod,
+  validateScheduleUpdate,
 } from "../src/tools/aiEmployee/rules";
 
 const owner = { organizationId: "org-1", roles: ["Owner"] } as McpAuthContext;
@@ -242,12 +244,106 @@ describe("ai employee tool list", () => {
       "ai_employee.report",
       "ai_employee.command",
       "ai_employee.chat",
+      "ai_employee.schedule.update",
     ]));
     expect(MCP_SERVER_INSTRUCTIONS).toContain("ai_employee.command");
+    expect(MCP_SERVER_INSTRUCTIONS).toContain("ai_employee.schedule.update");
     expect(MCP_SERVER_INSTRUCTIONS).toContain("outside_job_desk");
     expect(MCP_SERVER_INSTRUCTIONS).toContain("Naya:");
     const chat = MCP_TOOLS.find((tool) => tool.name === "ai_employee.chat");
     expect(chat?.description).toContain("Nay");
     expect(chat?.description).toContain("Does not create a content plan");
+    const schedule = MCP_TOOLS.find((tool) => tool.name === "ai_employee.schedule.update");
+    expect(schedule?.description).toContain("Owner only");
+    expect(schedule?.description).toContain("next_run_at");
+    expect(schedule?.mutates).toBe(true);
+  });
+});
+
+function scheduleAdmin(schedules: Record<string, unknown>[]) {
+  const updates: { eqs: [string, unknown][]; patch: Record<string, unknown> }[] = [];
+  const admin = {
+    from(table: string) {
+      const eqs: [string, unknown][] = [];
+      let patch: Record<string, unknown> | null = null;
+      const builder = {
+        select() { return builder; },
+        eq(column: string, value: unknown) { eqs.push([column, value]); return builder; },
+        in() { return builder; },
+        order() { return builder; },
+        limit() { return builder; },
+        update(value: Record<string, unknown>) { patch = value; return builder; },
+        maybeSingle() {
+          updates.push({ eqs: [...eqs], patch: patch ?? {} });
+          const current = schedules[0];
+          return Promise.resolve({
+            data: current ? { ...current, ...patch, next_run_at: "2026-11-09T01:00:00+00" } : null,
+            error: null,
+          });
+        },
+        then(resolve: (value: { data: Record<string, unknown>[]; error: null }) => void) {
+          const data = table === "employees"
+            ? [{ id: "emp-1", full_name: "Naya" }]
+            : table === "ai_employee_schedules"
+              ? schedules
+              : [];
+          resolve({ data, error: null });
+        },
+      };
+      return builder;
+    },
+  };
+  return { admin: admin as unknown as SupabaseClient, updates };
+}
+
+describe("ai employee schedule update", () => {
+  const current = {
+    id: "sch-1",
+    sop_code: "SOP1",
+    weekday: 5,
+    start_local: "15:00:00",
+    due_local: "17:00:00",
+    is_active: true,
+    next_run_at: "2026-11-06T08:00:00+00",
+  };
+  const change = {
+    employeeName: "nay",
+    sopCode: "SOP1",
+    weekday: 1,
+    startLocal: "08:00",
+    dueLocal: "09:30",
+    isActive: true,
+  };
+
+  it("rejects an admin and a due time that is not after the start", async () => {
+    expect(() => assertOrgOwner({ organizationId: "org-1", roles: ["admin"] })).toThrow("forbidden");
+    expect(validateScheduleUpdate({ weekday: 8, startLocal: "15:00", dueLocal: "17:00" })).toEqual({ ok: false, error: "invalid_weekday" });
+    expect(validateScheduleUpdate({ weekday: 5, startLocal: "17:00", dueLocal: "15:00" })).toEqual({ ok: false, error: "due_not_after_start" });
+    expect(validateScheduleUpdate({ weekday: 5, startLocal: "15:00", dueLocal: "15:00" })).toEqual({ ok: false, error: "due_not_after_start" });
+    expect(validateScheduleUpdate({ weekday: 1, startLocal: "08:00", dueLocal: "09:30" }).ok).toBe(true);
+    const { admin, updates } = scheduleAdmin([current]);
+    await expect(aiEmployeeScheduleUpdate(admin, { ...owner, roles: ["admin"] } as McpAuthContext, change)).rejects.toThrow("forbidden");
+    expect(updates).toHaveLength(0);
+  });
+
+  it("shows the previous schedule and the new one after an owner changes it", async () => {
+    const { admin, updates } = scheduleAdmin([current]);
+    const changed = await aiEmployeeScheduleUpdate(admin, owner, change);
+    expect(changed).toMatchObject({
+      ok: true,
+      name: "Naya",
+      previous: { weekday: 5, start_local: "15:00:00", due_local: "17:00:00", next_run_at: "2026-11-06T08:00:00+00" },
+      schedule: { weekday: 1, start_local: "08:00", due_local: "09:30", is_active: true, next_run_at: "2026-11-09T01:00:00+00" },
+    });
+    expect(updates[0]?.patch).toEqual({ weekday: 1, start_local: "08:00", due_local: "09:30", is_active: true });
+    expect(updates[0]?.eqs).toEqual(expect.arrayContaining([
+      ["id", "sch-1"],
+      ["organization_id", "org-1"],
+      ["employee_id", "emp-1"],
+    ]));
+    const missing = await aiEmployeeScheduleUpdate(scheduleAdmin([]).admin, owner, change);
+    expect(missing).toMatchObject({ ok: false, error: "schedule_not_found" });
+    const ambiguous = await aiEmployeeScheduleUpdate(scheduleAdmin([current, { ...current, id: "sch-2" }]).admin, owner, change);
+    expect(ambiguous).toMatchObject({ ok: false, error: "schedule_ambiguous" });
   });
 });
