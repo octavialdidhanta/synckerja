@@ -1,4 +1,4 @@
--- Rollback 20261101151000_ai_employee_profile.sql
+-- Rollback 20261103101000_ai_employee_profile.sql
 
 DROP TRIGGER IF EXISTS ai_employee_profiles_status_guard ON public.ai_employee_profiles;
 

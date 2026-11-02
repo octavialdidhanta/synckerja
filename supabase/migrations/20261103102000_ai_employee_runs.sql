@@ -83,6 +83,13 @@ CREATE POLICY ai_employee_feedback_insert ON public.ai_employee_feedback
         AND reviewer.user_id = auth.uid()
         AND reviewer.organization_id = ai_employee_feedback.organization_id
     )
+    AND EXISTS (
+      SELECT 1
+      FROM public.ai_employee_profiles p
+      WHERE p.employee_id = ai_employee_feedback.employee_id
+        AND p.organization_id = ai_employee_feedback.organization_id
+        AND p.reviewer_employee_id = ai_employee_feedback.reviewer_employee_id
+    )
   );
 
 CREATE POLICY ai_employee_model_calls_select ON public.ai_employee_model_calls

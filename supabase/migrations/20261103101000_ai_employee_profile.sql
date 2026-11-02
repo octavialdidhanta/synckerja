@@ -172,13 +172,7 @@ BEGIN
     RAISE EXCEPTION 'profile_not_found' USING ERRCODE = 'P0002';
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1
-    FROM public.user_roles ur
-    WHERE ur.user_id = auth.uid()
-      AND ur.organization_id = v_org
-      AND lower(trim(ur.role)) = 'owner'
-  ) THEN
+  IF NOT public.user_has_org_role(v_org, ARRAY['owner']) THEN
     RAISE EXCEPTION 'owner_required' USING ERRCODE = '42501';
   END IF;
 

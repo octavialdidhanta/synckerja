@@ -1,4 +1,4 @@
--- Rollback 20261101154000_ai_employee_perform.sql
+-- Rollback 20261103104000_ai_employee_perform.sql
 
 DROP FUNCTION IF EXISTS public.ai_employee_perform(uuid, uuid, text, jsonb);
 DROP FUNCTION IF EXISTS public.ai_employee_refresh_krs(uuid);

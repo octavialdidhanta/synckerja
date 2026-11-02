@@ -1,4 +1,4 @@
--- Rollback 20261101153000_ai_employee_attribution.sql
+-- Rollback 20261103103000_ai_employee_attribution.sql
 
 ALTER TABLE public.social_media_plans
   DROP CONSTRAINT IF EXISTS social_media_plans_author_org_fkey;

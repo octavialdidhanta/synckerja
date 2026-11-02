@@ -1,4 +1,4 @@
--- Rollback 20261101150000_ai_employee_marker.sql
+-- Rollback 20261103100000_ai_employee_marker.sql
 -- Jalankan setelah rollback attribution, profile, dan runs.
 
 CREATE OR REPLACE FUNCTION public.count_active_employees_for_org(org_id uuid)

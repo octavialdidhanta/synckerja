@@ -109,6 +109,7 @@ DECLARE
   v_ai_b uuid := gen_random_uuid();
   v_other_ai uuid := gen_random_uuid();
   v_disposable uuid := gen_random_uuid();
+  v_alt_reviewer uuid := gen_random_uuid();
   v_run uuid;
   v_other_run uuid;
   v_closed uuid;
@@ -150,6 +151,7 @@ BEGIN
   INSERT INTO public.employees (id, organization_id, full_name, user_id, is_ai)
   VALUES
     (v_human, v_org, 'Reviewer Uji', v_owner, false),
+    (v_alt_reviewer, v_org, 'Reviewer Lain Org Sama', v_owner, false),
     (v_human_b, v_org_b, 'Reviewer Org Lain', v_owner, false),
     (v_ai, v_org, 'Karyawan AI Uji', NULL, true),
     (v_ai_b, v_org_b, 'Karyawan AI Org Lain', NULL, true),
@@ -199,6 +201,44 @@ BEGIN
     (v_other_ai, v_org, v_human, true, 'on_track'),
     (v_disposable, v_org, v_human, true, 'on_track');
 
+  PERFORM set_config('request.jwt.claim.sub', v_owner::text, true);
+  PERFORM set_config(
+    'request.jwt.claims',
+    json_build_object('sub', v_owner, 'role', 'authenticated')::text,
+    true
+  );
+  EXECUTE 'SET ROLE authenticated';
+  BEGIN
+    INSERT INTO public.ai_employee_feedback (
+      employee_id, organization_id, object_type, reason, reviewer_employee_id
+    ) VALUES (
+      v_ai, v_org, 'plan', 'Reviewer bukan di profil', v_alt_reviewer
+    );
+    RAISE EXCEPTION 'feedback from a different reviewer should fail';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      IF SQLERRM NOT LIKE '%row-level security%' THEN
+        RAISE;
+      END IF;
+  END;
+
+  INSERT INTO public.ai_employee_feedback (
+    employee_id, organization_id, object_type, reason, reviewer_employee_id
+  ) VALUES (
+    v_ai, v_org, 'plan', 'Masukan reviewer profil', v_human
+  );
+  EXECUTE 'RESET ROLE';
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.ai_employee_feedback
+    WHERE employee_id = v_ai
+      AND reviewer_employee_id = v_human
+      AND reason = 'Masukan reviewer profil'
+  ) THEN
+    RAISE EXCEPTION 'profile reviewer feedback was not stored';
+  END IF;
+
   INSERT INTO public.social_media_plans (organization_id, title, author_employee_id, production_status)
   VALUES (v_org, 'Plan yang org-nya harus tetap', v_disposable, 'Need Review')
   RETURNING id, organization_id, author_employee_id
@@ -229,8 +269,8 @@ BEGIN
   END IF;
 
   v_count := public.count_active_employees_for_org(v_org);
-  IF v_count <> 1 THEN
-    RAISE EXCEPTION 'human employee should be counted and AI employees excluded, got %', v_count;
+  IF v_count <> 2 THEN
+    RAISE EXCEPTION 'human employees should be counted and AI employees excluded, got %', v_count;
   END IF;
 
   PERFORM set_config('request.jwt.claim.sub', v_member::text, true);

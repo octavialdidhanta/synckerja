@@ -1,4 +1,4 @@
--- Rollback 20261101156000_ai_employee_reviewer_notify.sql
+-- Rollback 20261103105000_ai_employee_reviewer_notify.sql
 -- Hapus baris event AI sebelum CHECK lama dipasang kembali.
 
 DELETE FROM public.daily_task_completion_push_queue
