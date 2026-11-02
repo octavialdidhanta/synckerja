@@ -85,7 +85,7 @@ export function CreatePayrollRunDialog({ children }: CreatePayrollRunDialogProps
     try {
       const taxConfigId = await ensureTaxConfigurationId(organizationId);
 
-      const { data: newPayrollRun, error } = await supabase
+      const { error } = await supabase
         .from("payroll_runs")
         .insert([
           {
@@ -103,18 +103,6 @@ export function CreatePayrollRunDialog({ children }: CreatePayrollRunDialogProps
         .single();
 
       if (error) throw error;
-
-      if (newPayrollRun) {
-        const { error: rpcError } = await supabase.rpc("calculate_payroll_run_totals", {
-          p_run_id: newPayrollRun.id,
-        });
-        if (rpcError) {
-          console.warn("calculate_payroll_run_totals:", rpcError.message);
-          toast.warning(
-            "Payroll run dibuat, tetapi totals belum dihitung. Proses payroll run untuk mengisi totals.",
-          );
-        }
-      }
 
       toast.success("Payroll run created successfully");
 
