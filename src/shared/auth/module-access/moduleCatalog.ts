@@ -35,7 +35,7 @@ export type SalesModuleDefinition = {
   pathPrefixes: string[];
 };
 
-const EXCLUDED_NAV_IDS = new Set(["dashboard", "subscription"]);
+const EXCLUDED_NAV_IDS = new Set(["dashboard", "subscription", "aiEmployees"]);
 
 function collectPathPrefixes(item: MainNavItem): string[] {
   const prefixes = new Set<string>();
@@ -114,6 +114,7 @@ function pathMatchesPrefix(pathname: string, prefix: string): boolean {
 export function resolveSalesModuleForPath(pathname: string): SalesModuleKey | null {
   const current = normalizePath(pathname);
   if (current === "/") return null;
+  if (current === "/ai-employees" || current.startsWith("/ai-employees/")) return "humanResources";
 
   let best: { key: SalesModuleKey; length: number } | null = null;
 

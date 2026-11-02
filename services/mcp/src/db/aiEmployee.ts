@@ -11,6 +11,7 @@ import {
   politeAddress,
   modelAllowance,
   resolveReportPeriod,
+  validateRoutineUpdate,
   validateScheduleUpdate,
 } from "../tools/aiEmployee/rules";
 
@@ -102,7 +103,7 @@ async function requireNamedEmployee(
 export async function aiEmployeeStatus(admin: SupabaseClient, ctx: McpAuthContext, employeeName: string, now = new Date()) {
   const employee = await requireNamedEmployee(admin, ctx, employeeName);
   if ("error" in employee) return employee;
-  const [profiles, sops, schedules, permissions, usage] = await Promise.all([
+  const [profiles, sops, schedules, permissions, usage, routines] = await Promise.all([
     rows(admin, "ai_employee_profiles", "job_title, performance_status, is_active, time_zone", (query) => query
       .eq("organization_id", ctx.organizationId)
       .eq("employee_id", employee.id)
@@ -125,6 +126,11 @@ export async function aiEmployeeStatus(admin: SupabaseClient, ctx: McpAuthContex
       .eq("employee_id", employee.id)
       .eq("usage_date", jakartaUsageDate(now))
       .limit(1)),
+    rows(admin, "ai_employee_routines", "action_code, cadence, weekday, weekdays, time_local, is_active, next_run_at, last_sent_at, last_status", (query) => query
+      .eq("organization_id", ctx.organizationId)
+      .eq("employee_id", employee.id)
+      .eq("is_active", true)
+      .order("action_code")),
   ]);
   const profile = profiles[0];
   return {
@@ -139,6 +145,17 @@ export async function aiEmployeeStatus(admin: SupabaseClient, ctx: McpAuthContex
       weekday: row.weekday,
       start_local: row.start_local,
       due_local: row.due_local,
+    })),
+    routines: routines.map((row) => ({
+      action_code: row.action_code,
+      cadence: row.cadence,
+      weekday: row.weekday,
+      weekdays: row.weekdays ?? [],
+      time_local: row.time_local,
+      is_active: row.is_active !== false,
+      next_run_at: row.next_run_at ?? null,
+      last_sent_at: row.last_sent_at ?? null,
+      last_status: row.last_status ?? null,
     })),
     permissions: permissions.map((row) => String(row.action_code)),
     model_calls_today: modelAllowance(asText(profile?.performance_status), asNumber(usage[0]?.call_count) ?? 0),
@@ -569,5 +586,73 @@ export async function aiEmployeeBriefUpdate(
     name: employee.full_name,
     previous: result.previous ?? null,
     brief: result.brief ?? null,
+  };
+}
+
+async function routineCall(admin: SupabaseClient, fn: string, args: Record<string, unknown>) {
+  const { data, error } = await admin.rpc(fn, args);
+  if (error) throwBrief(error);
+  return data;
+}
+
+export async function aiEmployeeRoutinesList(
+  admin: SupabaseClient,
+  ctx: McpAuthContext,
+  employeeName: string,
+) {
+  const employee = await requireNamedEmployee(admin, ctx, employeeName);
+  if ("error" in employee) return employee;
+  const result = await routineCall(admin, "mcp_list_ai_employee_routines", {
+    p_user_id: ctx.userId,
+    p_organization_id: ctx.organizationId,
+    p_employee_id: employee.id,
+  });
+  return {
+    name: employee.full_name,
+    routines: Array.isArray(result) ? result : [],
+  };
+}
+
+export async function aiEmployeeRoutineUpsert(
+  admin: SupabaseClient,
+  ctx: McpAuthContext,
+  input: {
+    employeeName: string;
+    actionCode: string;
+    cadence: string;
+    weekday: number | null;
+    weekdays?: number[] | null;
+    timeLocal: string;
+    isActive: boolean;
+  },
+) {
+  assertOrgOwner(ctx);
+  const valid = validateRoutineUpdate({
+    actionCode: input.actionCode,
+    cadence: input.cadence,
+    weekday: input.weekday,
+    weekdays: input.weekdays,
+    timeLocal: input.timeLocal,
+  });
+  if (!valid.ok) return { ok: false as const, error: valid.error, name: input.employeeName };
+  const employee = await requireNamedEmployee(admin, ctx, input.employeeName);
+  if ("error" in employee) return employee;
+  const result = await routineCall(admin, "ai_employee_routine_write", {
+    p_user_id: ctx.userId,
+    p_organization_id: ctx.organizationId,
+    p_employee_id: employee.id,
+    p_action_code: input.actionCode,
+    p_cadence: valid.cadence,
+    p_weekday: valid.weekday,
+    p_weekdays: valid.weekdays,
+    p_time_local: valid.timeLocal,
+    p_is_active: input.isActive,
+  });
+  const saved = result && typeof result === "object" ? result as { previous?: unknown; routine?: unknown } : {};
+  return {
+    ok: true as const,
+    name: employee.full_name,
+    previous: saved.previous ?? null,
+    routine: saved.routine ?? null,
   };
 }

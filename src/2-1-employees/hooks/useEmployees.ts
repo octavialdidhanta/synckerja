@@ -21,6 +21,7 @@ export type Employee = {
   employee_status_id?: string;
   status?: string;
   organization_id: string;
+  is_ai?: boolean | null;
   created_at: string;
   updated_at: string;
   join_date?: string;

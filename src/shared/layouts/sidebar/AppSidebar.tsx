@@ -184,6 +184,7 @@ export function AppSidebar() {
 
   const isNavModuleLocked = (itemId: string) => {
     if (!isModuleGatingActive || itemId === "dashboard" || itemId === "subscription") return false;
+    if (itemId === "aiEmployees") return !isModuleEnabled("humanResources");
     return !isModuleEnabled(itemId as SalesModuleKey);
   };
 

@@ -60,11 +60,25 @@ export async function listAdsPerformance(
     }),
   });
 
-  if (response.status === 403) throw new Error("forbidden");
-  if (response.status === 400) throw new Error("invalid_input");
-  if (!response.ok) throw new Error("performance_unavailable");
-
-  const body = (await response.json()) as unknown;
+  const body = await response.json().catch(() => null) as unknown;
+  if (!response.ok) {
+    const error = body && typeof body === "object" && typeof (body as { error?: unknown }).error === "string"
+      ? (body as { error: string }).error
+      : "";
+    const safeError = (secret ? error.split(secret).join("") : error).slice(0, 180);
+    console.error("ads.performance.summary: function rejected", {
+      status: response.status,
+      error: safeError,
+      organizationId: ctx.organizationId,
+      platform: query.platform,
+    });
+    if (safeError.startsWith("forbidden:") || safeError.startsWith("upstream_error:")) {
+      throw new Error(safeError);
+    }
+    if (response.status === 403) throw new Error("forbidden: performance door rejected");
+    if (response.status === 400) throw new Error("invalid_input");
+    throw new Error("performance_unavailable");
+  }
   if (!isSource(body)) throw new Error("performance_unavailable");
   return presentAdsPerformance({
     ...body,

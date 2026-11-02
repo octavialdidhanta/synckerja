@@ -1387,7 +1387,10 @@ Deno.serve(async (req: Request) => {
   let userRes: { userId: string };
   if (mcpUserId) {
     const member = await isActiveOrganizationMember(admin, mcpUserId, organizationId);
-    if (!member) return metaAdsJson({ error: "Forbidden" }, 403);
+    if (!member) {
+      console.error("meta-ads-metrics: rejected", { reason: "organization_mismatch", organizationId, userId: mcpUserId });
+      return metaAdsJson({ error: "forbidden: organization mismatch" }, 403);
+    }
     userRes = { userId: mcpUserId };
   } else {
     const bearer = await getUserFromBearer(admin, req.headers.get("Authorization"));

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { MoreHorizontal, Eye, UserX, Trash2, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { MoreHorizontal, Eye, UserX, Trash2, Loader2, Bot } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import {
   DropdownMenu,
@@ -15,6 +16,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { useEmployeePermissions } from '../hooks/useEmployeePermissions';
 import { ConfirmationDialog } from '../modal/ConfirmationDialog';
 import { logger } from '@/shared/lib/logger';
+import { canOpenAiEmployeePage } from '../ai/access';
 
 interface EmployeeActionsDropdownProps {
   employee: Employee;
@@ -37,6 +39,8 @@ export const EmployeeActionsDropdown = ({
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const { toast } = useToast();
   const { t } = useAppTranslation();
+  const navigate = useNavigate();
+  const showAiPage = canOpenAiEmployeePage(employee, userRole);
 
   const countDirectReports = useCallback(async (): Promise<number> => {
     const { data: org, error: orgError } = await supabase
@@ -302,6 +306,16 @@ export const EmployeeActionsDropdown = ({
             <Eye className="mr-2 h-4 w-4 text-slate-700 dark:text-foreground" />
             View Details
           </DropdownMenuItem>
+
+          {showAiPage ? (
+            <DropdownMenuItem
+              onClick={() => navigate(`/ai-employees/${employee.id}`)}
+              className="cursor-pointer text-slate-700 focus:bg-slate-100 focus:text-slate-700 dark:text-foreground dark:focus:bg-accent dark:focus:text-foreground"
+            >
+              <Bot className="mr-2 h-4 w-4 text-slate-700 dark:text-foreground" />
+              {t('aiEmployee.list.open', 'Karyawan AI')}
+            </DropdownMenuItem>
+          ) : null}
 
           {permissions.canResign && (
             <DropdownMenuItem

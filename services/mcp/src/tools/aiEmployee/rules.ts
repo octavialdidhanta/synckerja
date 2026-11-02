@@ -195,6 +195,44 @@ export const aiEmployeeChatInput = aiEmployeeNameInput.extend({
   message: z.string().trim().min(1).max(4000),
 }).strict();
 
+export const aiEmployeeRoutineUpsertInput = aiEmployeeNameInput.extend({
+  action_code: z.string().trim().min(1).max(80),
+  cadence: z.enum(["days", "weekly", "monthly"]),
+  weekday: z.number().int().min(1).max(7).nullable().optional(),
+  weekdays: z.array(z.number().int().min(1).max(7)).max(7).optional(),
+  time_local: z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/),
+  is_active: z.boolean(),
+}).strict();
+
+export function validateRoutineUpdate(input: {
+  actionCode: string;
+  cadence: string;
+  weekday: number | null;
+  weekdays?: number[] | null;
+  timeLocal: string;
+}): { ok: true; weekday: number | null; weekdays: number[] | null; timeLocal: string; cadence: string } | { ok: false; error: string } {
+  if (!/^([01]\d|2[0-3]):[0-5]\d/.test(input.timeLocal)) return { ok: false, error: "invalid_time" };
+  const timeLocal = input.timeLocal.slice(0, 5);
+  if (input.actionCode === "work_report.daily") {
+    if (input.cadence !== "days") return { ok: false, error: "invalid_cadence" };
+    const days = [...new Set(input.weekdays ?? [])].sort((left, right) => left - right);
+    if (days.length < 1 || days.some((day) => !Number.isInteger(day) || day < 1 || day > 7)) {
+      return { ok: false, error: "invalid_weekday" };
+    }
+    return { ok: true, cadence: "days", weekday: null, weekdays: days, timeLocal };
+  }
+  if (input.actionCode === "work_report.weekly") {
+    if (input.cadence !== "weekly") return { ok: false, error: "invalid_cadence" };
+    if (input.weekday == null || input.weekday < 1 || input.weekday > 7) return { ok: false, error: "invalid_weekday" };
+    return { ok: true, cadence: "weekly", weekday: input.weekday, weekdays: null, timeLocal };
+  }
+  if (input.actionCode === "work_report.monthly") {
+    if (input.cadence !== "monthly") return { ok: false, error: "invalid_cadence" };
+    return { ok: true, cadence: "monthly", weekday: null, weekdays: null, timeLocal };
+  }
+  return { ok: false, error: "invalid_action" };
+}
+
 export const aiEmployeeScheduleUpdateInput = aiEmployeeNameInput.extend({
   sop_code: z.string().trim().min(1).max(20),
   weekday: z.number().int().min(1).max(7),

@@ -68,7 +68,7 @@ import { accessRevokedAt, recordToolCall, takeToolSlot } from "./db/toolGate";
 import { scheduleContentPlan } from "./db/scheduleContentPlan";
 import { createApp } from "./http/createApp";
 import { SupabaseGrantStore } from "./oauth/supabaseStore";
-import { aiEmployeeBriefGet, aiEmployeeBriefUpdate, aiEmployeeChat, aiEmployeeCommand, aiEmployeeQueueList, aiEmployeeReport, aiEmployeeRuns, aiEmployeeScheduleUpdate, aiEmployeeStatus, listAiEmployees } from "./db/aiEmployee";
+import { aiEmployeeBriefGet, aiEmployeeBriefUpdate, aiEmployeeChat, aiEmployeeCommand, aiEmployeeQueueList, aiEmployeeReport, aiEmployeeRoutineUpsert, aiEmployeeRoutinesList, aiEmployeeRuns, aiEmployeeScheduleUpdate, aiEmployeeStatus, listAiEmployees } from "./db/aiEmployee";
 import { listProductKnowledge } from "./db/productKnowledge";
 
 const config = loadConfig();
@@ -151,6 +151,8 @@ const app = createApp({
   aiEmployeeCommand: (ctx, input) => aiEmployeeCommand(admin, config, ctx, input),
   aiEmployeeChat: (ctx, input) => aiEmployeeChat(admin, config, ctx, input),
   aiEmployeeScheduleUpdate: (ctx, input) => aiEmployeeScheduleUpdate(admin, ctx, input),
+  aiEmployeeRoutinesList: (ctx, employeeName) => aiEmployeeRoutinesList(admin, ctx, employeeName),
+  aiEmployeeRoutineUpsert: (ctx, input) => aiEmployeeRoutineUpsert(admin, ctx, input),
   aiEmployeeBriefGet: (ctx, employeeName) => aiEmployeeBriefGet(admin, ctx, employeeName),
   aiEmployeeBriefUpdate: (ctx, employeeName, brief) => aiEmployeeBriefUpdate(admin, ctx, employeeName, brief),
   listProductKnowledge: (ctx, input) => listProductKnowledge(admin, ctx, input),

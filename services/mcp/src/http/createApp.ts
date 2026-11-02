@@ -262,6 +262,19 @@ export type AppDeps = {
       isActive: boolean;
     },
   ) => Promise<unknown>;
+  aiEmployeeRoutinesList: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
+  aiEmployeeRoutineUpsert: (
+    ctx: McpAuthContext,
+    input: {
+      employeeName: string;
+      actionCode: string;
+      cadence: string;
+      weekday: number | null;
+      weekdays?: number[] | null;
+      timeLocal: string;
+      isActive: boolean;
+    },
+  ) => Promise<unknown>;
   aiEmployeeBriefGet: (ctx: McpAuthContext, employeeName: string) => Promise<unknown>;
   aiEmployeeBriefUpdate: (
     ctx: McpAuthContext,

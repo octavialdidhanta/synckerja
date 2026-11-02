@@ -294,6 +294,7 @@
     "nav": {
       "dashboard": "Dasbor",
       "okr": "OKR",
+      "aiEmployees": "Karyawan AI",
       "humanResources": "Human Resources",
       "subscription": "Langganan"
     },

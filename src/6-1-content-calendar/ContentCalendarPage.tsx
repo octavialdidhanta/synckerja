@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { useDebouncedReady } from '@/shared/hooks/useDebouncedReady';
@@ -42,6 +42,8 @@ const ContentCalendarContent: React.FC = () => {
   const [activeMainTab, setActiveMainTab] = useState('content-calendar');
   const [selectedService, setSelectedService] = useState<string>('all');
   const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openedPlanRef = useRef<string | null>(null);
 
   const queryClient = useQueryClient();
   const { loading: orgBootstrapPending, organizationId: activeOrgId } = useCurrentOrg();
@@ -57,6 +59,30 @@ const ContentCalendarContent: React.FC = () => {
   const showContent = useDebouncedReady(!showFullPageSkeleton, 220);
   const { data: currentEmployee } = useCurrentEmployee();
   const { syncPicProduction } = useSyncPicProduction();
+
+  useEffect(() => {
+    const planId = searchParams.get('plan');
+    if (!planId || !activeOrgId || socialDataLoading) return;
+    if (openedPlanRef.current === planId) return;
+    const plan = contentPlans.find((item) => item.id === planId);
+    const next = new URLSearchParams(searchParams);
+    next.delete('plan');
+    openedPlanRef.current = planId;
+    if (!plan) {
+      setSearchParams(next, { replace: true });
+      toast.error('Plan not found in this organization.');
+      return;
+    }
+    const date = plan.post_date ? new Date(plan.post_date) : new Date();
+    if (!Number.isNaN(date.getTime())) {
+      setCurrentDate(date);
+      setSelectedDate(date);
+    }
+    setSelectedService('all');
+    setSelectedPlan(plan);
+    setShowDayDialog(true);
+    setSearchParams(next, { replace: true });
+  }, [activeOrgId, contentPlans, searchParams, setSearchParams, socialDataLoading]);
 
   const handleProductionResubmitForReview = useCallback(
     (planId: string) => {

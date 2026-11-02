@@ -513,6 +513,8 @@ const TermsOfServicePage = lazy(() => import("@/policy").then((m) => ({ default:
 const AccountDeletionPage = lazy(() => import("@/policy").then((m) => ({ default: m.AccountDeletionPage })));
 
 const EmployeePage = lazy(() => import("@/2-1-employees/EmployeePage"));
+import { AiEmployeeRoute } from "@/2-1-employees/ai/AiEmployeeRoute";
+import { AiEmployeesIndexRoute } from "@/2-1-employees/ai/AiEmployeesIndexRoute";
 import { ReprimandRouteElement } from "@/2-1-reprimand/ReprimandRouteElement";
 const AddEmployeePage = lazy(() => import("@/2-1-employees/add-employee/AddEmployeePage"));
 const EmployeePersonalInfo = lazy(() => import("@/2-1-employees/MyInfo/PersonalInformation/pages/EmployeePersonalInfo"));
@@ -1135,6 +1137,8 @@ function AppRoutes() {
                   </PageAccessGuard>
                 }
               />
+              <Route path="/ai-employees" element={<AiEmployeesIndexRoute />} />
+              <Route path="/ai-employees/:employeeId" element={<AiEmployeeRoute />} />
               <Route
                 path="/employees/reprimand"
                 element={<ReprimandRouteElement />}
@@ -4100,6 +4104,8 @@ const App = () => (
                             </PageAccessGuard>
                           }
                         />
+                        <Route path="/ai-employees" element={<AiEmployeesIndexRoute />} />
+                        <Route path="/ai-employees/:employeeId" element={<AiEmployeeRoute />} />
                         <Route
                           path="/employees/reprimand"
                           element={<ReprimandRouteElement />}

@@ -28,6 +28,8 @@ const aiEmployeeTools = [
   "ai_employee.queue.list",
   "ai_employee.command",
   "ai_employee.chat",
+  "ai_employee.routines.list",
+  "ai_employee.routine.upsert",
   "ai_employee.schedule.update",
   "ai_employee.brief.get",
   "ai_employee.brief.update",

@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Briefcase, ClipboardList, CreditCard, Layers, MessagesSquare, Target, Users, Wallet, Wrench } from "lucide-react";
+import { Bot, Briefcase, ClipboardList, CreditCard, Layers, MessagesSquare, Target, Users, Wallet, Wrench } from "lucide-react";
 import { OMNICHANNEL_SETTINGS_INDEX_REDIRECT_TO } from "@/5-3-dashboard/omnichannel-settings/constants/omnichannelSettingsSections";
 
 /** Strip query/hash for path comparison */
@@ -89,6 +89,13 @@ export const mainNavItems: MainNavItem[] = [
     icon: Target,
     path: "/okr/company-objective",
     activePathPrefix: "/okr",
+  },
+  {
+    id: "aiEmployees",
+    titleKey: "layout.nav.aiEmployees",
+    icon: Bot,
+    path: "/ai-employees",
+    activePathPrefix: "/ai-employees",
   },
   {
     id: "humanResources",

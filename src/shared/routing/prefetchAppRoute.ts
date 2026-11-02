@@ -362,6 +362,10 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
       import("@/2-2-recruitment-dashboard").then((m) => ({ default: m.DashboardOverview })),
   },
   {
+    prefix: "/ai-employees",
+    prefetch: () => import("@/2-1-employees/ai/AiEmployeesIndexPage"),
+  },
+  {
     prefix: "/employees",
     prefetch: () => import("@/2-1-employees/EmployeePage"),
   },

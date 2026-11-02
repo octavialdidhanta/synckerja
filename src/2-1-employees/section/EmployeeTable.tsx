@@ -1,4 +1,5 @@
 import { memo, useMemo, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
 import { Badge } from '@/shared/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/ui/avatar';
@@ -10,6 +11,7 @@ import { useOptimizedPerformanceMonitor } from '../hooks/useOptimizedPerformance
 import { EmployeeTableFooter } from './EmployeeTableFooter';
 import { EmployeeManagerCell } from './EmployeeManagerCell';
 import { getEmployeeStatus, countActiveEmployees } from '../utils/employeeUtils';
+import { canOpenAiEmployeePage } from '../ai/access';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { formatOrganizationRole } from '@/shared/lib/formatOrganizationRole';
 import { Briefcase, Crown, ShieldCheck, UserRound, Users } from 'lucide-react';
@@ -138,6 +140,15 @@ const EmployeeRow = memo(({
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium text-gray-900">{employee.full_name}</div>
             <div className="truncate text-xs text-gray-500">{employee.email}</div>
+            {canOpenAiEmployeePage(employee, userRole) ? (
+              <Link
+                to={`/ai-employees/${employee.id}`}
+                className="truncate text-xs font-medium text-blue-600 hover:underline"
+                onClick={(event) => event.stopPropagation()}
+              >
+                {t('aiEmployee.list.open', 'Karyawan AI')}
+              </Link>
+            ) : null}
           </div>
         </div>
       </TableCell>

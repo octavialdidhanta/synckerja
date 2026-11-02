@@ -92,6 +92,8 @@ export type McpToolName =
   | "ai_employee.command"
   | "ai_employee.chat"
   | "ai_employee.schedule.update"
+  | "ai_employee.routines.list"
+  | "ai_employee.routine.upsert"
   | "ai_employee.brief.get"
   | "ai_employee.brief.update";
 
@@ -614,7 +616,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "ai_employee.status",
     description:
-      "Read one AI employee in the active organization. Owner or admin only. employee_name is the full name or a unique short nickname such as Nay for Naya, ignoring letter case. Returns the profile, current SOPs, active schedule, permissions, and remaining model calls for today in Asia/Jakarta. Use this when the user asks that employee about profile, SOP, schedule, or quota. Show it as \"Naya: ...\" and do not call another tool for that request.",
+      "Read one AI employee in the active organization. Owner or admin only. employee_name is the full name or a unique short nickname such as Nay for Naya, ignoring letter case. Returns the profile, current SOPs, active schedule, active routines, permissions, and remaining model calls for today in Asia/Jakarta. Use this when the user asks that employee about profile, SOP, schedule, the work-report email, or quota. Show it as \"Naya: ...\" and do not call another tool for that request.",
     scopes: ["session:read"],
   },
   {
@@ -645,6 +647,18 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "ai_employee.chat",
     description:
       "Talk with one AI employee. Owner or admin only. Requires employee_name and message. Call this when the user message is or starts with the employee name or nickname, including a single word such as Nay or Naya. employee_name may be that nickname. Does not create a content plan. Greetings and questions about the employee are answered in her voice. Display reply as \"Naya: ...\". Only a work request outside content, such as payroll or HR, is refused. Do not answer the greeting yourself.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.routines.list",
+    description:
+      "List one AI employee's work-report rhythms in the active organization. Owner or admin only. employee_name may be a unique short nickname. The rhythms are work_report.daily on the chosen weekdays, work_report.weekly on one chosen weekday, and work_report.monthly on the last day of the current month. An active monthly report replaces the others on the last day of the month. An active weekly weekday is not part of the daily rhythm. Returns action, cadence, weekdays, time, next run, last send status, reviewer name, and the five latest deliveries. Deliveries contain work counts only: runs, plans, queue results, and KR1 to KR5. No email address and no HR, payroll, or attendance data.",
+    scopes: ["session:read"],
+  },
+  {
+    name: "ai_employee.routine.upsert",
+    description:
+      "Create or replace one AI employee's work-report rhythm in the active organization. Owner only; an admin is rejected. Requires employee_name, action_code, time_local HH:MM, and is_active. action_code work_report.daily uses cadence days and weekdays, an array of 1 (Monday) through 7 (Sunday); do not assume Monday through Thursday. action_code work_report.weekly uses cadence weekly and one weekday 1 through 7; do not assume Friday. Saving it removes that weekday from the daily rhythm. action_code work_report.monthly uses cadence monthly and sends on the last day of the current month, replacing weekly and daily that day. work_report.email and any other action_code return invalid_action. Show that error unchanged and do not answer it with HR or payroll tools. Show the previous routine and the new routine.",
     scopes: ["session:read"],
   },
   {
@@ -700,6 +714,7 @@ const MUTATING_TOOLS = new Set<McpToolName>([
   "thinking.plan.direct",
   "ai_employee.command",
   "ai_employee.schedule.update",
+  "ai_employee.routine.upsert",
   "ai_employee.brief.update",
 ]);
 
