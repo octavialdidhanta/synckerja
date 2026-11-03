@@ -7,6 +7,14 @@ import {
   type AdsPerformanceSourceRow,
   type AdsPerformanceSummary,
 } from "../tools/ads/performanceSummary";
+import {
+  presentAdsBreakdown,
+  resolveAdsBreakdownPeriod,
+  type AdsBreakdown,
+  type AdsBreakdownQuery,
+  type AdsBreakdownSource,
+  type AdsBreakdownSourceAccount,
+} from "../tools/ads/performanceBreakdown";
 
 type Session = { userId: string; organizationId: string };
 
@@ -35,13 +43,13 @@ function isSource(value: unknown): value is AdsPerformanceSource {
   return Boolean(row.period?.start && row.period?.end && Array.isArray(row.accounts));
 }
 
-export async function listAdsPerformance(
+async function callPerformanceDoor(
   config: Pick<McpServiceConfig, "supabaseUrl" | "supabaseServiceRoleKey" | "scheduledPostsInternalSecret">,
   ctx: Session,
-  query: AdsPerformanceQuery,
-  fetchImpl: typeof fetch = fetch,
-): Promise<AdsPerformanceSummary> {
-  const period = resolveAdsPerformancePeriod(query);
+  payload: Record<string, unknown>,
+  toolName: string,
+  fetchImpl: typeof fetch,
+): Promise<unknown> {
   const secret = config.scheduledPostsInternalSecret;
   const response = await fetchImpl(`${config.supabaseUrl}/functions/v1/mcp-ads-performance`, {
     method: "POST",
@@ -54,9 +62,7 @@ export async function listAdsPerformance(
       organization_id: ctx.organizationId,
       mcp_user_id: ctx.userId,
       internal_secret: secret,
-      date_start: period.start,
-      date_end: period.end,
-      platform: query.platform,
+      ...payload,
     }),
   });
 
@@ -66,11 +72,12 @@ export async function listAdsPerformance(
       ? (body as { error: string }).error
       : "";
     const safeError = (secret ? error.split(secret).join("") : error).slice(0, 180);
-    console.error("ads.performance.summary: function rejected", {
+    console.error(`${toolName}: function rejected`, {
       status: response.status,
       error: safeError,
       organizationId: ctx.organizationId,
-      platform: query.platform,
+      platform: payload.platform,
+      level: payload.level,
     });
     if (safeError.startsWith("forbidden:") || safeError.startsWith("upstream_error:")) {
       throw new Error(safeError);
@@ -79,6 +86,22 @@ export async function listAdsPerformance(
     if (response.status === 400) throw new Error("invalid_input");
     throw new Error("performance_unavailable");
   }
+  return body;
+}
+
+export async function listAdsPerformance(
+  config: Pick<McpServiceConfig, "supabaseUrl" | "supabaseServiceRoleKey" | "scheduledPostsInternalSecret">,
+  ctx: Session,
+  query: AdsPerformanceQuery,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AdsPerformanceSummary> {
+  const period = resolveAdsPerformancePeriod(query);
+  const secret = config.scheduledPostsInternalSecret;
+  const body = await callPerformanceDoor(config, ctx, {
+    date_start: period.start,
+    date_end: period.end,
+    platform: query.platform,
+  }, "ads.performance.summary", fetchImpl);
   if (!isSource(body)) throw new Error("performance_unavailable");
   return presentAdsPerformance({
     ...body,
@@ -89,4 +112,49 @@ export async function listAdsPerformance(
     },
     accounts: body.accounts.map((row) => cleanAccount(row, secret)),
   });
+}
+
+function cleanBreakdownAccount(row: AdsBreakdownSourceAccount, secret: string): AdsBreakdownSourceAccount {
+  const error = cleanText(row.error, secret);
+  return {
+    ...row,
+    error: row.error && !error ? "request_failed" : error,
+    note: cleanText(row.note, secret),
+    rows: (row.rows ?? []).map((item) => ({
+      ...item,
+      name: cleanText(item.name, secret) ?? "Ad",
+      campaign_name: cleanText(item.campaign_name, secret) ?? "Campaign",
+      adset_name: cleanText(item.adset_name, secret),
+    })),
+  };
+}
+
+/** Meta ad set or ad rows from the same door as the summary, with level set. */
+export async function listAdsBreakdown(
+  config: Pick<McpServiceConfig, "supabaseUrl" | "supabaseServiceRoleKey" | "scheduledPostsInternalSecret">,
+  ctx: Session,
+  query: AdsBreakdownQuery,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AdsBreakdown> {
+  const period = resolveAdsBreakdownPeriod(query);
+  const secret = config.scheduledPostsInternalSecret;
+  const body = await callPerformanceDoor(config, ctx, {
+    date_start: period.start,
+    date_end: period.end,
+    platform: "meta",
+    level: query.level,
+    account_id: query.accountId ?? undefined,
+    campaign_id: query.campaignId ?? undefined,
+  }, "ads.performance.breakdown", fetchImpl);
+  if (!isSource(body)) throw new Error("performance_unavailable");
+  const source = body as unknown as AdsBreakdownSource;
+  return presentAdsBreakdown({
+    ...source,
+    period: {
+      start: source.period.start,
+      end: source.period.end,
+      clipped: source.period.clipped || period.clipped,
+    },
+    accounts: source.accounts.map((row) => cleanBreakdownAccount(row, secret)),
+  }, query.level);
 }

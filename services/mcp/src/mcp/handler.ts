@@ -54,6 +54,9 @@ import {
   adsPerformanceInput,
   adsPerformanceResult,
   parseAdsPerformanceQuery,
+  adsBreakdownInput,
+  adsBreakdownResult,
+  parseAdsBreakdownQuery,
   calendarInput,
   calendarResult,
   contentPlansInput,
@@ -213,6 +216,10 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     query: import("../tools/ads/performanceSummary").AdsPerformanceQuery,
   ) => Promise<import("../tools/ads/performanceSummary").AdsPerformanceSummary>;
+  listAdsBreakdown: (
+    ctx: McpAuthContext,
+    query: import("../tools/ads/performanceBreakdown").AdsBreakdownQuery,
+  ) => Promise<import("../tools/ads/performanceBreakdown").AdsBreakdown>;
   listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
   listExpenses: (ctx: McpAuthContext, month: string | null) => Promise<ExpenseRow[]>;
   listEmployees: (ctx: McpAuthContext) => Promise<EmployeeRow[]>;
@@ -512,6 +519,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "crm.leads.list": leadsInput,
   "ads.accounts.list": adsAccountsInput,
   "ads.performance.summary": adsPerformanceInput,
+  "ads.performance.breakdown": adsBreakdownInput,
   "finance.income.list": incomeInput,
   "finance.income.create": createIncomeInput,
   "finance.income.update": updateIncomeSchema,
@@ -620,6 +628,11 @@ async function runTool(
       const query = parseAdsPerformanceQuery(args);
       if (!query) throw new Error("invalid_input");
       return adsPerformanceResult(ctx, query, deps.listAdsPerformance);
+    }
+    case "ads.performance.breakdown": {
+      const query = parseAdsBreakdownQuery(args);
+      if (!query) throw new Error("invalid_input");
+      return adsBreakdownResult(ctx, query, deps.listAdsBreakdown);
     }
     case "finance.income.list":
       return incomeResult(ctx, optionalString(args.month), deps.listIncomeTransactions);
@@ -1068,9 +1081,9 @@ export async function handleMcpRequest(
         const fresh = await reload(deps, claims);
         if (!fresh || !isToolVisible(tool.name, fresh)) {
           await noteCall(deps, fresh ?? ctx, tool.name, "forbidden");
-          if (tool.name === "ads.performance.summary") {
+          if (tool.name === "ads.performance.summary" || tool.name === "ads.performance.breakdown") {
             const message = adsPerformanceDenial(fresh);
-            console.error("ads.performance.summary: denied", {
+            console.error(`${tool.name}: denied`, {
               reason: message,
               organizationId: fresh?.organizationId ?? ctx.organizationId,
               userId: fresh?.userId ?? ctx.userId,

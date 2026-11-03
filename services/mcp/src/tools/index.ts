@@ -11,6 +11,7 @@ export { departmentsInput, departmentsResult } from "./okr/departmentsList";
 export { leadsInput, leadsResult } from "./crm/leadsList";
 export { adsAccountsInput, adsAccountsResult } from "./ads/accountsList";
 export { adsPerformanceDenial, adsPerformanceInput, adsPerformanceResult, parseAdsPerformanceQuery } from "./ads/performanceSummary";
+export { adsBreakdownInput, adsBreakdownResult, parseAdsBreakdownQuery } from "./ads/performanceBreakdown";
 export { incomeInput, incomeResult } from "./finance/incomeList";
 export { createIncomeInput, createIncomeResult } from "./finance/incomeCreate";
 export { updateIncomeInput, updateIncomeResult, updateIncomeSchema } from "./finance/incomeUpdate";
