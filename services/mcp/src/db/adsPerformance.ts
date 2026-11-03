@@ -15,6 +15,22 @@ import {
   type AdsBreakdownSource,
   type AdsBreakdownSourceAccount,
 } from "../tools/ads/performanceBreakdown";
+import {
+  presentAdsAudience,
+  resolveAdsAudiencePeriod,
+  type AdsAudience,
+  type AdsAudienceQuery,
+  type AdsAudienceSource,
+  type AdsAudienceSourceAccount,
+} from "../tools/ads/audienceList";
+import {
+  presentAdsSegments,
+  resolveAdsSegmentsPeriod,
+  type AdsSegments,
+  type AdsSegmentsQuery,
+  type AdsSegmentsSource,
+  type AdsSegmentsSourceAccount,
+} from "../tools/ads/performanceSegments";
 
 type Session = { userId: string; organizationId: string };
 
@@ -157,4 +173,95 @@ export async function listAdsBreakdown(
     },
     accounts: source.accounts.map((row) => cleanBreakdownAccount(row, secret)),
   }, query.level);
+}
+
+type DoorConfig = Pick<McpServiceConfig, "supabaseUrl" | "supabaseServiceRoleKey" | "scheduledPostsInternalSecret">;
+
+function cleanAudienceAccount(row: AdsAudienceSourceAccount, secret: string): AdsAudienceSourceAccount {
+  const error = cleanText(row.error, secret);
+  return {
+    ...row,
+    error: row.error && !error ? "request_failed" : error,
+    note: cleanText(row.note, secret),
+    audiences: (row.audiences ?? []).map((item) => ({
+      ...item,
+      adset_name: cleanText(item.adset_name, secret) ?? "Ad set",
+      campaign_name: cleanText(item.campaign_name, secret) ?? "Campaign",
+      error: item.error ? cleanText(item.error, secret) ?? "request_failed" : null,
+    })),
+  };
+}
+
+/** Targeting of Meta ad sets that delivered in the period. */
+export async function listAdsAudience(
+  config: DoorConfig,
+  ctx: Session,
+  query: AdsAudienceQuery,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AdsAudience> {
+  const period = resolveAdsAudiencePeriod(query);
+  const secret = config.scheduledPostsInternalSecret;
+  const body = await callPerformanceDoor(config, ctx, {
+    date_start: period.start,
+    date_end: period.end,
+    platform: "meta",
+    mode: "audience",
+    account_id: query.accountId ?? undefined,
+    campaign_id: query.campaignId ?? undefined,
+    adset_id: query.adsetId ?? undefined,
+  }, "ads.audience.list", fetchImpl);
+  if (!isSource(body)) throw new Error("performance_unavailable");
+  const source = body as unknown as AdsAudienceSource;
+  return presentAdsAudience({
+    ...source,
+    period: { start: source.period.start, end: source.period.end, clipped: source.period.clipped || period.clipped },
+    accounts: source.accounts.map((row) => cleanAudienceAccount(row, secret)),
+  });
+}
+
+function cleanSegmentsAccount(row: AdsSegmentsSourceAccount, secret: string): AdsSegmentsSourceAccount {
+  const error = cleanText(row.error, secret);
+  const segments: AdsSegmentsSourceAccount["segments"] = {};
+  for (const [dimension, block] of Object.entries(row.segments ?? {})) {
+    if (!block) continue;
+    segments[dimension as keyof typeof segments] = {
+      buckets: (block.buckets ?? []).map((bucket) => ({ ...bucket, key: cleanText(bucket.key, secret) ?? "unknown" })),
+      error: block.error ? cleanText(block.error, secret) ?? "request_failed" : null,
+    };
+  }
+  return {
+    ...row,
+    error: row.error && !error ? "request_failed" : error,
+    note: cleanText(row.note, secret),
+    segments,
+  };
+}
+
+/** Meta delivery split by age, gender, region, placement, device, hour, and day. */
+export async function listAdsSegments(
+  config: DoorConfig,
+  ctx: Session,
+  query: AdsSegmentsQuery,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AdsSegments> {
+  const period = resolveAdsSegmentsPeriod(query);
+  const secret = config.scheduledPostsInternalSecret;
+  const body = await callPerformanceDoor(config, ctx, {
+    date_start: period.start,
+    date_end: period.end,
+    platform: "meta",
+    mode: "segments",
+    dimensions: query.dimensions,
+    account_id: query.accountId ?? undefined,
+    campaign_id: query.campaignId ?? undefined,
+    adset_id: query.adsetId ?? undefined,
+    ad_id: query.adId ?? undefined,
+  }, "ads.performance.segments", fetchImpl);
+  if (!isSource(body)) throw new Error("performance_unavailable");
+  const source = body as unknown as AdsSegmentsSource;
+  return presentAdsSegments({
+    ...source,
+    period: { start: source.period.start, end: source.period.end, clipped: source.period.clipped || period.clipped },
+    accounts: source.accounts.map((row) => cleanSegmentsAccount(row, secret)),
+  }, query.dimensions);
 }

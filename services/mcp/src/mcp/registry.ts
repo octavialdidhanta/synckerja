@@ -35,6 +35,8 @@ export type McpToolName =
   | "ads.accounts.list"
   | "ads.performance.summary"
   | "ads.performance.breakdown"
+  | "ads.audience.list"
+  | "ads.performance.segments"
   | "finance.income.list"
   | "finance.income.create"
   | "finance.income.update"
@@ -212,7 +214,23 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "ads.performance.breakdown",
     description:
-      "Rank Meta ads or ad sets for the organization locked in this session using the same Ads and Ad sets tabs as the Synckerja Meta ads page. Call this when the user asks which ad, creative, or ad set is performing, or wants performance below the campaign level. level is ad (default) or adset. Omit month and dates for the last 30 days in Asia/Jakarta. Optional month is YYYY-MM. Optional date_start and date_end are YYYY-MM-DD and replace month. Optional account_id limits to one Meta ad account and campaign_id to one campaign; both are ids from ads.performance.summary. Returns up to 50 rows per account, highest spend first, with spend, impressions, CPM, link clicks, CTR, CPC, results, results_label, cost per result, share of spend, and delivery, plus best row ids per metric. Results follow each campaign objective and ad set goal, like Results in Ads Manager. Follow how_to_read. Google and TikTok are not covered. Access tokens are not returned.",
+      "Rank Meta ads or ad sets for the organization locked in this session using the same Ads and Ad sets tabs as the Synckerja Meta ads page. Call this when the user asks which ad, creative, or ad set is performing, or wants performance below the campaign level. level is ad (default) or adset. Omit month and dates for the last 30 days in Asia/Jakarta. Optional month is YYYY-MM. Optional date_start and date_end are YYYY-MM-DD and replace month. Optional account_id limits to one Meta ad account and campaign_id to one campaign; both are ids from ads.performance.summary. Returns up to 50 rows per account, highest spend first, with spend, impressions, CPM, link clicks, CTR, CPC, results, results_label, cost per result, share of spend, and delivery, plus best row ids per metric. Results follow each campaign objective and ad set goal, like Results in Ads Manager. Follow how_to_read. Google and TikTok are not covered. Access tokens are not returned. For who and where an ad set targets, call ads.audience.list; for delivery by age, gender, region, placement, device, hour, or day, call ads.performance.segments.",
+    scopes: ["ads:read"],
+    moduleKey: "digitalMarketing",
+    pagePaths: ADS_PAGE_PATHS,
+  },
+  {
+    name: "ads.audience.list",
+    description:
+      "Read the targeting of Meta ad sets for the organization locked in this session, as set in Ads Manager. Call this when the user asks where an ad is shown, which location, radius, or area it targets, or who it targets (age, gender, interests, custom audiences, placements). Lists up to 10 ad sets with delivery in the period, highest spend first, each with locations (radius pins with distance, cities, regions, countries), excluded locations, age, gender, interests, Advantage+ audience, placements, Meta's audience sentences, and the ad set's spend and results. Omit month and dates for the last 30 days in Asia/Jakarta. Optional month is YYYY-MM. Optional date_start and date_end are YYYY-MM-DD and replace month. Optional account_id, campaign_id, and adset_id narrow it; ids come from ads.performance.summary or ads.performance.breakdown. This is the setup, not where delivery landed; for that call ads.performance.segments. Follow how_to_read. Access tokens are not returned.",
+    scopes: ["ads:read"],
+    moduleKey: "digitalMarketing",
+    pagePaths: ADS_PAGE_PATHS,
+  },
+  {
+    name: "ads.performance.segments",
+    description:
+      "Split Meta ad delivery for the organization locked in this session by segment: age, gender, region (province), placement (for example instagram / instagram_reels or facebook / feed), device, hour of day, and day. Call this when the user asks which audience, age group, gender, area, placement, time of day, or day performs best or where spend goes. Returns per bucket spend, impressions, CPM, link clicks, CTR, CPC, results with results_label, cost per result, share of spend and results, and best bucket keys. Optional dimensions picks a subset (default all). Omit month and dates for the last 30 days in Asia/Jakarta. Optional month is YYYY-MM. Optional date_start and date_end are YYYY-MM-DD and replace month. Optional account_id; and one of campaign_id, adset_id, or ad_id to narrow the scope. Results follow each campaign objective and ad set goal like Results in Ads Manager. Meta does not report delivery by city, district, or radius. Follow how_to_read. Access tokens are not returned.",
     scopes: ["ads:read"],
     moduleKey: "digitalMarketing",
     pagePaths: ADS_PAGE_PATHS,

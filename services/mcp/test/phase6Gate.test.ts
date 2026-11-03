@@ -179,6 +179,8 @@ function gateDeps(overrides: Record<string, unknown>) {
     listAdsAccounts: unused,
     listAdsPerformance: unused,
     listAdsBreakdown: unused,
+    listAdsAudience: unused,
+    listAdsSegments: unused,
     listIncomeTransactions: unused,
     listExpenses: unused,
     listEmployees: unused,

@@ -57,6 +57,12 @@ import {
   adsBreakdownInput,
   adsBreakdownResult,
   parseAdsBreakdownQuery,
+  adsAudienceInput,
+  adsAudienceResult,
+  parseAdsAudienceQuery,
+  adsSegmentsInput,
+  adsSegmentsResult,
+  parseAdsSegmentsQuery,
   calendarInput,
   calendarResult,
   contentPlansInput,
@@ -220,6 +226,14 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     query: import("../tools/ads/performanceBreakdown").AdsBreakdownQuery,
   ) => Promise<import("../tools/ads/performanceBreakdown").AdsBreakdown>;
+  listAdsAudience: (
+    ctx: McpAuthContext,
+    query: import("../tools/ads/audienceList").AdsAudienceQuery,
+  ) => Promise<import("../tools/ads/audienceList").AdsAudience>;
+  listAdsSegments: (
+    ctx: McpAuthContext,
+    query: import("../tools/ads/performanceSegments").AdsSegmentsQuery,
+  ) => Promise<import("../tools/ads/performanceSegments").AdsSegments>;
   listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
   listExpenses: (ctx: McpAuthContext, month: string | null) => Promise<ExpenseRow[]>;
   listEmployees: (ctx: McpAuthContext) => Promise<EmployeeRow[]>;
@@ -520,6 +534,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "ads.accounts.list": adsAccountsInput,
   "ads.performance.summary": adsPerformanceInput,
   "ads.performance.breakdown": adsBreakdownInput,
+  "ads.audience.list": adsAudienceInput,
+  "ads.performance.segments": adsSegmentsInput,
   "finance.income.list": incomeInput,
   "finance.income.create": createIncomeInput,
   "finance.income.update": updateIncomeSchema,
@@ -633,6 +649,16 @@ async function runTool(
       const query = parseAdsBreakdownQuery(args);
       if (!query) throw new Error("invalid_input");
       return adsBreakdownResult(ctx, query, deps.listAdsBreakdown);
+    }
+    case "ads.audience.list": {
+      const query = parseAdsAudienceQuery(args);
+      if (!query) throw new Error("invalid_input");
+      return adsAudienceResult(ctx, query, deps.listAdsAudience);
+    }
+    case "ads.performance.segments": {
+      const query = parseAdsSegmentsQuery(args);
+      if (!query) throw new Error("invalid_input");
+      return adsSegmentsResult(ctx, query, deps.listAdsSegments);
     }
     case "finance.income.list":
       return incomeResult(ctx, optionalString(args.month), deps.listIncomeTransactions);
@@ -1081,7 +1107,7 @@ export async function handleMcpRequest(
         const fresh = await reload(deps, claims);
         if (!fresh || !isToolVisible(tool.name, fresh)) {
           await noteCall(deps, fresh ?? ctx, tool.name, "forbidden");
-          if (tool.name === "ads.performance.summary" || tool.name === "ads.performance.breakdown") {
+          if (tool.name.startsWith("ads.performance.") || tool.name === "ads.audience.list") {
             const message = adsPerformanceDenial(fresh);
             console.error(`${tool.name}: denied`, {
               reason: message,

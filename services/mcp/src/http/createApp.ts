@@ -88,6 +88,14 @@ export type AppDeps = {
     ctx: McpAuthContext,
     query: import("../tools/ads/performanceBreakdown").AdsBreakdownQuery,
   ) => Promise<import("../tools/ads/performanceBreakdown").AdsBreakdown>;
+  listAdsAudience: (
+    ctx: McpAuthContext,
+    query: import("../tools/ads/audienceList").AdsAudienceQuery,
+  ) => Promise<import("../tools/ads/audienceList").AdsAudience>;
+  listAdsSegments: (
+    ctx: McpAuthContext,
+    query: import("../tools/ads/performanceSegments").AdsSegmentsQuery,
+  ) => Promise<import("../tools/ads/performanceSegments").AdsSegments>;
   listIncomeTransactions: (ctx: McpAuthContext, month: string | null) => Promise<IncomeRow[]>;
   listExpenses: (ctx: McpAuthContext, month: string | null) => Promise<ExpenseRow[]>;
   listEmployees: (ctx: McpAuthContext) => Promise<EmployeeRow[]>;

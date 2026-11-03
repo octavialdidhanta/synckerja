@@ -7,7 +7,31 @@ import {
   internalSecretMatches,
 } from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
 import { metaAccountResult, metaCampaignResult } from "./metaResults.ts";
-import { breakdownRows, type BreakdownLevel, type BreakdownRow } from "./metaBreakdown.ts";
+import { breakdownRow, breakdownRows, campaignGoals, type BreakdownLevel, type BreakdownRow } from "./metaBreakdown.ts";
+import { scopeGoal, segmentBuckets, type SegmentBucket } from "./metaSegments.ts";
+import { summarizeAudience, type AudienceSummary } from "./metaAudience.ts";
+
+const MAX_AUDIENCE_ADSETS = 10;
+const SEGMENT_DIMENSIONS = ["age", "gender", "region", "placement", "device", "hour", "day"] as const;
+type SegmentDimension = (typeof SEGMENT_DIMENSIONS)[number];
+type Mode = "performance" | "audience" | "segments";
+
+type AudienceRow = {
+  adset_id: string;
+  adset_name: string;
+  campaign_id: string;
+  campaign_name: string;
+  delivery: string | null;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  results: number;
+  results_label: string;
+  audience: AudienceSummary | null;
+  error: string | null;
+};
+
+type SegmentBlock = { buckets: SegmentBucket[]; error: string | null };
 
 const MAX_ACCOUNTS = 12;
 const MAX_CAMPAIGNS = 25;
@@ -52,6 +76,12 @@ type PerformanceRow = {
   /** Ad set or ad rows, only when the request asks for that level. */
   rows?: BreakdownRow[];
   rows_truncated?: boolean;
+  /** Ad set targeting, only in audience mode. */
+  audiences?: AudienceRow[];
+  audiences_truncated?: boolean;
+  /** Segment buckets, only in segments mode. */
+  segments?: Partial<Record<SegmentDimension, SegmentBlock>>;
+  segment_results_label?: string | null;
   error: string | null;
   note: string | null;
 };
@@ -505,6 +535,158 @@ async function metaBreakdown(
   }
 }
 
+type MetaFilters = {
+  campaignId: string | null;
+  adsetId: string | null;
+  adId: string | null;
+};
+
+function accountShell(account: AccountRef, totals: Record<string, unknown>, note: string): PerformanceRow {
+  return {
+    platform: "meta",
+    label: account.label,
+    account_id: account.accountId,
+    currency: typeof totals.currency === "string" && totals.currency.trim() ? totals.currency : null,
+    spend: asNumber(totals.spend),
+    impressions: asNumber(totals.impressions),
+    clicks: asNumber(totals.clicks),
+    reach: asNumber(totals.reach),
+    results: null,
+    results_label: null,
+    result_value: null,
+    campaigns: [],
+    campaigns_truncated: false,
+    error: null,
+    note,
+  };
+}
+
+/** Targeting of the ad sets that delivered in the period, highest spend first. */
+async function metaAudience(
+  ctx: ReadContext,
+  account: AccountRef,
+  start: string,
+  end: string,
+  filters: MetaFilters,
+): Promise<PerformanceRow> {
+  try {
+    const [adsets, campaigns] = await Promise.all([
+      metaEntityRows(ctx, account, "adset", start, end),
+      metaEntityRows(ctx, account, "campaign", start, end),
+    ]);
+    const goals = campaignGoals(campaigns.rows);
+    // Only ad sets this account reported for the period are read, so an id from elsewhere is never looked up.
+    const listed = adsets.rows
+      .filter((raw) => !filters.campaignId || String(raw.campaign_id ?? "").trim() === filters.campaignId)
+      .filter((raw) => !filters.adsetId || String(raw.adset_id ?? "").trim() === filters.adsetId)
+      .map((raw) => breakdownRow("adset", raw, goals))
+      .filter((row) => row.id && (row.spend > 0 || row.impressions > 0))
+      .sort((left, right) => right.spend - left.spend);
+    const picked = listed.slice(0, MAX_AUDIENCE_ADSETS);
+    const audiences = await Promise.all(picked.map(async (row): Promise<AudienceRow> => {
+      const base = {
+        adset_id: row.id,
+        adset_name: row.name,
+        campaign_id: row.campaign_id,
+        campaign_name: row.campaign_name,
+        delivery: row.delivery,
+        spend: row.spend,
+        impressions: row.impressions,
+        clicks: row.clicks,
+        results: row.results,
+        results_label: row.results_label,
+      };
+      try {
+        const payload = await postDashboard("meta-ads-metrics", dashboardBody(ctx, {
+          action: "fetchAdsetAudience",
+          ad_account_id: account.accountId,
+          adset_id: row.id,
+        }));
+        return { ...base, audience: summarizeAudience(payload.targeting, payload.sentence_lines), error: null };
+      } catch (error) {
+        return { ...base, audience: null, error: performanceErrorMessage(error, "Meta Ads authorization expired. Reconnect the account.") };
+      }
+    }));
+    const notes = ["Ad set targeting for ad sets with delivery in the period, highest spend first."];
+    if (filters.adsetId && audiences.length === 0) {
+      notes.push("The requested ad set had no delivery in this period, so its targeting was not read.");
+    }
+    if (listed.length > picked.length) notes.push(`Only the top ${MAX_AUDIENCE_ADSETS} ad sets by spend are included.`);
+    return {
+      ...accountShell(account, adsets.summary, notes.join(" ")),
+      audiences,
+      audiences_truncated: listed.length > picked.length,
+    };
+  } catch (error) {
+    return failRow(account, performanceErrorMessage(error, "Meta Ads authorization expired. Reconnect the account."), "purchases");
+  }
+}
+
+/** Spend, delivery, and results split by age, gender, region, placement, device, hour, and day. */
+async function metaSegments(
+  ctx: ReadContext,
+  account: AccountRef,
+  start: string,
+  end: string,
+  filters: MetaFilters,
+  dimensions: SegmentDimension[],
+): Promise<PerformanceRow> {
+  try {
+    const level: BreakdownLevel | null = filters.adId ? "ad" : filters.adsetId ? "adset" : null;
+    const [campaigns, entity] = await Promise.all([
+      metaEntityRows(ctx, account, "campaign", start, end),
+      level ? metaEntityRows(ctx, account, level, start, end) : Promise.resolve(null),
+    ]);
+    // The campaigns in scope decide which action counts as a result in every segment.
+    let campaignIds: Set<string> | null = filters.campaignId ? new Set([filters.campaignId]) : null;
+    if (level && entity) {
+      const key = level === "ad" ? "ad_id" : "adset_id";
+      const wanted = level === "ad" ? filters.adId : filters.adsetId;
+      campaignIds = new Set(
+        entity.rows
+          .filter((raw) => String(raw[key] ?? "").trim() === wanted)
+          .map((raw) => String(raw.campaign_id ?? "").trim())
+          .filter(Boolean),
+      );
+    }
+    const scope = scopeGoal(campaigns.rows, campaignIds);
+    const payload = await postDashboard("meta-ads-metrics", dashboardBody(ctx, {
+      action: "fetchSegmentActions",
+      ad_account_id: account.accountId,
+      date_start: start,
+      date_end: end,
+      campaign_ids: filters.campaignId && !level ? [filters.campaignId] : [],
+      adset_ids: filters.adsetId && level === "adset" ? [filters.adsetId] : [],
+      ad_ids: filters.adId ? [filters.adId] : [],
+      dimensions,
+    }));
+    const raw = recordOf(payload.segments);
+    const segments: Partial<Record<SegmentDimension, SegmentBlock>> = {};
+    for (const dimension of dimensions) {
+      const block = recordOf(raw[dimension]);
+      segments[dimension] = {
+        buckets: segmentBuckets(dimension, rowsOf(block.rows), scope.goal),
+        error: typeof block.error === "string" && block.error ? publicError(new Error(block.error)) : null,
+      };
+    }
+    const notes = [
+      "Account spend, impressions, clicks, and reach are the whole account. Segment buckets cover only the requested scope; each dimension splits that same delivery on its own.",
+    ];
+    if (filters.adId) notes.push("Limited to the requested ad.");
+    else if (filters.adsetId) notes.push("Limited to the requested ad set.");
+    else if (filters.campaignId) notes.push("Limited to the requested campaign.");
+    if (scope.mixed) notes.push("Campaigns in scope count different results, so segment results are empty. Pass campaign_id to read one campaign.");
+    notes.push("Region is the province Meta reports; Meta does not split delivery by city, district, or radius.");
+    return {
+      ...accountShell(account, campaigns.summary, notes.join(" ")),
+      segments,
+      segment_results_label: scope.label,
+    };
+  } catch (error) {
+    return failRow(account, performanceErrorMessage(error, "Meta Ads authorization expired. Reconnect the account."), "purchases");
+  }
+}
+
 async function metaPerformance(
   ctx: ReadContext,
   account: AccountRef,
@@ -673,8 +855,37 @@ Deno.serve(async (req: Request) => {
   };
   const accountFilter = digits(body.account_id);
   const campaignFilter = digits(body.campaign_id);
-  if (accountFilter === false || campaignFilter === false) return json({ error: "invalid_input" }, 400);
-  if (campaignFilter && !breakdown) return json({ error: "invalid_input" }, 400);
+  const adsetFilter = digits(body.adset_id);
+  const adFilter = digits(body.ad_id);
+  if (accountFilter === false || campaignFilter === false || adsetFilter === false || adFilter === false) {
+    return json({ error: "invalid_input" }, 400);
+  }
+
+  // mode performance is the summary or breakdown. audience and segments are Meta only.
+  const modeRaw = body.mode == null || body.mode === "" ? "performance" : String(body.mode);
+  if (modeRaw !== "performance" && modeRaw !== "audience" && modeRaw !== "segments") {
+    return json({ error: "invalid_input" }, 400);
+  }
+  const mode = modeRaw as Mode;
+  if (mode !== "performance" && (breakdown || (platformRaw && platformRaw !== "meta"))) {
+    return json({ error: "invalid_input" }, 400);
+  }
+  if (campaignFilter && !breakdown && mode === "performance") return json({ error: "invalid_input" }, 400);
+  if ((adsetFilter || adFilter) && mode === "performance") return json({ error: "invalid_input" }, 400);
+  if (adFilter && mode === "audience") return json({ error: "invalid_input" }, 400);
+  let dimensions: SegmentDimension[] = [...SEGMENT_DIMENSIONS];
+  if (Array.isArray(body.dimensions) && body.dimensions.length > 0) {
+    const picked = body.dimensions.map((item) => String(item ?? "").trim());
+    if (picked.some((item) => !(SEGMENT_DIMENSIONS as readonly string[]).includes(item))) {
+      return json({ error: "invalid_input" }, 400);
+    }
+    dimensions = [...new Set(picked)] as SegmentDimension[];
+  }
+  const filters: MetaFilters = {
+    campaignId: campaignFilter || null,
+    adsetId: adsetFilter || null,
+    adId: adFilter || null,
+  };
 
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const membership = await describeOrganizationMembership(admin, userId, organizationId);
@@ -711,7 +922,7 @@ Deno.serve(async (req: Request) => {
     const loaded = await loadAccounts(
       admin,
       organizationId,
-      breakdown ? "meta" : platformRaw as Platform | null,
+      breakdown || mode !== "performance" ? "meta" : platformRaw as Platform | null,
     );
     // The same Meta account can be connected twice; read it once.
     const seen = new Set<string>();
@@ -724,6 +935,8 @@ Deno.serve(async (req: Request) => {
     });
     const ctx: ReadContext = { userId, organizationId, secret };
     const accounts = await Promise.all(selected.map((account) => {
+      if (mode === "audience") return metaAudience(ctx, account, dateStart, end, filters);
+      if (mode === "segments") return metaSegments(ctx, account, dateStart, end, filters, dimensions);
       if (breakdown) return metaBreakdown(ctx, account, breakdown, dateStart, end, campaignFilter || null);
       if (account.platform === "google") return googlePerformance(ctx, account, dateStart, end);
       if (account.platform === "meta") return metaPerformance(ctx, account, dateStart, end);
@@ -732,6 +945,7 @@ Deno.serve(async (req: Request) => {
     return json({
       period: { start: dateStart, end, clipped },
       level: levelRaw,
+      mode,
       matches_dashboard: true,
       truncated: loaded.truncated,
       accounts,
