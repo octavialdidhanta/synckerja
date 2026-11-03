@@ -16,9 +16,23 @@ import {
 import { fillClientProfileEmailFromInboundMessage } from "../_shared/livechat/fillClientProfileEmailFromInbound.ts";
 import { parseCtwaReferral } from "../_shared/ctwaReferral.ts";
 import {
+  parseHistory,
+  parseMessageEchoes,
+  parsePartnerRemoved,
+  parseStateSync,
+} from "../_shared/whatsappCoexistence/parse.ts";
+import {
+  applyContactNames,
+  deactivateOnPartnerRemoved,
+  recordHistoryProgress,
+  resolveCoexOrgIds,
+  storeCoexMessages,
+} from "../_shared/whatsappCoexistence/store.ts";
+import {
   syncCtwaClidToLinkedLead,
   WA_TICKET_PREFIX,
 } from "../_shared/ctwaLeadSync.ts";
+import { META_GRAPH_BASE as SHARED_META_GRAPH_BASE } from "../_shared/metaGraphVersion.ts";
 
 /** Declare Deno global for IDE when edge-runtime.d.ts is not resolved */
 declare const Deno: {
@@ -36,7 +50,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
-const META_GRAPH_BASE = "https://graph.facebook.com/v18.0";
+const META_GRAPH_BASE = SHARED_META_GRAPH_BASE;
 /** Same bucket as outbound sends (ChatThread) – satu bucket untuk kirim & terima media */
 const WHATSAPP_MEDIA_BUCKET = "whatsapp-media";
 
@@ -1128,6 +1142,75 @@ async function persistWhatsappMetaSessionExpiryFromStatusPayload(
     .eq("id", cid);
 }
 
+/**
+ * WhatsApp Coexistence (number used in the WhatsApp Business app and Cloud API together).
+ * Echoes and history are stored for livechat and reporting only: no leads, automation, or push.
+ */
+async function handleCoexistenceChange(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  wabaId: string | null,
+  field: string,
+  value: Record<string, unknown>,
+): Promise<void> {
+  try {
+    if (field === "account_update") {
+      const removed = parsePartnerRemoved(value);
+      if (removed && wabaId) {
+        const count = await deactivateOnPartnerRemoved(supabase, wabaId, removed);
+        console.log("[whatsapp-webhook] coexistence PARTNER_REMOVED", { wabaId, reason: removed.reason, deactivated: count });
+      }
+      return;
+    }
+
+    const metadata = (value.metadata ?? {}) as { phone_number_id?: unknown };
+    const phoneNumberId = metadata.phone_number_id != null ? String(metadata.phone_number_id).trim() : "";
+    if (!phoneNumberId) {
+      console.warn("[whatsapp-webhook] coexistence change without phone_number_id", { field });
+      return;
+    }
+    const orgIds = await resolveCoexOrgIds(supabase, phoneNumberId, wabaId);
+    if (orgIds.length === 0) {
+      console.warn("[whatsapp-webhook] coexistence: no active account", { field, phoneNumberId });
+      return;
+    }
+
+    if (field === "smb_app_state_sync") {
+      const updated = await applyContactNames(supabase, orgIds, phoneNumberId, parseStateSync(value));
+      console.log("[whatsapp-webhook] coexistence contacts", { phoneNumberId, updated });
+      return;
+    }
+
+    if (field === "smb_message_echoes") {
+      const rows = parseMessageEchoes(value);
+      for (const orgId of orgIds) {
+        const result = await storeCoexMessages(supabase, orgId, phoneNumberId, rows);
+        console.log("[whatsapp-webhook] coexistence echoes", { phoneNumberId, orgId, ...result });
+      }
+      return;
+    }
+
+    if (field === "history") {
+      for (const chunk of parseHistory(value)) {
+        for (const orgId of orgIds) {
+          const result = await storeCoexMessages(supabase, orgId, phoneNumberId, chunk.rows);
+          console.log("[whatsapp-webhook] coexistence history", {
+            phoneNumberId,
+            orgId,
+            phase: chunk.phase,
+            progress: chunk.progress,
+            ...result,
+          });
+        }
+        await recordHistoryProgress(supabase, phoneNumberId, chunk);
+      }
+    }
+  } catch (err) {
+    // Never fail the whole webhook delivery because of one coexistence payload.
+    console.error("[whatsapp-webhook] coexistence handler error", { field, message: err instanceof Error ? err.message : String(err) });
+  }
+}
+
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   const ts = new Date().toISOString();
@@ -1171,6 +1254,13 @@ Deno.serve(async (req: Request) => {
         return new Response("Forbidden", { status: 403, headers: corsHeaders });
       }
       if (account) {
+        verified = true;
+      }
+
+      // Embedded Signup / Coexistence: client WABAs subscribe to Synckerja's own Meta app,
+      // whose webhook uses one app-level verify token.
+      const appVerifyToken = (Deno.env.get("WHATSAPP_APP_WEBHOOK_VERIFY_TOKEN") ?? "").trim();
+      if (!verified && appVerifyToken && token === appVerifyToken) {
         verified = true;
       }
 
@@ -1225,6 +1315,15 @@ Deno.serve(async (req: Request) => {
 
           const changes = entry.changes ?? [];
           for (const change of changes) {
+            if (
+              change.field === "smb_message_echoes" ||
+              change.field === "history" ||
+              change.field === "smb_app_state_sync" ||
+              change.field === "account_update"
+            ) {
+              await handleCoexistenceChange(supabase, whatsappBusinessAccountId, change.field, change.value ?? {});
+              continue;
+            }
             if (change.field === "messages") {
               const value = change.value ?? {};
               const rawPhoneNumberId = value.metadata?.phone_number_id ?? value.phone_number_id;

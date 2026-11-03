@@ -1,4 +1,4 @@
-const META_API_BASE = "https://graph.facebook.com/v18.0";
+const META_API_BASE = `https://graph.facebook.com/${(Deno.env.get("META_GRAPH_API_VERSION") ?? "").trim() || "v22.0"}`;
 
 export const META_FLOW_DEFAULT_ENTRY_SCREEN = "FIRST_ENTRY_SCREEN";
 

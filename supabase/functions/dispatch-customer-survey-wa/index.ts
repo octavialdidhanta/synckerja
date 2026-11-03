@@ -24,7 +24,7 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Max-Age": "86400",
 };
 
-const META_API_BASE = "https://graph.facebook.com/v18.0";
+const META_API_BASE = `https://graph.facebook.com/${(Deno.env.get("META_GRAPH_API_VERSION") ?? "").trim() || "v22.0"}`;
 const BATCH_LIMIT = 25;
 
 function digitsOnly(to: string): string {

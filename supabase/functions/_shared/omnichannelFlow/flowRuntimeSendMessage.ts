@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const META_API_BASE = "https://graph.facebook.com/v18.0";
+const META_API_BASE = `https://graph.facebook.com/${(Deno.env.get("META_GRAPH_API_VERSION") ?? "").trim() || "v22.0"}`;
 
 export type FlowWhatsAppSendPayload = {
   organization_id?: string;

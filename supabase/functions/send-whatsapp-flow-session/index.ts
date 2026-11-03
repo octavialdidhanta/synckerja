@@ -13,6 +13,7 @@ import {
   formatMetaGraphError,
   SYNCKERJA_CUSTOM_FORM_SCREEN,
 } from "../_shared/omnichannelFlow/metaFlowSendParameters.ts";
+import { META_GRAPH_BASE as SHARED_META_GRAPH_BASE } from "../_shared/metaGraphVersion.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -20,7 +21,7 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const META_API_BASE = "https://graph.facebook.com/v18.0";
+const META_API_BASE = SHARED_META_GRAPH_BASE;
 const META_CS_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function digitsOnly(v: string): string {
