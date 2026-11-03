@@ -27,7 +27,7 @@ export function WhatsAppEmbeddedSignupCard({ onConnected }: Props) {
   }> = [
     {
       value: 'coexistence',
-      icon: <Smartphone className="h-5 w-5" />,
+      icon: <Smartphone className="h-4 w-4" />,
       title: t('whatsappConnect.coexTitle', 'Coexistence'),
       description: t('whatsappConnect.coexDescription', 'Tetap pakai aplikasi WhatsApp Business di HP, chat juga masuk ke Synckerja.'),
       points: [
@@ -39,7 +39,7 @@ export function WhatsAppEmbeddedSignupCard({ onConnected }: Props) {
     },
     {
       value: 'cloud_api',
-      icon: <Server className="h-5 w-5" />,
+      icon: <Server className="h-4 w-4" />,
       title: t('whatsappConnect.cloudTitle', 'Cloud API'),
       description: t('whatsappConnect.cloudDescription', 'Nomor dikelola penuh lewat API. Untuk volume besar.'),
       points: [
@@ -78,34 +78,53 @@ export function WhatsAppEmbeddedSignupCard({ onConnected }: Props) {
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label={t('whatsappConnect.esModeLabel', 'Mode koneksi')}>
-        {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={mode === option.value}
-            onClick={() => setMode(option.value)}
-            className={cn(
-              'relative rounded-lg border p-3 text-left transition-colors',
-              mode === option.value ? 'border-[#25D366] bg-[#25D366]/5 ring-1 ring-[#25D366]' : 'border-slate-200 hover:border-slate-300',
-            )}
-          >
-            {option.recommended ? (
-              <span className="absolute right-2 top-2 rounded bg-[#25D366]/15 px-1.5 py-0.5 text-[10px] font-medium text-[#128C7E]">
-                {t('whatsappConnect.esRecommended', 'Disarankan')}
+      <div className="flex flex-col gap-3" role="radiogroup" aria-label={t('whatsappConnect.esModeLabel', 'Mode koneksi')}>
+        {options.map((option) => {
+          const selected = mode === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => setMode(option.value)}
+              className={cn(
+                'flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors',
+                selected ? 'border-[#25D366] bg-[#25D366]/5 ring-1 ring-[#25D366]' : 'border-slate-200 hover:border-slate-300',
+              )}
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
+                  selected ? 'border-[#25D366]' : 'border-slate-300',
+                )}
+              >
+                {selected ? <span className="h-2 w-2 rounded-full bg-[#25D366]" /> : null}
               </span>
-            ) : null}
-            <div className="mb-1 flex items-center gap-2 text-slate-800">
-              {option.icon}
-              <span className="text-sm font-semibold">{option.title}</span>
-            </div>
-            <p className="mb-2 text-xs text-slate-600">{option.description}</p>
-            <ul className="list-disc space-y-0.5 pl-4 text-[11px] text-slate-500">
-              {option.points.map((point) => <li key={point}>{point}</li>)}
-            </ul>
-          </button>
-        ))}
+              <span className="min-w-0 flex-1">
+                <span className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-800">
+                  <span className="shrink-0 text-slate-600">{option.icon}</span>
+                  <span className="text-sm font-semibold">{option.title}</span>
+                  {option.recommended ? (
+                    <span className="rounded bg-[#25D366]/15 px-1.5 py-0.5 text-[10px] font-medium text-[#128C7E]">
+                      {t('whatsappConnect.esRecommended', 'Disarankan')}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="mb-1.5 block text-xs text-slate-600">{option.description}</span>
+                <span className="block space-y-0.5 text-[11px] leading-snug text-slate-500">
+                  {option.points.map((point) => (
+                    <span key={point} className="flex gap-1.5">
+                      <span aria-hidden="true">•</span>
+                      <span>{point}</span>
+                    </span>
+                  ))}
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <Button
