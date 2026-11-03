@@ -9,6 +9,17 @@ export { cyclesInput, cyclesResult } from "./okr/cyclesList";
 export { objectivesInput, objectivesResult } from "./okr/objectivesList";
 export { departmentsInput, departmentsResult } from "./okr/departmentsList";
 export { leadsInput, leadsResult } from "./crm/leadsList";
+export {
+  inboxConversationsInput,
+  inboxConversationsResult,
+  inboxMessagesInput,
+  inboxMessagesResult,
+  inboxSummaryInput,
+  inboxSummaryResult,
+  parseInboxConversationsQuery,
+  parseInboxMessagesQuery,
+  parseInboxSummaryQuery,
+} from "./inbox/inboxQuery";
 export { adsAccountsInput, adsAccountsResult } from "./ads/accountsList";
 export { adsPerformanceDenial, adsPerformanceInput, adsPerformanceResult, parseAdsPerformanceQuery } from "./ads/performanceSummary";
 export { adsBreakdownInput, adsBreakdownResult, parseAdsBreakdownQuery } from "./ads/performanceBreakdown";

@@ -12,6 +12,14 @@ import type { ThinkingPlanDirectInput } from "../tools/thinking/planDirect";
 import type { ThinkingPlanSaveInput } from "../tools/thinking/planSave";
 import type { CrmLeadRow, OkrCycleRow, OkrDepartmentRow, OkrObjectiveListRow, OkrObjectiveRow } from "../db/phase1Reads";
 import type {
+  InboxConversationRow,
+  InboxConversationsQuery,
+  InboxMessageRow,
+  InboxMessagesQuery,
+  InboxSummaryQuery,
+  InboxSummaryRow,
+} from "../tools/inbox/inboxQuery";
+import type {
   AdsAccountRow,
   EmployeeRow,
   ExpenseRow,
@@ -48,6 +56,15 @@ import type { TaskStepImageRecord } from "../db/stepImages";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
 import type { AccessClaims } from "../oauth/tokens";
 import {
+  inboxConversationsInput,
+  inboxConversationsResult,
+  inboxMessagesInput,
+  inboxMessagesResult,
+  inboxSummaryInput,
+  inboxSummaryResult,
+  parseInboxConversationsQuery,
+  parseInboxMessagesQuery,
+  parseInboxSummaryQuery,
   adsAccountsInput,
   adsAccountsResult,
   adsPerformanceDenial,
@@ -217,6 +234,9 @@ export type McpReadDeps = {
   listOkrObjectives: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveListRow[]>;
   listOkrDepartments: (ctx: McpAuthContext) => Promise<OkrDepartmentRow[]>;
   listCrmLeads: (ctx: McpAuthContext, status: string | null) => Promise<CrmLeadRow[]>;
+  listInboxConversations: (ctx: McpAuthContext, query: InboxConversationsQuery) => Promise<InboxConversationRow[]>;
+  listInboxMessages: (ctx: McpAuthContext, query: InboxMessagesQuery) => Promise<InboxMessageRow[]>;
+  readInboxSummary: (ctx: McpAuthContext, query: InboxSummaryQuery) => Promise<InboxSummaryRow[]>;
   listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
   listAdsPerformance: (
     ctx: McpAuthContext,
@@ -531,6 +551,9 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "okr.objectives.list": objectivesInput,
   "okr.departments.list": departmentsInput,
   "crm.leads.list": leadsInput,
+  "inbox.conversations.list": inboxConversationsInput,
+  "inbox.messages.list": inboxMessagesInput,
+  "inbox.summary": inboxSummaryInput,
   "ads.accounts.list": adsAccountsInput,
   "ads.performance.summary": adsPerformanceInput,
   "ads.performance.breakdown": adsBreakdownInput,
@@ -638,6 +661,21 @@ async function runTool(
       return departmentsResult(ctx, deps.listOkrDepartments);
     case "crm.leads.list":
       return leadsResult(ctx, optionalString(args.status), deps.listCrmLeads);
+    case "inbox.conversations.list": {
+      const query = parseInboxConversationsQuery(args);
+      if (!query) throw new Error("invalid_input");
+      return inboxConversationsResult(ctx, query, deps.listInboxConversations);
+    }
+    case "inbox.messages.list": {
+      const query = parseInboxMessagesQuery(args);
+      if (!query) throw new Error("invalid_input");
+      return inboxMessagesResult(ctx, query, deps.listInboxMessages);
+    }
+    case "inbox.summary": {
+      const query = parseInboxSummaryQuery(args);
+      if (!query) throw new Error("invalid_input");
+      return inboxSummaryResult(ctx, query, deps.readInboxSummary);
+    }
     case "ads.accounts.list":
       return adsAccountsResult(ctx, deps.listAdsAccounts);
     case "ads.performance.summary": {

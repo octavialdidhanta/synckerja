@@ -79,6 +79,18 @@ export type AppDeps = {
   listOkrObjectives: (ctx: McpAuthContext, cycleId: string | null) => Promise<OkrObjectiveListRow[]>;
   listOkrDepartments: (ctx: McpAuthContext) => Promise<OkrDepartmentRow[]>;
   listCrmLeads: (ctx: McpAuthContext, status: string | null) => Promise<CrmLeadRow[]>;
+  listInboxConversations: (
+    ctx: McpAuthContext,
+    query: import("../tools/inbox/inboxQuery").InboxConversationsQuery,
+  ) => Promise<import("../tools/inbox/inboxQuery").InboxConversationRow[]>;
+  listInboxMessages: (
+    ctx: McpAuthContext,
+    query: import("../tools/inbox/inboxQuery").InboxMessagesQuery,
+  ) => Promise<import("../tools/inbox/inboxQuery").InboxMessageRow[]>;
+  readInboxSummary: (
+    ctx: McpAuthContext,
+    query: import("../tools/inbox/inboxQuery").InboxSummaryQuery,
+  ) => Promise<import("../tools/inbox/inboxQuery").InboxSummaryRow[]>;
   listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
   listAdsPerformance: (
     ctx: McpAuthContext,
