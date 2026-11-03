@@ -24,7 +24,7 @@ import {
   listKolCampaigns,
   listKolProfiles,
 } from "./db/phase2Reads";
-import { listAdsBreakdown, listAdsPerformance } from "./db/adsPerformance";
+import { listAdsAudience, listAdsBreakdown, listAdsPerformance, listAdsSegments } from "./db/adsPerformance";
 import {
   createCompanyObjective,
   createContentPlan,
@@ -95,6 +95,8 @@ const app = createApp({
   listAdsAccounts: (ctx) => listAdsAccounts(admin, ctx),
   listAdsPerformance: (ctx, query) => listAdsPerformance(config, ctx, query),
   listAdsBreakdown: (ctx, query) => listAdsBreakdown(config, ctx, query),
+  listAdsAudience: (ctx, query) => listAdsAudience(config, ctx, query),
+  listAdsSegments: (ctx, query) => listAdsSegments(config, ctx, query),
   listIncomeTransactions: (ctx, month) => listIncomeTransactions(admin, ctx, month),
   listExpenses: (ctx, month) => listExpenses(admin, ctx, month),
   listEmployees: (ctx) => listEmployees(admin, ctx),

@@ -49,6 +49,7 @@ import {
   type CpasCounts,
 } from "../_shared/metaAdsCpasMetrics.ts";
 import { loadMetaDemographicBreakdown } from "../_shared/metaAdsDemographicBreakdown.ts";
+import { loadMetaSegmentRows } from "../_shared/metaAdsSegmentActions.ts";
 import { fetchGraphObjectsByIds } from "../_shared/metaGraphObjectBatch.ts";
 
 const CACHE_TTL_MINUTES = 10;
@@ -1481,6 +1482,36 @@ Deno.serve(async (req: Request) => {
 
   if (action === "setAdStatus") {
     return await handleSetAdStatus(admin, body, organizationId);
+  }
+
+  // MCP only: segment rows that keep `actions`, so chats and leads can be counted per segment.
+  if (action === "fetchSegmentActions") {
+    const dr = defaultDateRange();
+    const rawStart = String(body.date_start ?? dr.start).trim();
+    const rawEnd = String(body.date_end ?? dr.end).trim();
+    const { start: dateStart, end: dateEnd } = clampMetaAdsDateRange(rawStart, rawEnd, now);
+    const adAccountIdParam = body.ad_account_id != null ? String(body.ad_account_id).trim() : null;
+    const resolved = await resolveOrgMetaAdsForMetrics(admin, organizationId, adAccountIdParam);
+    if (!resolved) {
+      return metaAdsJson({ error: "Meta Ads not connected or no account configured" }, 400);
+    }
+    try {
+      const payload = await loadMetaSegmentRows({
+        graphVersion: metaGraphVersion(),
+        act: metaActId(resolved.account.ad_account_id),
+        accessToken: resolved.accessToken,
+        dateStart,
+        dateEnd,
+        campaignIds: body.campaign_ids,
+        adsetIds: body.adset_ids,
+        adIds: body.ad_ids,
+        dimensions: body.dimensions,
+      });
+      return metaAdsJson({ ...payload, date_start: dateStart, date_end: dateEnd }, 200);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to load segments";
+      return metaAdsJson({ error: msg }, 400);
+    }
   }
 
   if (action === "fetchDemographicBreakdown") {
