@@ -40,6 +40,7 @@ import type {
   TaskStepRecord,
   TaskStepRow,
   TaskSubstepRecord,
+  TaskSubstepRow,
   WorkloadRow,
 } from "../db/dailyTasks";
 import type { HabitCheckInput, HabitCheckResult, HabitDayRow } from "../db/habits";
@@ -160,6 +161,8 @@ import {
   deleteStepResult,
   createSubstepInput,
   createSubstepResult,
+  listSubstepsInput,
+  listSubstepsResult,
   addStepImageInput,
   addStepImageResult,
   draftReadInput,
@@ -361,6 +364,7 @@ export type McpReadDeps = {
     input: { id: string; title: string; description: string | null },
   ) => Promise<TaskStepRecord>;
   deleteTaskStep: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
+  listTaskSubsteps: (ctx: McpAuthContext, stepId: string) => Promise<TaskSubstepRow[]>;
   createTaskSubstep: (ctx: McpAuthContext, input: { stepId: string; title: string }) => Promise<TaskSubstepRecord>;
   attachTaskStepImage: (ctx: McpAuthContext, input: { stepId: string; imageUrl: string }) => Promise<TaskStepImageRecord>;
   listHabits: (ctx: McpAuthContext, date: string | null) => Promise<HabitDayRow[]>;
@@ -549,6 +553,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "tasks.steps.create": createStepInput,
   "tasks.steps.update": updateStepSchema,
   "tasks.steps.delete": deleteStepInput,
+  "tasks.substeps.list": listSubstepsInput,
   "tasks.substeps.create": createSubstepInput,
   "tasks.steps.image.add": addStepImageInput,
   "habits.list": habitsListInput,
@@ -926,6 +931,8 @@ async function runTool(
       );
     case "tasks.steps.delete":
       return deleteStepResult(ctx, requiredString(args.id), deps.deleteTaskStep);
+    case "tasks.substeps.list":
+      return listSubstepsResult(ctx, requiredString(args.step_id), deps.listTaskSubsteps);
     case "tasks.substeps.create":
       return createSubstepResult(
         ctx,

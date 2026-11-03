@@ -82,6 +82,7 @@ import {
   listTaskWorkload,
   createTask,
   createTaskSubstep,
+  listTaskSubsteps,
   updateTask,
   updateTaskStep,
 } from "../src/db/dailyTasks";
@@ -886,6 +887,29 @@ describe("phase 0 tool inputs", () => {
     expect(sent).not.toContain("notes");
     expect(sent).not.toContain("comment");
     expect(sent).not.toContain("email");
+  });
+
+  it("lists the sub-steps of one step without writing anything", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    const rpc = vi.fn().mockResolvedValue({
+      data: [
+        { id, step_id: id, title: "Identify prospects", substep_order: 1, is_completed: true, assignee_name: "Octa" },
+        { id, step_id: id, title: "Call prospects", substep_order: 2, is_completed: false, assignee_name: null },
+      ],
+      error: null,
+    });
+    const admin = { rpc } as unknown as SupabaseClient;
+    const ctx = { userId: "user-1", organizationId: "org-1" };
+    await expect(listTaskSubsteps(admin, ctx, id)).resolves.toEqual([
+      { id, step_id: id, title: "Identify prospects", order: 1, is_completed: true, assignee_name: "Octa" },
+      { id, step_id: id, title: "Call prospects", order: 2, is_completed: false, assignee_name: null },
+    ]);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("mcp_list_task_substeps", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_step_id: id,
+    });
   });
 
   it("creates a sub-step under the requested step id", async () => {
