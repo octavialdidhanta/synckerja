@@ -74,9 +74,9 @@ describe('catalogCheckoutSaleLines', () => {
         { kind: 'product', trackStock: false, inventorySkuId: null, quantity: 3, catalogId: 'p3' },
       ]),
     ).toEqual([
-      { productId: 'p1', qty: 2, variantId: null, modifierOptionIds: [] },
-      { productId: 'p2', qty: 3, variantId: null, modifierOptionIds: [] },
-      { productId: 'p3', qty: 3, variantId: null, modifierOptionIds: [] },
+      { productId: 'p1', qty: 2, variantId: null, modifierOptionIds: [], lineKey: 'L1' },
+      { productId: 'p2', qty: 3, variantId: null, modifierOptionIds: [], lineKey: 'L2' },
+      { productId: 'p3', qty: 3, variantId: null, modifierOptionIds: [], lineKey: 'L3' },
     ]);
   });
 
@@ -99,6 +99,7 @@ describe('catalogCheckoutSaleLines', () => {
         qty: 1,
         variantId: 'v1',
         modifierOptionIds: ['opt-a', 'opt-b'],
+        lineKey: 'L1',
       },
     ]);
   });
@@ -128,12 +129,39 @@ describe('catalogCheckoutSaleLines', () => {
         qty: 2,
         variantId: null,
         modifierOptionIds: [],
+        lineKey: 'L1',
       },
       {
         productId: 'p5',
         qty: 2,
         variantId: null,
         modifierOptionIds: ['opt-x'],
+        lineKey: 'L2',
+      },
+    ]);
+  });
+
+  it('keeps a given line key and stock scope', () => {
+    expect(
+      catalogCheckoutSaleLines([
+        {
+          kind: 'product',
+          trackStock: false,
+          inventorySkuId: null,
+          quantity: 1,
+          catalogId: 'p6',
+          lineKey: 'cart-7',
+          stockScope: 'recipe_only',
+        },
+      ]),
+    ).toEqual([
+      {
+        productId: 'p6',
+        qty: 1,
+        variantId: null,
+        modifierOptionIds: [],
+        lineKey: 'cart-7',
+        stockScope: 'recipe_only',
       },
     ]);
   });

@@ -182,7 +182,29 @@ describe("certification lock stays closed", () => {
     ).toBe(false);
   });
 
-  it("blocks fewer than three passes and a sibling set without reason proof", () => {
+  // Since 8b4f605d the lock needs at least one audit pass and every active row passing (it was three).
+  it("blocks an empty set, a partly passing set, and a sibling set without reason proof", () => {
+    expect(
+      lockDecisionFromScoredSet({
+        rows: [],
+        siblingSet: provedSet([]),
+        siblingSetCurrent: true,
+        challenger,
+        challengerCurrent: true,
+      }),
+    ).toEqual({ ok: false, reason: "NEED_AUDIT_PASS" });
+    expect(
+      lockDecisionFromScoredSet({
+        rows: [
+          { code: "BT01", admission: "GENERATE_VALID" },
+          { code: "BT02", admission: "GENERATE_REJECT" },
+        ],
+        siblingSet: provedSet(["BT01", "BT02"]),
+        siblingSetCurrent: true,
+        challenger,
+        challengerCurrent: true,
+      }).ok,
+    ).toBe(false);
     expect(
       lockDecisionFromScoredSet({
         rows: threeValid.slice(0, 2),
@@ -191,7 +213,7 @@ describe("certification lock stays closed", () => {
         challenger,
         challengerCurrent: true,
       }).ok,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       lockDecisionFromScoredSet({
         rows: threeValid,
