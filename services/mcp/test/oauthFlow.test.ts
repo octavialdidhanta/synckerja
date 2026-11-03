@@ -107,6 +107,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     listAdsPerformance: async () => {
       throw new Error("unused");
     },
+    listAdsBreakdown: async () => {
+      throw new Error("unused");
+    },
     listIncomeTransactions: async () => [],
     listExpenses: async () => [],
     listEmployees: async () => [],

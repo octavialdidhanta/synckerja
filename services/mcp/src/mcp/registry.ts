@@ -34,6 +34,7 @@ export type McpToolName =
   | "crm.leads.list"
   | "ads.accounts.list"
   | "ads.performance.summary"
+  | "ads.performance.breakdown"
   | "finance.income.list"
   | "finance.income.create"
   | "finance.income.update"
@@ -203,7 +204,15 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "ads.performance.summary",
     description:
-      "Compare paid ads for the organization locked in this session using the same campaign tab as the Synckerja ads pages. Call this when the user asks which ad account or campaign is performing, which metric is performing, or how Google, Meta, or TikTok ads are doing. Omit month and dates for the last 30 days in Asia/Jakarta, the page default. Optional month is YYYY-MM. Optional date_start and date_end are YYYY-MM-DD and replace month. Optional platform is google, meta, or tiktok. Follow how_to_read. When matches_dashboard is true, account totals are the summary bar and campaigns are the highest-spend rows on that tab. Google uses Delivery on and Enabled off. Meta clicks are link clicks. Meta results follow each campaign objective, like Results in Ads Manager, and results_label names them (purchases, messaging conversations started, link clicks, leads, reach, and so on); only purchases have ROAS. TikTok omits purchases and ROAS because that tab does not show them. If the screen uses another date or filter, say the ranges differ instead of treating the numbers as the same. Ranges longer than 366 days are cut to the latest 366 days. Access tokens are not returned.",
+      "Compare paid ads for the organization locked in this session using the same campaign tab as the Synckerja ads pages. Call this when the user asks which ad account or campaign is performing, which metric is performing, or how Google, Meta, or TikTok ads are doing. Omit month and dates for the last 30 days in Asia/Jakarta, the page default. Optional month is YYYY-MM. Optional date_start and date_end are YYYY-MM-DD and replace month. Optional platform is google, meta, or tiktok. Follow how_to_read. When matches_dashboard is true, account totals are the summary bar and campaigns are the highest-spend rows on that tab. Google uses Delivery on and Enabled off. Meta clicks are link clicks. Meta results follow each campaign objective, like Results in Ads Manager, and results_label names them (purchases, messaging conversations started, link clicks, leads, reach, and so on); only purchases have ROAS. TikTok omits purchases and ROAS because that tab does not show them. If the screen uses another date or filter, say the ranges differ instead of treating the numbers as the same. Ranges longer than 366 days are cut to the latest 366 days. Access tokens are not returned. For which ad or ad set inside a Meta campaign is performing, call ads.performance.breakdown.",
+    scopes: ["ads:read"],
+    moduleKey: "digitalMarketing",
+    pagePaths: ADS_PAGE_PATHS,
+  },
+  {
+    name: "ads.performance.breakdown",
+    description:
+      "Rank Meta ads or ad sets for the organization locked in this session using the same Ads and Ad sets tabs as the Synckerja Meta ads page. Call this when the user asks which ad, creative, or ad set is performing, or wants performance below the campaign level. level is ad (default) or adset. Omit month and dates for the last 30 days in Asia/Jakarta. Optional month is YYYY-MM. Optional date_start and date_end are YYYY-MM-DD and replace month. Optional account_id limits to one Meta ad account and campaign_id to one campaign; both are ids from ads.performance.summary. Returns up to 50 rows per account, highest spend first, with spend, impressions, CPM, link clicks, CTR, CPC, results, results_label, cost per result, share of spend, and delivery, plus best row ids per metric. Results follow each campaign objective and ad set goal, like Results in Ads Manager. Follow how_to_read. Google and TikTok are not covered. Access tokens are not returned.",
     scopes: ["ads:read"],
     moduleKey: "digitalMarketing",
     pagePaths: ADS_PAGE_PATHS,

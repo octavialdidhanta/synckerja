@@ -7,6 +7,7 @@ import {
   internalSecretMatches,
 } from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
 import { metaAccountResult, metaCampaignResult } from "./metaResults.ts";
+import { breakdownRows, type BreakdownLevel, type BreakdownRow } from "./metaBreakdown.ts";
 
 const MAX_ACCOUNTS = 12;
 const MAX_CAMPAIGNS = 25;
@@ -48,6 +49,9 @@ type PerformanceRow = {
   result_value: number | null;
   campaigns: CampaignRow[];
   campaigns_truncated: boolean;
+  /** Ad set or ad rows, only when the request asks for that level. */
+  rows?: BreakdownRow[];
+  rows_truncated?: boolean;
   error: string | null;
   note: string | null;
 };
@@ -417,6 +421,90 @@ async function googlePerformance(
   }
 }
 
+/** Dashboard rows for one Meta tab (campaign, ad set, or ad), up to MAX_META_PAGES pages. */
+async function metaEntityRows(
+  ctx: ReadContext,
+  account: AccountRef,
+  entity: "campaign" | BreakdownLevel,
+  start: string,
+  end: string,
+): Promise<{ summary: Record<string, unknown>; rows: Record<string, unknown>[]; moreRemain: boolean }> {
+  const rows: Record<string, unknown>[] = [];
+  let summary: Record<string, unknown> | null = null;
+  let pageToken = "";
+  let moreRemain = false;
+  for (let page = 0; page < MAX_META_PAGES; page += 1) {
+    const payload = await postDashboard("meta-ads-metrics", dashboardBody(ctx, {
+      entity,
+      ad_account_id: account.accountId,
+      date_start: start,
+      date_end: end,
+      page_token: pageToken,
+    }));
+    if (!summary) summary = recordOf(payload.summary);
+    rows.push(...rowsOf(payload.rows));
+    const next = typeof payload.next_page_token === "string" ? payload.next_page_token.trim() : "";
+    if (!next) {
+      moreRemain = false;
+      break;
+    }
+    if (page === MAX_META_PAGES - 1) {
+      moreRemain = true;
+      break;
+    }
+    pageToken = next;
+  }
+  return { summary: summary ?? {}, rows, moreRemain };
+}
+
+async function metaBreakdown(
+  ctx: ReadContext,
+  account: AccountRef,
+  level: BreakdownLevel,
+  start: string,
+  end: string,
+  campaignId: string | null,
+): Promise<PerformanceRow> {
+  try {
+    // Campaign rows carry the objective and ad set goals that decide Results for each row below.
+    const [entity, campaigns] = await Promise.all([
+      metaEntityRows(ctx, account, level, start, end),
+      metaEntityRows(ctx, account, "campaign", start, end),
+    ]);
+    const picked = breakdownRows(level, entity.rows, campaigns.rows, campaignId);
+    const tab = level === "ad" ? "Ads tab" : "Ad sets tab";
+    const notes = [
+      `${tab}. Account totals are the summary bar. Rows are the highest-spend ${level === "ad" ? "ads" : "ad sets"}.`,
+      "Results follow the campaign objective and ad set goal, like Results in Ads Manager.",
+    ];
+    if (campaignId) notes.push("Rows are limited to the requested campaign.");
+    const truncated = picked.truncated || entity.moreRemain;
+    if (truncated) notes.push("More rows exist than are listed. The account total includes them.");
+    const totals = entity.summary;
+    return {
+      platform: "meta",
+      label: account.label,
+      account_id: account.accountId,
+      currency: typeof totals.currency === "string" && totals.currency.trim() ? totals.currency : null,
+      spend: asNumber(totals.spend),
+      impressions: asNumber(totals.impressions),
+      clicks: asNumber(totals.clicks),
+      reach: asNumber(totals.reach),
+      results: null,
+      results_label: null,
+      result_value: null,
+      campaigns: [],
+      campaigns_truncated: false,
+      rows: picked.rows,
+      rows_truncated: truncated,
+      error: null,
+      note: notes.join(" "),
+    };
+  } catch (error) {
+    return failRow(account, performanceErrorMessage(error, "Meta Ads authorization expired. Reconnect the account."), "purchases");
+  }
+}
+
 async function metaPerformance(
   ctx: ReadContext,
   account: AccountRef,
@@ -424,32 +512,8 @@ async function metaPerformance(
   end: string,
 ): Promise<PerformanceRow> {
   try {
-    const rows: Record<string, unknown>[] = [];
-    let summary: Record<string, unknown> | null = null;
-    let pageToken = "";
-    let moreRemain = false;
-    for (let page = 0; page < MAX_META_PAGES; page += 1) {
-      const payload = await postDashboard("meta-ads-metrics", dashboardBody(ctx, {
-        entity: "campaign",
-        ad_account_id: account.accountId,
-        date_start: start,
-        date_end: end,
-        page_token: pageToken,
-      }));
-      if (!summary) summary = recordOf(payload.summary);
-      rows.push(...rowsOf(payload.rows));
-      const next = typeof payload.next_page_token === "string" ? payload.next_page_token.trim() : "";
-      if (!next) {
-        moreRemain = false;
-        break;
-      }
-      if (page === MAX_META_PAGES - 1) {
-        moreRemain = true;
-        break;
-      }
-      pageToken = next;
-    }
-    const totals = summary ?? {};
+    const { summary, rows, moreRemain } = await metaEntityRows(ctx, account, "campaign", start, end);
+    const totals = summary;
     const listed = rows.map((raw) => {
       const result = metaCampaignResult(raw);
       return {
@@ -595,6 +659,23 @@ Deno.serve(async (req: Request) => {
   let end = parseYmd(body.date_end);
   if (!start || !end || start > end) return json({ error: "invalid_input" }, 400);
 
+  // level campaign is the summary. adset and ad are Meta only, like those dashboard tabs.
+  const levelRaw = body.level == null || body.level === "" ? "campaign" : String(body.level);
+  if (levelRaw !== "campaign" && levelRaw !== "adset" && levelRaw !== "ad") {
+    return json({ error: "invalid_input" }, 400);
+  }
+  const breakdown: BreakdownLevel | null = levelRaw === "campaign" ? null : levelRaw;
+  if (breakdown && platformRaw && platformRaw !== "meta") return json({ error: "invalid_input" }, 400);
+  const digits = (value: unknown): string | null | false => {
+    if (value == null || value === "") return null;
+    const text = String(value).trim();
+    return /^\d{1,30}$/.test(text) ? text : false;
+  };
+  const accountFilter = digits(body.account_id);
+  const campaignFilter = digits(body.campaign_id);
+  if (accountFilter === false || campaignFilter === false) return json({ error: "invalid_input" }, 400);
+  if (campaignFilter && !breakdown) return json({ error: "invalid_input" }, 400);
+
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const membership = await describeOrganizationMembership(admin, userId, organizationId);
   if (membership.state === "policy") {
@@ -627,15 +708,30 @@ Deno.serve(async (req: Request) => {
   end = String(body.date_end);
 
   try {
-    const loaded = await loadAccounts(admin, organizationId, platformRaw as Platform | null);
+    const loaded = await loadAccounts(
+      admin,
+      organizationId,
+      breakdown ? "meta" : platformRaw as Platform | null,
+    );
+    // The same Meta account can be connected twice; read it once.
+    const seen = new Set<string>();
+    const selected = loaded.accounts.filter((account) => {
+      if (accountFilter && account.accountId.replace(/^act_/, "") !== accountFilter) return false;
+      const key = `${account.platform}:${account.accountId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     const ctx: ReadContext = { userId, organizationId, secret };
-    const accounts = await Promise.all(loaded.accounts.map((account) => {
+    const accounts = await Promise.all(selected.map((account) => {
+      if (breakdown) return metaBreakdown(ctx, account, breakdown, dateStart, end, campaignFilter || null);
       if (account.platform === "google") return googlePerformance(ctx, account, dateStart, end);
       if (account.platform === "meta") return metaPerformance(ctx, account, dateStart, end);
       return tiktokPerformance(ctx, account, dateStart, end);
     }));
     return json({
       period: { start: dateStart, end, clipped },
+      level: levelRaw,
       matches_dashboard: true,
       truncated: loaded.truncated,
       accounts,
