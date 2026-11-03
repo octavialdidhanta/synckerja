@@ -28,7 +28,7 @@ export type AdsCampaignSource = {
   clicks: number;
   reach: number | null;
   results: number | null;
-  results_label: "conversions" | "purchases" | null;
+  results_label: string | null;
   result_value: number | null;
 };
 
@@ -42,7 +42,7 @@ export type AdsPerformanceSourceRow = {
   clicks: number | null;
   reach: number | null;
   results: number | null;
-  results_label: "conversions" | "purchases" | null;
+  results_label: string | null;
   result_value: number | null;
   campaigns?: AdsCampaignSource[];
   campaigns_truncated?: boolean;
@@ -68,7 +68,7 @@ export type AdsCampaign = {
   cpc: number | null;
   cpm: number | null;
   results: number | null;
-  results_label: "conversions" | "purchases" | null;
+  results_label: string | null;
   cost_per_result: number | null;
   result_value: number | null;
   roas: number | null;
@@ -88,7 +88,7 @@ export type AdsPerformanceAccount = {
   cpc: number | null;
   cpm: number | null;
   results: number | null;
-  results_label: "conversions" | "purchases" | null;
+  results_label: string | null;
   cost_per_result: number | null;
   result_value: number | null;
   roas: number | null;
@@ -127,7 +127,7 @@ export type AdsPerformanceSummary = {
 };
 
 const HOW_TO_READ_ALIGNED =
-  "These numbers are the campaign tab on the Synckerja ads pages for the period above. When no date is requested, the period is the last 30 days in Asia/Jakarta, the same default as those pages. If the date picker on screen is different, pass that date_start and date_end before comparing. Google includes campaigns with delivery and does not limit to Enabled, matching the Delivery and Enabled switches at their defaults. Account spend, impressions, clicks, and results are the summary bar for the whole tab. campaigns lists the highest-spend campaigns from that tab. If campaigns_truncated is true, more campaigns exist and the account total still includes them. Meta account totals can differ from adding the campaign rows; quote the account fields for the summary bar and campaigns for one campaign. TikTok purchases and ROAS are not on that tab, so they are empty. CTR is a percentage. ROAS of 1 or more means return covers spend. Google results are conversions. Meta results are purchases, and Meta clicks are link clicks. A leader is chosen only when at least two accounts with that metric share a currency for money metrics. Do not treat an unavailable account as zero.";
+  "These numbers are the campaign tab on the Synckerja ads pages for the period above. When no date is requested, the period is the last 30 days in Asia/Jakarta, the same default as those pages. If the date picker on screen is different, pass that date_start and date_end before comparing. Google includes campaigns with delivery and does not limit to Enabled, matching the Delivery and Enabled switches at their defaults. Account spend, impressions, clicks, and results are the summary bar for the whole tab. campaigns lists the highest-spend campaigns from that tab. If campaigns_truncated is true, more campaigns exist and the account total still includes them. Meta account totals can differ from adding the campaign rows; quote the account fields for the summary bar and campaigns for one campaign. TikTok purchases and ROAS are not on that tab, so they are empty. CTR is a percentage. ROAS of 1 or more means return covers spend. Google results are conversions. Meta results follow each campaign objective like Results in Ads Manager, and results_label names them, for example purchases, messaging conversations started, link clicks, leads, or reach. Only purchases have a value, so ROAS is empty for other results. When an account mixes result types, its results are empty; read each campaign. Meta clicks are link clicks. A leader is chosen only when at least two accounts with that metric share a currency for money metrics. Do not treat an unavailable account as zero.";
 
 const HOW_TO_READ_ACCOUNT =
   "These are account totals, not the campaign tab on the Synckerja ads pages. Do not present them as campaign performance or as a match for the dashboard until matches_dashboard is true. CTR is a percentage. Do not treat an unavailable account as zero.";
@@ -339,15 +339,20 @@ function hasDelivery(row: AdsPerformanceAccount): boolean {
   return row.status === "ok" && ((row.spend ?? 0) > 0 || (row.impressions ?? 0) > 0);
 }
 
-function leaderSentence(leader: AdsPerformanceLeader, resultsLabel: "conversions" | "purchases" | null): string {
+function resultNoun(resultsLabel: string | null): string {
+  if (resultsLabel === "purchases") return "purchase";
+  if (resultsLabel === "conversions" || !resultsLabel) return "conversion";
+  return `result (${resultsLabel})`;
+}
+
+function leaderSentence(leader: AdsPerformanceLeader, resultsLabel: string | null): string {
   const name = accountName(leader);
   if (leader.metric === "roas") return `${name} has the highest ROAS at ${leader.value}.`;
   if (leader.metric === "ctr") return `${name} has the highest CTR at ${leader.value}%.`;
   const money = `${leader.value} ${leader.currency}`;
   if (leader.metric === "cpc") return `${name} has the lowest CPC at ${money}.`;
   if (leader.metric === "cpm") return `${name} has the lowest CPM at ${money}.`;
-  const resultName = resultsLabel === "purchases" ? "purchase" : "conversion";
-  return `${name} has the lowest cost per ${resultName} at ${money}.`;
+  return `${name} has the lowest cost per ${resultNoun(resultsLabel)} at ${money}.`;
 }
 
 export function presentAdsPerformance(source: AdsPerformanceSource): AdsPerformanceSummary {
@@ -445,10 +450,21 @@ export function presentAdsPerformance(source: AdsPerformanceSource): AdsPerforma
           : `${name} ROAS ${account.roas} is below spend.`,
       );
     } else if ((account.results ?? 0) > 0) {
-      readings.push(`${name} recorded ${account.results} ${account.results_label ?? "results"} but no result value, so ROAS is unavailable.`);
+      const costPer = account.cost_per_result != null
+        ? ` at ${account.cost_per_result} ${account.currency ?? ""} each`.trimEnd()
+        : "";
+      readings.push(
+        account.results_label === "purchases" || account.results_label === "conversions"
+          ? `${name} recorded ${account.results} ${account.results_label} but no result value, so ROAS is unavailable.`
+          : `${name} recorded ${account.results} ${account.results_label ?? "results"}${costPer}. ROAS does not apply to this result.`,
+      );
     } else if ((account.spend ?? 0) > 0) {
-      const noun = account.results_label === "purchases" ? "purchases" : "conversions";
-      readings.push(`${name} spent ${account.spend} ${account.currency ?? ""}`.trim() + ` and recorded no ${noun}.`);
+      if (account.results == null && account.results_label == null) {
+        readings.push(`${name} spent ${account.spend} ${account.currency ?? ""}`.trim() + ". Read results on each campaign.");
+      } else {
+        const noun = account.results_label ?? "conversions";
+        readings.push(`${name} spent ${account.spend} ${account.currency ?? ""}`.trim() + ` and recorded no ${noun}.`);
+      }
     }
   }
 
