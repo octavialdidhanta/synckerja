@@ -179,14 +179,26 @@ Deno.serve(async (req: Request) => {
     if (request.action === "retry_sync") {
       const { data: account } = await admin
         .from("organization_whatsapp_accounts")
-        .select("meta_access_token, connection_mode")
+        .select("meta_access_token, connection_mode, whatsapp_business_account_id")
         .eq("organization_id", request.organizationId)
         .eq("phone_number_id", request.phoneNumberId)
         .maybeSingle();
       const token = (account?.meta_access_token as string | null)?.trim();
       if (!token || account?.connection_mode !== "coexistence") return json({ error: "not_coexistence_account" }, 400);
+      // A number added by hand (for example a WABA owned by Synckerja's own business portfolio,
+      // where the Embedded Signup sharing step does not apply) may not have the app subscribed
+      // yet. Subscribing again is harmless, so do it before asking Meta for the sync.
+      let subscribeError: string | null = null;
+      const wabaId = String(account?.whatsapp_business_account_id ?? "").trim();
+      if (/^\d{5,25}$/.test(wabaId)) {
+        try {
+          await graph("POST", `${wabaId}/subscribed_apps`, token);
+        } catch (e) {
+          subscribeError = e instanceof Error ? e.message : String(e);
+        }
+      }
       const sync = await startCoexSync(admin, token, request.organizationId, request.phoneNumberId);
-      return json({ ok: !sync.error, sync });
+      return json({ ok: !sync.error && !subscribeError, subscribe_error: subscribeError, sync });
     }
 
     const token = await exchangeCode(request.code);
