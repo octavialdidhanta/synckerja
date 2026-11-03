@@ -103,6 +103,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     listOkrObjectives: async () => [],
     listOkrDepartments: async () => [],
     listCrmLeads: async () => [],
+    listInboxConversations: async () => [],
+    listInboxMessages: async () => [],
+    readInboxSummary: async () => [],
     listAdsAccounts: async () => [],
     listAdsPerformance: async () => {
       throw new Error("unused");
