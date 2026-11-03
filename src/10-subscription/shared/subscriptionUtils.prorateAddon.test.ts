@@ -521,14 +521,17 @@ describe("deriveSubscriptionDaysRemaining", () => {
   });
 
   it("prefers subscription_end_date over trial_end_date when paid end exists", () => {
+    // Relative to today so the paid end never slips into the past as the calendar moves on.
+    const dayMs = 86_400_000;
     const days = deriveSubscriptionDaysRemaining({
       is_expired: false,
       is_trial: true,
-      trial_end_date: "2026-05-26T00:00:00.000Z",
-      subscription_end_date: "2026-08-10T00:00:00.000Z",
+      trial_end_date: new Date(Date.now() - 30 * dayMs).toISOString(),
+      subscription_end_date: new Date(Date.now() + 30 * dayMs).toISOString(),
       end_date: undefined,
     });
-    expect(days).toBeGreaterThan(0);
+    expect(days).toBeGreaterThanOrEqual(29);
+    expect(days).toBeLessThanOrEqual(31);
   });
 });
 
