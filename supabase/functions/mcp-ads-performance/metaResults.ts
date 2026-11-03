@@ -95,9 +95,39 @@ function hasAny(counts: Map<string, number>, rule: ResultRule): boolean {
   return rule.actionTypes.some((type) => (counts.get(type) ?? 0) > 0);
 }
 
+const LANDING_PAGE_VIEWS: ResultRule = {
+  label: "landing page views",
+  actionTypes: ["landing_page_view"],
+};
+
+/** The single optimization goal of the campaign's ad sets, or null when there is none or several. */
+function singleGoal(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  const goals = [...new Set(value.map((item) => String(item ?? "").trim().toUpperCase()).filter(Boolean))];
+  return goals.length === 1 ? goals[0] : null;
+}
+
+/** Result picked from the ad set optimization goal, which is what Ads Manager Results follow. */
+function resultFromGoal(goal: string, raw: Record<string, unknown>, counts: Map<string, number>): MetaResult | null {
+  if (goal === "CONVERSATIONS") return fromRule(counts, MESSAGING);
+  if (goal === "LINK_CLICKS") return fromRule(counts, LINK_CLICKS);
+  if (goal === "LANDING_PAGE_VIEWS") return fromRule(counts, LANDING_PAGE_VIEWS);
+  if (goal === "LEAD_GENERATION" || goal === "QUALITY_LEAD") return fromRule(counts, LEADS);
+  if (goal === "POST_ENGAGEMENT") return fromRule(counts, POST_ENGAGEMENT);
+  if (goal === "PAGE_LIKES") return fromRule(counts, PAGE_LIKES);
+  if (goal === "APP_INSTALLS") return fromRule(counts, APP_INSTALLS);
+  if (goal === "REACH") return { results: toNumber(raw.reach), results_label: "reach", result_value: null };
+  if (goal === "IMPRESSIONS") {
+    return { results: toNumber(raw.impressions), results_label: "impressions", result_value: null };
+  }
+  // Conversion and value goals depend on the chosen event, so the objective decides.
+  return null;
+}
+
 /**
  * Pick the result for one Meta campaign row from the dashboard.
- * Unknown or missing objectives keep purchases, the previous behavior.
+ * The ad set optimization goal comes first, then the campaign objective.
+ * Unknown or missing goal and objective keep purchases, the previous behavior.
  */
 export function metaCampaignResult(raw: Record<string, unknown>): MetaResult {
   const objective = String(raw.objective ?? "").trim().toUpperCase();
@@ -107,6 +137,12 @@ export function metaCampaignResult(raw: Record<string, unknown>): MetaResult {
     results_label: "purchases",
     result_value: toNumber(raw.purchase_conversion_value) > 0 ? toNumber(raw.purchase_conversion_value) : null,
   };
+
+  const goal = singleGoal(raw.optimization_goals);
+  if (goal) {
+    const byGoal = resultFromGoal(goal, raw, counts);
+    if (byGoal) return byGoal;
+  }
 
   if (!objective || PURCHASE_OBJECTIVES.has(objective)) return purchases;
   if (objective === "MESSAGES") return fromRule(counts, MESSAGING);
