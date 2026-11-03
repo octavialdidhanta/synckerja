@@ -553,6 +553,7 @@ describe("daily task visibility", () => {
       "tasks.workload",
       "tasks.completed.list",
       "tasks.steps.list",
+      "tasks.substeps.list",
     ]);
     expect(names).not.toContain("tasks.steps.create");
     expect(names).not.toContain("tasks.steps.update");

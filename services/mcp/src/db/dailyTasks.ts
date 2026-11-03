@@ -315,6 +315,28 @@ type SubstepRpcRow = {
   is_completed: boolean;
 };
 
+export type TaskSubstepRow = TaskSubstepRecord & { assignee_name: string | null };
+
+export function listTaskSubsteps(
+  admin: SupabaseClient,
+  ctx: Session,
+  stepId: string,
+): Promise<TaskSubstepRow[]> {
+  return callRpc<SubstepRpcRow & { assignee_name?: string | null }>(admin, "mcp_list_task_substeps", {
+    ...sessionArgs(ctx),
+    p_step_id: stepId,
+  }).then((rows) =>
+    rows.map((row) => ({
+      id: row.id,
+      step_id: row.step_id,
+      title: row.title,
+      order: row.substep_order,
+      is_completed: row.is_completed,
+      assignee_name: row.assignee_name ?? null,
+    })),
+  );
+}
+
 export function createTaskSubstep(
   admin: SupabaseClient,
   ctx: Session,

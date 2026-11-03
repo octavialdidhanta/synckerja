@@ -75,6 +75,7 @@ export type McpToolName =
   | "tasks.steps.create"
   | "tasks.steps.update"
   | "tasks.steps.delete"
+  | "tasks.substeps.list"
   | "tasks.substeps.create"
   | "tasks.steps.image.add"
   | "habits.list"
@@ -546,7 +547,15 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "tasks.steps.list",
     description:
-      "List up to 50 steps of one daily task in the organization locked in this session. Returns id, title, order, whether it is completed, and the assignee name. Use the returned id as step_id for tasks.substeps.create. A blank assignee means nobody is assigned. Sub-steps, descriptions, comments, and files are not returned.",
+      "List up to 50 steps of one daily task in the organization locked in this session. Returns id, title, order, whether it is completed, and the assignee name. Use the returned id as step_id for tasks.substeps.list and tasks.substeps.create. A blank assignee means nobody is assigned. Sub-steps, descriptions, comments, and files are not returned.",
+    scopes: ["tasks:read"],
+    moduleKey: "tools",
+    pagePath: DAILY_TASK_PAGE_PATH,
+  },
+  {
+    name: "tasks.substeps.list",
+    description:
+      "List up to 50 sub-steps under one step of a daily task in the organization locked in this session. Read only. Requires step_id, the id of that step from tasks.steps.list. Returns id, step_id, title, order, whether it is completed, and the assignee name. A blank assignee means nobody is assigned. Does not create, change, or complete anything.",
     scopes: ["tasks:read"],
     moduleKey: "tools",
     pagePath: DAILY_TASK_PAGE_PATH,

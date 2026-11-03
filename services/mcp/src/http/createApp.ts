@@ -38,6 +38,7 @@ import type {
   TaskStepRecord,
   TaskStepRow,
   TaskSubstepRecord,
+  TaskSubstepRow,
   TaskSummary,
   UpdateTaskInput,
   WorkloadRow,
@@ -234,6 +235,7 @@ export type AppDeps = {
     input: { id: string; title: string; description: string | null },
   ) => Promise<TaskStepRecord>;
   deleteTaskStep: (ctx: McpAuthContext, id: string) => Promise<{ id: string }>;
+  listTaskSubsteps: (ctx: McpAuthContext, stepId: string) => Promise<TaskSubstepRow[]>;
   createTaskSubstep: (ctx: McpAuthContext, input: { stepId: string; title: string }) => Promise<TaskSubstepRecord>;
   attachTaskStepImage: (ctx: McpAuthContext, input: { stepId: string; imageUrl: string }) => Promise<TaskStepImageRecord>;
   listHabits: (ctx: McpAuthContext, date: string | null) => Promise<HabitDayRow[]>;
