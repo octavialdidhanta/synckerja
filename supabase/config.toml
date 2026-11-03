@@ -225,6 +225,9 @@ verify_jwt = false
 [functions.mcp-ads-performance]
 verify_jwt = false
 
+[functions.mcp-social-comments]
+verify_jwt = false
+
 # AI employee runtime. User JWT or internal secret, checked inside. Runner JWT is minted in the function.
 [functions.ai-employee-run]
 verify_jwt = false

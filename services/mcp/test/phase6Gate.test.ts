@@ -179,6 +179,7 @@ function gateDeps(overrides: Record<string, unknown>) {
     listInboxConversations: unused,
     listInboxMessages: unused,
     readInboxSummary: unused,
+    readSocialComments: unused,
     listAdsAccounts: unused,
     listAdsPerformance: unused,
     listAdsBreakdown: unused,

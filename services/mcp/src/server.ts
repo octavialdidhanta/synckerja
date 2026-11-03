@@ -72,6 +72,7 @@ import { SupabaseGrantStore } from "./oauth/supabaseStore";
 import { aiEmployeeBriefGet, aiEmployeeBriefUpdate, aiEmployeeChat, aiEmployeeCommand, aiEmployeeQueueList, aiEmployeeReport, aiEmployeeRoutineUpsert, aiEmployeeRoutinesList, aiEmployeeRuns, aiEmployeeScheduleUpdate, aiEmployeeStatus, listAiEmployees } from "./db/aiEmployee";
 import { listProductKnowledge } from "./db/productKnowledge";
 import { listInboxConversations, listInboxMessages, readInboxSummary } from "./db/inbox";
+import { readSocialComments } from "./db/socialComments";
 
 const config = loadConfig();
 const admin = createAdmin(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -96,6 +97,7 @@ const app = createApp({
   listInboxConversations: (ctx, query) => listInboxConversations(admin, ctx, query),
   listInboxMessages: (ctx, query) => listInboxMessages(admin, ctx, query),
   readInboxSummary: (ctx, query) => readInboxSummary(admin, ctx, query),
+  readSocialComments: (ctx, query) => readSocialComments(config, ctx, query),
   listAdsAccounts: (ctx) => listAdsAccounts(admin, ctx),
   listAdsPerformance: (ctx, query) => listAdsPerformance(config, ctx, query),
   listAdsBreakdown: (ctx, query) => listAdsBreakdown(config, ctx, query),

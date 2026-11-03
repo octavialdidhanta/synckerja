@@ -20,6 +20,14 @@ export {
   parseInboxMessagesQuery,
   parseInboxSummaryQuery,
 } from "./inbox/inboxQuery";
+export {
+  commentsListInput,
+  commentsListResult,
+  commentsSummaryInput,
+  commentsSummaryResult,
+  parseCommentsListQuery,
+  parseCommentsSummaryQuery,
+} from "./comments/commentsQuery";
 export { adsAccountsInput, adsAccountsResult } from "./ads/accountsList";
 export { adsPerformanceDenial, adsPerformanceInput, adsPerformanceResult, parseAdsPerformanceQuery } from "./ads/performanceSummary";
 export { adsBreakdownInput, adsBreakdownResult, parseAdsBreakdownQuery } from "./ads/performanceBreakdown";

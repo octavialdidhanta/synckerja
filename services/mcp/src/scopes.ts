@@ -21,6 +21,7 @@ export const PHASE0_SCOPES = [
   "okr:write",
   "crm:write",
   "inbox:read",
+  "comments:read",
 ] as const;
 
 export type Phase0Scope = (typeof PHASE0_SCOPES)[number];

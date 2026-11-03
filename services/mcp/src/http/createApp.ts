@@ -91,6 +91,10 @@ export type AppDeps = {
     ctx: McpAuthContext,
     query: import("../tools/inbox/inboxQuery").InboxSummaryQuery,
   ) => Promise<import("../tools/inbox/inboxQuery").InboxSummaryRow[]>;
+  readSocialComments: (
+    ctx: McpAuthContext,
+    query: import("../tools/comments/commentsQuery").CommentsQuery,
+  ) => Promise<import("../tools/comments/commentsQuery").CommentsSource>;
   listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
   listAdsPerformance: (
     ctx: McpAuthContext,

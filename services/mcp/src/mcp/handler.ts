@@ -19,6 +19,7 @@ import type {
   InboxSummaryQuery,
   InboxSummaryRow,
 } from "../tools/inbox/inboxQuery";
+import type { CommentsQuery, CommentsSource } from "../tools/comments/commentsQuery";
 import type {
   AdsAccountRow,
   EmployeeRow,
@@ -56,6 +57,12 @@ import type { TaskStepImageRecord } from "../db/stepImages";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
 import type { AccessClaims } from "../oauth/tokens";
 import {
+  commentsListInput,
+  commentsListResult,
+  commentsSummaryInput,
+  commentsSummaryResult,
+  parseCommentsListQuery,
+  parseCommentsSummaryQuery,
   inboxConversationsInput,
   inboxConversationsResult,
   inboxMessagesInput,
@@ -237,6 +244,7 @@ export type McpReadDeps = {
   listInboxConversations: (ctx: McpAuthContext, query: InboxConversationsQuery) => Promise<InboxConversationRow[]>;
   listInboxMessages: (ctx: McpAuthContext, query: InboxMessagesQuery) => Promise<InboxMessageRow[]>;
   readInboxSummary: (ctx: McpAuthContext, query: InboxSummaryQuery) => Promise<InboxSummaryRow[]>;
+  readSocialComments: (ctx: McpAuthContext, query: CommentsQuery) => Promise<CommentsSource>;
   listAdsAccounts: (ctx: McpAuthContext) => Promise<AdsAccountRow[]>;
   listAdsPerformance: (
     ctx: McpAuthContext,
@@ -554,6 +562,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "inbox.conversations.list": inboxConversationsInput,
   "inbox.messages.list": inboxMessagesInput,
   "inbox.summary": inboxSummaryInput,
+  "comments.list": commentsListInput,
+  "comments.summary": commentsSummaryInput,
   "ads.accounts.list": adsAccountsInput,
   "ads.performance.summary": adsPerformanceInput,
   "ads.performance.breakdown": adsBreakdownInput,
@@ -675,6 +685,16 @@ async function runTool(
       const query = parseInboxSummaryQuery(args);
       if (!query) throw new Error("invalid_input");
       return inboxSummaryResult(ctx, query, deps.readInboxSummary);
+    }
+    case "comments.list": {
+      const query = parseCommentsListQuery(args);
+      if (!query) throw new Error("invalid_input");
+      return commentsListResult(ctx, query, deps.readSocialComments);
+    }
+    case "comments.summary": {
+      const query = parseCommentsSummaryQuery(args);
+      if (!query) throw new Error("invalid_input");
+      return commentsSummaryResult(ctx, query, deps.readSocialComments);
     }
     case "ads.accounts.list":
       return adsAccountsResult(ctx, deps.listAdsAccounts);
