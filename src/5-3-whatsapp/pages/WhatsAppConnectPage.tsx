@@ -18,6 +18,8 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
 import { WhatsAppConnectForm } from '../components/connect/WhatsAppConnectForm';
 import { WebhookInfoDisplay } from '../components/connect/WebhookInfoDisplay';
+import { WhatsAppEmbeddedSignupCard } from '../components/connect/WhatsAppEmbeddedSignupCard';
+import { useWhatsAppEmbeddedSignup } from '../hooks/useWhatsAppEmbeddedSignup';
 import { policyBaseUrl } from '@/policy/contact';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { cn } from '@/shared/lib/utils';
@@ -69,14 +71,18 @@ function AccountCard({
   onRefresh,
   isSyncing,
   syncingId,
+  onRetrySync,
+  retryingId,
 }: {
   account: WhatsAppAccount;
-  t: (key: string, fallback?: string) => string;
+  t: (key: string, fallback?: string, variables?: Record<string, string | number>) => string;
   onEdit: (a: WhatsAppAccount) => void;
   onDisconnect: (a: WhatsAppAccount) => void;
   onRefresh: (a: WhatsAppAccount) => void;
   isSyncing: boolean;
   syncingId: string | null;
+  onRetrySync: (a: WhatsAppAccount) => void;
+  retryingId: string | null;
 }) {
   const accountName = account.whatsapp_business_name?.trim() || account.display_phone_number?.trim() || account.phone_number_id || 'WhatsApp Account';
   const displayNumber = account.display_phone_number?.trim() || '—';
@@ -88,6 +94,17 @@ function AccountCard({
       : (account.name_status?.trim() || t('whatsappConnect.statusPending', 'Pending'));
   const updatedAtLabel = account.updated_at ? format(new Date(account.updated_at), 'd MMM yy HH:mm') : '—';
   const thisSyncing = isSyncing && syncingId === account.id;
+  const isCoexistence = account.connection_mode === 'coexistence';
+  const onboardedMs = account.coexistence_onboarded_at ? Date.parse(account.coexistence_onboarded_at) : NaN;
+  // Meta allows the history/contact sync once, within 24 hours of onboarding.
+  const canRetrySync = isCoexistence && account.history_sync_status === 'error'
+    && Number.isFinite(onboardedMs) && Date.now() - onboardedMs < 24 * 60 * 60 * 1000;
+  const historyLabel = !isCoexistence ? null
+    : account.history_sync_status === 'done' ? t('whatsappConnect.historyDone', 'Riwayat chat tersalin')
+    : account.history_sync_status === 'declined' ? t('whatsappConnect.historyDeclined', 'Riwayat chat tidak dibagikan')
+    : account.history_sync_status === 'error' ? t('whatsappConnect.historyError', 'Sinkron riwayat gagal')
+    : account.history_sync_status ? t('whatsappConnect.historyRunning', 'Menyalin riwayat chat… {{progress}}%', { progress: account.history_sync_progress ?? 0 })
+    : null;
 
   return (
     <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/60 p-5 shadow-sm">
@@ -108,6 +125,19 @@ function AccountCard({
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 Connected
               </span>
+              {isCoexistence ? (
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded bg-[#25D366]/15 px-1.5 py-0.5 font-medium text-[#128C7E]">
+                    {t('whatsappConnect.coexBadge', 'Coexistence · aplikasi HP + Synckerja')}
+                  </span>
+                  {historyLabel ? <span className="text-slate-500">{historyLabel}</span> : null}
+                </div>
+              ) : null}
+              {isCoexistence ? (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {t('whatsappConnect.coexKeepAlive', 'Buka aplikasi WhatsApp Business di HP minimal sekali tiap 13 hari agar koneksi tidak terputus.')}
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -162,6 +192,19 @@ function AccountCard({
             <RefreshCw className={`w-4 h-4 mr-2 ${thisSyncing ? 'animate-spin' : ''}`} />
             {thisSyncing ? t('whatsappConnect.syncing', 'Menyinkronkan...') : t('whatsappConnect.refreshFromMeta', 'Refresh dari Meta')}
           </Button>
+          {canRetrySync ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => onRetrySync(account)}
+              disabled={retryingId === account.id}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${retryingId === account.id ? 'animate-spin' : ''}`} />
+              {t('whatsappConnect.retrySync', 'Ulangi sinkron riwayat')}
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -213,6 +256,22 @@ export function WhatsAppConnectPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const policyPublicOrigin = policyBaseUrl();
+  const { retrySync } = useWhatsAppEmbeddedSignup();
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
+  const handleRetrySync = async (account: WhatsAppAccount) => {
+    setRetryingId(account.id);
+    try {
+      const result = await retrySync(account.phone_number_id);
+      if (result?.ok) toast.success(t('whatsappConnect.retrySyncOk', 'Sinkron riwayat dimulai ulang.'));
+      else toast.error(result?.sync?.error ?? t('whatsappConnect.retrySyncFailed', 'Sinkron riwayat masih gagal.'));
+      await refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('whatsappConnect.retrySyncFailed', 'Sinkron riwayat masih gagal.'));
+    } finally {
+      setRetryingId(null);
+    }
+  };
 
   const handleDisconnectConfirm = async () => {
     if (disconnectTarget) {
@@ -306,16 +365,30 @@ export function WhatsAppConnectPage() {
                             </div>
                             <div>
                               <h2 className="text-xl font-bold text-[#25D366]">WhatsApp</h2>
-                              <p className="text-sm text-gray-500">Alternative account connection</p>
+                              <p className="text-sm text-gray-500">{t('whatsappConnect.cardSubtitle', 'Hubungkan nomor WhatsApp Business')}</p>
                             </div>
                           </div>
                         </CardHeader>
                         <CardContent className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 flex-1 flex-col space-y-6 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                          <WhatsAppConnectForm
-                            editingAccount={editingAccount}
-                            onClearEdit={() => setEditingAccount(null)}
-                            onAfterSave={handleRefreshFromMeta}
-                          />
+                          <WhatsAppEmbeddedSignupCard onConnected={() => { void refetch(); }} />
+                          <details
+                            className="group rounded-lg border border-slate-200 bg-white/60 p-3"
+                            open={Boolean(editingAccount) || undefined}
+                          >
+                            <summary className="cursor-pointer select-none text-sm font-medium text-slate-700">
+                              {t('whatsappConnect.manualToggle', 'Koneksi manual (lanjutan)')}
+                              <span className="ml-1 text-xs font-normal text-slate-500">
+                                {t('whatsappConnect.manualHint', '— tempel WABA ID, Phone Number ID & token sendiri')}
+                              </span>
+                            </summary>
+                            <div className="pt-4">
+                              <WhatsAppConnectForm
+                                editingAccount={editingAccount}
+                                onClearEdit={() => setEditingAccount(null)}
+                                onAfterSave={handleRefreshFromMeta}
+                              />
+                            </div>
+                          </details>
                           <div className="border-t border-slate-200 pt-6">
                             <WebhookInfoDisplay embedded />
                           </div>
@@ -383,6 +456,8 @@ export function WhatsAppConnectPage() {
                                   onRefresh={handleRefreshFromMeta}
                                   isSyncing={isSyncing}
                                   syncingId={syncingId}
+                                  onRetrySync={handleRetrySync}
+                                  retryingId={retryingId}
                                 />
                               ))}
                             </div>

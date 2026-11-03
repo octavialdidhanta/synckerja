@@ -18,6 +18,7 @@
     "certify:thinking-lab:bt:live": "vite-node --config vitest.config.ts src/thinking-lab/big-thought/certifyLiveEntry.ts",
     "reproduce:thinking-lab:bt": "vite-node --config vitest.config.ts src/thinking-lab/big-thought/reproduceRegressionEntry.ts",
     "test:deno:ctwa": "deno test supabase/functions/_shared/ctwaReferral.test.ts supabase/functions/_shared/ctwaLeadSync.test.ts",
+    "test:deno:wa-coex": "deno test supabase/functions/_shared/whatsappCoexistence/parse.test.ts supabase/functions/whatsapp-embedded-signup/logic.test.ts",
     "android:build-web": "npm run build",
     "android:sync": "npx cap sync android",
     "android:open": "npx cap open android",

@@ -282,7 +282,7 @@ export function renderTemplateBodyPreview(
   return parts.join("\n").slice(0, 4090);
 }
 
-export const META_API_BASE = "https://graph.facebook.com/v18.0";
+export const META_API_BASE = `https://graph.facebook.com/${(Deno.env.get("META_GRAPH_API_VERSION") ?? "").trim() || "v22.0"}`;
 
 export async function postTemplateMessage(
   phoneNumberId: string,

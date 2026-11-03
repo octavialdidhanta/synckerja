@@ -8,7 +8,7 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Max-Age": "86400",
 };
 
-const META_GRAPH_BASE = "https://graph.facebook.com/v18.0";
+const META_GRAPH_BASE = `https://graph.facebook.com/${(Deno.env.get("META_GRAPH_API_VERSION") ?? "").trim() || "v22.0"}`;
 /** Same bucket as outbound sends (ChatThread) – satu bucket untuk kirim & terima media */
 const WHATSAPP_MEDIA_BUCKET = "whatsapp-media";
 

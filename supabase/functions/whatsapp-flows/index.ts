@@ -2,6 +2,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { normalizeMetaFlowJsonDocument } from "../_shared/omnichannelFlow/normalizeMetaFlowJsonDocument.ts";
+import { META_GRAPH_BASE as SHARED_META_GRAPH_BASE } from "../_shared/metaGraphVersion.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -10,7 +11,7 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Max-Age": "86400",
 };
 
-const META_API_BASE = "https://graph.facebook.com/v18.0";
+const META_API_BASE = SHARED_META_GRAPH_BASE;
 /** Max stringified flow_json size sent to Meta (defense in depth). */
 const MAX_FLOW_JSON_BYTES = 256 * 1024;
 

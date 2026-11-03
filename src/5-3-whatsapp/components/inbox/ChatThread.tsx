@@ -2904,6 +2904,11 @@ export function ChatThread({
                       {t("whatsappInbox.automationBadge", "Automation")}
                     </div>
                   ) : null}
+                  {msg.direction === "outbound" && msg.source === "business_app" ? (
+                    <div className="mb-1 inline-flex rounded bg-black/[0.06] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#54656f]">
+                      {t("whatsappInbox.businessAppBadge", "Dibalas dari HP")}
+                    </div>
+                  ) : null}
                   {msg.direction === 'outbound' && !hasReplyBlock && outboundDropdown && (
                     <div className="absolute top-1 right-1 z-[3]" onClick={(e) => e.stopPropagation()}>
                       {outboundDropdown}

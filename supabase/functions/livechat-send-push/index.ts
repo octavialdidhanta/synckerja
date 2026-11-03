@@ -169,6 +169,18 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // WhatsApp Coexistence history import: old chats, not new messages. Never push them.
+    const rawMeta = record.raw_metadata && typeof record.raw_metadata === "object"
+      ? record.raw_metadata as Record<string, unknown>
+      : null;
+    if (rawMeta?.coexistence_source === "history") {
+      console.log("livechat-send-push: skipped coexistence_history", { table });
+      return new Response(JSON.stringify({ ok: true, skipped: "coexistence_history" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const conversationId = record.conversation_id as string | undefined;
     if (!conversationId) {
       console.log("livechat-send-push: skipped no_conversation_id", { table });

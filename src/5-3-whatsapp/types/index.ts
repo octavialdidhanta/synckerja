@@ -53,6 +53,13 @@ export interface WhatsAppAccount {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  /** manual = form; embedded_cloud_api / coexistence = Embedded Signup. */
+  connection_mode?: "manual" | "embedded_cloud_api" | "coexistence" | null;
+  coexistence_onboarded_at?: string | null;
+  history_sync_status?: "requested" | "running" | "done" | "declined" | "error" | null;
+  history_sync_progress?: number | null;
+  history_sync_error?: string | null;
+  disconnected_reason?: string | null;
 }
 
 export interface WhatsAppAccountUpsert {
@@ -106,7 +113,8 @@ export interface WhatsAppMessage {
   /** Public URL for image/video/document preview (outbound: our storage; inbound: our storage after download from Meta). */
   media_url?: string | null;
   /** Message source: agent manual send, flow automation bot, or system. */
-  source?: "agent" | "flow_automation" | "system" | null;
+  /** business_app = typed in the WhatsApp Business app on the phone (Coexistence). */
+  source?: "agent" | "flow_automation" | "system" | "business_app" | null;
   automation_flow_id?: string | null;
   automation_enrollment_id?: string | null;
   /** Pesan yang dibalas: wa_message_id dan body untuk ditampilkan di bubble. */
