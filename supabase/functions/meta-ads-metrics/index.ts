@@ -53,8 +53,8 @@ import { fetchGraphObjectsByIds } from "../_shared/metaGraphObjectBatch.ts";
 
 const CACHE_TTL_MINUTES = 10;
 
-/** Bust cache when rows include CPAS shared-item metrics. */
-const METRICS_CACHE_KEY = "account-insights-v10";
+/** Bust cache when rows include CPAS shared-item metrics, the campaign objective, or ad set goals. */
+const METRICS_CACHE_KEY = "account-insights-v12";
 
 /** Meta often returns empty rows for very long single-shot insights queries. */
 const MAX_SINGLE_INSIGHTS_RANGE_DAYS = 92;
@@ -296,6 +296,21 @@ function entityRowKey(row: Record<string, unknown>, entity: MetricEntity): strin
   return String(row.ad_id ?? "").trim();
 }
 
+/** Add two Insights `actions` lists by action_type, so long ranges keep every result count. */
+function mergeActionLists(left: unknown, right: unknown): { action_type: string; value: string }[] | undefined {
+  if (!Array.isArray(left) && !Array.isArray(right)) return undefined;
+  const totals = new Map<string, number>();
+  for (const list of [left, right]) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const type = String((item as { action_type?: unknown })?.action_type ?? "").trim();
+      if (!type) continue;
+      totals.set(type, (totals.get(type) ?? 0) + parseNumField((item as { value?: unknown })?.value));
+    }
+  }
+  return [...totals].map(([action_type, value]) => ({ action_type, value: String(value) }));
+}
+
 function mergeEntityInsightRows(
   rows: Record<string, unknown>[],
   entity: MetricEntity,
@@ -333,6 +348,7 @@ function mergeEntityInsightRows(
       frequency: null,
     });
     Object.assign(prev, mergedCpas);
+    prev.actions = mergeActionLists(prev.actions, row.actions);
     if (row.account_currency) prev.account_currency = row.account_currency;
     if (row.campaign_name) prev.campaign_name = row.campaign_name;
     if (row.adset_name) prev.adset_name = row.adset_name;
@@ -616,6 +632,19 @@ function writeDeliveryAndBudget(
   else delete row.budget_uses_campaign;
 }
 
+/** Distinct optimization goals of a campaign's ad sets, active ad sets first when any are active. */
+function campaignOptimizationGoals(campaign: Record<string, unknown> | undefined): string[] {
+  const data = (campaign?.adsets as { data?: unknown } | undefined)?.data;
+  if (!Array.isArray(data)) return [];
+  const adsets = data.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object");
+  const active = adsets.filter((item) => String(item.effective_status ?? "").toUpperCase() === "ACTIVE");
+  const source = active.length > 0 ? active : adsets;
+  const goals = source
+    .map((item) => String(item.optimization_goal ?? "").trim().toUpperCase())
+    .filter(Boolean);
+  return [...new Set(goals)];
+}
+
 /** Delivery and budget come from the campaign or ad set object, not insights. */
 async function enrichRowsWithDeliveryAndBudget(
   graphVersion: string,
@@ -630,12 +659,26 @@ async function enrichRowsWithDeliveryAndBudget(
     const objects = await fetchMetaObjectsByIds(
       graphVersion,
       rows.map((row) => insightRowId(row, "campaign_id")),
-      "effective_status,daily_budget,lifetime_budget",
+      "effective_status,daily_budget,lifetime_budget,objective",
       accessToken,
     );
     for (const row of rows) {
       const obj = objects.get(insightRowId(row, "campaign_id"));
       writeDeliveryAndBudget(row, obj, obj, currency);
+      // The objective tells which action Ads Manager counts as Results for this campaign.
+      if (typeof obj?.objective === "string" && obj.objective.trim()) row.objective = obj.objective;
+    }
+    // Ads Manager Results follow the ad set optimization goal (a Sales campaign can optimize for chats).
+    // Read separately so a failure here never removes delivery or budget.
+    const goals = await fetchMetaObjectsByIds(
+      graphVersion,
+      rows.map((row) => insightRowId(row, "campaign_id")),
+      "adsets.limit(25){optimization_goal,effective_status}",
+      accessToken,
+    );
+    for (const row of rows) {
+      const list = campaignOptimizationGoals(goals.get(insightRowId(row, "campaign_id")));
+      if (list.length > 0) row.optimization_goals = list;
     }
     return;
   }

@@ -6,6 +6,7 @@ import {
   describeOrganizationMembership,
   internalSecretMatches,
 } from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
+import { metaAccountResult, metaCampaignResult } from "./metaResults.ts";
 
 const MAX_ACCOUNTS = 12;
 const MAX_CAMPAIGNS = 25;
@@ -29,7 +30,7 @@ type CampaignRow = {
   clicks: number;
   reach: number | null;
   results: number | null;
-  results_label: "conversions" | "purchases" | null;
+  results_label: string | null;
   result_value: number | null;
 };
 
@@ -43,7 +44,7 @@ type PerformanceRow = {
   clicks: number | null;
   reach: number | null;
   results: number | null;
-  results_label: "conversions" | "purchases" | null;
+  results_label: string | null;
   result_value: number | null;
   campaigns: CampaignRow[];
   campaigns_truncated: boolean;
@@ -80,7 +81,7 @@ function publicError(error: unknown): string {
 function failRow(
   account: AccountRef,
   message: string,
-  resultsLabel: "conversions" | "purchases",
+  resultsLabel: string,
 ): PerformanceRow {
   return {
     platform: account.platform,
@@ -449,23 +450,39 @@ async function metaPerformance(
       pageToken = next;
     }
     const totals = summary ?? {};
-    const listed = rows.map((raw) => ({
-      id: String(raw.campaign_id ?? ""),
-      name: campaignName(raw.campaign_name),
-      spend: asNumber(raw.spend),
-      impressions: asNumber(raw.impressions),
-      clicks: asNumber(raw.clicks),
-      reach: asNumber(raw.reach),
-      results: asNumber(raw.purchases),
-      results_label: "purchases" as const,
-      result_value: positiveOrNull(raw.purchase_conversion_value),
-    }));
+    const listed = rows.map((raw) => {
+      const result = metaCampaignResult(raw);
+      return {
+        id: String(raw.campaign_id ?? ""),
+        name: campaignName(raw.campaign_name),
+        spend: asNumber(raw.spend),
+        impressions: asNumber(raw.impressions),
+        clicks: asNumber(raw.clicks),
+        reach: asNumber(raw.reach),
+        results: result.results,
+        results_label: result.results_label,
+        result_value: result.result_value,
+      };
+    });
     const picked = topCampaigns(listed, moreRemain);
     const notes = [
       "Campaign tab. Account totals are the summary bar and can differ from adding the campaign rows.",
+      "Meta results follow each campaign objective, like Results in Ads Manager.",
     ];
     if (picked.campaigns_truncated) {
       notes.push("Campaign list keeps the highest spend campaigns. The account total includes the rest.");
+    }
+    // Purchase-only accounts keep the summary bar purchases and value. Other results are added from campaigns.
+    const onlyPurchases = listed.every((row) => row.results_label === "purchases");
+    let accountResults: number | null = asNumber(totals.purchases);
+    let accountLabel: string | null = "purchases";
+    let accountValue: number | null = positiveOrNull(totals.purchase_conversion_value);
+    if (!onlyPurchases) {
+      const summed = metaAccountResult(listed, !moreRemain);
+      accountResults = summed.result?.results ?? null;
+      accountLabel = summed.result?.results_label ?? null;
+      accountValue = null;
+      if (summed.note) notes.push(summed.note);
     }
     return {
       platform: "meta",
@@ -476,9 +493,9 @@ async function metaPerformance(
       impressions: asNumber(totals.impressions),
       clicks: asNumber(totals.clicks),
       reach: asNumber(totals.reach),
-      results: asNumber(totals.purchases),
-      results_label: "purchases",
-      result_value: positiveOrNull(totals.purchase_conversion_value),
+      results: accountResults,
+      results_label: accountLabel,
+      result_value: accountValue,
       campaigns: picked.campaigns,
       campaigns_truncated: picked.campaigns_truncated,
       error: null,

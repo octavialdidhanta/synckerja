@@ -158,6 +158,59 @@ describe("ads performance comparison", () => {
     expect(summary.notes).toContain("Money metrics are compared only inside the same currency.");
   });
 
+  it("reads Meta results by campaign objective instead of purchases", () => {
+    const summary = presentAdsPerformance({
+      period: { start: "2026-11-02", end: "2026-11-02", clipped: false },
+      matches_dashboard: true,
+      truncated: false,
+      accounts: [
+        row({
+          platform: "meta",
+          label: "Sate",
+          account_id: "333",
+          spend: 261_109,
+          impressions: 6_766,
+          clicks: 133,
+          results: 12,
+          results_label: "messaging conversations started",
+          result_value: null,
+        }),
+      ],
+    });
+
+    const account = summary.accounts[0];
+    expect(account.results_label).toBe("messaging conversations started");
+    expect(account.cost_per_result).toBe(21759.08);
+    expect(account.roas).toBeNull();
+    expect(summary.readings).toEqual([
+      "meta Sate recorded 12 messaging conversations started at 21759.08 IDR each. ROAS does not apply to this result.",
+    ]);
+    expect(summary.how_to_read).toContain("Meta results follow each campaign objective");
+  });
+
+  it("does not invent an account total when Meta campaigns count different results", () => {
+    const summary = presentAdsPerformance({
+      period: { start: "2026-11-02", end: "2026-11-02", clipped: false },
+      matches_dashboard: true,
+      truncated: false,
+      accounts: [
+        row({
+          platform: "meta",
+          label: "Mixed",
+          account_id: "444",
+          spend: 100_000,
+          impressions: 5_000,
+          clicks: 50,
+          results: null,
+          results_label: null,
+        }),
+      ],
+    });
+
+    expect(summary.accounts[0].cost_per_result).toBeNull();
+    expect(summary.readings).toEqual(["meta Mixed spent 100000 IDR. Read results on each campaign."]);
+  });
+
   it("does not treat a failed account as zero", () => {
     const summary = presentAdsPerformance({
       period: { start: "2026-11-01", end: "2026-11-02", clipped: false },
