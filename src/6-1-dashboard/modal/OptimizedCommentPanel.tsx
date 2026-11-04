@@ -457,7 +457,10 @@ export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React
       // Add the comment first if there's text - with explicit validation
       if (trimmedComment && trimmedComment.length > 0) {
         devLog.debug('📝 Adding comment with text...', { textLength: trimmedComment.length });
-        const commentResult = await addComment({ commentText: trimmedComment });
+        const commentResult = await addComment({
+          commentText: trimmedComment,
+          carouselSlideNumber,
+        });
         commentId = commentResult?.id;
         devLog.debug('✅ Comment added with ID:', commentId);
       } else {
@@ -532,7 +535,7 @@ export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React
       
       toast.error('Failed to add comment');
     }
-  }, [newComment, addComment, pastedImages, addImage, socialMediaPlanId, linkUrl]);
+  }, [newComment, addComment, pastedImages, addImage, socialMediaPlanId, linkUrl, carouselSlideNumber]);
   const handleEditComment = useCallback((comment: LinkComment) => {
     setEditingCommentId(comment.id);
     setEditingText(comment.comment_text || '');
@@ -541,7 +544,7 @@ export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React
     if (!editingCommentId || !editingText.trim()) return;
     try {
       await updateComment(editingCommentId, editingText);
-  }, [newComment, addComment, pastedImages, addImage, socialMediaPlanId, linkUrl, carouselSlideNumber]);
+      setEditingCommentId(null);
       setEditingText('');
       toast.success('Comment updated successfully');
     } catch (error) {
@@ -724,19 +727,26 @@ export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React
       <div className="mt-auto flex-shrink-0 border-t border-gray-200 bg-white px-3 pb-2 pt-3">
         <div className="space-y-2">
           <div className="space-y-2">
-            
-            <Textarea value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder="Tulis komentar quality control... (Ctrl+Enter untuk submit, paste gambar untuk upload)" className="min-h-[100px] text-sm resize-none" />
-            
-            {/* Pasted Images Preview */}
-            {pastedImages.length > 0 && <div className="mt-2 flex flex-wrap gap-2">
-                {pastedImages.map(image => <div key={image.id} className="relative group">
+            <Textarea
+              value={newComment}
+              onChange={e => setNewComment(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={carouselSlideNumber ? `Komentar untuk slide ${carouselSlideNumber}. Ctrl+Enter untuk kirim, paste gambar untuk upload` : "Tulis komentar quality control... (Ctrl+Enter untuk submit, paste gambar untuk upload)"}
+              className="min-h-[100px] text-sm resize-none"
+            />
+            {pastedImages.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {pastedImages.map(image => (
+                  <div key={image.id} className="relative group">
                     <img src={image.preview} alt="Pasted image" className="w-16 h-16 object-cover rounded border" />
                     <button onClick={() => removeImage(image.id)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs hover:bg-red-600">
                       ×
                     </button>
-            <Textarea value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder={carouselSlideNumber ? `Komentar untuk slide ${carouselSlideNumber}. Ctrl+Enter untuk kirim, paste gambar untuk upload` : "Tulis komentar quality control... (Ctrl+Enter untuk submit, paste gambar untuk upload)"} className="min-h-[100px] text-sm resize-none" />
-              </div>}
-            
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           
           <div className="flex items-center justify-between">

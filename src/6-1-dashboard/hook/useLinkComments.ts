@@ -17,7 +17,7 @@ export const useLinkComments = (socialMediaPlanId: string, linkUrl?: string) => 
   const deleteCommentMutation = useDeleteLinkComment(socialMediaPlanId, linkUrl);
 
   // Safe wrapper for addComment to prevent undefined/null values
-  const safeAddComment = useCallback(async (params: { commentText: string }) => {
+  const safeAddComment = useCallback(async (params: { commentText: string; carouselSlideNumber?: number | null }) => {
     // Defensive validation before calling mutation
     if (!params || typeof params !== 'object') {
       throw new Error('Invalid parameters: commentText is required');

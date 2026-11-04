@@ -79,12 +79,16 @@ export const useAddLinkComment = (socialMediaPlanId: string, linkUrl?: string) =
       // link_url is NOT NULL in DB; align with sniping_images / public review (e.g. default-link for plan-level thread)
       const resolvedLinkUrl = (linkUrl && linkUrl.trim()) || 'default-link';
       // Ensure JSON payload types match DB (text/uuid) — odd profile shapes can otherwise contribute to 42804 upstream.
+      const slideNumber = Number(carouselSlideNumber);
       const insertData = {
         social_media_plan_id: socialMediaPlanId,
         link_url: String(resolvedLinkUrl),
         comment_text: String(commentText.trim()),
         created_by: user.id,
         commenter_display_name: commenterDisplayName.length > 0 ? commenterDisplayName : null,
+        ...(Number.isInteger(slideNumber) && slideNumber >= 1 && slideNumber <= 10
+          ? { carousel_slide_number: slideNumber }
+          : {}),
       };
 
       const { data, error } = await supabase
@@ -185,7 +189,8 @@ export const useUpdateLinkComment = (socialMediaPlanId: string, _linkUrl?: strin
 
       const updates = {
         comment_text: commentText,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        canva_revision_applied_at: null,
       };
 
       const { data, error } = await supabase
@@ -199,8 +204,6 @@ export const useUpdateLinkComment = (socialMediaPlanId: string, _linkUrl?: strin
         devLog.debug('❌ Error updating comment:', error);
         throw error;
       }
-        updated_at: new Date().toISOString(),
-        canva_revision_applied_at: null,
       // Fetch creator info separately
       try {
         const { data: profileData } = await supabase

@@ -494,6 +494,10 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
         t('googleDrivePreview.revisionSuccess', 'Production status updated to Request Revision')
       );
       devLog.debug('Production completion date cleared and status set to Request Revision', {
+        planId: socialMediaPlanId,
+        newRevisionCount: newProductionRevisionCount,
+        wasIncremented: shouldIncrement
+      });
       if (canRefreshFromCanva && socialMediaPlanId) {
         const { count } = await supabase
           .from('link_comments')
@@ -513,10 +517,6 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
           }
         }
       }
-        planId: socialMediaPlanId,
-        newRevisionCount: newProductionRevisionCount,
-        wasIncremented: shouldIncrement
-      });
 
       // Optional parent hook (e.g. analytics). Do not persist plan here — this dialog already saved + RPC above.
       if (onRevision) {
@@ -683,7 +683,6 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
       </Badge>;
   };
 
-  const handleCarouselFileSelect = useCallback(
   const showCanvaRefresh = refreshingFromCanva || canvaRefreshing;
 
   useEffect(() => {
@@ -776,6 +775,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
     await queryClient.invalidateQueries({ queryKey: ['canva-carousel-runs'] });
   }, [canvaRefreshing, productionApproved, queryClient, refreshingFromCanva, socialMediaPlanId]);
 
+  const handleCarouselFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files?.length || !isCarouselMode) return;
@@ -1210,7 +1210,6 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
               </div>
               <CollapsibleContent>
                 <div className="px-3 pb-3 space-y-2">
-                  {productionStatus === 'Request Revision' && carouselCount > 0 && (
                   {canRefreshFromCanva && (
                     <Button
                       type="button"
@@ -1232,6 +1231,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                       )}
                     </Button>
                   )}
+                  {productionStatus === 'Request Revision' && carouselCount > 0 && (
                     <div className="flex flex-col gap-1.5 rounded border border-amber-200 bg-amber-50/80 p-2">
                       <p className="text-xs text-amber-800">
                         {t('socialMediaDashboard.carousel.clearAllHint', 'Untuk mengunggah hasil revisi, hapus semua gambar terlebih dahulu.')}
@@ -1473,10 +1473,10 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                     variant="outline" 
                     className="h-9 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 rounded-lg font-medium px-4"
                     disabled={canvaRevising}
-                    className="h-9 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 rounded-lg font-medium px-4"
                   >
                     <RotateCcw className="h-4 w-4 mr-1" />
                     {canvaRevising ? 'Canva sedang merevisi' : 'Request Revision'}
+                  </Button>
                 </>
               )}
             </div>

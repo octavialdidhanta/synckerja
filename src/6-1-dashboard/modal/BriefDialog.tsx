@@ -1033,15 +1033,15 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                   mediaBusy={isStoryboardImagesBusy}
                                   uploadingRowIndex={uploadingRowIndex}
                                   deletingImageId={deletingImageId}
-                                  className="!my-0 h-full min-h-0 flex-1"
-                                />
                                   className={canvaRun ? "!my-0 min-h-0 flex-1" : "!my-0 h-full min-h-0 flex-1"}
-                                {briefProseAfterTable && !briefExpanded ? (
+                                />
                                 {canvaRun ? (
                                   <div className="flex-shrink-0 px-1 pt-1">
                                     <CanvaCarouselNote run={canvaRun} showSuccess />
                                   </div>
                                 ) : null}
+                                {briefProseAfterTable && !briefExpanded ? (
+                                  <div className="prose prose-sm max-w-none mb-1 prose-p:my-0.5 prose-headings:mt-1 prose-headings:mb-0.5 prose-ul:my-0.5 prose-ol:my-0.5 flex-shrink-0">
                                     <ReactMarkdown
                                       remarkPlugins={[remarkGfm]}
                                       components={briefMarkdownComponents}
@@ -1050,6 +1050,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                     </ReactMarkdown>
                                   </div>
                                 ) : null}
+                                </div>
                               </>
                             ) : (
                               <>
