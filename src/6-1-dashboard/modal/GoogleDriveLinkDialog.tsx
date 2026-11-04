@@ -156,6 +156,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
   const [downloadingImageId, setDownloadingImageId] = useState<string | null>(null);
   const carouselFileInputRef = useRef<HTMLInputElement>(null);
   const [canvaRefreshWatch, setCanvaRefreshWatch] = useState(0);
+  const [refreshingFromCanva, setRefreshingFromCanva] = useState(false);
   const revisionSeen = useRef(false);
   const { canShowApprovalButtons } = useProdApprovalAccess(isOpen);
   const queryClient = useQueryClient();
@@ -1378,11 +1379,11 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
           )}
             {/* Comments panel - flexible height, no horizontal scroll */}
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <OptimizedCommentPanel 
-                socialMediaPlanId={socialMediaPlanId} 
+              <OptimizedCommentPanel
+                socialMediaPlanId={socialMediaPlanId}
                 linkUrl={isCarouselMode ? 'carousel' : (googleDriveLink || 'default-link')}
-              />
                 carouselSlideNumber={isCarouselMode && carouselImages.length > 0 ? carouselPreviewIndex + 1 : null}
+              />
             </div>
           </div>
         </div>

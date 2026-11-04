@@ -367,7 +367,8 @@ const CommentImages = React.memo<{
 CommentImages.displayName = 'CommentImages';
 export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React.memo(({
   socialMediaPlanId,
-  linkUrl
+  linkUrl,
+  carouselSlideNumber = null,
 }) => {
   const [newComment, setNewComment] = useState('');
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
