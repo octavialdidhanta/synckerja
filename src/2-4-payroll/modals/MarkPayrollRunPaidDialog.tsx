@@ -72,7 +72,8 @@ export function MarkPayrollRunPaidDialog({
         </DialogHeader>
         <p className="text-muted-foreground text-sm">
           Finalisasi pembayaran untuk run <strong>{runName ?? runId}</strong>. Semua kalkulasi
-          pending akan ditandai paid.
+          pending akan ditandai paid. Transfer yang gagal tidak ikut ditandai; tangani lewat
+          Retry agar run bisa ditutup.
         </p>
         <div className="space-y-2">
           <Label htmlFor="payment-ref">Referensi Transfer</Label>
