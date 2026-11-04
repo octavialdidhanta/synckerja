@@ -1,3 +1,4 @@
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -37,7 +38,7 @@ function reportKind(actionCode) {
 
 function periodDefinition(kind) {
   if (kind === "harian") {
-    return "Laporan harian menghitung pekerjaan pada hari kirim, dari tengah malam sampai saat kirim. Hari yang dipakai laporan mingguan atau tanggal terakhir tidak masuk.";
+    return "Laporan harian menghitung satu hari kerja yang sudah selesai: dari tengah malam sampai tengah malam, dan dikirim besoknya pada jam yang dipilih. Hari yang dipakai laporan mingguan atau tanggal terakhir tidak masuk.";
   }
   if (kind === "mingguan") {
     return "Laporan mingguan menghitung pekerjaan sejak kiriman mingguan sebelumnya. Kiriman pertama memakai 7 hari terakhir. Tanggal terakhir tidak masuk bila laporan bulanan aktif.";

@@ -23,6 +23,7 @@ import { supabase } from "@/shared/lib/supabaseClient";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { ensureTaxConfigurationId } from "../lib/ensureTaxConfiguration";
+import { payrollDuplicateMessage } from "../lib/payrollDuplicateError";
 
 interface CreatePayrollRunDialogProps {
   children?: React.ReactNode;
@@ -119,7 +120,11 @@ export function CreatePayrollRunDialog({ children }: CreatePayrollRunDialogProps
 
       setOpen(false);
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to create payroll run");
+      const duplicate = payrollDuplicateMessage(
+        error && typeof error === "object" ? (error as { code?: string; message?: string }) : null,
+        "run",
+      );
+      toast.error(duplicate ?? (error instanceof Error ? error.message : "Failed to create payroll run"));
     } finally {
       setIsLoading(false);
     }

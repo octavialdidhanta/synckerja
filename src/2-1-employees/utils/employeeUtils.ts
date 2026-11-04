@@ -186,14 +186,16 @@ export const getCanonicalPayrollStatus = (employee: {
 
 /**
  * Payroll eligibility rule:
- * - Include: active, probation
- * - Exclude: terminated/inactive/resigned/pending removal and unknown status
+ * - Include: active, probation human employees
+ * - Exclude: AI employees, terminated/inactive/resigned/pending removal, and unknown status
  */
 export const isEmployeeEligibleForPayroll = (employee: {
   employee_status_name?: string | null;
   status?: string | null;
   pending_removal?: boolean | null;
+  is_ai?: boolean | null;
 }): boolean => {
+  if (employee.is_ai === true) return false;
   if (employee.pending_removal === true) return false;
 
   const canonicalStatus = getCanonicalPayrollStatus(employee);

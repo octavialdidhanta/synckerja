@@ -8,6 +8,7 @@ interface Employee {
   id: string;
   full_name: string;
   job_position_name?: string;
+  is_ai?: boolean;
 }
 
 interface PICCellProps {
@@ -34,13 +35,22 @@ export const PICCell: React.FC<PICCellProps> = ({
       <div
         className={cn(
           'flex h-8 items-center gap-2 rounded-[5px] border px-3 text-xs',
-          isSelected ? 'border-white bg-transparent' : 'border-primary/20 bg-accent'
+          isSelected
+            ? 'border-white bg-transparent'
+            : selectedPIC?.is_ai
+              ? 'border-gray-300 bg-gray-50'
+              : 'border-primary/20 bg-accent'
         )}
       >
-        <Lock className={cn('h-3 w-3', isSelected ? 'text-white' : 'text-primary/70')} />
-        <span className={cn('font-medium', isSelected ? 'text-white' : 'text-primary')}>
+        <Lock className={cn('h-3 w-3', isSelected ? 'text-white' : selectedPIC?.is_ai ? 'text-gray-500' : 'text-primary/70')} />
+        <span className={cn('truncate font-medium', isSelected ? 'text-white' : selectedPIC?.is_ai ? 'text-gray-800' : 'text-primary')}>
           {selectedPIC?.full_name || 'Auto-assigned PIC'}
         </span>
+        {selectedPIC?.is_ai ? (
+          <span className={cn('shrink-0 rounded px-1 text-[10px] font-medium', isSelected ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600')}>
+            AI
+          </span>
+        ) : null}
       </div>
     );
   }
@@ -67,7 +77,9 @@ export const PICCell: React.FC<PICCellProps> = ({
             <SelectItem key={employee.id} value={employee.id}>
               <div className="flex flex-col">
                 <span className="font-medium">{employee.full_name}</span>
-                <span className="text-xs text-gray-500">{employee.job_position_name || 'Unknown Position'}</span>
+                <span className="text-xs text-gray-500">
+                  {employee.is_ai ? 'AI' : employee.job_position_name || 'Unknown Position'}
+                </span>
               </div>
             </SelectItem>
           ))}

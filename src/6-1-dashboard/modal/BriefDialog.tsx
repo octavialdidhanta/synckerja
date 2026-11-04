@@ -38,6 +38,7 @@ import { THINKING_LAB_BRIEF_MARK, isThinkingLabBrief } from '@/shared/utils/thin
 import { validateRequiredFields } from '../container/table/cells/ValidationHelper';
 import type { ContentPlan } from '../types/social-media';
 import { useBriefStoryboardImages } from '../hook/useBriefStoryboardImages';
+import { CanvaCarouselNote, type CanvaCarouselRun } from '@/canva/CanvaCarouselNote';
 import { BriefConceptEditor } from './BriefConceptEditor';
 import { ContentUsageAudit } from './ContentUsageAudit';
 import { briefConceptHasContent, parseBriefConcept, serializeBriefConcept } from './briefConceptAssets';
@@ -1034,9 +1035,13 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                                   deletingImageId={deletingImageId}
                                   className="!my-0 h-full min-h-0 flex-1"
                                 />
-                                </div>
+                                  className={canvaRun ? "!my-0 min-h-0 flex-1" : "!my-0 h-full min-h-0 flex-1"}
                                 {briefProseAfterTable && !briefExpanded ? (
-                                  <div className="prose prose-sm max-w-none mt-1 flex-shrink-0 prose-p:my-0.5 prose-headings:mt-1 prose-headings:mb-0.5">
+                                {canvaRun ? (
+                                  <div className="flex-shrink-0 px-1 pt-1">
+                                    <CanvaCarouselNote run={canvaRun} showSuccess />
+                                  </div>
+                                ) : null}
                                     <ReactMarkdown
                                       remarkPlugins={[remarkGfm]}
                                       components={briefMarkdownComponents}

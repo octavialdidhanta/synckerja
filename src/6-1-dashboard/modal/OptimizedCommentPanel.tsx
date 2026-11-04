@@ -15,6 +15,7 @@ import { devLog } from '@/shared/lib/logger';
 interface OptimizedCommentPanelProps {
   socialMediaPlanId: string;
   linkUrl: string;
+  carouselSlideNumber?: number | null;
 }
 
 function decodeHtmlEntities(text: string): string {
@@ -540,7 +541,7 @@ export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React
     if (!editingCommentId || !editingText.trim()) return;
     try {
       await updateComment(editingCommentId, editingText);
-      setEditingCommentId(null);
+  }, [newComment, addComment, pastedImages, addImage, socialMediaPlanId, linkUrl, carouselSlideNumber]);
       setEditingText('');
       toast.success('Comment updated successfully');
     } catch (error) {
@@ -733,7 +734,7 @@ export const OptimizedCommentPanel: React.FC<OptimizedCommentPanelProps> = React
                     <button onClick={() => removeImage(image.id)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs hover:bg-red-600">
                       ×
                     </button>
-                  </div>)}
+            <Textarea value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder={carouselSlideNumber ? `Komentar untuk slide ${carouselSlideNumber}. Ctrl+Enter untuk kirim, paste gambar untuk upload` : "Tulis komentar quality control... (Ctrl+Enter untuk submit, paste gambar untuk upload)"} className="min-h-[100px] text-sm resize-none" />
               </div>}
             
           </div>

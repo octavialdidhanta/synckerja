@@ -41,7 +41,7 @@ const CONTENT_PLANS_SELECT = `
   service:services(id, name),
   sub_service:sub_services(id, name),
   content_pillar:content_pillars(id, name, color),
-  pic:employees!social_media_plans_pic_id_fkey(id, full_name),
+  pic:employees!social_media_plans_pic_id_fkey(id, full_name, is_ai),
   pic_production:employees!social_media_plans_pic_production_id_fkey(id, full_name),
   post_link_creator:employees!social_media_plans_post_link_created_by_fkey(id, full_name)
 `;
@@ -137,6 +137,7 @@ interface RawEmployeeRow {
   full_name: string;
   email: string;
   user_id?: string;
+  is_ai?: boolean | null;
   job_position_id?: string;
   job_positions?: { name?: string } | null;
   employee_status_id?: string | null;
@@ -210,7 +211,7 @@ export function getDigitalMarketingEmployeesQueryOptions(organizationId: string 
       const result = await (supabase
         .from('employees')
         .select(
-          'id, full_name, email, user_id, job_position_id, job_positions(name), employee_status_id, pending_removal, employee_statuses(name)'
+          'id, full_name, email, user_id, is_ai, job_position_id, job_positions(name), employee_status_id, pending_removal, employee_statuses(name)'
         )
         .eq('organization_id', organizationId)
         .order('full_name') as unknown as Promise<EmployeesResult>);
@@ -223,14 +224,35 @@ export function getDigitalMarketingEmployeesQueryOptions(organizationId: string 
           pending_removal: emp.pending_removal ?? null,
         })
       );
-      return activeEmployees.map((employee) => ({
-        id: employee.id,
-        full_name: employee.full_name,
-        email: employee.email,
-        job_position_name: employee.job_positions?.name || 'Unknown Position',
-        job_position_id: employee.job_position_id,
-        user_id: employee.user_id,
-      }));
+      const humanUserIds = activeEmployees
+        .filter((employee) => employee.is_ai !== true && employee.user_id)
+        .map((employee) => employee.user_id as string);
+      const profileNameByUser = new Map<string, string>();
+      if (humanUserIds.length > 0) {
+        const { data: profiles, error: profileError } = await supabase
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', humanUserIds);
+        if (!profileError) {
+          for (const profile of profiles ?? []) {
+            const name = String(profile.full_name ?? '').trim();
+            if (profile.user_id && name) profileNameByUser.set(profile.user_id, name);
+          }
+        }
+      }
+      return activeEmployees.map((employee) => {
+        const isAi = employee.is_ai === true;
+        const profileName = !isAi && employee.user_id ? profileNameByUser.get(employee.user_id) : undefined;
+        return {
+          id: employee.id,
+          full_name: isAi ? employee.full_name : profileName || employee.full_name,
+          email: employee.email,
+          job_position_name: employee.job_positions?.name || 'Unknown Position',
+          job_position_id: employee.job_position_id,
+          user_id: employee.user_id,
+          is_ai: isAi,
+        };
+      });
     },
     enabled: !!organizationId,
     staleTime: 5 * 60 * 1000,

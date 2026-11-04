@@ -6,7 +6,6 @@ import {
   authorizeCaller,
   buildChatPrompt,
   buildExecutionCheckPrompt,
-  buildSop1CheckPrompt,
   buildSop1Prompt,
   buildSop2Prompt,
   chooseBrandFocus,
@@ -15,6 +14,7 @@ import {
   judgeJobDesk,
   withJobClaim,
   chooseSop1Pillar,
+  contentPlanDates,
   fourWeekBounds,
   greetingReply,
   isSimpleChatGreeting,
@@ -25,15 +25,14 @@ import {
   isDay,
   isUuid,
   jakartaToday,
+  nextMonthDays,
   nextWeekDays,
-  openPlanDays,
+  parseCarouselDraft,
   parseChatReply,
-  parseExecutionCheck,
   parseExecutionVerdict,
   pickUnusedIdea,
   parsePlanDraft,
   plansInRange,
-  sop1CloseStatus,
   projectRefFromUrl,
   publicModelFailure,
   resolvePostDate,
@@ -205,7 +204,7 @@ Deno.serve(async (req: Request) => {
   let jobDoneRevisions = 0;
   const planIds: string[] = [];
   let closed = false;
-  const finish = async (status: "succeeded" | "failed" | "deferred" | "late", note = status) => {
+  const finish = async (status: "succeeded" | "failed" | "deferred" | "late", note: string = status) => {
     if (!runId || closed) return;
     const ids = planIds.length > 0 ? planIds : planId ? [planId] : [];
     const result = await rpc("ai_employee_run_finish", {
@@ -551,15 +550,17 @@ Deno.serve(async (req: Request) => {
         .eq("employee_id", employeeId)
         .eq("organization_id", employee.organization_id)
         .maybeSingle();
-      const scheduleResult = await admin
+      const scheduleId = typeof body.schedule_id === "string" ? body.schedule_id.trim() : "";
+      let scheduleQuery = admin
         .from("ai_employee_schedules")
-        .select("weekday, due_local")
+        .select("id, cadence, plan_count")
         .eq("employee_id", employeeId)
         .eq("organization_id", employee.organization_id)
-        .eq("sop_code", "SOP1")
-        .eq("is_active", true)
-        .limit(1)
-        .maybeSingle();
+        .eq("sop_code", "SOP1");
+      scheduleQuery = isUuid(scheduleId)
+        ? scheduleQuery.eq("id", scheduleId)
+        : scheduleQuery.eq("is_active", true).order("next_run_at", { ascending: true }).limit(1);
+      const scheduleResult = await scheduleQuery.maybeSingle();
       if (sopResult.error || profileResult.error || scheduleResult.error) throw new Error("context_failed");
       const stepResult = sopResult.data?.id
         ? await admin
@@ -574,8 +575,9 @@ Deno.serve(async (req: Request) => {
         const result = await rpc("ai_employee_refresh_krs", { p_employee_id: employeeId });
         if (result.status < 200 || result.status >= 300) console.error("ai-employee-run kr:", result.status);
       };
+      let lastReject = "";
       const closeSop1 = async (status: "succeeded" | "failed" | "deferred" | "late", label: string, openCount: number) => {
-        const note = `sop1 ${label} steps=${steps.length} open=${openCount} plans=${planIds.length} calls=${modelCalls}`;
+        const note = `sop1 ${label} steps=${steps.length} open=${openCount} plans=${planIds.length} calls=${modelCalls}${lastReject ? ` reject=${lastReject}` : ""}`;
         await finish(status, note);
         await refreshKrs();
       };
@@ -584,8 +586,10 @@ Deno.serve(async (req: Request) => {
         return json({ ok: false, error: "sop_missing", mode: "sop1", run_id: runId, model_calls: 0 }, 422);
       }
 
-      const windowDays = nextWeekDays(today);
-      const bounds = fourWeekBounds(windowDays);
+      const sopClock = zonedClock(profileResult.data?.time_zone);
+      const sopToday = sopClock.date;
+      const span = [...new Set([sopToday, ...nextWeekDays(sopToday), ...nextMonthDays(sopToday)])].sort();
+      const bounds = fourWeekBounds(span);
       if (!bounds) throw new Error("context_failed");
       const calendar = await loadScope("calendar", { from: bounds.start, to: bounds.end });
       const nayaPlans = await loadScope("plans", { from: bounds.start, to: bounds.end });
@@ -606,9 +610,22 @@ Deno.serve(async (req: Request) => {
       const pillars = preferredPillars.size > 0
         ? pillarRows.filter((row) => preferredPillars.has(String(row.id ?? "")))
         : pillarRows;
-      const open = openPlanDays(windowDays, calendar);
+      if (!scheduleResult.data) {
+        await closeSop1("failed", "schedule_missing", 0);
+        return json({ ok: false, error: "schedule_missing", mode: "sop1", run_id: runId, model_calls: 0 }, 422);
+      }
+      const open = contentPlanDates({
+        cadence: String(scheduleResult.data.cadence ?? ""),
+        today: sopToday,
+        frequency: Number(scheduleResult.data.plan_count ?? 1),
+        plans: calendar,
+      });
       if (open.length === 0) {
-        await closeSop1("succeeded", "window_full", 0);
+        await closeSop1("succeeded", "target_met", 0);
+        return json({ ok: true, mode: "sop1", status: "succeeded", run_id: runId, model_calls: 0, plan_count: 0, plan_ids: [] });
+      }
+      if (!pickUnusedIdea(thinking)) {
+        await closeSop1("succeeded", "no_idea", open.length);
         return json({ ok: true, mode: "sop1", status: "succeeded", run_id: runId, model_calls: 0, plan_count: 0, plan_ids: [] });
       }
       if (pillars.length === 0) {
@@ -616,38 +633,51 @@ Deno.serve(async (req: Request) => {
         return json({ ok: false, error: "no_pillars", mode: "sop1", run_id: runId, model_calls: 0 }, 422);
       }
 
-      const drafts: { title: string; post_date: string; brief: string; content_pillar_id: string }[] = [];
-      let stop: "done" | "quota" | "pillar_cap" | "failed" = "done";
+      const drafts: { title: string; post_date: string; brief: string; caption: string; content_pillar_id: string }[] = [];
+      let stop: "done" | "quota" | "pillar_cap" | "failed" | "ideas_exhausted" = "done";
       let failure = { status: 0, message: "model_failed" };
-      for (const day of open) {
+      let dayIndex = 0;
+      while (dayIndex < open.length && stop === "done") {
+        const day = open[dayIndex];
+        const idea = pickUnusedIdea(thinking);
+        if (!idea) {
+          stop = "ideas_exhausted";
+          break;
+        }
         const choice = chooseSop1Pillar(pillars, plansInRange(nayaPlans, bounds.start, bounds.end));
         if (!choice) {
           stop = "pillar_cap";
           break;
         }
-        const service = chooseBrandFocus({ brief, catalog, dayIndex: open.indexOf(day), allowOverride: false });
+        const service = chooseBrandFocus({ brief, catalog, dayIndex, allowOverride: false });
         if (!service) {
           stop = "failed";
           failure = { status: 0, message: "brief_missing" };
           break;
         }
-        const idea = pickUnusedIdea(thinking);
         const drafted = await withRetry(async () => {
           const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief, performance, service, idea, product }));
           if (result.kind !== "ok") return result;
-          const parsed = parsePlanDraft(result.script);
-          if (parsed) {
-            parsed.post_date = day;
-            parsed.content_pillar_id = choice.id;
+          const parsed = parseCarouselDraft(result.script);
+          if (!parsed || !pillars.some((row) => String(row.id ?? "") === choice.id)) {
+            return { kind: "failed", detail: { status: 0, message: "invalid_model_output" } };
           }
-          const validated = validatePlanDraft(parsed, { pillars });
-          if (!validated.ok) return { kind: "failed", detail: { status: 0, message: "invalid_model_output" } };
-          return { kind: "ok", script: JSON.stringify(validated.plan) };
+          parsed.post_date = day;
+          parsed.content_pillar_id = choice.id;
+          return { kind: "ok", script: JSON.stringify(parsed) };
         });
         if (drafted.kind === "quota") { stop = "quota"; break; }
-        if (drafted.kind === "failed") { stop = "failed"; failure = drafted.detail; break; }
-        const parsed = parsePlanDraft(drafted.script);
-        if (!parsed) { stop = "failed"; failure = { status: 0, message: "invalid_model_output" }; break; }
+        if (drafted.kind === "failed") {
+          if (drafted.detail.message !== "invalid_model_output") {
+            stop = "failed";
+            failure = drafted.detail;
+            break;
+          }
+          idea.skip = true;
+          continue;
+        }
+        const parsed = parseCarouselDraft(drafted.script);
+        if (!parsed) { idea.skip = true; continue; }
         let plan = { ...parsed, post_date: day, content_pillar_id: choice.id, service_id: service.id };
         let executionId: string | null = null;
         if (idea) {
@@ -660,32 +690,62 @@ Deno.serve(async (req: Request) => {
           });
           let checked = await judge(plan);
           if (checked.kind === "quota") { stop = "quota"; break; }
-          if (checked.kind === "failed") { stop = "failed"; failure = checked.detail; break; }
+          if (checked.kind === "failed") {
+            if (checked.detail.message !== "invalid_model_output") {
+              stop = "failed";
+              failure = checked.detail;
+              break;
+            }
+            idea.skip = true;
+            continue;
+          }
           if (parseExecutionVerdict(checked.script)?.ok !== true) {
+            lastReject = String(parseExecutionVerdict(checked.script)?.check_id ?? "unparsed").slice(0, 40);
             const repaired = await withRetry(async () => {
               const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief, performance, service, idea, product }));
               if (result.kind !== "ok") return result;
-              const next = parsePlanDraft(result.script);
-              if (next) {
-                next.post_date = day;
-                next.content_pillar_id = choice.id;
-              }
-              const validated = validatePlanDraft(next, { pillars });
-              if (!validated.ok) return { kind: "failed" as const, detail: { status: 0, message: "invalid_model_output" } };
-              return { kind: "ok" as const, script: JSON.stringify(validated.plan) };
+              const next = parseCarouselDraft(result.script);
+              if (!next) return { kind: "failed" as const, detail: { status: 0, message: "invalid_model_output" } };
+              next.post_date = day;
+              next.content_pillar_id = choice.id;
+              return { kind: "ok" as const, script: JSON.stringify(next) };
             });
             if (repaired.kind === "quota") { stop = "quota"; break; }
-            if (repaired.kind === "failed") { stop = "failed"; failure = repaired.detail; break; }
-            const repairedPlan = parsePlanDraft(repaired.script);
-            if (!repairedPlan) continue;
+            if (repaired.kind === "failed") {
+              if (repaired.detail.message !== "invalid_model_output") {
+                stop = "failed";
+                failure = repaired.detail;
+                break;
+              }
+              idea.skip = true;
+              continue;
+            }
+            const repairedPlan = parseCarouselDraft(repaired.script);
+            if (!repairedPlan) { idea.skip = true; continue; }
             plan = { ...repairedPlan, post_date: day, content_pillar_id: choice.id, service_id: service.id };
             checked = await judge(plan);
             if (checked.kind === "quota") { stop = "quota"; break; }
-            if (checked.kind === "failed") { stop = "failed"; failure = checked.detail; break; }
-            if (parseExecutionVerdict(checked.script)?.ok !== true) continue;
+            if (checked.kind === "failed") {
+              if (checked.detail.message !== "invalid_model_output") {
+                stop = "failed";
+                failure = checked.detail;
+                break;
+              }
+              idea.skip = true;
+              continue;
+            }
+            if (parseExecutionVerdict(checked.script)?.ok !== true) {
+              lastReject = String(parseExecutionVerdict(checked.script)?.check_id ?? "unparsed").slice(0, 40);
+              idea.skip = true;
+              continue;
+            }
           }
           const verdict = parseExecutionVerdict(checked.script);
-          if (!verdict?.ok) continue;
+          if (!verdict?.ok) {
+            lastReject = String(verdict?.check_id ?? "unparsed").slice(0, 40);
+            idea.skip = true;
+            continue;
+          }
           if (!dryRun) {
             const judged = await rpc("ai_employee_perform", {
               p_employee_id: employeeId,
@@ -701,57 +761,55 @@ Deno.serve(async (req: Request) => {
               }, claimToken),
             });
             const accepted = judged.body && typeof judged.body === "object"
-              ? (judged.body as { accepted?: unknown; execution_id?: unknown })
+              ? (judged.body as { accepted?: unknown; execution_id?: unknown; check_id?: unknown })
               : null;
-            if (judged.status < 200 || judged.status >= 300 || accepted?.accepted !== true || !isUuid(accepted.execution_id)) continue;
+            if (judged.status < 200 || judged.status >= 300 || accepted?.accepted !== true || !isUuid(accepted.execution_id)) {
+              const rejected = accepted && typeof accepted.check_id === "string" ? accepted.check_id : "db";
+              lastReject = rejected.slice(0, 40);
+              idea.skip = true;
+              continue;
+            }
             executionId = String(accepted.execution_id);
           }
-          idea.used = true;
-        } else if (thinking.length > 0) {
-          const judge = async (draft: typeof plan) => withRetry(async () => {
-            const result = await modelScript(buildSop1CheckPrompt({ day, pillar: choice, draft }));
-            if (result.kind !== "ok") return result;
-            return parseExecutionCheck(result.script)
-              ? { kind: "ok" as const, script: result.script }
-              : { kind: "failed" as const, detail: { status: 0, message: "invalid_model_output" } };
-          });
-          let checked = await judge(plan);
-          if (checked.kind === "quota") { stop = "quota"; break; }
-          if (checked.kind === "failed") { stop = "failed"; failure = checked.detail; break; }
-          if (parseExecutionCheck(checked.script)?.ok !== true) continue;
         }
         const productId = chooseProduct(product, plan.product_knowledge_id);
-        const chosen = productId ? product.find((row) => row.id === productId) : undefined;
+        const chosenProduct = productId ? product.find((row) => row.id === productId) : undefined;
         plan.product_knowledge_id = productId;
-        plan.product_knowledge_fields = chooseProductFields(plan.product_knowledge_fields, chosen);
+        plan.product_knowledge_fields = chooseProductFields(plan.product_knowledge_fields, chosenProduct);
         const takeProduct = () => {
           if (!productId) return;
-          const chosen = product.find((row) => row.id === productId);
-          if (chosen) chosen.unused = false;
+          const row = product.find((item) => item.id === productId);
+          if (row) row.unused = false;
         };
         if (dryRun) {
           takeProduct();
+          idea.used = true;
           drafts.push(plan);
           calendar.push({ post_date: day, content_pillar_id: choice.id });
           nayaPlans.push({ post_date: day, content_pillar_id: choice.id, author_employee_id: employeeId });
+          dayIndex += 1;
           continue;
         }
         const performed = await rpc("ai_employee_perform", {
           p_employee_id: employeeId,
           p_run_id: runId,
-          p_action: idea ? "thinking.plan.save" : "content.plans.create",
-          p_payload: withJobClaim(idea
-            ? { ...plan, idea_id: String(idea.idea_id ?? idea.id ?? ""), execution_id: executionId }
-            : plan, claimToken),
+          p_action: "thinking.plan.save",
+          p_payload: withJobClaim({
+            ...plan,
+            idea_id: String(idea.idea_id ?? idea.id ?? ""),
+            execution_id: executionId,
+          }, claimToken),
         });
         const createdId = performed.body && typeof performed.body === "object"
           ? (performed.body as { id?: unknown }).id
           : null;
         if (performed.status < 200 || performed.status >= 300 || !isUuid(createdId)) throw new Error("perform_failed");
         takeProduct();
+        idea.used = true;
         planIds.push(String(createdId));
         calendar.push({ post_date: day, content_pillar_id: choice.id });
         nayaPlans.push({ post_date: day, content_pillar_id: choice.id, author_employee_id: employeeId });
+        dayIndex += 1;
       }
 
       if (stop === "failed") {
@@ -768,17 +826,20 @@ Deno.serve(async (req: Request) => {
           model_calls: modelCalls,
         }, 500);
       }
-      const clock = zonedClock(profileResult.data?.time_zone);
-      const onTime = sop1CloseStatus({
-        weekday: scheduleResult.data?.weekday,
-        dueLocal: String(scheduleResult.data?.due_local ?? ""),
-        clock,
-      });
-      const status = stop === "quota" ? "deferred" : onTime;
-      const label = stop === "quota" ? "quota" : stop === "pillar_cap" ? "pillar_cap" : dryRun ? "dry_run" : "done";
+      const status = stop === "quota" ? "deferred" : "succeeded";
+      const savedCount = dryRun ? drafts.length : planIds.length;
+      const label = stop === "quota"
+        ? "quota"
+        : stop === "pillar_cap"
+          ? "pillar_cap"
+          : stop === "ideas_exhausted"
+            ? (savedCount === 0 ? "checks_failed" : "ideas_exhausted")
+            : dryRun
+              ? "dry_run"
+              : "done";
       await closeSop1(status, label, open.length);
       return json({
-        ok: status === "succeeded" || status === "late",
+        ok: status === "succeeded",
         mode: "sop1",
         status,
         dry_run: dryRun,

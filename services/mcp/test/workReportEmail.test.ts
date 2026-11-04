@@ -41,7 +41,8 @@ describe("work report email", () => {
     expect(monthly.subject).toBe("Laporan bulanan Octa Vialdi");
     expect(daily.html.match(/Naya/g)).toEqual(["Naya"]);
     expect(daily.text.match(/Naya/g)).toEqual(["Naya"]);
-    expect(daily.text).toContain("dari tengah malam sampai saat kirim");
+    expect(daily.text).toContain("satu hari kerja yang sudah selesai");
+    expect(daily.text).toContain("dikirim besoknya pada jam yang dipilih");
     expect(weekly.text).toContain("7 hari terakhir");
     expect(weekly.text).toContain("Tanggal terakhir tidak masuk");
     expect(monthly.text).toContain("termasuk tanggal terakhir");

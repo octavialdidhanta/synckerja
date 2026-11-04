@@ -26,6 +26,7 @@ import {
   Play,
 } from 'lucide-react';
 import { supabase, SUPABASE_URL } from '@/shared/lib/supabaseClient';
+import { publicReviewRpc } from './publicReviewRpc';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { applyVariables, loadTranslationDictionary } from '@/shared/i18n/translations';
@@ -41,6 +42,7 @@ import {
   isYouTubeLink,
 } from '../utils/previewUtils';
 import { getCarouselImagePublicUrl } from '../hook/useCarouselImages';
+import { reviewConceptView, type BriefConceptAsset } from '../modal/briefConceptAssets';
 import GoogleDriveFolderCarousel from '../modal/GoogleDriveFolderCarousel';
 import { useProdApprovalAccess } from '../hook/useProdApprovalAccess';
 import { useAuth } from '@/shared/auth/contexts/AuthContext';
@@ -297,6 +299,66 @@ interface PublicContentReviewPageProps {
   showBackToHome?: boolean;
 }
 
+function ReviewConceptAssets({
+  title,
+  items,
+}: {
+  title: string;
+  items: BriefConceptAsset[];
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <p className="font-medium text-gray-900">{title}</p>
+      <ul className="mt-1 space-y-2">
+        {items.map((item) => (
+          <li key={item.handle}>
+            <p className="font-medium text-gray-800">{item.handle}</p>
+            {item.description.trim() ? (
+              <p className="whitespace-pre-wrap text-gray-700">{item.description}</p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ReviewConceptCard({
+  raw,
+  t,
+}: {
+  raw: string | null | undefined;
+  t: (key: string, fallback: string) => string;
+}) {
+  const view = reviewConceptView(raw);
+  if (view.mode === 'hidden') return null;
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col flex-shrink-0 overflow-hidden min-w-0">
+      <div className="p-2 sm:p-3 border-b border-blue-200/80 bg-blue-50 flex-shrink-0 border-l-4 border-l-blue-500">
+        <h4 className="font-medium text-sm text-blue-900">{t('briefDialog.sectionTargetAudience', 'Concept')}</h4>
+      </div>
+      <div className="max-h-64 overflow-y-auto p-2 sm:p-3 text-sm text-gray-700 space-y-3">
+        {view.mode === 'plain' ? (
+          <p className="whitespace-pre-wrap break-words">{view.text}</p>
+        ) : (
+          <>
+            {view.voiceOver ? (
+              <div>
+                <p className="font-medium text-gray-900">{t('briefDialog.conceptVoiceOver', 'Script VO')}</p>
+                <p className="mt-1 whitespace-pre-wrap">{view.voiceOver}</p>
+              </div>
+            ) : null}
+            <ReviewConceptAssets title={t('briefDialog.conceptLocation', 'Location')} items={view.locations} />
+            <ReviewConceptAssets title={t('briefDialog.conceptCharacter', 'Character')} items={view.characters} />
+            <ReviewConceptAssets title={t('briefDialog.conceptProperty', 'Property')} items={view.properties} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showBackToHome = false }) => {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
@@ -379,16 +441,24 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
 
   const loadContent = useCallback(async () => {
     if (!token) return;
-    const { data, error: rpcError } = await supabase.rpc('get_public_review_content_by_token', {
-      token_param: token,
-    });
+    const { data, error: rpcError } = await publicReviewRpc<PublicReviewContent>(
+      'get_public_review_content_by_token',
+      { token_param: token },
+    );
     if (rpcError) {
       setError(t('publicReview.error.loadFailed', 'Failed to load content'));
       setContent(null);
       return;
     }
     if (data) {
-      setContent(data as PublicReviewContent);
+      const row = data as PublicReviewContent;
+      const paths = row.carousel_image_paths;
+      setContent({
+        ...row,
+        carousel_image_paths: Array.isArray(paths)
+          ? paths.filter((path) => typeof path === 'string' && path.trim().length > 0)
+          : [],
+      });
       setError(null);
     } else {
       setError(t('publicReview.error.invalidLink', 'Link is invalid or expired'));
@@ -398,9 +468,10 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
 
   const loadComments = useCallback(async () => {
     if (!token) return;
-    const { data, error: rpcError } = await supabase.rpc('get_public_review_comments', {
-      token_param: token,
-    });
+    const { data, error: rpcError } = await publicReviewRpc<PublicReviewComment[]>(
+      'get_public_review_comments',
+      { token_param: token },
+    );
     if (rpcError) {
       devLog.warn('get_public_review_comments failed', rpcError);
       setComments([]);
@@ -412,9 +483,10 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   /** Token-scoped only; data from brief_target_audiences + brief_captions via RPC (no cross-org leak) */
   const loadBriefExtended = useCallback(async () => {
     if (!token) return;
-    const { data, error: rpcError } = await supabase.rpc('get_public_review_brief_extended_by_token', {
-      token_param: token,
-    });
+    const { data, error: rpcError } = await publicReviewRpc<PublicReviewBriefExtended>(
+      'get_public_review_brief_extended_by_token',
+      { token_param: token },
+    );
     if (rpcError) {
       devLog.warn('get_public_review_brief_extended_by_token failed', rpcError);
       setBriefExtended(null);
@@ -917,9 +989,10 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
     setApprovalLoading(true);
     try {
       // Verifikasi dari server: pastikan user saat ini (nama di kolom comment) punya minimal satu komentar
-      const { data: latestComments } = await supabase.rpc('get_public_review_comments', {
-        token_param: token,
-      });
+      const { data: latestComments } = await publicReviewRpc<{ creator_display_name?: string }[]>(
+        'get_public_review_comments',
+        { token_param: token },
+      );
       const commentList = Array.isArray(latestComments) ? (latestComments as { creator_display_name?: string }[]) : [];
       const hasCurrentUserComment = commentList.some(
         (c) => (c.creator_display_name ?? '').trim().toLowerCase() === displayName.toLowerCase()
@@ -1677,17 +1750,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
           );
         })()}
 
-        {/* Concept - hanya tampil jika ada isi (data dari RPC yang sama, tanpa request tambahan) */}
-        {briefExtended?.target_audience?.trim() ? (
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col flex-shrink-0 overflow-hidden min-w-0">
-            <div className="p-2 sm:p-3 border-b border-blue-200/80 bg-blue-50 flex-shrink-0 border-l-4 border-l-blue-500">
-              <h4 className="font-medium text-sm text-blue-900">{t('briefDialog.sectionTargetAudience', 'Concept')}</h4>
-            </div>
-            <div className="h-32 sm:h-40 overflow-y-auto p-2 sm:p-3 text-sm text-gray-700 whitespace-pre-wrap break-words">
-              {briefExtended.target_audience}
-            </div>
-          </div>
-        ) : null}
+        <ReviewConceptCard raw={briefExtended?.target_audience} t={t} />
 
         {/* Caption - hanya tampil jika ada isi */}
         {briefExtended?.caption?.trim() ? (

@@ -1,5 +1,5 @@
 -- Dry run rutinitas laporan kerja. Satu transaksi, diakhiri ROLLBACK. Jangan tambah COMMIT.
--- Butuh migration 20261103116000 sudah ada di database. Tidak memanggil dispatch, jadi tidak ada HTTP.
+-- Butuh migration 20261104190000 sudah ada di database. Tidak memanggil dispatch, jadi tidak ada HTTP.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '120s';
@@ -77,6 +77,8 @@ DECLARE
   v_sent timestamptz;
   v_summary jsonb;
   v_prepare jsonb;
+  v_yesterday_dow integer;
+  v_other_dow integer;
 BEGIN
   IF NOT EXISTS (
     SELECT 1
@@ -150,6 +152,15 @@ BEGIN
   IF public.ai_employee_next_routine_at('daily', NULL, time '09:00', 'Not/AZone', '2026-11-02 01:59:00+00'::timestamptz)
      IS DISTINCT FROM '2026-11-02 02:00:00+00'::timestamptz THEN
     RAISE EXCEPTION 'zona tidak dikenal harus memakai Asia/Jakarta';
+  END IF;
+
+  IF public.ai_employee_next_report_at(
+    '00000000-0000-4000-8000-000000000099'::uuid,
+    '00000000-0000-4000-8000-000000000098'::uuid,
+    'work_report.daily', 'days', NULL, ARRAY[3]::smallint[], time '09:00', 'Asia/Jakarta',
+    '2026-11-04 07:19:00+00'::timestamptz
+  ) IS DISTINCT FROM '2026-11-05 02:00:00+00'::timestamptz THEN
+    RAISE EXCEPTION 'harian tanpa saudara tetap dikirim besok pagi';
   END IF;
 
   PERFORM pg_temp.insert_auth_user(v_owner, 'routine-owner@example.com');
@@ -264,8 +275,26 @@ BEGIN
 
   IF public.ai_employee_next_report_at(
     v_ai, v_org, 'work_report.daily', 'days', NULL, ARRAY[1, 2]::smallint[], time '09:00', 'Asia/Jakarta', '2026-11-01 01:00:00+00'::timestamptz
-  ) IS DISTINCT FROM '2026-11-03 02:00:00+00'::timestamptz THEN
-    RAISE EXCEPTION 'harian harus melewati hari mingguan';
+  ) IS DISTINCT FROM '2026-11-04 02:00:00+00'::timestamptz THEN
+    RAISE EXCEPTION 'harian harus melewati hari mingguan dan dikirim besok paginya';
+  END IF;
+
+  IF public.ai_employee_next_report_at(
+    v_ai, v_org, 'work_report.daily', 'days', NULL, ARRAY[2, 3, 4]::smallint[], time '09:00', 'Asia/Jakarta', '2026-11-04 07:19:00+00'::timestamptz
+  ) IS DISTINCT FROM '2026-11-05 02:00:00+00'::timestamptz THEN
+    RAISE EXCEPTION 'Rabu sore harus mengirim Kamis pagi untuk hari Rabu';
+  END IF;
+
+  IF public.ai_employee_next_report_at(
+    v_ai, v_org, 'work_report.daily', 'days', NULL, ARRAY[2, 3, 4]::smallint[], time '09:00', 'Asia/Jakarta', '2026-11-04 01:00:00+00'::timestamptz
+  ) IS DISTINCT FROM '2026-11-04 02:00:00+00'::timestamptz THEN
+    RAISE EXCEPTION 'Rabu sebelum jam kirim harus mengirim Rabu pagi untuk hari Selasa';
+  END IF;
+
+  IF public.ai_employee_next_report_at(
+    v_ai, v_org, 'work_report.daily', 'days', NULL, ARRAY[2, 3, 4]::smallint[], time '09:00', 'Asia/Jakarta', '2026-11-06 03:00:00+00'::timestamptz
+  ) IS DISTINCT FROM '2026-11-11 02:00:00+00'::timestamptz THEN
+    RAISE EXCEPTION 'Jumat pagi harus menunggu Rabu berikutnya untuk hari Selasa';
   END IF;
 
   UPDATE public.ai_employee_routines
@@ -281,8 +310,8 @@ BEGIN
 
   IF public.ai_employee_next_report_at(
     v_ai, v_org, 'work_report.daily', 'days', NULL, ARRAY[1, 2]::smallint[], time '09:00', 'Asia/Jakarta', '2026-11-29 01:00:00+00'::timestamptz
-  ) IS DISTINCT FROM '2026-12-01 02:00:00+00'::timestamptz THEN
-    RAISE EXCEPTION 'harian harus melewati tanggal terakhir';
+  ) IS DISTINCT FROM '2026-12-02 02:00:00+00'::timestamptz THEN
+    RAISE EXCEPTION 'harian harus melewati tanggal terakhir dan dikirim besok paginya';
   END IF;
 
   IF public.ai_employee_next_report_at(
@@ -374,9 +403,15 @@ BEGIN
   END IF;
   IF abs(extract(epoch FROM (
     (v_prepare->>'period_start')::timestamptz
+    - ((date_trunc('day', timezone('Asia/Jakarta', clock_timestamp())) AT TIME ZONE 'Asia/Jakarta') - interval '1 day')
+  ))) > 2 THEN
+    RAISE EXCEPTION 'periode harian harus mulai tengah malam kemarin';
+  END IF;
+  IF abs(extract(epoch FROM (
+    (v_prepare->>'period_end')::timestamptz
     - (date_trunc('day', timezone('Asia/Jakarta', clock_timestamp())) AT TIME ZONE 'Asia/Jakarta')
   ))) > 2 THEN
-    RAISE EXCEPTION 'periode harian harus mulai tengah malam';
+    RAISE EXCEPTION 'periode harian harus selesai tengah malam hari ini';
   END IF;
   IF v_prepare->>'sender_name' IS DISTINCT FROM 'Reviewer Uji' THEN
     RAISE EXCEPTION 'nama pengirim awal harus nama reviewer, dapat %', v_prepare->>'sender_name';
@@ -386,11 +421,42 @@ BEGIN
   SET email = 'reviewer-uji@example.com'
   WHERE id = v_reviewer;
 
+  UPDATE public.ai_employee_routines
+  SET is_active = false
+  WHERE employee_id = v_ai
+    AND action_code = 'work_report.weekly';
+
+  v_yesterday_dow := EXTRACT(ISODOW FROM (timezone('Asia/Jakarta', clock_timestamp()) - interval '1 day'))::integer;
+  v_other_dow := CASE WHEN v_yesterday_dow = 7 THEN 1 ELSE v_yesterday_dow + 1 END;
+
+  PERFORM public.ai_employee_routine_write(
+    v_owner, v_org, v_ai, 'work_report.daily', 'days', NULL, time '09:00', true, ARRAY[v_other_dow]
+  );
+
+  v_prepare := public.ai_employee_routine_prepare(v_routine);
+  IF v_prepare->>'skip_reason' IS DISTINCT FROM 'outside_work_day' THEN
+    RAISE EXCEPTION 'hari yang bukan tombol harian harus dilewati, dapat %', v_prepare->>'skip_reason';
+  END IF;
+
+  PERFORM public.ai_employee_routine_write(
+    v_owner, v_org, v_ai, 'work_report.daily', 'days', NULL, time '09:00', true, ARRAY[v_yesterday_dow]
+  );
+
   INSERT INTO public.ai_employee_runs (
     employee_id, organization_id, sop_code, status, plan_count, started_at
-  ) VALUES (
-    v_ai, v_org, 'SOP1', 'succeeded', 2, clock_timestamp() - interval '1 second'
-  );
+  ) VALUES
+    (
+      v_ai, v_org, 'SOP1', 'succeeded', 2,
+      (date_trunc('day', timezone('Asia/Jakarta', clock_timestamp())) AT TIME ZONE 'Asia/Jakarta') - interval '12 hours'
+    ),
+    (
+      v_ai, v_org, 'SOP1', 'succeeded', 9,
+      clock_timestamp() - interval '1 second'
+    );
+
+  SELECT next_run_at INTO v_kept
+  FROM public.ai_employee_routines
+  WHERE id = v_routine;
 
   v_prepare := public.ai_employee_routine_prepare(v_routine);
   IF v_prepare->>'skip_reason' IS NOT NULL THEN

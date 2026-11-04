@@ -12,6 +12,7 @@ import type { CreativeEmployee } from '../hook/useCreativeEmployees';
 import type { ApprovalAccess } from '../hook/useBatchApprovalAccess';
 import type { ScheduledPost } from '@/6-1-scheduled-posts/types/scheduled-post';
 import { signSubServicePhotos } from '../lib/subServicePhoto';
+import type { CanvaCarouselRun } from '@/canva/CanvaCarouselNote';
 
 interface ContentPlanTableProps {
   contentPlans: ContentPlan[];
@@ -38,6 +39,7 @@ interface ContentPlanTableProps {
   /** When true, empty state shows "no match for filters" instead of "no content plans". */
   hasActiveFilters?: boolean;
   requestApproval?: (plan: ContentPlan, oldStatus: string | null, oldApproved?: boolean, oldCompletionDate?: string | null) => boolean; // Hook untuk approval dengan task step
+  canvaRunByPlanId?: Record<string, CanvaCarouselRun>;
   handleUnapproval?: (planId: string) => Promise<void>; // Hook untuk un-approval dengan task step deletion
   onCarouselFirstUploadSuccess?: (planId: string) => void; // When first carousel image uploaded, auto-populate PIC Production
   onCarouselAllRemoved?: (planId: string) => void; // When all carousel images removed, reset PIC Production
@@ -70,7 +72,8 @@ export const ContentPlanTable = memo(function ContentPlanTable({
   handleUnapproval,
   onCarouselFirstUploadSuccess,
   onCarouselAllRemoved,
-  onProductionResubmitForReview
+  onProductionResubmitForReview,
+  canvaRunByPlanId = {},
 }: ContentPlanTableProps) {
   const [subServicePhotoUrls, setSubServicePhotoUrls] = useState<Record<string, string>>({});
   const subServicePhotoKey = useMemo(
@@ -324,6 +327,7 @@ export const ContentPlanTable = memo(function ContentPlanTable({
               onCarouselFirstUploadSuccess={onCarouselFirstUploadSuccess}
               onCarouselAllRemoved={onCarouselAllRemoved}
               onProductionResubmitForReview={onProductionResubmitForReview}
+              canvaRun={canvaRunByPlanId[plan.id] ?? null}
             />
           ))}
         </tbody>

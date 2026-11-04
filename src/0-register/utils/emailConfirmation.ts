@@ -1,50 +1,30 @@
 import { supabase } from "@/shared/lib/supabaseClient";
 
-/** Token row is created by DB trigger; RPC validates auth.users id+email (no open RLS on tokens). */
-export async function fetchLatestVerificationTokenForUser(
-  userId: string,
-  email: string,
-  maxAttempts = 40,
-  delayMs = 250,
-): Promise<string | null> {
-  for (let i = 0; i < maxAttempts; i++) {
-    const { data, error } = await supabase.rpc("get_latest_signup_verification_token", {
-      p_user_id: userId,
-      p_email: email.trim(),
-    });
-    if (error) {
-      console.warn("get_latest_signup_verification_token", error);
-    } else {
-      const row = data as { ok?: boolean; token?: string };
-      if (row?.ok && row.token) return row.token;
+async function edgeErrorMessage(data: unknown, error: unknown): Promise<string> {
+  if (data && typeof data === "object" && "error" in data) {
+    const value = (data as { error?: unknown }).error;
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  const context =
+    error && typeof error === "object" && "context" in error
+      ? (error as { context?: unknown }).context
+      : undefined;
+  if (context instanceof Response) {
+    try {
+      const body = (await context.clone().json()) as { error?: unknown };
+      if (typeof body?.error === "string" && body.error.trim()) return body.error.trim();
+    } catch {
+      // The body was already consumed or was not JSON.
     }
-    await new Promise((r) => setTimeout(r, delayMs));
   }
-  return null;
-}
-
-/** If trigger row is not visible yet (or migration without trigger), create token via RPC in the same project. */
-export async function ensureSignupVerificationToken(email: string, userId: string): Promise<string | null> {
-  const fromTable = await fetchLatestVerificationTokenForUser(userId, email);
-  if (fromTable) return fromTable;
-
-  const { data, error } = await supabase.rpc("issue_new_verification_token", {
-    p_email: email.trim(),
-  });
-  if (error) {
-    console.warn("issue_new_verification_token after signup", error);
-    return null;
-  }
-  const row = data as { ok?: boolean; token?: string };
-  if (row?.ok && row.token) return row.token;
-  return null;
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  return "";
 }
 
 export const sendConfirmationEmail = async (
   email: string,
   fullName: string,
   confirmationUrl: string,
-  token: string,
   /** Prefer access_token from signUp/session so the gateway sees a stable JWT (avoids races with getSession). */
   accessToken?: string | null,
 ) => {
@@ -55,7 +35,6 @@ export const sendConfirmationEmail = async (
       email: email.trim(),
       fullName: fullName.trim(),
       confirmationUrl: baseUrl,
-      token: token.trim(),
     },
     headers:
       accessToken && accessToken.length > 0
@@ -64,7 +43,8 @@ export const sendConfirmationEmail = async (
   });
 
   if (error) {
-    throw new Error(error.message || "Failed to send confirmation email");
+    const message = await edgeErrorMessage(data, error);
+    throw new Error(message || "Failed to send confirmation email");
   }
 
   if (data && typeof data === "object" && "success" in data && !(data as { success: boolean }).success) {

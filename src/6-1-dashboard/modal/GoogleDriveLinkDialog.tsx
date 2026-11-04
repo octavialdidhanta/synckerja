@@ -96,6 +96,13 @@ interface GoogleDriveLinkDialogProps {
   onCarouselChange?: () => void; // Called after carousel images change (for cache invalidation)
   onCarouselFirstUploadSuccess?: (planId: string) => void; // Called when first carousel image is uploaded (to auto-populate PIC Production)
   onCarouselAllRemoved?: (planId: string) => void; // Called when all carousel images are removed (to reset PIC Production)
+  /** The plan already has a finished Canva design that can be exported again. */
+  canRefreshFromCanva?: boolean;
+  /** Export of the same design is in progress. */
+  canvaRefreshing?: boolean;
+  /** Canva is editing the existing design from slide comments. */
+  canvaRevising?: boolean;
+  canvaRunError?: string | null;
 }
 const isCarouselContentType = (t: string | undefined) => t === 'Post' || t === 'Carousel';
 
@@ -129,7 +136,11 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
   onResubmitForReview,
   onCarouselChange,
   onCarouselFirstUploadSuccess,
-  onCarouselAllRemoved
+  onCarouselAllRemoved,
+  canRefreshFromCanva = false,
+  canvaRefreshing = false,
+  canvaRevising = false,
+  canvaRunError = null,
 }) => {
   const { t } = useAppTranslation();
   const { data: planFeatures = [] } = useProductKnowledgeFeatures();
@@ -144,6 +155,8 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
   const [carouselDownloading, setCarouselDownloading] = useState(false);
   const [downloadingImageId, setDownloadingImageId] = useState<string | null>(null);
   const carouselFileInputRef = useRef<HTMLInputElement>(null);
+  const [canvaRefreshWatch, setCanvaRefreshWatch] = useState(0);
+  const revisionSeen = useRef(false);
   const { canShowApprovalButtons } = useProdApprovalAccess(isOpen);
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
@@ -481,6 +494,25 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
         t('googleDrivePreview.revisionSuccess', 'Production status updated to Request Revision')
       );
       devLog.debug('Production completion date cleared and status set to Request Revision', {
+      if (canRefreshFromCanva && socialMediaPlanId) {
+        const { count } = await supabase
+          .from('link_comments')
+          .select('id', { count: 'exact', head: true })
+          .eq('social_media_plan_id', socialMediaPlanId)
+          .not('carousel_slide_number', 'is', null)
+          .is('canva_revision_applied_at', null);
+        if ((count ?? 0) > 0) {
+          const { error: reviseError } = await supabase.rpc('canva_carousel_revise', {
+            p_plan_id: socialMediaPlanId,
+          });
+          if (reviseError) {
+            toast.error('Canva belum mulai merevisi. Status tetap Request Revision.');
+          } else {
+            toast.success('Canva sedang merevisi slide yang dikomentari.');
+            await queryClient.invalidateQueries({ queryKey: ['canva-carousel-runs'] });
+          }
+        }
+      }
         planId: socialMediaPlanId,
         newRevisionCount: newProductionRevisionCount,
         wasIncremented: shouldIncrement
@@ -652,6 +684,98 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
   };
 
   const handleCarouselFileSelect = useCallback(
+  const showCanvaRefresh = refreshingFromCanva || canvaRefreshing;
+
+  useEffect(() => {
+    if (!canvaRefreshWatch || !socialMediaPlanId) return;
+    let stopped = false;
+    let sawWorking = false;
+    const finish = async (replaced: boolean) => {
+      if (stopped) return;
+      stopped = true;
+      setRefreshingFromCanva(false);
+      await queryClient.invalidateQueries({ queryKey: ['canva-carousel-runs'] });
+      if (!replaced) {
+        toast.error('Gambar dari Canva belum terganti. Gambar yang lama tetap ada.');
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: [CAROUSEL_QUERY_KEY] });
+      toast.success('Gambar carousel sudah diperbarui dari Canva.');
+    };
+    const tick = async () => {
+      const { data, error } = await supabase.rpc('canva_carousel_status_for_plans', {
+        p_plan_ids: [socialMediaPlanId],
+      });
+      if (stopped || error || !Array.isArray(data) || data.length === 0) return;
+      const row = data[0] as { images_ready?: boolean; refresh_requested?: boolean; error?: string | null };
+      const working = row.refresh_requested === true && row.images_ready !== true;
+      if (working) {
+        sawWorking = true;
+        return;
+      }
+      if (row.refresh_requested === true) {
+        await finish(false);
+        return;
+      }
+      if (!sawWorking && row.images_ready !== true) return;
+      await finish(!row.error);
+    };
+    void tick();
+    const timer = window.setInterval(() => {
+      void tick();
+    }, 3000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [canvaRefreshWatch, queryClient, socialMediaPlanId]);
+
+  useEffect(() => {
+    if (canvaRevising) {
+      revisionSeen.current = true;
+      return;
+    }
+    if (!revisionSeen.current) return;
+    if (canvaRefreshing || refreshingFromCanva) return;
+    revisionSeen.current = false;
+    void queryClient.invalidateQueries({ queryKey: ['social-media-plans'] });
+    void queryClient.invalidateQueries({ queryKey: [CAROUSEL_QUERY_KEY] });
+    if (canvaRunError === "revision_image_failed") {
+      toast.error("Foto di slide belum terganti. Status tetap Request Revision.");
+      return;
+    }
+    if (canvaRunError === "revision_layout_unsupported") {
+      toast.error("Posisi, ukuran, dan tipografi tidak bisa diubah pada slide ini. Status tetap Request Revision.");
+      return;
+    }
+    if (canvaRunError === "revision_style_limited") {
+      toast.error("Jenis huruf, warna latar, dan warna bentuk tidak bisa diubah dari sini. Status tetap Request Revision.");
+      return;
+    }
+    if (canvaRunError === "revision_unsupported") {
+      toast.error("Komentar ini belum bisa diterapkan ke elemen yang ada. Status tetap Request Revision.");
+      return;
+    }
+    if (canvaRunError) {
+      toast.error('Canva belum mengubah desain. Status tetap Request Revision.');
+      return;
+    }
+    toast.success('Gambar revisi sudah masuk. Status menjadi Need Review.');
+  }, [canvaRefreshing, canvaRevising, canvaRunError, queryClient, refreshingFromCanva]);
+
+  const handleRefreshFromCanva = useCallback(async () => {
+    if (!socialMediaPlanId || productionApproved || refreshingFromCanva || canvaRefreshing) return;
+    setRefreshingFromCanva(true);
+    const { error } = await supabase.rpc('canva_carousel_refresh', { p_plan_id: socialMediaPlanId });
+    if (error) {
+      setRefreshingFromCanva(false);
+      toast.error('Gambar dari Canva belum terganti. Gambar yang lama tetap ada.');
+      return;
+    }
+    setCanvaRefreshWatch((value) => value + 1);
+    await queryClient.invalidateQueries({ queryKey: ['canva-carousel-runs'] });
+  }, [canvaRefreshing, productionApproved, queryClient, refreshingFromCanva, socialMediaPlanId]);
+
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files?.length || !isCarouselMode) return;
@@ -1087,6 +1211,27 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
               <CollapsibleContent>
                 <div className="px-3 pb-3 space-y-2">
                   {productionStatus === 'Request Revision' && carouselCount > 0 && (
+                  {canRefreshFromCanva && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-fit"
+                      disabled={productionApproved || showCanvaRefresh}
+                      onClick={() => {
+                        void handleRefreshFromCanva();
+                      }}
+                    >
+                      {showCanvaRefresh ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          Memperbarui gambar...
+                        </>
+                      ) : (
+                        'Perbarui dari Canva'
+                      )}
+                    </Button>
+                  )}
                     <div className="flex flex-col gap-1.5 rounded border border-amber-200 bg-amber-50/80 p-2">
                       <p className="text-xs text-amber-800">
                         {t('socialMediaDashboard.carousel.clearAllHint', 'Untuk mengunggah hasil revisi, hapus semua gambar terlebih dahulu.')}
@@ -1237,6 +1382,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                 socialMediaPlanId={socialMediaPlanId} 
                 linkUrl={isCarouselMode ? 'carousel' : (googleDriveLink || 'default-link')}
               />
+                carouselSlideNumber={isCarouselMode && carouselImages.length > 0 ? carouselPreviewIndex + 1 : null}
             </div>
           </div>
         </div>
@@ -1326,10 +1472,11 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                     onClick={handleRevision} 
                     variant="outline" 
                     className="h-9 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 rounded-lg font-medium px-4"
+                    disabled={canvaRevising}
+                    className="h-9 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 rounded-lg font-medium px-4"
                   >
                     <RotateCcw className="h-4 w-4 mr-1" />
-                    Request Revision
-                  </Button>
+                    {canvaRevising ? 'Canva sedang merevisi' : 'Request Revision'}
                 </>
               )}
             </div>

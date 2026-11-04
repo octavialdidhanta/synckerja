@@ -172,6 +172,11 @@ export const checkAndCleanupStaleAuth = async () => {
 /** Reason for redirect so login page can show a message */
 export type AuthResetReason = 'session_expired' | 'stale' | undefined;
 
+/** Guest review stays on the link. A stale session must not replace it with /login. */
+export function isPublicReviewPath(pathname: string): boolean {
+  return /^\/review\/[^/]+\/?$/.test(pathname);
+}
+
 export const forceAuthReset = async (reason?: AuthResetReason) => {
   console.log('🔄 Forcing complete auth reset', reason ? `(${reason})` : '');
   
@@ -211,11 +216,10 @@ export const forceAuthReset = async (reason?: AuthResetReason) => {
       console.warn('Additional cleanup error:', cleanupError);
     }
     
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
     const loginUrl = reason === 'session_expired' ? '/login?reason=session_expired' : '/login';
-    const isAlreadyOnLogin = typeof window !== 'undefined' && (
-      window.location.pathname === '/login' || window.location.pathname === '/login/'
-    );
-    if (!isAlreadyOnLogin) {
+    const isAlreadyOnLogin = pathname === '/login' || pathname === '/login/';
+    if (!isAlreadyOnLogin && !isPublicReviewPath(pathname)) {
       setTimeout(() => {
         window.location.href = loginUrl;
       }, 100);
@@ -223,10 +227,9 @@ export const forceAuthReset = async (reason?: AuthResetReason) => {
     
   } catch (error) {
     console.error('Force auth reset error:', error);
-    const isAlreadyOnLogin = typeof window !== 'undefined' && (
-      window.location.pathname === '/login' || window.location.pathname === '/login/'
-    );
-    if (!isAlreadyOnLogin) {
+    const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+    const isAlreadyOnLogin = pathname === '/login' || pathname === '/login/';
+    if (!isAlreadyOnLogin && !isPublicReviewPath(pathname)) {
       window.location.href = reason === 'session_expired' ? '/login?reason=session_expired' : '/login';
     }
   }

@@ -11,9 +11,11 @@ export const useAddLinkComment = (socialMediaPlanId: string, linkUrl?: string) =
 
   return useMutation({
     mutationFn: async ({
-      commentText
+      commentText,
+      carouselSlideNumber,
     }: {
       commentText: string;
+      carouselSlideNumber?: number | null;
     }) => {
       // Defensive validation - check for undefined, null, or empty
       if (commentText === undefined || commentText === null) {
@@ -197,7 +199,8 @@ export const useUpdateLinkComment = (socialMediaPlanId: string, _linkUrl?: strin
         devLog.debug('❌ Error updating comment:', error);
         throw error;
       }
-
+        updated_at: new Date().toISOString(),
+        canva_revision_applied_at: null,
       // Fetch creator info separately
       try {
         const { data: profileData } = await supabase

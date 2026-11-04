@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { toast } from 'sonner';
@@ -15,6 +15,7 @@ import { VideoAIConfigSection } from './section/VideoAIConfigSection';
 import { VoiceAIConfigSection } from './section/VoiceAIConfigSection';
 import { DigitalAssetsSection } from './section/DigitalAssetsSection';
 import { DetectFromImageSection } from './section/DetectFromImageSection';
+import { CanvaSettingsSection } from '@/canva/settings/CanvaSettingsSection';
 import { ComingSoonSection } from './section/ComingSoonSection';
 import { ApprovalAccessModal } from './modal/ApprovalAccessModal';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
@@ -65,7 +66,14 @@ export const SettingsPage: React.FC = () => {
   );
   const showPageSkeleton = useSocialMediaSettingsPageSkeletonGate(showFullPageSkeleton);
 
-  const [activeSection, setActiveSection] = useState('approval-access');
+  const [searchParams] = useSearchParams();
+  const [activeSection, setActiveSection] = useState(() =>
+    searchParams.get('section') === 'canva' ||
+    searchParams.has('canva_connected') ||
+    searchParams.has('canva_oauth_error')
+      ? 'canva'
+      : 'approval-access',
+  );
   const [activeMainTab, setActiveMainTab] = useState('settings');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -74,6 +82,17 @@ export const SettingsPage: React.FC = () => {
   const approvalConfigs = approvalData?.configs ?? [];
   const userRole = approvalData?.userRole ?? null;
   const isAdmin = ['owner', 'admin', 'hr'].includes(userRole || '');
+  const canManageCanva = userRole === 'owner' || userRole === 'admin';
+
+  useEffect(() => {
+    if (
+      searchParams.get('section') === 'canva' ||
+      searchParams.has('canva_connected') ||
+      searchParams.has('canva_oauth_error')
+    ) {
+      setActiveSection('canva');
+    }
+  }, [searchParams]);
 
   const invalidateApprovalAccess = () => {
     if (organizationId) {
@@ -174,6 +193,10 @@ export const SettingsPage: React.FC = () => {
         return <VideoAIConfigSection />;
       case 'voice-ai':
         return <VoiceAIConfigSection />;
+      case 'canva':
+        return (
+          <CanvaSettingsSection organizationId={organizationId} canManage={canManageCanva} />
+        );
       default:
         return <ComingSoonSection />;
     }
@@ -241,8 +264,10 @@ export const SettingsPage: React.FC = () => {
                                               ? 'Script AI Configuration'
                                               : activeSection === 'video-ai'
                                                 ? 'Video AI Configuration'
-                                                : activeSection === 'voice-ai'
-                                                  ? 'Voice AI Configuration'
+                                              : activeSection === 'voice-ai'
+                                                ? 'Voice AI Configuration'
+                                                : activeSection === 'canva'
+                                                  ? 'Canva'
                                                   : 'Settings'}
                                   </h2>
                                   <p className="mt-1 text-xs text-muted-foreground">
@@ -263,7 +288,9 @@ export const SettingsPage: React.FC = () => {
                                                 ? 'Konfigurasi BytePlus atau Gemini untuk video. Gemini memakai API key Script AI.'
                                                 : activeSection === 'voice-ai'
                                                   ? 'Konfigurasi ElevenLabs untuk narasi brief'
-                                                  : 'Configure social media settings'}
+                                                  : activeSection === 'canva'
+                                                    ? 'Hubungkan akun Canva organisasi'
+                                                    : 'Configure social media settings'}
                                   </p>
                                 </div>
                                 {activeSection === 'approval-access' && (

@@ -10,7 +10,6 @@
     "strict": false,
     "noImplicitAny": false,
     "composite": true,
-    "baseUrl": ".",
     "paths": {
       "https://esm.sh/@supabase/supabase-js@2": ["./node_modules/@supabase/supabase-js"],
       "https://esm.sh/date-fns@2": ["./node_modules/date-fns"]

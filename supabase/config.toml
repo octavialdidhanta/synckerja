@@ -183,6 +183,20 @@ verify_jwt = false
 [functions.google-contacts-sync]
 verify_jwt = false
 
+# Canva per-organization: user JWT validated inside; OAuth callback has no JWT.
+[functions.canva-oauth-start]
+verify_jwt = false
+
+[functions.canva-oauth-callback]
+verify_jwt = false
+
+[functions.canva-config]
+verify_jwt = false
+
+# Called by the database trigger and the resume cron, with the internal secret.
+[functions.canva-carousel-run]
+verify_jwt = false
+
 # Meta Ads per-tenant: user JWT validated inside; OAuth callback has no JWT.
 [functions.meta-ads-upload-conversion]
 verify_jwt = false

@@ -28,6 +28,15 @@ describe("orderUrls", () => {
   it("mounts storefront on public hostname and on LAN IP in local dev", () => {
     expect(pathnameLooksLikeOrderStore("/h5gta6")).toBe(true);
     expect(pathnameLooksLikeOrderStore("/employees")).toBe(false);
+    expect(pathnameLooksLikeOrderStore("/review/2bd0cdcb308544baa48fcde3hgx1onai")).toBe(false);
+    expect(
+      shouldMountOrderStoreApp({
+        hostname: "localhost",
+        pathname: "/review/2bd0cdcb308544baa48fcde3hgx1onai",
+        expectedHost: "order.synckerja.com",
+        allowLanStorefront: true,
+      }),
+    ).toBe(false);
     expect(
       shouldMountOrderStoreApp({
         hostname: "order.synckerja.com",

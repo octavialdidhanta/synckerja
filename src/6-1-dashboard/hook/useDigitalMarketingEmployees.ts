@@ -9,6 +9,8 @@ export interface DigitalMarketingEmployee {
   job_position_name?: string;
   job_position_id?: string;
   user_id?: string;
+  /** True for an AI employee. Their name comes from the employee row, not a user profile. */
+  is_ai?: boolean;
 }
 
 export const useDigitalMarketingEmployees = () => {

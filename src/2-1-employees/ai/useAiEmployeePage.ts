@@ -78,9 +78,11 @@ export function useAiEmployeePage(employeeId: string | undefined) {
     const { error } = await supabase.rpc("ai_employee_page_schedule_save", {
       p_employee_id: employeeId,
       p_sop_code: row.sopCode,
-      p_weekday: row.weekday,
+      p_cadence: row.cadence,
+      p_weekday: row.cadence === "weekly" ? row.weekday : null,
+      p_weekdays: row.cadence === "days" ? row.weekdays : null,
       p_start_local: row.startLocal,
-      p_due_local: row.dueLocal,
+      p_plan_count: row.planCount,
       p_is_active: row.isActive,
     });
     if (error) throw error;

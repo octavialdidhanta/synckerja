@@ -207,3 +207,30 @@ export function mergeBriefConceptVisuals(previousRaw: string | null | undefined,
 export function briefConceptHasContent(document: BriefConceptDocument): boolean {
   return Boolean(document.voiceOver?.trim()) || document.locations.length + document.characters.length + document.properties.length > 0;
 }
+
+export type ReviewConceptView =
+  | { mode: 'hidden' }
+  | { mode: 'plain'; text: string }
+  | {
+      mode: 'structured';
+      voiceOver: string;
+      locations: BriefConceptAsset[];
+      characters: BriefConceptAsset[];
+      properties: BriefConceptAsset[];
+    };
+
+/** Public review must not print the concept JSON. Empty asset documents stay hidden. */
+export function reviewConceptView(raw: string | null | undefined): ReviewConceptView {
+  const text = raw?.trim() ?? '';
+  if (!text) return { mode: 'hidden' };
+  const concept = parseBriefConcept(text);
+  if (!concept) return { mode: 'plain', text };
+  if (!briefConceptHasContent(concept)) return { mode: 'hidden' };
+  return {
+    mode: 'structured',
+    voiceOver: concept.voiceOver?.trim() ?? '',
+    locations: concept.locations,
+    characters: concept.characters,
+    properties: concept.properties,
+  };
+}

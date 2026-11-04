@@ -563,7 +563,7 @@ export async function revertStepCompletionFromDriveLinkRemovalWithRpc(params: {
       return { error: null };
     }
     // RPC not found (42883) or other DB error: fall back to client-side revert
-    if (error.code === '42883' || error.message?.includes('function') || error.message?.includes('does not exist')) {
+    if (error.code === "42883" || error.code === "PGRST202" || error.message?.includes("function") || error.message?.includes("does not exist") || error.message?.includes("schema cache")) {
       return revertStepCompletionFromDriveLinkRemoval(params);
     }
     return { error: new Error(error.message) };

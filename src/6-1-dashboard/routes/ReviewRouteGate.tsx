@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { logger } from '@/shared/lib/logger';
 import { LoadingDots } from '@/shared/components/LoadingDots';
@@ -8,15 +8,15 @@ import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import PublicContentReviewPage from '../pages/PublicContentReviewPage';
 
 /**
- * Gate for /review/:token. Uses a single getSession() call so logged-in users
- * are redirected to the dashboard preview modal quickly, without waiting for
- * full AuthContext initialization (getSession + getUser + retries).
+ * /review/:token is a guest page. A signed-in desktop session used to leave this URL
+ * for the protected dashboard, and a stale session then landed on /login.
+ * Stay here. Logged-in mobile still gets a back header.
  */
 export const ReviewRouteGate: React.FC = () => {
   const { t } = useAppTranslation();
   const { token } = useParams<{ token: string }>();
   const [checking, setChecking] = useState(true);
-  const [hasSession, setHasSession] = useState<boolean | null>(null);
+  const [hasSession, setHasSession] = useState(false);
   const isViewportMobile = useIsMobile();
   const isMobileUserAgent = typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent);
   const isMobile = isViewportMobile || isMobileUserAgent;
@@ -59,18 +59,5 @@ export const ReviewRouteGate: React.FC = () => {
     );
   }
 
-  if (hasSession === true && token?.trim()) {
-    if (isMobile) {
-      // Logged-in mobile: show back header so Preview can return to Content Calendar / Job Desc.
-      return <PublicContentReviewPage showBackToHome />;
-    }
-    return (
-      <Navigate
-        to={`/digital-marketing/social-media/dashboard?review=${encodeURIComponent(token.trim())}`}
-        replace
-      />
-    );
-  }
-
-  return <PublicContentReviewPage />;
+  return <PublicContentReviewPage showBackToHome={hasSession && isMobile} />;
 };

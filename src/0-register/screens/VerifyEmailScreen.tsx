@@ -210,28 +210,11 @@ export function VerifyEmailScreen({
         setResendingEmail(false);
         return;
       }
-      const { data: issueData, error: issueErr } = await supabase.rpc("issue_new_verification_token", {
-        p_email: email.trim(),
-      });
-      if (issueErr) {
-        throw new Error(issueErr.message);
-      }
-      const issued = issueData as { ok?: boolean; token?: string; error?: string };
-      if (!issued?.ok || !issued.token) {
-        if (issued?.error === "user_not_found") {
-          setEmailError(t("auth.verifyEmail.userNotFound"));
-        } else {
-          setEmailError(t("auth.verifyEmail.resendFail"));
-        }
-        setResendingEmail(false);
-        return;
-      }
       const { data: sessWrap } = await supabase.auth.getSession();
       await sendConfirmationEmail(
         email,
         fullName,
         window.location.origin,
-        issued.token,
         sessWrap.session?.access_token,
       );
       sessionStorage.setItem("verifyEmailSentOk", "1");
@@ -256,7 +239,7 @@ export function VerifyEmailScreen({
       }, 1000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("auth.verifyEmail.resendFail");
-      setEmailError(msg);
+      setEmailError(msg === "user_not_found" ? t("auth.verifyEmail.userNotFound") : msg);
     } finally {
       setResendingEmail(false);
     }

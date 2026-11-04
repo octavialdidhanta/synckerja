@@ -22,7 +22,10 @@ export type BriefDraft = {
 
 export type ScheduleRow = {
   sopCode: string;
-  weekday: number;
+  cadence: "days" | "weekly" | "monthly";
+  weekday: number | null;
+  weekdays: number[];
+  planCount: number;
   startLocal: string;
   dueLocal: string;
   isActive: boolean;

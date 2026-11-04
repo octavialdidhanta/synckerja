@@ -37,32 +37,25 @@ export function AiEmployeePageSkeleton() {
                       ))}
                     </div>
                   </div>
-                  <div className="rounded-md border border-border bg-card p-3">
-                    <Skeleton className="mb-3 h-4 w-36" />
-                    <div className="flex flex-col gap-2">
-                      <Skeleton className="h-14" />
-                      <Skeleton className="h-14" />
-                      <Skeleton className="h-14" />
-                    </div>
-                  </div>
                 </div>
                 <div className="col-span-12 flex min-w-0 flex-col gap-2 xl:col-span-4">
                   <div className="rounded-md border border-border bg-card p-3">
                     <Skeleton className="mb-2 h-4 w-24" />
                     <Skeleton className="h-8" />
                   </div>
-                  <Skeleton className="h-4 w-24" />
+                </div>
+                <div className="col-span-12 flex min-w-0 flex-col gap-2">
                   <div className="rounded-md border border-border bg-card p-3">
-                    <Skeleton className="mb-2 h-4 w-28" />
-                    <Skeleton className="mb-3 h-24" />
-                    <Skeleton className="h-40" />
+                    <Skeleton className="mb-3 h-4 w-24" />
+                    <div className="flex flex-col gap-2">
+                      <Skeleton className="h-8" />
+                      <Skeleton className="h-8" />
+                      <Skeleton className="h-8" />
+                    </div>
                   </div>
                   <div className="rounded-md border border-border bg-card p-3">
-                    <Skeleton className="mb-2 h-4 w-32" />
-                    <Skeleton className="mb-2 h-16" />
-                    <Skeleton className="mb-2 h-16" />
-                    <Skeleton className="mb-2 h-16" />
-                    <Skeleton className="h-16" />
+                    <Skeleton className="mb-3 h-4 w-20" />
+                    <Skeleton className="h-12" />
                   </div>
                 </div>
               </div>

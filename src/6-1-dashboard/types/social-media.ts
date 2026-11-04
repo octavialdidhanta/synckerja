@@ -53,6 +53,7 @@ export interface ContentPlan {
   pic?: {
     id: string;
     full_name: string;
+    is_ai?: boolean;
   };
   pic_production?: {
     id: string;

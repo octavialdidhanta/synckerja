@@ -208,11 +208,21 @@ function parseSchedules(value: unknown): ScheduleRow[] {
   return value.flatMap((item) => {
     const row = asRecord(item);
     if (!row || typeof row.sop_code !== "string") return [];
+    const cadence = row.cadence === "days" || row.cadence === "monthly" || row.cadence === "weekly"
+      ? row.cadence
+      : "weekly";
     const weekday = asNumber(row.weekday);
-    if (weekday == null) return [];
+    if (cadence === "weekly" && weekday == null) return [];
+    const planCount = asNumber(row.plan_count);
+    const weekdays = Array.isArray(row.weekdays)
+      ? row.weekdays.map((day) => asNumber(day)).filter((day): day is number => day != null && day >= 1 && day <= 7)
+      : [];
     return [{
       sopCode: row.sop_code,
-      weekday,
+      cadence,
+      weekday: cadence === "weekly" ? weekday : null,
+      weekdays: cadence === "days" ? weekdays : [],
+      planCount: planCount != null && planCount >= 1 && planCount <= 7 ? planCount : 1,
       startLocal: asString(row.start_local, "00:00").slice(0, 5),
       dueLocal: asString(row.due_local, "00:00").slice(0, 5),
       isActive: asBoolean(row.is_active) ?? false,
@@ -281,10 +291,13 @@ export function sameBrief(left: BriefDraft, right: BriefDraft): boolean {
 }
 
 export function sameSchedule(left: ScheduleRow, right: ScheduleRow): boolean {
+  const days = (value: number[]) => [...value].sort((a, b) => a - b).join(",");
   return left.sopCode === right.sopCode
+    && left.cadence === right.cadence
     && left.weekday === right.weekday
+    && days(left.weekdays) === days(right.weekdays)
+    && left.planCount === right.planCount
     && left.startLocal === right.startLocal
-    && left.dueLocal === right.dueLocal
     && left.isActive === right.isActive;
 }
 

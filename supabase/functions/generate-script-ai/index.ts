@@ -43,6 +43,170 @@ function alternateFireworksModelId(model: string): string | null {
   return null;
 }
 
+function parseCarouselObject(raw: string): Record<string, unknown> | null {
+  const start = raw.indexOf("{");
+  if (start < 0) return null;
+  const body = raw.slice(start);
+  const end = body.lastIndexOf("}");
+  const candidates = end > 0 ? [body.slice(0, end + 1)] : [];
+  const lastBreak = Math.max(body.lastIndexOf("},"), body.lastIndexOf("}"));
+  if (lastBreak > 0) candidates.push(`${body.slice(0, lastBreak + 1)}]}`);
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
+    } catch {
+      // try the next candidate
+    }
+  }
+  return null;
+}
+
+function shrinkCarouselPrompt(prompt: string): string {
+  if (prompt.length <= 4500) return prompt;
+  const productAt = prompt.indexOf("Product Knowledge:");
+  const ideaAt = prompt.lastIndexOf("Idea yang dipakai:");
+  const head = prompt.slice(0, 1600);
+  const product = productAt >= 0 ? prompt.slice(productAt, productAt + 900) : "";
+  const idea = ideaAt >= 0 ? prompt.slice(ideaAt, ideaAt + 1200) : "";
+  return `${head}\n${product}\n${idea}`.slice(0, 4000);
+}
+
+function carouselCellText(input: unknown, limit = 500): string {
+  if (Array.isArray(input)) return carouselCellText(input.find((item) => typeof item === "string" && item.trim()) ?? "", limit);
+  if (input && typeof input === "object") {
+    const row = input as Record<string, unknown>;
+    const nested = row.visual ?? row.scene ?? row.text ?? row.description ?? row.copy ?? "";
+    return carouselCellText(nested, limit);
+  }
+  return String(input ?? "").replace(/\s+/g, " ").trim().slice(0, limit);
+}
+
+function carouselField(row: Record<string, unknown>, names: string[]): string {
+  const wanted = new Set(names.map((name) => name.toLowerCase().replace(/[\s_-]/g, "")));
+  for (const [key, val] of Object.entries(row)) {
+    if (!wanted.has(key.toLowerCase().replace(/[\s_-]/g, ""))) continue;
+    const text = carouselCellText(val);
+    if (text) return text;
+  }
+  return "";
+}
+
+function carouselSlideParts(slide: unknown): { visual: string; vo: string; element: string; tagging: string } | null {
+  if (typeof slide === "string") {
+    const visual = carouselCellText(slide);
+    return visual ? { visual, vo: "", element: "", tagging: "" } : null;
+  }
+  if (!slide || typeof slide !== "object" || Array.isArray(slide)) return null;
+  const row = slide as Record<string, unknown>;
+  let visual = carouselField(row, [
+    "visual", "scene", "adegan", "description", "text", "copy", "scenevisual", "visualscene",
+    "narasi", "naskah", "konten", "isi", "body", "content",
+  ]);
+  const vo = carouselField(row, ["vo", "voiceover", "voice"]);
+  const element = carouselField(row, ["element", "elementlainnya"]);
+  if (!visual || /^slide\s*\d+\b/i.test(visual)) visual = vo || element;
+  if (!visual || /^slide\s*\d+\b/i.test(visual)) {
+    for (const [key, val] of Object.entries(row)) {
+      const norm = key.toLowerCase().replace(/[\s_-]/g, "");
+      if (["timing", "id", "tagging", "hashtag", "hashtags", "vo", "voiceover", "voice", "element"].includes(norm)) continue;
+      const text = carouselCellText(val);
+      if (text.length >= 8 && !/^slide\s*\d+\b/i.test(text)) {
+        visual = text;
+        break;
+      }
+    }
+  }
+  if (!visual || /^slide\s*\d+\b/i.test(visual)) return null;
+  return {
+    visual,
+    vo,
+    element,
+    tagging: carouselField(row, ["tagging", "hashtags", "hashtag"]),
+  };
+}
+
+function carouselFromProse(text: string): { visual: string; vo: string; element: string; tagging: string }[] {
+  const found: { visual: string; vo: string; element: string; tagging: string }[] = [];
+  const re = /slide\s*\d+\s*[:.\-–|]\s*([^|\n]{8,500})/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) && found.length < 10) {
+    const visual = match[1].replace(/\s+/g, " ").trim();
+    if (visual) found.push({ visual, vo: "", element: "", tagging: "" });
+  }
+  return found;
+}
+
+function finishCarouselScript(
+  value: Record<string, unknown>,
+  slides: { visual: string; vo: string; element: string; tagging: string }[],
+): string | null {
+  const packed = slides.filter((slide) => slide.visual).slice(0, 10)
+    .map((slide, index) => ({ timing: `Slide ${index + 1}`, ...slide }));
+  if (packed.length < 2) return null;
+  const cell = (input: unknown, limit = 500) => carouselCellText(input, limit);
+  const captionSource = [value.caption, value.hashtags, value.hashtag, ...packed.map((slide) => slide.tagging)]
+    .map((item) => String(item ?? ""))
+    .join(" ");
+  let caption = cell(value.caption, 2000);
+  if (!caption) caption = cell(value.title, 180);
+  if (!caption) caption = cell(packed[0]?.visual, 180);
+  const tags = captionSource.match(/#[^\s#]+/g) ?? [];
+  if (!caption.includes("#") && tags[0]) caption = `${caption} ${tags[0]}`.trim();
+  if (!caption.includes("#")) {
+    const word = caption.match(/[A-Za-z0-9]{3,}/);
+    caption = `${caption} #${(word?.[0] ?? "konten").toLowerCase()}`.trim();
+  }
+  if (caption.length > 400) {
+    const tag = ((caption.match(/#[^\s#]+/g) ?? tags)[0] ?? "").slice(0, 40);
+    const room = Math.max(0, 399 - (tag ? tag.length + 1 : 0));
+    caption = `${caption.slice(0, room).trim()}${tag ? ` ${tag}` : ""}`.trim();
+  }
+  let title = cell(value.title, 200);
+  if (!title) title = cell(packed[0]?.visual, 80);
+  return JSON.stringify({
+    ...value,
+    title,
+    caption,
+    slides: packed,
+    product_knowledge_fields: Array.isArray(value.product_knowledge_fields) ? value.product_knowledge_fields : [],
+  });
+}
+
+function normalizeCarouselScript(raw: string): string {
+  const value = parseCarouselObject(raw);
+  const slideRows = value && (
+    Array.isArray(value.slides) ? value.slides
+      : Array.isArray(value.carousel) ? value.carousel
+        : Array.isArray(value.scenes) ? value.scenes
+          : Array.isArray(value.rows) ? value.rows
+            : Array.isArray(value.items) ? value.items
+              : null
+  );
+  const fromRows = (slideRows ?? [])
+    .map((slide) => carouselSlideParts(slide))
+    .filter((slide): slide is { visual: string; vo: string; element: string; tagging: string } => Boolean(slide));
+  const proseSource = [
+    typeof value?.slides === "string" ? value.slides : "",
+    typeof value?.brief === "string" ? value.brief : "",
+    typeof value?.storyboard === "string" ? value.storyboard : "",
+    raw,
+  ].join("\n");
+  const slides = fromRows.length >= 5 ? fromRows : carouselFromProse(proseSource);
+  const finished = value ? finishCarouselScript(value, slides) : null;
+  if (finished) return finished;
+  if (slides.length >= 5) {
+    const finishedProse = finishCarouselScript({ title: "", caption: "" }, slides);
+    if (finishedProse) return finishedProse;
+  }
+  const sample = slideRows?.[0];
+  const keys = sample && typeof sample === "object" && !Array.isArray(sample)
+    ? Object.keys(sample).slice(0, 8).join(",")
+    : "none";
+  console.error("carousel_unpacked", fromRows.length, keys);
+  return raw;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
@@ -276,8 +440,16 @@ ${contextBlock}${neighborBlock}${partToReviseBlock}
 
 Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output harus sama (markdown, tabel, dll) sesuai teks asli. Jangan ubah struktur, hanya revisi konten sesuai instruksi.${tableRowHint}${BAHASA_INSTRUCTION}`;
     } else {
+      const carouselDraft = isThinkingJson && prompt.includes("Content Plan Carousel");
+      const executionCheck = isThinkingJson && prompt.includes("thinking.execution.check");
+      const thinkingPrefix = carouselDraft
+        ? "Return JSON only. Use the keys title, post_date, caption, slides, content_pillar_id, product_knowledge_id, and product_knowledge_fields. Do not use a brief key. caption is one short Indonesian sentence and must contain #. slides has 2 to 10 objects. Choose the count. timing is exactly Slide 1, then Slide 2, and so on, with no extra punctuation. visual is one scene sentence, not a file path. vo, element, and tagging may be empty strings. Do not write anything outside that JSON."
+        : executionCheck
+          ? "Return JSON only. Use the keys statement, checks, facts, and script. checks must contain exactly these ids, each as an object with id and state: hookHolds, soundsSpoken, usesSlang, pillarFits, formatHolds, mechanismVisible, messageStays, causeChain, viewerClimb, emotionalTone. state is pass or fail. facts.resolution is RESOLVED, facts.relationToParent is VALID_EXECUTION, and facts.unresolvedReasons is an empty array only when every state is pass. script is an object with title. Do not return only an ok key."
+          : THINKING_JSON_SYSTEM;
+      const modelPrompt = carouselDraft ? shrinkCarouselPrompt(prompt) : prompt;
       fullPrompt = isThinkingJson
-        ? `${THINKING_JSON_SYSTEM}\n\n${prompt}`
+        ? `${thinkingPrefix}\n\n${modelPrompt}${carouselDraft || executionCheck ? `\n\n${thinkingPrefix}` : ""}`
         : prompt + BAHASA_INSTRUCTION + FORMAT_INSTRUCTION;
     }
 
@@ -311,7 +483,12 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
             model,
             messages: [{ role: "user", content: fullPrompt }],
             temperature,
-            ...(isThinkingJson ? { response_format: { type: "json_object" } } : {}),
+            ...(isThinkingJson
+              ? {
+                response_format: { type: "json_object" },
+                ...(prompt.includes("Content Plan Carousel") ? { max_tokens: 1800 } : {}),
+              }
+              : {}),
           }),
         });
       };
@@ -520,7 +697,8 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
           contents: [{ parts: [{ text: fullPrompt }] }],
           generationConfig: {
             temperature,
-            ...(isThinkingJson ? { responseMimeType: "application/json" } : {}),
+            ...(isThinkingJson ? { responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } } : {}),
+            ...(prompt.includes("Content Plan Carousel") ? { maxOutputTokens: 8192 } : {}),
           },
         }),
       });
@@ -541,12 +719,25 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
       const geminiData = await geminiRes.json();
       billedPayload = geminiData;
       billedModel = model;
-      const textPart = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
-      script = typeof textPart === "string" ? textPart.trim() : "";
+      const geminiParts = (geminiData?.candidates?.[0]?.content?.parts ?? []) as Array<{ text?: unknown; thought?: unknown }>;
+      const visibleParts = geminiParts.filter((part) => part?.thought !== true && typeof part?.text === "string");
+      const visibleText = visibleParts.map((part) => String(part.text).trim()).filter(Boolean).join("\n");
+      const fallbackPart = geminiParts.find((part) => typeof part?.text === "string" && String(part.text).includes("{"));
+      script = visibleText.includes("{")
+        ? visibleText
+        : (typeof fallbackPart?.text === "string" ? fallbackPart.text.trim() : visibleText);
+    }
+
+    if (prompt.includes("Content Plan Carousel")) {
+      script = normalizeCarouselScript(script);
     }
 
     if (!script) {
       return jsonResponse({ error: "No content generated from AI" }, 500);
+    }
+
+    if (prompt.includes("Content Plan Carousel") && !script.includes("\"Slide 2\"")) {
+      console.error("carousel_shape", script.replace(/\s+/g, " ").slice(0, 300));
     }
 
     if (usageRow?.id) {

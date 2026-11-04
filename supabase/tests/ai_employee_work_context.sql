@@ -365,10 +365,11 @@ BEGIN
     SELECT 1 FROM public.social_media_plans plan
     WHERE plan.id = (v_plan->>'id')::uuid
       AND plan.thinking_idea_id = v_idea
-      AND plan.production_status = 'Need Review'
+      AND plan.status = 'Need Review'
+      AND plan.production_status IS NULL
       AND plan.approved = false
   ) THEN
-    RAISE EXCEPTION 'plan idea harus Need Review dan belum disetujui';
+    RAISE EXCEPTION 'plan idea harus Need Review di status konten, tanpa status produksi';
   END IF;
 
   BEGIN

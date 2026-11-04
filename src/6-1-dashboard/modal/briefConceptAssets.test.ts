@@ -3,6 +3,7 @@ import {
   locationFrameForContentType,
   mergeBriefConceptVisuals,
   parseBriefConcept,
+  reviewConceptView,
   serializeBriefConcept,
 } from "@/6-1-dashboard/modal/briefConceptAssets";
 
@@ -51,6 +52,27 @@ describe("location frames", () => {
       properties: [],
     });
     expect(parseBriefConcept(next)?.locations[0]?.description).toBe("Warung sate pinggir jalan");
+  });
+
+  it("hides an empty concept document and keeps a written concept readable", () => {
+    expect(reviewConceptView('{"v": 1, "locations": [], "characters": [], "postAspect": "4:5", "properties": []}')).toEqual({
+      mode: "hidden",
+    });
+    expect(reviewConceptView("Ibu dan anak di ruang tamu")).toEqual({
+      mode: "plain",
+      text: "Ibu dan anak di ruang tamu",
+    });
+    const view = reviewConceptView(serializeBriefConcept({
+      voiceOver: "Dengarkan dulu.",
+      locations: [{ handle: "@location_rumah", description: "Ruang tamu pagi hari" }],
+      characters: [],
+      properties: [],
+    }));
+    expect(view).toMatchObject({
+      mode: "structured",
+      voiceOver: "Dengarkan dulu.",
+      locations: [{ handle: "@location_rumah", description: "Ruang tamu pagi hari" }],
+    });
   });
 
   it("keeps a property image when the concept is saved again", () => {

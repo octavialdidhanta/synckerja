@@ -90,6 +90,9 @@ export const useOptimizedSocialMediaMutations = () => {
       onSuccess: (updatedData, variables) => {
         // variables contains { id, updates } passed to mutationFn
         const updates = variables.updates;
+        if (updates.approved === true) {
+          void queryClient.invalidateQueries({ queryKey: ["canva-carousel-runs"] });
+        }
         
         // Google Sheets style - update cache directly without refetch
         if (organizationId && updatedData) {

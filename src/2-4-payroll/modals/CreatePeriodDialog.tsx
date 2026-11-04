@@ -21,6 +21,7 @@ import { Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
+import { payrollDuplicateMessage } from "../lib/payrollDuplicateError";
 
 interface CreatePeriodDialogProps {
   open: boolean;
@@ -75,7 +76,7 @@ export function CreatePeriodDialog({ open, onOpenChange, onSuccess }: CreatePeri
       });
 
       if (error) {
-        toast.error("Failed to create payroll period");
+        toast.error(payrollDuplicateMessage(error, "period") ?? "Failed to create payroll period");
         return;
       }
 

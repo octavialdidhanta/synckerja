@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { toast } from "@/shared/hooks/use-toast";
-import { ensureSignupVerificationToken, sendConfirmationEmail } from "@/0-register/utils/emailConfirmation";
+import { sendConfirmationEmail } from "@/0-register/utils/emailConfirmation";
 import { ensureRegistrationProfile } from "@/0-register/utils/ensureRegistrationProfile";
 import { validateEmailFormat, sanitizeEmail } from "@/0-register/utils/emailValidation";
 

@@ -34,6 +34,8 @@ import { useToast } from '@/shared/components/ui/use-toast';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { devLog, logger } from '@/shared/lib/logger';
 import { cn } from '@/shared/lib/utils';
+import { CanvaCarouselNote, type CanvaCarouselRun } from '@/canva/CanvaCarouselNote';
+import { hasProductionDeliverable, productionStatusSelectValue } from '../../utils/productionAsset';
 import {
   ON_TIME_IN_PROGRESS,
   ON_TIME_SCHEDULED,
@@ -75,6 +77,7 @@ interface ContentPlanRowProps {
   onCarouselFirstUploadSuccess?: (planId: string) => void;
   onCarouselAllRemoved?: (planId: string) => void;
   onProductionResubmitForReview?: (planId: string) => void | Promise<void>;
+  canvaRun?: CanvaCarouselRun | null;
 }
 export const ContentPlanRow = memo<ContentPlanRowProps>(({
   plan,
@@ -107,7 +110,8 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
   onCarouselChange,
   onCarouselFirstUploadSuccess,
   onCarouselAllRemoved,
-  onProductionResubmitForReview
+  onProductionResubmitForReview,
+  canvaRun = null,
 }) => {
   const [pillarPickerOpen, setPillarPickerOpen] = useState(false);
   const [isGoogleDriveDialogOpen, setIsGoogleDriveDialogOpen] = useState(false);
@@ -247,7 +251,12 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
   const picEmployees = digitalEmployees;
 
   // Find selected PIC employee name
-  const selectedPIC = digitalEmployees.find(emp => emp.id === plan.pic_id);
+  const listedPIC = digitalEmployees.find(emp => emp.id === plan.pic_id);
+  const selectedPIC = listedPIC ?? (
+    plan.pic && plan.pic.id === plan.pic_id
+      ? { id: plan.pic.id, full_name: plan.pic.full_name, is_ai: plan.pic.is_ai === true }
+      : undefined
+  );
 
   // For PIC Production, use the data from the database relation first, then fallback to digitalEmployees
   const selectedProductionPIC = plan.pic_production?.full_name ? {
@@ -268,7 +277,18 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
 
   // Get content type name for display
   const contentTypeName = contentTypes.find(type => type.id === plan.content_type_id)?.name || '';
-  
+  const productionDeliverableReady = hasProductionDeliverable({
+    googleDriveLink: plan.google_drive_link,
+    contentTypeName,
+    carouselImageCount,
+  });
+  const productionStatusValue = productionStatusSelectValue({
+    productionApproved: plan.production_approved,
+    productionStatus: plan.production_status,
+    googleDriveLink: plan.google_drive_link,
+    contentTypeName,
+    carouselImageCount,
+  });
 
   // POINT 4: Content fields are no longer locked when approved
   // const isContentLocked = plan.approved === true; // REMOVED: No more locking
@@ -502,9 +522,9 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
       } else {
         // When production approved is unchecked, clear the approved date
         batchUpdates.production_approved_date = null;
-        // If current production status is "Approved", change it to "Need Review"
+        // Back to Need Review only when a deliverable is still there. Otherwise clear it.
         if (plan.production_status === 'Approved') {
-          batchUpdates.production_status = 'Need Review';
+          batchUpdates.production_status = productionDeliverableReady ? 'Need Review' : null;
         }
       }
 
@@ -514,7 +534,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
       onFieldChange(plan.id, 'production_approved', checked);
       
       // Update related fields - these will be batched together by handleFieldChange
-      if (batchUpdates.production_status) {
+      if (batchUpdates.production_status !== undefined) {
         onProductionStatusChange(plan.id, batchUpdates.production_status);
       }
       if (batchUpdates.production_approved_date !== undefined) {
@@ -776,6 +796,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         minWidth: '280px',
         maxWidth: '280px'
       }} className="px-2 py-1 border-r border-gray-200 border-b border-gray-200">
+          <div className="flex min-w-0 flex-col gap-0.5">
           <Button
             variant="ghost"
             className={cn(
@@ -790,6 +811,10 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
                 {plan.title || 'Click to add title...'}
               </span>
             </Button>
+            {canvaRun && (canvaRun.status !== 'succeeded' || canvaRun.revision_requested) ? (
+              <CanvaCarouselNote run={canvaRun} showSuccess={false} onPrimary={isSelected} />
+            ) : null}
+          </div>
         </td>
 
         {/* POINT 4: Content Pillar - No longer locked when approved */}
@@ -975,15 +1000,18 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         maxWidth: '180px'
       }} className="px-2 py-1 border-r border-gray-200 border-b border-gray-200">
           <Select
-            value={
-              plan.production_approved
-                ? 'Approved'
-                : plan.production_status ||
-                  (plan.google_drive_link && String(plan.google_drive_link).trim().length > 0
-                    ? 'Need Review'
-                    : 'none')
-            }
+            value={productionStatusValue}
             onValueChange={value => {
+              if (value === 'Need Review' && !productionDeliverableReady) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Cannot set Need Review',
+                  description: contentTypeName === 'Post' || contentTypeName === 'Carousel'
+                    ? 'Add at least one carousel image before setting production status to Need Review.'
+                    : 'Add a Google Drive link before setting production status to Need Review.',
+                });
+                return;
+              }
               if (value === 'none') {
                 onProductionStatusChange(plan.id, null);
               } else {
@@ -996,7 +1024,7 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No Status</SelectItem>
-                <SelectItem value="Need Review">Need Review</SelectItem>
+                <SelectItem value="Need Review" disabled={!productionDeliverableReady}>Need Review</SelectItem>
                 <SelectItem value="Request Revision" disabled={!showApprovalOptions.production_status}>Request Revision</SelectItem>
                 <SelectItem value="Approved" disabled={!showApprovalOptions.production_status}>Approved</SelectItem>
               </SelectContent>
@@ -1188,6 +1216,10 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
     onCarouselChange={onCarouselChange}
     onCarouselFirstUploadSuccess={onCarouselFirstUploadSuccess}
     onCarouselAllRemoved={onCarouselAllRemoved}
+    canRefreshFromCanva={canvaRun?.status === 'succeeded'}
+    canvaRefreshing={canvaRun?.refresh_requested === true && canvaRun?.images_ready !== true}
+    canvaRevising={canvaRun?.revision_requested === true}
+    canvaRunError={canvaRun?.error ?? null}
     revisionBaselineLink={plan.production_revision_baseline_link ?? null}
     onResubmitForReview={
       onProductionResubmitForReview

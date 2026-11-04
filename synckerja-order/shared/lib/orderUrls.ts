@@ -109,8 +109,11 @@ export function isPrivateLanOrLoopbackHostname(hostname: string): boolean {
 }
 
 export function pathnameLooksLikeOrderStore(pathname: string): boolean {
-  const first = pathname.split("/").filter(Boolean)[0] ?? "";
-  return isValidPublicCode(first);
+  const parts = pathname.split("/").filter(Boolean);
+  // Storefront URLs are exactly /{code}. A longer path such as /review/:token
+  // must stay on the office app — "review" is 6 letters and would otherwise match.
+  if (parts.length !== 1) return false;
+  return isValidPublicCode(parts[0]);
 }
 
 export function shouldMountOrderStoreApp(input: {

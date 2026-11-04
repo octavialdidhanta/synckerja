@@ -23,6 +23,7 @@ import { SocialMediaDashboardSkeleton } from '../skeletons/SocialMediaDashboardS
 import { getDailyTasksRemindersQueryOptions, getAllSocialMediaLinksQueryOptions, buildLinksByPlanId } from '../data/dashboardQueryOptions';
 import { buildScheduleByPlanId, useOrgActiveSchedules } from '@/6-1-scheduled-posts/hooks/useOrgActiveSchedules';
 import { useSocialMediaDashboardSkeletonGate } from '../hook/useSocialMediaDashboardSkeletonGate';
+import { useCanvaCarouselRuns } from '@/canva/useCanvaCarouselRuns';
 import { useEmployeeTargets } from '../hook/useEmployeeTargets';
 import { useOrgBootstrapPending } from '@/shared/auth/hooks/useOrgBootstrapPending';
 
@@ -271,7 +272,7 @@ const SocialMediaContent = () => {
   // Fetch single plan when opening preview from notification (plan may not be in current table filter)
   const PLAN_SELECT = `
     id, organization_id, post_date, content_type_id, pic_id, service_id, sub_service_id, feature_id, title, content_pillar_id, brief, status, revision_count, approved, completion_date, pic_production_id, pic_production_source, google_drive_link, production_revision_baseline_link, production_status, production_revision_count, production_completion_date, production_approved, production_approved_date, post_link, post_link_created_by, done, actual_post_date, on_time_status, status_content, created_at, updated_at,
-    content_type:content_types(id, name), service:services(id, name), sub_service:sub_services(id, name), content_pillar:content_pillars(id, name, color), pic:employees!social_media_plans_pic_id_fkey(id, full_name), pic_production:employees!social_media_plans_pic_production_id_fkey(id, full_name), post_link_creator:employees!social_media_plans_post_link_created_by_fkey(id, full_name)
+    content_type:content_types(id, name), service:services(id, name), sub_service:sub_services(id, name), content_pillar:content_pillars(id, name, color), pic:employees!social_media_plans_pic_id_fkey(id, full_name, is_ai), pic_production:employees!social_media_plans_pic_production_id_fkey(id, full_name), post_link_creator:employees!social_media_plans_post_link_created_by_fkey(id, full_name)
   `;
   const { data: notificationPreviewPlanFetched } = useQuery({
     queryKey: ['social-media-plan', notificationPreviewPlanId],
@@ -389,6 +390,17 @@ const SocialMediaContent = () => {
     deferredMonth,
     serviceFilter
   );
+  const canvaPlanIds = useMemo(() => {
+    const ids = (Array.isArray(filteredContentPlans) ? filteredContentPlans : []).map((plan) => plan.id);
+    if (briefDialog.id && !ids.includes(briefDialog.id)) ids.push(briefDialog.id);
+    return ids;
+  }, [filteredContentPlans, briefDialog.id]);
+  const canvaRunsQuery = useCanvaCarouselRuns(canvaPlanIds);
+  const canvaRunByPlanId = useMemo(() => {
+    const map: Record<string, { social_media_plan_id: string; status: string; design_url: string | null; error: string | null }> = {};
+    for (const row of canvaRunsQuery.data ?? []) map[row.social_media_plan_id] = row;
+    return map;
+  }, [canvaRunsQuery.data]);
 
   // Calculate metrics from contentPlans filtered by active performance tab
   // Return default metrics during loading to prevent flicker
@@ -1395,6 +1407,7 @@ const SocialMediaContent = () => {
                                       onCarouselFirstUploadSuccess={handleCarouselFirstUploadSuccess}
                                       onCarouselAllRemoved={handleCarouselAllRemoved}
                                       onProductionResubmitForReview={handleProductionResubmitForReview}
+                                      canvaRunByPlanId={canvaRunByPlanId}
                                     />
                                     ) : (
                                       <div className="flex min-h-[200px] items-center justify-center py-8" aria-hidden />
@@ -1467,6 +1480,7 @@ const SocialMediaContent = () => {
               currentEmployeeId,
               contentPlans.find((plan) => plan.id === briefDialog.id)?.pic_id,
             )}
+            canvaRun={briefDialog.id ? canvaRunByPlanId[briefDialog.id] ?? null : null}
           />
 
           <TitleDialog 
@@ -1520,6 +1534,13 @@ const SocialMediaContent = () => {
               }}
               onCarouselFirstUploadSuccess={handleCarouselFirstUploadSuccess}
               onCarouselAllRemoved={handleCarouselAllRemoved}
+              canRefreshFromCanva={canvaRunByPlanId[notificationPreviewPlan.id]?.status === 'succeeded'}
+              canvaRefreshing={
+                canvaRunByPlanId[notificationPreviewPlan.id]?.refresh_requested === true
+                && canvaRunByPlanId[notificationPreviewPlan.id]?.images_ready !== true
+              }
+              canvaRevising={canvaRunByPlanId[notificationPreviewPlan.id]?.revision_requested === true}
+              canvaRunError={canvaRunByPlanId[notificationPreviewPlan.id]?.error ?? null}
               revisionBaselineLink={notificationPreviewPlan.production_revision_baseline_link ?? null}
               onResubmitForReview={() =>
                 handleProductionResubmitForReview(notificationPreviewPlan.id)

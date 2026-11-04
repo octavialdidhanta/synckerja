@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Calendar, Sparkles, Image, Scan, Clapperboard, AudioLines } from 'lucide-react';
+import { Shield, Calendar, Sparkles, Image, Scan, Clapperboard, AudioLines, Palette } from 'lucide-react';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { cn } from '@/shared/lib/utils';
 
@@ -56,6 +56,13 @@ const settingsSections = [
     titleKey: 'detectFromImage.sidebarTitle',
     descriptionKey: 'detectFromImage.sidebarDescription',
     icon: Scan,
+    status: 'active'
+  },
+  {
+    id: 'canva',
+    title: 'Canva',
+    description: 'Connect a Canva account for the AI employee',
+    icon: Palette,
     status: 'active'
   }
 ];

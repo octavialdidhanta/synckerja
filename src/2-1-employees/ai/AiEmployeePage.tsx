@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -127,11 +135,21 @@ function formatNumber(value: number | null, locale: string): string {
 }
 
 function workName(code: string | null, label: (key: string, fallback: string) => string): string {
-  if (code === "SOP1") return label("aiEmployee.work.weeklyPlan", "Content Plan");
+  if (code === "SOP1") return label("aiEmployee.work.weeklyPlan", "Content Plan Carousel");
   if (code === "SOP2") return label("aiEmployee.work.adHoc", "Menerima dan mengerjakan tugas dadakan");
   if (code === "SOP3") return label("aiEmployee.work.revision", "Merevisi hasil yang ditolak");
   if (code === "CHAT") return label("aiEmployee.work.chat", "Percakapan");
   return code || "—";
+}
+
+function listed(ids: string[], names: Map<string, string>): string {
+  const labels = ids.map((id) => names.get(id)).filter((label): label is string => Boolean(label));
+  return labels.length > 0 ? labels.join(", ") : "—";
+}
+
+function shownText(value: string): string {
+  const text = value.trim();
+  return text || "—";
 }
 
 function MultiSelect({
@@ -141,6 +159,7 @@ function MultiSelect({
   value,
   disabled,
   onToggle,
+  trigger,
 }: {
   label: string;
   emptyLabel: string;
@@ -148,6 +167,7 @@ function MultiSelect({
   value: string[];
   disabled: boolean;
   onToggle: (id: string) => void;
+  trigger?: string;
 }) {
   const selected = options.filter((option) => value.includes(option.id));
   const summary = selected.length > 0 ? selected.map((option) => option.label).join(", ") : label;
@@ -157,10 +177,11 @@ function MultiSelect({
         <Button
           type="button"
           variant="outline"
+          size={trigger ? "sm" : "default"}
           disabled={disabled}
-          className="h-auto min-h-9 w-full justify-start px-3 py-2 text-left text-xs font-normal"
+          className={trigger ? "h-7" : "h-auto min-h-9 w-full justify-start px-3 py-2 text-left text-xs font-normal"}
         >
-          <span className="line-clamp-2">{summary}</span>
+          {trigger ? trigger : <span className="line-clamp-2">{summary}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="max-h-64 w-80 overflow-y-auto p-2">
@@ -180,6 +201,40 @@ function MultiSelect({
             </label>
           ))
         )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function TextFieldButton({
+  label,
+  value,
+  maxLength,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  maxLength: number;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="h-7" disabled={disabled}>
+          {label}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80">
+        <textarea
+          aria-label={label}
+          className="min-h-24 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
+          maxLength={maxLength}
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+        />
       </PopoverContent>
     </Popover>
   );
@@ -222,8 +277,12 @@ export default function AiEmployeePage() {
   const [copyEmail1, setCopyEmail1] = useState("");
   const [copyEmail2, setCopyEmail2] = useState("");
   const [briefOpen, setBriefOpen] = useState(false);
+  const [briefPanelOpen, setBriefPanelOpen] = useState(false);
+  const [recipientsOpen, setRecipientsOpen] = useState(false);
   const [scheduleCompare, setScheduleCompare] = useState<{ before: ScheduleRow; after: ScheduleRow } | null>(null);
   const [routineCompare, setRoutineCompare] = useState<{ before: RoutineRow | null; after: RoutineRow } | null>(null);
+  const [reportCode, setReportCode] = useState("work_report.daily");
+  const [planCadence, setPlanCadence] = useState<ScheduleRow["cadence"]>("weekly");
   const [saving, setSaving] = useState(false);
   const page = model.page;
   const pageRef = useRef(page);
@@ -294,15 +353,6 @@ export default function AiEmployeePage() {
     if (status === "coaching") return t("aiEmployee.status.coaching", "Pembinaan");
     if (status === "disabled") return t("aiEmployee.status.disabled", "Dinonaktifkan");
     return status || "—";
-  };
-  const runStatus = (status: string) => {
-    if (status === "succeeded") return t("aiEmployee.run.succeeded", "Berhasil");
-    if (status === "failed") return t("aiEmployee.run.failed", "Gagal");
-    if (status === "running") return t("aiEmployee.run.running", "Berjalan");
-    if (status === "deferred") return t("aiEmployee.run.deferred", "Ditunda");
-    if (status === "late") return t("aiEmployee.run.late", "Terlambat");
-    if (status === "returned") return t("aiEmployee.run.returned", "Dikembalikan");
-    return status;
   };
   const jobStatus = (status: string) => {
     if (status === "queued") return t("aiEmployee.job.queued", "Antre");
@@ -423,11 +473,29 @@ export default function AiEmployeePage() {
     }
   };
 
-  const updateSchedule = (sopCode: string, patch: Partial<ScheduleRow>) => {
-    setSchedules((current) => current.map((row, index) => {
-      const key = `${row.sopCode}-${index}`;
-      return key === sopCode ? { ...row, ...patch } : row;
-    }));
+  const updateSchedule = (cadence: ScheduleRow["cadence"], patch: Partial<ScheduleRow>) => {
+    setSchedules((current) => {
+      const weekly = current.find((row) => row.sopCode === "SOP1" && row.cadence === "weekly");
+      const weeklyActive = patch.isActive ?? weekly?.isActive ?? false;
+      const weeklyDay = cadence === "weekly"
+        ? (patch.weekday ?? weekly?.weekday ?? null)
+        : (weeklyActive ? weekly?.weekday ?? null : null);
+      return current.map((row) => {
+        if (row.sopCode !== "SOP1") return row;
+        if (row.cadence === cadence) {
+          const next = { ...row, ...patch };
+          if (cadence === "days" && weeklyActive && weeklyDay != null) {
+            next.weekdays = next.weekdays.filter((day) => day !== weeklyDay);
+          }
+          return next;
+        }
+        if (cadence === "weekly" && row.cadence === "days" && weeklyActive && weeklyDay != null) {
+          const weekdays = row.weekdays.filter((day) => day !== weeklyDay);
+          return { ...row, weekdays, isActive: weekdays.length === 0 ? false : row.isActive };
+        }
+        return row;
+      });
+    });
   };
 
   const visibleProducts = page && brief
@@ -502,61 +570,6 @@ export default function AiEmployeePage() {
                           })}
                         </div>
                       </section>
-
-                      <section className="rounded-md border border-border bg-card p-3">
-                        <h2 className="mb-2 text-sm font-semibold">{t("aiEmployee.runs.title", "20 log kerja terakhir")}</h2>
-                        {page.runs.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">{t("aiEmployee.runs.empty", "Belum ada log kerja.")}</p>
-                        ) : (
-                          <ul className="flex flex-col gap-2">
-                            {page.runs.map((run) => (
-                              <li key={run.id} className="rounded-md border border-border px-3 py-2 text-sm">
-                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                  <span className="font-medium">{workName(run.sopCode, t)}</span>
-                                  <span>{runStatus(run.status)}</span>
-                                  <span className="text-muted-foreground">{formatWhen(run.startedAt, dateLocale)}</span>
-                                  <span>{t("aiEmployee.runs.plans", "{{count}} plan", { count: run.planCount })}</span>
-                                </div>
-                                {run.note ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{run.note}</p> : null}
-                                {run.plans.length > 0 ? (
-                                  <div className="mt-1 flex flex-wrap gap-2">
-                                    {run.plans.map((plan) => (
-                                      <Link
-                                        key={plan.id}
-                                        to={`/digital-marketing/social-media/content-calendar?plan=${plan.id}`}
-                                        className="text-xs font-medium text-blue-600 hover:underline"
-                                      >
-                                        {plan.title || t("aiEmployee.runs.openPlan", "Buka plan")}
-                                      </Link>
-                                    ))}
-                                  </div>
-                                ) : null}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </section>
-
-                      <section className="rounded-md border border-border bg-card p-3">
-                        <h2 className="mb-2 text-sm font-semibold">{t("aiEmployee.jobs.title", "Antrean")}</h2>
-                        {page.jobs.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">{t("aiEmployee.jobs.empty", "Tidak ada job.")}</p>
-                        ) : (
-                          <ul className="flex flex-col gap-2">
-                            {page.jobs.map((job, index) => (
-                              <li key={job.id} className={cn("rounded-md border px-3 py-2 text-sm", index === 0 ? "border-blue-200 bg-blue-50/60" : "border-border")}>
-                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                  <span className="font-medium">{index === 0 ? t("aiEmployee.jobs.latest", "Job terakhir") : t("aiEmployee.jobs.older", "Job")}</span>
-                                  <span>{job.source === "revision" ? t("aiEmployee.jobs.revision", "Revisi") : t("aiEmployee.jobs.task", "Tugas")}</span>
-                                  <span>{jobStatus(job.status)}</span>
-                                  <span className="text-muted-foreground">{formatWhen(job.createdAt, dateLocale)}</span>
-                                </div>
-                                {job.reason ? <p className="mt-1 text-xs text-muted-foreground">{job.reason}</p> : null}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </section>
                     </div>
 
                     <div className="col-span-12 flex min-w-0 flex-col gap-2 xl:col-span-4">
@@ -585,365 +598,604 @@ export default function AiEmployeePage() {
                           })}
                         </p>
                       </section>
+                    </div>
 
-                      <div className="flex flex-col gap-2">
-                        <h2 className="text-sm font-semibold text-gray-900">{t("aiEmployee.jobDesc.title", "Job desc")}</h2>
-                      <section className="rounded-md border border-border bg-card p-3">
-                        <h3 className="mb-2 text-sm font-semibold">{t("aiEmployee.work.weeklyPlan", "Content Plan")}</h3>
-                        {!canEdit ? (
-                          <p className="mb-2 text-xs text-muted-foreground">{t("aiEmployee.page.ownerOnly", "Hanya owner yang dapat mengubah data ini.")}</p>
-                        ) : null}
-                        {schedules.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">{t("aiEmployee.schedule.empty", "Belum ada jadwal.")}</p>
-                        ) : (
-                          <div className="flex flex-col gap-3">
-                            {schedules.map((row, index) => {
-                              const key = `${row.sopCode}-${index}`;
-                              const original = page.schedules[index];
-                              const dirty = original ? !sameSchedule(original, row) : false;
-                              return (
-                                <div key={key}>
-                                  {row.sopCode !== "SOP1" ? <p className="mb-2 text-sm font-medium">{workName(row.sopCode, t)}</p> : null}
-                                  <label className="mb-2 block text-xs text-muted-foreground">
-                                    {t("aiEmployee.schedule.weekday", "Hari")}
-                                    <select
-                                      className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground"
-                                      value={row.weekday}
-                                      disabled={!canEdit || saving}
-                                      onChange={(event) => updateSchedule(key, { weekday: Number(event.target.value) })}
-                                    >
-                                      {WEEKDAYS.map((day) => (
-                                        <option key={day.value} value={day.value}>{day.label}</option>
-                                      ))}
-                                    </select>
-                                  </label>
-                                  <div className="mb-2 grid grid-cols-2 gap-2">
-                                    <label className="text-xs text-muted-foreground">
-                                      {t("aiEmployee.schedule.start", "Mulai")}
-                                      <input
-                                        type="time"
-                                        className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-                                        value={row.startLocal}
-                                        disabled={!canEdit || saving}
-                                        onChange={(event) => updateSchedule(key, { startLocal: event.target.value })}
-                                      />
-                                    </label>
-                                    <label className="text-xs text-muted-foreground">
-                                      {t("aiEmployee.schedule.due", "Selesai")}
-                                      <input
-                                        type="time"
-                                        className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-                                        value={row.dueLocal}
-                                        disabled={!canEdit || saving}
-                                        onChange={(event) => updateSchedule(key, { dueLocal: event.target.value })}
-                                      />
-                                    </label>
-                                  </div>
-                                  <label className="mb-2 flex items-center gap-2 text-sm">
-                                    <input
-                                      type="checkbox"
-                                      checked={row.isActive}
-                                      disabled={!canEdit || saving}
-                                      onChange={(event) => updateSchedule(key, { isActive: event.target.checked })}
-                                    />
-                                    {t("aiEmployee.schedule.active", "Jadwal aktif")}
-                                  </label>
-                                  <p className="mb-2 text-xs text-muted-foreground">
-                                    {t("aiEmployee.schedule.next", "Jalan berikutnya {{time}}", { time: formatWhen(original?.nextRunAt ?? null, dateLocale) })}
-                                  </p>
-                                  {canEdit ? (
-                                    <Button type="button" size="sm" disabled={!dirty || saving || !original} onClick={() => {
-                                      if (!original) return;
-                                      setScheduleCompare({ before: original, after: row });
-                                    }}>
-                                      {t("aiEmployee.schedule.review", "Tinjau jadwal")}
-                                    </Button>
-                                  ) : null}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                        <div className="mt-3 border-t border-border pt-3">
-                          <h4 className="mb-2 text-xs font-semibold text-muted-foreground">{t("aiEmployee.brief.title", "Brief")}</h4>
-                        <div className="flex flex-col gap-2">
-                          <label className="text-xs text-muted-foreground">
-                            {t("aiEmployee.brief.services", "Katalog")}
-                            <div className="mt-1">
-                              <MultiSelect
-                                label={t("aiEmployee.brief.pickServices", "Pilih katalog")}
-                                emptyLabel={t("aiEmployee.brief.noServices", "Tidak ada katalog")}
-                                options={page.options.services}
-                                value={brief.serviceIds}
-                                disabled={!canEdit || saving}
-                                onToggle={(id) => setBrief((current) => {
-                                  if (!current) return current;
-                                  const serviceIds = toggleId(current.serviceIds, id);
-                                  const allowed = new Set(serviceIds);
-                                  const productIds = current.productIds.filter((productId) => {
-                                    const product = page.options.products.find((item) => item.id === productId);
-                                    if (!product) return false;
-                                    return (product.serviceId != null && allowed.has(product.serviceId))
-                                      || (product.parentServiceId != null && allowed.has(product.parentServiceId));
-                                  });
-                                  return { ...current, serviceIds, productIds };
-                                })}
-                              />
-                            </div>
-                          </label>
-                          <label className="text-xs text-muted-foreground">
-                            {t("aiEmployee.brief.personas", "Persona")}
-                            <div className="mt-1">
-                              <MultiSelect
-                                label={t("aiEmployee.brief.pickPersonas", "Pilih persona")}
-                                emptyLabel={t("aiEmployee.brief.noPersonas", "Tidak ada persona")}
-                                options={page.options.personas}
-                                value={brief.personaIds}
-                                disabled={!canEdit || saving}
-                                onToggle={(id) => setBrief((current) => current ? { ...current, personaIds: toggleId(current.personaIds, id) } : current)}
-                              />
-                            </div>
-                          </label>
-                          <label className="text-xs text-muted-foreground">
-                            {t("aiEmployee.brief.pillars", "Pilar")}
-                            <div className="mt-1">
-                              <MultiSelect
-                                label={t("aiEmployee.brief.pickPillars", "Pilih pilar")}
-                                emptyLabel={t("aiEmployee.brief.noPillars", "Tidak ada pilar")}
-                                options={page.options.pillars}
-                                value={brief.pillarIds}
-                                disabled={!canEdit || saving}
-                                onToggle={(id) => setBrief((current) => current ? { ...current, pillarIds: toggleId(current.pillarIds, id) } : current)}
-                              />
-                            </div>
-                          </label>
-                          <label className="text-xs text-muted-foreground">
-                            {t("aiEmployee.brief.products", "Product Knowledge")}
-                            <div className="mt-1">
-                              <MultiSelect
-                                label={brief.serviceIds.length === 0
-                                  ? t("aiEmployee.brief.pickServiceFirst", "Pilih katalog dulu")
-                                  : t("aiEmployee.brief.pickProducts", "Pilih Product Knowledge")}
-                                emptyLabel={t("aiEmployee.brief.noProducts", "Tidak ada Product Knowledge untuk katalog ini")}
-                                options={visibleProducts}
-                                value={brief.productIds}
-                                disabled={!canEdit || saving || brief.serviceIds.length === 0}
-                                onToggle={(id) => setBrief((current) => current ? { ...current, productIds: toggleId(current.productIds, id) } : current)}
-                              />
-                            </div>
-                          </label>
-                          <label className="text-xs text-muted-foreground">
-                            {t("aiEmployee.brief.audience", "Audiens")}
-                            <textarea
-                              className="mt-1 min-h-16 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
-                              maxLength={1000}
-                              value={brief.audience}
-                              disabled={!canEdit || saving}
-                              onChange={(event) => setBrief((current) => current ? { ...current, audience: event.target.value } : current)}
-                            />
-                          </label>
-                          <label className="text-xs text-muted-foreground">
-                            {t("aiEmployee.brief.voice", "Suara")}
-                            <textarea
-                              className="mt-1 min-h-16 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
-                              maxLength={1000}
-                              value={brief.voice}
-                              disabled={!canEdit || saving}
-                              onChange={(event) => setBrief((current) => current ? { ...current, voice: event.target.value } : current)}
-                            />
-                          </label>
-                          <label className="text-xs text-muted-foreground">
-                            {t("aiEmployee.brief.required", "Catatan wajib")}
-                            <textarea
-                              className="mt-1 min-h-16 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
-                              maxLength={2000}
-                              value={brief.requiredNotes}
-                              disabled={!canEdit || saving}
-                              onChange={(event) => setBrief((current) => current ? { ...current, requiredNotes: event.target.value } : current)}
-                            />
-                          </label>
-                          <label className="text-xs text-muted-foreground">
-                            {t("aiEmployee.brief.forbidden", "Catatan terlarang")}
-                            <textarea
-                              className="mt-1 min-h-16 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
-                              maxLength={2000}
-                              value={brief.forbiddenNotes}
-                              disabled={!canEdit || saving}
-                              onChange={(event) => setBrief((current) => current ? { ...current, forbiddenNotes: event.target.value } : current)}
-                            />
-                          </label>
-                          <label className="text-xs text-muted-foreground">
-                            {t("aiEmployee.brief.split", "Aturan pecahan")}
-                            <textarea
-                              className="mt-1 min-h-16 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
-                              maxLength={1000}
-                              value={brief.splitRule}
-                              disabled={!canEdit || saving}
-                              onChange={(event) => setBrief((current) => current ? { ...current, splitRule: event.target.value } : current)}
-                            />
-                          </label>
-                          {canEdit ? (
-                            <Button
-                              type="button"
-                              disabled={saving || sameBrief(page.brief, brief)}
-                              onClick={() => setBriefOpen(true)}
-                            >
-                              {t("aiEmployee.brief.review", "Tinjau brief")}
-                            </Button>
-                          ) : null}
-                          </div>
-                        </div>
-                      </section>
-
+                    <div className="col-span-12 flex min-w-0 flex-col gap-2">
                       <section className="rounded-md border border-border bg-card p-3">
                         <div className="mb-2 flex items-baseline justify-between gap-2">
-                          <h3 className="text-sm font-semibold">{t("aiEmployee.routine.title", "Laporan email")}</h3>
+                          <h2 className="text-sm font-semibold">{t("aiEmployee.jobDesc.title", "Job desc")}</h2>
                           <p className="text-xs text-muted-foreground">
-                            {t("aiEmployee.routine.recipientShort", "{{name}}", {
-                              name: page.routines[0]?.reviewerName || page.summary.reviewerName || "—",
-                            })}
+                            {page.routines[0]?.reviewerName || page.summary.reviewerName || "—"}
                           </p>
                         </div>
                         {!canEdit ? (
                           <p className="mb-2 text-xs text-muted-foreground">{t("aiEmployee.page.ownerOnly", "Hanya owner yang dapat mengubah data ini.")}</p>
                         ) : null}
-                        <div className="flex flex-col">
-                          {reportRoutines.map((row) => {
-                            const saved = page.routines.find((item) => item.actionCode === row.actionCode) ?? null;
-                            const next = formatWhen(saved?.nextRunAt ?? null, dateLocale);
-                            const sent = formatWhen(saved?.lastSentAt ?? null, dateLocale);
-                            const status = routineStatus(saved?.lastStatus ?? null);
-                            const meta = sent === "—"
-                              ? t("aiEmployee.routine.metaPending", "Berikutnya {{next}} · {{status}}", { next, status })
-                              : t("aiEmployee.routine.metaSent", "Berikutnya {{next}} · {{status}} {{sent}}", { next, status, sent });
-                            const selectedDays = row.cadence === "weekly" ? (row.weekday == null ? [] : [row.weekday]) : (row.weekdays ?? []);
-                            const blockedDay = row.cadence === "days" ? blockedReportDay(reportRoutines) : null;
-                            const dayMissing = row.isActive && (
-                              row.cadence === "days"
-                                ? selectedDays.length === 0
-                                : row.cadence === "weekly" && row.weekday == null
-                            );
-                            const help = row.cadence === "days"
-                              ? t("aiEmployee.routine.helpDaily", "Hari yang sama dengan mingguan tidak dikirim. Pada tanggal terakhir, yang terkirim hanya laporan bulanan. Isinya pekerjaan hari ini sejak tengah malam.")
-                              : row.cadence === "weekly"
-                                ? t("aiEmployee.routine.helpWeekly", "Bila hari ini tanggal terakhir dan laporan bulanan aktif, yang terkirim hanya laporan bulanan.")
-                                : t("aiEmployee.routine.helpMonthly", "Pada tanggal terakhir, harian dan mingguan hari itu tidak dikirim. Isinya pekerjaan sejak awal bulan atau kiriman bulanan sebelumnya.");
-                            const toggleDay = (day: number) => {
-                              if (blockedDay === day) return;
-                              if (row.cadence === "weekly") {
-                                updateRoutine(row.actionCode, { weekday: day });
-                                return;
+                        <Table containerClassName="overflow-x-auto" className="table-fixed min-w-[87rem]">
+                          <colgroup>
+                            <col className="w-[9.5rem]" />
+                            <col className="w-[16rem]" />
+                            <col className="w-[15.5rem]" />
+                            <col className="w-[5.5rem]" />
+                            <col className="w-[9rem]" />
+                            <col className="w-[9rem]" />
+                            <col className="w-[4.5rem]" />
+                            <col className="w-[14rem]" />
+                            <col className="w-[4rem]" />
+                          </colgroup>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>{t("aiEmployee.jobDesc.work", "Pekerjaan")}</TableHead>
+                              <TableHead>{t("aiEmployee.routine.reportColumn", "Laporan")}</TableHead>
+                              <TableHead>{t("aiEmployee.schedule.weekday", "Hari")}</TableHead>
+                              <TableHead>{t("aiEmployee.schedule.frequency", "Frekuensi")}</TableHead>
+                              <TableHead>{t("aiEmployee.schedule.start", "Mulai")}</TableHead>
+                              <TableHead>{t("aiEmployee.schedule.due", "Selesai")}</TableHead>
+                              <TableHead>{t("aiEmployee.page.active", "Aktif")}</TableHead>
+                              <TableHead>{t("aiEmployee.jobDesc.next", "Berikutnya")}</TableHead>
+                              <TableHead>{t("aiEmployee.jobDesc.action", "Aksi")}</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(() => {
+                              const plans = schedules.filter((item) => item.sopCode === "SOP1");
+                              const row = plans.find((item) => item.cadence === planCadence) ?? plans[0];
+                              if (!row) {
+                                return (
+                                  <TableRow>
+                                    <TableCell colSpan={9} className="text-muted-foreground">
+                                      {t("aiEmployee.schedule.empty", "Belum ada jadwal.")}
+                                    </TableCell>
+                                  </TableRow>
+                                );
                               }
-                              const weekdays = selectedDays.includes(day)
-                                ? selectedDays.filter((value) => value !== day)
-                                : [...selectedDays, day].sort((left, right) => left - right);
-                              updateRoutine(row.actionCode, { weekdays });
-                            };
-                            return (
-                              <div key={row.actionCode} className="border-t border-border py-2 first:border-t-0 first:pt-0">
-                                <div className="mb-1 flex items-center justify-between gap-2">
-                                  <p className="text-sm font-medium">{routineTitle(row)}</p>
-                                  {canEdit ? (
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      className="h-7"
-                                      disabled={saving || dayMissing || (saved ? sameRoutine(saved, row) : false)}
-                                      onClick={() => setRoutineCompare({ before: saved, after: row })}
-                                    >
-                                      {t("aiEmployee.routine.reviewShort", "Tinjau")}
-                                    </Button>
-                                  ) : null}
-                                </div>
-                                {row.cadence === "monthly" ? (
-                                  <p className="mb-1 text-sm">{runningMonthEnd(dateLocale)}</p>
-                                ) : (
-                                  <div className="mb-1 flex flex-wrap gap-1">
-                                    {WEEKDAYS.map((day) => {
-                                      const blocked = blockedDay === day.value;
-                                      const selected = !blocked && selectedDays.includes(day.value);
-                                      return (
-                                        <button
-                                          key={day.value}
-                                          type="button"
-                                          aria-pressed={selected}
-                                          aria-disabled={blocked}
-                                          aria-label={day.label}
-                                          title={blocked ? t("aiEmployee.routine.dayTaken", "{{day}} dipakai laporan lain", { day: day.label }) : day.label}
-                                          disabled={!canEdit || saving || blocked}
-                                          className={`flex h-8 w-8 items-center justify-center rounded-full text-[10px] font-medium ${blocked ? "border border-dashed border-input bg-muted text-muted-foreground" : selected ? "bg-primary text-primary-foreground" : "border border-input bg-background text-muted-foreground"} disabled:opacity-50`}
-                                          onClick={() => toggleDay(day.value)}
-                                        >
-                                          {day.short}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <input
-                                    type="time"
-                                    aria-label={t("aiEmployee.routine.time", "Jam kirim")}
-                                    className="h-8 w-[7.5rem] rounded-md border border-input bg-background px-2 text-sm"
-                                    value={row.timeLocal}
-                                    disabled={!canEdit || saving}
-                                    onChange={(event) => updateRoutine(row.actionCode, { timeLocal: event.target.value })}
-                                  />
-                                  <label className="flex items-center gap-1.5 text-xs text-foreground">
+                              const original = page.schedules.find((item) => item.sopCode === "SOP1" && item.cadence === row.cadence) ?? null;
+                              const dirty = original ? !sameSchedule(original, row) : false;
+                              const weekly = plans.find((item) => item.cadence === "weekly");
+                              const blockedDay = row.cadence === "days" && weekly?.isActive ? weekly.weekday : null;
+                              const selectedDays = row.cadence === "weekly" ? (row.weekday == null ? [] : [row.weekday]) : row.weekdays;
+                              const dayMissing = row.isActive && (
+                                row.cadence === "days"
+                                  ? selectedDays.length === 0
+                                  : row.cadence === "weekly" && row.weekday == null
+                              );
+                              const planTitle = (cadence: ScheduleRow["cadence"]) => (
+                                cadence === "weekly"
+                                  ? t("aiEmployee.routine.weeklyTitle", "Mingguan")
+                                  : cadence === "monthly"
+                                    ? t("aiEmployee.routine.monthlyTitle", "Bulanan")
+                                    : t("aiEmployee.routine.dailyTitle", "Harian")
+                              );
+                              const toggleDay = (day: number) => {
+                                if (blockedDay === day) return;
+                                if (row.cadence === "weekly") {
+                                  updateSchedule("weekly", { weekday: day });
+                                  return;
+                                }
+                                const weekdays = selectedDays.includes(day)
+                                  ? selectedDays.filter((value) => value !== day)
+                                  : [...selectedDays, day].sort((left, right) => left - right);
+                                updateSchedule("days", { weekdays });
+                              };
+                              return (
+                                <TableRow>
+                                  <TableCell className="whitespace-nowrap font-medium">{workName(row.sopCode, t)}</TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-nowrap gap-1">
+                                      {(["days", "weekly", "monthly"] as const).map((cadence) => {
+                                        const picked = cadence === row.cadence;
+                                        return (
+                                          <button
+                                            key={cadence}
+                                            type="button"
+                                            aria-pressed={picked}
+                                            className={`h-7 shrink-0 rounded-md px-2 text-xs font-medium ${picked ? "bg-primary text-primary-foreground" : "border border-input bg-background text-muted-foreground"}`}
+                                            onClick={() => setPlanCadence(cadence)}
+                                          >
+                                            {planTitle(cadence)}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    {row.cadence === "monthly" ? (
+                                      <span className="inline-flex h-7 w-[13.75rem] items-center whitespace-nowrap text-sm">{runningMonthEnd(dateLocale)}</span>
+                                    ) : (
+                                      <div className="flex w-[13.75rem] flex-nowrap gap-1">
+                                        {WEEKDAYS.map((day) => {
+                                          const blocked = blockedDay === day.value;
+                                          const selected = !blocked && selectedDays.includes(day.value);
+                                          return (
+                                            <button
+                                              key={day.value}
+                                              type="button"
+                                              aria-pressed={selected}
+                                              aria-disabled={blocked}
+                                              aria-label={day.label}
+                                              title={blocked ? t("aiEmployee.schedule.dayTaken", "{{day}} dipakai mingguan", { day: day.label }) : day.label}
+                                              disabled={!canEdit || saving || blocked}
+                                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-medium ${blocked ? "border border-dashed border-input bg-muted text-muted-foreground" : selected ? "bg-primary text-primary-foreground" : "border border-input bg-background text-muted-foreground"} disabled:opacity-50`}
+                                              onClick={() => toggleDay(day.value)}
+                                            >
+                                              {day.short}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={7}
+                                      aria-label={t("aiEmployee.schedule.frequency", "Frekuensi")}
+                                      className="h-8 w-14 rounded-md border border-input bg-background px-2 text-sm"
+                                      value={row.planCount}
+                                      disabled={!canEdit || saving}
+                                      onChange={(event) => {
+                                        const planCount = Number(event.target.value);
+                                        if (planCount >= 1 && planCount <= 7) updateSchedule(row.cadence, { planCount });
+                                      }}
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <input
+                                      type="time"
+                                      aria-label={t("aiEmployee.schedule.start", "Mulai")}
+                                      className="h-8 w-[7.5rem] rounded-md border border-input bg-background px-2 text-sm"
+                                      value={row.startLocal}
+                                      disabled={!canEdit || saving}
+                                      onChange={(event) => updateSchedule(row.cadence, { startLocal: event.target.value })}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">—</TableCell>
+                                  <TableCell>
                                     <input
                                       type="checkbox"
+                                      aria-label={t("aiEmployee.schedule.active", "Jadwal aktif")}
+                                      checked={row.isActive}
+                                      disabled={!canEdit || saving}
+                                      onChange={(event) => updateSchedule(row.cadence, { isActive: event.target.checked })}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                                    <span className="block truncate">{formatWhen(original?.nextRunAt ?? null, dateLocale)}</span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <DropdownMenu modal={false}>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={t("aiEmployee.jobDesc.action", "Aksi")}>
+                                          <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        {canEdit ? (
+                                          <DropdownMenuItem
+                                            disabled={!dirty || saving || !original || dayMissing}
+                                            onClick={() => {
+                                              if (!original) return;
+                                              setScheduleCompare({ before: original, after: row });
+                                            }}
+                                          >
+                                            {t("aiEmployee.schedule.review", "Tinjau jadwal")}
+                                          </DropdownMenuItem>
+                                        ) : null}
+                                        <DropdownMenuItem onClick={() => setBriefPanelOpen(true)}>
+                                          {t("aiEmployee.brief.title", "Brief")}
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })()}
+                            {(() => {
+                              const row = reportRoutines.find((item) => item.actionCode === reportCode) ?? reportRoutines[0];
+                              if (!row) return null;
+                              const saved = page.routines.find((item) => item.actionCode === row.actionCode) ?? null;
+                              const next = formatWhen(saved?.nextRunAt ?? null, dateLocale);
+                              const sent = formatWhen(saved?.lastSentAt ?? null, dateLocale);
+                              const status = routineStatus(saved?.lastStatus ?? null);
+                              const selectedDays = row.cadence === "weekly" ? (row.weekday == null ? [] : [row.weekday]) : (row.weekdays ?? []);
+                              const blockedDay = row.cadence === "days" ? blockedReportDay(reportRoutines) : null;
+                              const dayMissing = row.isActive && (
+                                row.cadence === "days"
+                                  ? selectedDays.length === 0
+                                  : row.cadence === "weekly" && row.weekday == null
+                              );
+                              const help = row.cadence === "days"
+                                ? t("aiEmployee.routine.helpDaily", "Tombol biru adalah hari kerja yang diceritakan. Email berangkat besok pagi pada jam yang dipilih dan berisi hari itu seutuhnya, dari tengah malam sampai tengah malam. Hari mingguan dan tanggal terakhir tidak masuk.")
+                                : row.cadence === "weekly"
+                                  ? t("aiEmployee.routine.helpWeekly", "Bila hari ini tanggal terakhir dan laporan bulanan aktif, yang terkirim hanya laporan bulanan.")
+                                  : t("aiEmployee.routine.helpMonthly", "Pada tanggal terakhir, harian dan mingguan hari itu tidak dikirim. Isinya pekerjaan sejak awal bulan atau kiriman bulanan sebelumnya.");
+                              const sentLabel = saved?.lastSentAt && (!saved.lastStatus || saved.lastStatus === "sent")
+                                ? `${t("aiEmployee.routine.sent", "Terkirim")} ${sent}`
+                                : sent === "—" ? status : `${status} ${sent}`;
+                              const toggleDay = (day: number) => {
+                                if (blockedDay === day) return;
+                                if (row.cadence === "weekly") {
+                                  updateRoutine(row.actionCode, { weekday: day });
+                                  return;
+                                }
+                                const weekdays = selectedDays.includes(day)
+                                  ? selectedDays.filter((value) => value !== day)
+                                  : [...selectedDays, day].sort((left, right) => left - right);
+                                updateRoutine(row.actionCode, { weekdays });
+                              };
+                              return (
+                                <TableRow>
+                                  <TableCell className="whitespace-nowrap font-medium">
+                                    {t("aiEmployee.routine.title", "Laporan email")}
+                                  </TableCell>
+                                  <TableCell title={help}>
+                                    <div className="flex flex-nowrap gap-1">
+                                      {reportRoutines.map((item) => {
+                                        const picked = item.actionCode === row.actionCode;
+                                        return (
+                                          <button
+                                            key={item.actionCode}
+                                            type="button"
+                                            aria-pressed={picked}
+                                            className={`h-7 shrink-0 rounded-md px-2 text-xs font-medium ${picked ? "bg-primary text-primary-foreground" : "border border-input bg-background text-muted-foreground"}`}
+                                            onClick={() => setReportCode(item.actionCode)}
+                                          >
+                                            {routineTitle(item)}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    {row.cadence === "monthly" ? (
+                                      <span className="inline-flex h-7 w-[13.75rem] items-center whitespace-nowrap text-sm">{runningMonthEnd(dateLocale)}</span>
+                                    ) : (
+                                      <div className="flex w-[13.75rem] flex-nowrap gap-1">
+                                        {WEEKDAYS.map((day) => {
+                                          const blocked = blockedDay === day.value;
+                                          const selected = !blocked && selectedDays.includes(day.value);
+                                          return (
+                                            <button
+                                              key={day.value}
+                                              type="button"
+                                              aria-pressed={selected}
+                                              aria-disabled={blocked}
+                                              aria-label={day.label}
+                                              title={blocked ? t("aiEmployee.routine.dayTaken", "{{day}} dipakai laporan lain", { day: day.label }) : day.label}
+                                              disabled={!canEdit || saving || blocked}
+                                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-medium ${blocked ? "border border-dashed border-input bg-muted text-muted-foreground" : selected ? "bg-primary text-primary-foreground" : "border border-input bg-background text-muted-foreground"} disabled:opacity-50`}
+                                              onClick={() => toggleDay(day.value)}
+                                            >
+                                              {day.short}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">—</TableCell>
+                                  <TableCell>
+                                    <input
+                                      type="time"
+                                      aria-label={t("aiEmployee.routine.time", "Jam kirim")}
+                                      className="h-8 w-[7.5rem] rounded-md border border-input bg-background px-2 text-sm"
+                                      value={row.timeLocal}
+                                      disabled={!canEdit || saving}
+                                      onChange={(event) => updateRoutine(row.actionCode, { timeLocal: event.target.value })}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">—</TableCell>
+                                  <TableCell>
+                                    <input
+                                      type="checkbox"
+                                      aria-label={t("aiEmployee.page.active", "Aktif")}
                                       checked={row.isActive}
                                       disabled={!canEdit || saving}
                                       onChange={(event) => updateRoutine(row.actionCode, { isActive: event.target.checked })}
                                     />
-                                    {t("aiEmployee.page.active", "Aktif")}
-                                  </label>
-                                </div>
-                                <p className="mt-1 text-xs text-muted-foreground">{meta}</p>
-                                <p className="mt-1 text-xs text-muted-foreground">{help}</p>
-                                {saved?.lastError ? <p className="mt-1 text-xs text-muted-foreground">{saved.lastError}</p> : null}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div className="mt-2 space-y-1 border-t border-border pt-2">
-                          <p className="truncate text-xs text-muted-foreground" title={page.routines.find((item) => item.reviewerEmail)?.reviewerEmail || undefined}>
-                            {t("aiEmployee.routine.primaryEmail", "Penerima utama {{email}}", {
-                              email: page.routines.find((item) => item.reviewerEmail)?.reviewerEmail || t("aiEmployee.routine.noEmail", "belum ada email"),
-                            })}
-                          </p>
-                          <input
-                            type="email"
-                            aria-label={t("aiEmployee.routine.copyEmail1", "Email tambahan 1")}
-                            placeholder={t("aiEmployee.routine.copyEmail1", "Email tambahan 1")}
-                            className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-                            value={copyEmail1}
-                            disabled={!canEdit || saving}
-                            onChange={(event) => setCopyEmail1(event.target.value)}
-                          />
-                          <input
-                            type="email"
-                            aria-label={t("aiEmployee.routine.copyEmail2", "Email tambahan 2")}
-                            placeholder={t("aiEmployee.routine.copyEmail2", "Email tambahan 2")}
-                            className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-                            value={copyEmail2}
-                            disabled={!canEdit || saving}
-                            onChange={(event) => setCopyEmail2(event.target.value)}
-                          />
-                          {canEdit ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-7"
-                              disabled={saving || (copyEmail1.trim() === (page.summary.reportCopyEmail1 ?? "") && copyEmail2.trim() === (page.summary.reportCopyEmail2 ?? ""))}
-                              onClick={() => void confirmCopies()}
-                            >
-                              {t("aiEmployee.routine.saveCopies", "Simpan email")}
-                            </Button>
-                          ) : null}
-                        </div>
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                                    <span className="block truncate">{next}</span>
+                                    <span className="mt-1 block truncate">{sentLabel}</span>
+                                    {saved?.lastError ? <span className="mt-1 block truncate">{saved.lastError}</span> : null}
+                                  </TableCell>
+                                  <TableCell>
+                                    <DropdownMenu modal={false}>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={t("aiEmployee.jobDesc.action", "Aksi")}>
+                                          <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        {canEdit ? (
+                                          <DropdownMenuItem
+                                            disabled={saving || dayMissing || (saved ? sameRoutine(saved, row) : false)}
+                                            onClick={() => setRoutineCompare({ before: saved, after: row })}
+                                          >
+                                            {t("aiEmployee.routine.reviewShort", "Tinjau")}
+                                          </DropdownMenuItem>
+                                        ) : null}
+                                        <DropdownMenuItem onClick={() => setRecipientsOpen(true)}>
+                                          {t("aiEmployee.routine.recipientColumn", "Penerima")}
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })()}
+                          </TableBody>
+                        </Table>
+                        <Dialog open={recipientsOpen} onOpenChange={setRecipientsOpen}>
+                          <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                              <DialogTitle>{t("aiEmployee.routine.recipientColumn", "Penerima")}</DialogTitle>
+                              <DialogDescription>{t("aiEmployee.routine.title", "Laporan email")}</DialogDescription>
+                            </DialogHeader>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-40">{t("aiEmployee.routine.recipientColumn", "Penerima")}</TableHead>
+                                  <TableHead>{t("aiEmployee.routine.addressColumn", "Alamat")}</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell>{t("aiEmployee.routine.primaryLabel", "Utama")}</TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    {page.routines.find((item) => item.reviewerEmail)?.reviewerEmail || t("aiEmployee.routine.noEmail", "belum ada email")}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>{t("aiEmployee.routine.copyEmail1", "Email tambahan 1")}</TableCell>
+                                  <TableCell>
+                                    <input
+                                      type="email"
+                                      aria-label={t("aiEmployee.routine.copyEmail1", "Email tambahan 1")}
+                                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                      value={copyEmail1}
+                                      disabled={!canEdit || saving}
+                                      onChange={(event) => setCopyEmail1(event.target.value)}
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>{t("aiEmployee.routine.copyEmail2", "Email tambahan 2")}</TableCell>
+                                  <TableCell>
+                                    <input
+                                      type="email"
+                                      aria-label={t("aiEmployee.routine.copyEmail2", "Email tambahan 2")}
+                                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                                      value={copyEmail2}
+                                      disabled={!canEdit || saving}
+                                      onChange={(event) => setCopyEmail2(event.target.value)}
+                                    />
+                                  </TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                            {canEdit ? (
+                              <DialogFooter>
+                                <Button
+                                  type="button"
+                                  disabled={saving || (copyEmail1.trim() === (page.summary.reportCopyEmail1 ?? "") && copyEmail2.trim() === (page.summary.reportCopyEmail2 ?? ""))}
+                                  onClick={() => void confirmCopies()}
+                                >
+                                  {t("aiEmployee.routine.saveCopies", "Simpan email")}
+                                </Button>
+                              </DialogFooter>
+                            ) : null}
+                          </DialogContent>
+                        </Dialog>
+
+                        <Dialog open={briefPanelOpen} onOpenChange={setBriefPanelOpen}>
+                          <DialogContent className="max-w-3xl">
+                            <DialogHeader>
+                              <DialogTitle>{t("aiEmployee.brief.title", "Brief")}</DialogTitle>
+                              <DialogDescription>{workName("SOP1", t)}</DialogDescription>
+                            </DialogHeader>
+                        <Table containerClassName="max-h-[60vh] overflow-auto">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-40">{t("aiEmployee.jobDesc.part", "Bagian")}</TableHead>
+                              <TableHead>{t("aiEmployee.jobDesc.value", "Isi")}</TableHead>
+                              {canEdit ? <TableHead className="w-24" /> : null}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {([
+                              {
+                                key: "services",
+                                label: t("aiEmployee.brief.services", "Katalog"),
+                                value: listed(brief.serviceIds, names.services),
+                                editor: (
+                                  <MultiSelect
+                                    trigger={t("aiEmployee.brief.edit", "Ubah")}
+                                    label={t("aiEmployee.brief.pickServices", "Pilih katalog")}
+                                    emptyLabel={t("aiEmployee.brief.noServices", "Tidak ada katalog")}
+                                    options={page.options.services}
+                                    value={brief.serviceIds}
+                                    disabled={saving}
+                                    onToggle={(id) => setBrief((current) => {
+                                      if (!current) return current;
+                                      const serviceIds = toggleId(current.serviceIds, id);
+                                      const allowed = new Set(serviceIds);
+                                      const productIds = current.productIds.filter((productId) => {
+                                        const product = page.options.products.find((item) => item.id === productId);
+                                        if (!product) return false;
+                                        return (product.serviceId != null && allowed.has(product.serviceId))
+                                          || (product.parentServiceId != null && allowed.has(product.parentServiceId));
+                                      });
+                                      return { ...current, serviceIds, productIds };
+                                    })}
+                                  />
+                                ),
+                              },
+                              {
+                                key: "personas",
+                                label: t("aiEmployee.brief.personas", "Persona"),
+                                value: listed(brief.personaIds, names.personas),
+                                editor: (
+                                  <MultiSelect
+                                    trigger={t("aiEmployee.brief.edit", "Ubah")}
+                                    label={t("aiEmployee.brief.pickPersonas", "Pilih persona")}
+                                    emptyLabel={t("aiEmployee.brief.noPersonas", "Tidak ada persona")}
+                                    options={page.options.personas}
+                                    value={brief.personaIds}
+                                    disabled={saving}
+                                    onToggle={(id) => setBrief((current) => current ? { ...current, personaIds: toggleId(current.personaIds, id) } : current)}
+                                  />
+                                ),
+                              },
+                              {
+                                key: "pillars",
+                                label: t("aiEmployee.brief.pillars", "Pilar"),
+                                value: listed(brief.pillarIds, names.pillars),
+                                editor: (
+                                  <MultiSelect
+                                    trigger={t("aiEmployee.brief.edit", "Ubah")}
+                                    label={t("aiEmployee.brief.pickPillars", "Pilih pilar")}
+                                    emptyLabel={t("aiEmployee.brief.noPillars", "Tidak ada pilar")}
+                                    options={page.options.pillars}
+                                    value={brief.pillarIds}
+                                    disabled={saving}
+                                    onToggle={(id) => setBrief((current) => current ? { ...current, pillarIds: toggleId(current.pillarIds, id) } : current)}
+                                  />
+                                ),
+                              },
+                              {
+                                key: "products",
+                                label: t("aiEmployee.brief.products", "Product Knowledge"),
+                                value: listed(brief.productIds, names.products),
+                                editor: (
+                                  <MultiSelect
+                                    trigger={t("aiEmployee.brief.edit", "Ubah")}
+                                    label={brief.serviceIds.length === 0
+                                      ? t("aiEmployee.brief.pickServiceFirst", "Pilih katalog dulu")
+                                      : t("aiEmployee.brief.pickProducts", "Pilih Product Knowledge")}
+                                    emptyLabel={t("aiEmployee.brief.noProducts", "Tidak ada Product Knowledge untuk katalog ini")}
+                                    options={visibleProducts}
+                                    value={brief.productIds}
+                                    disabled={saving || brief.serviceIds.length === 0}
+                                    onToggle={(id) => setBrief((current) => current ? { ...current, productIds: toggleId(current.productIds, id) } : current)}
+                                  />
+                                ),
+                              },
+                              {
+                                key: "audience",
+                                label: t("aiEmployee.brief.audience", "Audiens"),
+                                value: shownText(brief.audience),
+                                editor: (
+                                  <TextFieldButton
+                                    label={t("aiEmployee.brief.edit", "Ubah")}
+                                    value={brief.audience}
+                                    maxLength={1000}
+                                    disabled={saving}
+                                    onChange={(audience) => setBrief((current) => current ? { ...current, audience } : current)}
+                                  />
+                                ),
+                              },
+                              {
+                                key: "voice",
+                                label: t("aiEmployee.brief.voice", "Suara"),
+                                value: shownText(brief.voice),
+                                editor: (
+                                  <TextFieldButton
+                                    label={t("aiEmployee.brief.edit", "Ubah")}
+                                    value={brief.voice}
+                                    maxLength={1000}
+                                    disabled={saving}
+                                    onChange={(voice) => setBrief((current) => current ? { ...current, voice } : current)}
+                                  />
+                                ),
+                              },
+                              {
+                                key: "required",
+                                label: t("aiEmployee.brief.required", "Catatan wajib"),
+                                value: shownText(brief.requiredNotes),
+                                editor: (
+                                  <TextFieldButton
+                                    label={t("aiEmployee.brief.edit", "Ubah")}
+                                    value={brief.requiredNotes}
+                                    maxLength={2000}
+                                    disabled={saving}
+                                    onChange={(requiredNotes) => setBrief((current) => current ? { ...current, requiredNotes } : current)}
+                                  />
+                                ),
+                              },
+                              {
+                                key: "forbidden",
+                                label: t("aiEmployee.brief.forbidden", "Catatan terlarang"),
+                                value: shownText(brief.forbiddenNotes),
+                                editor: (
+                                  <TextFieldButton
+                                    label={t("aiEmployee.brief.edit", "Ubah")}
+                                    value={brief.forbiddenNotes}
+                                    maxLength={2000}
+                                    disabled={saving}
+                                    onChange={(forbiddenNotes) => setBrief((current) => current ? { ...current, forbiddenNotes } : current)}
+                                  />
+                                ),
+                              },
+                              {
+                                key: "split",
+                                label: t("aiEmployee.brief.split", "Aturan pecahan"),
+                                value: shownText(brief.splitRule),
+                                editor: (
+                                  <TextFieldButton
+                                    label={t("aiEmployee.brief.edit", "Ubah")}
+                                    value={brief.splitRule}
+                                    maxLength={1000}
+                                    disabled={saving}
+                                    onChange={(splitRule) => setBrief((current) => current ? { ...current, splitRule } : current)}
+                                  />
+                                ),
+                              },
+                            ] as const).map((row) => (
+                              <TableRow key={row.key}>
+                                <TableCell>{row.label}</TableCell>
+                                <TableCell className="whitespace-pre-wrap">{row.value}</TableCell>
+                                {canEdit ? <TableCell>{row.editor}</TableCell> : null}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                            {canEdit ? (
+                              <DialogFooter>
+                                <Button
+                                  type="button"
+                                  disabled={saving || sameBrief(page.brief, brief)}
+                                  onClick={() => setBriefOpen(true)}
+                                >
+                                  {t("aiEmployee.brief.review", "Tinjau brief")}
+                                </Button>
+                              </DialogFooter>
+                            ) : null}
+                          </DialogContent>
+                        </Dialog>
                       </section>
-                      </div>
+
+                      <section className="rounded-md border border-border bg-card p-3">
+                        <h2 className="mb-2 text-sm font-semibold">{t("aiEmployee.jobs.title", "Antrean")}</h2>
+                        {page.jobs.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">{t("aiEmployee.jobs.empty", "Tidak ada job.")}</p>
+                        ) : (
+                          <ul className="flex flex-col gap-2">
+                            {page.jobs.map((job, index) => (
+                              <li key={job.id} className={cn("rounded-md border px-3 py-2 text-sm", index === 0 ? "border-blue-200 bg-blue-50/60" : "border-border")}>
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                  <span className="font-medium">{index === 0 ? t("aiEmployee.jobs.latest", "Job terakhir") : t("aiEmployee.jobs.older", "Job")}</span>
+                                  <span>{job.source === "revision" ? t("aiEmployee.jobs.revision", "Revisi") : t("aiEmployee.jobs.task", "Tugas")}</span>
+                                  <span>{jobStatus(job.status)}</span>
+                                  <span className="text-muted-foreground">{formatWhen(job.createdAt, dateLocale)}</span>
+                                </div>
+                                {job.reason ? <p className="mt-1 text-xs text-muted-foreground">{job.reason}</p> : null}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </section>
                     </div>
                   </div>
                 ) : (
@@ -999,12 +1251,21 @@ export default function AiEmployeePage() {
             <ChangeTable
               rows={[
                 {
-                  label: t("aiEmployee.schedule.weekday", "Hari"),
-                  before: WEEKDAYS.find((day) => day.value === scheduleCompare.before.weekday)?.label ?? String(scheduleCompare.before.weekday),
-                  after: WEEKDAYS.find((day) => day.value === scheduleCompare.after.weekday)?.label ?? String(scheduleCompare.after.weekday),
+                  label: t("aiEmployee.routine.reportColumn", "Laporan"),
+                  before: scheduleCompare.before.cadence === "weekly" ? t("aiEmployee.routine.weeklyTitle", "Mingguan") : scheduleCompare.before.cadence === "monthly" ? t("aiEmployee.routine.monthlyTitle", "Bulanan") : t("aiEmployee.routine.dailyTitle", "Harian"),
+                  after: scheduleCompare.after.cadence === "weekly" ? t("aiEmployee.routine.weeklyTitle", "Mingguan") : scheduleCompare.after.cadence === "monthly" ? t("aiEmployee.routine.monthlyTitle", "Bulanan") : t("aiEmployee.routine.dailyTitle", "Harian"),
                 },
+                {
+                  label: t("aiEmployee.schedule.weekday", "Hari"),
+                  before: scheduleCompare.before.cadence === "monthly"
+                    ? runningMonthEnd(dateLocale)
+                    : (scheduleCompare.before.cadence === "weekly" ? [scheduleCompare.before.weekday] : scheduleCompare.before.weekdays).map((day) => WEEKDAYS.find((item) => item.value === day)?.label ?? "—").join(", ") || "—",
+                  after: scheduleCompare.after.cadence === "monthly"
+                    ? runningMonthEnd(dateLocale)
+                    : (scheduleCompare.after.cadence === "weekly" ? [scheduleCompare.after.weekday] : scheduleCompare.after.weekdays).map((day) => WEEKDAYS.find((item) => item.value === day)?.label ?? "—").join(", ") || "—",
+                },
+                { label: t("aiEmployee.schedule.frequency", "Frekuensi"), before: String(scheduleCompare.before.planCount), after: String(scheduleCompare.after.planCount) },
                 { label: t("aiEmployee.schedule.start", "Mulai"), before: scheduleCompare.before.startLocal, after: scheduleCompare.after.startLocal },
-                { label: t("aiEmployee.schedule.due", "Selesai"), before: scheduleCompare.before.dueLocal, after: scheduleCompare.after.dueLocal },
                 {
                   label: t("aiEmployee.schedule.active", "Jadwal aktif"),
                   before: scheduleCompare.before.isActive ? t("aiEmployee.page.active", "Aktif") : t("aiEmployee.page.inactive", "Tidak aktif"),

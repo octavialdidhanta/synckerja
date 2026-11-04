@@ -68,7 +68,7 @@ export function PayrollRunsOverview({
 
     const { data: employees, error: employeesError } = await supabase
       .from("employees")
-      .select("id, employee_id, full_name, employee_status_id, pending_removal")
+      .select("id, employee_id, full_name, employee_status_id, pending_removal, is_ai")
       .eq("organization_id", organizationId);
 
     if (employeesError) throw employeesError;

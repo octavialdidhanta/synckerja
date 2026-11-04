@@ -21,6 +21,7 @@ export interface LinkComment {
   updated_at: string;
   video_timestamp_seconds?: number | null;
   annotation_data?: Record<string, unknown> | null;
+  carousel_slide_number?: number | null;
   commenter_display_name?: string | null;
   creator?: {
     full_name: string;

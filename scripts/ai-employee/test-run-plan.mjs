@@ -20,6 +20,8 @@ import {
   decodeJwtPayload,
   interpretReserve,
   jakartaToday,
+  contentPlanDates,
+  nextMonthDays,
   nextWeekDays,
   nextWeeklyRun,
   openPlanDays,
@@ -30,6 +32,7 @@ import {
   judgeJobDesk,
   withJobClaim,
   parseExecutionCheck,
+  parseCarouselDraft,
   parsePlanDraft,
   publicModelFailure,
   resolvePostDate,
@@ -305,6 +308,38 @@ test("SOP1 mengisi hari kosong dan menahan pillar di atas 40 persen", () => {
   ]);
   assert.deepEqual(open, ["2026-11-10", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15"]);
   assert.deepEqual(openPlanDays(windowDays, windowDays.map((post_date) => ({ post_date }))), []);
+  assert.deepEqual(contentPlanDates({
+    cadence: "days",
+    today: "2026-11-04",
+    frequency: 3,
+    plans: [{ post_date: "2026-11-04" }],
+  }), ["2026-11-04", "2026-11-04"]);
+  assert.deepEqual(contentPlanDates({
+    cadence: "days",
+    today: "2026-11-04",
+    frequency: 1,
+    plans: [{ post_date: "2026-11-04" }],
+  }), []);
+  assert.deepEqual(contentPlanDates({
+    cadence: "weekly",
+    today: "2026-11-04",
+    frequency: 3,
+    plans: [{ post_date: "2026-11-09" }],
+  }), ["2026-11-10", "2026-11-11"]);
+  assert.equal(contentPlanDates({
+    cadence: "weekly",
+    today: "2026-11-04",
+    frequency: 8,
+    plans: [],
+  }).length, 7);
+  assert.equal(nextMonthDays("2026-11-04")[0], "2026-12-01");
+  assert.equal(nextMonthDays("2026-11-04").at(-1), "2026-12-31");
+  assert.deepEqual(contentPlanDates({
+    cadence: "monthly",
+    today: "2026-11-30",
+    frequency: 2,
+    plans: [{ post_date: "2026-12-01" }],
+  }), ["2026-12-02"]);
 
   const alfa = { id: "alfa", name: "Alfa" };
   const beta = { id: "beta", name: "Beta" };
@@ -354,6 +389,56 @@ test("SOP1 mengisi hari kosong dan menahan pillar di atas 40 persen", () => {
   assert.match(prompt, /Jangan menyetujui/);
   assert.deepEqual(parseExecutionCheck("{\"ok\":false}"), { ok: false });
   assert.equal(parseExecutionCheck("{\"title\":\"bukan cek\"}"), null);
+});
+
+test("carousel menolak jumlah slide dan caption tanpa hashtag", () => {
+  const slides = (count) => Array.from({ length: count }, (_, index) => ({
+    timing: `Slide ${index + 1}`,
+    visual: `Adegan ${index + 1}`,
+    vo: "",
+    element: "",
+    tagging: "",
+  }));
+  const raw = (count, caption) => JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption,
+    slides: slides(count),
+    content_pillar_id: pillarId,
+  });
+  const accepted = parseCarouselDraft(raw(6, "Singkat saja #synckerja"));
+  assert.equal(accepted?.slides.length, 6);
+  assert.equal(accepted?.slides[0].timing, "Slide 1");
+  assert.equal(parseCarouselDraft(raw(2, "Singkat #synckerja"))?.slides.length, 2);
+  assert.equal(parseCarouselDraft(raw(10, "Singkat #synckerja"))?.slides.length, 10);
+  assert.equal(parseCarouselDraft(raw(1, "Singkat #synckerja")), null);
+  assert.equal(parseCarouselDraft(raw(11, "Singkat #synckerja")), null);
+  assert.equal(parseCarouselDraft(raw(5, "Tanpa tagar")), null);
+  const shifted = slides(5);
+  shifted[1].timing = "Slide 3";
+  assert.equal(parseCarouselDraft(JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption: "Singkat #synckerja",
+    slides: shifted,
+  })), null);
+  const prompt = buildSop1Prompt({
+    day: "2026-11-10",
+    pillar: pillars[0],
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief: null,
+    performance: [],
+    service: null,
+    idea: { id: "idea-1", idea_statement: "Ide apa pun" },
+    product: [],
+  });
+  assert.match(prompt, /carousel/);
+  assert.match(prompt, /4:5/);
+  assert.match(prompt, /hashtag/i);
 });
 
 test("JSON model diterima hanya bila pillar ada di context", () => {
@@ -461,6 +546,7 @@ test("brief, persona, dan fokus brand masuk ke prompt", () => {
   }).id, "svc-a");
   assert.deepEqual(openPlanDays(["2026-11-09", "2026-11-10"], [{ post_date: "2026-11-09", author_name: "Bukan Naya" }]), ["2026-11-10"]);
   assert.equal(pickUnusedIdea([{ idea_id: "used", used: true }, { idea_id: "open", used: false }]).idea_id, "open");
+  assert.equal(pickUnusedIdea([{ idea_id: "open", used: false, skip: true }, { idea_id: "next", used: false }]).idea_id, "next");
 });
 
 test("cek execution menolak accepted true tanpa sepuluh cek", () => {
@@ -481,6 +567,14 @@ test("cek execution menolak accepted true tanpa sepuluh cek", () => {
   });
   assert.equal(missing.ok, false);
   assert.equal(missing.check_id, "hookHolds");
+  const shaped = executionVerdict({
+    statement: "Makan malam keluarga",
+    checks: Object.fromEntries(EXECUTION_CHECK_IDS.map((id) => [id, "Pass"])),
+    script: { title: "Makan malam" },
+  });
+  assert.equal(shaped.ok, true);
+  assert.equal(shaped.facts.resolution, "RESOLVED");
+  assert.equal(shaped.checks.find((item) => item.id === "hookHolds").state, "pass");
 });
 
 test("pesan gagal model pendek dan tanpa token", () => {
