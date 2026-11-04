@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
-import { dateToPostgresTimeUtc } from '@/1-home/utils/attendanceDateTime';
 import {
   parseAttendanceValidationRow,
   parseCheckoutValidationRow,
@@ -21,12 +20,6 @@ interface AttendanceData {
 }
 
 type ValidationResult = AttendanceValidationRpcRow;
-
-function calculateWorkingMinutes(checkInTime: string, checkOutTime: Date): number {
-  const checkIn = new Date(checkInTime);
-  if (Number.isNaN(checkIn.getTime())) return 0;
-  return Math.max(0, Math.floor((checkOutTime.getTime() - checkIn.getTime()) / (1000 * 60)));
-}
 
 async function resolveAttendancePhotoPath(
   employeeId: string,
@@ -237,24 +230,6 @@ export const useAttendanceOperations = () => {
 
     setLoading(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-      
-      // Get today's attendance record
-      const { data: existingRecord, error: fetchError } = await supabase
-        .from('attendance_records')
-        .select('*')
-        .eq('employee_id', currentEmployee.id)
-        .eq('organization_id', organizationId)
-        .eq('attendance_date', today)
-        .eq('status', 'present')
-        .is('check_out_time', null)
-        .single();
-
-      if (fetchError || !existingRecord) {
-        toast.error('No active check-in found for today');
-        return false;
-      }
-
       let photoPath: string | null = null;
       try {
         photoPath = await resolveAttendancePhotoPath(currentEmployee.id, attendanceData, 'check_out');
@@ -290,22 +265,19 @@ export const useAttendanceOperations = () => {
         return false;
       }
 
-      const currentTime = new Date();
-      const workingHours = calculateWorkingMinutes(existingRecord.check_in_time, currentTime);
-
-      const { error: updateError } = await supabase
-        .from('attendance_records')
-        .update({
-          check_out_time: dateToPostgresTimeUtc(currentTime),
-          check_out_location: {
+      // Jam check-out dan durasi kerja dihitung server (record_attendance_checkout).
+      const { data: checkoutResult, error: updateError } = await supabase.rpc(
+        'record_attendance_checkout',
+        {
+          employee_id_param: currentEmployee.id,
+          organization_id_param: organizationId,
+          photo_path_param: photoPath,
+          location_data: {
             latitude: attendanceData.latitude,
-            longitude: attendanceData.longitude
+            longitude: attendanceData.longitude,
           },
-          check_out_photo_path: photoPath,
-          working_hours_minutes: workingHours,
-          updated_at: currentTime.toISOString()
-        })
-        .eq('id', existingRecord.id);
+        },
+      );
 
       if (updateError) {
         console.error('❌ Check-out error:', updateError);
@@ -313,6 +285,9 @@ export const useAttendanceOperations = () => {
         return false;
       }
 
+      const workingHours = Number(
+        (checkoutResult as { working_hours_minutes?: number } | null)?.working_hours_minutes ?? 0,
+      );
       const hours = Math.floor(workingHours / 60);
       const minutes = workingHours % 60;
       toast.success(`Check-out successful! Worked ${hours}h ${minutes}m today`);

@@ -10,7 +10,7 @@ import {
   useTodayAttendanceRecord,
 } from '@/1-home/hooks/useTodayAttendanceRecord';
 import { useToast } from '@/shared/components/ui/use-toast';
-import { attendanceInstantToIso, dateToPostgresTimeUtc } from '@/1-home/utils/attendanceDateTime';
+import { attendanceInstantToIso } from '@/1-home/utils/attendanceDateTime';
 import { parseAttendanceValidationRow } from '@/shared/attendance/resolveEffectiveSchedule';
 import { uploadAttendancePhoto, type AttendancePhotoUploadResult } from '@/shared/lib/attendance/uploadAttendancePhoto';
 import {
@@ -388,55 +388,37 @@ export const useSimpleAttendance = () => {
           throw new Error('Check-out tidak diizinkan');
         }
 
-        const today = new Date().toISOString().split('T')[0];
-        const { data: existingRecord, error: fetchError } = await supabase
-          .from('attendance_records')
-          .select('id, check_in_at, attendance_date, check_in_time, check_out_time')
-          .eq('employee_id', employee.id)
-          .eq('attendance_date', today)
-          .single();
-
-        if (fetchError || !existingRecord) {
-          throw new Error('No check-in record found for today');
-        }
-
-        const rec = existingRecord as {
-          check_in_at?: string | null;
-          attendance_date?: string | null;
-          check_in_time?: string | null;
-        };
-        const checkInTime =
-          rec.check_in_at != null && String(rec.check_in_at).trim() !== ''
-            ? new Date(rec.check_in_at)
-            : rec.attendance_date && rec.check_in_time
-              ? new Date(`${rec.attendance_date}T${String(rec.check_in_time)}`)
-              : new Date(existingRecord.check_in_time as string);
-        const checkOutTime = new Date();
-        const workingMinutes = Math.floor(
-          (checkOutTime.getTime() - checkInTime.getTime()) / (1000 * 60),
-        );
-
-        const { data, error } = await supabase
-          .from('attendance_records')
-          .update({
-            check_out_time: dateToPostgresTimeUtc(checkOutTime),
-            check_out_at: checkOutTime.toISOString(),
-            check_out_location: {
+        // Jam check-out dan durasi kerja dihitung server (record_attendance_checkout).
+        const { data: checkoutResult, error: checkoutError } = await supabase.rpc(
+          'record_attendance_checkout',
+          {
+            employee_id_param: employee.id,
+            organization_id_param: employee.organization_id,
+            photo_path_param: photoResult.path,
+            location_data: {
               latitude: location.latitude,
               longitude: location.longitude,
               address: location.address || 'Unknown',
               formatted_address: location.formatted_address || 'Unknown',
             },
-            check_out_photo_path: photoResult.path,
-            working_hours_minutes: workingMinutes,
-          })
-          .eq('id', existingRecord.id)
-          .select('*')
-          .single();
-
-        if (error) {
-          throw new Error(`Failed to save check-out: ${error.message}`);
+          },
+        );
+        if (checkoutError) {
+          throw new Error(`Failed to save check-out: ${checkoutError.message}`);
         }
+        const checkout = (checkoutResult ?? {}) as {
+          attendance_id?: string;
+          working_hours_minutes?: number;
+        };
+        const workingMinutes = Number(checkout.working_hours_minutes ?? 0);
+
+        const { data } = checkout.attendance_id
+          ? await supabase
+              .from('attendance_records')
+              .select('*')
+              .eq('id', checkout.attendance_id)
+              .maybeSingle()
+          : { data: null };
 
         await refreshTodayRecord();
 

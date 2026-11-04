@@ -31,11 +31,7 @@ import { NotificationsModal } from "@/mobile-app/components/NotificationsModal";
 import { useNotificationBadgeCount } from "@/shared/hooks/useNotificationBadgeCount";
 import confetti from "canvas-confetti";
 import { formatAttendanceClockFromRecord } from "@/mobile-app/utils/postgresAttendanceTime";
-import {
-  dateToPostgresLocalWallTime,
-  formatLocalDateYmd,
-  parseAttendanceInstant,
-} from "@/1-home/utils/attendanceDateTime";
+import { parseAttendanceInstant } from "@/1-home/utils/attendanceDateTime";
 import { parseAttendanceValidationRow, parseCheckoutValidationRow } from "@/shared/attendance/resolveEffectiveSchedule";
 import { uploadAttendancePhoto } from "@/shared/lib/attendance/uploadAttendancePhoto";
 import { getCheckInValidationFailureMessage } from "@/shared/lib/attendance/attendanceValidationMessages";
@@ -689,42 +685,22 @@ const Absensi = () => {
           return;
         }
 
-        const checkInTimeStr = lastCheckInTimeRef.current ?? todayAttendance?.check_in_time;
-        const checkInDate = parseAttendanceInstant(
-          todayAttendance?.attendance_date,
-          checkInTimeStr ?? null,
-          todayAttendance?.check_in_at,
-        );
-        const checkOutTime = new Date();
-        const working_hours_minutes = checkInDate
-          ? Math.floor((checkOutTime.getTime() - checkInDate.getTime()) / (1000 * 60))
-          : 0;
-
+        // Jam check-out dan durasi kerja dihitung server (record_attendance_checkout).
         const recordId = (todayAttendance as { id?: string } | null)?.id;
-        const attendanceDateKey =
-          (todayAttendance?.attendance_date as string | undefined)?.trim() || formatLocalDateYmd(new Date());
-
-        let checkoutQuery = supabase
-          .from('attendance_records')
-          .update({
-            check_out_time: dateToPostgresLocalWallTime(checkOutTime),
-            check_out_at: checkOutTime.toISOString(),
-            check_out_location: {
+        const { data: checkoutResult, error: updateError } = await supabase.rpc(
+          'record_attendance_checkout',
+          {
+            employee_id_param: employee.id,
+            organization_id_param: employee.organization_id,
+            photo_path_param: uploadedPhoto.path,
+            location_data: {
               latitude: currentLocation.latitude,
               longitude: currentLocation.longitude,
               address: "Location captured"
             },
-            check_out_photo_path: uploadedPhoto.path,
-            working_hours_minutes
-          })
-          .eq('employee_id', employee.id)
-          .is('check_out_time', null);
-
-        checkoutQuery = recordId
-          ? checkoutQuery.eq('id', recordId)
-          : checkoutQuery.eq('attendance_date', attendanceDateKey);
-
-        const { error: updateError } = await checkoutQuery;
+            attendance_id_param: recordId ?? null,
+          },
+        );
 
         if (updateError) {
           logger.error('Clock out error:', updateError);
@@ -737,11 +713,16 @@ const Absensi = () => {
           return;
         }
 
+        const checkout = (checkoutResult ?? {}) as {
+          check_out_time?: string;
+          check_out_at?: string;
+          working_hours_minutes?: number;
+        };
         mergeTodayAttendance({
           ...(todayAttendance ?? {}),
-          check_out_time: dateToPostgresLocalWallTime(checkOutTime),
-          check_out_at: checkOutTime.toISOString(),
-          working_hours_minutes,
+          check_out_time: checkout.check_out_time,
+          check_out_at: checkout.check_out_at,
+          working_hours_minutes: checkout.working_hours_minutes ?? 0,
         });
 
         toast({
