@@ -252,7 +252,10 @@ describe('vercel rewrite', () => {
     const vercel = JSON.parse(readFileSync(resolve(process.cwd(), 'vercel.json'), 'utf8')) as {
       rewrites: Array<{ source: string; destination: string }>;
     };
+    const proxy = vercel.rewrites.find((rule) => rule.source === '/api/tiktok-carousel/:org/:plan/:file');
+    expect(proxy?.destination).toContain('/storage/v1/object/public/social-media-carousel/:org/:plan/:file');
     const spa = vercel.rewrites.find((rule) => rule.destination === '/index.html');
     expect(spa?.source).toContain('(?!api/)');
+    expect(vercel.rewrites[0]?.source).toBe('/api/tiktok-carousel/:org/:plan/:file');
   });
 });

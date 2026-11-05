@@ -31,6 +31,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/tiktok-carousel/:org/:plan/:file",
+      "destination": "https://wqdzqqshoifwyrltzgvx.supabase.co/storage/v1/object/public/social-media-carousel/:org/:plan/:file"
+    },
+    {
       "source": "/((?!api/)(?!assets/)(?!.*\\..*).*)",
       "destination": "/index.html"
     }
