@@ -559,6 +559,8 @@ export async function aiEmployeeBriefUpdate(
     forbiddenNotes: string;
     pillarIds: string[];
     productKnowledgeIds: string[];
+    angleIds?: string[];
+    repeatVoices?: string[];
     splitRule: string;
   },
 ) {
@@ -578,6 +580,8 @@ export async function aiEmployeeBriefUpdate(
       forbidden_notes: brief.forbiddenNotes,
       pillar_ids: brief.pillarIds,
       product_knowledge_ids: brief.productKnowledgeIds,
+      ...(brief.angleIds ? { angle_ids: brief.angleIds } : {}),
+      ...(brief.repeatVoices ? { repeat_voices: brief.repeatVoices } : {}),
       split_rule: brief.splitRule,
     },
   });

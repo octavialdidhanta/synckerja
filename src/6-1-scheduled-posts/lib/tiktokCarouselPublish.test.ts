@@ -13,9 +13,14 @@ import {
   getPlanEligibilityMissingReasons,
   getTikTokPlanEligibilityMissingReasons,
   isPlanEligibleForAutoSchedule,
+  isPlanEligibleForFacebookAutoSchedule,
+  isPlanEligibleForInstagramAutoSchedule,
+  isPlanEligibleForLinkedInAutoSchedule,
   isPlanEligibleForReelAutoSchedule,
   isPlanEligibleForTikTokAutoSchedule,
+  isPlanEligibleForYouTubeAutoSchedule,
 } from '../../../supabase/functions/_shared/scheduledPosts/scheduledPostEligibility.ts';
+import { publicCarouselImageUrl } from '../../../supabase/functions/_shared/metaContent/instagramCarouselPublishApi.ts';
 import {
   getPlanPublishEligibilityMissing,
   isPlanEligibleForPublish,
@@ -143,6 +148,11 @@ describe('TikTok carousel eligibility', () => {
     expect(isPlanEligibleForTikTokAutoSchedule({ ...carouselPlan, content_type_name: 'Post' })).toBe(true);
     expect(isTikTokCarouselPublishReady(carouselPlan)).toBe(true);
     expect(getTikTokPlanEligibilityMissingReasons(carouselPlan)).not.toContain('google_drive_link');
+    expect(isPlanEligibleForInstagramAutoSchedule(carouselPlan)).toBe(true);
+    expect(isPlanEligibleForInstagramAutoSchedule(reelPlan)).toBe(true);
+    expect(isPlanEligibleForYouTubeAutoSchedule(carouselPlan)).toBe(false);
+    expect(isPlanEligibleForFacebookAutoSchedule(carouselPlan)).toBe(false);
+    expect(isPlanEligibleForLinkedInAutoSchedule(carouselPlan)).toBe(false);
     expect(isPlanEligibleForReelAutoSchedule(carouselPlan)).toBe(false);
     expect(isPlanEligibleForAutoSchedule(carouselPlan)).toBe(false);
     expect(isPlanEligibleForPublish(carouselPlan)).toBe(false);
@@ -151,6 +161,16 @@ describe('TikTok carousel eligibility', () => {
       ...carouselPlan,
       carousel_image_count: 0,
     })).toContain('carousel_images');
+  });
+});
+
+describe('Instagram carousel image URL', () => {
+  it('points at the public carousel object without a redirect', () => {
+    const url = publicCarouselImageUrl('https://example.supabase.co/', STORAGE_PATH);
+    expect(url).toBe(
+      `https://example.supabase.co/storage/v1/object/public/social-media-carousel/${STORAGE_PATH}`,
+    );
+    expect(url).not.toContain('?');
   });
 });
 

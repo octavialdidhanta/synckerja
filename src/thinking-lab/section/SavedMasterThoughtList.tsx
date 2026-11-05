@@ -8,11 +8,16 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { LabMasterThought } from "@/thinking-lab/master-thought/types";
+import type { LabCatalog } from "@/thinking-lab/master-thought/useLabCatalogs";
+import { MasterCatalogField } from "@/thinking-lab/section/MasterCatalogField";
 
 type Props = {
   masters: LabMasterThought[];
+  catalogs: LabCatalog[];
+  catalogPending: boolean;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
+  onSaveCatalog: (id: string, serviceId: string | null) => void;
 };
 
 function savedTitle(row: LabMasterThought): string {
@@ -25,7 +30,7 @@ function savedDate(iso: string, locale: string): string {
   return date.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
 }
 
-export function SavedMasterThoughtList({ masters, onOpen, onDelete }: Props) {
+export function SavedMasterThoughtList({ masters, catalogs, catalogPending, onOpen, onDelete, onSaveCatalog }: Props) {
   const { t, dateLocale } = useAppTranslation();
 
   return (
@@ -38,8 +43,8 @@ export function SavedMasterThoughtList({ masters, onOpen, onDelete }: Props) {
           const title = savedTitle(row);
           const when = savedDate(row.updatedAt, dateLocale);
           return (
-            <li key={row.id} className="rounded-lg border border-border bg-card">
-              <div className="flex items-start gap-1 p-3">
+            <li key={row.id} className="rounded-lg border border-border bg-card p-3">
+              <div className="flex items-start gap-1">
                 <button type="button" className="min-w-0 flex-1 space-y-3 text-left" onClick={() => onOpen(row.id)}>
                   <div className="border-l-2 border-brand-blue-deep pl-3">
                     <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -85,6 +90,14 @@ export function SavedMasterThoughtList({ masters, onOpen, onDelete }: Props) {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+              </div>
+              <div className="mt-3">
+                <MasterCatalogField
+                  serviceId={row.serviceId}
+                  services={catalogs}
+                  pending={catalogPending}
+                  onSave={(serviceId) => onSaveCatalog(row.id, serviceId)}
+                />
               </div>
             </li>
           );

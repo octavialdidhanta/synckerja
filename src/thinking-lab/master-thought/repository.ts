@@ -25,6 +25,7 @@ type MasterRow = {
   semantic_fingerprint: string | null;
   last_audit: unknown;
   product_reason_pool?: unknown;
+  service_id?: string | null;
   updated_at: string;
 };
 
@@ -54,6 +55,7 @@ function mapMaster(row: MasterRow): LabMasterThought {
     semanticFingerprint: row.semantic_fingerprint,
     lastAudit: row.last_audit ?? null,
     productReasonPool: readProductReasonPool(row.product_reason_pool),
+    serviceId: typeof row.service_id === "string" && row.service_id.length > 0 ? row.service_id : null,
     updatedAt: row.updated_at,
   };
 }
@@ -238,6 +240,20 @@ export async function saveLabSetRecord(
       last_audit: lastAudit,
       last_audit_at: new Date().toISOString(),
     })
+    .eq("id", id)
+    .eq("organization_id", organizationId)
+    .eq("workspace", LAB_WORKSPACE);
+  if (error) throw error;
+}
+
+export async function saveLabMasterService(
+  id: string,
+  organizationId: string,
+  serviceId: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("thinking_master_thoughts")
+    .update({ service_id: serviceId })
     .eq("id", id)
     .eq("organization_id", organizationId)
     .eq("workspace", LAB_WORKSPACE);

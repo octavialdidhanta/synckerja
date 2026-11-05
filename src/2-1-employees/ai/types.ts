@@ -3,6 +3,24 @@ export type CatalogOption = {
   label: string;
 };
 
+export type AngleIdeaOption = {
+  id: string;
+  code: string;
+  name: string;
+  statement: string;
+};
+
+export type AngleOption = CatalogOption & {
+  master: string;
+  code: string;
+  name: string;
+  statement: string;
+  serviceId: string | null;
+  ideas: AngleIdeaOption[];
+  pillarIds: string[];
+  otherIdeaCount: number;
+};
+
 export type ProductOption = CatalogOption & {
   serviceId: string | null;
   parentServiceId: string | null;
@@ -17,6 +35,8 @@ export type BriefDraft = {
   forbiddenNotes: string;
   pillarIds: string[];
   productIds: string[];
+  angleIds: string[];
+  repeatVoices: string[];
   splitRule: string;
 };
 
@@ -120,12 +140,14 @@ export type AiEmployeePageData = {
     personas: CatalogOption[];
     pillars: CatalogOption[];
     products: CatalogOption[];
+    angles: CatalogOption[];
   };
   options: {
     services: CatalogOption[];
     personas: CatalogOption[];
     pillars: CatalogOption[];
     products: ProductOption[];
+    angles: AngleOption[];
   };
   quota: AiEmployeeQuota;
 };

@@ -18,8 +18,11 @@ import {
   isActiveOrganizationMember,
   mcpScheduleUserId,
 } from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
+import { loadCarouselStoragePaths, carouselMediaSnapshot } from "../_shared/scheduledPosts/carouselImagePaths.ts";
 import {
+  getInstagramPlanEligibilityMissingReasons,
   getPlanEligibilityMissingReasons,
+  isCarouselContentType,
   isPlanEligibleForFacebookAutoSchedule,
   isPlanEligibleForInstagramAutoSchedule,
 } from "../_shared/scheduledPosts/scheduledPostEligibility.ts";
@@ -191,12 +194,16 @@ Deno.serve(async (req: Request) => {
     return metaContentJson({ error: "Plan not found" }, 404);
   }
 
+  const contentTypeName = plan.content_type?.name ?? null;
+  const carousel = isCarouselContentType(contentTypeName);
+  const carouselPaths = carousel ? await loadCarouselStoragePaths(admin, planId) : [];
   const eligibility = {
     post_date: plan.post_date,
     approved: plan.approved,
     production_approved: plan.production_approved,
     google_drive_link: plan.google_drive_link,
-    content_type_name: plan.content_type?.name ?? null,
+    content_type_name: contentTypeName,
+    carousel_image_count: carousel ? carouselPaths.length : undefined,
   };
 
   if (action === "schedule" || action === "post_now") {
@@ -217,7 +224,9 @@ Deno.serve(async (req: Request) => {
     if (!isEligible) {
       return metaContentJson({
         error: "plan_not_eligible",
-        missing: getPlanEligibilityMissingReasons(eligibility),
+        missing: platform === "Instagram"
+          ? getInstagramPlanEligibilityMissingReasons(eligibility)
+          : getPlanEligibilityMissingReasons(eligibility),
       }, 400);
     }
 
@@ -226,7 +235,10 @@ Deno.serve(async (req: Request) => {
       : String(body.scheduled_at ?? "").trim();
     if (!scheduledAtRaw) return metaContentJson({ error: "Missing scheduled_at" }, 400);
 
-    const driveLink = plan.google_drive_link?.trim() ?? "";
+    const instagramCarousel = platform === "Instagram" && carousel;
+    const driveLink = instagramCarousel
+      ? carouselMediaSnapshot(carouselPaths)
+      : (plan.google_drive_link?.trim() ?? "");
     const accountId = platform === "Instagram"
       ? String(body.instagram_business_account_id ?? "").trim()
       : String(body.facebook_page_id ?? "").trim();
@@ -250,6 +262,7 @@ Deno.serve(async (req: Request) => {
         userId,
         action: action as "schedule" | "post_now",
         scheduledAtIso: scheduledAtRaw,
+        mediaSource: instagramCarousel ? "carousel_images" : null,
         target: {
           platform,
           account_id: accountId,

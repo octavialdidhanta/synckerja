@@ -10,7 +10,9 @@ import {
   buildSop2Prompt,
   chooseBrandFocus,
   chooseProduct,
+  chooseBriefProduct,
   chooseProductFields,
+  chooseFocusedProductFields,
   judgeJobDesk,
   withJobClaim,
   chooseSop1Pillar,
@@ -620,15 +622,28 @@ Deno.serve(async (req: Request) => {
         frequency: Number(scheduleResult.data.plan_count ?? 1),
         plans: calendar,
       });
+      const angleIds = Array.isArray(brief?.angle_ids)
+        ? brief.angle_ids.filter((id: unknown) => typeof id === "string" && id)
+        : [];
+      const focused = angleIds.length > 0;
+      const carouselPaths = focused ? await loadScope("carousel_paths", {}) : [];
+      if (focused) {
+        for (const path of carouselPaths) {
+          const id = String(path.content_pillar_id ?? "");
+          if (id && !pillars.some((row) => String(row.id ?? "") === id)) {
+            pillars.push({ id, name: String(path.pillar_name ?? "") });
+          }
+        }
+      }
       if (open.length === 0) {
         await closeSop1("succeeded", "target_met", 0);
         return json({ ok: true, mode: "sop1", status: "succeeded", run_id: runId, model_calls: 0, plan_count: 0, plan_ids: [] });
       }
-      if (!pickUnusedIdea(thinking)) {
+      if (focused ? carouselPaths.length === 0 : !pickUnusedIdea(thinking)) {
         await closeSop1("succeeded", "no_idea", open.length);
         return json({ ok: true, mode: "sop1", status: "succeeded", run_id: runId, model_calls: 0, plan_count: 0, plan_ids: [] });
       }
-      if (pillars.length === 0) {
+      if (!focused && pillars.length === 0) {
         await closeSop1("failed", "no_pillars", open.length);
         return json({ ok: false, error: "no_pillars", mode: "sop1", run_id: runId, model_calls: 0 }, 422);
       }
@@ -639,16 +654,25 @@ Deno.serve(async (req: Request) => {
       let dayIndex = 0;
       while (dayIndex < open.length && stop === "done") {
         const day = open[dayIndex];
-        const idea = pickUnusedIdea(thinking);
+        const path = focused
+          ? carouselPaths.find((row) => row.used !== true && row.skip !== true) ?? null
+          : null;
+        const idea = focused ? path : pickUnusedIdea(thinking);
         if (!idea) {
           stop = "ideas_exhausted";
           break;
         }
-        const choice = chooseSop1Pillar(pillars, plansInRange(nayaPlans, bounds.start, bounds.end));
-        if (!choice) {
+        const choice = focused
+          ? { id: String(path?.content_pillar_id ?? ""), name: String(path?.pillar_name ?? ""), capped: false }
+          : chooseSop1Pillar(pillars, plansInRange(nayaPlans, bounds.start, bounds.end));
+        if (!choice?.id) {
           stop = "pillar_cap";
           break;
         }
+        const promptBrief = focused
+          ? { ...brief, voice: String(path?.prompt_voice ?? brief?.voice ?? "") }
+          : brief;
+        const promptPath = focused ? path : null;
         const service = chooseBrandFocus({ brief, catalog, dayIndex, allowOverride: false });
         if (!service) {
           stop = "failed";
@@ -656,7 +680,7 @@ Deno.serve(async (req: Request) => {
           break;
         }
         const drafted = await withRetry(async () => {
-          const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief, performance, service, idea, product }));
+          const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief: promptBrief, performance, service, idea, product, path: promptPath }));
           if (result.kind !== "ok") return result;
           const parsed = parseCarouselDraft(result.script);
           if (!parsed || !pillars.some((row) => String(row.id ?? "") === choice.id)) {
@@ -702,7 +726,7 @@ Deno.serve(async (req: Request) => {
           if (parseExecutionVerdict(checked.script)?.ok !== true) {
             lastReject = String(parseExecutionVerdict(checked.script)?.check_id ?? "unparsed").slice(0, 40);
             const repaired = await withRetry(async () => {
-              const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief, performance, service, idea, product }));
+              const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief: promptBrief, performance, service, idea, product, path: promptPath }));
               if (result.kind !== "ok") return result;
               const next = parseCarouselDraft(result.script);
               if (!next) return { kind: "failed" as const, detail: { status: 0, message: "invalid_model_output" } };
@@ -772,10 +796,14 @@ Deno.serve(async (req: Request) => {
             executionId = String(accepted.execution_id);
           }
         }
-        const productId = chooseProduct(product, plan.product_knowledge_id);
+        const productId = focused
+          ? chooseBriefProduct(product, plan.product_knowledge_id)
+          : chooseProduct(product, plan.product_knowledge_id);
         const chosenProduct = productId ? product.find((row) => row.id === productId) : undefined;
         plan.product_knowledge_id = productId;
-        plan.product_knowledge_fields = chooseProductFields(plan.product_knowledge_fields, chosenProduct);
+        plan.product_knowledge_fields = focused
+          ? chooseFocusedProductFields(plan.product_knowledge_fields, chosenProduct)
+          : chooseProductFields(plan.product_knowledge_fields, chosenProduct);
         const takeProduct = () => {
           if (!productId) return;
           const row = product.find((item) => item.id === productId);
@@ -798,11 +826,22 @@ Deno.serve(async (req: Request) => {
             ...plan,
             idea_id: String(idea.idea_id ?? idea.id ?? ""),
             execution_id: executionId,
+            ...(focused ? {
+              path_pillar_id: String(path?.content_pillar_id ?? ""),
+              delivery_voice: path?.delivery_voice == null ? "" : String(path.delivery_voice),
+            } : {}),
           }, claimToken),
         });
         const createdId = performed.body && typeof performed.body === "object"
           ? (performed.body as { id?: unknown }).id
           : null;
+        const performMessage = performed.body && typeof performed.body === "object" && "message" in performed.body
+          ? String((performed.body as { message?: unknown }).message ?? "")
+          : "";
+        if (focused && performMessage.includes("path_not_allowed")) {
+          idea.skip = true;
+          continue;
+        }
         if (performed.status < 200 || performed.status >= 300 || !isUuid(createdId)) throw new Error("perform_failed");
         takeProduct();
         idea.used = true;
@@ -886,8 +925,14 @@ Deno.serve(async (req: Request) => {
     modelCalls = 1;
 
     const allowedDates = requestedDate ? [requestedDate] : nextWeekDays(today);
-    const brief = (context.brief?.[0] ?? null) as { service_ids?: unknown } | null;
+    const brief = (context.brief?.[0] ?? null) as { service_ids?: unknown; angle_ids?: unknown } | null;
     const serviceIds = Array.isArray(brief?.service_ids) ? brief.service_ids : [];
+    const angleIds = Array.isArray(brief?.angle_ids)
+      ? brief.angle_ids.filter((id: unknown) => typeof id === "string" && id)
+      : [];
+    const thinkingForJob = angleIds.length > 0
+      ? context.thinking.filter((row) => angleIds.includes(String((row as { angle_id?: unknown }).angle_id ?? "")))
+      : context.thinking;
     const service = serviceIds.length === 0
       ? null
       : chooseBrandFocus({
@@ -898,7 +943,7 @@ Deno.serve(async (req: Request) => {
         allowOverride: true,
       });
     if (serviceIds.length > 0 && !service) throw new Error("brief_missing");
-    const idea = pickUnusedIdea(context.thinking);
+    const idea = pickUnusedIdea(thinkingForJob);
     const product = await loadProduct();
     const prompt = buildSop2Prompt({
       instruction: workInstruction,
@@ -907,7 +952,7 @@ Deno.serve(async (req: Request) => {
       postDate: requestedDate,
       pillars: context.pillars,
       catalog: context.catalog,
-      thinking: context.thinking,
+      thinking: thinkingForJob,
       plans: context.plans,
       brief,
       performance: context.performance,
@@ -952,14 +997,18 @@ Deno.serve(async (req: Request) => {
       plans: context.plans,
     });
     if (!dated.ok) throw new Error("invalid_model_output");
-    const productId = chooseProduct(product, validated.plan.product_knowledge_id);
+    const productId = angleIds.length > 0
+      ? chooseBriefProduct(product, validated.plan.product_knowledge_id)
+      : chooseProduct(product, validated.plan.product_knowledge_id);
     const chosen = productId ? product.find((row) => row.id === productId) : undefined;
     const plan = {
       ...validated.plan,
       post_date: dated.postDate,
       service_id: service?.id ?? null,
       product_knowledge_id: productId,
-      product_knowledge_fields: chooseProductFields(validated.plan.product_knowledge_fields, chosen),
+      product_knowledge_fields: angleIds.length > 0
+        ? chooseFocusedProductFields(validated.plan.product_knowledge_fields, chosen)
+        : chooseProductFields(validated.plan.product_knowledge_fields, chosen),
     };
 
     if (jobSource === "revision") {

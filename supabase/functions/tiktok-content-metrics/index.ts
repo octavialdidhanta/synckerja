@@ -20,6 +20,7 @@ import { resolveOrgTikTokContentForMetrics } from "../_shared/tiktokContentOrgRe
 import {
   TIKTOK_CONTENT_OAUTH_TOKEN_KINDS,
 } from "../_shared/tiktokContentAuth.ts";
+import { upsertContentPlanPostMetrics } from "../_shared/contentPlanPostMetrics.ts";
 import {
   backfillLinkVideoIds,
   buildPlanMatchIndex,
@@ -211,6 +212,11 @@ Deno.serve(async (req: Request) => {
 
     if (backfillMatches.length > 0) {
       await backfillLinkVideoIds(admin, organizationId, openId, backfillMatches);
+    }
+    try {
+      await upsertContentPlanPostMetrics(admin, organizationId, "tiktok", rows);
+    } catch (metricError) {
+      console.error("tiktok-content-metrics plan snapshot:", metricError instanceof Error ? metricError.message : metricError);
     }
 
     const summary = {

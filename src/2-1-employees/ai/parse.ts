@@ -8,6 +8,7 @@ import type {
   AiEmployeeSummary,
   BriefChange,
   BriefDraft,
+  AngleOption,
   CatalogOption,
   ProductOption,
   RoutineRow,
@@ -43,6 +44,45 @@ function asNumber(value: unknown): number | null {
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function asAngleOptions(value: unknown): AngleOption[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const row = asRecord(item);
+    if (!row || typeof row.id !== "string") return [];
+    const code = asString(row.code);
+    const name = asString(row.name, code);
+    const master = asString(row.master);
+    const fallback = asString(row.label, [master, name].filter(Boolean).join(" · ") || name || code);
+    const label = code ? `Angle - ${code}` : fallback;
+    const ideas = Array.isArray(row.ideas)
+      ? row.ideas.flatMap((idea) => {
+          const child = asRecord(idea);
+          if (!child || typeof child.id !== "string") return [];
+          const ideaCode = asString(child.code);
+          return [{
+            id: child.id,
+            code: ideaCode,
+            name: asString(child.name, ideaCode),
+            statement: asString(child.statement),
+          }];
+        })
+      : [];
+    const otherIdeaCount = asNumber(row.other_idea_count);
+    return [{
+      id: row.id,
+      label,
+      master,
+      code,
+      name: name || label,
+      statement: asString(row.statement),
+      serviceId: asNullableString(row.service_id),
+      ideas,
+      pillarIds: asStringArray(row.pillar_ids),
+      otherIdeaCount: otherIdeaCount != null && otherIdeaCount > 0 ? otherIdeaCount : 0,
+    }];
+  });
 }
 
 function asOptions(value: unknown): CatalogOption[] {
@@ -83,6 +123,8 @@ export function briefDraftFromPayload(value: unknown): { draft: BriefDraft; labe
       forbiddenNotes: asString(row.forbidden_notes),
       pillarIds: asStringArray(row.pillar_ids),
       productIds: asStringArray(row.product_knowledge_ids),
+      angleIds: asStringArray(row.angle_ids),
+      repeatVoices: asStringArray(row.repeat_voices),
       splitRule: asString(row.split_rule),
     },
     labels: {
@@ -90,6 +132,7 @@ export function briefDraftFromPayload(value: unknown): { draft: BriefDraft; labe
       personas: asOptions(row.personas),
       pillars: asOptions(row.pillars),
       products: asOptions(row.products),
+      angles: asOptions(row.angles),
     },
   };
 }
@@ -266,6 +309,7 @@ export function parseAiEmployeePage(value: unknown): AiEmployeePageData {
       personas: asOptions(options.personas),
       pillars: asOptions(options.pillars),
       products: asProducts(options.products),
+      angles: asAngleOptions(options.angles),
     },
     quota: parseQuota(row.quota),
   };
@@ -287,6 +331,9 @@ export function sameBrief(left: BriefDraft, right: BriefDraft): boolean {
     && left.forbiddenNotes === right.forbiddenNotes
     && sameIds(left.pillarIds, right.pillarIds)
     && sameIds(left.productIds, right.productIds)
+    && sameIds(left.angleIds, right.angleIds)
+    && left.repeatVoices.length === right.repeatVoices.length
+    && left.repeatVoices.every((voice, index) => voice === right.repeatVoices[index])
     && left.splitRule === right.splitRule;
 }
 
@@ -328,6 +375,7 @@ export function briefChanges(
     personas: Map<string, string>;
     pillars: Map<string, string>;
     products: Map<string, string>;
+    angles: Map<string, string>;
   },
 ): BriefChange[] {
   const rows: BriefChange[] = [];
@@ -341,6 +389,8 @@ export function briefChanges(
   push("Catatan wajib", before.requiredNotes !== after.requiredNotes, textValue(before.requiredNotes), textValue(after.requiredNotes));
   push("Catatan terlarang", before.forbiddenNotes !== after.forbiddenNotes, textValue(before.forbiddenNotes), textValue(after.forbiddenNotes));
   push("Pilar", !sameIds(before.pillarIds, after.pillarIds), nameList(before.pillarIds, names.pillars), nameList(after.pillarIds, names.pillars));
+  push("Fokus angle", !sameIds(before.angleIds, after.angleIds), nameList(before.angleIds, names.angles), nameList(after.angleIds, names.angles));
+  push("Gaya pengulangan", before.repeatVoices.join("\n") !== after.repeatVoices.join("\n"), textValue(before.repeatVoices.join("\n")), textValue(after.repeatVoices.join("\n")));
   push("Product Knowledge", !sameIds(before.productIds, after.productIds), nameList(before.productIds, names.products), nameList(after.productIds, names.products));
   push("Aturan pecahan", before.splitRule !== after.splitRule, textValue(before.splitRule), textValue(after.splitRule));
   return rows;

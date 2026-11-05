@@ -468,6 +468,8 @@ export type McpReadDeps = {
       forbiddenNotes: string;
       pillarIds: string[];
       productKnowledgeIds: string[];
+      angleIds?: string[];
+      repeatVoices?: string[];
       splitRule: string;
     },
   ) => Promise<unknown>;
@@ -1119,6 +1121,15 @@ async function runTool(
         forbiddenNotes: typeof args.forbidden_notes === "string" ? args.forbidden_notes : "",
         pillarIds: Array.isArray(args.pillar_ids) ? args.pillar_ids.map((id) => String(id)) : [],
         productKnowledgeIds: Array.isArray(args.product_knowledge_ids) ? args.product_knowledge_ids.map((id) => String(id)) : [],
+        ...(Array.isArray(args.angle_ids) ? { angleIds: args.angle_ids.map((id) => String(id)) } : {}),
+        ...(Array.isArray(args.repeat_voices)
+          ? {
+              repeatVoices: args.repeat_voices
+                .map((voice) => String(voice).trim())
+                .filter((voice) => voice.length > 0)
+                .slice(0, 3),
+            }
+          : {}),
         splitRule: typeof args.split_rule === "string" ? args.split_rule : "",
       });
     case "product_knowledge.list":

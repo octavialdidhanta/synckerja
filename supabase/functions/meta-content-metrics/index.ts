@@ -15,6 +15,7 @@ import {
   resolveFacebookPostsForMetrics,
   resolveInstagramPostsForMetrics,
 } from "../_shared/metaContentApi.ts";
+import { upsertContentPlanPostMetrics } from "../_shared/contentPlanPostMetrics.ts";
 import {
   backfillLinkMediaIds,
   buildPlanMatchIndex,
@@ -157,6 +158,14 @@ Deno.serve(async (req: Request) => {
             token,
           ),
         ]);
+
+        if (platform === "instagram") {
+          try {
+            await upsertContentPlanPostMetrics(admin, organizationId, "instagram", postRows);
+          } catch (metricError) {
+            console.error("meta-content-metrics plan snapshot:", metricError instanceof Error ? metricError.message : metricError);
+          }
+        }
 
         const totalShares = postRows.reduce((s, r) => s + r.share_count, 0);
 

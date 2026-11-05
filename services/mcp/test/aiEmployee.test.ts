@@ -5,6 +5,7 @@ import { MCP_SERVER_INSTRUCTIONS } from "../src/mcp/instructions";
 import { MCP_TOOLS } from "../src/mcp/registry";
 import { aiEmployeeBriefUpdate, aiEmployeeChat, aiEmployeeCommand, aiEmployeeRoutineUpsert, aiEmployeeRoutinesList, aiEmployeeScheduleUpdate, aiEmployeeStatus, listAiEmployees } from "../src/db/aiEmployee";
 import {
+  aiEmployeeBriefUpdateInput,
   assertOrgOwner,
   assertOrgOwnerOrAdmin,
   chatOutsideReply,
@@ -424,6 +425,48 @@ describe("ai employee brief update", () => {
       persona_ids: ["22222222-2222-4222-8222-222222222222"],
       product_knowledge_ids: ["33333333-3333-4333-8333-333333333333"],
     });
+    expect(calls[0]?.args.p_brief).not.toHaveProperty("angle_ids");
+    expect(calls[0]?.args.p_brief).not.toHaveProperty("repeat_voices");
+  });
+
+  it("sends focus angles and repeat voices only when the caller sets them", async () => {
+    const { admin, calls } = briefAdmin();
+    const angleId = "44444444-4444-4444-8444-444444444444";
+    await aiEmployeeBriefUpdate(admin, { ...owner, userId: "user-1" } as McpAuthContext, "nay", {
+      ...input,
+      angleIds: [angleId],
+      repeatVoices: ["lugas"],
+    });
+    expect(calls[0]?.args.p_brief).toMatchObject({
+      angle_ids: [angleId],
+      repeat_voices: ["lugas"],
+    });
+    expect(aiEmployeeBriefUpdateInput.safeParse({
+      employee_name: "nay",
+      service_ids: input.serviceIds,
+      audience: input.audience,
+      persona_ids: input.personaIds,
+      voice: input.voice,
+      required_notes: input.requiredNotes,
+      forbidden_notes: input.forbiddenNotes,
+      pillar_ids: [],
+      product_knowledge_ids: input.productKnowledgeIds,
+      split_rule: input.splitRule,
+    }).success).toBe(true);
+    expect(aiEmployeeBriefUpdateInput.safeParse({
+      employee_name: "nay",
+      service_ids: [],
+      audience: "",
+      persona_ids: [],
+      voice: "",
+      required_notes: "",
+      forbidden_notes: "",
+      pillar_ids: [],
+      product_knowledge_ids: [],
+      angle_ids: [angleId, angleId, angleId, angleId],
+      repeat_voices: ["satu", "dua", "tiga", "empat"],
+      split_rule: "",
+    }).success).toBe(false);
   });
 });
 

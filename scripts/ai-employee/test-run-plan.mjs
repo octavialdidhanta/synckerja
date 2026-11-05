@@ -28,7 +28,9 @@ import {
   parseChatReply,
   pickUnusedIdea,
   chooseProduct,
+  chooseBriefProduct,
   chooseProductFields,
+  chooseFocusedProductFields,
   judgeJobDesk,
   withJobClaim,
   parseExecutionCheck,
@@ -439,6 +441,58 @@ test("carousel menolak jumlah slide dan caption tanpa hashtag", () => {
   assert.match(prompt, /carousel/);
   assert.match(prompt, /4:5/);
   assert.match(prompt, /hashtag/i);
+  assert.doesNotMatch(prompt, /Ini pengulangan/);
+
+  const fresh = buildSop1Prompt({
+    day: "2026-11-10",
+    pillar: pillars[0],
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief: { service_ids: ["svc"], services: [], audience: "", personas: [], voice: "hangat", required_notes: "", forbidden_notes: "" },
+    performance: [],
+    service: null,
+    idea: { idea_id: "idea-1", idea_statement: "Memprediksi solusi diri" },
+    product: [],
+    path: {
+      development: "Biarkan anak mencoba memprediksi solusi",
+      prompt_voice: "hangat",
+      is_repeat: false,
+    },
+  });
+  assert.match(fresh, /Biarkan anak mencoba memprediksi solusi/);
+  assert.match(fresh, /Gaya bahasa jalur ini: hangat/);
+  assert.doesNotMatch(fresh, /lugas/);
+  assert.doesNotMatch(fresh, /Ini pengulangan/);
+
+  const repeat = buildSop1Prompt({
+    day: "2026-11-17",
+    pillar: pillars[0],
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief: { service_ids: ["svc"], services: [], audience: "", personas: [], voice: "hangat", required_notes: "", forbidden_notes: "" },
+    performance: [],
+    service: null,
+    idea: { idea_id: "idea-1", idea_statement: "Memprediksi solusi diri" },
+    product: [],
+    path: {
+      development: "Biarkan anak mencoba memprediksi solusi",
+      prompt_voice: "lugas",
+      is_repeat: true,
+      previous_title: "Judul lama",
+      previous_caption: "Caption lama #lama",
+    },
+  });
+  assert.match(repeat, /Gaya bahasa jalur ini: lugas/);
+  assert.match(repeat, /Ini pengulangan/);
+  assert.match(repeat, /Judul lama/);
+  assert.match(repeat, /Caption lama #lama/);
+  assert.match(repeat, /Jangan menyalin judul atau caption/);
 });
 
 test("JSON model diterima hanya bila pillar ada di context", () => {
@@ -625,9 +679,105 @@ test("product knowledge yang tidak dikirim tidak masuk prompt dan baris terpakai
   assert.equal(chooseProduct(product, kept), open);
   assert.equal(chooseProduct(product, open), open);
   assert.equal(chooseProduct([], open), null);
+  assert.equal(chooseBriefProduct(product, kept), kept);
+  assert.equal(chooseBriefProduct(product, "bukan-id"), open);
+  assert.equal(chooseBriefProduct([], open), null);
   const row = { feature_name: "Sate belum terpakai", false_belief: "mitos", impact: "  " };
   assert.deepEqual(chooseProductFields(["impact", "rahasia", "false_belief", "false_belief"], row), ["false_belief"]);
   assert.deepEqual(chooseProductFields(["feature_name"], null), []);
+  assert.deepEqual(
+    chooseFocusedProductFields(["false_belief", "feature_name", "solusi", "competitive_advantage"], {
+      feature_name: "Realtime",
+      solusi: "Foto di hari H",
+      competitive_advantage: "Selesai 24 jam",
+      false_belief: "mitos",
+    }),
+    ["feature_name", "solusi", "competitive_advantage"],
+  );
+});
+
+test("angle terkunci hanya mengirim empat kolom fakta", () => {
+  const productRow = {
+    id: "33333333-3333-4333-8333-333333333333",
+    feature_name: "Realtime",
+    feature_description: "Cinematic Wedding Highlight",
+    solusi: "Foto di hari H",
+    competitive_advantage: "Selesai 24 jam",
+    false_belief: "mitos tersembunyi",
+    problems_solved: "stres editing",
+  };
+  const brief = {
+    service_ids: ["svc"],
+    services: [{ id: "svc", name: "Vialdi Wedding" }],
+    audience: "pembaca uji audiens khusus",
+    personas: [{ id: "persona-1", audience: "wanita karier uji" }],
+    voice: "hangat",
+    required_notes: "",
+    forbidden_notes: "",
+    angle_ids: ["angle-1"],
+  };
+  const locked = buildSop1Prompt({
+    day: "2026-11-10",
+    pillar: pillars[0],
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief,
+    performance: [],
+    service: null,
+    idea: { idea_id: "idea-1", idea_statement: "Memprediksi solusi diri" },
+    product: [productRow],
+    path: { development: "Biarkan anak mencoba", prompt_voice: "hangat", is_repeat: false },
+  });
+  assert.match(locked, /Cinematic Wedding Highlight/);
+  assert.match(locked, /Foto di hari H/);
+  assert.match(locked, /Selesai 24 jam/);
+  assert.match(locked, /feature_description/);
+  assert.equal(locked.includes("false_belief"), false);
+  assert.equal(locked.includes("pembaca uji audiens khusus"), false);
+  assert.equal(locked.includes("wanita karier uji"), false);
+  assert.equal(locked.includes("stres editing"), false);
+
+  const open = buildSop1Prompt({
+    day: "2026-11-10",
+    pillar: pillars[0],
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief: { ...brief, angle_ids: [] },
+    performance: [],
+    service: null,
+    idea: { idea_id: "idea-1", idea_statement: "Memprediksi solusi diri" },
+    product: [productRow],
+  });
+  assert.match(open, /false_belief/);
+  assert.match(open, /pembaca uji audiens khusus/);
+
+  const adHoc = buildSop2Prompt({
+    instruction: "buat satu plan",
+    today: "2026-11-05",
+    allowedDates: ["2026-11-10"],
+    brief,
+    product: [productRow],
+  });
+  assert.match(adHoc, /Cinematic Wedding Highlight/);
+  assert.match(adHoc, /Selesai 24 jam/);
+  assert.equal(adHoc.includes("false_belief"), false);
+  assert.equal(adHoc.includes("pembaca uji audiens khusus"), false);
+
+  const adHocOpen = buildSop2Prompt({
+    instruction: "buat satu plan",
+    today: "2026-11-05",
+    allowedDates: ["2026-11-10"],
+    brief: { ...brief, angle_ids: [] },
+    product: [productRow],
+  });
+  assert.match(adHocOpen, /Prioritas 3/);
+  assert.match(adHocOpen, /mitos tersembunyi/);
 });
 
 test("job desk menolak payroll dan menerima content plan", () => {

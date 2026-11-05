@@ -54,7 +54,17 @@ export function isPlanEligibleForYouTubeAutoSchedule(plan: PlanEligibilityInput)
   return isPlanEligibleForReelAutoSchedule(plan);
 }
 
+export function getInstagramPlanEligibilityMissingReasons(plan: PlanEligibilityInput): string[] {
+  if (!isCarouselContentType(plan.content_type_name)) {
+    return getPlanEligibilityMissingReasons(plan);
+  }
+  return getTikTokPlanEligibilityMissingReasons(plan);
+}
+
 export function isPlanEligibleForInstagramAutoSchedule(plan: PlanEligibilityInput): boolean {
+  if (isCarouselContentType(plan.content_type_name)) {
+    return isPlanEligibleForTikTokCarouselSchedule(plan);
+  }
   return isPlanEligibleForReelAutoSchedule(plan);
 }
 

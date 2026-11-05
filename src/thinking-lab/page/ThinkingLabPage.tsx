@@ -445,7 +445,9 @@ import { PillarPickerSheet, type ExecutionSettingsDirect } from "@/thinking-lab/
 import { ExecutionConfirmDialog } from "@/thinking-lab/section/ExecutionConfirmDialog";
 import { MasterThoughtMapTree } from "@/thinking-lab/section/MasterThoughtMapTree";
 import { ContentUsageAudit } from "@/6-1-dashboard/modal/ContentUsageAudit";
+import { MasterCatalogField } from "@/thinking-lab/section/MasterCatalogField";
 import { SavedMasterThoughtList } from "@/thinking-lab/section/SavedMasterThoughtList";
+import { useLabCatalogs } from "@/thinking-lab/master-thought/useLabCatalogs";
 import { MasterThoughtSection } from "@/thinking-lab/section/MasterThoughtSection";
 import type { ProductReasonPool } from "@/thinking-lab/master-thought/productReasonPool";
 import { ProductBeliefSource } from "@/thinking-lab/section/ProductBeliefSource";
@@ -517,6 +519,7 @@ export function ThinkingLabPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const masters = useMasterThought();
+  const catalogs = useLabCatalogs(masters.organizationId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newPrior, setNewPrior] = useState("");
   const [newPlanted, setNewPlanted] = useState("");
@@ -621,7 +624,7 @@ export function ThinkingLabPage() {
     | null
   >(null);
   const [editingMasterId, setEditingMasterId] = useState<string | null>(null);
-  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(true);
   const [showManualBigThought, setShowManualBigThought] = useState(false);
   const [focus, setFocus] = useState<
     | { kind: "master"; masterId: string }
@@ -8459,6 +8462,11 @@ export function ThinkingLabPage() {
                           {showComposer && hasMasters ? (
                             <SavedMasterThoughtList
                               masters={masters.data ?? []}
+                              catalogs={catalogs.data ?? []}
+                              catalogPending={masters.saveService.isPending}
+                              onSaveCatalog={(id, serviceId) => {
+                                void masters.saveService.mutateAsync({ id, serviceId });
+                              }}
                               onOpen={(id) => {
                                 const row = masters.data?.find((item) => item.id === id);
                                 closeComposer();
@@ -8653,6 +8661,16 @@ export function ThinkingLabPage() {
                                     : null
                                 }
                                 onUnlock={focus.kind === "master" ? () => void onUnlock() : undefined}
+                                catalogServiceId={focus.kind === "master" ? selected.serviceId : null}
+                                catalogs={focus.kind === "master" ? (catalogs.data ?? []) : []}
+                                catalogPending={masters.saveService.isPending}
+                                onSaveCatalog={
+                                  focus.kind === "master"
+                                    ? (serviceId) => {
+                                        void masters.saveService.mutateAsync({ id: selected.id, serviceId });
+                                      }
+                                    : undefined
+                                }
                                 onDelete={
                                   focus.kind === "bigThought"
                                     ? () => setPendingDelete({ kind: "bigThought", id: focus.thoughtId })
@@ -9116,6 +9134,14 @@ export function ThinkingLabPage() {
                                       {t("thinkingLab.master.audience", "Target audience (optional)")}: {selected.audience}
                                     </p>
                                   ) : null}
+                                  <MasterCatalogField
+                                    serviceId={selected.serviceId}
+                                    services={catalogs.data ?? []}
+                                    pending={masters.saveService.isPending}
+                                    onSave={(serviceId) => {
+                                      void masters.saveService.mutateAsync({ id: selected.id, serviceId });
+                                    }}
+                                  />
                                   {selected.productReasonPool ? (
                                     <p className="text-sm text-muted-foreground">
                                       {selected.productReasonPool.items.length > 0

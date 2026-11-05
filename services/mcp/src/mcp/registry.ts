@@ -753,13 +753,13 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "ai_employee.brief.get",
     description:
-      "Read one AI employee's work brief in the active organization. Owner only. Returns catalog focus, audience, customer persona ids and their audience text, brand voice, required notes, forbidden notes, priority pillars, the split rule, and a short summary of the selected Product Knowledge rows.",
+      "Read one AI employee's work brief in the active organization. Owner only. Returns catalog focus, audience, customer persona ids and their audience text, brand voice, required notes, forbidden notes, priority pillars, up to 3 focus angle ids, up to 3 repeat voices, the split rule, and a short summary of the selected Product Knowledge rows.",
     scopes: ["session:read"],
   },
   {
     name: "ai_employee.brief.update",
     description:
-      "Replace one AI employee's work brief in the active organization. Owner only; an admin is rejected. service_ids are catalog ids, persona_ids and product_knowledge_ids are Product Knowledge row ids, and pillar_ids are content pillar ids. product_knowledge_ids must belong to the selected catalogs. Show the previous brief and the new brief.",
+      "Replace one AI employee's work brief in the active organization. Owner only; an admin is rejected. service_ids are catalog ids, persona_ids and product_knowledge_ids are Product Knowledge row ids, and pillar_ids are content pillar ids. product_knowledge_ids must belong to the selected catalogs. angle_ids are Thinking Lab angle ids, at most 3. repeat_voices are spare language styles, at most 3, used only after a locked path has already been published. Show the previous brief and the new brief.",
     scopes: ["session:read"],
   },
 ];

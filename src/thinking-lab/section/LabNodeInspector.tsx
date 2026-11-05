@@ -9,6 +9,8 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { MasterCatalogField } from "@/thinking-lab/section/MasterCatalogField";
+import type { LabCatalog } from "@/thinking-lab/master-thought/useLabCatalogs";
 import { cn } from "@/shared/lib/utils";
 import { CreativePathPanel, type CreativePathView } from "@/thinking-lab/section/CreativePathPanel";
 import { EditableStatement, ManualStatementForm } from "@/thinking-lab/section/ManualStatementForm";
@@ -62,6 +64,10 @@ type LabNodeInspectorProps = {
   onFixNode?: () => void;
   fixingNode?: boolean;
   onUnlock?: () => void;
+  catalogServiceId?: string | null;
+  catalogs?: LabCatalog[];
+  catalogPending?: boolean;
+  onSaveCatalog?: (serviceId: string | null) => void;
   onDelete?: () => void;
   unlockDisabled?: boolean;
   onGenerateAngle?: (territoryId: string) => void;
@@ -525,6 +531,10 @@ export function LabNodeInspector({
   onFixNode,
   fixingNode = false,
   onUnlock,
+  catalogServiceId = null,
+  catalogs = [],
+  catalogPending = false,
+  onSaveCatalog,
   onDelete,
   unlockDisabled,
   onGenerateAngle,
@@ -1048,6 +1058,14 @@ export function LabNodeInspector({
         />
       ) : null}
       {kind === "territory" ? null : pathBlock}
+      {kind === "master" && onSaveCatalog ? (
+        <MasterCatalogField
+          serviceId={catalogServiceId}
+          services={catalogs}
+          pending={catalogPending}
+          onSave={onSaveCatalog}
+        />
+      ) : null}
       {onUnlock ? (
         <Button type="button" variant="outline" size="sm" onClick={onUnlock} disabled={unlockDisabled} aria-busy={unlockDisabled}>
           {unlockDisabled ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}

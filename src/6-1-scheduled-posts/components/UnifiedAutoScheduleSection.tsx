@@ -22,6 +22,7 @@ import {
   getBulkEligibleTargets,
 } from '../lib/autoScheduleBulkEligibility';
 import { notifyPublishMutationError } from '../lib/notifyPublishMutationError';
+import { CarouselSlidePreview } from './CarouselSlidePreview';
 import { RequiredPlatformScheduleRow } from './RequiredPlatformScheduleRow';
 import { DeletePublishedConfirmDialog } from './DeletePublishedConfirmDialog';
 import { useDeletePublishedPost } from '../hooks/useDeletePublishedPost';
@@ -175,10 +176,14 @@ export function UnifiedAutoScheduleSection({
   const fieldLabel = 'text-[11px] font-medium uppercase tracking-wide text-muted-foreground';
 
   const scheduleRows = schedules ?? [];
+  const visibleTargets = useMemo(() => {
+    if (!tiktokCarouselOnly) return targets;
+    return targets.filter((target) => target.platform !== 'YouTube');
+  }, [targets, tiktokCarouselOnly]);
   const actionTargets = useMemo(() => {
     if (!tiktokCarouselOnly) return targets;
     if (!tiktokReady) return [];
-    return targets.filter((target) => target.platform === 'TikTok');
+    return targets.filter((target) => target.platform === 'TikTok' || target.platform === 'Instagram');
   }, [targets, tiktokCarouselOnly, tiktokReady]);
   const { eligible: bulkEligible } = useMemo(
     () => getBulkEligibleTargets(actionTargets, scheduleRows),
@@ -219,8 +224,12 @@ export function UnifiedAutoScheduleSection({
     ): Promise<PublishResult> => {
       const silent = options?.silent ?? false;
 
-      if (tiktokCarouselOnly && target.platform !== 'TikTok') {
-        const error = 'Carousel posts publish to TikTok only';
+      if (
+        tiktokCarouselOnly &&
+        target.platform !== 'TikTok' &&
+        target.platform !== 'Instagram'
+      ) {
+        const error = 'Carousel posts publish to TikTok and Instagram';
         if (!silent) toast.error(error);
         return { ok: false, error };
       }
@@ -481,7 +490,11 @@ export function UnifiedAutoScheduleSection({
     <section className="rounded-xl border border-border/80 bg-card shadow-sm">
       {sectionHeader}
 
-      <div className="flex flex-col md:flex-row md:items-stretch">
+      <div
+        className={`flex flex-col md:flex-row md:items-stretch ${
+          tiktokCarouselOnly ? 'md:min-h-[calc(100dvh-12.5rem)]' : ''
+        }`}
+      >
         <div className="flex min-w-0 flex-1 flex-col gap-3 border-b border-border/60 p-3 md:w-1/2 md:shrink-0 md:border-b-0 md:border-r">
           <div className="min-w-0 w-full border border-border/60 bg-muted/30">
             <div className={SCHEDULE_TABLE_SCROLL_CLASS}>
@@ -508,7 +521,7 @@ export function UnifiedAutoScheduleSection({
                     {t('digitalMarketing.scheduledPosts.tableActions', 'Actions')}
                   </div>
                 </div>
-                {targets.map((target) => {
+                {visibleTargets.map((target) => {
                   const schedule = pickAccountScheduleForModal(
                     scheduleRows,
                     target.platform,
@@ -570,7 +583,8 @@ export function UnifiedAutoScheduleSection({
                       canDelete={rowCanDelete}
                       actionsDisabled={
                         tiktokCarouselOnly &&
-                        (target.platform !== 'TikTok' || !tiktokReady)
+                        ((target.platform !== 'TikTok' && target.platform !== 'Instagram') ||
+                          !tiktokReady)
                       }
                       isSchedulePending={isSchedulePending}
                       isPostNowPending={isPostNowPending}
@@ -642,32 +656,35 @@ export function UnifiedAutoScheduleSection({
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-1 shrink-0 flex-col bg-muted/15 px-3 py-2 md:w-1/2">
-          <div className="relative aspect-video min-h-[140px] w-full flex-1 overflow-hidden rounded-lg border border-border/80 bg-black shadow-sm">
-            {tiktokCarouselOnly ? (
-              carouselPreviewUrls && carouselPreviewUrls.length > 0 ? (
-                <div className="absolute inset-0 grid grid-cols-2 gap-1 overflow-y-auto bg-black p-1">
-                  {carouselPreviewUrls.map((url) => (
-                    <img key={url} src={url} alt="" className="h-full min-h-16 w-full object-cover" />
-                  ))}
+        <div
+          className={`flex min-h-0 min-w-0 flex-1 shrink-0 flex-col px-3 py-2 md:w-1/2 ${
+            tiktokCarouselOnly ? 'min-h-[46dvh]' : 'bg-muted/15'
+          }`}
+        >
+          {tiktokCarouselOnly ? (
+            <CarouselSlidePreview
+              urls={carouselPreviewUrls ?? []}
+              emptyLabel={t(
+                'digitalMarketing.scheduledPosts.carouselPreviewEmpty',
+                'Add carousel images before posting to TikTok.',
+              )}
+              className="min-h-0 flex-1"
+            />
+          ) : (
+            <div className="relative aspect-video min-h-[140px] w-full flex-1 overflow-hidden rounded-lg border border-border/80 bg-black shadow-sm">
+              {driveValidation.valid ? (
+                <div className="absolute inset-0 flex min-h-0 min-w-0 flex-col">
+                  <GoogleDriveFilePreview link={driveLink} className="min-h-0 flex-1" forceVideo />
                 </div>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center p-3 text-center text-[11px] text-muted-foreground">
-                  {t('digitalMarketing.scheduledPosts.carouselPreviewEmpty', 'Add carousel images before posting to TikTok.')}
+                  {driveLink
+                    ? driveValidation.error
+                    : t('digitalMarketing.scheduledPosts.videoPreviewEmpty')}
                 </div>
-              )
-            ) : driveValidation.valid ? (
-              <div className="absolute inset-0 flex min-h-0 min-w-0 flex-col">
-                <GoogleDriveFilePreview link={driveLink} className="min-h-0 flex-1" forceVideo />
-              </div>
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center p-3 text-center text-[11px] text-muted-foreground">
-                {driveLink
-                  ? driveValidation.error
-                  : t('digitalMarketing.scheduledPosts.videoPreviewEmpty')}
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

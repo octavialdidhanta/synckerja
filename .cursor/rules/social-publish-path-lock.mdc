@@ -1,12 +1,14 @@
 ---
-description: Kunci jalur publish Facebook, Instagram, dan TikTok yang sudah terbukti. Jangan kembalikan unggahan byte paralel atau preload video untuk ketiga platform itu.
-globs: supabase/functions/_shared/scheduledPosts/**/*.ts,supabase/functions/_shared/metaContent/metaFacebookReelsPublishApi.ts,supabase/functions/_shared/tiktokContent/tiktokContentPublishApi.ts,supabase/functions/social-media-plan-publish/**/*.ts,supabase/functions/social-media-scheduler/**/*.ts
+description: Kunci jalur publish sosial yang sudah terbukti. Reel tetap lewat URL video. Carousel TikTok dan Instagram yang sudah terbit di produksi jangan diubah urutannya.
+globs: supabase/functions/_shared/scheduledPosts/**/*.ts,supabase/functions/_shared/metaContent/**/*.ts,supabase/functions/_shared/tiktokContent/**/*.ts,supabase/functions/social-media-plan-publish/**/*.ts,supabase/functions/social-media-scheduler/**/*.ts,supabase/functions/meta-content-publish/**/*.ts,supabase/functions/tiktok-content-publish/**/*.ts,src/6-1-scheduled-posts/**/*.{ts,tsx},vercel.json
 alwaysApply: false
 ---
 
 # Kunci jalur publish sosial
 
-Publish plan Facebook + Instagram + TikTok sudah selesai lewat tautan publik Google Drive. Jangan ubah urutan ini saat memperbaiki fitur lain.
+Baseline 5 November 2026 sudah terbukti di produksi. Jangan mundurkan jalur di bawah ini saat menambah platform atau merapikan UI.
+
+Publish Reel Facebook, Instagram, dan TikTok tetap lewat tautan publik Google Drive. Jangan ubah urutan itu saat memperbaiki fitur lain.
 
 ## Wajib dipertahankan
 
@@ -19,4 +21,15 @@ Publish plan Facebook + Instagram + TikTok sudah selesai lewat tautan publik Goo
 - Platform yang belum giliran memakai `publish_step` `"queued"`, bukan `"downloading"`.
 - Download Drive dan unggah byte tetap memakai `AbortSignal.timeout`.
 
-Tes pengunci: `src/6-1-scheduled-posts/lib/publishPathLock.test.ts`. Jalankan tes itu setelah menyentuh file di atas. Jangan melemahkan assertion agar perubahan lolos.
+## Carousel yang sudah terbit
+
+Konten `Post` dan `Carousel` memakai foto di bucket `social-media-carousel`, bukan link Google Drive. Cabang carousel harus kembali sebelum pemeriksaan Reel dan Drive.
+
+- TikTok foto memakai `initTikTokPhotoPublishPullFromUrl` dan log `tiktok_publish_path=photo_pull`. URL gambar adalah `https://office.synckerja.com/api/tiktok-carousel/...`. Rewrite di `vercel.json` mem-proxy path itu ke objek publik Supabase dan harus menjawab `200` `image/jpeg` tanpa header `Location`. TikTok menolak redirect.
+- Instagram carousel memakai URL publik Supabase (`/storage/v1/object/public/social-media-carousel/...`). Satu foto menjadi posting gambar. Dua sampai sepuluh foto menjadi `media_type=CAROUSEL`. Lognya `instagram_publish_path=carousel`.
+- Di Social Media Publish Setup, konten carousel menampilkan TikTok dan Instagram. YouTube tidak ditampilkan. Facebook dan LinkedIn tidak ikut di-post.
+- Post Now carousel tidak memakai `social-media-plan-publish` (`parallelPostNow` tetap false). Orchestrator itu masih untuk Reel.
+- Trigger `trg_cancel_scheduled_posts_on_plan_gate_change` tidak boleh membatalkan jadwal carousel hanya karena `google_drive_link` kosong atau tipe konten bukan Reel. Syarat batal untuk carousel: belum disetujui, tidak ada tanggal posting, atau jumlah gambar di luar 1–10.
+- Preview kanan adalah satu slide yang bisa digeser, tanpa bingkai hitam, dan mengikuti ukuran panel. Jangan kembalikan ke pemutar video atau grid semua foto.
+
+Tes pengunci: `src/6-1-scheduled-posts/lib/publishPathLock.test.ts` dan `src/6-1-scheduled-posts/lib/tiktokCarouselPublish.test.ts`. Jalankan keduanya setelah menyentuh file di atas. Jangan melemahkan assertion agar perubahan lolos.

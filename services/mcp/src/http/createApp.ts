@@ -318,6 +318,8 @@ export type AppDeps = {
       forbiddenNotes: string;
       pillarIds: string[];
       productKnowledgeIds: string[];
+      angleIds?: string[];
+      repeatVoices?: string[];
       splitRule: string;
     },
   ) => Promise<unknown>;

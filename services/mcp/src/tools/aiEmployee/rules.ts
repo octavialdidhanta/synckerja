@@ -254,6 +254,8 @@ export const aiEmployeeBriefUpdateInput = aiEmployeeNameInput.extend({
   forbidden_notes: z.string().max(2000),
   pillar_ids: z.array(briefId).max(12),
   product_knowledge_ids: z.array(briefId).max(12),
+  angle_ids: z.array(briefId).max(3).optional(),
+  repeat_voices: z.array(z.string().trim().min(1).max(500)).max(3).optional(),
   split_rule: z.string().max(1000),
 }).strict();
 
@@ -273,5 +275,7 @@ export type AiEmployeeBriefInput = {
   forbiddenNotes: string;
   pillarIds: string[];
   productKnowledgeIds: string[];
+  angleIds?: string[];
+  repeatVoices?: string[];
   splitRule: string;
 };

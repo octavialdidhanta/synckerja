@@ -11,9 +11,20 @@ import {
 } from "../metaContent/metaReelsPublishApi.ts";
 import { resolveGoogleDrivePublicVideoUrl } from "./googleDrivePublicVideoUrl.ts";
 import {
+  isCarouselContentType,
   isPlanEligibleForInstagramAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
 } from "./scheduledPostEligibility.ts";
+import {
+  assertCarouselPublishPaths,
+  carouselMediaSnapshot,
+  loadCarouselStoragePaths,
+} from "./carouselImagePaths.ts";
+import {
+  createInstagramCarouselContainer,
+  createInstagramPhotoContainer,
+  instagramCarouselImageUrls,
+} from "../metaContent/instagramCarouselPublishApi.ts";
 import { sleepMs } from "./scheduledPostRetry.ts";
 import { touchPublishingHeartbeat } from "./publishingHeartbeat.ts";
 import { resolveVideoBytesForUpload, type SharedPublishContext } from "./sharedPublishContext.ts";
@@ -219,6 +230,120 @@ async function upsertInstagramLink(
   await syncPlanCompletionStateForPlan(admin, plan.id);
 }
 
+async function executeInstagramCarouselScheduledPost(
+  admin: SupabaseClient,
+  schedule: ScheduledPostRow,
+  plan: PlanRow,
+): Promise<{ published_url: string; external_post_id: string | null }> {
+  const storagePaths = assertCarouselPublishPaths(
+    await loadCarouselStoragePaths(admin, plan.id),
+  );
+  const imageCount = storagePaths.length;
+  if (!isPlanEligibleForInstagramAutoSchedule({
+    ...planEligibilityInput(plan),
+    carousel_image_count: imageCount,
+  })) {
+    throw new Error("plan_not_eligible");
+  }
+  if (schedule.media_url_snapshot !== carouselMediaSnapshot(storagePaths)) {
+    throw new Error("carousel_images_changed");
+  }
+
+  const cfg = schedule.provider_config as InstagramProviderConfig;
+  const igAccountId = String(cfg.instagram_business_account_id ?? "").trim();
+  if (!igAccountId) throw new Error("missing_instagram_business_account_id");
+
+  const account = await resolveMetaContentAccount(
+    admin,
+    schedule.organization_id,
+    "instagram",
+    igAccountId,
+  );
+  if (!account?.pageAccessToken) throw new Error("instagram_account_not_found");
+  if (!metaScopesIncludePublish(account.grantedScopes)) {
+    throw new Error("publish_scopes_not_granted");
+  }
+
+  let providerConfig = { ...(schedule.provider_config as Record<string, unknown>) };
+  const caption = schedule.caption?.trim() || schedule.title?.trim() || "";
+  const accountLabel = String(cfg.account_label ?? account.accountLabel ?? "Instagram");
+  const heartbeat = () => touchPublishingHeartbeat(admin, [schedule.id]);
+
+  const finishPublished = async (mediaId: string) => {
+    const permalink = await fetchInstagramMediaPermalink(mediaId, account.pageAccessToken);
+    const publishedUrl = permalink ?? `https://www.instagram.com/p/${encodeURIComponent(mediaId)}/`;
+    await upsertInstagramLink(admin, plan, {
+      url: publishedUrl,
+      accountId: igAccountId,
+      accountLabel,
+      externalPostId: mediaId,
+      employeeId: cfg.employee_id,
+    });
+    return { published_url: publishedUrl, external_post_id: mediaId };
+  };
+
+  const publishContainer = async (containerId: string) => {
+    const { mediaId } = await publishInstagramContainerWhenReady(
+      admin,
+      schedule.id,
+      providerConfig,
+      {
+        igAccountId,
+        pageAccessToken: account.pageAccessToken,
+        containerId,
+      },
+    );
+    return finishPublished(mediaId);
+  };
+
+  if (cfg.ig_container_id && cfg.ig_upload_phase === "uploaded") {
+    console.info(
+      `instagram_publish_path=carousel scheduleId=${schedule.id} resume=1 images=${imageCount}`,
+    );
+    return publishContainer(cfg.ig_container_id);
+  }
+
+  const imageUrls = instagramCarouselImageUrls(storagePaths);
+  let containerId: string;
+  if (imageUrls.length === 1) {
+    const photo = await createInstagramPhotoContainer(igAccountId, account.pageAccessToken, {
+      imageUrl: imageUrls[0],
+      caption,
+    });
+    containerId = photo.containerId;
+  } else {
+    const childIds: string[] = [];
+    for (const imageUrl of imageUrls) {
+      const child = await createInstagramPhotoContainer(igAccountId, account.pageAccessToken, {
+        imageUrl,
+        carouselItem: true,
+      });
+      await waitForInstagramReelsContainerReady(child.containerId, account.pageAccessToken, {
+        maxWaitMs: 45_000,
+        intervalMs: 2_000,
+        onTick: heartbeat,
+      });
+      childIds.push(child.containerId);
+    }
+    const carousel = await createInstagramCarouselContainer(
+      igAccountId,
+      account.pageAccessToken,
+      { childIds, caption },
+    );
+    containerId = carousel.containerId;
+  }
+
+  providerConfig = await persistInstagramProviderConfig(admin, schedule.id, providerConfig, {
+    ig_container_id: containerId,
+    ig_upload_phase: "uploaded",
+    publish_step: "processing",
+  });
+  console.info(
+    `instagram_publish_path=carousel scheduleId=${schedule.id} images=${imageCount}`,
+  );
+  return publishContainer(containerId);
+}
+
 export async function executeInstagramScheduledPost(
   admin: SupabaseClient,
   schedule: ScheduledPostRow,
@@ -226,6 +351,9 @@ export async function executeInstagramScheduledPost(
 ): Promise<{ published_url: string; external_post_id: string | null }> {
   const plan = await loadPlan(admin, schedule.social_media_plan_id);
   if (!plan) throw new Error("plan_not_found");
+  if (isCarouselContentType(plan.content_type?.name)) {
+    return executeInstagramCarouselScheduledPost(admin, schedule, plan);
+  }
   if (!isPlanEligibleForInstagramAutoSchedule(planEligibilityInput(plan))) {
     throw new Error("plan_not_eligible");
   }

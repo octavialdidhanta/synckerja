@@ -56,5 +56,6 @@ export type LabMasterThought = {
   semanticFingerprint: string | null;
   lastAudit: unknown;
   productReasonPool: ProductReasonPool | null;
+  serviceId: string | null;
   updatedAt: string;
 };

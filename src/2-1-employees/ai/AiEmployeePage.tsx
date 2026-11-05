@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogFooter,
+  DialogFormScrollArea,
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
@@ -30,7 +31,8 @@ import {
   sameRoutine,
   sameSchedule,
 } from "./parse";
-import type { BriefChange, BriefDraft, CatalogOption, RoutineRow, ScheduleRow } from "./types";
+import { anglesForCatalogs, anglesWithLockedIdeas, pillarsForLockedIdeas } from "./angleCatalog";
+import type { AngleOption, BriefChange, BriefDraft, CatalogOption, RoutineRow, ScheduleRow } from "./types";
 import { useAiEmployeePage } from "./useAiEmployeePage";
 
 const WEEKDAYS = [
@@ -152,6 +154,384 @@ function shownText(value: string): string {
   return text || "—";
 }
 
+function angleCodeLabel(angle: { code: string; label: string }): string {
+  const code = angle.code.trim();
+  return code ? `Angle - ${code}` : angle.label;
+}
+
+function AngleDetailDialog({
+  angle,
+  onClose,
+}: {
+  angle: AngleOption | null;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={angle != null} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="flex h-[min(28rem,70vh,92vw)] w-[min(28rem,70vh,92vw)] max-w-none flex-col gap-3 overflow-hidden p-5 sm:max-w-none">
+        {angle ? (
+          <>
+            <DialogHeader className="shrink-0 pr-10">
+              <DialogTitle>{angleCodeLabel(angle)}</DialogTitle>
+              <DialogDescription>{angle.name || angle.master || "Angle"}</DialogDescription>
+            </DialogHeader>
+            <DialogFormScrollArea className="pr-1">
+              <div className="space-y-3 pb-1 text-sm">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Master Thought</p>
+                <p className="whitespace-pre-wrap">{angle.master || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Angle</p>
+                <p className="whitespace-pre-wrap">{angle.statement || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Idea</p>
+                {angle.ideas.length === 0 ? (
+                  <p className="text-muted-foreground">Belum ada idea yang locked.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {angle.ideas.map((idea) => (
+                      <li key={idea.id}>
+                        <p className="font-medium">{idea.code ? `${idea.code} · ${idea.name}` : idea.name}</p>
+                        {idea.statement ? <p className="whitespace-pre-wrap text-muted-foreground">{idea.statement}</p> : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {angle.otherIdeaCount > 0 ? (
+                  <p className="mt-2 text-xs text-muted-foreground">{angle.otherIdeaCount} idea lain belum locked.</p>
+                ) : null}
+              </div>
+              </div>
+            </DialogFormScrollArea>
+          </>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AngleFocusField({
+  emptyLabel,
+  options,
+  catalogIds,
+  value,
+  disabled,
+  onChange,
+  onOpen,
+}: {
+  emptyLabel: string;
+  options: AngleOption[];
+  catalogIds: string[];
+  value: string[];
+  disabled: boolean;
+  onChange: (next: string[]) => void;
+  onOpen: (id: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const selected = value
+    .map((id) => options.find((option) => option.id === id))
+    .filter((option): option is AngleOption => Boolean(option));
+  const needle = query.trim().toLowerCase();
+  const visible = anglesWithLockedIdeas(anglesForCatalogs(options, catalogIds)).filter((option) => {
+    if (!needle) return true;
+    return angleCodeLabel(option).toLowerCase().includes(needle);
+  });
+  return (
+    <Popover open={open} onOpenChange={(next) => { if (!disabled) setOpen(next); }}>
+      <PopoverTrigger asChild>
+        <div className="flex min-h-9 w-full flex-wrap items-center gap-1 rounded-md border border-input bg-background px-2 py-1">
+          {selected.map((angle) => {
+            const chip = angleCodeLabel(angle);
+            return (
+              <span
+                key={angle.id}
+                className="inline-flex max-w-full items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-900"
+              >
+                <button
+                  type="button"
+                  className="truncate"
+                  title={angle.name || undefined}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpen(angle.id);
+                  }}
+                >
+                  {chip}
+                </button>
+                {!disabled ? (
+                <button
+                  type="button"
+                  className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-violet-700 hover:bg-violet-200"
+                  aria-label={`Hapus ${chip}`}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onChange(value.filter((id) => id !== angle.id));
+                  }}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+                ) : null}
+              </span>
+            );
+          })}
+          {!disabled ? (
+            <input
+              value={query}
+              placeholder={selected.length === 0 ? "Angle" : ""}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+              className="h-7 min-w-[5rem] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          ) : selected.length === 0 ? (
+            <span className="text-sm text-muted-foreground">—</span>
+          ) : null}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="max-h-60 w-56 overflow-y-auto p-1" onOpenAutoFocus={(event) => event.preventDefault()}>
+        {visible.length === 0 ? (
+          <p className="px-2 py-1.5 text-xs text-muted-foreground">{emptyLabel}</p>
+        ) : (
+          visible.map((option) => {
+            const picked = value.includes(option.id);
+            const blocked = !picked && value.length >= 3;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                disabled={disabled || blocked}
+                title={option.name || undefined}
+                className={cn(
+                  "flex w-full rounded px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40",
+                  picked && "bg-violet-50",
+                )}
+                onClick={() => {
+                  if (picked) onChange(value.filter((id) => id !== option.id));
+                  else if (value.length < 3) onChange([...value, option.id]);
+                  setQuery("");
+                }}
+              >
+                {angleCodeLabel(option)}
+              </button>
+            );
+          })
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ProductKnowledgeField({
+  emptyLabel,
+  placeholder,
+  limit = 12,
+  options,
+  value,
+  disabled,
+  onChange,
+}: {
+  emptyLabel: string;
+  placeholder: string;
+  limit?: number;
+  options: CatalogOption[];
+  value: string[];
+  disabled: boolean;
+  onChange: (next: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const selected = value
+    .map((id) => options.find((option) => option.id === id))
+    .filter((option): option is CatalogOption => Boolean(option));
+  const needle = query.trim().toLowerCase();
+  const visible = options.filter((option) => {
+    if (!needle) return true;
+    return option.label.toLowerCase().includes(needle);
+  });
+  return (
+    <Popover open={open} onOpenChange={(next) => { if (!disabled) setOpen(next); }}>
+      <PopoverTrigger asChild>
+        <div className="flex min-h-9 w-full flex-wrap items-center gap-1 rounded-md border border-input bg-background px-2 py-1">
+          {selected.map((product) => (
+            <span
+              key={product.id}
+              className="inline-flex max-w-full items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-900"
+            >
+              <span className="truncate" title={product.label}>{product.label}</span>
+              {!disabled ? (
+                <button
+                  type="button"
+                  className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-violet-700 hover:bg-violet-200"
+                  aria-label={`Hapus ${product.label}`}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onChange(value.filter((id) => id !== product.id));
+                  }}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              ) : null}
+            </span>
+          ))}
+          {!disabled ? (
+            <input
+              value={query}
+              placeholder={selected.length === 0 ? placeholder : ""}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+              className="h-7 min-w-[5rem] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          ) : selected.length === 0 ? (
+            <span className="text-sm text-muted-foreground">—</span>
+          ) : null}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        collisionPadding={12}
+        className="z-[60] max-h-[min(16rem,var(--radix-popover-content-available-height))] w-80 overflow-y-auto overscroll-contain p-1"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onWheel={(event) => event.stopPropagation()}
+        onTouchMove={(event) => event.stopPropagation()}
+      >
+        {visible.length === 0 ? (
+          <p className="px-2 py-1.5 text-xs text-muted-foreground">{emptyLabel}</p>
+        ) : (
+          visible.map((option) => {
+            const picked = value.includes(option.id);
+            const blocked = !picked && value.length >= limit;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                disabled={disabled || blocked}
+                className={cn(
+                  "flex w-full rounded px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40",
+                  picked && "bg-violet-50",
+                )}
+                onClick={() => {
+                  if (picked) onChange(value.filter((id) => id !== option.id));
+                  else if (value.length < limit) onChange([...value, option.id]);
+                  setQuery("");
+                }}
+              >
+                {option.label}
+              </button>
+            );
+          })
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function FieldHint({ text, label, wide = false }: { text: string; label: string; wide?: boolean }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-current text-[10px] font-serif italic leading-none text-muted-foreground hover:text-foreground"
+          aria-label={`Keterangan ${label}`}
+        >
+          i
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        collisionPadding={12}
+        className={cn("z-[60] p-0", wide ? "w-96" : "w-72")}
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onWheel={(event) => event.stopPropagation()}
+        onTouchMove={(event) => event.stopPropagation()}
+      >
+        <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain max-h-[min(16rem,var(--radix-popover-content-available-height))] overflow-y-auto overflow-x-hidden whitespace-pre-line p-3 text-sm leading-relaxed [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {text}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function RepeatVoiceEditor({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string[];
+  disabled: boolean;
+  onChange: (next: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const next = draft.trim();
+    if (!next || next.length > 500 || value.includes(next) || value.length >= 3) return;
+    onChange([...value, next]);
+    setDraft("");
+  };
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="sm" disabled={disabled} className="h-7">
+          {label}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 space-y-2 p-3">
+        {value.map((voice) => (
+          <div key={voice} className="flex items-start justify-between gap-2 text-sm">
+            <span className="whitespace-pre-wrap">{voice}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2"
+              disabled={disabled}
+              onClick={() => onChange(value.filter((item) => item !== voice))}
+            >
+              Hapus
+            </Button>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <input
+            value={draft}
+            maxLength={500}
+            disabled={disabled || value.length >= 3}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                add();
+              }
+            }}
+            className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+          />
+          <Button type="button" size="sm" variant="outline" disabled={disabled || value.length >= 3} onClick={add}>
+            Tambah
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function MultiSelect({
   label,
   emptyLabel,
@@ -172,7 +552,7 @@ function MultiSelect({
   const selected = options.filter((option) => value.includes(option.id));
   const summary = selected.length > 0 ? selected.map((option) => option.label).join(", ") : label;
   return (
-    <Popover>
+    <Popover modal>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -184,7 +564,13 @@ function MultiSelect({
           {trigger ? trigger : <span className="line-clamp-2">{summary}</span>}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="max-h-64 w-80 overflow-y-auto p-2">
+      <PopoverContent
+        align="end"
+        collisionPadding={12}
+        className="z-[60] max-h-[min(16rem,var(--radix-popover-content-available-height))] w-80 overflow-y-auto overscroll-contain p-2"
+        onWheel={(event) => event.stopPropagation()}
+        onTouchMove={(event) => event.stopPropagation()}
+      >
         {options.length === 0 ? (
           <p className="px-2 py-1 text-xs text-muted-foreground">{emptyLabel}</p>
         ) : (
@@ -277,6 +663,7 @@ export default function AiEmployeePage() {
   const [copyEmail1, setCopyEmail1] = useState("");
   const [copyEmail2, setCopyEmail2] = useState("");
   const [briefOpen, setBriefOpen] = useState(false);
+  const [angleDetailId, setAngleDetailId] = useState<string | null>(null);
   const [briefPanelOpen, setBriefPanelOpen] = useState(false);
   const [recipientsOpen, setRecipientsOpen] = useState(false);
   const [scheduleCompare, setScheduleCompare] = useState<{ before: ScheduleRow; after: ScheduleRow } | null>(null);
@@ -328,6 +715,17 @@ export default function AiEmployeePage() {
     setCopyEmail2(current.summary.reportCopyEmail2 ?? "");
   }, [copyKey]);
 
+  useEffect(() => {
+    if (!page || !brief || brief.angleIds.length === 0) return;
+    const allowed = new Set(
+      page.options.angles
+        .filter((angle) => brief.angleIds.includes(angle.id))
+        .flatMap((angle) => angle.pillarIds),
+    );
+    if (brief.pillarIds.every((id) => allowed.has(id))) return;
+    setBrief({ ...brief, pillarIds: brief.pillarIds.filter((id) => allowed.has(id)) });
+  }, [page, brief]);
+
   const names = useMemo(() => {
     if (!page) {
       return {
@@ -335,6 +733,7 @@ export default function AiEmployeePage() {
         personas: new Map<string, string>(),
         pillars: new Map<string, string>(),
         products: new Map<string, string>(),
+        angles: new Map<string, string>(),
       };
     }
     return {
@@ -342,6 +741,7 @@ export default function AiEmployeePage() {
       personas: nameMap(page.options.personas, page.briefLabels.personas),
       pillars: nameMap(page.options.pillars, page.briefLabels.pillars),
       products: nameMap(page.options.products, page.briefLabels.products),
+      angles: nameMap(page.options.angles, page.briefLabels.angles),
     };
   }, [page]);
 
@@ -498,12 +898,15 @@ export default function AiEmployeePage() {
     });
   };
 
+  const visiblePillars = page && brief
+    ? pillarsForLockedIdeas(page.options.pillars, page.options.angles, brief.angleIds)
+    : [];
+
   const visibleProducts = page && brief
     ? page.options.products.filter((product) => {
       const selected = brief.productIds.includes(product.id);
-      const allowed = (product.serviceId != null && brief.serviceIds.includes(product.serviceId))
-        || (product.parentServiceId != null && brief.serviceIds.includes(product.parentServiceId));
-      return selected || allowed;
+      const sameCategory = product.serviceId != null && brief.serviceIds.includes(product.serviceId);
+      return selected || sameCategory;
     })
     : [];
 
@@ -992,7 +1395,14 @@ export default function AiEmployeePage() {
                         <Dialog open={briefPanelOpen} onOpenChange={setBriefPanelOpen}>
                           <DialogContent className="max-w-3xl">
                             <DialogHeader>
-                              <DialogTitle>{t("aiEmployee.brief.title", "Brief")}</DialogTitle>
+                              <DialogTitle className="flex items-center gap-2">
+                                {t("aiEmployee.brief.title", "Brief")}
+                                <FieldHint
+                                  wide
+                                  label={t("aiEmployee.brief.title", "Brief")}
+                                  text={"Berlaku untuk Content Plan Carousel. Field yang diisi menjadi batas. Field yang dikosongkan melepas batas itu.\n\nKatalog wajib. Kalau kosong, plan tidak dibuat. Lebih dari satu katalog dipakai bergiliran menurut urutan hari.\n\nFokus angle kosong: plan memakai idea yang sudah dikunci dan lolos, yang belum punya plan. Angle tidak dibatasi.\nFokus angle diisi: plan hanya dari jalur carousel yang dikunci pada angle itu. Persona dan audiens tidak dikirim.\n\nPilar kosong saat angle terisi: semua pilar yang terkunci pada angle itu ikut antrian.\nPilar diisi: antrian hanya pilar itu.\nPilar kosong saat angle kosong: semua pilar aktif, dipilih yang paling sedikit dipakai. Setelah ada 5 plan, satu pilar tidak boleh melebihi 40%.\n\nProduct Knowledge kosong: daftarnya semua baris yang kategorinya sama dengan katalog.\nProduct Knowledge diisi: hanya baris itu.\nSaat fokus angle terisi, Naya memilih dari daftar itu (paling banyak 30) dan pilihannya dipakai selama ada di daftar.\nSaat fokus angle kosong, yang dikirim paling banyak 3 baris, dan baris yang sudah terpakai dilewati.\n\nSuara kosong: tidak ada gaya bahasa.\nCatatan wajib dan catatan terlarang kosong: tidak ada aturan tambahan.\nGaya pengulangan kosong: tidak ada plan kedua. Gaya pertama dipakai hanya setelah plan pertama tayang lebih dari 7 hari dan metriknya di atas median."}
+                                />
+                              </DialogTitle>
                               <DialogDescription>{workName("SOP1", t)}</DialogDescription>
                             </DialogHeader>
                         <Table containerClassName="max-h-[60vh] overflow-auto">
@@ -1023,14 +1433,60 @@ export default function AiEmployeePage() {
                                       const allowed = new Set(serviceIds);
                                       const productIds = current.productIds.filter((productId) => {
                                         const product = page.options.products.find((item) => item.id === productId);
-                                        if (!product) return false;
-                                        return (product.serviceId != null && allowed.has(product.serviceId))
-                                          || (product.parentServiceId != null && allowed.has(product.parentServiceId));
+                                        return product?.serviceId != null && allowed.has(product.serviceId);
                                       });
                                       return { ...current, serviceIds, productIds };
                                     })}
                                   />
                                 ),
+                              },
+                              {
+                                key: "angles",
+                                label: t("aiEmployee.brief.angles", "Fokus angle"),
+                                value: (
+                                  <AngleFocusField
+                                    emptyLabel={t("aiEmployee.brief.noAngles", "Tidak ada angle")}
+                                    options={page.options.angles}
+                                    catalogIds={brief.serviceIds}
+                                    value={brief.angleIds}
+                                    disabled={saving || !canEdit}
+                                    onChange={(angleIds) => setBrief((current) => {
+                                      if (!current || !page) return current;
+                                      if (angleIds.length === 0) return { ...current, angleIds, pillarIds: [] };
+                                      const allowed = new Set(
+                                        page.options.angles
+                                          .filter((angle) => angleIds.includes(angle.id))
+                                          .flatMap((angle) => angle.pillarIds),
+                                      );
+                                      return {
+                                        ...current,
+                                        angleIds,
+                                        pillarIds: current.pillarIds.filter((id) => allowed.has(id)),
+                                      };
+                                    })}
+                                    onOpen={setAngleDetailId}
+                                  />
+                                ),
+                                editor: null,
+                              },
+                              {
+                                key: "pillars",
+                                label: t("aiEmployee.brief.pillars", "Pilar"),
+                                value: (
+                                  <ProductKnowledgeField
+                                    placeholder={t("aiEmployee.brief.pillars", "Pilar")}
+                                    emptyLabel={brief.angleIds.length === 0
+                                      ? t("aiEmployee.brief.pickAngleFirst", "Pilih angle dulu")
+                                      : t("aiEmployee.brief.noLockedPillars", "Tidak ada pilar yang terkunci pada idea")}
+                                    options={page.options.pillars.filter((pillar) => (
+                                      visiblePillars.some((item) => item.id === pillar.id) || brief.pillarIds.includes(pillar.id)
+                                    ))}
+                                    value={brief.pillarIds}
+                                    disabled={saving || !canEdit || brief.angleIds.length === 0}
+                                    onChange={(pillarIds) => setBrief((current) => current ? { ...current, pillarIds } : current)}
+                                  />
+                                ),
+                                editor: null,
                               },
                               {
                                 key: "personas",
@@ -1049,38 +1505,21 @@ export default function AiEmployeePage() {
                                 ),
                               },
                               {
-                                key: "pillars",
-                                label: t("aiEmployee.brief.pillars", "Pilar"),
-                                value: listed(brief.pillarIds, names.pillars),
-                                editor: (
-                                  <MultiSelect
-                                    trigger={t("aiEmployee.brief.edit", "Ubah")}
-                                    label={t("aiEmployee.brief.pickPillars", "Pilih pilar")}
-                                    emptyLabel={t("aiEmployee.brief.noPillars", "Tidak ada pilar")}
-                                    options={page.options.pillars}
-                                    value={brief.pillarIds}
-                                    disabled={saving}
-                                    onToggle={(id) => setBrief((current) => current ? { ...current, pillarIds: toggleId(current.pillarIds, id) } : current)}
-                                  />
-                                ),
-                              },
-                              {
                                 key: "products",
                                 label: t("aiEmployee.brief.products", "Product Knowledge"),
-                                value: listed(brief.productIds, names.products),
-                                editor: (
-                                  <MultiSelect
-                                    trigger={t("aiEmployee.brief.edit", "Ubah")}
-                                    label={brief.serviceIds.length === 0
+                                value: (
+                                  <ProductKnowledgeField
+                                    placeholder={t("aiEmployee.brief.products", "Product Knowledge")}
+                                    emptyLabel={brief.serviceIds.length === 0
                                       ? t("aiEmployee.brief.pickServiceFirst", "Pilih katalog dulu")
-                                      : t("aiEmployee.brief.pickProducts", "Pilih Product Knowledge")}
-                                    emptyLabel={t("aiEmployee.brief.noProducts", "Tidak ada Product Knowledge untuk katalog ini")}
+                                      : t("aiEmployee.brief.noProducts", "Tidak ada Product Knowledge untuk katalog ini")}
                                     options={visibleProducts}
                                     value={brief.productIds}
-                                    disabled={saving || brief.serviceIds.length === 0}
-                                    onToggle={(id) => setBrief((current) => current ? { ...current, productIds: toggleId(current.productIds, id) } : current)}
+                                    disabled={saving || !canEdit || brief.serviceIds.length === 0}
+                                    onChange={(productIds) => setBrief((current) => current ? { ...current, productIds } : current)}
                                   />
                                 ),
+                                editor: null,
                               },
                               {
                                 key: "audience",
@@ -1097,8 +1536,23 @@ export default function AiEmployeePage() {
                                 ),
                               },
                               {
+                                key: "repeatVoices",
+                                label: t("aiEmployee.brief.repeatVoices", "Gaya pengulangan"),
+                                hint: "Hanya untuk plan kedua pada idea dan pilar yang sama, setelah plan pertama tayang lebih dari 7 hari dan metriknya di atas median. Yang dipakai hanya gaya pertama. Kosong berarti tidak ada pengulangan.",
+                                value: brief.repeatVoices.length > 0 ? brief.repeatVoices.join("\n") : "—",
+                                editor: (
+                                  <RepeatVoiceEditor
+                                    label={t("aiEmployee.brief.edit", "Ubah")}
+                                    value={brief.repeatVoices}
+                                    disabled={saving}
+                                    onChange={(repeatVoices) => setBrief((current) => current ? { ...current, repeatVoices } : current)}
+                                  />
+                                ),
+                              },
+                              {
                                 key: "voice",
                                 label: t("aiEmployee.brief.voice", "Suara"),
+                                hint: "Nada tulisan plan pertama. Naya memakai ini sebagai gaya bahasa.",
                                 value: shownText(brief.voice),
                                 editor: (
                                   <TextFieldButton
@@ -1113,6 +1567,7 @@ export default function AiEmployeePage() {
                               {
                                 key: "required",
                                 label: t("aiEmployee.brief.required", "Catatan wajib"),
+                                hint: "Hal yang harus ada di plan, misalnya harga atau ajakan. Kosong berarti tidak ada aturan tambahan.",
                                 value: shownText(brief.requiredNotes),
                                 editor: (
                                   <TextFieldButton
@@ -1127,6 +1582,7 @@ export default function AiEmployeePage() {
                               {
                                 key: "forbidden",
                                 label: t("aiEmployee.brief.forbidden", "Catatan terlarang"),
+                                hint: "Hal yang tidak boleh muncul di plan. Kosong berarti tidak ada larangan.",
                                 value: shownText(brief.forbiddenNotes),
                                 editor: (
                                   <TextFieldButton
@@ -1138,25 +1594,24 @@ export default function AiEmployeePage() {
                                   />
                                 ),
                               },
-                              {
-                                key: "split",
-                                label: t("aiEmployee.brief.split", "Aturan pecahan"),
-                                value: shownText(brief.splitRule),
-                                editor: (
-                                  <TextFieldButton
-                                    label={t("aiEmployee.brief.edit", "Ubah")}
-                                    value={brief.splitRule}
-                                    maxLength={1000}
-                                    disabled={saving}
-                                    onChange={(splitRule) => setBrief((current) => current ? { ...current, splitRule } : current)}
-                                  />
-                                ),
-                              },
-                            ] as const).map((row) => (
+                            ] as const).filter((row) => (
+                              brief.angleIds.length === 0 || (row.key !== "personas" && row.key !== "audience")
+                            )).map((row) => (
                               <TableRow key={row.key}>
-                                <TableCell>{row.label}</TableCell>
-                                <TableCell className="whitespace-pre-wrap">{row.value}</TableCell>
-                                {canEdit ? <TableCell>{row.editor}</TableCell> : null}
+                                <TableCell className="align-top">
+                                  <span className="inline-flex items-center gap-1.5">
+                                    {row.label}
+                                    {"hint" in row && row.hint ? <FieldHint text={row.hint} label={row.label} /> : null}
+                                  </span>
+                                </TableCell>
+                                {row.key === "angles" || row.key === "products" || row.key === "pillars" ? (
+                                  <TableCell colSpan={canEdit ? 2 : 1} className="whitespace-pre-wrap">{row.value}</TableCell>
+                                ) : (
+                                  <>
+                                    <TableCell className="whitespace-pre-wrap">{row.value}</TableCell>
+                                    {canEdit ? <TableCell><div className="flex justify-end">{row.editor}</div></TableCell> : null}
+                                  </>
+                                )}
                               </TableRow>
                             ))}
                           </TableBody>
@@ -1319,6 +1774,11 @@ export default function AiEmployeePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AngleDetailDialog
+        angle={page?.options.angles.find((item) => item.id === angleDetailId) ?? null}
+        onClose={() => setAngleDetailId(null)}
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   deleteLabMaster,
   listLabMasters,
   lockLabMaster,
+  saveLabMasterService,
   saveLabSetRecord,
   saveOriginalInput,
   saveUnderstanding,
@@ -72,6 +73,12 @@ export function useMasterThought() {
     onSuccess: invalidate,
   });
 
+  const saveService = useMutation({
+    mutationFn: (input: { id: string; serviceId: string | null }) =>
+      saveLabMasterService(input.id, organizationId as string, input.serviceId),
+    onSuccess: invalidate,
+  });
+
   const lock = useMutation({
     mutationFn: (id: string) => lockLabMaster(id, organizationId as string),
     onSuccess: async (_void, id) => {
@@ -117,6 +124,7 @@ export function useMasterThought() {
     saveJudge,
     confirm,
     saveSet,
+    saveService,
     lock,
     unlock,
     remove,
