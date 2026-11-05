@@ -1,4 +1,4 @@
-import { authorizeCarouselImageRequest, CAROUSEL_STORAGE_BUCKET } from "../../supabase/functions/_shared/tiktokCarouselImageUrl";
+import { authorizeCarouselImageRequest, CAROUSEL_STORAGE_BUCKET } from "../../supabase/functions/_shared/tiktokCarouselImageUrl.js";
 
 type ApiResponse = {
   status: (code: number) => ApiResponse;
