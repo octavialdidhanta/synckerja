@@ -70,6 +70,8 @@ interface BriefDialogProps {
   canApprove?: boolean;
   /** True when the signed-in employee is the PIC of this content row. */
   canEditBriefContent?: boolean;
+  /** Latest Canva carousel run for this content plan (optional while loading). */
+  canvaRun?: CanvaCarouselRun | null;
 }
 
 const BriefDialog: React.FC<BriefDialogProps> = ({
@@ -87,6 +89,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   tryStartApprovalFromBrief,
   canApprove = false,
   canEditBriefContent = false,
+  canvaRun = null,
 }) => {
   const { t } = useAppTranslation();
   const { organizationId } = useCurrentOrg();
