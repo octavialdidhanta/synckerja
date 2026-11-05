@@ -1,4 +1,4 @@
-import { authorizeCarouselImageRequest, CAROUSEL_STORAGE_BUCKET } from "../../supabase/functions/_shared/tiktokCarouselImageUrl.ts";
+import { authorizeCarouselImageRequest, CAROUSEL_STORAGE_BUCKET } from "../../supabase/functions/_shared/tiktokCarouselImageUrl";
 
 type ApiResponse = {
   status: (code: number) => ApiResponse;
@@ -50,7 +50,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     sig: firstQuery(req.query.sig),
     secret: process.env.TIKTOK_CAROUSEL_URL_SECRET ?? "",
   });
-  if (!decision.ok) {
+  if (decision.ok === false) {
     text(res, decision.status, decision.error);
     return;
   }
