@@ -7,6 +7,7 @@ import {
   computeTikTokFileUploadChunkPlan,
   deriveTikTokPostInteractionFromCreator,
   fetchTikTokPublishStatus,
+  initTikTokPhotoPublishPullFromUrl,
   initTikTokVideoPublishFileUpload,
   initTikTokVideoPublishPullFromUrl,
   pollTikTokPublishUntilPublicPostId,
@@ -15,7 +16,15 @@ import {
   uploadTikTokVideoChunks,
 } from "../tiktokContent/tiktokContentPublishApi.ts";
 import {
+  assertCarouselPublishPaths,
+  carouselMediaSnapshot,
+  loadCarouselStoragePaths,
+} from "./carouselImagePaths.ts";
+import { buildTikTokCarouselImageUrl } from "../tiktokCarouselImageUrl.ts";
+import {
+  isCarouselContentType,
   isPlanEligibleForTikTokAutoSchedule,
+  isPlanEligibleForTikTokCarouselSchedule,
   shouldCancelScheduleDueToDriveMismatch,
 } from "../scheduledPosts/scheduledPostEligibility.ts";
 import { touchPublishingHeartbeat } from "../scheduledPosts/publishingHeartbeat.ts";
@@ -264,13 +273,148 @@ async function publishTikTokViaFileUpload(
   );
 }
 
+async function executeTikTokCarouselScheduledPost(
+  admin: SupabaseClient,
+  schedule: ScheduledPostRow,
+  plan: PlanRow,
+): Promise<{ published_url: string; external_post_id: string | null; tiktok_publish_path: "photo_pull" }> {
+  const storagePaths = assertCarouselPublishPaths(
+    await loadCarouselStoragePaths(admin, plan.id),
+  );
+  if (!isPlanEligibleForTikTokCarouselSchedule({
+    ...planEligibilityInput(plan),
+    carousel_image_count: storagePaths.length,
+  })) {
+    throw new Error("plan_not_eligible");
+  }
+
+  const snapshot = carouselMediaSnapshot(storagePaths);
+  if (schedule.media_url_snapshot !== snapshot) {
+    throw new Error("carousel_images_changed");
+  }
+
+  const cfg = schedule.provider_config as TikTokProviderConfigExt;
+  const openId = String(cfg.open_id ?? "").trim();
+  if (!openId) throw new Error("missing_open_id");
+
+  const publishAccessToken = await getTikTokPublishAccessToken(
+    admin,
+    schedule.organization_id,
+    openId,
+  );
+  if (!publishAccessToken) {
+    throw new Error(
+      "publish_login_kit_token_missing: Re-authorize TikTok publishing in Digital Marketing settings",
+    );
+  }
+
+  const scopes = await admin
+    .from("organization_tiktok_content_connection_tokens")
+    .select("oauth_scopes, publish_oauth_scopes")
+    .eq("organization_id", schedule.organization_id)
+    .eq("open_id", openId)
+    .maybeSingle();
+  const scopeForPublish = (scopes.data?.publish_oauth_scopes as string | null) ??
+    (scopes.data?.oauth_scopes as string | null);
+  if (!tiktokContentScopesIncludePublish(scopeForPublish)) {
+    throw new Error("publish_scopes_not_granted");
+  }
+
+  let providerConfig = { ...(schedule.provider_config as Record<string, unknown>) };
+  const heartbeat = () => touchPublishingHeartbeat(admin, [schedule.id]);
+
+  const finishPhoto = async (publishId: string, creatorUsername?: string) => {
+    providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
+      tiktok_publish_id: publishId,
+      tiktok_upload_completed: true,
+      publish_step: "processing",
+    });
+    const { publicPostId } = await pollTikTokPublishUntilPublicPostId(
+      publishAccessToken,
+      publishId,
+      { onTick: heartbeat },
+    );
+    return {
+      ...await finalizeTikTokPublish(
+        admin,
+        schedule,
+        plan,
+        openId,
+        publicPostId,
+        creatorUsername,
+      ),
+      tiktok_publish_path: "photo_pull" as const,
+    };
+  };
+
+  if (cfg.tiktok_publish_id) {
+    const status = await fetchTikTokPublishStatus(publishAccessToken, cfg.tiktok_publish_id);
+    if (String(status.status ?? "").toUpperCase() !== "FAILED") {
+      let creatorUsername: string | undefined;
+      try {
+        creatorUsername = (await queryTikTokCreatorInfo(publishAccessToken)).creator_username;
+      } catch {
+        creatorUsername = undefined;
+      }
+      console.info(
+        `tiktok_publish_path=photo_pull scheduleId=${schedule.id} publishId=${cfg.tiktok_publish_id} resume=1`,
+      );
+      return finishPhoto(cfg.tiktok_publish_id, creatorUsername);
+    }
+    providerConfig = await clearTikTokUploadAttempt(admin, schedule.id, providerConfig);
+  }
+
+  const secret = Deno.env.get("TIKTOK_CAROUSEL_URL_SECRET")?.trim() ?? "";
+  const publicOrigin = Deno.env.get("APP_PUBLIC_URL")?.trim() || undefined;
+  const photoImages: string[] = [];
+  for (const storagePath of storagePaths) {
+    photoImages.push(await buildTikTokCarouselImageUrl({
+      publicOrigin,
+      secret,
+      storagePath,
+    }));
+  }
+
+  const creatorInfo = await queryTikTokCreatorInfo(publishAccessToken);
+  const requestedPrivacy = schedule.privacy_level ?? DEFAULT_PRIVACY_LEVEL;
+  assertTikTokPublicPrivacyAvailable(requestedPrivacy, creatorInfo);
+  const privacyLevel = resolveTikTokPublishPrivacyLevel(requestedPrivacy, creatorInfo);
+  const description = schedule.caption?.trim() || schedule.title?.trim() || " ";
+  const interaction = deriveTikTokPostInteractionFromCreator(creatorInfo);
+  const initResult = await initTikTokPhotoPublishPullFromUrl(publishAccessToken, {
+    photoImages,
+    title: schedule.title?.trim() || description,
+    description,
+    privacyLevel,
+    disableComment: interaction.disableComment,
+    photoCoverIndex: 0,
+  });
+
+  providerConfig = await persistTikTokProviderConfig(admin, schedule.id, providerConfig, {
+    tiktok_publish_id: initResult.publish_id,
+    tiktok_upload_completed: true,
+    tiktok_privacy_level_used: privacyLevel,
+    publish_step: "processing",
+  });
+
+  console.info(
+    `tiktok_publish_path=photo_pull scheduleId=${schedule.id} publishId=${initResult.publish_id} images=${photoImages.length}`,
+  );
+
+  return finishPhoto(initResult.publish_id, creatorInfo.creator_username);
+}
+
 export async function executeTikTokScheduledPost(
   admin: SupabaseClient,
   schedule: ScheduledPostRow,
   sharedCtx?: SharedPublishContext,
-): Promise<{ published_url: string; external_post_id: string | null; tiktok_publish_path?: "pull" | "file_upload" }> {
+): Promise<{ published_url: string; external_post_id: string | null; tiktok_publish_path?: "pull" | "file_upload" | "photo_pull" }> {
   const plan = await loadPlan(admin, schedule.social_media_plan_id);
   if (!plan) throw new Error("plan_not_found");
+
+  if (isCarouselContentType(plan.content_type?.name)) {
+    return executeTikTokCarouselScheduledPost(admin, schedule, plan);
+  }
 
   if (!isPlanEligibleForTikTokAutoSchedule(planEligibilityInput(plan))) {
     throw new Error("plan_not_eligible");

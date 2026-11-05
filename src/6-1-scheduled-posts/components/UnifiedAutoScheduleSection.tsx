@@ -54,6 +54,9 @@ type Props = {
   googleDriveLink?: string | null;
   employeeId?: string;
   eligible: boolean;
+  tiktokCarouselOnly?: boolean;
+  tiktokReady?: boolean;
+  carouselPreviewUrls?: string[];
   serviceId?: string | null;
   requiredPlatforms: ServiceRequiredPlatform[];
   headerTitle?: React.ReactNode;
@@ -89,6 +92,9 @@ export function UnifiedAutoScheduleSection({
   googleDriveLink,
   employeeId,
   eligible,
+  tiktokCarouselOnly = false,
+  tiktokReady = false,
+  carouselPreviewUrls,
   serviceId,
   requiredPlatforms,
   headerTitle,
@@ -169,9 +175,14 @@ export function UnifiedAutoScheduleSection({
   const fieldLabel = 'text-[11px] font-medium uppercase tracking-wide text-muted-foreground';
 
   const scheduleRows = schedules ?? [];
+  const actionTargets = useMemo(() => {
+    if (!tiktokCarouselOnly) return targets;
+    if (!tiktokReady) return [];
+    return targets.filter((target) => target.platform === 'TikTok');
+  }, [targets, tiktokCarouselOnly, tiktokReady]);
   const { eligible: bulkEligible } = useMemo(
-    () => getBulkEligibleTargets(targets, scheduleRows),
-    [targets, scheduleRows],
+    () => getBulkEligibleTargets(actionTargets, scheduleRows),
+    [actionTargets, scheduleRows],
   );
 
   const getTimeWib = useCallback(
@@ -208,6 +219,16 @@ export function UnifiedAutoScheduleSection({
     ): Promise<PublishResult> => {
       const silent = options?.silent ?? false;
 
+      if (tiktokCarouselOnly && target.platform !== 'TikTok') {
+        const error = 'Carousel posts publish to TikTok only';
+        if (!silent) toast.error(error);
+        return { ok: false, error };
+      }
+      if (tiktokCarouselOnly && !tiktokReady) {
+        const error = 'Carousel images are not ready for TikTok';
+        if (!silent) toast.error(error);
+        return { ok: false, error };
+      }
       if (!target.oauthConnected) {
         const error = t('digitalMarketing.scheduledPosts.oauthAccountRequired');
         if (!silent) toast.error(error);
@@ -268,6 +289,8 @@ export function UnifiedAutoScheduleSection({
     [
       t,
       postDateYmd,
+      tiktokCarouselOnly,
+      tiktokReady,
       getTimeWib,
       getPrivacyLevel,
       organizationId,
@@ -289,7 +312,7 @@ export function UnifiedAutoScheduleSection({
         return;
       }
 
-      const preview = getBulkEligibleTargets(targets, scheduleRows);
+      const preview = getBulkEligibleTargets(actionTargets, scheduleRows);
       if (preview.eligible.length === 0) {
         toast.info(t('digitalMarketing.scheduledPosts.bulkNoneReady'));
         return;
@@ -303,7 +326,7 @@ export function UnifiedAutoScheduleSection({
       try {
         const { results, skipped } = await runBulkPublish({
           action,
-          targets,
+          targets: actionTargets,
           schedules: scheduleRows,
           organizationId,
           planId,
@@ -313,7 +336,7 @@ export function UnifiedAutoScheduleSection({
           postDateYmd,
           getTimeWib,
           getPrivacyLevel,
-          parallelPostNow: action === 'post_now',
+          parallelPostNow: action === 'post_now' && !tiktokCarouselOnly,
           onTargetSuccess: lockAccount,
         });
 
@@ -373,8 +396,9 @@ export function UnifiedAutoScheduleSection({
       }
     },
     [
-      targets,
+      actionTargets,
       scheduleRows,
+      tiktokCarouselOnly,
       postDateYmd,
       runBulkPublish,
       organizationId,
@@ -544,6 +568,10 @@ export function UnifiedAutoScheduleSection({
                       onCancel={() => activeSchedule && handleCancel(target, activeSchedule.id)}
                       onDelete={() => setDeleteTarget(target)}
                       canDelete={rowCanDelete}
+                      actionsDisabled={
+                        tiktokCarouselOnly &&
+                        (target.platform !== 'TikTok' || !tiktokReady)
+                      }
                       isSchedulePending={isSchedulePending}
                       isPostNowPending={isPostNowPending}
                       isCancelPending={isCancelPending}
@@ -616,7 +644,19 @@ export function UnifiedAutoScheduleSection({
 
         <div className="flex min-w-0 flex-1 shrink-0 flex-col bg-muted/15 px-3 py-2 md:w-1/2">
           <div className="relative aspect-video min-h-[140px] w-full flex-1 overflow-hidden rounded-lg border border-border/80 bg-black shadow-sm">
-            {driveValidation.valid ? (
+            {tiktokCarouselOnly ? (
+              carouselPreviewUrls && carouselPreviewUrls.length > 0 ? (
+                <div className="absolute inset-0 grid grid-cols-2 gap-1 overflow-y-auto bg-black p-1">
+                  {carouselPreviewUrls.map((url) => (
+                    <img key={url} src={url} alt="" className="h-full min-h-16 w-full object-cover" />
+                  ))}
+                </div>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center p-3 text-center text-[11px] text-muted-foreground">
+                  {t('digitalMarketing.scheduledPosts.carouselPreviewEmpty', 'Add carousel images before posting to TikTok.')}
+                </div>
+              )
+            ) : driveValidation.valid ? (
               <div className="absolute inset-0 flex min-h-0 min-w-0 flex-col">
                 <GoogleDriveFilePreview link={driveLink} className="min-h-0 flex-1" forceVideo />
               </div>

@@ -41,6 +41,9 @@ describe('social publish path lock', () => {
     const pull = tiktok.indexOf('if (pullEnabled && pullUrl)');
     expect(pull).toBeGreaterThan(-1);
     expect(tiktok.indexOf('initTikTokVideoPublishPullFromUrl(')).toBeGreaterThan(pull);
+    const photo = tiktok.indexOf('tiktok_publish_path=photo_pull');
+    expect(photo).toBeGreaterThan(-1);
+    expect(pull).toBeGreaterThan(photo);
   });
 
   it('does not upload a shared video buffer in parallel or label waiting rows as downloading', () => {

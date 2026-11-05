@@ -56,6 +56,8 @@ export type InsertPlatformScheduleArgs = {
   action: PlatformScheduleAction;
   scheduledAtIso: string;
   target: PlanPublishTargetInput;
+  /** Defaults to the Google Drive snapshot used by reel video publish. */
+  mediaSource?: string | null;
 };
 
 export type InsertPostNowScheduleArgs = Omit<
@@ -94,7 +96,7 @@ export async function insertPlatformScheduleForTarget(
     status,
     scheduled_at: scheduledAt.toISOString(),
     timezone: DEFAULT_TIMEZONE,
-    media_source: MEDIA_SOURCE_GOOGLE_DRIVE,
+    media_source: args.mediaSource?.trim() || MEDIA_SOURCE_GOOGLE_DRIVE,
     media_url_snapshot: args.driveLink,
     caption: args.caption,
     title: args.title,

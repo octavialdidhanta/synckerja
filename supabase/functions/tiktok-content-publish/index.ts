@@ -19,8 +19,10 @@ import {
   isActiveOrganizationMember,
   mcpScheduleUserId,
 } from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
+import { carouselMediaSnapshot, loadCarouselStoragePaths } from "../_shared/scheduledPosts/carouselImagePaths.ts";
 import {
-  getPlanEligibilityMissingReasons,
+  getTikTokPlanEligibilityMissingReasons,
+  isCarouselContentType,
   isPlanEligibleForTikTokAutoSchedule,
 } from "../_shared/scheduledPosts/scheduledPostEligibility.ts";
 import { DEFAULT_PRIVACY_LEVEL } from "../_shared/scheduledPosts/scheduledPostTypes.ts";
@@ -178,12 +180,16 @@ Deno.serve(async (req: Request) => {
     return tiktokContentJson({ error: "Plan not found" }, 404);
   }
 
+  const contentTypeName = plan.content_type?.name ?? null;
+  const carousel = isCarouselContentType(contentTypeName);
+  const carouselPaths = carousel ? await loadCarouselStoragePaths(admin, planId) : [];
   const eligibility = {
     post_date: plan.post_date,
     approved: plan.approved,
     production_approved: plan.production_approved,
     google_drive_link: plan.google_drive_link,
-    content_type_name: plan.content_type?.name ?? null,
+    content_type_name: contentTypeName,
+    carousel_image_count: carousel ? carouselPaths.length : undefined,
   };
 
   if (action === "schedule" || action === "post_now") {
@@ -197,7 +203,7 @@ Deno.serve(async (req: Request) => {
     if (!isPlanEligibleForTikTokAutoSchedule(eligibility)) {
       return tiktokContentJson({
         error: "plan_not_eligible",
-        missing: getPlanEligibilityMissingReasons(eligibility),
+        missing: getTikTokPlanEligibilityMissingReasons(eligibility),
       }, 400);
     }
 
@@ -212,7 +218,9 @@ Deno.serve(async (req: Request) => {
     const caption = body.caption != null ? String(body.caption) : null;
     const title = body.title != null ? String(body.title) : null;
     const accountLabel = body.account_label != null ? String(body.account_label) : "";
-    const driveLink = plan.google_drive_link?.trim() ?? "";
+    const driveLink = carousel
+      ? carouselMediaSnapshot(carouselPaths)
+      : (plan.google_drive_link?.trim() ?? "");
     const privacyLevelRaw = body.privacy_level != null ? String(body.privacy_level).trim().toUpperCase() : "";
     const privacyLevel = privacyLevelRaw || DEFAULT_PRIVACY_LEVEL;
 
@@ -228,6 +236,7 @@ Deno.serve(async (req: Request) => {
         userId,
         action: action as "schedule" | "post_now",
         scheduledAtIso: scheduledAtRaw,
+        mediaSource: carousel ? "carousel_images" : null,
         target: {
           platform: "TikTok",
           account_id: openId,

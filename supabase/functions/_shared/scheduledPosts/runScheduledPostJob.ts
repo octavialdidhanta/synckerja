@@ -31,7 +31,7 @@ export type RunScheduledPostJobResult = {
   stubCode?: "manual_only" | "not_implemented";
   published_url?: string;
   external_post_id?: string;
-  tiktok_publish_path?: "pull" | "file_upload";
+  tiktok_publish_path?: "pull" | "file_upload" | "photo_pull";
   retry_count?: number;
   skipped?: "already_published" | "already_claimed";
   deferred?: "rate_limit" | "rate_limit_global" | "instagram_after_peers";

@@ -63,6 +63,7 @@ type Props = {
   isDeletePending?: boolean;
   bulkRunning?: boolean;
   reconnectHint: string | null;
+  actionsDisabled?: boolean;
 };
 
 export function RequiredPlatformScheduleRow({
@@ -84,6 +85,7 @@ export function RequiredPlatformScheduleRow({
   isDeletePending = false,
   bulkRunning = false,
   reconnectHint,
+  actionsDisabled = false,
 }: Props) {
   const { t } = useTranslation();
   const { platform, accountLabel } = target;
@@ -333,7 +335,7 @@ export function RequiredPlatformScheduleRow({
             ) : (
               <>
                 <DropdownMenuItem
-                  disabled={isBusy || !publishScopesOk}
+                  disabled={isBusy || !publishScopesOk || actionsDisabled}
                   onClick={onSchedule}
                   className="cursor-pointer text-xs"
                 >
@@ -343,7 +345,7 @@ export function RequiredPlatformScheduleRow({
                   {t('digitalMarketing.scheduledPosts.schedule')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  disabled={isBusy || !publishScopesOk}
+                  disabled={isBusy || !publishScopesOk || actionsDisabled}
                   onClick={onPostNow}
                   className="cursor-pointer text-xs"
                 >

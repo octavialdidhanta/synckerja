@@ -12,12 +12,29 @@ type Props = {
   googleDriveLink?: string | null;
   employeeId?: string;
   reelEligible: boolean;
+  tiktokCarouselOnly?: boolean;
+  tiktokReady?: boolean;
+  carouselPreviewUrls?: string[];
   serviceId?: string | null;
   requiredPlatforms: ServiceRequiredPlatform[];
   headerTitle?: React.ReactNode;
   headerExtra?: React.ReactNode;
 };
 
-export function AutoScheduleSection({ reelEligible, ...rest }: Props) {
-  return <UnifiedAutoScheduleSection {...rest} eligible={reelEligible} />;
+export function AutoScheduleSection({
+  reelEligible,
+  tiktokCarouselOnly = false,
+  tiktokReady = false,
+  carouselPreviewUrls,
+  ...rest
+}: Props) {
+  return (
+    <UnifiedAutoScheduleSection
+      {...rest}
+      eligible={reelEligible || tiktokCarouselOnly}
+      tiktokCarouselOnly={tiktokCarouselOnly}
+      tiktokReady={tiktokReady}
+      carouselPreviewUrls={carouselPreviewUrls}
+    />
+  );
 }

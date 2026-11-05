@@ -1,4 +1,5 @@
 import { TIKTOK_CONTENT_API_BASE } from "../tiktokContentAuth.ts";
+import { buildTikTokPhotoDirectPostBody } from "./tiktokPhotoPublishBody.ts";
 import {
   isFetchAbortError,
   PLATFORM_BYTE_UPLOAD_TIMEOUT_MS,
@@ -38,6 +39,9 @@ function formatTikTokApiErrorDetail(
 
   if (code === "unaudited_client_can_only_post_to_private_accounts") {
     return `${prefix}: TikTok menolak Direct Post publik untuk client ini — pastikan Direct Post Approved di Production, akun creator eligible, dan visibility cocok dengan creator_info.privacy_level_options.${logSuffix}`;
+  }
+  if (code === "url_ownership_unverified") {
+    return `${prefix}: TikTok menolak URL gambar. URL harus HTTPS di domain yang sudah diverifikasi dan mengembalikan file langsung, tanpa redirect.${logSuffix}`;
   }
   if (code === "privacy_level_option_mismatch") {
     return `${prefix}: Visibility tidak valid untuk akun TikTok ini. Pilih opsi yang dikembalikan creator_info (Public / Followers / Friends / Only me).${logSuffix}`;
@@ -380,6 +384,39 @@ export async function initTikTokVideoPublishPullFromUrl(
   const json = await res.json().catch(() => ({})) as TikTokContentEnvelope<TikTokVideoInitResult>;
   if (!res.ok || json.error?.code !== "ok" || !json.data?.publish_id) {
     throwPublishError("video_init_failed", json.error, res.status, res);
+  }
+  return json.data;
+}
+
+export async function initTikTokPhotoPublishPullFromUrl(
+  accessToken: string,
+  args: {
+    photoImages: string[];
+    title: string;
+    description: string;
+    privacyLevel: string;
+    disableComment?: boolean;
+    photoCoverIndex?: number;
+  },
+): Promise<TikTokVideoInitResult> {
+  const res = await fetch(`${TIKTOK_CONTENT_API_BASE}/post/publish/content/init/`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json; charset=UTF-8",
+    },
+    body: JSON.stringify(buildTikTokPhotoDirectPostBody({
+      title: args.title,
+      description: args.description,
+      privacyLevel: args.privacyLevel,
+      disableComment: args.disableComment ?? false,
+      photoImages: args.photoImages,
+      photoCoverIndex: args.photoCoverIndex ?? 0,
+    })),
+  });
+  const json = await res.json().catch(() => ({})) as TikTokContentEnvelope<TikTokVideoInitResult>;
+  if (!res.ok || json.error?.code !== "ok" || !json.data?.publish_id) {
+    throwPublishError("photo_init_failed", json.error, res.status, res);
   }
   return json.data;
 }

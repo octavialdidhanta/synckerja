@@ -6,9 +6,13 @@ import {
   formatDefaultTimeFromDb,
   resolveScheduledAtUtc,
 } from "./resolveScheduledAtWib.ts";
+import { loadCarouselStoragePaths } from "./carouselImagePaths.ts";
 import {
   getPlanEligibilityMissingReasons,
+  getTikTokPlanEligibilityMissingReasons,
+  isCarouselContentType,
   isPlanEligibleForAutoSchedule,
+  isPlanEligibleForTikTokCarouselSchedule,
   type PlanAutoScheduleEligibilityInput,
 } from "./scheduledPostEligibility.ts";
 import { DEFAULT_YOUTUBE_SCHEDULE_PRIVACY } from "./normalizeYouTubeSchedulePrivacy.ts";
@@ -312,7 +316,22 @@ export async function runPlanAutoSchedule(
     service_id: (planRow.service_id as string | null) ?? null,
   };
 
-  if (!isPlanEligibleForAutoSchedule(eligibility)) {
+  const carouselMode = isCarouselContentType(eligibility.content_type_name);
+  if (carouselMode) {
+    const carouselPaths = await loadCarouselStoragePaths(admin, opts.planId);
+    const carouselEligibility: PlanAutoScheduleEligibilityInput = {
+      ...eligibility,
+      carousel_image_count: carouselPaths.length,
+    };
+    if (
+      !isPlanEligibleForTikTokCarouselSchedule(carouselEligibility) ||
+      !String(carouselEligibility.service_id ?? "").trim()
+    ) {
+      const blocked = getTikTokPlanEligibilityMissingReasons(carouselEligibility);
+      if (!String(carouselEligibility.service_id ?? "").trim()) blocked.push("service_id");
+      return { ...empty, blocked };
+    }
+  } else if (!isPlanEligibleForAutoSchedule(eligibility)) {
     const blocked = getPlanEligibilityMissingReasons(eligibility);
     if (!String(eligibility.service_id ?? "").trim()) blocked.push("service_id");
     return { ...empty, blocked };
@@ -392,6 +411,15 @@ export async function runPlanAutoSchedule(
 
   for (const target of targets) {
     const lockKey = `${target.platform}::${target.platform_account_id}`;
+    if (carouselMode && target.platform !== "TikTok") {
+      skipped.push({
+        platform: target.platform,
+        platform_account_id: target.platform_account_id,
+        reason: "platform_not_supported",
+      });
+      continue;
+    }
+
     if (lockSet.has(lockKey)) {
       skipped.push({
         platform: target.platform,

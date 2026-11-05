@@ -1,3 +1,4 @@
+import { CAROUSEL_PUBLISH_IMAGE_LIMIT } from "../tiktokCarouselImageUrl.ts";
 import { googleDriveLinksSemanticallyEqual, isGoogleDriveFileLink } from "./googleDrivePublicVideoUrl.ts";
 
 export type PlanEligibilityInput = {
@@ -6,6 +7,8 @@ export type PlanEligibilityInput = {
   production_approved: boolean;
   google_drive_link: string | null;
   content_type_name: string | null;
+  /** Set for TikTok photo carousel. Reel checks ignore it. */
+  carousel_image_count?: number | null;
 };
 
 export type PlanAutoScheduleEligibilityInput = PlanEligibilityInput & {
@@ -16,7 +19,34 @@ export function isReelContentType(contentTypeName: string | null | undefined): b
   return String(contentTypeName ?? "").trim().toLowerCase() === "reel";
 }
 
+export function isCarouselContentType(contentTypeName: string | null | undefined): boolean {
+  const name = String(contentTypeName ?? "").trim().toLowerCase();
+  return name === "post" || name === "carousel";
+}
+
+export function getTikTokPlanEligibilityMissingReasons(plan: PlanEligibilityInput): string[] {
+  if (!isCarouselContentType(plan.content_type_name)) {
+    return getPlanEligibilityMissingReasons(plan);
+  }
+  const reasons: string[] = [];
+  if (!plan.post_date) reasons.push("post_date");
+  if (!plan.approved) reasons.push("approved");
+  if (!plan.production_approved) reasons.push("production_approved");
+  const count = plan.carousel_image_count ?? 0;
+  if (count < 1) reasons.push("carousel_images");
+  else if (count > CAROUSEL_PUBLISH_IMAGE_LIMIT) reasons.push("carousel_image_limit");
+  return reasons;
+}
+
+export function isPlanEligibleForTikTokCarouselSchedule(plan: PlanEligibilityInput): boolean {
+  return isCarouselContentType(plan.content_type_name) &&
+    getTikTokPlanEligibilityMissingReasons(plan).length === 0;
+}
+
 export function isPlanEligibleForTikTokAutoSchedule(plan: PlanEligibilityInput): boolean {
+  if (isCarouselContentType(plan.content_type_name)) {
+    return isPlanEligibleForTikTokCarouselSchedule(plan);
+  }
   return isPlanEligibleForReelAutoSchedule(plan);
 }
 

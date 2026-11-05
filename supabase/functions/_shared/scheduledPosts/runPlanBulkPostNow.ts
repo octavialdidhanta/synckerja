@@ -29,7 +29,7 @@ export type PlanBulkPostNowTargetResult = {
   error?: string;
   published_url?: string;
   external_post_id?: string;
-  tiktok_publish_path?: "pull" | "file_upload";
+  tiktok_publish_path?: "pull" | "file_upload" | "photo_pull";
   duration_ms?: number;
 };
 

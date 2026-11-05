@@ -21,6 +21,11 @@ import { AutoScheduleSection } from '@/6-1-scheduled-posts/components/AutoSchedu
 import { RequiredPlatformsProgress } from '@/6-1-scheduled-posts/components/RequiredPlatformsProgress';
 import { useScheduledPostsByPlan } from '@/6-1-scheduled-posts/hooks/useScheduledPostsByPlan';
 import { buildTikTokCaption } from '@/6-1-scheduled-posts/lib/buildTikTokCaption';
+import {
+  isCarouselContentType,
+  isTikTokCarouselPublishReady,
+} from '@/6-1-scheduled-posts/lib/planAutoScheduleEligibility';
+import { getCarouselImagePublicUrl, useCarouselImages } from '../hook/useCarouselImages';
 import { syncPlanCompletionStateClient } from '@/6-1-scheduled-posts/lib/syncPlanCompletionStateClient';
 import { useCurrentEmployee } from '@/shared/hooks/useCurrentEmployee';
 import { useBriefExtended } from '../hook/useBriefExtended';
@@ -260,6 +265,21 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
   }, [isOpen, planTitle, briefCaption]);
 
   const contentTypeName = planData?.content_type?.name ?? null;
+  const carouselPlan = isCarouselContentType(contentTypeName);
+  const { images: carouselImages } = useCarouselImages(carouselPlan ? socialMediaPlanId : undefined);
+  const carouselPreviewUrls = useMemo(
+    () => carouselImages.map((image) => getCarouselImagePublicUrl(image.storage_path)),
+    [carouselImages],
+  );
+  const carouselReady = isTikTokCarouselPublishReady({
+    post_date: planData?.post_date,
+    approved: planData?.approved,
+    production_approved: planData?.production_approved,
+    google_drive_link: planData?.google_drive_link,
+    content_type_name: contentTypeName,
+    service_id: planData?.service_id,
+    carousel_image_count: carouselImages.length,
+  });
   const reelEligible = Boolean(
     planData?.post_date &&
     planData?.approved &&
@@ -752,6 +772,9 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
                 googleDriveLink={planData?.google_drive_link ?? null}
                 employeeId={currentEmployee?.id}
                 reelEligible={reelEligible}
+                tiktokCarouselOnly={carouselPlan}
+                tiktokReady={carouselReady}
+                carouselPreviewUrls={carouselPreviewUrls}
                 serviceId={planData?.service_id ?? null}
                 requiredPlatforms={requiredPlatforms}
                 headerTitle={
@@ -763,15 +786,24 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
                   ) : null
                 }
                 headerExtra={
-                  reelEligible ? (
+                  reelEligible || carouselPlan ? (
                     <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
-                      {[
-                        ['Post date', Boolean(planData?.post_date)],
-                        ['Reel', contentTypeName === 'Reel'],
-                        ['Approved', planData?.approved],
-                        ['Drive link', Boolean(planData?.google_drive_link?.trim())],
-                        ['Prod approved', planData?.production_approved],
-                      ].map(([label, ok]) => (
+                      {(carouselPlan
+                        ? [
+                            ['Post date', Boolean(planData?.post_date)],
+                            ['Carousel', true],
+                            ['Approved', planData?.approved],
+                            ['Images', carouselImages.length >= 1 && carouselImages.length <= 10],
+                            ['Prod approved', planData?.production_approved],
+                          ]
+                        : [
+                            ['Post date', Boolean(planData?.post_date)],
+                            ['Reel', contentTypeName === 'Reel'],
+                            ['Approved', planData?.approved],
+                            ['Drive link', Boolean(planData?.google_drive_link?.trim())],
+                            ['Prod approved', planData?.production_approved],
+                          ]
+                      ).map(([label, ok]) => (
                         <span
                           key={String(label)}
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${ok ? 'bg-green-100 text-green-800' : 'bg-muted text-muted-foreground'}`}

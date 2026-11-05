@@ -17,7 +17,7 @@ import type { SharedPublishContext } from "./sharedPublishContext.ts";
 export type ExecuteScheduledPostResult = {
   published_url: string;
   external_post_id: string;
-  tiktok_publish_path?: "pull" | "file_upload";
+  tiktok_publish_path?: "pull" | "file_upload" | "photo_pull";
 };
 
 export async function executeScheduledPost(
