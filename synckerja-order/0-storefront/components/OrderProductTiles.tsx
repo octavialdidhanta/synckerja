@@ -174,6 +174,9 @@ export function OrderFeaturedCard({
         <p className="line-clamp-2 text-[11px] font-bold uppercase leading-snug text-neutral-900">
           {item.name}
         </p>
+        {item.description?.trim() ? (
+          <p className="line-clamp-2 text-[10px] leading-snug text-neutral-500">{item.description.trim()}</p>
+        ) : null}
         <OrderProductRatingBadge summary={ratingSummary} className="mt-0" />
         <div className="mt-0.5 flex items-center justify-between gap-2.5">
           <p className="min-w-0 flex-1 truncate text-[13px] font-medium leading-none text-neutral-800">
@@ -244,6 +247,9 @@ export function OrderListRow({
       />
       <div className="min-w-0 flex-1">
         <p className="text-[13px] font-semibold uppercase leading-snug text-neutral-900">{item.name}</p>
+        {item.description?.trim() ? (
+          <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-neutral-500">{item.description.trim()}</p>
+        ) : null}
         <OrderProductRatingBadge summary={ratingSummary} />
         <p className="mt-1 text-[13px] font-medium text-neutral-800">{formatOrderRp(item.unit_price)}</p>
       </div>
