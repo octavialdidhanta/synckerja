@@ -19,7 +19,8 @@ function asStaffRows(
 
 /**
  * Orgs where the user has an active Slot Karyawan row with role_id,
- * plus whether that org's POS add-on is on (table flag or paid outlet extras).
+ * plus whether that org's POS add-on is on (table flag, paid outlet extras, or
+ * sales tenant with subscription self-service disabled).
  */
 export async function fetchPosTabletStaffOrgs(
   userId: string,
@@ -62,6 +63,21 @@ export async function fetchPosTabletStaffOrgs(
 
   if (subError) throw subError;
 
+  // Sales tenants (subscription self-service off) are billed by sales, so POS access
+  // does not require the add-on to be enabled in Plans. Mirrors get_subscription_status.
+  const { data: orgs, error: orgError } = await supabase
+    .from("organizations")
+    .select("id, subscription_self_service_enabled")
+    .in("id", orgIds);
+
+  if (orgError) throw orgError;
+
+  const salesTenantOrgs = new Set<string>();
+  for (const row of orgs ?? []) {
+    const r = row as { id: string; subscription_self_service_enabled?: boolean | null };
+    if (r.subscription_self_service_enabled === false) salesTenantOrgs.add(String(r.id));
+  }
+
   const addonByOrg = new Map<string, boolean>();
   for (const row of subs ?? []) {
     const id = String((row as { organization_id: string }).organization_id);
@@ -69,6 +85,7 @@ export async function fetchPosTabletStaffOrgs(
     const paid = Number((row as { pos_paid_outlet_count?: number }).pos_paid_outlet_count ?? 0);
     addonByOrg.set(id, active || (Number.isFinite(paid) && paid > 0));
   }
+  for (const id of salesTenantOrgs) addonByOrg.set(id, true);
 
   return orgIds.map((organizationId) => ({
     organizationId,
