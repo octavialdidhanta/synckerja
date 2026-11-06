@@ -41,7 +41,7 @@ export function OrderRelatedMenuRow({
       >
         <div className={ORDER_STOREFRONT_SPACER} aria-hidden />
         {items.map((item) => (
-          <div key={item.id} className="mr-2 shrink-0">
+          <div key={item.id} className="mr-2 flex shrink-0">
             <OrderFeaturedCard
               item={item}
               qty={qtyByCatalogId.get(item.id) ?? 0}
