@@ -17,6 +17,7 @@ import {
   proratedCatalogAddonChargeIdr,
   relocateAddOnDetailToPanel,
   resolveCheckoutRemainingDays,
+  resolveBilledAddOnQty,
   summarizeAddOnSelectionsForDisplay,
   isEnterpriseSubscriptionPlan,
   isEnterpriseSubscriptionPlanName,
@@ -611,6 +612,20 @@ describe("summarizeAddOnSelectionsForDisplay", () => {
     expect(rows[0].isOmnichannel).toBe(true);
     expect(rows[0].quantity).toBe(5);
     expect(rows[0].amountIdr).toBeGreaterThan(0);
+  });
+});
+
+describe("resolveBilledAddOnQty", () => {
+  it("lets POS outlets be 0 so nothing is billed or shown", () => {
+    expect(resolveBilledAddOnQty(POS_OUTLETS_ADD_ON_CODE, 0, 20, false)).toBe(0);
+    expect(resolveBilledAddOnQty(POS_OUTLETS_ADD_ON_CODE, 1, 20, false)).toBe(1);
+    expect(resolveBilledAddOnQty(POS_OUTLETS_ADD_ON_CODE, 25, 20, false)).toBe(20);
+  });
+
+  it("keeps per-seat add-ons at least 1 and flat add-ons at 1", () => {
+    expect(resolveBilledAddOnQty(OMNICHANNEL_ROSTER_ADD_ON_CODE, 0, 5, false)).toBe(1);
+    expect(resolveBilledAddOnQty(OMNICHANNEL_ROSTER_ADD_ON_CODE, 10, 5, false)).toBe(5);
+    expect(resolveBilledAddOnQty(LEAD_MAGNET_ADD_ON_CODE, 0, 5, true)).toBe(1);
   });
 });
 

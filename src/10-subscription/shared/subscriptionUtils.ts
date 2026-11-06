@@ -179,6 +179,25 @@ export function addOnLineQuantityCap(code: string, memberCount: number): number 
   return Math.max(1, Math.round(Number(memberCount)) || 1);
 }
 
+/**
+ * Billed quantity for a selected add-on line, shared by every price display so card,
+ * breakdown lines, savings and totals agree. POS outlets may be 0 (nothing billed);
+ * flat per-org add-ons are always 1; other per-seat add-ons are at least 1.
+ */
+export function resolveBilledAddOnQty(
+  code: string,
+  quantity: number,
+  cap: number,
+  isFlatOrg: boolean,
+): number {
+  if (isFlatOrg) return 1;
+  const q = Math.round(Number(quantity));
+  if (code === POS_OUTLETS_ADD_ON_CODE) {
+    return Math.min(cap, Math.max(0, Number.isFinite(q) ? q : 0));
+  }
+  return Math.min(cap, Math.max(1, Number.isFinite(q) && q > 0 ? q : 1));
+}
+
 /** Whether Lead Magnet add-on is included in checkout selections (bundled HR payment). */
 export function bundledLeadMagnetFromSelections(
   selections: Record<string, { included: boolean; quantity: number } | undefined>,
@@ -418,9 +437,8 @@ export function summarizeAddOnSelectionsForDisplay(
     const isFlatOrg = isFlatPerOrganizationAddOn(link.subscription_add_ons.billing_unit);
     const isOmni = code === OMNICHANNEL_ROSTER_ADD_ON_CODE;
     const lineCap = addOnLineQuantityCap(code, seatCap);
-    const quantity = isFlatOrg
-      ? 1
-      : Math.min(lineCap, Math.max(1, Math.round(Number(sel.quantity)) || 1));
+    const quantity = resolveBilledAddOnQty(code, sel.quantity, lineCap, isFlatOrg);
+    if (quantity < 1) continue;
     rows.push({
       code,
       name: link.subscription_add_ons.name,
