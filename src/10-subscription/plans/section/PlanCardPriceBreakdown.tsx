@@ -11,6 +11,7 @@ import {
   describeCatalogAddOnLinePricing,
   formatIDR,
   isFlatPerOrganizationAddOn,
+  resolveBilledAddOnQty,
 } from "@/10-subscription/shared/subscriptionUtils";
 import type { SubscriptionPlan, SubscriptionPlanAddOnLink } from "@/10-subscription/types/SubscriptionPlanCatalog";
 import { PlanCardAddOnBreakdownLines } from "./PlanCardAddOnBreakdownLines";
@@ -124,9 +125,9 @@ export const PlanCardPriceBreakdown = memo(
         const sel = addOnSelections[code];
         if (!sel?.included) continue;
         const qtyCap = addOnLineQuantityCap(code, memberCount);
-        const billedQty = Math.min(qtyCap, Math.max(1, sel.quantity));
         const isFlatOrg = isFlatPerOrganizationAddOn(link.subscription_add_ons.billing_unit);
-        const effectiveQty = isFlatOrg ? 1 : billedQty;
+        const effectiveQty = resolveBilledAddOnQty(code, sel.quantity, qtyCap, isFlatOrg);
+        if (effectiveQty < 1) continue;
         const pricing = describeCatalogAddOnLinePricing({
           link,
           quantity: effectiveQty,

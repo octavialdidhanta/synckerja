@@ -10,6 +10,7 @@ import {
   formatIDR,
   isFlatPerOrganizationAddOn,
   isPerOutletMonthAddOn,
+  resolveBilledAddOnQty,
   resolvePlanAddOnUnitMonthly,
 } from "@/10-subscription/shared/subscriptionUtils";
 import type { SubscriptionPlan, SubscriptionPlanAddOnLink } from "@/10-subscription/types/SubscriptionPlanCatalog";
@@ -45,9 +46,9 @@ export const PlanCardAddOnBreakdownLines = memo(
           if (!sel.included) return null;
 
           const qtyCap = addOnLineQuantityCap(code, memberCount);
-          const billedQty = Math.min(qtyCap, Math.max(1, sel.quantity));
           const isFlatOrg = isFlatPerOrganizationAddOn(link.subscription_add_ons.billing_unit);
-          const effectiveQty = isFlatOrg ? 1 : billedQty;
+          const effectiveQty = resolveBilledAddOnQty(code, sel.quantity, qtyCap, isFlatOrg);
+          if (effectiveQty < 1) return null;
           const unit = resolvePlanAddOnUnitMonthly(link);
           const pricing = describeCatalogAddOnLinePricing({
             link,
