@@ -170,7 +170,7 @@ export function OrderFeaturedCard({
       {...cardBodyOpenProps(body.canOpen, body.onOpen)}
     >
       <OrderProductPhoto url={item.photo_url} alt={item.name} className="aspect-square w-full" />
-      <div className="flex flex-col gap-0.5 px-2 pb-2 pt-1.5">
+      <div className="flex flex-1 flex-col gap-0.5 px-2 pb-2 pt-1.5">
         <p className="line-clamp-2 text-[11px] font-bold uppercase leading-snug text-neutral-900">
           {item.name}
         </p>
@@ -178,7 +178,7 @@ export function OrderFeaturedCard({
           <p className="line-clamp-2 text-[10px] leading-snug text-neutral-500">{item.description.trim()}</p>
         ) : null}
         <OrderProductRatingBadge summary={ratingSummary} className="mt-0" />
-        <div className="mt-0.5 flex items-center justify-between gap-2.5">
+        <div className="mt-auto flex items-center justify-between gap-2.5 pt-1.5">
           <p className="min-w-0 flex-1 truncate text-[13px] font-medium leading-none text-neutral-800">
             {formatOrderRp(item.unit_price)}
           </p>
