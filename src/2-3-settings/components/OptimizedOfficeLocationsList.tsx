@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
+import { Card, CardContent } from '@/shared/components/ui/card';
 import { MapPin, Edit, Trash2, Plus, Building, Phone, User, Wifi, WifiOff } from 'lucide-react';
 import { EnhancedAddOfficeLocationModal } from '../modals/EnhancedAddOfficeLocationModal';
 import { EditOfficeLocationModal } from '../modals/EditOfficeLocationModal';
