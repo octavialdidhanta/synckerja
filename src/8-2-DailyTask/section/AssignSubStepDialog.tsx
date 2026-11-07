@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search } from 'lucide-react';
+import { Users, Search, X } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog';

@@ -26,7 +26,7 @@ interface AllowedIP {
 }
 
 export const IPAddressSettings = () => {
-  const { t, dateLocale } = useAppTranslation();
+  const { t, dateFnsLocale } = useAppTranslation();
   const [allowedIPs, setAllowedIPs] = useState<AllowedIP[]>([]);
   const [loading, setLoading] = useState(false);
   const [listBootstrapDone, setListBootstrapDone] = useState(false);
@@ -308,7 +308,7 @@ export const IPAddressSettings = () => {
 
                   <p className="mt-2 text-xs text-muted-foreground">
                     {t('ipAddress.added', 'Added')}:{' '}
-                    {format(new Date(ip.created_at), 'PP', { locale: dateLocale })}
+                    {format(new Date(ip.created_at), 'PP', { locale: dateFnsLocale })}
                   </p>
                 </div>
 
