@@ -17,6 +17,10 @@ import { SynckerjaOrderOutletsPanel } from "@/synckerja-order/2-business/Syncker
 import { SynckerjaOrderHoursPanel } from "@/synckerja-order/2-hours/SynckerjaOrderHoursPanel";
 import { SynckerjaOrderCatalogPanel } from "@/synckerja-order/3-catalog/SynckerjaOrderCatalogPanel";
 import { SynckerjaOrderQrPanel } from "@/synckerja-order/4-qr/SynckerjaOrderQrPanel";
+import {
+  useSynckerjaOrderOutletWhatsApp,
+  type OutletWhatsAppPatch,
+} from "@/synckerja-order/6-whatsapp";
 import { useSynckerjaOrderOrgSettings } from "../hooks/useSynckerjaOrderOrgSettings";
 import { useSynckerjaOrderOutlets } from "../hooks/useSynckerjaOrderOutlets";
 import { useSynckerjaOrderHours } from "../hooks/useSynckerjaOrderHours";
@@ -54,6 +58,7 @@ export default function SynckerjaOrderPage() {
   const categoryLayouts = useSynckerjaOrderCategoryLayouts(selectedOutletId || null);
   const crossSell = useSynckerjaOrderCrossSell();
   const tables = useSynckerjaOrderTables(selectedOutletId || null);
+  const outletWhatsApp = useSynckerjaOrderOutletWhatsApp();
 
   const [draft, setDraft] = useState<Partial<SynckerjaOrderOrgSettings>>({});
   const [termsChecked, setTermsChecked] = useState(false);
@@ -109,7 +114,8 @@ export default function SynckerjaOrderPage() {
       orgBootstrapPending ||
       outletsLoading ||
       org.isLoading ||
-      outlets.isLoading
+      outlets.isLoading ||
+      outletWhatsApp.isLoading
     ),
     200,
   );
@@ -148,6 +154,19 @@ export default function SynckerjaOrderPage() {
         setDraft({});
       }
       toast({ title: t("synckerjaOrder.saved", "Saved") });
+    } catch (err) {
+      toast({
+        title: t("synckerjaOrder.saveError", "Failed to save"),
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const saveOutletWhatsApp = async (outletId: string, patch: OutletWhatsAppPatch) => {
+    try {
+      await outletWhatsApp.save.mutateAsync({ outletId, patch });
+      toast({ title: t("synckerjaOrder.whatsapp.saved", "Saved ✓") });
     } catch (err) {
       toast({
         title: t("synckerjaOrder.saveError", "Failed to save"),
@@ -234,6 +253,17 @@ export default function SynckerjaOrderPage() {
                         if (code.length === 6) {
                           void outlets.saveOutlet.mutateAsync({ outletId: id, publicCode: code });
                         }
+                      }}
+                      whatsapp={{
+                        accounts: outletWhatsApp.accounts,
+                        settingsFor: outletWhatsApp.settingsFor,
+                        onChange: (id, patch) => void saveOutletWhatsApp(id, patch),
+                        onSaveMessage: async (id, message) => {
+                          await outletWhatsApp.save.mutateAsync({
+                            outletId: id,
+                            patch: { prefillMessage: message },
+                          });
+                        },
                       }}
                     />
                   ) : null}

@@ -12,6 +12,9 @@ export const ORDER_CHECKOUT_BAR_BOTTOM =
 /** Toast / scroll-top sit just above the checkout bar. */
 export const ORDER_CHECKOUT_STACK_BOTTOM =
   "bottom-[calc(1.25rem+4.5rem+env(safe-area-inset-bottom,0px))]";
+/** Scroll-top above the floating WhatsApp button (52px + 12px gap) while the checkout bar is visible. */
+export const ORDER_CHECKOUT_STACK_ABOVE_WHATSAPP_BOTTOM =
+  "bottom-[calc(1.25rem+4.5rem+4rem+env(safe-area-inset-bottom,0px))]";
 
 type BarProps = {
   itemCount: number;
@@ -57,9 +60,15 @@ export function OrderFloatingCheckoutBar({ itemCount, total, onCheckout }: BarPr
 type ScrollTopProps = {
   visible: boolean;
   onClick: () => void;
+  /** Override the default `bottom-[…]` class (e.g. to sit above the WhatsApp button). */
+  bottomClassName?: string;
 };
 
-export function OrderScrollTopButton({ visible, onClick }: ScrollTopProps) {
+export function OrderScrollTopButton({
+  visible,
+  onClick,
+  bottomClassName = ORDER_CHECKOUT_STACK_BOTTOM,
+}: ScrollTopProps) {
   const { t } = useAppTranslation();
   if (!visible) return null;
 
@@ -67,7 +76,7 @@ export function OrderScrollTopButton({ visible, onClick }: ScrollTopProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`absolute right-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-neutral-500/90 text-white shadow-md ${ORDER_CHECKOUT_STACK_BOTTOM}`}
+      className={`absolute right-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-neutral-500/90 text-white shadow-md ${bottomClassName}`}
       aria-label={t("synckerjaOrder.store.scrollToTop", "Scroll to top")}
     >
       <ChevronUp className="h-5 w-5" strokeWidth={2.5} />
