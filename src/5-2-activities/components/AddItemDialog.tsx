@@ -141,7 +141,7 @@ export const AddItemDialog = ({ open, onOpenChange, onSubmit, editingItem }: Add
         sub_service_name: data.sub_service_name ?? undefined,
         quantity: data.quantity || 1,
         unit_price: data.unit_price || 0,
-      };
+      } as CreateSalesActivityItemData; // form allows an empty service_id; same payload as before
       await onSubmit(submitData);
       reset();
       setSelectedService('');
