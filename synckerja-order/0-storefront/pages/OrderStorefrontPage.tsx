@@ -23,10 +23,13 @@ import { OrderStoreHero } from "../components/OrderStoreHero";
 import { OrderStoreCatalog } from "../components/OrderStoreCatalog";
 import { OrderListRow } from "../components/OrderProductTiles";
 import {
+  ORDER_CHECKOUT_BAR_BOTTOM,
+  ORDER_CHECKOUT_STACK_ABOVE_WHATSAPP_BOTTOM,
   ORDER_CHECKOUT_STACK_BOTTOM,
   OrderFloatingCheckoutBar,
   OrderScrollTopButton,
 } from "../components/OrderFloatingCheckoutBar";
+import { OrderWhatsAppFloatingButton, usePublicOrderWhatsApp } from "@/synckerja-order/6-whatsapp";
 import { OrderItemCustomizeOverlay, needsOrderItemCustomize } from "../customize";
 import { OrderCartLineSheet, cartLinesForCatalog } from "../cart-sheet";
 import {
@@ -108,6 +111,8 @@ export function OrderStorefrontPage() {
     queryFn: () => fetchPublicOrderCatalog(code),
     enabled: isValidPublicCode(code) && mode === "dinein",
   });
+
+  const orderWhatsApp = usePublicOrderWhatsApp(isValidPublicCode(code) ? code : "");
 
   const catalogItemIds = useMemo(
     () => (catalogQuery.data?.items ?? []).map((item) => item.id),
@@ -571,7 +576,7 @@ export function OrderStorefrontPage() {
           onRemove={onRemove}
           onOpenSheet={onOpenSheet}
           onOpenDetail={onOpenDetail}
-          bottomPad={cart.itemCount > 0}
+          bottomPad={cart.itemCount > 0 || Boolean(orderWhatsApp)}
         />
       </div>
 
@@ -581,22 +586,43 @@ export function OrderStorefrontPage() {
         </div>
       ) : null}
 
-      {!checkoutOpen && !orderLocked && !overlayOpen && !sheetOpen ? (
+      {!checkoutOpen && !overlayOpen && !sheetOpen ? (
         <>
-          <OrderScrollTopButton
-            visible={showScrollTop}
-            onClick={() => {
-              catalogScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-          />
-          <OrderFloatingCheckoutBar
-            itemCount={cart.itemCount}
-            total={cart.subtotal}
-            onCheckout={() => {
-              setMessage(null);
-              setCheckoutStep("review");
-            }}
-          />
+          {/* Floating stack, bottom → top: checkout bar · WhatsApp · scroll-top. */}
+          {orderWhatsApp ? (
+            <OrderWhatsAppFloatingButton
+              phoneDigits={orderWhatsApp.phoneDigits}
+              prefillMessage={orderWhatsApp.prefillMessage}
+              outletName={store.outlet_name || storeName}
+              tableName={tableNumber || null}
+              bottomClassName={
+                !orderLocked && cart.itemCount > 0 ? ORDER_CHECKOUT_STACK_BOTTOM : ORDER_CHECKOUT_BAR_BOTTOM
+              }
+            />
+          ) : null}
+          {!orderLocked ? (
+            <>
+              <OrderScrollTopButton
+                visible={showScrollTop}
+                bottomClassName={
+                  orderWhatsApp && cart.itemCount > 0
+                    ? ORDER_CHECKOUT_STACK_ABOVE_WHATSAPP_BOTTOM
+                    : ORDER_CHECKOUT_STACK_BOTTOM
+                }
+                onClick={() => {
+                  catalogScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              />
+              <OrderFloatingCheckoutBar
+                itemCount={cart.itemCount}
+                total={cart.subtotal}
+                onCheckout={() => {
+                  setMessage(null);
+                  setCheckoutStep("review");
+                }}
+              />
+            </>
+          ) : null}
         </>
       ) : null}
 
