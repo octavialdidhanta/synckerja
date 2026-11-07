@@ -37,7 +37,10 @@ import { TaskStep } from '@/8-2-DailyTask/section/TaskStep';
 import { AssignStepDialog } from '@/8-2-DailyTask/section/AssignStepDialog';
 import { AddStepModal } from './AddStepModal';
 import { MeetingNotesProvider } from '@/8-1-meeting-notes/context/MeetingNotesContext';
-import type { TaskFile as DailyTaskFile } from '@/8-2-DailyTask/types/taskTypes';
+import type {
+  TaskFile as DailyTaskFile,
+  TaskStep as DailyTaskStep,
+} from '@/8-2-DailyTask/types/taskTypes';
 
 interface TaskFile {
   id: string;
@@ -1026,7 +1029,7 @@ export const ActivitiesTab: React.FC<ActivitiesTabProps> = ({
                       files: step.files as unknown as DailyTaskFile[],
                       assigned_employee: step.assigned_employee,
                       assigned_by_employee: step.assigned_by_employee
-                    }}
+                    } as DailyTaskStep}
                     index={index}
                   />
                                         ))

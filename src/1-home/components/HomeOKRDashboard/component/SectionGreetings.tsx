@@ -33,8 +33,8 @@ export const SectionGreetings = ({ currentTime, greeting }: SectionGreetingsProp
   const calculateWorkingTime = () => {
     const checkIn = parseAttendanceInstant(
       todayRecord?.attendance_date as string | undefined,
-      todayRecord?.check_in_time,
-      todayRecord?.check_in_at
+      todayRecord?.check_in_time as string | undefined,
+      todayRecord?.check_in_at as string | null | undefined
     );
     if (!checkIn) {
       return t('greeting.workingTimeZero', '0 hours 0 minutes');
