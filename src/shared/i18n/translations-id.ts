@@ -6288,6 +6288,7 @@ export const idTranslations: TranslationDictionary = {
   "whatsappInbox.flowSend.templateLabelShort": "Template",
   "whatsappInbox.composerActions.menu": "Opsi pesan",
   "whatsappInbox.followUp.button": "Follow-up",
+  "whatsappInbox.followUp.sessionClosedHint": "Jendela 24 jam berakhir — Form Flow sesi tidak tersedia; kirim lewat template yang sudah disetujui.",
   "whatsappInbox.followUp.title": "Follow-up",
   "whatsappInbox.followUp.sender": "Nomor pengirim",
   "whatsappInbox.followUp.template": "Template pesan",

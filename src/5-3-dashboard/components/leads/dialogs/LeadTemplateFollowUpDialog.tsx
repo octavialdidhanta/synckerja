@@ -361,7 +361,7 @@ export function LeadTemplateFollowUpDialog({
                   <p className="text-xs text-muted-foreground">
                     {t(
                       'whatsappInbox.followUp.sessionClosedHint',
-                      'Jendela 24 jam berakhir — hanya template Flow yang dapat dikirim.',
+                      'Jendela 24 jam berakhir — Form Flow sesi tidak tersedia; kirim lewat template yang sudah disetujui.',
                     )}
                   </p>
                 ) : null}
