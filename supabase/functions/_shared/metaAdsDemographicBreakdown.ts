@@ -504,7 +504,7 @@ async function fetchSharedItemRows(
   const scoped = { ...args, scope: purchaseInsightScope(args.scope, level) };
   const catalogRows = await fetchBreakdownFields(scoped, SHARED_ITEM_FIELDS);
   if (sharedPurchaseTotal(catalogRows) > 0) {
-    const named = aggregateDemographicRows(args.breakdown, catalogRows);
+    const named = aggregateDemographicRows(args.breakdown as DemographicBreakdownKind, catalogRows);
     if (hasNamedPurchases(named)) return catalogRows;
   }
   const actionRows = await fetchBreakdownFields(scoped, ACTION_FIELDS);
