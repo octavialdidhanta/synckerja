@@ -136,7 +136,7 @@ function blockFromListItem(item: HTMLElement): HTMLElement {
       return paragraph;
     }
     if (only.tagName === 'P' || only.tagName === 'H1' || only.tagName === 'H2' || only.tagName === 'H3') {
-      return only;
+      return only as HTMLElement;
     }
   }
   const paragraph = document.createElement('p');
@@ -189,7 +189,7 @@ function unwrapOrphanListItem(item: HTMLLIElement): CaretTarget | null {
 function liftListItem(item: HTMLElement): CaretTarget | null {
   const list = listParent(item);
   if (list) return splitOutOfList(item, list);
-  if (item.tagName === 'LI') return unwrapOrphanListItem(item);
+  if (item.tagName === 'LI') return unwrapOrphanListItem(item as HTMLLIElement);
   return null;
 }
 
@@ -197,9 +197,9 @@ function removeEmptyListItem(item: HTMLElement): CaretTarget | null {
   const list = listParent(item);
   if (!list) {
     if (item.tagName !== 'LI') return null;
-    return unwrapOrphanListItem(item);
+    return unwrapOrphanListItem(item as HTMLLIElement);
   }
-  const li = item;
+  const li = item as HTMLLIElement;
   const items = directListItems(list);
   const index = items.indexOf(li);
   if (index < 0) return null;
@@ -231,9 +231,9 @@ function exitEmptyListItem(item: HTMLElement): CaretTarget | null {
   const parent = list?.parentNode;
   if (!list || !parent) {
     if (item.tagName !== 'LI') return null;
-    return unwrapOrphanListItem(item);
+    return unwrapOrphanListItem(item as HTMLLIElement);
   }
-  const li = item;
+  const li = item as HTMLLIElement;
   const items = directListItems(list);
   const index = items.indexOf(li);
   if (index < 0) return null;
@@ -336,7 +336,7 @@ export function normalizeDescriptionLists(root: HTMLElement): boolean {
   let changed = false;
   for (const list of Array.from(root.querySelectorAll('ul, ol'))) {
     if (!list.isConnected) continue;
-    if (separateForeignListChildren(list)) changed = true;
+    if (separateForeignListChildren(list as HTMLElement)) changed = true;
   }
   let orphan = firstOrphanListItem(root);
   while (orphan) {

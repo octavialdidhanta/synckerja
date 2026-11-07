@@ -100,7 +100,8 @@ export async function fetchPendingApprovalsForAssigner(
       .eq('status', 'pending')
       .order('completed_at', { ascending: false });
     if (error) return { data: [], error: new Error(error.message) };
-    return { data: (data ?? []) as CompletionApprovalRow[], error: null };
+    // Supabase types joined rows as arrays; the select returns the CompletionApprovalRow shape.
+    return { data: (data ?? []) as unknown as CompletionApprovalRow[], error: null };
   } catch (e) {
     return { data: [], error: e instanceof Error ? e : new Error(String(e)) };
   }
@@ -157,7 +158,8 @@ export async function fetchRejectedForAssignee(
       .order('rejected_at', { ascending: false })
       .limit(50);
     if (error) return { data: [], error: new Error(error.message) };
-    return { data: (data ?? []) as CompletionApprovalRow[], error: null };
+    // Supabase types joined rows as arrays; the select returns the CompletionApprovalRow shape.
+    return { data: (data ?? []) as unknown as CompletionApprovalRow[], error: null };
   } catch (e) {
     return { data: [], error: e instanceof Error ? e : new Error(String(e)) };
   }
@@ -424,7 +426,7 @@ export async function completeStepAndCreateApprovalFromDriveLink(params: {
         .single();
       if (!taskErr && currentTask) {
         const currentStatus = (currentTask as { status?: string })?.status ?? 'pending';
-        const progress = calculateProgress(allSteps as { is_completed: boolean }[], currentStatus);
+        const progress = calculateProgress(allSteps as unknown as Parameters<typeof calculateProgress>[0], currentStatus);
         const finalStatus = determineStatusFromProgress(progress, currentStatus);
         await supabase
           .from('daily_tasks')
@@ -524,7 +526,7 @@ export async function revertStepCompletionFromDriveLinkRemoval(params: {
         .single();
       if (!taskErr && currentTask) {
         const currentStatus = (currentTask as { status?: string })?.status ?? 'pending';
-        const progress = calculateProgress(allSteps as { is_completed: boolean }[], currentStatus);
+        const progress = calculateProgress(allSteps as unknown as Parameters<typeof calculateProgress>[0], currentStatus);
         const finalStatus = determineStatusFromProgress(progress, currentStatus);
         await supabase
           .from('daily_tasks')
@@ -730,7 +732,7 @@ export async function syncStepCompletionFromProductionApproval(params: {
         .single();
       if (!taskErr && currentTask) {
         const currentStatus = (currentTask as { status?: string })?.status ?? 'pending';
-        const progress = calculateProgress(allSteps as { is_completed: boolean }[], currentStatus);
+        const progress = calculateProgress(allSteps as unknown as Parameters<typeof calculateProgress>[0], currentStatus);
         const finalStatus = determineStatusFromProgress(progress, currentStatus);
         await supabase
           .from('daily_tasks')

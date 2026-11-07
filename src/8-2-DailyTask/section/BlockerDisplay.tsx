@@ -188,7 +188,7 @@ export const BlockerDisplay: React.FC<BlockerDisplayProps> = ({
       console.log('🔍 Formatted blockers:', formattedBlockers);
 
       // Fetch objective information for all unique objective IDs
-      const uniqueObjectiveIds = [...new Set(formattedBlockers.map(blocker => blocker.objective_id))];
+      const uniqueObjectiveIds = [...new Set(formattedBlockers.map(blocker => blocker.objective_id))] as string[];
       const objectiveInfoMap: Record<string, { title: string; type: 'department' | 'individual' }> = {};
       
       for (const objId of uniqueObjectiveIds) {
