@@ -43,7 +43,8 @@ export class PayslipPDFGenerator {
   }
 
   static async create(): Promise<PayslipPDFGenerator> {
-    const { jsPDF: JsPDF } = await loadPdfKit({ autotable: true });
+    // This generator draws without autoTable; the old `{ autotable }` key was ignored anyway.
+    const { jsPDF: JsPDF } = await loadPdfKit();
     return new PayslipPDFGenerator(new JsPDF());
   }
 

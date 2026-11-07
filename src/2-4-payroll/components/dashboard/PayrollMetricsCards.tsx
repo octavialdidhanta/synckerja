@@ -195,7 +195,7 @@ export function PayrollMetricsCards({
     ? [
         {
           title: t("payroll.calculations.metrics.totalEmployees", "Total Karyawan"),
-          value: selectedPayrollRun.total_employees || 0,
+          value: (selectedPayrollRun.total_employees as number) || 0,
           icon: Calculator,
           color: "text-brand-blue",
           bgColor: "bg-brand-blue/10",
