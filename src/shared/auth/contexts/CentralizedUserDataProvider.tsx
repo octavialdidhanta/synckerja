@@ -375,9 +375,12 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
               .from('profiles')
               .update({ active_organization_id: organizationId })
               .eq('user_id', user.id)
-              .catch(() => {
-                // Silently fail - non-critical update
-              });
+              // Query builders only run when `.then` is called (`.catch` does not exist on them,
+              // so this update never ran before). Silently ignore failures - non-critical.
+              .then(
+                () => undefined,
+                () => undefined,
+              );
           }
         } catch (orgError: any) {
           // Silently handle timeout or error - organization lookup is optional

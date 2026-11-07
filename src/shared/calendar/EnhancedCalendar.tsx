@@ -68,10 +68,9 @@ function EnhancedCalendar({
         ...classNames,
       }}
       components={{
-        Chevron: ({ ...props }) => 
-          props.orientation === 'left' 
-            ? <ChevronLeft className="h-4 w-4 text-gray-600" /> 
-            : <ChevronRight className="h-4 w-4 text-gray-600" />,
+        // react-day-picker v8 slots (`Chevron` is the v9 API and was ignored).
+        IconLeft: () => <ChevronLeft className="h-4 w-4 text-gray-600" />,
+        IconRight: () => <ChevronRight className="h-4 w-4 text-gray-600" />,
       }}
       {...props}
     />
