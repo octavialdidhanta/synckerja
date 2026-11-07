@@ -147,7 +147,8 @@ export function BriefImagePromptDialog({
       onClose();
     } catch (error) {
       console.error(error);
-      if (isGeminiSpendCapError(error)) return;
+      // Billing notices (spend cap / prepaid depleted) show their own dialog; skip the toast.
+      if (isGeminiBillingNoticeError(error)) return;
       const message = error instanceof Error ? error.message : t("briefDialog.layout.generateFailed", "Image generation failed.");
       toast.error(message);
     } finally {
