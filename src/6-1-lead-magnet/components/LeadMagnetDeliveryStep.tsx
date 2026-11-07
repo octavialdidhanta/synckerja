@@ -122,12 +122,13 @@ export function LeadMagnetDeliveryStep({
       });
 
       if (!result.ok) {
+        const uploadError = 'error' in result ? result.error : undefined;
         const key =
-          result.error === 'size'
+          uploadError === 'size'
             ? 'leadMagnet.wizard.validation.deliveryFileTooLarge'
-            : result.error === 'type'
+            : uploadError === 'type'
               ? 'leadMagnet.wizard.validation.deliveryFileTypeInvalid'
-              : result.error === 'auth'
+              : uploadError === 'auth'
                 ? 'leadMagnet.wizard.validation.authRequired'
                 : 'leadMagnet.wizard.validation.deliveryUploadFailed';
         toast.error(t(key));
