@@ -3,6 +3,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { isEmployeeActive } from '@/2-1-employees/utils/employeeUtils';
 import type { DigitalMarketingEmployee } from '../hook/useDigitalMarketingEmployees';
 import type { SocialMediaLink } from '@/shared/types/social-media-links';
+import type { ContentPlan } from '../types/social-media';
 
 const CONTENT_PLANS_SELECT = `
   id,
@@ -52,7 +53,7 @@ const INITIAL_PLANS_LIMIT = 200;
 export function getContentPlansQueryOptions(organizationId: string | undefined) {
   return {
     queryKey: ['social-media-plans', organizationId || 'no-org'] as QueryKey,
-    queryFn: async () => {
+    queryFn: async (): Promise<ContentPlan[]> => {
       if (!organizationId) return [];
       const { data, error } = await supabase
         .from('social_media_plans')
@@ -62,7 +63,8 @@ export function getContentPlansQueryOptions(organizationId: string | undefined) 
         .order('created_at', { ascending: false })
         .limit(INITIAL_PLANS_LIMIT);
       if (error) throw error;
-      return data || [];
+      // Supabase types many-to-one joins as arrays; at runtime they are single objects (ContentPlan shape).
+      return (data || []) as unknown as ContentPlan[];
     },
     staleTime: 30 * 1000, // 30s: revisits show cache immediately while refetch runs in background
     gcTime: 5 * 60 * 1000,
