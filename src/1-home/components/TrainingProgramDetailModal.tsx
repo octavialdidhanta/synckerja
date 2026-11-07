@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { LatestTrainingProgram } from '../hooks/useTrainingPrograms';
+import type { LatestTrainingProgram } from './useLatestTrainingPrograms';
 import { useTrainingParticipants } from '../hooks/useTrainingParticipants';
 import { useCurrentUserEmployee } from '@/1-home/components/HomeOKRDashboard/component/SectionGreetingsImport/useCurrentUserEmployee';
 import { useTrainingPrograms } from '../hooks/useTrainingPrograms';
