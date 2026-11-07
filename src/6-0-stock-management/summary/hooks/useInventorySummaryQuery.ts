@@ -67,7 +67,7 @@ async function fetchProductItems(args: {
     : { data: [] as Array<{ variant_id: string; in_stock: number | string }>, error: null };
   if (variantError) throw variantError;
   const variantQty = new Map(
-    (variantStocks ?? []).map((row) => [row.variant_id, num(row.in_stock)]),
+    (variantStocks ?? []).map((row): [string, number] => [row.variant_id, num(row.in_stock)]),
   );
 
   const items: InventorySummaryStockItem[] = [];

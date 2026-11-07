@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildInventorySummaryLines, filterSummaryLines } from "./inventorySummaryMath";
-import type { CatalogStockMovementRow, InventorySummaryStockItem } from "../types";
+import type { CatalogStockMovementRow, InventorySummaryLine, InventorySummaryStockItem } from "../types";
 
 const period = {
   start: new Date("2026-08-20T00:00:00.000Z"),

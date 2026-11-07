@@ -146,7 +146,7 @@ export function CreateInventoryAdjustmentDialog(props: {
     }
     return [...byProduct.entries()].map(([productId, lines]) => ({
       productId,
-      productName: lines[0]?.productName ?? "",
+      productName: (lines[0] && "productName" in lines[0] ? lines[0].productName : undefined) ?? "",
       lines,
     }));
   }, [draftLines]);
