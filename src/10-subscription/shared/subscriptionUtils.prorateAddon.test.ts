@@ -30,6 +30,16 @@ import {
 } from "@/10-subscription/shared/subscriptionUtils";
 import type { SubscriptionPlan } from "@/10-subscription/types/SubscriptionPlanCatalog";
 
+/** Plan fixtures only set the fields these tests need (discount fields stay undefined). */
+type PlanFixture = Pick<
+  SubscriptionPlan,
+  "name" | "base_price_per_member" | "plan_add_ons" | "billing_term_discounts" | "annual_discount_percentage"
+>;
+
+/** Minimal subscription status for remaining-days helpers. */
+const statusSlice = (s: { is_expired: boolean; days_remaining: number }) =>
+  s as unknown as Parameters<typeof isMidCycleActiveSubscription>[0];
+
 const omnichannelLink = {
   display_order: 0,
   unit_price_override_per_month: null as number | null,
@@ -55,21 +65,15 @@ const leadMagnetLink = {
   },
 };
 
-function planWithOmnichannel(): Pick<
-  SubscriptionPlan,
-  "name" | "base_price_per_member" | "plan_add_ons"
-> {
+function planWithOmnichannel(): PlanFixture {
   return {
     name: "Scale Up Plan",
     base_price_per_member: 50_000,
     plan_add_ons: [omnichannelLink as SubscriptionPlan["plan_add_ons"][number]],
-  };
+  } as PlanFixture;
 }
 
-function planWithOmnichannelAndLeadMagnet(): Pick<
-  SubscriptionPlan,
-  "name" | "base_price_per_member" | "plan_add_ons"
-> {
+function planWithOmnichannelAndLeadMagnet(): PlanFixture {
   return {
     name: "Scale Up Plan",
     base_price_per_member: 50_000,
@@ -77,7 +81,7 @@ function planWithOmnichannelAndLeadMagnet(): Pick<
       omnichannelLink as SubscriptionPlan["plan_add_ons"][number],
       leadMagnetLink as SubscriptionPlan["plan_add_ons"][number],
     ],
-  };
+  } as PlanFixture;
 }
 
 describe("resolveCheckoutRemainingDays", () => {
@@ -97,7 +101,7 @@ describe("resolveCheckoutRemainingDays", () => {
 
   it("uses max of RPC and status", () => {
     const days = resolveCheckoutRemainingDays({
-      subscriptionStatus: { is_expired: false, days_remaining: 15 },
+      subscriptionStatus: statusSlice({ is_expired: false, days_remaining: 15 }),
       prorateRemainingDays: 29,
     });
     expect(days).toBe(29);
@@ -107,13 +111,13 @@ describe("resolveCheckoutRemainingDays", () => {
 describe("isMidCycleActiveSubscription", () => {
   it("is true when days remaining and not expired", () => {
     expect(
-      isMidCycleActiveSubscription({ is_expired: false, days_remaining: 729 }),
+      isMidCycleActiveSubscription(statusSlice({ is_expired: false, days_remaining: 729 })),
     ).toBe(true);
   });
 
   it("is false when expired", () => {
     expect(
-      isMidCycleActiveSubscription({ is_expired: true, days_remaining: 10 }),
+      isMidCycleActiveSubscription(statusSlice({ is_expired: true, days_remaining: 10 })),
     ).toBe(false);
   });
 });
@@ -739,12 +743,12 @@ const posOutletsLink = {
   },
 };
 
-function planWithPosOutlets(): Pick<SubscriptionPlan, "name" | "base_price_per_member" | "plan_add_ons"> {
+function planWithPosOutlets(): PlanFixture {
   return {
     name: "Scale Up Plan",
     base_price_per_member: 50_000,
     plan_add_ons: [posOutletsLink as SubscriptionPlan["plan_add_ons"][number]],
-  };
+  } as PlanFixture;
 }
 
 describe("POS outlets add-on", () => {
