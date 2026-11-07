@@ -400,7 +400,7 @@ export async function runBigThoughtOpenChecks(input: {
   ask: (prompt: string) => Promise<string | null>;
   onStep?: (checklist: PassChecklist) => void | Promise<void>;
 }): Promise<PassChecklist> {
-  const items = emptyBigThoughtChecks().map((item) => {
+  const items: PassGateCheck[] = emptyBigThoughtChecks().map((item) => {
     const previous = input.prior.find((check) => check.id === item.id);
     return previous?.state === "pass" ? { id: item.id, state: "pass" as const, reason: "" } : { id: item.id, state: "pending" as const, reason: "" };
   });

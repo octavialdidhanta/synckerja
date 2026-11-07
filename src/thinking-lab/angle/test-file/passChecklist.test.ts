@@ -11,6 +11,9 @@ import {
   runAngleOpenChecks,
 } from "@/thinking-lab/angle/passChecklist";
 
+/** vi.fn() mocks declared without params record calls as `[]`; read them with the real arg types. */
+const callsOf = <T extends unknown[]>(fn: { mock: { calls: unknown[] } }) => fn.mock.calls as unknown as T[];
+
 const parent = "Pilihan makan siang";
 
 describe("angle pass checklist", () => {
@@ -104,7 +107,7 @@ describe("angle pass checklist", () => {
       onStep: () => undefined,
     });
     expect(ask).toHaveBeenCalledTimes(1);
-    expect(ask.mock.calls[0]?.[0]).toContain("because-clause");
+    expect(callsOf<[string]>(ask)[0]?.[0]).toContain("because-clause");
     expect(result.passed).toBe(true);
     expect(result.checks.filter((check) => check.id !== "siblingsDistinct").every((check) => check.state === "pass")).toBe(
       true,
@@ -223,7 +226,7 @@ describe("angle pass checklist", () => {
     });
     expect(readAngleGeneratePasses(["observationJob"])).toEqual([]);
     expect(ask).toHaveBeenCalledTimes(7);
-    expect(JSON.stringify(ask.mock.calls)).toContain("distinctive stake");
+    expect(JSON.stringify(callsOf<[string]>(ask))).toContain("distinctive stake");
     expect(result.checks.find((check) => check.id === "stakeHolds")?.state).toBe("pass");
     expect(result.checks.find((check) => check.id === "observationJob")?.state).toBe("pass");
   });

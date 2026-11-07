@@ -56,6 +56,11 @@ export type SiblingPrecheck =
   | { accept: true; reasonContribution: string }
   | { accept: false; discovered: SemanticExclusion[] };
 
+/** Exclusions found by a rejected precheck (empty when accepted). */
+function discoveredOf(check: SiblingPrecheck): SemanticExclusion[] {
+  return "discovered" in check ? check.discovered : [];
+}
+
 function sameCode(left: string, right: string): boolean {
   return left.trim().toUpperCase() === right.trim().toUpperCase();
 }
@@ -156,7 +161,7 @@ export async function runFixReplacements(input: {
   let acceptedCount = 0;
   const noteFor = (check: SiblingPrecheck): string | null => {
     if (check.accept) return check.reasonContribution.trim() || null;
-    const notes = check.discovered
+    const notes = discoveredOf(check)
       .map((entry) => entry.explanation.trim() || entry.reasonContribution.trim())
       .filter(Boolean);
     return notes.length > 0 ? notes.join("\n") : null;
@@ -222,7 +227,7 @@ export async function runFixReplacements(input: {
           precheckNote: noteFor(check),
         });
         if (!check.accept) {
-          exclusions = mergeExclusionEntries(exclusions, check.discovered);
+          exclusions = mergeExclusionEntries(exclusions, discoveredOf(check));
           continue;
         }
         offers.push(acceptOffer(statement, facts, check));
@@ -270,7 +275,7 @@ export async function runFixReplacements(input: {
         precheckNote: noteFor(check),
       });
       if (!check.accept) {
-        exclusions = mergeExclusionEntries(exclusions, check.discovered);
+        exclusions = mergeExclusionEntries(exclusions, discoveredOf(check));
         continue;
       }
       acceptedCount += 1;

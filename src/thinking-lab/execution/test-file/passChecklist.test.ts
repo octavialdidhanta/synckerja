@@ -26,7 +26,10 @@ import {
   runExecutionMeaningChecks,
   runExecutionOpenChecks,
 } from "@/thinking-lab/execution/passChecklist";
-import type { VoiceOverScript } from "@/thinking-lab/execution/script";
+import type { ScriptSpeech, VoiceOverScript } from "@/thinking-lab/execution/script";
+
+/** vi.fn() mocks declared without params record calls as `[]`; read them with the real arg types. */
+const callsOf = <T extends unknown[]>(fn: { mock: { calls: unknown[] } }) => fn.mock.calls as unknown as T[];
 
 const script: VoiceOverScript = {
   title: "Judul",
@@ -107,7 +110,7 @@ describe("execution pass checklist", () => {
       return '{"pass":true,"reason":"","lineIds":[]}';
     });
     const result = await runExecutionMeaningChecks({ ...base, masterSells: false, prior: everyCheckOn, ask });
-    const spokenPrompt = String(ask.mock.calls[1]?.[0] ?? "");
+    const spokenPrompt = String(callsOf<[string]>(ask)[1]?.[0] ?? "");
     expect(spokenPrompt).toContain("Mekanismenya kelihatan.");
     expect(spokenPrompt).toContain("Hematnya jadi kelihatan.");
     expect(spokenPrompt).toContain("Everyday words are enough.");
@@ -125,7 +128,7 @@ describe("execution pass checklist", () => {
     expect(spokenPrompt).not.toContain("Do not fail the closing lines because they name a product");
     expect(spokenPrompt).not.toContain("kontribusi kolektif");
     expect(spokenPrompt).not.toContain("the person it happens to");
-    expect(String(ask.mock.calls[0]?.[0] ?? "")).not.toContain("explains like a speech");
+    expect(String(callsOf<[string]>(ask)[0]?.[0] ?? "")).not.toContain("explains like a speech");
     expect(result.checks.find((check) => check.id === "soundsSpoken")).toMatchObject({
       state: "fail",
       lineIds: ["s2-l1"],
@@ -148,7 +151,7 @@ describe("execution pass checklist", () => {
       ask,
     });
     expect(result.checks.find((check) => check.id === "soundsSpoken")?.state).toBe("pass");
-    expect(ask.mock.calls.some(([prompt]) => String(prompt).includes("spoken narration lines"))).toBe(false);
+    expect(callsOf<[string]>(ask).some(([prompt]) => String(prompt).includes("spoken narration lines"))).toBe(false);
   });
 
   it("fails a story written under a list pillar and does not recommend another pillar", async () => {
@@ -174,7 +177,7 @@ describe("execution pass checklist", () => {
       lineIds: ["s1-l1", "s2-l1"],
     });
     expect(result.checks.find((check) => check.id === "mechanismVisible")?.state).toBe("pending");
-    const prompt = String(ask.mock.calls.find(([text]) => String(text).includes("must be written in that format"))?.[0] ?? "");
+    const prompt = String(callsOf<[string]>(ask).find(([text]) => String(text).includes("must be written in that format"))?.[0] ?? "");
     expect(prompt).toContain("LISTICLE & CHEAT SHEET");
     expect(prompt).toContain("Daftar yang boleh dan yang tidak boleh.");
     expect(prompt).toContain("pass is false when list items repeat one point in new words.");
@@ -231,7 +234,7 @@ describe("execution pass checklist", () => {
       prior: everyCheckOn,
       ask,
     });
-    const hookPrompt = String(ask.mock.calls[0]?.[0] ?? "");
+    const hookPrompt = String(callsOf<[string]>(ask)[0]?.[0] ?? "");
     expect(hookPrompt).toContain("Grafiknya naik.");
     expect(hookPrompt).not.toContain("Kolomnya kosong.");
     expect(hookPrompt).not.toContain("Kesimpulannya.");
@@ -262,7 +265,7 @@ describe("execution pass checklist", () => {
     expect(ask).toHaveBeenCalledTimes(EXECUTION_PASS_CHECK_IDS.length);
     expect(result.checks.filter((check) => check.enabled !== false).map((check) => check.id)).toEqual([...EXECUTION_PASS_CHECK_IDS]);
     expect(result.facts.passChecks?.find((check) => check.id === "formatHolds")?.enabled).toBe(true);
-    expect(ask.mock.calls.some(([prompt]) => String(prompt).includes("named subject"))).toBe(false);
+    expect(callsOf<[string]>(ask).some(([prompt]) => String(prompt).includes("named subject"))).toBe(false);
   });
 
   it("treats a stored closing-line failure as already passed", () => {
@@ -518,7 +521,7 @@ describe("execution pass checklist", () => {
       ask,
     });
     expect(ask).toHaveBeenCalledTimes(2);
-    expect(ask.mock.calls.some(([prompt]) => String(prompt).includes("does not force a message"))).toBe(false);
+    expect(callsOf<[string]>(ask).some(([prompt]) => String(prompt).includes("does not force a message"))).toBe(false);
     expect(result.checks.find((check) => check.id === "messageStays")?.state).toBe("pass");
     expect(result.checks.find((check) => check.id === "causeChain")).toMatchObject({
       state: "fail",
@@ -784,7 +787,8 @@ describe("execution pass checklist", () => {
       masterStatement: base.masterStatement,
       ideaStatement: base.ideaStatement,
       pillar: base.pillar,
-      speech: "on_camera",
+      // Not a current ScriptSpeech value (vo | mix | dialog | silent); kept as-is so the test is unchanged.
+      speech: "on_camera" as ScriptSpeech,
       pillarDevelopment: "Tiga langkah.",
     });
     expect(plain).not.toContain("Write every spoken line in slang");
@@ -792,7 +796,8 @@ describe("execution pass checklist", () => {
       masterStatement: base.masterStatement,
       ideaStatement: base.ideaStatement,
       pillar: base.pillar,
-      speech: "on_camera",
+      // Not a current ScriptSpeech value (vo | mix | dialog | silent); kept as-is so the test is unchanged.
+      speech: "on_camera" as ScriptSpeech,
       pillarDevelopment: "Tiga langkah.",
       enabled: ["usesSlang"],
     });

@@ -652,7 +652,7 @@ export async function runImageOpenChecks(input: {
     publish();
     if (id === "imageShape") {
       const shape = judgeImageShape(input.script, input.image);
-      checks[index] = shape.pass ? { id, state: "pass" } : { id, state: "fail", reason: shape.reason, lineIds: [] };
+      checks[index] = shape.pass ? { id, state: "pass" } : { id, state: "fail", reason: "reason" in shape ? shape.reason : "", lineIds: [] };
       publish();
       if (!shape.pass) break;
       continue;
@@ -660,7 +660,7 @@ export async function runImageOpenChecks(input: {
     if (id === "imagePrompt") {
       const shape = judgeImagePromptShape(input.script, input.image);
       if (!shape.pass || !input.image.withImage) {
-        checks[index] = shape.pass ? { id, state: "pass" } : { id, state: "fail", reason: shape.reason, lineIds: [] };
+        checks[index] = shape.pass ? { id, state: "pass" } : { id, state: "fail", reason: "reason" in shape ? shape.reason : "", lineIds: [] };
         publish();
         if (!shape.pass) break;
         continue;

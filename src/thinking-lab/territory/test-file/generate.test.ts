@@ -6,7 +6,14 @@ import {
   runTerritoryGenerate,
 } from "@/thinking-lab/territory/generate";
 import type { TerritorySemanticFacts } from "@/thinking-lab/territory/types";
+import type { TerritoryPromptRow } from "@/thinking-lab/territory/generate";
+
+/** Recorded propose() args: [plan, parent, incumbents]. */
+type ProposeCall = [{ needed: number }, unknown, TerritoryPromptRow[]];
 import type { IndividualAdmission } from "@/thinking-lab/shared/verdict";
+
+/** vi.fn() mocks declared without params record calls as `[]`; read them with the real arg types. */
+const callsOf = <T extends unknown[]>(fn: { mock: { calls: unknown[] } }) => fn.mock.calls as unknown as T[];
 
 const BANNED = ["tithing", "tithe", "obc", "charity", "apple", "iphone"];
 
@@ -164,7 +171,7 @@ describe("runTerritoryGenerate", () => {
     });
     expect(propose).toHaveBeenCalledTimes(2);
     expect(
-      propose.mock.calls[1]?.[2].slice(0, 3).every((row: { relationToParent?: string }) => row.relationToParent === "UNRESOLVED"),
+      callsOf<ProposeCall>(propose)[1]?.[2].slice(0, 3).every((row: { relationToParent?: string }) => row.relationToParent === "UNRESOLVED"),
     ).toBe(true);
     expect(result.generateValid).toBe(0);
     expect(result.outcome).toBe("INSUFFICIENT_VALID_TERRITORIES");
@@ -198,13 +205,13 @@ describe("runTerritoryGenerate", () => {
         relationToParent: input.facts.relationToParent,
       }),
     });
-    expect(propose.mock.calls[0]?.[0].needed).toBe(1);
+    expect(callsOf<ProposeCall>(propose)[0]?.[0].needed).toBe(1);
     expect(judge.mock.calls.map((call) => call[2])).toEqual(["Pengalaman Rapat", "Rapat tim"]);
-    expect(propose.mock.calls[1]?.[2].map((row: { statement: string }) => row.statement)).toEqual(["Pengalaman Rapat"]);
-    expect(propose.mock.calls[1]?.[2][0]?.relationToParent).toBe("INTERNAL_LANGUAGE");
+    expect(callsOf<ProposeCall>(propose)[1]?.[2].map((row: { statement: string }) => row.statement)).toEqual(["Pengalaman Rapat"]);
+    expect(callsOf<ProposeCall>(propose)[1]?.[2][0]?.relationToParent).toBe("INTERNAL_LANGUAGE");
     const prompt = buildTerritoryGeneratePrompt({
       parentStatement: "Parent",
-      incumbents: propose.mock.calls[1]?.[2] ?? [],
+      incumbents: callsOf<ProposeCall>(propose)[1]?.[2] ?? [],
       lessons: [
         {
           code: "TR01",
@@ -241,8 +248,8 @@ describe("runTerritoryGenerate", () => {
       }),
     });
     expect(propose).toHaveBeenCalledTimes(1);
-    expect(propose.mock.calls[0]?.[0].needed).toBe(1);
-    expect(propose.mock.calls[0]?.[2].map((row: { code: string }) => row.code)).toEqual(["TR01", "TR02", "TR03"]);
+    expect(callsOf<ProposeCall>(propose)[0]?.[0].needed).toBe(1);
+    expect(callsOf<ProposeCall>(propose)[0]?.[2].map((row: { code: string }) => row.code)).toEqual(["TR01", "TR02", "TR03"]);
     expect(result.incumbents.map((row) => row.code)).toEqual(["TR01", "TR02", "TR03", "TR04"]);
     expect(result.generateValid).toBe(4);
   });

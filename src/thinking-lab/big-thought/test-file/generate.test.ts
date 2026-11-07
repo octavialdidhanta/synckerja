@@ -291,7 +291,12 @@ describe("checked generate", () => {
       },
       persist: async (candidate) => {
         saved.push(candidate.statement);
-        return { code: `BT0${saved.length + 1}`, statement: candidate.statement, admission: "GENERATE_REJECT", label: candidate.label };
+        return {
+          code: `BT0${saved.length + 1}`,
+          statement: candidate.statement,
+          admission: "GENERATE_REJECT" as IndividualAdmission,
+          label: candidate.label,
+        };
       },
     });
     expect(judgeCalls).toBe(0);

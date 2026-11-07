@@ -225,7 +225,7 @@ function readMeaningAudit(value: unknown): ExecutionMeaningAudit | null {
 
 function readPassChecks(value: unknown): ExecutionStoredPassCheck[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  const checks = value.flatMap((item) => {
+  const checks = value.flatMap((item): ExecutionStoredPassCheck[] => {
     const row = asRecord(item);
     if (!row) return [];
     const id = asText(row.id);

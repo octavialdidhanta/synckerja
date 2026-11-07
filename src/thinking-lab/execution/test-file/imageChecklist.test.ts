@@ -18,6 +18,9 @@ import {
 import { lessonFromMeaningAudit, regeneratePassPrior } from "@/thinking-lab/execution/passChecklist";
 import { buildPlanScript, parseVoiceOverScript, stampImageScript, type VoiceOverScript } from "@/thinking-lab/execution/script";
 
+/** vi.fn() mocks declared without params record calls as `[]`; read them with the real arg types. */
+const callsOf = <T extends unknown[]>(fn: { mock: { calls: unknown[] } }) => fn.mock.calls as unknown as T[];
+
 const settings = { format: "carousel" as const, slideCountMode: "manual" as const, slideCount: 2, withImage: true };
 const imageChecksOn = IMAGE_PASS_CHECK_IDS.map((id) => ({ id, state: "pending" as const, enabled: true }));
 
@@ -218,7 +221,7 @@ describe("image execution", () => {
       onStep: () => undefined,
     });
     expect(result.checks.some((check) => check.id === "formatHolds")).toBe(false);
-    expect(ask.mock.calls.some(([prompt]) => String(prompt).includes("two slides say the same point"))).toBe(false);
+    expect(callsOf<[string]>(ask).some(([prompt]) => String(prompt).includes("two slides say the same point"))).toBe(false);
     const resumed = imageChecksFromAudit({
       id: "formatHolds",
       reason: "Slide s2-l1 mengulang.",
@@ -251,7 +254,7 @@ describe("image execution", () => {
       ask,
       onStep: () => undefined,
     });
-    expect(ask.mock.calls.some(([prompt]) => String(prompt).includes("This copy is the first slide."))).toBe(false);
+    expect(callsOf<[string]>(ask).some(([prompt]) => String(prompt).includes("This copy is the first slide."))).toBe(false);
     expect(result.checks.find((check) => check.id === "hookHolds")?.state).toBe("pass");
     expect(result.checks.some((check) => check.id === "formatHolds")).toBe(false);
     expect(result.checks.find((check) => check.id === "imageShape")?.state).toBe("pass");
@@ -307,7 +310,7 @@ describe("image execution", () => {
       ask,
       onStep: () => undefined,
     });
-    expect(ask.mock.calls.some(([prompt]) => String(prompt).includes("This copy is the last slide."))).toBe(false);
+    expect(callsOf<[string]>(ask).some(([prompt]) => String(prompt).includes("This copy is the last slide."))).toBe(false);
     expect(result.checks.find((check) => check.id === "hookHolds")?.state).toBe("pass");
     expect(result.checks.find((check) => check.id === "imagePrompt")?.state).toBe("pass");
   });
@@ -331,7 +334,7 @@ describe("image execution", () => {
       ask,
       onStep: () => undefined,
     });
-    const asked = ask.mock.calls.map(([prompt]) => String(prompt));
+    const asked = callsOf<[string]>(ask).map(([prompt]) => String(prompt));
     expect(asked.some((prompt) => prompt.includes("This copy is the first slide."))).toBe(false);
     expect(asked.some((prompt) => prompt.includes("This copy is the last slide."))).toBe(false);
     expect(asked.some((prompt) => prompt.includes("the person it happens to"))).toBe(true);
