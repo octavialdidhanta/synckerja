@@ -19,7 +19,7 @@ const COMMENT_REPLY_DEFAULT_KEYS = [
 type LeadMagnetCommentReplyVariantsStepProps = {
   enabled: boolean;
   texts: CommentReplyTextsTuple;
-  onChange: (patch: Pick<LeadMagnetCampaignForm, 'comment_reply_enabled' | 'comment_reply_texts' | 'comment_reply_text'>) => void;
+  onChange: (patch: Partial<Pick<LeadMagnetCampaignForm, 'comment_reply_enabled' | 'comment_reply_texts' | 'comment_reply_text'>>) => void;
 };
 
 export function LeadMagnetCommentReplyVariantsStep({

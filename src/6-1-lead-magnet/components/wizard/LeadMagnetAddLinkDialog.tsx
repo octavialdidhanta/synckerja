@@ -110,12 +110,13 @@ export function LeadMagnetAddLinkDialog({
         previousStoragePath: localStoragePath,
       });
       if (!result.ok) {
+        const uploadError = 'error' in result ? result.error : undefined;
         const key =
-          result.error === 'size'
+          uploadError === 'size'
             ? 'deliveryFileTooLarge'
-            : result.error === 'type'
+            : uploadError === 'type'
             ? 'deliveryFileTypeInvalid'
-            : result.error === 'auth'
+            : uploadError === 'auth'
             ? 'authRequired'
             : 'deliveryUploadFailed';
         toast.error(t(`leadMagnet.wizard.validation.${key}`));
