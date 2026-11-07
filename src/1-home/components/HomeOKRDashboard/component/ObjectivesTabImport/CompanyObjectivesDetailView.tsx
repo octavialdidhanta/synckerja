@@ -76,7 +76,7 @@ export const CompanyObjectivesDetailView = ({
   const [editModal, setEditModal] = useState<{
     open: boolean;
     objective?: any;
-    type?: 'individual' | 'department';
+    type?: 'individual' | 'department' | 'company';
   }>({
     open: false
   });

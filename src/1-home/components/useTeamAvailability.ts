@@ -80,7 +80,9 @@ export const useTeamAvailability = (options: { enabled?: boolean } = {}) => {
       const departmentStats: { [key: string]: { wfo: number; wfh: number; total: number } } = {};
 
       employeesWithAttendance?.forEach((employee) => {
-        const deptName = employee.departments?.name || 'Other';
+        // Many-to-one join returns one object (typed as array without generated DB types).
+        const dept = employee.departments as unknown as { name?: string } | null;
+        const deptName = dept?.name || 'Other';
         
         if (!departmentStats[deptName]) {
           departmentStats[deptName] = { wfo: 0, wfh: 0, total: 0 };

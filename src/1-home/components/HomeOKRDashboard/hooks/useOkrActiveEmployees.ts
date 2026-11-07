@@ -36,6 +36,18 @@ function jobPositionNameFromJoin(row: {
   return jp.name ?? null;
 }
 
+/** Row shape for both select variants (the select string is dynamic, so the query is untyped). */
+type OkrEmployeeRow = {
+  id: string;
+  user_id: string | null;
+  full_name: string;
+  department_id?: string | null;
+  profile_photo_url?: string | null;
+  pending_removal?: boolean | null;
+  job_positions?: { name?: string } | { name?: string }[] | null;
+  employee_statuses?: { name?: string } | { name?: string }[] | null;
+};
+
 async function fetchActiveOkrEmployees(organizationId: string, includeDirectoryFields: boolean) {
   const select = includeDirectoryFields
     ? `
@@ -64,7 +76,7 @@ async function fetchActiveOkrEmployees(organizationId: string, includeDirectoryF
 
   if (error) throw error;
 
-  const activeRows = (data ?? []).filter((row) =>
+  const activeRows = ((data ?? []) as unknown as OkrEmployeeRow[]).filter((row) =>
     isEmployeeActive({
       employee_status_name: statusNameFromJoin(row),
       status: null,

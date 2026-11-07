@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { isEmployeeActive } from '@/2-1-employees/utils/employeeUtils';
-import { Department } from './departmentTypes';
+import type { Department } from '@/shared/hooks/crudMaster/departmentTypes';
 
 function statusNameFromJoin(row: {
   employee_statuses?: { name?: string } | { name?: string }[] | null;
@@ -83,7 +83,10 @@ export const useDepartments = (organizationId?: string) => {
       // console.log('✅ useDepartments: Employee department relations:', employeeDepartments?.length || 0);
 
       // Extract department data from employee relations
-      const empDepts = employeeDepartments.map((emp) => emp.departments).filter(Boolean);
+      // Many-to-one join: one department object per row (typed as array without generated DB types).
+      const empDepts = employeeDepartments
+        .map((emp) => emp.departments as unknown as Department | null)
+        .filter(Boolean);
       // console.log('✅ useDepartments: Extracted employee departments:', empDepts.length);
 
       // Combine and deduplicate departments

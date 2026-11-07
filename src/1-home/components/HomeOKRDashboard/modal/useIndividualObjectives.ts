@@ -15,6 +15,7 @@ export interface IndividualObjective {
   employee_id: string;
   title: string;
   description?: string;
+  why_important?: string | null;
   status: 'draft' | 'active' | 'completed' | 'cancelled';
   progress_percentage: number;
   weight: number;
@@ -151,7 +152,7 @@ export const useCreateIndividualObjective = () => {
 
       const { data, error } = await supabase
         .from('individual_objectives')
-        .insert(sanitizeIndividualObjectiveWrite(objectiveData as Record<string, unknown>))
+        .insert(sanitizeIndividualObjectiveWrite(objectiveData as unknown as Record<string, unknown>))
         .select()
         .single();
 

@@ -7,7 +7,7 @@ import { getDefaultCycleForCurrentPeriod } from './ObjectivesTabImport/okrUtils'
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { YearQuarterSelection } from './FiturTimePeriod';
 import { filterCyclesByYearQuarter, hasYearQuarterSelection } from './yearQuarterFilter';
-import type { OkrFilterState } from '../../types/okr-filter';
+import type { OkrFilterState } from '../types/okr-filter';
 
 interface ObjectivesTabProps {
   type: 'company' | 'department' | 'individual';

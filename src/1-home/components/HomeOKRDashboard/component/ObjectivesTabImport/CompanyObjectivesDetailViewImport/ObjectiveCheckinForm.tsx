@@ -96,6 +96,7 @@ export const ObjectiveCheckinForm = ({
     unit: string;
     metric_type: string;
     id: string;
+    progress_percentage?: number;
   } | null>(null);
   const [activeTab, setActiveTab] = useState<string>('checkins');
 

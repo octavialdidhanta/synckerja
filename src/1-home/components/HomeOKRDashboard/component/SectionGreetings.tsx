@@ -32,7 +32,7 @@ export const SectionGreetings = ({ currentTime, greeting }: SectionGreetingsProp
   // Calculate working time if checked in
   const calculateWorkingTime = () => {
     const checkIn = parseAttendanceInstant(
-      todayRecord?.attendance_date,
+      todayRecord?.attendance_date as string | undefined,
       todayRecord?.check_in_time,
       todayRecord?.check_in_at
     );
