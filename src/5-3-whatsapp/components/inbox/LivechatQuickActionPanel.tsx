@@ -66,6 +66,7 @@ import {
   isConversionFinancialValid,
   isServiceCategoryPairValid,
   parseDownPaymentAmount,
+  resolveServiceByName,
   type ConversionDraftLine,
   type ConversionPaymentKindUi,
 } from '@/5-3-whatsapp/utils/livechatConversionValidation';
