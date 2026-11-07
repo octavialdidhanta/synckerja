@@ -33,7 +33,6 @@ import { useOkrCycles } from '@/shared/hooks/useOkrCycles';
 import { YearQuarterSelection } from '../FiturTimePeriod';
 import { filterCyclesByYearQuarter, hasYearQuarterSelection } from '../yearQuarterFilter';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/shared/components/ui/accordion';
-// import { WeeklyCheckinForm } from './CompanyObjectivesDetailViewImport/WeeklyCheckinDialog';
 import { ObjectiveCheckinForm } from './CompanyObjectivesDetailViewImport/ObjectiveCheckinForm';
 // TODO: Update to use ModalAddCompanyContribution
 // import { ModalCreateObjective } from '../components/ModalCreateObjective';

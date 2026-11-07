@@ -14,7 +14,6 @@ import { CreateIndividualObjectiveModal } from './DepartmentObjectivesViewImport
 import { useOkrActiveEmployees } from '../../hooks/useOkrActiveEmployees';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/shared/components/ui/accordion';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/components/ui/collapsible';
-import { WeeklyCheckinForm } from './DepartmentObjectivesViewImport/WeeklyCheckinDialog';
 import { ObjectiveCheckinForm } from './CompanyObjectivesDetailViewImport/ObjectiveCheckinForm';
 // TODO: Already using ModalAddDepartmentContribution, can remove this
 // import { ModalCreateObjective } from '@/components/1_home/components/ModalCreateObjective';
