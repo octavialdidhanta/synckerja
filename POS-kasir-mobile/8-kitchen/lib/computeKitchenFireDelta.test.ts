@@ -14,7 +14,7 @@ function productLine(id: string, qty: number): CustomerVisitCartLine {
     unitPrice: 15000,
     quantity: qty,
     isCustomAmount: false,
-  } as CustomerVisitCartLine;
+  } as unknown as CustomerVisitCartLine;
 }
 
 describe("computeKitchenFireDelta", () => {

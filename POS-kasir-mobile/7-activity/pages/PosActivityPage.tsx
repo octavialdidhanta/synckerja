@@ -334,8 +334,9 @@ export default function PosActivityPage() {
         createdByUserId: user?.id ?? null,
       });
       if (!result.ok) {
+        const failureCode = "code" in result ? result.code : undefined;
         const title =
-          result.code === "share_disabled"
+          failureCode === "share_disabled"
             ? payload.channel === "email"
               ? t(
                   POS_ACTIVITY_I18N.shareEmailOff,
@@ -345,9 +346,9 @@ export default function PosActivityPage() {
                   POS_ACTIVITY_I18N.shareSmsOff,
                   "SMS receipt is disabled in outlet receipt settings.",
                 )
-            : result.code === "invalid_email"
+            : failureCode === "invalid_email"
               ? t(POS_ACTIVITY_I18N.invalidEmail, "Enter a valid email address")
-              : result.code === "invalid_phone"
+              : failureCode === "invalid_phone"
                 ? t(POS_ACTIVITY_I18N.invalidPhone, "Enter a valid phone number")
                 : t(POS_ACTIVITY_I18N.sendError, "Failed to send receipt");
         toast({ title, variant: "destructive" });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { resolvePosPrinterBridge } from "@/pos-mobile/shared/printing/bridges/CapacitorBluetoothPrinterBridge";
 import { PosPrinterUnavailableError } from "@/pos-mobile/shared/printing/PosPrinterBridge";
-import type { PosBluetoothDevice } from "../posPrinterTypes";
+import type { PosBluetoothDevice } from "./posPrinterTypes";
 
 export function usePosBluetoothScan() {
   const [available, setAvailable] = useState(false);
