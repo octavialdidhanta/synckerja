@@ -29,7 +29,6 @@ import { usePenaltySettings, usePenaltyRules } from '@/features/2-3-settings/hoo
 import { useEmployees } from '@/2-1-employees/hooks/useEmployees';
 import { PenaltyRuleFormDialog } from '../modals/PenaltyRuleFormDialog';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useReportAttendanceSettingsLoading } from '@/2-3-attendance/context/AttendancePageLoadContext';
 import { AttendanceSettingsHeaderActions } from '@/2-3-settings/components/AttendanceSettingsHeaderActions';
