@@ -346,6 +346,14 @@ export function OKRSidebar({
         <div className="space-y-2">
           {recentCheckins.length > 0 ? (
             recentCheckins.map((checkin) => {
+              const employeesJoin = checkin.employees as
+                | { full_name?: string | null }
+                | { full_name?: string | null }[]
+                | null
+                | undefined;
+              const employeeName = Array.isArray(employeesJoin)
+                ? employeesJoin[0]?.full_name
+                : employeesJoin?.full_name;
               const objective = checkin.individual_objectives as { title?: string | null } | null | undefined;
               const notesTrim = typeof checkin.notes === "string" ? checkin.notes.trim() : "";
               const subtitle =
@@ -356,7 +364,7 @@ export function OKRSidebar({
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-medium text-foreground">
-                        {checkin.employees?.full_name ?? t("layout.okr.sidebar.unknownPerson")}
+                        {employeeName?.trim() || t("layout.okr.sidebar.unknownPerson")}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
                       <p className="mt-1 text-xs text-muted-foreground">

@@ -1,4 +1,4 @@
-import { ChevronRight, Menu, Search } from "lucide-react";
+import { ChevronRight, MapPin, Menu, Search } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { orderHoursBadge } from "@/synckerja-order/shared/lib/orderHours";
 import type { PublicOrderHours } from "@/synckerja-order/shared/lib/orderTypes";
@@ -12,6 +12,8 @@ type Props = {
   onSearch: () => void;
   onMenu: () => void;
   onStoreInfo: () => void;
+  /** Advertising link only. QR / dine-in keeps the chevron without this label. */
+  showLocation?: boolean;
 };
 
 export function OrderStoreHero({
@@ -22,6 +24,7 @@ export function OrderStoreHero({
   onSearch,
   onMenu,
   onStoreInfo,
+  showLocation = false,
 }: Props) {
   const { t } = useAppTranslation();
   const badge = orderHoursBadge({
@@ -81,7 +84,17 @@ export function OrderStoreHero({
               {badgeLabel}
             </span>
           </span>
-          <ChevronRight className="h-5 w-5 shrink-0 text-neutral-400" />
+          <span className="ml-3 inline-flex shrink-0 items-center gap-1 text-neutral-400">
+            {showLocation ? (
+              <>
+                <MapPin className="h-3.5 w-3.5" strokeWidth={2} />
+                <span className="text-[12px] font-medium leading-none">
+                  {t("synckerjaOrder.store.ourLocation", "Lokasi Kami")}
+                </span>
+              </>
+            ) : null}
+            <ChevronRight className="h-5 w-5" />
+          </span>
         </button>
       </div>
     </div>

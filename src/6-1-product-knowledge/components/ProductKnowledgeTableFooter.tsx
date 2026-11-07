@@ -6,7 +6,7 @@ import type { ProductKnowledgeFeature } from '../hooks/useProductKnowledgeFeatur
 import { FeatureManager } from './FeatureManager';
 import { ServiceManager } from '@/6-1-dashboard/container/master-data/dropdowns/ServiceManager';
 import { SubServiceManager } from '@/6-1-dashboard/container/master-data/dropdowns/SubServiceManager';
-import type { Service } from '@/6-1-dashboard/types/social-media';
+import type { Service } from '../hooks/useServices';
 import type { SubService } from '../hooks/useSubServices';
 
 interface ProductKnowledgeTableFooterProps {

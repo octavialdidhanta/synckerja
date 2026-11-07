@@ -116,7 +116,8 @@ export const useKOLCampaigns = () => {
         target_conversion: campaignData.target_conversion,
       });
       if (!targetCheck.ok) {
-        throw new Error(targetCheck.message);
+        const { message } = targetCheck;
+        throw new Error(message);
       }
 
       const budgetAmount = Number(campaignData.budget ?? campaignData.total_budget ?? 0) || 0;

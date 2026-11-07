@@ -103,17 +103,23 @@ export async function fetchDmWeeklyCumulativeActuals(args: {
           actualValueFromGoogleTotals(response.summary_totals ?? null, metricKey),
         );
       } else {
-        const fetchFn =
-          args.targetRow.channel === "meta" ? fetchMetaAdsMetrics : fetchTikTokAdsMetrics;
-        const idKey = args.targetRow.channel === "meta" ? "adAccountId" : "advertiserId";
-        const response = await fetchFn({
-          organizationId: args.organizationId,
-          [idKey]: args.targetRow.account_id,
-          entity: "campaign",
-          dateStart: range.dateStart,
-          dateEnd: range.dateEnd,
-        } as Parameters<typeof fetchMetaAdsMetrics>[0]);
         const needsRows = metricKey === "converted_leads" || metricKey === "cpa";
+        const response =
+          args.targetRow.channel === "meta"
+            ? await fetchMetaAdsMetrics({
+                organizationId: args.organizationId,
+                adAccountId: args.targetRow.account_id,
+                entity: "campaign",
+                dateStart: range.dateStart,
+                dateEnd: range.dateEnd,
+              })
+            : await fetchTikTokAdsMetrics({
+                organizationId: args.organizationId,
+                advertiserId: args.targetRow.account_id,
+                entity: "campaign",
+                dateStart: range.dateStart,
+                dateEnd: range.dateEnd,
+              });
         result.set(
           week.weekKey,
           actualValueFromMetaTikTok(

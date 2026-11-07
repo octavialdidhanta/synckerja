@@ -66,9 +66,10 @@ export const CreateCampaignModal = ({
       target_conversion: targetConversion,
     });
     if (!targetCheck.ok) {
+      const { message } = targetCheck;
       toast({
         title: "Target belum lengkap",
-        description: targetCheck.message,
+        description: message,
         variant: "destructive",
       });
       return;

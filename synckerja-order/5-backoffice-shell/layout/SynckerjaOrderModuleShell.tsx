@@ -12,7 +12,6 @@ type Props = {
   businessName?: string;
   onSave?: () => void;
   saveBusy?: boolean;
-  onViewStore?: () => void;
 };
 
 const MAIN_SCROLL =
@@ -25,7 +24,6 @@ export function SynckerjaOrderModuleShell({
   businessName,
   onSave,
   saveBusy,
-  onViewStore,
 }: Props) {
   const skeleton = loadingSkeleton ?? <SynckerjaOrderPageSkeleton />;
   return (
@@ -46,7 +44,6 @@ export function SynckerjaOrderModuleShell({
                     businessName={businessName}
                     onSave={onSave}
                     saveBusy={saveBusy}
-                    onViewStore={onViewStore}
                   />
                 </div>
                 <ModuleShellContentGate pagePath={SYNCKERJA_ORDER_BASE_PATH}>{children}</ModuleShellContentGate>

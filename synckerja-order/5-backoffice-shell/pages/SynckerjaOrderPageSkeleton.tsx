@@ -36,10 +36,6 @@ export function SynckerjaOrderPageSkeleton() {
                       <Skeleton className="h-8 w-12" />
                     </div>
                   </div>
-                  <div className="flex shrink-0 gap-2 pt-2">
-                    <Skeleton className="h-10 w-24 shrink-0" />
-                    <Skeleton className="h-10 w-36 shrink-0" />
-                  </div>
                 </div>
               </div>
 

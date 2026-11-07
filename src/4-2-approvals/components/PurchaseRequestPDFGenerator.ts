@@ -50,7 +50,6 @@ export class PurchaseRequestPDFGenerator {
       this.doc.text('DOKUMEN RESMI', this.pageWidth / 2, this.pageHeight / 2, {
         align: 'center',
         angle: 45,
-        opacity: 0.1
       });
       this.doc.setTextColor(0, 0, 0);
     }

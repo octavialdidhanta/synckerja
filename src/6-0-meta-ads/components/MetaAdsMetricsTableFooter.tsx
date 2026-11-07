@@ -102,20 +102,18 @@ export function MetaAdsMetricsTableFooter({
           value={sortFieldValue}
           onValueChange={onSortFieldChange}
           onOpenChange={(open) => {
-            if (!open) setSortQuery("");
+            if (!open) {
+              setSortQuery("");
+            } else {
+              requestAnimationFrame(() => sortSearchRef.current?.focus());
+            }
           }}
           disabled={isLoading || sortColumnOptions.length === 0}
         >
           <SelectTrigger className="h-8 w-[min(140px,32vw)]">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent
-            className="max-h-80"
-            onOpenAutoFocus={(event) => {
-              event.preventDefault();
-              sortSearchRef.current?.focus();
-            }}
-          >
+          <SelectContent className="max-h-80">
             <div
               className="sticky top-0 z-10 bg-popover px-1 pb-1"
               onPointerDown={(event) => event.stopPropagation()}

@@ -1,7 +1,4 @@
-import {
-  computeDmReportTargetDeviationPercentage,
-  computeDmReportSummaryDisplayPercentage,
-} from "@/6-0-digital-marketing-shared/dmReportTargetProgressMath";
+import { computeDmReportSummaryDisplayPercentage } from "@/6-0-digital-marketing-shared/dmReportTargetProgressMath";
 import { catalogKeyToReportSlotKey } from "@/6-0-digital-marketing-shared/googleAdsReportTargetMetricMapping";
 import { actualValueFromTotals } from "@/6-0-digital-marketing-shared/googleAdsReportTargetActuals";
 import {
@@ -62,18 +59,12 @@ export function computeGoogleAdsReportTargetProgress(args: {
       showProgress && actual != null
         ? computeDmReportSummaryDisplayPercentage(actual, effectiveTarget, reportSlotKey)
         : null;
-    const deviationPercentage =
-      showProgress && actual != null
-        ? computeDmReportTargetDeviationPercentage(actual, effectiveTarget, reportSlotKey)
-        : null;
-
     results.push({
       metricKey,
       actual,
       target: showProgress ? effectiveTarget : null,
       targetRaw: rawTarget > 0 ? rawTarget : null,
       percentage,
-      deviationPercentage,
       showProgress,
       valueKind,
     });

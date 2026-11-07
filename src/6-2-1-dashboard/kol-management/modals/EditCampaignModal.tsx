@@ -67,7 +67,13 @@ const EditCampaignModal = ({ open, onOpenChange, campaign }: EditCampaignModalPr
         target_conversion: campaign.target_conversion?.toString() || "",
         start_date: campaign.start_date ? campaign.start_date.split("T")[0] : "",
         end_date: campaign.end_date ? campaign.end_date.split("T")[0] : "",
-        status: campaign.status,
+        status:
+          campaign.status === "draft" ||
+          campaign.status === "active" ||
+          campaign.status === "completed" ||
+          campaign.status === "cancelled"
+            ? campaign.status
+            : "draft",
       });
     }
   }, [campaign]);
@@ -98,9 +104,10 @@ const EditCampaignModal = ({ open, onOpenChange, campaign }: EditCampaignModalPr
       target_conversion: targetConversion,
     });
     if (!targetCheck.ok) {
+      const { message } = targetCheck;
       toast({
         title: "Target belum lengkap",
-        description: targetCheck.message,
+        description: message,
         variant: "destructive",
       });
       return;

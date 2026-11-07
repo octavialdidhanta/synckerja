@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -47,7 +48,7 @@ function formatServiceCpa(value: unknown, currencyCode: string | null | undefine
 }
 
 function campaignIdentityColumns(
-  t: (key: string, defaultValue?: string) => string,
+  t: TFunction,
   opts: {
     canEditServiceMapping: boolean;
     services: ServiceOption[];

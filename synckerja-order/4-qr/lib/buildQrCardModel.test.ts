@@ -13,7 +13,7 @@ describe("buildQrCardModel", () => {
       settings: defaultQrSettingsDraft(),
       locale: "id",
     });
-    expect(model.qrUrl).toContain("h5gta6");
+    expect(model.qrUrl).toContain("/outlet-utama-h5gta6?");
     expect(model.qrUrl).toContain("tableNumber=meja");
     expect(model.headline).toBe("Scan untuk pesan");
     expect(model.tableLabel).toBe("meja 1");

@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Loader2, MessageSquare } from "lucide-react";
@@ -36,7 +37,7 @@ function formatTime(raw: number | null): string {
 function mapCreateConversationError(
   code: string | undefined,
   fallback: string,
-  t: (k: string, d?: string) => string,
+  t: TFunction,
 ): string {
   switch (code) {
     case "MISSING_BUYER_USER_ID":

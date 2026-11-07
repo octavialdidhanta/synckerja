@@ -273,7 +273,7 @@ export function XenditKycVerificationForm({
             required
           />
           <XenditServiceAgreementSection
-            idPrefix={idPrefix}
+            idPrefix={idPrefix as "kyc" | "kyc-edit"}
             legalName={form.legalName}
             file={form.files.serviceAgreement}
             onFileChange={(serviceAgreement) =>

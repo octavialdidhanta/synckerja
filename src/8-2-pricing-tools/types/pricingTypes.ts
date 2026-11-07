@@ -68,6 +68,9 @@ export interface PricingCalculationInput {
   category: string;
   costBreakdown?: CostCategory[];
   productionCostPerUnit: number;
+  /** Legacy persisted templates */
+  productionUnits?: number;
+  totalProductionCost?: number;
   operationalExpenses: BusinessExpenseItem[];
   totalOperationalExpenses: number;
   costAllocationMethod: CostAllocationMethod;

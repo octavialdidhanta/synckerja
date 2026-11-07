@@ -413,7 +413,7 @@ export function GoogleAdsModifyColumnsDialog({
       name: trimmed,
       metric_keys: draftKeys,
     });
-    if (result?.id) {
+    if (result && typeof result === "object" && "id" in result) {
       setActiveColumnSetId(result.id);
     }
     setIsEditingColumnSet(false);

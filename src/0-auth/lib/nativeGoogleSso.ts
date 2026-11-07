@@ -58,7 +58,8 @@ function extractFullErrorText(err: unknown): string {
     if (value == null) return;
     if (value instanceof Error) {
       parts.push(value.message);
-      if (value.cause) visit(value.cause);
+      const nestedCause = (value as Error & { cause?: unknown }).cause;
+      if (nestedCause !== undefined) visit(nestedCause);
       return;
     }
     if (typeof value === "object") {
@@ -227,11 +228,12 @@ async function completeNativeGoogleSession(
   response: Awaited<ReturnType<typeof SocialLogin.login>>,
   rawNonce?: string,
 ): Promise<{ error: string | null }> {
-  if (response.result.responseType !== "online") {
+  const loginResult = response.result;
+  if (!("responseType" in loginResult) || loginResult.responseType !== "online") {
     return { error: "offline_mode_unsupported" };
   }
 
-  const googleResult = response.result as GoogleLoginResponseOnline;
+  const googleResult = loginResult as GoogleLoginResponseOnline;
   const idToken = googleResult.idToken;
   if (!idToken) {
     return { error: "missing_id_token" };

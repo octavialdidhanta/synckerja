@@ -93,6 +93,7 @@ export function computeGoogleAdsPageTargetProgress(args: {
       actual,
       target: showProgress ? effectiveTarget : null,
       targetRaw: rawTarget > 0 ? rawTarget : null,
+      baseline: null,
       percentage,
       deviationPercentage,
       showProgress,

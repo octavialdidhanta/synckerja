@@ -1,5 +1,5 @@
 import "./styles/qr-print.css";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/shared/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -25,6 +25,7 @@ type Props = {
   outletName: string;
   tables: SynckerjaOrderTableRow[];
   orgSettings: SynckerjaOrderOrgSettings;
+  outletSelect?: ReactNode;
 };
 
 export function SynckerjaOrderQrPanel({
@@ -33,6 +34,7 @@ export function SynckerjaOrderQrPanel({
   outletName,
   tables,
   orgSettings,
+  outletSelect,
 }: Props) {
   const { t, language } = useAppTranslation();
   const { toast } = useToast();
@@ -128,53 +130,64 @@ export function SynckerjaOrderQrPanel({
     setPrintScope("selected");
   };
 
+  const toolbar = (
+    <QrPrintToolbar
+      leading={outletSelect}
+      selectedCount={publicCode ? printState.selectedTables.length : 0}
+      totalCount={publicCode ? tables.length : 0}
+      onSave={() => void handleSave()}
+      onPrintSelected={handlePrintSelected}
+      onPrintAll={handlePrintAll}
+      saveBusy={qrSettings.save.isPending}
+    />
+  );
+
   if (!publicCode) {
     return (
-      <div className="p-6 text-sm text-muted-foreground">
-        <p>{t("synckerjaOrder.qr.needCode", "Set a public code on the Outlets tab first.")}</p>
-        <Button asChild variant="link" className="mt-2 h-auto p-0">
-          <Link to={SYNCKERJA_ORDER_OUTLETS_PATH}>
-            {t("synckerjaOrder.qr.empty.goOutlets", "Go to Outlets")}
-          </Link>
-        </Button>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {toolbar}
+        <div className="p-6 text-sm text-muted-foreground">
+          <p>{t("synckerjaOrder.qr.needCode", "Set a public code on the Outlets tab first.")}</p>
+          <Button asChild variant="link" className="mt-2 h-auto p-0">
+            <Link to={SYNCKERJA_ORDER_OUTLETS_PATH}>
+              {t("synckerjaOrder.qr.empty.goOutlets", "Go to Outlets")}
+            </Link>
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (tables.length === 0) {
     return (
-      <div className="p-6 text-sm text-muted-foreground">
-        <p>
-          {t(
-            "synckerjaOrder.qr.empty.noTables",
-            "No tables found for this outlet. Add tables in Table Management first.",
-          )}
-        </p>
-        <Button asChild variant="link" className="mt-2 h-auto p-0">
-          <Link
-            to={
-              outletId
-                ? `/operations/table-management/map?outlet=${encodeURIComponent(outletId)}`
-                : "/operations/table-management/map"
-            }
-          >
-            {t("synckerjaOrder.qr.empty.goTables", "Go to Table Management")}
-          </Link>
-        </Button>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {toolbar}
+        <div className="p-6 text-sm text-muted-foreground">
+          <p>
+            {t(
+              "synckerjaOrder.qr.empty.noTables",
+              "No tables found for this outlet. Add tables in Table Management first.",
+            )}
+          </p>
+          <Button asChild variant="link" className="mt-2 h-auto p-0">
+            <Link
+              to={
+                outletId
+                  ? `/operations/table-management/map?outlet=${encodeURIComponent(outletId)}`
+                  : "/operations/table-management/map"
+              }
+            >
+              {t("synckerjaOrder.qr.empty.goTables", "Go to Table Management")}
+            </Link>
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <QrPrintToolbar
-        selectedCount={printState.selectedTables.length}
-        totalCount={tables.length}
-        onSave={() => void handleSave()}
-        onPrintSelected={handlePrintSelected}
-        onPrintAll={handlePrintAll}
-        saveBusy={qrSettings.save.isPending}
-      />
+      {toolbar}
 
       <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(280px,360px)_1fr]">
         <div className="scrollbar-hide space-y-5 overflow-y-auto border-b border-border p-4 lg:border-b-0 lg:border-r">

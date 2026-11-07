@@ -4,6 +4,7 @@ import type { CustomerVisitCartLine } from './customerVisitCheckout.types';
 
 function line(partial: Partial<CustomerVisitCartLine> & Pick<CustomerVisitCartLine, 'quantity' | 'unitPrice'>): CustomerVisitCartLine {
   return {
+    lineKey: partial.lineKey ?? 'c1',
     catalogId: 'c1',
     kind: 'service',
     serviceId: 's1',

@@ -7,7 +7,7 @@ import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useLanguage } from "@/shared/i18n/LanguageProvider";
 import { SYNCKERJA_ORDER_I18N } from "@/synckerja-order/shared/lib/orderCopy";
 import { parseOrderStoreMode } from "@/synckerja-order/shared/lib/orderUrls";
-import { isValidPublicCode, normalizePublicCode } from "@/synckerja-order/shared/lib/publicCode";
+import { extractPublicCode, isValidPublicCode } from "@/synckerja-order/shared/lib/publicCode";
 import { fetchPublicOrderCatalog, fetchPublicOrderStore } from "@/synckerja-order/shared/lib/tenantResolve";
 import type { PublicOrderCatalogItem } from "@/synckerja-order/shared/lib/orderTypes";
 import { useOrderCart } from "../lib/useOrderCart";
@@ -19,6 +19,7 @@ import {
   submitOrderPayAtCashier,
 } from "../lib/orderCheckoutApi";
 import { PhoneShell } from "../components/PhoneShell";
+import { OrderLinkLocationScreen } from "../components/OrderLinkLocationScreen";
 import { OrderStoreHero } from "../components/OrderStoreHero";
 import { OrderStoreCatalog } from "../components/OrderStoreCatalog";
 import { OrderListRow } from "../components/OrderProductTiles";
@@ -30,6 +31,8 @@ import {
   OrderScrollTopButton,
 } from "../components/OrderFloatingCheckoutBar";
 import { OrderWhatsAppFloatingButton, usePublicOrderWhatsApp } from "@/synckerja-order/6-whatsapp";
+import { fetchPublicOrderBranches, fetchPublicOrderLink } from "../lib/fetchPublicOrderLink";
+import { rememberOrderLinkLanding, trackOrderLinkWhatsAppClick } from "@/synckerja-order/6-whatsapp/lib/orderLinkClick";
 import { OrderItemCustomizeOverlay, needsOrderItemCustomize } from "../customize";
 import { OrderCartLineSheet, cartLinesForCatalog } from "../cart-sheet";
 import {
@@ -69,7 +72,7 @@ export function OrderStorefrontPage() {
   const { language, setLanguage } = useLanguage();
   const { code: rawCode } = useParams<{ code: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const code = normalizePublicCode(rawCode ?? "");
+  const code = extractPublicCode(rawCode ?? "");
   const mode = parseOrderStoreMode(searchParams.get("mode"));
   const tableNumber = (searchParams.get("tableNumber") ?? "").trim();
   const category = (searchParams.get("category") ?? "").trim();
@@ -106,13 +109,26 @@ export function OrderStorefrontPage() {
     enabled: isValidPublicCode(code),
   });
 
+  const menuMode = mode === "dinein" || mode === "link";
   const catalogQuery = useQuery({
     queryKey: ["public-order-catalog", code],
     queryFn: () => fetchPublicOrderCatalog(code),
-    enabled: isValidPublicCode(code) && mode === "dinein",
+    enabled: isValidPublicCode(code) && menuMode,
   });
 
-  const orderWhatsApp = usePublicOrderWhatsApp(isValidPublicCode(code) ? code : "");
+  const orderWhatsApp = usePublicOrderWhatsApp(
+    mode === "link" && isValidPublicCode(code) ? code : "",
+  );
+  const linkQuery = useQuery({
+    queryKey: ["public-order-link", code],
+    queryFn: () => fetchPublicOrderLink(code),
+    enabled: mode === "link" && isValidPublicCode(code),
+  });
+  const branchesQuery = useQuery({
+    queryKey: ["public-order-branches", code],
+    queryFn: () => fetchPublicOrderBranches(code),
+    enabled: mode === "link" && isValidPublicCode(code),
+  });
 
   const catalogItemIds = useMemo(
     () => (catalogQuery.data?.items ?? []).map((item) => item.id),
@@ -121,7 +137,7 @@ export function OrderStorefrontPage() {
   const ratingsQuery = usePublicOrderProductRatingMap({
     code,
     catalogItemIds,
-    enabled: isValidPublicCode(code) && mode === "dinein" && catalogItemIds.length > 0,
+    enabled: isValidPublicCode(code) && menuMode && catalogItemIds.length > 0,
   });
   const ratingByCatalogId = ratingsQuery.data;
 
@@ -129,7 +145,9 @@ export function OrderStorefrontPage() {
   const catalog = catalogQuery.data;
   const tableFull = store?.ok ? store.table?.join === "full" : false;
   const storeClosed = store?.ok === true && store.is_open === false;
-  const orderLocked = tableFull || storeClosed;
+  const linkOrderingEnabled = mode === "link" && linkQuery.data?.link_ordering_enabled === true;
+  const browseOnly = mode === "link" && !linkOrderingEnabled;
+  const orderLocked = tableFull || storeClosed || browseOnly;
   const cart = useOrderCart(orderLocked);
 
   useEffect(() => {
@@ -137,6 +155,10 @@ export function OrderStorefrontPage() {
       setHighlightId(catalog.categories[0].id);
     }
   }, [catalog, highlightId]);
+
+  useEffect(() => {
+    if (mode === "link") rememberOrderLinkLanding();
+  }, [mode]);
 
   const qtyByCatalogId = useMemo(() => {
     const map = new Map<string, number>();
@@ -218,7 +240,7 @@ export function OrderStorefrontPage() {
   };
 
   useOrderStorefrontBackGuard({
-    enabled: isValidPublicCode(code) && mode !== "pickup" && store?.ok === true,
+    enabled: isValidPublicCode(code) && menuMode && store?.ok === true,
     onBack: () => {
       if (consumeCustomizeBackRef.current()) return;
       const layer = nextOrderStorefrontBackLayer({
@@ -334,7 +356,7 @@ export function OrderStorefrontPage() {
     );
   }
 
-  const storeName = store.business_name || store.outlet_name || "";
+  const storeName = store.outlet_name || store.business_name || "";
   const isOpen = store.is_open !== false;
   const allowTakeAway = store.pickup_enabled === true;
   const effectiveFulfillment = resolveOrderFulfillment({
@@ -402,7 +424,7 @@ export function OrderStorefrontPage() {
   };
 
   const onPayAtCashier = async () => {
-    if (orderLocked || !tableNumber || cart.lines.length === 0) return;
+    if (mode === "link" || orderLocked || !tableNumber || cart.lines.length === 0) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -458,7 +480,7 @@ export function OrderStorefrontPage() {
   };
 
   const onPayQris = async () => {
-    if (orderLocked || !tableNumber || cart.lines.length === 0) return;
+    if (mode === "link" || orderLocked || !tableNumber || cart.lines.length === 0) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -535,6 +557,7 @@ export function OrderStorefrontPage() {
           onSearch={() => setSearchOpen(true)}
           onMenu={() => setProfileOpen(true)}
           onStoreInfo={() => setProfileOpen(true)}
+          showLocation={mode === "link"}
         />
 
         {tableNumber ? (
@@ -576,7 +599,7 @@ export function OrderStorefrontPage() {
           onRemove={onRemove}
           onOpenSheet={onOpenSheet}
           onOpenDetail={onOpenDetail}
-          bottomPad={cart.itemCount > 0 || Boolean(orderWhatsApp)}
+          bottomPad={(!orderLocked && cart.itemCount > 0) || Boolean(orderWhatsApp)}
         />
       </div>
 
@@ -589,39 +612,48 @@ export function OrderStorefrontPage() {
       {!checkoutOpen && !overlayOpen && !sheetOpen ? (
         <>
           {/* Floating stack, bottom → top: checkout bar · WhatsApp · scroll-top. */}
-          {orderWhatsApp ? (
+          {mode === "link" && orderWhatsApp ? (
             <OrderWhatsAppFloatingButton
               phoneDigits={orderWhatsApp.phoneDigits}
               prefillMessage={orderWhatsApp.prefillMessage}
               outletName={store.outlet_name || storeName}
-              tableName={tableNumber || null}
+              tableName={null}
               bottomClassName={
-                !orderLocked && cart.itemCount > 0 ? ORDER_CHECKOUT_STACK_BOTTOM : ORDER_CHECKOUT_BAR_BOTTOM
+                !orderLocked && cart.itemCount > 0
+                  ? ORDER_CHECKOUT_STACK_BOTTOM
+                  : ORDER_CHECKOUT_BAR_BOTTOM
               }
+              onTrack={({ href }) => {
+                trackOrderLinkWhatsAppClick({
+                  code,
+                  targetUrl: href,
+                  targetPhone: orderWhatsApp.phoneDigits,
+                });
+              }}
+            />
+          ) : null}
+          {!browseOnly && !tableFull && !storeClosed ? (
+            <OrderScrollTopButton
+              visible={showScrollTop}
+              bottomClassName={
+                orderWhatsApp && !orderLocked && cart.itemCount > 0
+                  ? ORDER_CHECKOUT_STACK_ABOVE_WHATSAPP_BOTTOM
+                  : ORDER_CHECKOUT_STACK_BOTTOM
+              }
+              onClick={() => {
+                catalogScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+              }}
             />
           ) : null}
           {!orderLocked ? (
-            <>
-              <OrderScrollTopButton
-                visible={showScrollTop}
-                bottomClassName={
-                  orderWhatsApp && cart.itemCount > 0
-                    ? ORDER_CHECKOUT_STACK_ABOVE_WHATSAPP_BOTTOM
-                    : ORDER_CHECKOUT_STACK_BOTTOM
-                }
-                onClick={() => {
-                  catalogScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              />
-              <OrderFloatingCheckoutBar
-                itemCount={cart.itemCount}
-                total={cart.subtotal}
-                onCheckout={() => {
-                  setMessage(null);
-                  setCheckoutStep("review");
-                }}
-              />
-            </>
+            <OrderFloatingCheckoutBar
+              itemCount={cart.itemCount}
+              total={cart.subtotal}
+              onCheckout={() => {
+                setMessage(null);
+                setCheckoutStep("review");
+              }}
+            />
           ) : null}
         </>
       ) : null}
@@ -668,7 +700,9 @@ export function OrderStorefrontPage() {
                 <X className="h-5 w-5 text-neutral-500" />
               </button>
             </div>
-            <p className="text-sm text-neutral-600">{store.outlet_name}</p>
+            {store.business_name && store.business_name !== storeName ? (
+              <p className="text-sm text-neutral-600">{store.business_name}</p>
+            ) : null}
             <button
               type="button"
               className="mt-4 w-full text-sm text-muted-foreground"
@@ -736,6 +770,7 @@ export function OrderStorefrontPage() {
           fulfillment={effectiveFulfillment}
           allowTakeAway={allowTakeAway}
           disabled={busy}
+          paymentEnabled={mode !== "link"}
           onBack={() => setCheckoutStep(null)}
           onAddItem={() => setCheckoutStep(null)}
           onBillNoteChange={setBillNote}
@@ -755,7 +790,7 @@ export function OrderStorefrontPage() {
         />
       ) : null}
 
-      {checkoutStep === "payment" && !orderLocked ? (
+      {checkoutStep === "payment" && mode !== "link" && !orderLocked ? (
         <OrderPaymentScreen
           guestName={guestName}
           guestPhone={guestPhone}
@@ -782,7 +817,17 @@ export function OrderStorefrontPage() {
         />
       ) : null}
 
-      {profileOpen && !historyOpen && !cashierTicket ? (
+      {profileOpen && !historyOpen && !cashierTicket && mode === "link" ? (
+        <OrderLinkLocationScreen
+          locationName={store.outlet_name || storeName}
+          address={store.outlet_address}
+          mapsUrl={linkQuery.data?.maps_url ?? null}
+          branches={branchesQuery.data ?? []}
+          onBack={() => setProfileOpen(false)}
+        />
+      ) : null}
+
+      {profileOpen && !historyOpen && !cashierTicket && mode !== "link" ? (
         <OrderProfileScreen
           onBack={() => setProfileOpen(false)}
           onOrderHistory={() => setHistoryOpen(true)}

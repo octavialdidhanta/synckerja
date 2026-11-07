@@ -158,7 +158,7 @@ export function EmployeeDetailView({
           periodName: runs?.payroll_periods?.period_name ?? "-",
           payDate: runs?.payroll_periods?.pay_date ?? null,
           basicSalary: storedBasic,
-          takeHomePay: storedTakeHome,
+          takeHomePay,
           grossPay: storedGross,
           calculationMode: calculationMode ?? null,
           lineItems: allItems.map((item) => ({

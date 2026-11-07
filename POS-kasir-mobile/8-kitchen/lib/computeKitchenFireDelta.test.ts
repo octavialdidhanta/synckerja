@@ -8,13 +8,20 @@ import {
 
 function productLine(id: string, qty: number): CustomerVisitCartLine {
   return {
-    kind: "product",
+    lineKey: id,
     catalogId: id,
-    name: "Nasi",
-    unitPrice: 15000,
+    kind: "product",
+    serviceId: null,
+    subServiceId: null,
+    serviceName: "Nasi",
+    subServiceName: null,
     quantity: qty,
+    unitPrice: 15000,
+    trackStock: false,
+    inventorySkuId: null,
+    availableQty: null,
     isCustomAmount: false,
-  } as CustomerVisitCartLine;
+  };
 }
 
 describe("computeKitchenFireDelta", () => {

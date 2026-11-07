@@ -28,7 +28,10 @@ import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
 import { Badge } from "@/shared/components/ui/badge";
 import { Separator } from "@/shared/components/ui/separator";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
-import type { CreateContentPostWithPaymentPayload } from "@/shared/types/content-post";
+import type {
+  CreateContentPostWithPaymentPayload,
+  PerformanceThresholdInput,
+} from "@/shared/types/content-post";
 import {
   KOL_CONTENT_PLATFORM_OPTIONS,
   KOL_CONTENT_TYPE_OPTIONS,
@@ -350,7 +353,13 @@ const AddContentPostModal = ({
           trigger_condition: "manual",
           invoice_file: m.invoice_file || null,
         })),
-        performance_thresholds: data.performance_thresholds,
+        performance_thresholds: data.performance_thresholds.map(
+          (t): PerformanceThresholdInput => ({
+            metric: t.metric,
+            threshold: t.threshold,
+            bonus_percentage: t.bonus_percentage,
+          }),
+        ),
       },
     });
     onOpenChange(false);

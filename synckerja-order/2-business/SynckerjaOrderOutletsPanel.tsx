@@ -1,4 +1,5 @@
-import { Input } from "@/shared/components/ui/input";
+import { useState } from "react";
+import { Check, Copy } from "lucide-react";
 import { Switch } from "@/shared/components/ui/switch";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { buildOrderStoreUrl } from "@/synckerja-order/shared/lib/orderUrls";
@@ -17,21 +18,35 @@ export type SynckerjaOrderOutletsWhatsApp = {
   settingsFor: (outletId: string) => OutletWhatsAppSettings;
   onChange: (outletId: string, patch: OutletWhatsAppPatch) => void;
   onSaveMessage: (outletId: string, message: string) => Promise<void>;
+  onSaveMapsUrl: (outletId: string, mapsUrl: string) => Promise<void>;
 };
 
 type Props = {
   rows: SynckerjaOrderOutletRow[];
   onToggle: (outletId: string, enabled: boolean) => void;
-  onCodeChange: (outletId: string, code: string) => void;
   whatsapp: SynckerjaOrderOutletsWhatsApp;
   busy?: boolean;
 };
 
-export function SynckerjaOrderOutletsPanel({ rows, onToggle, onCodeChange, whatsapp, busy }: Props) {
+export function SynckerjaOrderOutletsPanel({ rows, onToggle, whatsapp, busy }: Props) {
   const { t } = useAppTranslation();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyStoreUrl = async (outletId: string, url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(outletId);
+      window.setTimeout(() => {
+        setCopiedId((current) => (current === outletId ? null : current));
+      }, 1500);
+    } catch {
+      setCopiedId(null);
+    }
+  };
+
   return (
     <div className="overflow-x-auto p-3">
-      <table className="w-full min-w-[1180px] text-left text-sm">
+      <table className="w-full min-w-[960px] text-left text-sm">
         <thead>
           <tr className="border-b text-muted-foreground">
             <th className="py-2 pr-3 font-medium">
@@ -49,8 +64,8 @@ export function SynckerjaOrderOutletsPanel({ rows, onToggle, onCodeChange, whats
             <th className="py-2 pr-3 font-medium">
               {t("synckerjaOrder.whatsapp.column", "WhatsApp")}
             </th>
-            <th className="py-2 font-medium">
-              {t("synckerjaOrder.whatsapp.message", "Opening message")}
+            <th className="w-16 py-2 text-right font-medium">
+              {t("synckerjaOrder.outlets.action", "Action")}
             </th>
           </tr>
         </thead>
@@ -64,20 +79,42 @@ export function SynckerjaOrderOutletsPanel({ rows, onToggle, onCodeChange, whats
                 accounts: whatsapp.accounts,
               }),
             );
+            const storeUrl = row.public_code
+              ? buildOrderStoreUrl(row.public_code, { mode: "link" }, row.name)
+              : null;
             return (
-            <tr key={row.id} className="border-b last:border-0 align-top">
-              <td className="py-2 pr-3">{row.name}</td>
-              <td className="py-2 pr-3">
-                <Input
-                  className="h-8 w-28 font-mono"
-                  value={row.public_code ?? ""}
-                  maxLength={6}
-                  disabled={busy}
-                  onChange={(e) => onCodeChange(row.id, e.target.value.toLowerCase())}
-                />
+            <tr key={row.id} className="border-b last:border-0">
+              <td className="py-2 pr-3 align-middle">{row.name}</td>
+              <td className="py-2 pr-3 align-middle font-mono text-xs">
+                {row.public_code ?? "—"}
               </td>
-              <td className="py-2 pr-3 font-mono text-xs text-primary">
-                {row.public_code ? buildOrderStoreUrl(row.public_code) : "—"}
+              <td className="py-2 pr-3 align-middle font-mono text-xs whitespace-nowrap">
+                {storeUrl ? (
+                  <span className="inline-flex items-center gap-1">
+                    <a
+                      href={storeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline-offset-2 hover:underline"
+                    >
+                      {storeUrl}
+                    </a>
+                    <button
+                      type="button"
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                      aria-label={t("synckerjaOrder.outlets.copyUrl", "Copy URL")}
+                      onClick={() => void copyStoreUrl(row.id, storeUrl)}
+                    >
+                      {copiedId === row.id ? (
+                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </span>
+                ) : (
+                  "—"
+                )}
               </td>
               <td className="py-2 pr-3">
                 <Switch
@@ -93,12 +130,20 @@ export function SynckerjaOrderOutletsPanel({ rows, onToggle, onCodeChange, whats
                   onChange={(patch) => whatsapp.onChange(row.id, patch)}
                 />
               </td>
-              <td className="py-2">
-                <OutletWhatsAppMessageInput
-                  value={wa.prefillMessage}
-                  disabled={!hasNumber}
-                  onSave={(message) => whatsapp.onSaveMessage(row.id, message)}
-                />
+              <td className="py-2 text-right">
+                <div className="flex justify-end">
+                  <OutletWhatsAppMessageInput
+                    value={wa.prefillMessage}
+                    disabled={!hasNumber}
+                    onSave={(message) => whatsapp.onSaveMessage(row.id, message)}
+                    linkOrderingEnabled={wa.linkOrderingEnabled}
+                    onLinkOrderingChange={(enabled) =>
+                      whatsapp.onChange(row.id, { linkOrderingEnabled: enabled })
+                    }
+                    mapsUrl={wa.mapsUrl}
+                    onSaveMapsUrl={(url) => whatsapp.onSaveMapsUrl(row.id, url)}
+                  />
+                </div>
               </td>
             </tr>
             );

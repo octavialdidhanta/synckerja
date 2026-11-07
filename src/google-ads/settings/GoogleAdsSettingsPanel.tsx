@@ -320,7 +320,7 @@ export function GoogleAdsSettingsPanel({
                   disabled={!oauthConnected || testConnection.isPending}
                   onClick={async () => {
                     try {
-                      const res = (await testConnection.mutateAsync()) as {
+                      const res = (await testConnection.mutateAsync(undefined)) as {
                         ok?: boolean;
                         error?: string;
                         accessibleCustomerIds?: string[];

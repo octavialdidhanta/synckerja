@@ -30,7 +30,7 @@ describe("parseModifierStockQty", () => {
 describe("validateModifierStockDrafts", () => {
   it("skips validation when stock disabled", () => {
     expect(
-      validateModifierStockDrafts(false, [row({ ingredientId: null, quantityDisplay: "" })]),
+      validateModifierStockDrafts(false, [row({ key: "skip", ingredientId: null, quantityDisplay: "" })]),
     ).toEqual({ ok: true });
   });
 
@@ -41,6 +41,8 @@ describe("validateModifierStockDrafts", () => {
       row({ key: "c" }),
     ]);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.missingKeys).toEqual(["a", "b"]);
+    if (!result.ok) {
+      expect(result.missingKeys).toEqual(["a", "b"]);
+    }
   });
 });

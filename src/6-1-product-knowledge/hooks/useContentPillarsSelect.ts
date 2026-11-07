@@ -8,6 +8,7 @@ export type ContentPillarOption = {
   name: string;
   description?: string | null;
   organization_id?: string | null;
+  is_default?: boolean | null;
 };
 
 /**

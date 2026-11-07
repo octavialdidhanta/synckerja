@@ -45,7 +45,15 @@ type DefaultPriceQueryRow = DefaultPriceRow & {
   }> | null;
 };
 
-function mapOutletStock(link: NonNullable<DefaultPriceQueryRow["catalog_product_outlets"]>[number]): ProductOutletStock {
+type OutletStockRow = {
+  in_stock?: number | string | null;
+  alert_enabled?: boolean | null;
+  alert_at?: number | string | null;
+  track_cogs?: boolean | null;
+  avg_cost?: number | string | null;
+};
+
+function mapOutletStock(link: OutletStockRow): ProductOutletStock {
   const inStock = Number(link.in_stock);
   const alertAt = link.alert_at == null || link.alert_at === "" ? null : Number(link.alert_at);
   const avgCost = Number(link.avg_cost);

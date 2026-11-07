@@ -69,12 +69,12 @@ describe("computeCommitDelta", () => {
     const base = line({
       catalogId: "p1",
       quantity: 2,
-      modifiers: [{ groupId: "g1", optionId: "o1", name: "Spicy", extraPrice: 0 }],
+      modifiers: [{ optionId: "o1", name: "Spicy", extraPrice: 0 }],
     });
     const changed = line({
       catalogId: "p1",
       quantity: 2,
-      modifiers: [{ groupId: "g1", optionId: "o2", name: "Mild", extraPrice: 0 }],
+      modifiers: [{ optionId: "o2", name: "Mild", extraPrice: 0 }],
     });
     const fpBase = cartLineCommitFingerprint(base);
     const deltas = computeCommitDelta([changed], [commit(fpBase, 2)]);

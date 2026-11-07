@@ -82,7 +82,7 @@ export function CancelledBillDetailDialog({ row, open, onOpenChange }: Props) {
                   </p>
                   <ul className="divide-y rounded-md border border-border">
                     {lines.map((line, index) => (
-                      <li key={line.id ?? index} className="flex justify-between gap-2 px-3 py-2">
+                      <li key={line.lineKey ?? index} className="flex justify-between gap-2 px-3 py-2">
                         <span>
                           {line.serviceName}
                           {line.quantity > 1 ? ` × ${line.quantity}` : ""}

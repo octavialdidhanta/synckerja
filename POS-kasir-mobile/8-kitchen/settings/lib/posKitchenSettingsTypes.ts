@@ -38,6 +38,7 @@ export const DEFAULT_KITCHEN_DISPLAY_MODE: KitchenDisplayMode = "classic";
 
 export { DEFAULT_KITCHEN_FONT_SIZE, DEFAULT_KITCHEN_THEME_COLORS };
 export { DEFAULT_KITCHEN_FIRE_BY_SALES_TYPE };
+export type { KitchenFireBySalesType };
 
 export const POS_KITCHEN_OUTLET_SETTINGS_QUERY_KEY = "pos-kitchen-outlet-settings";
 

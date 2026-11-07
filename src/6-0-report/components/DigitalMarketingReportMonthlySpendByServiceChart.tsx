@@ -254,7 +254,6 @@ export function DigitalMarketingReportMonthlySpendByServiceChart({
                     axisLine={false}
                     interval={0}
                     tickFormatter={truncateAxisLabel}
-                    tick={{ title: undefined }}
                   />
                   <YAxis
                     fontSize={10}

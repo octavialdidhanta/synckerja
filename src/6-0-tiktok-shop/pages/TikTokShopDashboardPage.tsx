@@ -50,7 +50,7 @@ import { TikTokShopOrderDetailDrawer } from "@/6-0-tiktok-shop/container/TikTokS
 
 function initialDateSelection(): GoogleAdsDateRangeSelection {
   const range = computePresetRange("last_30_days", new Date());
-  return { preset: "last_30_days", range };
+  return { preset: "last_30_days", range, rollingDays: 30 };
 }
 
 function dateRangeFromSelection(selection: GoogleAdsDateRangeSelection): {

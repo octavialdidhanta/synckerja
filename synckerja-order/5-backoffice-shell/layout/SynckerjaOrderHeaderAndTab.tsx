@@ -66,14 +66,12 @@ type Props = {
   businessName?: string;
   onSave?: () => void;
   saveBusy?: boolean;
-  onViewStore?: () => void;
 };
 
 export function SynckerjaOrderHeaderAndTab({
   businessName,
   onSave,
   saveBusy,
-  onViewStore,
 }: Props) {
   const { t } = useAppTranslation();
   const location = useLocation();
@@ -134,25 +132,18 @@ export function SynckerjaOrderHeaderAndTab({
           })}
         </nav>
       </div>
-      <div className="flex shrink-0 items-center gap-2 pt-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="h-10 shrink-0"
-          onClick={onViewStore}
-          disabled={!onViewStore}
-        >
-          {t(SYNCKERJA_ORDER_I18N.viewStore, "View store")}
-        </Button>
-        <Button
-          type="button"
-          className="h-10 shrink-0"
-          onClick={onSave}
-          disabled={!onSave || saveBusy}
-        >
-          {t(SYNCKERJA_ORDER_I18N.saveContinue, "Save and continue")}
-        </Button>
-      </div>
+      {onSave ? (
+        <div className="flex shrink-0 items-center gap-2 pt-2">
+          <Button
+            type="button"
+            className="h-10 shrink-0"
+            onClick={onSave}
+            disabled={saveBusy}
+          >
+            {t(SYNCKERJA_ORDER_I18N.saveContinue, "Save and continue")}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

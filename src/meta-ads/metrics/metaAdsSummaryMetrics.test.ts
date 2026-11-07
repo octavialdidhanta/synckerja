@@ -10,7 +10,7 @@ describe("summarySlotKeysFromMetricKeys", () => {
         "campaign",
       ),
     ).toEqual(["spend", "impressions", "cpm", "ctr"]);
-    expect(summarySlotKeysFromMetricKeys(META_ADS_CPAS_PRESET_METRIC_KEYS, "ad")).toEqual([
+    expect(summarySlotKeysFromMetricKeys([...META_ADS_CPAS_PRESET_METRIC_KEYS], "ad")).toEqual([
       "spend",
       "impressions",
       "cpm",

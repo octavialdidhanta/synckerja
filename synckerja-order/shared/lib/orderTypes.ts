@@ -56,6 +56,7 @@ export type PublicOrderStore = {
   public_code?: string;
   outlet_id?: string;
   outlet_name?: string;
+  outlet_address?: string | null;
   business_name?: string;
   logo_path?: string | null;
   cover_path?: string | null;

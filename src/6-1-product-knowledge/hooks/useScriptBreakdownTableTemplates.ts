@@ -89,7 +89,7 @@ export function useScriptBreakdownTableTemplates() {
 export function useScriptBreakdownTableMutations() {
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
-  const { data: profile } = useUserData();
+  const { profile } = useUserData();
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: [SCRIPT_BREAKDOWN_TABLE_TEMPLATES_QUERY_KEY, organizationId] });

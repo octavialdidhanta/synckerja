@@ -42,11 +42,11 @@ describe("resolveVoidReverseLine", () => {
   it("uses ledger line_index not cart re-index (L2)", () => {
     const spicy = line({
       catalogId: "burger",
-      modifiers: [{ groupId: "g", optionId: "spicy", name: "Spicy", extraPrice: 0 }],
+      modifiers: [{ optionId: "spicy", name: "Spicy", extraPrice: 0 }],
     });
     const mild = line({
       catalogId: "burger",
-      modifiers: [{ groupId: "g", optionId: "mild", name: "Mild", extraPrice: 0 }],
+      modifiers: [{ optionId: "mild", name: "Mild", extraPrice: 0 }],
     });
     const fpMild = cartLineCommitFingerprint(mild);
     const resolved = resolveVoidReverseLine({

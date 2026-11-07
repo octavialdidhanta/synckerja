@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 import { GoogleAdsAdPreviewCell } from "@/6-0-google-ads/components/GoogleAdsAdPreviewCell";
@@ -93,7 +94,7 @@ type LockedColumnOpts = {
 };
 
 function identityColumnByKey(
-  t: (key: string, defaultValue?: string) => string,
+  t: TFunction,
   opts: LockedColumnOpts,
 ): Record<string, IdentityCol> {
   const serviceAggregateTip = t(
@@ -224,7 +225,7 @@ function identityColumnByKey(
 
 function optionalIdentityColumns(
   entity: GoogleAdsMetricEntity,
-  t: (key: string, defaultValue?: string) => string,
+  t: TFunction,
 ): IdentityCol[] {
   if (entity === "campaign") {
     return [
@@ -254,7 +255,7 @@ function optionalIdentityColumns(
 
 function lockedIdentityColumns(
   entity: GoogleAdsMetricEntity,
-  t: (key: string, defaultValue?: string) => string,
+  t: TFunction,
   opts: LockedColumnOpts,
 ): IdentityCol[] {
   const byKey = identityColumnByKey(t, opts);

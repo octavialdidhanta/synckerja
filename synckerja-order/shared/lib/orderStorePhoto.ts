@@ -1,16 +1,23 @@
 import { CATALOG_PRODUCT_PHOTOS_BUCKET, signCatalogProductPhotos } from "@/8-2-1-default-prices/lib/catalogProductPhoto";
 import { supabase } from "@/shared/lib/supabaseClient";
 
-export function synckerjaOrderCoverObjectPath(organizationId: string, fileName: string): string {
+export function synckerjaOrderCoverObjectPath(
+  organizationId: string,
+  fileName: string,
+  outletId?: string | null,
+): string {
   const ext = (fileName.split(".").pop() ?? "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  const outlet = (outletId ?? "").trim();
+  if (outlet) return `${organizationId}/synckerja-order/${outlet}/cover.${ext}`;
   return `${organizationId}/synckerja-order/cover.${ext}`;
 }
 
 export async function uploadSynckerjaOrderCover(args: {
   organizationId: string;
+  outletId?: string | null;
   file: File;
 }): Promise<string> {
-  const path = synckerjaOrderCoverObjectPath(args.organizationId, args.file.name);
+  const path = synckerjaOrderCoverObjectPath(args.organizationId, args.file.name, args.outletId);
   const { error } = await supabase.storage.from(CATALOG_PRODUCT_PHOTOS_BUCKET).upload(path, args.file, {
     upsert: true,
     contentType: args.file.type || "image/jpeg",

@@ -1,7 +1,7 @@
 import React from 'react';
 import { SaveTemplateModal } from '../SaveTemplateModal';
 import { LoadTemplateModal } from '../LoadTemplateModal';
-import { ServiceKPISettings } from '@/8-3-calculator/types/kpi-templates';
+import { ServiceKPISettings, SalesKPISettings } from '@/8-3-calculator/types/kpi-templates';
 
 interface ConversionTemplateManagerProps {
   currentSettings: {
@@ -49,21 +49,22 @@ export const ConversionTemplateManager: React.FC<ConversionTemplateManagerProps>
     remarketingAudience: currentSettings.remarketingAudience,
   };
 
-  const handleLoadTemplate = (settings: ServiceKPISettings | Record<string, string>) => {
+  const handleLoadTemplate = (settings: ServiceKPISettings | SalesKPISettings) => {
+    const serviceSettings = settings as ServiceKPISettings;
     onLoadTemplate({
-      conversionFrequency: settings.conversionFrequency || '',
-      conversionCpm: settings.conversionCpm || settings.cpm || '',
-      ctrLink: settings.ctrLink || '',
-      adsClickToVisit: settings.adsClickToVisit || '',
-      whatsappClick: settings.whatsappClick || '',
-      prospectToClient: settings.prospectToClient || '',
-      reservation: settings.reservation || '',
-      crossSelling: settings.crossSelling || '',
-      servicePackageValue: settings.servicePackageValue || '',
-      serviceProfitMargin: settings.serviceProfitMargin || '',
-      clientRetentionRate: settings.clientRetentionRate || '',
-      remarketingAudienceSource: settings.remarketingAudienceSource || 'manual',
-      remarketingAudience: settings.remarketingAudience || '',
+      conversionFrequency: serviceSettings.conversionFrequency || '',
+      conversionCpm: serviceSettings.conversionCpm || serviceSettings.cpm || '',
+      ctrLink: serviceSettings.ctrLink || '',
+      adsClickToVisit: serviceSettings.adsClickToVisit || '',
+      whatsappClick: serviceSettings.whatsappClick || '',
+      prospectToClient: serviceSettings.prospectToClient || '',
+      reservation: serviceSettings.reservation || '',
+      crossSelling: serviceSettings.crossSelling || '',
+      servicePackageValue: serviceSettings.servicePackageValue || '',
+      serviceProfitMargin: serviceSettings.serviceProfitMargin || '',
+      clientRetentionRate: serviceSettings.clientRetentionRate || '',
+      remarketingAudienceSource: serviceSettings.remarketingAudienceSource || 'manual',
+      remarketingAudience: serviceSettings.remarketingAudience || '',
     });
   };
 

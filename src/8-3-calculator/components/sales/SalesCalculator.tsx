@@ -124,13 +124,26 @@ const PercentageInputField = ({
   );
 };
 
+const EMPTY_SALES_KPI_SETTINGS: SalesKPISettings = {
+  budget: "",
+  cpm: "",
+  landingPageCtr: "",
+  productViewRate: "",
+  addToCartRate: "",
+  checkoutRate: "",
+  avgOrderValue: "",
+  profitMargin: "",
+  repeatPurchaseRate: "",
+  upsellRate: "",
+};
+
 interface SalesCalculatorProps {
   initialSettings?: SalesKPISettings;
   onSettingsChange?: (settings: SalesKPISettings) => void;
 }
 
 const SalesCalculator = ({
-  initialSettings = {},
+  initialSettings = EMPTY_SALES_KPI_SETTINGS,
   onSettingsChange
 }: SalesCalculatorProps) => {
   const { t } = useAppTranslation();

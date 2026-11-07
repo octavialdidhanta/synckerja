@@ -1,5 +1,5 @@
 import { parseGroupedIdInteger } from "../../utils/formatIdUnitPrice";
-import type { CatalogProductSalesTypePrice, CatalogProductVariant, VariantDraft } from "./types";
+import type { CatalogProductSalesTypePrice, CatalogProductVariant, VariantDraft } from "../types";
 
 export function parsedVariantPrice(display: string): number {
   const n = parseGroupedIdInteger(display);

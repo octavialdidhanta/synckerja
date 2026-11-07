@@ -2,35 +2,7 @@ import { AlertTriangle } from "lucide-react";
 import ReprimandDepartmentCard from "./ReprimandDepartmentCard";
 import ReprimandTableFooter from "./ReprimandTableFooter";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
-
-interface ReprimandData {
-  id: string;
-  employee_id: string;
-  reprimand_type: string;
-  severity_level: string;
-  violation_category: string;
-  incident_date: string;
-  incident_time?: string;
-  incident_location?: string;
-  violation_description: string;
-  evidence_details?: string;
-  witness_names?: string;
-  previous_warnings_count: number;
-  corrective_action_plan?: string;
-  improvement_deadline?: string;
-  follow_up_date?: string;
-  status: string;
-  acknowledgment_required: boolean;
-  employee_acknowledged: boolean;
-  acknowledgment_date?: string;
-  is_formal: boolean;
-  impact_on_performance_review: boolean;
-  notes?: string;
-  document_path?: string;
-  issued_by: string;
-  created_at: string;
-  updated_at: string;
-}
+import type { ReprimandData } from "../hooks/useReprimands";
 
 interface ReprimandManagementTableProps {
   employeesByDepartment: Record<string, any[]>;

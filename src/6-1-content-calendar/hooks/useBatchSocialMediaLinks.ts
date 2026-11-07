@@ -64,8 +64,6 @@ export const useBatchSocialMediaLinks = (planIds: string[]) => {
               platform: link.platform,
               url: link.url,
               social_media_name: link.social_media_name || null,
-              created_at: link.created_at,
-              updated_at: link.updated_at
             });
           }
         });

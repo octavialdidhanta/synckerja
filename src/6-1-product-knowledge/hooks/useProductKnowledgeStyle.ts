@@ -57,7 +57,7 @@ export const useProductKnowledgeStyle = () => {
 export const useProductKnowledgeStyleMutations = () => {
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
-  const { data: profile } = useUserData();
+  const { profile } = useUserData();
 
   const createMutation = useMutation({
     mutationFn: async (input: CreateProductKnowledgeStyleInput) => {

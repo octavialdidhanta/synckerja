@@ -98,7 +98,7 @@ export function useGoogleAdsColumnSets(
         .single();
 
       if (error) throw error;
-      return mapColumnSetRow(data);
+      return mapColumnSetRow({ ...data, scope: "org" });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });

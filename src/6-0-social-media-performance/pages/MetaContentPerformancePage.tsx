@@ -26,6 +26,7 @@ import { MetaContentSettingsPanel } from '@/meta-content/settings/MetaContentSet
 import {
   getMetaContentBasePath,
   getMetaContentSettingsPath,
+  type MetaContentOAuthReturnPath,
 } from '@/meta-content/settings/metaContentSettingsPaths';
 import { missingScopesForFeature } from '@/meta-platform/constants/metaOAuthScopes';
 import type { MetaContentPlatform } from '@/meta-platform/types/metaContentTypes';
@@ -257,7 +258,7 @@ function MetaContentPerformancePageContent({ platform }: { platform: MetaContent
                         {isSettingsView ? (
                           <MetaContentSettingsPanel
                             platform={platform}
-                            oauthReturnPath={settingsPath}
+                            oauthReturnPath={settingsPath as MetaContentOAuthReturnPath}
                           />
                         ) : (
                           <>

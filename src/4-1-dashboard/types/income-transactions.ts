@@ -74,6 +74,7 @@ export interface CreateIncomeTransactionData {
   is_recurring?: boolean;
   recurring_frequency?: string;
   description?: string;
+  status?: string;
   receipt_file?: File;
   receipt_url?: string;
   transaction_reference?: string | null;

@@ -55,7 +55,7 @@ export function OutletWhatsAppSelect({ accounts, settings, disabled, onChange }:
       }}
     >
       <SelectTrigger
-        className="h-8 w-56 text-xs"
+        className="h-8 w-56 justify-start pl-2 pr-2 text-left text-xs [&>span]:min-w-0 [&>span]:flex-1 [&>span]:justify-start [&>span]:text-left"
         aria-label={t("synckerjaOrder.whatsapp.column", "WhatsApp")}
       >
         <SelectValue placeholder={t("synckerjaOrder.whatsapp.placeholder", "Select WhatsApp")} />

@@ -37,8 +37,16 @@ type ProductRow = {
 type ModifierLinkRow = {
   product_id: string;
   group_id: string;
-  catalog_modifier_groups?: { name: string } | null;
+  catalog_modifier_groups?: { name: string } | { name: string }[] | null;
 };
+
+function modifierGroupName(
+  groups: ModifierLinkRow["catalog_modifier_groups"],
+): string {
+  if (!groups) return "";
+  if (Array.isArray(groups)) return groups[0]?.name ?? "";
+  return groups.name ?? "";
+}
 
 type ModifierOptionRow = {
   id: string;
@@ -102,11 +110,14 @@ async function fetchRecipeTargets(organizationId: string): Promise<{
     outlet_ids: (row.catalog_product_outlets ?? []).map((link) => link.outlet_id),
   }));
 
-  const modifierLinks = ((linksRes.data ?? []) as ModifierLinkRow[]).map((row) => ({
-    product_id: row.product_id,
-    group_id: row.group_id,
-    group_name: row.catalog_modifier_groups?.name ?? "",
-  }));
+  const modifierLinks = (linksRes.data ?? []).map((row) => {
+    const link = row as ModifierLinkRow;
+    return {
+      product_id: link.product_id,
+      group_id: link.group_id,
+      group_name: modifierGroupName(link.catalog_modifier_groups),
+    };
+  });
 
   const groupNameById = new Map(modifierLinks.map((link) => [link.group_id, link.group_name]));
   const modifierOptions: ProductRecipeVariantOption[] = ((optionsRes.data ?? []) as ModifierOptionRow[]).map(
@@ -202,7 +213,6 @@ export function useCatalogProductRecipes() {
         })),
       );
       if (insertError) throw insertError;
-      return recipeId;
     },
     onSuccess: invalidate,
   });

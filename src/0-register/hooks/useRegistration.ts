@@ -149,11 +149,12 @@ export const useRegistration = () => {
         try {
           sessionStorage.removeItem("verifyEmailSentToast");
           sessionStorage.removeItem("verifyEmailSentOk");
-          const token = await ensureSignupVerificationToken(sanitizedEmail, data.user.id);
-          if (!token) {
-            throw new Error(t("auth.register.tokenNotReady"));
-          }
-          await sendConfirmationEmail(sanitizedEmail, fullName.trim(), origin, token, signupAccessToken);
+          await sendConfirmationEmail(
+            sanitizedEmail,
+            fullName.trim(),
+            origin,
+            signupAccessToken,
+          );
           sessionStorage.setItem("verifyEmailSentOk", "1");
           sessionStorage.setItem("verifyEmailSentToast", "1");
           emailDispatchOk = true;

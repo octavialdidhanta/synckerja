@@ -41,6 +41,7 @@ export const DEFAULT_OPERATIONAL_EMAIL_SETTINGS: Omit<
   inventory_alerts_enabled: true,
   promo_update_enabled: true,
   daily_gross_profit_enabled: true,
+  shift_recap_email_enabled: false,
 };
 
 export const MAX_OPERATIONAL_EMAIL_RECIPIENTS = 20;

@@ -495,9 +495,11 @@ export const useIncomeTransactions = () => {
         newBankAccountId = oldTransaction?.bank_account_id ?? null;
       }
 
-      const newAmount = updates.amount != null && updates.amount !== ''
-        ? parseFloat(updates.amount.toString())
-        : parseFloat((oldTransaction?.amount ?? 0).toString());
+      const newAmount =
+        updates.amount != null &&
+        !(typeof updates.amount === "string" && updates.amount === "")
+          ? parseFloat(updates.amount.toString())
+          : parseFloat((oldTransaction?.amount ?? 0).toString());
       const oldBankId = oldTransaction?.bank_account_id ?? null;
       const oldAmount =
         oldTransaction?.amount != null ? parseFloat(oldTransaction.amount.toString()) : 0;

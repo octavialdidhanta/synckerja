@@ -142,10 +142,14 @@ export function useGoogleAdsMetricsPreferences(
       input: string[] | { selectedMetrics: string[]; sort?: GoogleAdsMetricsSort },
     ) => {
       const selectedMetrics = Array.isArray(input) ? input : input.selectedMetrics;
-      const sort = Array.isArray(input)
+      const sortRaw = Array.isArray(input)
         ? (query.data?.sort ?? DEFAULT_SORT)
         : (input.sort ?? query.data?.sort ?? DEFAULT_SORT);
-      return upsertPreferences(selectedMetrics, sort);
+      const sortForUpsert: GoogleAdsMetricsSort = {
+        field: sortRaw.field || DEFAULT_SORT.field,
+        direction: sortRaw.direction ?? DEFAULT_SORT.direction,
+      };
+      return upsertPreferences(selectedMetrics, sortForUpsert);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });

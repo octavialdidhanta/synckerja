@@ -8,8 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/shared/components/ui/radio-group';
 import { Plus, Trash2, DollarSign } from 'lucide-react';
 import { Separator } from '@/shared/components/ui/separator';
-import { CostCategory } from '../types/pricingTypes';
-
 // Helper function untuk format currency dengan titik sebagai separator
 const formatCurrency = (value: number): string => {
   return value.toLocaleString('id-ID', { 

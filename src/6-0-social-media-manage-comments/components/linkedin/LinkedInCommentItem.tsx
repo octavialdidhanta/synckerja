@@ -96,8 +96,9 @@ export function LinkedInCommentItem({
               className="mt-2"
               accountLabel={replyControls.accountLabel}
               accountAvatarUrl={replyControls.accountAvatarUrl}
+              mentionLabel={name}
               onCancel={replyControls.onCancelReply}
-              onSubmit={(text) => replyControls.onSubmitReply(comment.id, text)}
+              onSubmit={(text) => replyControls.onSubmitReply(comment.id, text, name)}
               isSubmitting={replyControls.isSubmittingReply}
             />
           ) : null}
@@ -119,8 +120,9 @@ export function LinkedInCommentItem({
           className="mt-2"
           accountLabel={replyControls.accountLabel}
           accountAvatarUrl={replyControls.accountAvatarUrl}
+          mentionLabel={name}
           onCancel={replyControls.onCancelReply}
-          onSubmit={(text) => replyControls.onSubmitReply(comment.id, text)}
+          onSubmit={(text) => replyControls.onSubmitReply(comment.id, text, name)}
           isSubmitting={replyControls.isSubmittingReply}
         />
       ) : null}

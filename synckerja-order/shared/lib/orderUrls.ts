@@ -1,8 +1,8 @@
-import { isValidPublicCode, normalizePublicCode } from "./publicCode";
+import { formatPublicOrderSegment, isPublicOrderSegment, normalizePublicCode } from "./publicCode";
 
 export const DEFAULT_ORDER_HOSTNAME = "order.synckerja.com";
 
-export type OrderStoreMode = "dinein" | "pickup";
+export type OrderStoreMode = "dinein" | "pickup" | "link";
 
 export type OrderStoreQuery = {
   mode?: OrderStoreMode | string | null;
@@ -62,11 +62,17 @@ export function publicOrderOrigin(): string {
 }
 
 export function parseOrderStoreMode(value: string | null | undefined): OrderStoreMode {
-  return value?.trim().toLowerCase() === "pickup" ? "pickup" : "dinein";
+  const mode = value?.trim().toLowerCase();
+  if (mode === "pickup" || mode === "link") return mode;
+  return "dinein";
 }
 
-export function buildOrderStorePath(code: string, query: OrderStoreQuery = {}): string {
-  const normalized = normalizePublicCode(code);
+export function buildOrderStorePath(
+  code: string,
+  query: OrderStoreQuery = {},
+  outletName?: string | null,
+): string {
+  const normalized = formatPublicOrderSegment(outletName, normalizePublicCode(code));
   const params = new URLSearchParams();
   const mode = parseOrderStoreMode(query.mode ?? "dinein");
   params.set("mode", mode);
@@ -79,8 +85,12 @@ export function buildOrderStorePath(code: string, query: OrderStoreQuery = {}): 
   return `/${normalized}?${params.toString()}`;
 }
 
-export function buildOrderStoreUrl(code: string, query: OrderStoreQuery = {}): string {
-  return `${publicOrderOrigin()}${buildOrderStorePath(code, query)}`;
+export function buildOrderStoreUrl(
+  code: string,
+  query: OrderStoreQuery = {},
+  outletName?: string | null,
+): string {
+  return `${publicOrderOrigin()}${buildOrderStorePath(code, query, outletName)}`;
 }
 
 export function isOrderStoreHostname(hostname: string, expected = publicOrderHostname()): boolean {
@@ -110,10 +120,10 @@ export function isPrivateLanOrLoopbackHostname(hostname: string): boolean {
 
 export function pathnameLooksLikeOrderStore(pathname: string): boolean {
   const parts = pathname.split("/").filter(Boolean);
-  // Storefront URLs are exactly /{code}. A longer path such as /review/:token
-  // must stay on the office app — "review" is 6 letters and would otherwise match.
+  // Storefront URLs are one segment: /{code} or /{outlet-name}-{code}.
+  // A longer path such as /review/:token must stay on the office app.
   if (parts.length !== 1) return false;
-  return isValidPublicCode(parts[0]);
+  return isPublicOrderSegment(parts[0]);
 }
 
 export function shouldMountOrderStoreApp(input: {

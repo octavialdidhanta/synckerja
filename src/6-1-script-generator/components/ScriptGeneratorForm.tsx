@@ -36,6 +36,7 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import {
   ScriptGeneratorRequest,
   isStoryTellingContentPillar,
+  type ScriptBreakdownFillRule,
   type ScriptBreakdownTableSnapshot,
 } from '../services/scriptGeneratorService';
 import { useScriptBreakdownTableTemplates } from '@/6-1-product-knowledge/hooks/useScriptBreakdownTableTemplates';
@@ -61,7 +62,7 @@ const HOOK_NAME_SELECT_NONE = '__hook_none__';
 const BREAKDOWN_TABLE_SELECT_NONE = '__breakdown_table_none__';
 
 interface ScriptGeneratorFormProps {
-  onGenerate: (data: ScriptGeneratorRequest) => Promise<void>;
+  onGenerate: (data: ScriptGeneratorRequest) => Promise<void | boolean>;
   isGenerating: boolean;
   /** Mobile Persona Form: open options in a bottom drawer instead of a popover. */
   selectAsDrawer?: boolean;
@@ -171,7 +172,7 @@ function sanitizeScriptBreakdownSnapshotForPayload(
       placeholder_example:
         c.placeholder_example != null ? richTextToPlainText(c.placeholder_example) : null,
       detail_body: c.detail_body != null ? richTextToPlainText(c.detail_body) : null,
-      fill_rule: c.fill_rule === 'honest_empty' ? 'honest_empty' : 'strict',
+      fill_rule: (c.fill_rule === 'honest_empty' ? 'honest_empty' : 'strict') as ScriptBreakdownFillRule,
       keyword_hint:
         c.keyword_hint === 'narasi' ? 'narasi' : c.keyword_hint === 'visual' ? 'visual' : 'none',
     }))

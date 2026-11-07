@@ -207,7 +207,7 @@ export const KOLRatingsModal = ({ isOpen, onClose, kolId, kolName }: KOLRatingsM
 
       // Selalu ambil data rating terbaru dari server setelah submit
       if (organizationId) {
-        await queryClient.invalidateQueries(["kol-ratings", organizationId]);
+        await queryClient.invalidateQueries({ queryKey: ['kol-ratings', organizationId] });
       }
 
       onClose();

@@ -69,7 +69,7 @@ function defaultButton(kind: WizardTemplateButton["kind"], id: string): WizardTe
         flowEntryMode: "existing",
       };
     case "COPY_CODE":
-      return { id, kind: "COPY_CODE", offerExample: "" };
+      return { id, kind: "COPY_CODE", text: "", offerExample: "" };
     case "VOICE_CALL":
       return { id, kind: "VOICE_CALL", text: "" };
   }

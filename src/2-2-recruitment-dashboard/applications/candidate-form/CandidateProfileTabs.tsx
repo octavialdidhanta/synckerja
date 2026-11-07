@@ -735,7 +735,7 @@ export const CandidateProfileTabs = ({
                     }}
                     isReadOnly={isReadOnly}
                     candidateProfileId={candidate?.id}
-                    isHRView={tab.id === 'test' ? isHRView : undefined}
+                    {...(tab.id === "test" ? { isHRView } : {})}
                   />
                   
                   {/* Navigation Buttons - Submit only on Test tab (and only if not HR view) */}

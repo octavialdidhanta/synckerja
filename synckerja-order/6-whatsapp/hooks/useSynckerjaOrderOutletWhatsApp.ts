@@ -10,6 +10,8 @@ export type OutletWhatsAppSettings = {
   buttonEnabled: boolean;
   accountId: string | null;
   prefillMessage: string;
+  linkOrderingEnabled: boolean;
+  mapsUrl: string;
 };
 
 export type OutletWhatsAppPatch = Partial<OutletWhatsAppSettings>;
@@ -18,6 +20,8 @@ export const DEFAULT_OUTLET_WHATSAPP_SETTINGS: OutletWhatsAppSettings = {
   buttonEnabled: true,
   accountId: null,
   prefillMessage: "",
+  linkOrderingEnabled: false,
+  mapsUrl: "",
 };
 
 type SettingsMap = Record<string, OutletWhatsAppSettings>;
@@ -57,7 +61,9 @@ export function useSynckerjaOrderOutletWhatsApp() {
       if (!organizationId) return {};
       const { data, error } = await supabase
         .from("synckerja_order_outlet_settings")
-        .select("outlet_id, whatsapp_button_enabled, whatsapp_account_id, whatsapp_prefill_message")
+        .select(
+          "outlet_id, whatsapp_button_enabled, whatsapp_account_id, whatsapp_prefill_message, link_ordering_enabled, maps_url",
+        )
         .eq("organization_id", organizationId);
       if (error) throw error;
       const map: SettingsMap = {};
@@ -66,6 +72,8 @@ export function useSynckerjaOrderOutletWhatsApp() {
           buttonEnabled: row.whatsapp_button_enabled !== false,
           accountId: row.whatsapp_account_id ? String(row.whatsapp_account_id) : null,
           prefillMessage: String(row.whatsapp_prefill_message ?? ""),
+          linkOrderingEnabled: row.link_ordering_enabled === true,
+          mapsUrl: String(row.maps_url ?? ""),
         };
       }
       return map;
@@ -84,6 +92,12 @@ export function useSynckerjaOrderOutletWhatsApp() {
       if (args.patch.accountId !== undefined) row.whatsapp_account_id = args.patch.accountId;
       if (args.patch.prefillMessage !== undefined) {
         row.whatsapp_prefill_message = args.patch.prefillMessage.trim() || null;
+      }
+      if (args.patch.linkOrderingEnabled !== undefined) {
+        row.link_ordering_enabled = args.patch.linkOrderingEnabled;
+      }
+      if (args.patch.mapsUrl !== undefined) {
+        row.maps_url = args.patch.mapsUrl.trim() || null;
       }
       // Upsert touches only the columns above; a new row keeps `enabled` at its default (false).
       const { error } = await supabase

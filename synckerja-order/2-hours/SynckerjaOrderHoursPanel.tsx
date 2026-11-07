@@ -1,5 +1,5 @@
-import { Switch } from "@/shared/components/ui/switch";
 import { Label } from "@/shared/components/ui/label";
+import { Switch } from "@/shared/components/ui/switch";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import type { WeeklyHourRule } from "@/synckerja-order/shared/lib/orderHours";
 
@@ -14,24 +14,12 @@ const DAY_KEYS: Array<{ dow: number; key: string; fallback: string }> = [
 ];
 
 type Props = {
-  outlets: Array<{ id: string; name: string; enabled: boolean }>;
-  selectedOutletId: string | null;
-  onSelectOutlet: (id: string) => void;
-  forceClosed: boolean;
   weeklyHours: WeeklyHourRule[];
-  onChange: (patch: { forceClosed?: boolean; weeklyHours?: WeeklyHourRule[] }) => void;
+  onChange: (patch: { weeklyHours?: WeeklyHourRule[] }) => void;
 };
 
-export function SynckerjaOrderHoursPanel({
-  outlets,
-  selectedOutletId,
-  onSelectOutlet,
-  forceClosed,
-  weeklyHours,
-  onChange,
-}: Props) {
+export function SynckerjaOrderHoursPanel({ weeklyHours, onChange }: Props) {
   const { t } = useAppTranslation();
-  const enabledOutlets = outlets.filter((row) => row.enabled);
   const patchDay = (dow: number, next: Partial<WeeklyHourRule>) => {
     onChange({
       weeklyHours: weeklyHours.map((row) => (row.dow === dow ? { ...row, ...next } : row)),
@@ -40,35 +28,6 @@ export function SynckerjaOrderHoursPanel({
 
   return (
     <div className="flex w-full max-w-4xl flex-col content-start gap-3 p-3">
-      <div className="w-full space-y-1">
-        <Label>{t("synckerjaOrder.hours.outlet", "Outlet")}</Label>
-        <select
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-          value={selectedOutletId ?? ""}
-          onChange={(e) => onSelectOutlet(e.target.value)}
-        >
-          {enabledOutlets.length === 0 ? (
-            <option value="">{t("synckerjaOrder.hours.noOutlet", "Enable an outlet first.")}</option>
-          ) : (
-            enabledOutlets.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name}
-              </option>
-            ))
-          )}
-        </select>
-      </div>
-
-      <div className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2">
-        <div>
-          <p className="text-sm font-medium">{t("synckerjaOrder.hours.forceClosed", "Temporarily closed")}</p>
-          <p className="text-xs text-muted-foreground">
-            {t("synckerjaOrder.hours.forceClosedHint", "Guests cannot add items or checkout until you reopen.")}
-          </p>
-        </div>
-        <Switch checked={forceClosed} onCheckedChange={(v) => onChange({ forceClosed: v })} />
-      </div>
-
       <div className="flex w-full flex-col gap-2">
         {DAY_KEYS.map((day) => {
           const rule = weeklyHours.find((row) => row.dow === day.dow);

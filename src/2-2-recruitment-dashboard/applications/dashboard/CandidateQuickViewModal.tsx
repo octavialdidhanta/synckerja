@@ -52,8 +52,8 @@ interface JobApplication {
   birth_date?: string;
   gender?: string;
   nik?: string;
-  cv_file_path: string | null;
-  cover_letter: string | null;
+  cv_file_path?: string | null;
+  cover_letter?: string | null;
   experience_years: string | null;
   expected_salary: string | null;
   skills: any;

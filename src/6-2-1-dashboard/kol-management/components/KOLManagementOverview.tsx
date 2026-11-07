@@ -25,12 +25,7 @@ export const KOLManagementOverview = ({
     .map((profile) => {
       const socialAccounts = "social_accounts" in profile ? profile.social_accounts : [];
       const engagementRate = "engagement_rate" in profile ? profile.engagement_rate : 0;
-      const totalReach =
-        "total_reach" in profile
-          ? profile.total_reach
-          : "followers_count" in profile
-            ? profile.followers_count
-            : 0;
+      const totalReach = profile.total_reach ?? profile.followers_count ?? 0;
 
       const avgEngagement =
         socialAccounts && socialAccounts.length > 0

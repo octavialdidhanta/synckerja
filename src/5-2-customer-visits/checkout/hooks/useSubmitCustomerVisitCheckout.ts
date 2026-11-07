@@ -11,6 +11,7 @@ import {
 } from '../lib/createStoreCheckoutSalesActivity';
 import { recordStoreCheckoutIncome, storeCheckoutNeedsOmnichannelBank } from '../lib/recordStoreCheckoutIncome';
 import { findInsufficientStoreCheckoutStock, trackedStoreCheckoutLines } from '../lib/storeCheckoutStock';
+import { normalizeTableNumber } from '../lib/normalizeTableNumber';
 import { assertCheckoutIngredientStockOrThrow } from '@/stock-management/catalog-ledger/lib/assertCheckoutIngredientStockClient';
 import { enqueuePosReceiptFeedbackShare } from '../lib/enqueuePosReceiptFeedbackShare';
 import type {

@@ -54,7 +54,7 @@ export function PinPolicyPanel({ settings, onChange, disabled }: Props) {
           <div key={row.key} className="flex items-center justify-between gap-3">
             <span className="text-sm">{t(row.labelKey, row.fallback)}</span>
             <Switch
-              checked={settings[row.key]}
+              checked={settings[row.key] as boolean}
               disabled={disabled}
               onCheckedChange={(v) => onChange({ [row.key]: v })}
             />

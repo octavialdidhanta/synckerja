@@ -109,7 +109,9 @@ export function TikTokAutoScheduleSection({
       return;
     }
 
-    const accountLabel = getTikTokAccountDisplayLabel(selectedAccount ?? { open_id: openId, label: 'TikTok' });
+    const accountLabel = getTikTokAccountDisplayLabel(
+      selectedAccount ?? { open_id: openId, label: 'TikTok', display_name: null },
+    );
     const scheduledAtIso =
       action === 'post_now'
         ? new Date().toISOString()

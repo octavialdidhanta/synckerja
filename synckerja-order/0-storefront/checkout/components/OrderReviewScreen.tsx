@@ -30,6 +30,7 @@ export function OrderReviewScreen({
   fulfillment,
   allowTakeAway,
   disabled,
+  paymentEnabled = true,
   onBack,
   onAddItem,
   onBillNoteChange,
@@ -52,6 +53,8 @@ export function OrderReviewScreen({
   fulfillment: OrderFulfillment;
   allowTakeAway?: boolean;
   disabled?: boolean;
+  /** Link mode shows the basket only. Payment stays on the table QR flow. */
+  paymentEnabled?: boolean;
   onBack: () => void;
   onAddItem: () => void;
   onBillNoteChange: (value: string) => void;
@@ -145,12 +148,14 @@ export function OrderReviewScreen({
           <OrderPaymentDetailsCard preview={preview} />
         </section>
       </div>
-      <OrderCheckoutFooter
-        total={preview.grandTotal}
-        cta={t(ORDER_CHECKOUT_I18N.continueToPayment, "Continue to Payment")}
-        disabled={disabled || lines.length === 0}
-        onCta={onContinue}
-      />
+      {paymentEnabled ? (
+        <OrderCheckoutFooter
+          total={preview.grandTotal}
+          cta={t(ORDER_CHECKOUT_I18N.continueToPayment, "Continue to Payment")}
+          disabled={disabled || lines.length === 0}
+          onCta={onContinue}
+        />
+      ) : null}
     </OrderCheckoutShell>
   );
 }

@@ -155,5 +155,5 @@ export type WizardTemplateButton =
       flowIcon: FlowTemplateButtonIcon;
       flowEntryMode: FlowEntryMode;
     }
-  | { id: string; kind: "COPY_CODE"; offerExample: string }
+  | { id: string; kind: "COPY_CODE"; text: string; offerExample: string }
   | { id: string; kind: "VOICE_CALL"; text: string };

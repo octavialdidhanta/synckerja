@@ -7,6 +7,8 @@ export interface JobApplication {
   applicant_name: string;
   applicant_email: string;
   applicant_phone?: string;
+  cv_file_path?: string | null;
+  cover_letter?: string | null;
   experience_years?: string;
   expected_salary?: string;
   skills?: any;

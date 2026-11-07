@@ -69,6 +69,14 @@ verify_jwt = false
 [functions.sign-synckerja-order-photos]
 verify_jwt = false
 
+# Public storefront records ad-link WhatsApp clicks. Auth is the outlet public code, not a user JWT.
+[functions.synckerja-order-link-click]
+verify_jwt = false
+
+# Public storefront expands maps.app.goo.gl. The function only follows Google Maps https URLs.
+[functions.synckerja-order-maps-resolve]
+verify_jwt = false
+
 # Native Google Sign-In (public web/iOS client ids for Capacitor; no user JWT).
 [functions.google-sso-public-config]
 verify_jwt = false

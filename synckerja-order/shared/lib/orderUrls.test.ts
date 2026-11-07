@@ -19,10 +19,27 @@ describe("orderUrls", () => {
     );
   });
 
-  it("parses pickup mode", () => {
+  it("prefixes a valid public code with the outlet name", () => {
+    expect(buildOrderStorePath("49eetd", { mode: "dinein" }, "Sate Sultan PIK")).toBe(
+      "/sate-sultan-pik-49eetd?mode=dinein",
+    );
+    expect(pathnameLooksLikeOrderStore("/sate-sultan-pik-49eetd")).toBe(true);
+    expect(pathnameLooksLikeOrderStore("/49eetd")).toBe(true);
+  });
+
+  it("parses pickup and link modes", () => {
     expect(parseOrderStoreMode("pickup")).toBe("pickup");
+    expect(parseOrderStoreMode("link")).toBe("link");
+    expect(parseOrderStoreMode("LINK")).toBe("link");
     expect(parseOrderStoreMode("dinein")).toBe("dinein");
     expect(parseOrderStoreMode(null)).toBe("dinein");
+    expect(parseOrderStoreMode("promo")).toBe("dinein");
+  });
+
+  it("builds the advertising link without a table number", () => {
+    expect(buildOrderStorePath("49eetd", { mode: "link" }, "Sate Sultan PIK")).toBe(
+      "/sate-sultan-pik-49eetd?mode=link",
+    );
   });
 
   it("mounts storefront on public hostname and on LAN IP in local dev", () => {

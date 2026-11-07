@@ -12,7 +12,7 @@ type MetaFormFlowJsonEditorProps = {
 export function MetaFormFlowJsonEditor({ value, onChange, readOnly = false }: MetaFormFlowJsonEditorProps) {
   const { t } = useTranslation();
   const syntax = validateFlowJsonSyntax(value);
-  const errorMessage = syntax.ok ? null : syntax.message;
+  const errorMessage = !syntax.ok ? syntax.message : null;
 
   const handleFormat = () => {
     if (!syntax.ok) return;

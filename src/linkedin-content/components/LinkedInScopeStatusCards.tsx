@@ -16,6 +16,7 @@ type LinkedInScopeStatusCardsProps = {
 const FEATURE_LINKS: Record<keyof typeof LINKEDIN_SCOPE_FEATURE_MAP, string> = {
   comments: '/digital-marketing/social-media-performance/manage-comments/linkedin',
   insights: '/digital-marketing/social-media-performance/linkedin',
+  publish: '/digital-marketing/social-media/content-calendar',
   pages: '/digital-marketing/social-media-performance/linkedin/settings',
 };
 
@@ -41,6 +42,7 @@ export function LinkedInScopeStatusCards({ accounts }: LinkedInScopeStatusCardsP
           const labels: Record<typeof feature, string> = {
             comments: t('digitalMarketing.linkedinContent.scopeStatus.comments', 'Comments'),
             insights: t('digitalMarketing.linkedinContent.scopeStatus.insights', 'Insights'),
+            publish: t('digitalMarketing.linkedinContent.scopeStatus.publish', 'Publish'),
             pages: t('digitalMarketing.linkedinContent.scopeStatus.pages', 'Pages'),
           };
           return (

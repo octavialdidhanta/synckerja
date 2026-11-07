@@ -721,7 +721,7 @@ export function EducationTab({ candidateProfileId, onEducationChange, isReadOnly
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => deleteInformalEducation(informal.id)}
+                            onClick={() => handleDeleteInformalEducation(informal.id)}
                             className="text-red-600 hover:text-red-700"
                           >
                             <Trash2 className="h-4 w-4" />

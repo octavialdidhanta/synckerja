@@ -58,12 +58,14 @@ import { useWithdrawalFromBalanceOptions } from '@/shared/hooks/finance/useWithd
 async function handleViewInvoice(filePath: string | null | undefined) {
   const result = await openSupabaseFinanceReceiptOrInvoice(filePath, 3600);
   if (result.ok) return;
-  if (result.reason === 'missing_path') {
+  if (!result.ok && result.reason === 'missing_path') {
     toast.error('Invoice file path not found');
     return;
   }
-  console.error('Error creating signed URL:', result.error);
-  toast.error('Failed to open invoice. Please try again.');
+  if (!result.ok) {
+    console.error('Error creating signed URL:', result.error);
+    toast.error('Failed to open invoice. Please try again.');
+  }
 }
 
 function matchesWithdrawalFilter(expense: Expense, withdrawalFilter: string): boolean {
@@ -211,7 +213,6 @@ export function ExpenseDashboard() {
   const {
     data: departments = [],
     isLoading: departmentsLoading,
-    isPending: departmentsPending,
     refetch: refetchDepartments,
   } = useDepartmentsCrud(organizationId);
   const {
@@ -246,7 +247,6 @@ export function ExpenseDashboard() {
       expenseTypesLoading ||
       expenseTypesPending ||
       departmentsLoading ||
-      departmentsPending ||
       isPendingPurchaseRequests ||
       isLoadingPurchaseRequests ||
       withdrawalOptionsLoading ||

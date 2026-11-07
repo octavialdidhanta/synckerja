@@ -12,6 +12,8 @@ function ingredient(overrides: Partial<CatalogIngredient> = {}): CatalogIngredie
     unit_code: "pcs",
     track_inventory: true,
     sort_order: 1,
+    photo_path: null,
+    photo_url: null,
     outlet_ids: ["out-1"],
     outlet_stocks: [
       {

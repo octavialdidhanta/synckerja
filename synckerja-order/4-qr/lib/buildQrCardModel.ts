@@ -54,7 +54,7 @@ export function buildQrCardModel(input: BuildQrCardModelInput): QrCardModel {
   const qrUrl = buildOrderStoreUrl(input.publicCode, {
     mode: "dinein",
     tableNumber: input.table.name,
-  });
+  }, input.outletName);
 
   return {
     templateId: settings.template_id,

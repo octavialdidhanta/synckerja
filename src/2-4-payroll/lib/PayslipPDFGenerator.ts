@@ -43,7 +43,7 @@ export class PayslipPDFGenerator {
   }
 
   static async create(): Promise<PayslipPDFGenerator> {
-    const { jsPDF: JsPDF } = await loadPdfKit({ autotable: true });
+    const { jsPDF: JsPDF } = await loadPdfKit({ withAutoTable: true });
     return new PayslipPDFGenerator(new JsPDF());
   }
 

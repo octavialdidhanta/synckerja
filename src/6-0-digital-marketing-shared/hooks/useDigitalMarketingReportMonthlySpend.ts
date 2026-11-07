@@ -63,6 +63,8 @@ export type MonthlySpendChannelSeries = {
 };
 
 export type { MonthlyChartChannelFilter };
+/** @deprecated Prefer `MonthlyChartChannelFilter` from `dmPaidAdsFiltersStorage`. */
+export type MonthlySpendChannelFilter = MonthlyChartChannelFilter;
 
 export type ReportMonthlySpendChartPoint = {
   year: number;

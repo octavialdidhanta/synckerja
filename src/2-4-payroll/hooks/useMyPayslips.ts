@@ -56,7 +56,7 @@ export function useMyPayslips() {
           .order("payment_date", { ascending: false });
 
         if (qError) throw qError;
-        if (!cancelled) setPayslips((data as MyPayslipRow[]) ?? []);
+        if (!cancelled) setPayslips((data as unknown as MyPayslipRow[]) ?? []);
       } catch (err) {
         if (!cancelled) setError(err as Error);
       } finally {

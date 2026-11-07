@@ -755,21 +755,29 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { data: subRow } = await supabaseAdmin
-      .from("organization_subscriptions")
-      .select("omnichannel_paid_seat_count")
-      .eq("organization_id", orgId)
+    const { data: orgRow } = await supabaseAdmin
+      .from("organizations")
+      .select("subscription_self_service_enabled")
+      .eq("id", orgId)
       .maybeSingle();
-    const paidSeats = Number(subRow?.omnichannel_paid_seat_count ?? 0);
-    if (!Number.isFinite(paidSeats) || paidSeats < 1) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "Add-on omnichannel belum aktif. Aktifkan atau beli seat add-on di Langganan → Paket atau Pengaturan Omnichannel untuk membalas chat.",
-          code: "OMNICHANNEL_ADDON_REQUIRED",
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    const salesManaged = orgRow?.subscription_self_service_enabled === false;
+    if (!salesManaged) {
+      const { data: subRow } = await supabaseAdmin
+        .from("organization_subscriptions")
+        .select("omnichannel_paid_seat_count")
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      const paidSeats = Number(subRow?.omnichannel_paid_seat_count ?? 0);
+      if (!Number.isFinite(paidSeats) || paidSeats < 1) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "Add-on omnichannel belum aktif. Aktifkan atau beli seat add-on di Langganan → Paket atau Pengaturan Omnichannel untuk membalas chat.",
+            code: "OMNICHANNEL_ADDON_REQUIRED",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
 
     let statusName: string | null = null;

@@ -1711,12 +1711,39 @@ Deno.serve(async (req: Request) => {
                   phoneNumberId,
                   timestampIso: timestamp,
                 });
+                const ticketId = WA_TICKET_PREFIX + String(conv.id).replace(/-/g, "").slice(0, 8).toUpperCase();
+                const linkAttributionSync = (async () => {
+                  const { data: leadRow, error: leadLookupErr } = await supabase
+                    .from("leads")
+                    .select("id")
+                    .eq("organization_id", orgId)
+                    .eq("ticket_id", ticketId)
+                    .maybeSingle();
+                  if (leadLookupErr || !leadRow?.id) {
+                    if (leadLookupErr) {
+                      console.warn("ensureWaLeadWebsiteAttribution: lead lookup", leadLookupErr.message);
+                    }
+                    return;
+                  }
+                  await ensureWaLeadWebsiteAttribution({
+                    supabase,
+                    orgId,
+                    leadId: String(leadRow.id),
+                    ticketId,
+                    customerWaId,
+                    displayPhoneNumber: account.display_phone_number,
+                    phoneNumberId,
+                    inboundTimestampIso: timestamp,
+                  });
+                })();
                 if (isFlowInteractiveReply) {
                   void reconcileFormLead;
                   void vialdiLeadSync;
+                  void linkAttributionSync;
                 } else {
                   await reconcileFormLead;
                   await vialdiLeadSync;
+                  await linkAttributionSync;
                   await syncCtwaClidToLinkedLead(supabase, {
                     organizationId: orgId,
                     conversationId: conv.id,

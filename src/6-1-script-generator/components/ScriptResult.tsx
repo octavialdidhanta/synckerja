@@ -7,7 +7,7 @@ import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 
 interface ScriptResultProps {
   script: string;
-  onGenerateWithAI?: (prompt: string) => Promise<void>;
+  onGenerateWithAI?: (prompt: string) => Promise<void | boolean>;
   isGeneratingAI?: boolean;
   isAIConfigured?: boolean;
   /** Mobile: title di atas, aksi Copy / Download / Generate satu baris. */

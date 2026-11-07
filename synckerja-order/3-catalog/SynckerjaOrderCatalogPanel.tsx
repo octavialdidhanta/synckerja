@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { formatStoreCheckoutRp } from "@/5-2-customer-visits/checkout/lib/catalogLabel";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
@@ -14,6 +14,7 @@ type Props = {
   onToggle: (id: string, optedIn: boolean, kind: "product" | "bundle") => void;
   relatedPairings?: Record<string, string>;
   onRelatedChange?: (fromCategoryId: string, toCategoryId: string | null) => void;
+  outletSelect?: ReactNode;
   busy?: boolean;
 };
 
@@ -31,6 +32,7 @@ export function SynckerjaOrderCatalogPanel({
   onToggle,
   relatedPairings,
   onRelatedChange,
+  outletSelect,
   busy,
 }: Props) {
   const { t } = useAppTranslation();
@@ -83,30 +85,9 @@ export function SynckerjaOrderCatalogPanel({
 
   return (
     <div className="space-y-2 overflow-y-auto p-2 sm:p-3">
-      <div className="rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
-        <p>
-          {t(
-            "synckerjaOrder.catalog.hint",
-            "Publish products assigned to this outlet in Item Library. Guests only see items you turn on here.",
-          )}
-        </p>
-        <p className="mt-1">
-          {t(
-            "synckerjaOrder.catalog.layoutHint",
-            "List is a vertical menu. Slider shows photo cards that peek off the edge. Grid shows two photo cards per row with vertical scroll.",
-          )}
-        </p>
-      </div>
-      {rows.length === 0 ? (
-        <p className="rounded-md border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
-          {t(
-            "synckerjaOrder.catalog.emptyOutlet",
-            "No products are assigned to this outlet. Add them in Item Library, then publish them here.",
-          )}
-        </p>
-      ) : null}
       {onRelatedChange ? (
         <RelatedMenuPairingSection
+          leading={outletSelect}
           categories={groups
             .filter((group) => group.id && group.id !== "bundles")
             .map((group) => ({ id: group.id as string, name: group.name }))}
@@ -114,6 +95,16 @@ export function SynckerjaOrderCatalogPanel({
           disabled={busy}
           onChange={onRelatedChange}
         />
+      ) : (
+        outletSelect
+      )}
+      {rows.length === 0 ? (
+        <p className="rounded-md border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
+          {t(
+            "synckerjaOrder.catalog.emptyOutlet",
+            "No products are assigned to this outlet. Add them in Item Library, then publish them here.",
+          )}
+        </p>
       ) : null}
       {groups.map((group) => (
         <section key={group.id ?? "uncategorized"} className="rounded-md border border-border">

@@ -9,6 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import type { TooltipProps } from "recharts";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { YouTubeChannelDemographicsRow } from "@/youtube-content/types/youtubeChannelAnalyticsTypes";
 import { YOUTUBE_ANALYTICS_CHART_COLORS } from "@/6-0-social-media-performance/components/youtube-analytics/youtubeAnalyticsChartColors";
@@ -25,14 +26,14 @@ function genderColor(gender: string): string {
   return YOUTUBE_ANALYTICS_CHART_COLORS.userSpecified;
 }
 
-function genderLabel(gender: string, t: (key: string, fallback?: string) => string): string {
+function genderLabel(gender: string, t: TFunction): string {
   const g = gender.toLowerCase();
   if (g === "female") return t("digitalMarketing.youtubeContent.analytics.gender.female", "Female");
   if (g === "male") return t("digitalMarketing.youtubeContent.analytics.gender.male", "Male");
   return t("digitalMarketing.youtubeContent.analytics.gender.other", "Other");
 }
 
-function ageLabel(ageGroup: string, t: (key: string, fallback?: string) => string): string {
+function ageLabel(ageGroup: string, t: TFunction): string {
   const key = `digitalMarketing.youtubeContent.analytics.ageGroup.${ageGroup}`;
   const fallback = ageGroup.replace(/age/i, "").trim() || ageGroup;
   return t(key, fallback);

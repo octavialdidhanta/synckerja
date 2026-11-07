@@ -36,8 +36,8 @@ export function XenditServiceAgreementSection({
         <AlertTitle className="text-sm font-medium text-gray-900">
           {t("xendit.kyc.serviceAgreementGuideTitle", "Cara mengunggah Service Agreement")}
         </AlertTitle>
-        <AlertDescription asChild>
-          <div className="mt-2 space-y-2 text-xs text-gray-700">
+        <AlertDescription className="mt-2 space-y-2 text-xs text-gray-700">
+          <div className="space-y-2">
             <ol className="list-decimal space-y-1.5 pl-4">
               <li>{t("xendit.kyc.serviceAgreementStep1", "Unduh template Service Agreement")}</li>
               <li>

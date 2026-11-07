@@ -679,8 +679,9 @@ export function MetaAdsSettingsPanel({
   const handleSaveAccount = async () => {
     const resolved = resolveMetaCapiEventNameForSave(accountEventSelect, accountEventCustom);
     if (!resolved.ok) {
+      const { error } = resolved;
       toast.error(
-        resolved.error === "custom_too_long"
+        error === "custom_too_long"
           ? t(
               "omnichannel.settings.metaAds.eventNameCustomInvalid",
               "Event name is too long (max 64 characters).",

@@ -84,7 +84,7 @@ interface PersonalAttendanceCalendarProps {
 }
 
 const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarProps) => {
-  const { t, dateLocale } = useAppTranslation();
+  const { t, dateFnsLocale } = useAppTranslation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -110,7 +110,7 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
   // Get month name using date-fns with dynamic locale
   const getMonthName = (month: number) => {
     const date = new Date(currentYear, month, 1);
-    return format(date, 'MMMM yyyy', { locale: dateLocale });
+    return format(date, 'MMMM yyyy', { locale: dateFnsLocale });
   };
 
   // Get day names for calendar header (Monday to Sunday)
@@ -122,7 +122,7 @@ const PersonalAttendanceCalendar = ({ employeeId }: PersonalAttendanceCalendarPr
       const mondayDate = new Date(2024, 0, 1);
       const targetDate = new Date(mondayDate);
       targetDate.setDate(mondayDate.getDate() + (i - 1));
-      const dayName = format(targetDate, 'EEE', { locale: dateLocale });
+      const dayName = format(targetDate, 'EEE', { locale: dateFnsLocale });
       dayNames.push(dayName);
     }
     return dayNames;
