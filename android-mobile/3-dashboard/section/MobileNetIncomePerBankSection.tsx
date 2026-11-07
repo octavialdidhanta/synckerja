@@ -71,9 +71,11 @@ export function MobileNetIncomePerBankSection({
                 const netData = bankAccountNet[bankAccount.id];
                 const balance = bankAccountBalances.find((b) => b.bank_account_id === bankAccount.id);
                 if (!netData && !balance) return null;
-                const income = netData?.income || 0;
+                // Same figures as the desktop income dashboard (BankAccountPeriodNet).
+                const income = netData?.operatingIncome || 0;
+                const gatewayTransferIn = netData?.gatewayTransferIn || 0;
                 const expense = netData?.expense || 0;
-                const net = income - expense;
+                const net = netData?.net ?? income + gatewayTransferIn - expense;
                 const currentBalance = balance?.balance || 0;
                 const estimatedPeriodOpening = currentBalance - net;
                 const otherAccounts = bankAccounts.filter((a) => a.id !== bankAccount.id);
