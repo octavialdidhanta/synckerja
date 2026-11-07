@@ -58,7 +58,8 @@ export function LeadTemplateFollowUpDialog({
   onSent,
 }: LeadTemplateFollowUpDialogProps) {
   const { t } = useAppTranslation();
-  const { data: waAccounts = [] } = useWhatsAppAccounts();
+  // The hook exposes `accounts` (reading `data` left the list empty: no templates, send disabled).
+  const { accounts: waAccounts } = useWhatsAppAccounts();
   const { sendFollowUp, isSendingFollowUp } = useSendWhatsAppTemplateFollowup();
   const { sendFlowSession, isSendingFlowSession } = useSendWhatsAppFlowSession();
 
