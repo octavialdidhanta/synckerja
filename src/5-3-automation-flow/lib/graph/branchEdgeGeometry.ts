@@ -11,8 +11,7 @@ export function getBranchRailPath(
   path: string;
   railY: number;
   labelX: number;
-  labelY: number;
-  buttonY: number;
+  anchorY: number;
 } {
   const railY = sourceY + railDrop;
   const path = `M ${sourceX},${sourceY} L ${sourceX},${railY} L ${targetX},${railY} L ${targetX},${targetY}`;
