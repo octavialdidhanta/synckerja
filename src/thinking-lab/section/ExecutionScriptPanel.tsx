@@ -393,6 +393,7 @@ function AssetList({
                         onUploadFile={(kind, file) => onStoreCharacterVisual(item.handle, kind, file)}
                         onUseProjectImage={(kind, storagePath) => onStoreCharacterVisual(item.handle, kind, { storagePath })}
                         onDelete={(kind) => onDeleteCharacterVisual(item.handle, kind)}
+                        onDeleteSheet={() => onDeleteCharacterVisual(item.handle, "sheet")}
                         onGenerate={onGenerateCharacter ? () => onGenerateCharacter(item.handle) : undefined}
                         generating={busy}
                         generateLabel={
@@ -406,7 +407,8 @@ function AssetList({
                         }
                       />
                     ) : null}
-                    {isCharacter && item.sheetPath ? (
+                    {/* With the visual slots, the sheet is shown in the body slot (same row as the portrait). */}
+                    {isCharacter && item.sheetPath && !(onStoreCharacterVisual && onDeleteCharacterVisual) ? (
                       <StoredCharacterImage
                         path={item.sheetPath}
                         revision={item.visualRevision}

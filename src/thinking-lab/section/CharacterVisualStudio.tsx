@@ -329,6 +329,7 @@ export function CharacterVisualSlots({
   onUploadFile,
   onUseProjectImage,
   onDelete,
+  onDeleteSheet,
   onGenerate,
   generateLabel,
   generating = false,
@@ -341,6 +342,8 @@ export function CharacterVisualSlots({
   onUploadFile: (kind: CharacterStudioTab, file: File) => void;
   onUseProjectImage: (kind: CharacterStudioTab, storagePath: string) => void;
   onDelete: (kind: CharacterStudioTab) => void;
+  /** When set, a generated character sheet is shown in the body slot until a body image is uploaded. */
+  onDeleteSheet?: () => void;
   onGenerate?: () => void;
   generateLabel?: string;
   generating?: boolean;
@@ -348,14 +351,16 @@ export function CharacterVisualSlots({
 }) {
   const { t } = useAppTranslation();
   const portraitUrl = useSignedVisual(character.portraitPath, character.visualRevision);
-  const bodyUrl = useSignedVisual(character.bodyPath, character.visualRevision);
+  const showingSheet = Boolean(onDeleteSheet) && !character.bodyPath && Boolean(character.sheetPath);
+  const bodySlotPath = showingSheet ? character.sheetPath : character.bodyPath;
+  const bodyUrl = useSignedVisual(bodySlotPath, character.visualRevision);
   const fileName = character.handle.replace(/^@/, "");
   const portraitFrameRef = useRef<HTMLDivElement | null>(null);
   const [portraitHeight, setPortraitHeight] = useState(0);
   const [bodyRatio, setBodyRatio] = useState<number | null>(null);
   useEffect(() => {
     setBodyRatio(null);
-  }, [character.bodyPath, character.visualRevision]);
+  }, [bodySlotPath, character.visualRevision]);
 
   useEffect(() => {
     const node = portraitFrameRef.current;
@@ -393,18 +398,18 @@ export function CharacterVisualSlots({
       <VisualSlot
         kind="body"
         label={t("thinkingLab.execution.characterBodyTab", "Create body")}
-        path={character.bodyPath}
+        path={bodySlotPath}
         url={bodyUrl}
-        fileName={`${fileName}-badan`}
+        fileName={showingSheet ? `${fileName}-character-sheet` : `${fileName}-badan`}
         frameClassName={portraitHeight > 0 && bodyRatio ? "max-h-full" : "aspect-[4/5] w-72"}
         frameStyle={bodyFrameStyle}
         onImageRatio={setBodyRatio}
         saving={savingKind === "body"}
-        deleting={deletingKind === "body"}
+        deleting={showingSheet ? deletingKind === "sheet" : deletingKind === "body"}
         disabled={disabled || Boolean(savingKind) || Boolean(deletingKind)}
         onUploadFile={(file) => onUploadFile("body", file)}
         onUseProjectImage={(storagePath) => onUseProjectImage("body", storagePath)}
-        onDelete={() => onDelete("body")}
+        onDelete={showingSheet && onDeleteSheet ? onDeleteSheet : () => onDelete("body")}
         secondaryAction={
           onGenerate
             ? { label: generateLabel ?? "Generate", pending: generating, onClick: onGenerate }

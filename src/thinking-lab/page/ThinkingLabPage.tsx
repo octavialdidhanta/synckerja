@@ -514,13 +514,52 @@ function TruncatedBeliefLine({ text, className }: { text: string; className?: st
   );
 }
 
+type LabFocus =
+  | { kind: "master"; masterId: string }
+  | { kind: "bigThought"; masterId: string; thoughtId: string }
+  | { kind: "territory"; masterId: string; thoughtId: string; territoryId: string }
+  | { kind: "angle"; masterId: string; thoughtId: string; territoryId: string; angleId: string }
+  | { kind: "idea"; masterId: string; thoughtId: string; territoryId: string; angleId: string; ideaId: string }
+  | { kind: "pillar"; masterId: string; thoughtId: string; territoryId: string; angleId: string; ideaId: string; contentPillarId: string }
+  | { kind: "execution"; masterId: string; thoughtId: string; territoryId: string; angleId: string; ideaId: string; executionId: string };
+
+/** The open node survives a remount of the page (e.g. an auth/access re-check), so the user is not sent back to the start. */
+const LAB_VIEW_KEY = "thinking-lab:view";
+type StoredLabView = { organizationId: string; selectedId: string | null; focus: LabFocus | null; composerOpen: boolean };
+
+function readStoredLabView(): StoredLabView | null {
+  try {
+    const raw = sessionStorage.getItem(LAB_VIEW_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<StoredLabView> | null;
+    if (!value || typeof value.organizationId !== "string") return null;
+    return {
+      organizationId: value.organizationId,
+      selectedId: typeof value.selectedId === "string" ? value.selectedId : null,
+      focus: value.focus && typeof value.focus === "object" && typeof value.focus.kind === "string" ? value.focus : null,
+      composerOpen: typeof value.composerOpen === "boolean" ? value.composerOpen : true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredLabView(view: StoredLabView) {
+  try {
+    sessionStorage.setItem(LAB_VIEW_KEY, JSON.stringify(view));
+  } catch {
+    // Storage can be unavailable (private mode, quota); the page still works without it.
+  }
+}
+
 export function ThinkingLabPage() {
   const { t } = useAppTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const masters = useMasterThought();
   const catalogs = useLabCatalogs(masters.organizationId);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [storedView] = useState(readStoredLabView);
+  const [selectedId, setSelectedId] = useState<string | null>(() => storedView?.selectedId ?? null);
   const [newPrior, setNewPrior] = useState("");
   const [newPlanted, setNewPlanted] = useState("");
   const [newAudience, setNewAudience] = useState("");
@@ -624,18 +663,9 @@ export function ThinkingLabPage() {
     | null
   >(null);
   const [editingMasterId, setEditingMasterId] = useState<string | null>(null);
-  const [composerOpen, setComposerOpen] = useState(true);
+  const [composerOpen, setComposerOpen] = useState(() => storedView?.composerOpen ?? true);
   const [showManualBigThought, setShowManualBigThought] = useState(false);
-  const [focus, setFocus] = useState<
-    | { kind: "master"; masterId: string }
-    | { kind: "bigThought"; masterId: string; thoughtId: string }
-    | { kind: "territory"; masterId: string; thoughtId: string; territoryId: string }
-    | { kind: "angle"; masterId: string; thoughtId: string; territoryId: string; angleId: string }
-    | { kind: "idea"; masterId: string; thoughtId: string; territoryId: string; angleId: string; ideaId: string }
-    | { kind: "pillar"; masterId: string; thoughtId: string; territoryId: string; angleId: string; ideaId: string; contentPillarId: string }
-    | { kind: "execution"; masterId: string; thoughtId: string; territoryId: string; angleId: string; ideaId: string; executionId: string }
-    | null
-  >(null);
+  const [focus, setFocus] = useState<LabFocus | null>(() => storedView?.focus ?? null);
   const skipAutoSelect = useRef(false);
   const selected = masters.data?.find((row) => row.id === selectedId) ?? null;
   const thoughts = useBigThoughts(selected?.id ?? null);
@@ -658,6 +688,25 @@ export function ThinkingLabPage() {
     if (skipAutoSelect.current) return;
     if (!selectedId && masters.data?.[0]) setSelectedId(masters.data[0].id);
   }, [masters.data, selectedId]);
+
+  // A restored view from another organization, or one whose Master Thought is gone, starts fresh.
+  const storedViewChecked = useRef(false);
+  useEffect(() => {
+    if (storedViewChecked.current || !storedView || !masters.organizationId || !masters.data) return;
+    storedViewChecked.current = true;
+    const sameOrg = storedView.organizationId === masters.organizationId;
+    const masterExists = storedView.selectedId == null || masters.data.some((row) => row.id === storedView.selectedId);
+    if (sameOrg && masterExists) return;
+    setSelectedId(null);
+    setFocus(null);
+    setComposerOpen(true);
+  }, [storedView, masters.organizationId, masters.data]);
+
+  useEffect(() => {
+    if (!masters.organizationId) return;
+    if (storedView && !storedViewChecked.current) return;
+    writeStoredLabView({ organizationId: masters.organizationId, selectedId, focus, composerOpen });
+  }, [masters.organizationId, selectedId, focus, composerOpen, storedView]);
 
   useEffect(() => {
     setOriginalDraft(selected?.originalInput ?? "");
