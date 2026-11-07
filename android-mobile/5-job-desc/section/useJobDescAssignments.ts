@@ -512,7 +512,7 @@ const fetchAssignments = async (
   const allEmployees = (employeesRes.data ?? []) as EmployeeRow[];
   const employees = allEmployees.filter((emp) => isActiveEmployee(emp, statusNameById));
   const activeEmployeeIds = new Set(employees.map((e) => e.id));
-  const taskAssignments = ((taskAssignmentsRes.data as TaskAssignmentRow[]) ?? []).filter(
+  const taskAssignments = ((taskAssignmentsRes.data as unknown as TaskAssignmentRow[]) ?? []).filter(
     (a) => activeEmployeeIds.has(a.employee_id),
   );
   const stepAssignments = ((stepAssignmentsRes.data as StepAssignmentRow[]) ?? []).filter(

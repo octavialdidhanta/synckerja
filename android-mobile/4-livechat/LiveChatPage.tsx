@@ -305,7 +305,7 @@ function LiveChatPageInner({ t }: { t: (key: string, fallback: string) => string
       onSelectConversation={handleSelectConversation}
       onSelectFromSearch={handleSelectFromSearch}
       invalidTicketId={showInvalidTicketBanner}
-      onRefetch={refreshLiveChat}
+      onRefetch={refreshLiveChat as () => Promise<void>}
     />
   );
 }

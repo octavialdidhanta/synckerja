@@ -338,7 +338,9 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
       }
     `;
     document.head.appendChild(style);
-    return () => document.head.removeChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
   }, []);
 
   if (filteredHabits.length === 0) {

@@ -99,7 +99,7 @@ function useResetDrawerHeightAfterKeyboard(open: boolean) {
     const onFocusOut = (event: FocusEvent) => {
       if (keyboardOpen) return;
       const next = event.relatedTarget;
-      if (next instanceof Node && el.contains(next) && isEditableTarget(next)) return;
+      if (next instanceof Node && el.contains(next) && isEditableTarget(next as Element)) return;
       restoreSoon("focusout");
     };
 

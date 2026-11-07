@@ -596,7 +596,7 @@ export function MobileAddIncomeTransactionModal({
                       id="amount"
                       type="text"
                       value={
-                        field.value === undefined || field.value === null || field.value === ""
+                        field.value === undefined || field.value === null || (field.value as unknown) === ""
                           ? ""
                           : formatInputNumber(field.value)
                       }

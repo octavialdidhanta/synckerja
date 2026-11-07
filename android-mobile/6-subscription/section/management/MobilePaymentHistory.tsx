@@ -15,12 +15,24 @@ import { toast } from "sonner";
 import { Download, History, Loader2, RefreshCw, Trash2, CreditCard } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { Tables } from "@supabase/types";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { applyVariables } from "@/shared/i18n/translations";
 import { useMidtransPayment } from "@/10-subscription/hooks/useMidtransPayment";
 
-type PaymentRecord = Tables<"payments"> & {
+/** Columns of `payments` read here (`select *`; supabase/types.ts only types `employees`). */
+type PaymentRow = {
+  id: string;
+  created_at: string;
+  order_id: string;
+  status: string;
+  amount: number;
+  billing_cycle: string | null;
+  subscription_start_date: string | null;
+  subscription_end_date: string | null;
+  [column: string]: unknown;
+};
+
+type PaymentRecord = PaymentRow & {
   subscription_plans: {
     id: string;
     name: string;

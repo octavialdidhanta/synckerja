@@ -380,7 +380,7 @@ export const MobileTaskStep: React.FC<MobileTaskStepProps> = ({
           autoReorder={autoReorder}
           onSubStepModalOpenChange={onSubStepModalOpenChange}
           closeSubStepRequested={closeSubStepRequested}
-          sortableHandleProps={{ attributes, listeners }}
+          sortableHandleProps={{ attributes: attributes as unknown as Record<string, unknown>, listeners }}
           mobileDescriptionExpanded={mobileDescriptionExpanded}
           onMobileDescriptionExpandedChange={onMobileDescriptionExpandedChange}
         />

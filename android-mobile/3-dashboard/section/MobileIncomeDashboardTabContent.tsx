@@ -44,6 +44,12 @@ export function MobileIncomeDashboardTabContent() {
   const prevPending = useRef(false);
 
   const model = useIncomeDashboardModel();
+  // Brick gateway was removed from the income model; keep the mobile rows wired as "not connected".
+  const brickWallet = null;
+  const brickEligible = false;
+  const isStaleBrick = false;
+  const syncingBrick = false;
+  const syncBrickWallet = () => {};
   const {
     rawPendingLoad,
     selectedPeriod,
@@ -67,17 +73,12 @@ export function MobileIncomeDashboardTabContent() {
     bankTotalBalance,
     totalCurrentBalanceAllAccounts,
     totalGrandBalance,
-    brickWallet,
     xenditWallet,
-    brickEligible,
     xenditEligible,
-    isStaleBrick,
     isStaleXendit,
     gatewayPeriodNet,
     periodIncomeTotal,
-    syncingBrick,
     syncingXendit,
-    syncBrickWallet,
     syncXenditWallet,
     highestTransactionInPeriod,
     latestTransactionInPeriod,
