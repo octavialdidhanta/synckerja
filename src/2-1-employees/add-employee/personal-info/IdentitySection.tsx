@@ -4,7 +4,7 @@ import { Input } from '@/shared/components/ui/input';
 import { PersonalDataStepProps } from '../types';
 import { useState, useEffect } from 'react';
 import { useEmployeeValidation } from '../../hooks/useEmployeeValidation';
-import { EmployeeFormData } from '@/types/forms';
+import type { EmployeeFormData } from '@/2-1-employees/types/forms';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 export const IdentitySection = ({ formData, handleInputChange }: PersonalDataStepProps) => {

@@ -5,7 +5,6 @@ export * from './employee-detail/PersonalInfoTab';
 export * from './employee-detail/PersonalInfoForm';
 export * from './employee-detail/AddressInfoTab';
 export * from './employee-detail/EmploymentInfoTab';
-export * from './employee-detail/EmployeePageLayout';
 export * from './employee-detail/EducationInfoTab';
 export * from './employee-detail/InformalEducationInfoTab';
 export * from './employee-detail/WorkExperienceTab';

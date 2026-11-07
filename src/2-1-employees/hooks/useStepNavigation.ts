@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
-import { TabStep, StepNavigation, ValidationSchema } from '@/types/steps';
-import { EmployeeFormData } from '@/types/forms';
+import type { TabStep, StepNavigation, ValidationSchema } from '../types/steps';
+import type { EmployeeFormData } from '../types/forms';
 
 export const useStepNavigation = (
   validationSchema: ValidationSchema,

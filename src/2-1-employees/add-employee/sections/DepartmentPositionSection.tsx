@@ -31,16 +31,12 @@ const DepartmentPositionSection: React.FC<EmploymentDataStepProps> = ({ formData
   const { t } = useAppTranslation();
   const { data: orgEmployees = [] } = useEmployees();
   
-  const departmentsCrud = useDepartmentsCrud(organizationId, { sessionCache: true });
-  const jobLevelsCrud = useJobLevelsCrud(organizationId, { sessionCache: true });
+  const departmentsCrud = useDepartmentsCrud(organizationId);
+  const jobLevelsCrud = useJobLevelsCrud(organizationId);
   
   const selectedDepartmentId = formData.department_id;
   
-  const jobPositionsCrud = useJobPositionsCrud(
-    organizationId,
-    { department_id: selectedDepartmentId },
-    { sessionCache: true },
-  );
+  const jobPositionsCrud = useJobPositionsCrud(organizationId, { department_id: selectedDepartmentId });
 
   // Use data directly since filtering is now done server-side
   const filteredJobPositions = React.useMemo(() => {

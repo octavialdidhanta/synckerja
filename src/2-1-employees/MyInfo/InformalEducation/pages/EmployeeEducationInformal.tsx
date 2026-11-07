@@ -224,7 +224,7 @@ const EmployeeEducationInformal = () => {
                       {/* Sidebar Footer */}
                       <InformalEducationSidebarFooter 
                         employeeName={employee.full_name}
-                        educationLevel={employee.education_level || 'N/A'}
+                        educationLevel={(employee as { education_level?: string | null }).education_level || 'N/A'}
                       />
                     </div>
                   </div>

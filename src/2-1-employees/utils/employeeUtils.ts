@@ -84,7 +84,8 @@ export const getEligibleManagersForEmployee = (
 export const getEmployeeStatus = (employee: {
   employee_status_name?: string | null;
   status?: string | null;
-  pending_removal?: boolean | null;
+  /** Some legacy rows send the string "true". */
+  pending_removal?: boolean | string | null;
 }): string => {
   // If pending_removal is true, show "Pending Removal" status
   // Check both boolean true and string "true" for safety
@@ -132,7 +133,8 @@ export const getEmployeeStatus = (employee: {
 export const getEmployeeStatusForFilter = (employee: {
   employee_status_name?: string | null;
   status?: string | null;
-  pending_removal?: boolean | null;
+  /** Some legacy rows send the string "true". */
+  pending_removal?: boolean | string | null;
 }): string => {
   // If pending_removal, return 'pending-removal'
   if (employee.pending_removal === true || employee.pending_removal === 'true') {

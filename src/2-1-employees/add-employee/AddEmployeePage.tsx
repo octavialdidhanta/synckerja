@@ -160,7 +160,7 @@ const AddEmployee = () => {
       case 'employment':
         return <EmploymentInfoStep formData={formData} handleInputChange={updateFormData} />;
       case 'invite':
-        return <InviteAccessStep formData={formData} handleInputChange={updateFormData} />;
+        return <InviteAccessStep formData={formData} />;
       default:
         return <PersonalInfoStep formData={formData} handleInputChange={updateFormData} />;
     }
