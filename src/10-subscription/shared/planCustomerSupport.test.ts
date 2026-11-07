@@ -4,11 +4,16 @@ import {
   resolvePlanCustomerSupportLabelKey,
 } from "@/10-subscription/shared/planCustomerSupport";
 
+type PlanArg = Parameters<typeof resolvePlanCustomerSupportLabelKey>[0];
+/** Only the customerSupport toggle matters here; other module flags stay unset. */
+const access = (customerSupport: boolean) =>
+  ({ customerSupport }) as unknown as PlanArg["plan_module_access"];
+
 const basePlan = {
   name: "Scale Up Plan",
   is_custom: false,
   base_price_per_member: 99000,
-  plan_module_access: { customerSupport: true } as { customerSupport: boolean },
+  plan_module_access: access(true),
 };
 
 describe("planHasCustomerSupportFeature", () => {
@@ -27,7 +32,7 @@ describe("resolvePlanCustomerSupportLabelKey", () => {
     expect(
       resolvePlanCustomerSupportLabelKey({
         ...basePlan,
-        plan_module_access: { customerSupport: false },
+        plan_module_access: access(false),
       }),
     ).toBeNull();
   });
@@ -38,7 +43,7 @@ describe("resolvePlanCustomerSupportLabelKey", () => {
         name: "Start Up Plan",
         is_custom: false,
         base_price_per_member: 0,
-        plan_module_access: { customerSupport: true },
+        plan_module_access: access(true),
       }),
     ).toBe("subscription.plans.features.customerSupport.limited");
   });
@@ -55,7 +60,7 @@ describe("resolvePlanCustomerSupportLabelKey", () => {
         name: "Enterprise Plan",
         is_custom: false,
         base_price_per_member: 0,
-        plan_module_access: { customerSupport: true },
+        plan_module_access: access(true),
       }),
     ).toBe("subscription.plans.features.customerSupport.247");
   });
@@ -66,7 +71,7 @@ describe("resolvePlanCustomerSupportLabelKey", () => {
         name: "Custom Sales Plan",
         is_custom: true,
         base_price_per_member: 50000,
-        plan_module_access: { customerSupport: true },
+        plan_module_access: access(true),
       }),
     ).toBe("subscription.plans.features.customerSupport.247");
   });

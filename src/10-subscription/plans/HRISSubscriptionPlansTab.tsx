@@ -295,7 +295,7 @@ const HRISSubscriptionPlansTab = () => {
           onConfirm={handleConfirmUpgrade}
           currentPlan={subscriptionPlans?.find(p => p.name === subscriptionStatus?.plan_name) || selectedPlan}
           newPlan={selectedPlan}
-          subscriptionStatus={subscriptionStatus}
+          subscriptionStatus={subscriptionStatus as unknown as Record<string, unknown>}
           billingCycle={isYearly ? 'yearly' : 'monthly'}
           currentMemberCount={subscriptionStatus?.member_count}
           newMemberCount={selectedMemberCount}

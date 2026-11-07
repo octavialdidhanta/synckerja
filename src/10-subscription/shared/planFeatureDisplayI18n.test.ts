@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { TFunction } from "i18next";
 import {
   filterPlanModuleRowsForCard,
   formatPlanModuleLine,
@@ -8,10 +9,9 @@ import {
 import { buildPlanModuleDisplayRows } from "@/10-subscription/shared/planModuleDisplay";
 import { createDefaultSalesModuleAccess } from "@/shared/auth/module-access/moduleCatalog";
 
-const t = (key: string, opts?: Record<string, unknown>) => {
+const tImpl = (key: string, opts?: Record<string, unknown>) => {
   const map: Record<string, string> = {
     "subscription.plans.features.dashboard": "Dashboard",
-  "subscription.plans.features.customModules": "Custom modules",
     "subscription.plans.features.enterpriseMemberAllowed": "101+ Member Allowed",
     "subscription.plans.features.customModules": "Custom modules",
     "subscription.plans.enterprise.feature.customModules": "Custom modules",
@@ -27,6 +27,8 @@ const t = (key: string, opts?: Record<string, unknown>) => {
   }
   return out;
 };
+/** Test double for i18next `t` (key + interpolation options). */
+const t = tImpl as unknown as TFunction;
 
 describe("translatePlanFeatureBullet", () => {
   it("translates dashboard and enterprise bullets", () => {
