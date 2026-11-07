@@ -14,7 +14,7 @@ function line(partial: Partial<CustomerVisitCartLine> & Pick<CustomerVisitCartLi
     inventorySkuId: null,
     availableQty: null,
     ...partial,
-  };
+  } as CustomerVisitCartLine;
 }
 
 describe('sumCustomerVisitCart', () => {
