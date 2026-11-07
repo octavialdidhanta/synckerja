@@ -53,8 +53,9 @@ function TabSuspense({
 
 /** Layout route for `/xendit/*` — header + tab chrome with nested tab pages. */
 export function XenditModuleRouteElement() {
+  // "connect" keeps the previous skeleton (a missing variant fell through to it).
   return (
-    <TabSuspense>
+    <TabSuspense variant="connect">
       <IncomeXenditLayoutPage />
     </TabSuspense>
   );

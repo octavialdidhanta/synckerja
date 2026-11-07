@@ -432,6 +432,7 @@ export const CentralizedUserDataProvider = ({ children }: { children: React.Reac
                 { id: organizationId, company_name: prev?.company_name ?? "" },
                 organizationId,
                 prev,
+                true,
               ),
         );
       }

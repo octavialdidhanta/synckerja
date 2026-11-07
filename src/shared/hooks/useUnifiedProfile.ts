@@ -11,6 +11,7 @@ interface Profile {
   created_at: string;
   updated_at: string;
   organization_created?: boolean;
+  profile_photo_url?: string | null;
 }
 
 interface ProfileDetails {

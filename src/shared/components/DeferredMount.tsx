@@ -22,7 +22,7 @@ export function DeferredMount({
       if (!cancelled) setReady(true);
     };
 
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
       const id = window.requestIdleCallback(mount, { timeout: idleTimeoutMs });
       return () => {
         cancelled = true;

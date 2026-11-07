@@ -134,7 +134,7 @@ const ROUTE_CHUNK_PREFETCH: Array<{ prefix: string; prefetch: PrefetchFn }> = [
     prefix: "/kol-management/dashboard",
     prefetch: () =>
       import("@/6-2-1-dashboard/kol-management/pages/KolManagementDashboardPage").then((m) => ({
-        default: m.KolManagementDashboardPage,
+        default: m.default,
       })),
   },
   {

@@ -28,39 +28,48 @@ type PickerDoc = {
   mimeType: string;
 };
 
+type GooglePickerBuilder = {
+  addView: (view: unknown) => GooglePickerBuilder;
+  setOAuthToken: (token: string) => GooglePickerBuilder;
+  setDeveloperKey: (key: string) => GooglePickerBuilder;
+  setAppId: (appId: string) => GooglePickerBuilder;
+  setOrigin: (origin: string) => GooglePickerBuilder;
+  setRelayUrl: (host: string) => GooglePickerBuilder;
+  setCallback: (cb: (data: { action: string; docs?: PickerDoc[] }) => void) => GooglePickerBuilder;
+  setTitle: (title: string) => GooglePickerBuilder;
+  enableFeature: (feature: string) => GooglePickerBuilder;
+  setFileIds: (ids: string[]) => GooglePickerBuilder;
+  build: () => { setVisible: (v: boolean) => void };
+};
+
+type GooglePickerNamespace = {
+  Action: { PICKED: string; CANCEL: string };
+  DocsView: new (viewId?: string) => {
+    setIncludeFolders: (v: boolean) => unknown;
+    setSelectFolderEnabled: (v: boolean) => unknown;
+    setMimeTypes: (v: string) => unknown;
+    setParent: (folderId: string) => unknown;
+  };
+  ViewId: { DOCS: string; FOLDERS: string };
+  PickerBuilder: new () => GooglePickerBuilder;
+  Feature: { MULTISELECT_ENABLED: string; SUPPORT_DRIVES: string };
+  Response: { ACTION: string; DOCUMENTS: string };
+};
+
 declare global {
   interface Window {
     gapi?: {
       load: (name: string, callback: () => void) => void;
     };
-    google?: {
-      picker: {
-        Action: { PICKED: string; CANCEL: string };
-        DocsView: new (viewId?: string) => {
-          setIncludeFolders: (v: boolean) => unknown;
-          setSelectFolderEnabled: (v: boolean) => unknown;
-          setMimeTypes: (v: string) => unknown;
-          setParent: (folderId: string) => unknown;
-        };
-        ViewId: { DOCS: string; FOLDERS: string };
-        PickerBuilder: new () => {
-          addView: (view: unknown) => unknown;
-          setOAuthToken: (token: string) => unknown;
-          setDeveloperKey: (key: string) => unknown;
-          setAppId: (appId: string) => unknown;
-          setOrigin: (origin: string) => unknown;
-          setRelayUrl: (host: string) => unknown;
-          setCallback: (cb: (data: { action: string; docs?: PickerDoc[] }) => void) => unknown;
-          setTitle: (title: string) => unknown;
-          enableFeature: (feature: string) => unknown;
-          setFileIds: (ids: string[]) => unknown;
-          build: () => { setVisible: (v: boolean) => void };
-        };
-        Feature: { MULTISELECT_ENABLED: string; SUPPORT_DRIVES: string };
-        Response: { ACTION: string; DOCUMENTS: string };
-      };
-    };
   }
+}
+
+/**
+ * `window.google` is declared elsewhere (Maps, typed `any`), so read the Picker namespace
+ * through a local cast instead of a second, conflicting global declaration.
+ */
+function googlePickerNs(): GooglePickerNamespace | undefined {
+  return (window as unknown as { google?: { picker?: GooglePickerNamespace } }).google?.picker;
 }
 
 let gapiLoadPromise: Promise<void> | null = null;
@@ -85,7 +94,7 @@ function waitForPickerNamespace(timeoutMs = 8000): Promise<void> {
   return new Promise((resolve, reject) => {
     const started = Date.now();
     const tick = () => {
-      if (window.google?.picker) {
+      if (googlePickerNs()) {
         resolve();
         return;
       }
@@ -111,7 +120,7 @@ function loadGapiPicker(): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       try {
         window.gapi!.load("picker", () => {
-          if (window.google?.picker) {
+          if (googlePickerNs()) {
             resolve();
             return;
           }
@@ -122,7 +131,7 @@ function loadGapiPicker(): Promise<void> {
       }
     });
 
-    if (!window.google?.picker) {
+    if (!googlePickerNs()) {
       await loadScript("https://apis.google.com/js/picker.js");
     }
     await waitForPickerNamespace();
@@ -269,7 +278,7 @@ export async function openGoogleDrivePicker(
   const oauthToken = await fetchPickerAccessToken();
   await loadGapiPicker();
 
-  const pickerNs = window.google?.picker;
+  const pickerNs = googlePickerNs();
   if (!pickerNs) {
     throw new Error("Google Picker is not available");
   }

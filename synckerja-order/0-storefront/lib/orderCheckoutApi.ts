@@ -31,7 +31,7 @@ function guestRpcFields(args: GuestCheckoutFields) {
 function asFeeLines(value: unknown): OrderCheckoutFeeLine[] {
   if (!Array.isArray(value)) return [];
   return value
-    .map((row) => {
+    .map((row): OrderCheckoutFeeLine | null => {
       if (!row || typeof row !== "object") return null;
       const rec = row as Record<string, unknown>;
       const name = String(rec.name ?? "").trim();
