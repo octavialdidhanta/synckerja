@@ -252,8 +252,7 @@ export async function generateCharacterVisuals(input: {
     const sheet = await generateDesignImage(
       buildCharacterSheetPrompt(name, character.description, input.script.look),
       "16:9",
-      // generateDesignImage reads `imageBase64`; passing `base64` dropped the portrait reference.
-      { imageBase64: reference.base64, mimeType: reference.mimeType },
+      reference,
     );
     const sheetExt = sheet.mimeType.includes("jpeg") || sheet.mimeType.includes("jpg") ? "jpg" : "png";
     const sheetPath = characterVisualPath(input.organizationId, input.executionId, character.handle, "sheet", sheetExt);
