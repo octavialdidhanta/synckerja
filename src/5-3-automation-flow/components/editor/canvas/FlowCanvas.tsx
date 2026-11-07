@@ -266,11 +266,12 @@ function FlowCanvasInner({
 
   const buildFlow = () => graphToFlow(graph, callbacksRef, formatActionLabelRef.current);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(() => {
+  // useNodesState/useEdgesState forward to useState, so a lazy initializer works; the types only list arrays.
+  const [nodes, setNodes, onNodesChange] = useNodesState((() => {
     const next = buildFlow();
     return applySelectedFlag(next.nodes, selectedNodeId);
-  });
-  const [edges, setEdges, onEdgesChange] = useEdgesState(() => buildFlow().edges);
+  }) as unknown as Node[]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState((() => buildFlow().edges) as unknown as Edge[]);
   const viewportRef = useRef(graph.viewport);
   const syncingRef = useRef(false);
 

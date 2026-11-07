@@ -13,7 +13,10 @@ export function branchStubEndId(sendNodeId: string, handle: string): string {
   return `end-branch-${sendNodeId}-${safeSlug}`;
 }
 
-export function isBranchTerminalEndNode(node: AutomationFlowGraphNode | undefined): boolean {
+// Only id/type/data are read, so validator nodes without a position are accepted too.
+export function isBranchTerminalEndNode(
+  node: { type: string; data?: unknown } | undefined,
+): boolean {
   if (!node || node.type !== "end") return false;
   return Boolean((node.data as Record<string, unknown>)?.isBranchTerminal);
 }

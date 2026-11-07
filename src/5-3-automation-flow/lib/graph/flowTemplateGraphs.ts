@@ -1,6 +1,6 @@
 import { createDefaultAutomationFlowGraph } from "@/5-3-automation-flow/lib/graph/defaultGraph";
 import { layoutAutomationFlowGraphVertically } from "@/5-3-automation-flow/lib/graph/layoutGraph";
-import type { AutomationFlowGraph } from "@/5-3-automation-flow/types/automationFlowGraph.types";
+import type { AutomationFlowGraph, AutomationFlowNodeData } from "@/5-3-automation-flow/types/automationFlowGraph.types";
 
 export type FlowTemplateId =
   | "scratch"
@@ -34,7 +34,7 @@ export function buildGraphForTemplate(template: FlowTemplateId): AutomationFlowG
         id: "send-1",
         type: "action_send_message",
         position: { x: 0, y: 120 },
-        data: { body: WELCOME_MESSAGE_BODY },
+        data: { body: WELCOME_MESSAGE_BODY } as AutomationFlowNodeData,
       },
       {
         id: "end-1",
