@@ -150,7 +150,7 @@ export function SwipeableDebtPaymentRow({
         await refetchPayments();
         onPaymentDeleted?.();
       } else {
-        toast.error(result.message || t('debt.paymentHistory.deleteFailed', 'Could not remove payment.'));
+        toast.error(('message' in result ? result.message : '') || t('debt.paymentHistory.deleteFailed', 'Could not remove payment.'));
       }
     } finally {
       setIsDeleting(false);

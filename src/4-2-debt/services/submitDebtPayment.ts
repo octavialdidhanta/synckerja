@@ -264,7 +264,7 @@ export interface SubmitDebtPaymentParams {
   updateBalance: (
     bankAccountId: string,
     amount: number,
-    transactionType: 'expense',
+    transactionType: 'expense' | 'manual_adjustment',
     transactionId: string | undefined,
     description: string | undefined
   ) => Promise<void>;
@@ -431,7 +431,7 @@ export async function submitDebtPayment(params: SubmitDebtPaymentParams): Promis
     paymentAmount,
   });
   if (!sync.ok) {
-    console.error('syncDebtRowAfterPayment failed after payment recorded:', sync.message);
+    console.error('syncDebtRowAfterPayment failed after payment recorded:', 'message' in sync ? sync.message : '');
     toast.error(messages.paymentInsertFailed);
     return false;
   }

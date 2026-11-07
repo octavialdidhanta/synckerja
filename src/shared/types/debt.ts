@@ -48,6 +48,8 @@ export interface CreateDebtData {
 
 export interface UpdateDebtData extends Partial<CreateDebtData> {
   id: string;
+  /** DB column `debts.remaining_debt`; recomputed when the limit changes. */
+  remaining_debt?: number;
 }
 
 export const DEBT_TYPES = [

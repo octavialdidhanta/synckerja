@@ -161,4 +161,9 @@ export type XenditSettingsResponse = {
   kyc: OrganizationKycDocument | null;
   isInternalOrg: boolean;
   platformConfig: { flat_fee_amount: number; split_rule_id: string | null } | null;
+  /** Fields below are also returned by xendit-api `settings`. */
+  withdrawalPlatformFee?: number;
+  ilumaConfigured?: boolean;
+  platformSplitReady?: boolean;
+  vaBanks?: Array<{ code: string; label: string }>;
 };
