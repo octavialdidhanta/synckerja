@@ -58,11 +58,11 @@ import { useWithdrawalFromBalanceOptions } from '@/shared/hooks/finance/useWithd
 async function handleViewInvoice(filePath: string | null | undefined) {
   const result = await openSupabaseFinanceReceiptOrInvoice(filePath, 3600);
   if (result.ok) return;
-  if (result.reason === 'missing_path') {
+  if ('reason' in result && result.reason === 'missing_path') {
     toast.error('Invoice file path not found');
     return;
   }
-  console.error('Error creating signed URL:', result.error);
+  console.error('Error creating signed URL:', 'error' in result ? result.error : undefined);
   toast.error('Failed to open invoice. Please try again.');
 }
 
@@ -211,7 +211,6 @@ export function ExpenseDashboard() {
   const {
     data: departments = [],
     isLoading: departmentsLoading,
-    isPending: departmentsPending,
     refetch: refetchDepartments,
   } = useDepartmentsCrud(organizationId);
   const {
@@ -246,7 +245,6 @@ export function ExpenseDashboard() {
       expenseTypesLoading ||
       expenseTypesPending ||
       departmentsLoading ||
-      departmentsPending ||
       isPendingPurchaseRequests ||
       isLoadingPurchaseRequests ||
       withdrawalOptionsLoading ||
@@ -822,7 +820,7 @@ export function ExpenseDashboard() {
         request_title: pr.request_title,
         requester_name: pr.requester_name,
         ...withdrawalJoinsFromPurchaseRequest(pr, debtsForExpense, bankAccounts),
-      } as Expense & { request_title?: string; requester_name?: string });
+      } as unknown as (typeof combined)[number]); // request_title/requester_name may be undefined for these rows
     });
     
     // Sort by date (newest first)
@@ -975,7 +973,7 @@ export function ExpenseDashboard() {
         request_title: pr.request_title,
         requester_name: pr.requester_name,
         ...withdrawalJoinsFromPurchaseRequest(pr, debtsForExpense, bankAccounts),
-      } as Expense & { request_title?: string; requester_name?: string });
+      } as unknown as (typeof combined)[number]); // request_title/requester_name may be undefined for these rows
     });
     const sorted = combined.sort((a, b) => {
       const dateA = new Date(a.create_date).getTime();

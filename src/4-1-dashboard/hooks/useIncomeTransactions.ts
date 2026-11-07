@@ -293,7 +293,7 @@ export const useIncomeTransactions = () => {
       const typeIdForInsert = uuidOrNull(transactionData.income_type_id);
       const categoryIdResolved = categoryIdForInsert ?? uuidOrNull(transactionData.category_id);
       const statusForInsert =
-        transactionData.status === 'cancelled'
+        (transactionData as { status?: string }).status === 'cancelled'
           ? 'cancelled'
           : 'pending';
 
@@ -495,7 +495,7 @@ export const useIncomeTransactions = () => {
         newBankAccountId = oldTransaction?.bank_account_id ?? null;
       }
 
-      const newAmount = updates.amount != null && updates.amount !== ''
+      const newAmount = updates.amount != null && (updates.amount as unknown) !== ''
         ? parseFloat(updates.amount.toString())
         : parseFloat((oldTransaction?.amount ?? 0).toString());
       const oldBankId = oldTransaction?.bank_account_id ?? null;

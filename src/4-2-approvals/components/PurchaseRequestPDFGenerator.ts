@@ -47,11 +47,9 @@ export class PurchaseRequestPDFGenerator {
       this.doc.setTextColor(200, 200, 200);
       this.doc.setFontSize(60);
       this.doc.setFont('helvetica', 'bold');
-      this.doc.text('DOKUMEN RESMI', this.pageWidth / 2, this.pageHeight / 2, {
-        align: 'center',
-        angle: 45,
-        opacity: 0.1
-      });
+      // jsPDF's TextOptionsLight has no `opacity`; it is passed through as before.
+      const watermarkOptions = { align: 'center' as const, angle: 45, opacity: 0.1 };
+      this.doc.text('DOKUMEN RESMI', this.pageWidth / 2, this.pageHeight / 2, watermarkOptions);
       this.doc.setTextColor(0, 0, 0);
     }
   }

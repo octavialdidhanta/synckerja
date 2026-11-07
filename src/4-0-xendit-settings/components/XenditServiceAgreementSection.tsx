@@ -10,7 +10,7 @@ import {
 } from "@/xendit/lib/xenditKycTemplate";
 
 type XenditServiceAgreementSectionProps = {
-  idPrefix: "kyc" | "kyc-edit";
+  idPrefix: string;
   legalName?: string;
   existingUploaded?: boolean;
   file: File | null;
@@ -36,7 +36,7 @@ export function XenditServiceAgreementSection({
         <AlertTitle className="text-sm font-medium text-gray-900">
           {t("xendit.kyc.serviceAgreementGuideTitle", "Cara mengunggah Service Agreement")}
         </AlertTitle>
-        <AlertDescription asChild>
+        <AlertDescription>
           <div className="mt-2 space-y-2 text-xs text-gray-700">
             <ol className="list-decimal space-y-1.5 pl-4">
               <li>{t("xendit.kyc.serviceAgreementStep1", "Unduh template Service Agreement")}</li>
