@@ -1,5 +1,3 @@
-import type { Dispatch, SetStateAction } from 'react';
-
 /** Add Employee wizard steps (see hooks/useStepNavigation). */
 export type TabStep = 'personal' | 'employment' | 'invite';
 
@@ -13,7 +11,8 @@ export interface StepNavigation {
   activeTab: TabStep;
   handleNextStep: () => void;
   handlePrevStep: () => void;
-  setActiveTab: Dispatch<SetStateAction<TabStep>>;
+  /** Accepts the raw tab value from the tab UI (string). */
+  setActiveTab: (tab: string) => void;
   canProceedNext: boolean;
   canProceedPrev: boolean;
 }

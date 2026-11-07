@@ -52,7 +52,7 @@ export const useStepNavigation = (
     activeTab,
     handleNextStep,
     handlePrevStep,
-    setActiveTab,
+    setActiveTab: (tab: string) => setActiveTab(tab as TabStep),
     canProceedNext: canProceedNext(),
     canProceedPrev: canProceedPrev()
   };
