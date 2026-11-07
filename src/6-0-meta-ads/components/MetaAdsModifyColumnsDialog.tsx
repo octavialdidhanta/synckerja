@@ -363,8 +363,9 @@ export function MetaAdsModifyColumnsDialog({
       name: trimmed,
       metric_keys: draftKeys,
     });
-    if (result?.id) {
-      setActiveColumnSetId(result.id);
+    const saved = result as { id?: string } | void;
+    if (saved && saved.id) {
+      setActiveColumnSetId(saved.id);
     }
     setIsEditingColumnSet(false);
   };
