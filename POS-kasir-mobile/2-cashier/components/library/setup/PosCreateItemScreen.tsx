@@ -142,11 +142,12 @@ export function PosCreateItemScreen({ open, outletId, onClose, onSaved }: Props)
       form,
     });
     if (!built.ok) {
+      const buildError = "error" in built ? built.error : undefined;
       toast({
         title:
-          built.error === "name"
+          buildError === "name"
             ? t(POS_CASHIER_I18N.setupNameRequired, "Enter an item name.")
-            : built.error === "price"
+            : buildError === "price"
               ? t(POS_CASHIER_I18N.setupPriceRequired, "Enter a price greater than 0.")
               : t(POS_CASHIER_I18N.setupOutletRequired, "Select an outlet first."),
         variant: "destructive",

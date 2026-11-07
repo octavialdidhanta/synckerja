@@ -19,7 +19,7 @@ const totals = {
   tax: 0,
   service: 0,
   grandTotal: 1000,
-} as CatalogCheckoutTotals;
+} as unknown as CatalogCheckoutTotals;
 
 const line = {
   catalogId: "p1",
