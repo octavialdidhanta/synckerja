@@ -272,9 +272,9 @@ export const DebtPaymentModal = ({
     void handlePickReceiptFromGallery();
   };
 
-  const handleReceiptCameraCapture = (imageData: string) => {
+  const handleReceiptCameraCapture = (capture: string | File) => {
     try {
-      const file = dataUrlToImageFile(imageData, `receipt_${Date.now()}.jpg`);
+      const file = typeof capture === 'string' ? dataUrlToImageFile(capture, `receipt_${Date.now()}.jpg`) : capture;
       addReceiptFilesSafe(file);
       toast.success(t('expenses.receiptPhotoTaken', 'Receipt photo taken'));
       clearReceiptProtectionAfterDelay();
@@ -293,7 +293,8 @@ export const DebtPaymentModal = ({
 
   const handlePickReceiptFromGallery = async () => {
     try {
-      const files = await pickReceiptImageFiles({ maxItems: 20, mediaType: 'imageOnly' });
+      // The web build resolves this to a no-arg stub; passing options was a type error only.
+      const files = await pickReceiptImageFiles();
       if (!files.length) return;
       for (const file of files) {
         addReceiptFilesSafe(file);

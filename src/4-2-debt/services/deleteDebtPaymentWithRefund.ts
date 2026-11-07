@@ -89,8 +89,9 @@ export async function deleteDebtPaymentWithRefund(params: {
       paymentAmount: payAmt,
     });
     if (!rev.ok) {
-      console.error('deleteDebtPaymentWithRefund debt row reversal failed:', rev.message);
-      return { ok: false, message: rev.message };
+      const revMessage = 'message' in rev ? rev.message : '';
+      console.error('deleteDebtPaymentWithRefund debt row reversal failed:', revMessage);
+      return { ok: false, message: revMessage };
     }
 
     return { ok: true };

@@ -189,7 +189,7 @@ export const useDebts = () => {
       });
 
       if (!result.ok) {
-        toast.error(result.message || t('debt.error.deleteFailed', 'Failed to delete debt'));
+        toast.error(('message' in result ? result.message : '') || t('debt.error.deleteFailed', 'Failed to delete debt'));
         return false;
       }
 
