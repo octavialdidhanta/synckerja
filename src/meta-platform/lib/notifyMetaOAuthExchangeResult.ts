@@ -1,4 +1,4 @@
-import type { TFunction } from 'i18next';
+import type { MetaNotifyTranslate } from './notifyMetaSendError';
 import { toast } from 'sonner';
 
 export type MetaOAuthWarningCode = 'no_pages_found' | 'webhook_partial';
@@ -30,10 +30,11 @@ function isWebhookPartial(payload: MetaOAuthExchangeNotifyPayload): boolean {
 }
 
 export function notifyMetaOAuthExchangeWarnings(
-  t: TFunction,
+  translate: MetaNotifyTranslate,
   payload: MetaOAuthExchangeNotifyPayload,
   options: NotifyMetaOAuthOptions = {},
 ): void {
+  const t = translate as (key: string, fallback?: string) => string;
   const notifyWebhookPartial = options.notifyWebhookPartial !== false;
 
   if (payload.warning_code === 'no_pages_found') {

@@ -1,6 +1,9 @@
 import { toast } from 'sonner';
 import type { TFunction } from 'i18next';
 
+/** Accepts i18next `t` or the app `useAppTranslation().t` (key, fallback). */
+export type MetaNotifyTranslate = TFunction | ((key: string, fallback?: string) => string);
+
 type MetaSendErrorPayload = {
   error?: string;
   code?: string;
@@ -8,10 +11,11 @@ type MetaSendErrorPayload = {
 };
 
 export function notifyMetaSendError(
-  t: TFunction,
+  translate: MetaNotifyTranslate,
   json: MetaSendErrorPayload,
   connectPath: '/omnichannel/integrations/instagram' | '/omnichannel/integrations/facebook',
 ): void {
+  const t = translate as (key: string, fallback?: string) => string;
   const msg = typeof json.error === 'string' ? json.error : t('metaPlatform.sendFailed', 'Failed to send message.');
   if (json.needs_reconnect || json.code === 'META_TOKEN_INVALID') {
     toast.error(msg, {

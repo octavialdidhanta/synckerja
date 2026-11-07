@@ -288,7 +288,8 @@ export function ConversationList({
     }
     if (conv) {
       if (conv.source === 'whatsapp') {
-        supabase
+        // Builder `.then` returns PromiseLike in the types; wrap so `.catch` type-checks.
+        Promise.resolve(supabase
           .from('whatsapp_conversations')
           .update({ last_opened_at: new Date().toISOString() })
           .eq('id', conv.id)
@@ -296,7 +297,7 @@ export function ConversationList({
             if (organizationId) {
               queryClient.invalidateQueries({ queryKey: ['leads', organizationId] });
             }
-          })
+          }))
           .catch((err) => {
             devLog.warn('Failed to update last_opened_at', err);
           });
@@ -390,7 +391,8 @@ export function ConversationList({
         });
       }
       if (conv.source === 'whatsapp') {
-        supabase
+        // Builder `.then` returns PromiseLike in the types; wrap so `.catch` type-checks.
+        Promise.resolve(supabase
           .from('whatsapp_conversations')
           .update({ last_opened_at: new Date().toISOString() })
           .eq('id', conv.id)
@@ -398,7 +400,7 @@ export function ConversationList({
             if (organizationId) {
               queryClient.invalidateQueries({ queryKey: ['leads', organizationId] });
             }
-          })
+          }))
           .catch((err) => {
             devLog.warn('Failed to update last_opened_at', err);
           });

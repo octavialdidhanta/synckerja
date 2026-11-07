@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
-import DOMPurify from 'dompurify';
+import DOMPurify, { type Config as DOMPurifyConfig } from 'dompurify';
 import { formatEmailBodyForDisplay } from '../../utils/formatEmailBodyForDisplay';
 
-const EMAIL_PURIFY_CONFIG: DOMPurify.Config = {
+const EMAIL_PURIFY_CONFIG: DOMPurifyConfig = {
   WHOLE_DOCUMENT: true,
   ADD_ATTR: [
     'target', 'rel', 'class', 'src', 'alt', 'width', 'height', 'style', 'align', 'valign',
@@ -26,7 +26,8 @@ function extractBodyInnerHtml(html: string): string {
 
 function sanitizeEmailHtml(body: string): string {
   const formatted = formatEmailBodyForDisplay(body);
-  const sanitized = DOMPurify.sanitize(formatted, EMAIL_PURIFY_CONFIG);
+  // Config does not request TrustedHTML, so sanitize returns a plain string.
+  const sanitized = DOMPurify.sanitize(formatted, EMAIL_PURIFY_CONFIG) as unknown as string;
   if (/<(?:html|body)\b/i.test(sanitized)) {
     return extractBodyInnerHtml(sanitized);
   }

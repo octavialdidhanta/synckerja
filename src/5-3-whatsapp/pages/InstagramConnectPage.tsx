@@ -389,7 +389,7 @@ export function InstagramConnectPage() {
       setAvailableAccounts((prev) => prev.filter((a) => a.id !== account.id));
       await refetchAccounts();
       try {
-        const sub = await subscribeInstagramWebhooks();
+        const sub = await subscribeInstagramWebhooks(undefined);
         if (sub.success !== false && (sub.subscribed_count ?? 0) > 0) {
           toast.success(t('instagramConnect.oauthSuccessWithWebhooks', 'Akun Instagram terhubung. Webhook DM diaktifkan.'));
         } else {
