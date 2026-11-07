@@ -63,18 +63,18 @@ export function CrmConversationSummaryPanel({ leads }: CrmConversationSummaryPan
     () =>
       leads.filter(
         (l) =>
-          leadWithinSummaryPeriod(l as Record<string, unknown>, period) &&
-          leadMatchesSummaryChannel(l as Record<string, unknown>, channel),
+          leadWithinSummaryPeriod(l as unknown as Record<string, unknown>, period) &&
+          leadMatchesSummaryChannel(l as unknown as Record<string, unknown>, channel),
       ),
     [leads, period, channel],
   );
 
   const unassigned = useMemo(
-    () => filtered.filter((l) => !hasAssignee(l as Record<string, unknown>)).length,
+    () => filtered.filter((l) => !hasAssignee(l as unknown as Record<string, unknown>)).length,
     [filtered],
   );
   const assigned = useMemo(
-    () => filtered.filter((l) => hasAssignee(l as Record<string, unknown>)).length,
+    () => filtered.filter((l) => hasAssignee(l as unknown as Record<string, unknown>)).length,
     [filtered],
   );
   const resolved = useMemo(() => filtered.filter((l) => isResolvedConversation(l)).length, [filtered]);

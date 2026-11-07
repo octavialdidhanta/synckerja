@@ -98,7 +98,7 @@ export function MetaFormFlowEditorShell({ flow, initialFlowJson }: MetaFormFlowE
 
   const jsonError = useMemo(() => {
     const result = validateFlowJsonSyntax(jsonText);
-    return result.ok ? null : result.message;
+    return "message" in result ? result.message : null;
   }, [jsonText]);
 
   const flowStatus = mapStatus(flow.status);

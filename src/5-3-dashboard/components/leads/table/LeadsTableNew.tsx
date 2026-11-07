@@ -47,7 +47,10 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import type { LatestCustomerSurvey } from "@/features/customer-survey/hooks/useCustomerSurveyForLeads";
-import { SURVEY_RATING_FILTER_OPTIONS } from "@/features/customer-survey/core/surveyRatingFilter";
+import {
+  SURVEY_RATING_FILTER_OPTIONS,
+  type SurveyRatingFilterValue as SurveyRatingColumnFilterValue,
+} from "@/features/customer-survey/core/surveyRatingFilter";
 import {
   LeadSurveyCommentCell,
   LeadSurveyHistoryCell,
@@ -106,7 +109,7 @@ type StatusColumnFilterConfig = {
   options: Array<{ id: string; name: string; label: string }>;
 };
 
-export type { SurveyRatingFilterValue as SurveyRatingColumnFilterValue } from "@/features/customer-survey/core/surveyRatingFilter";
+export type { SurveyRatingColumnFilterValue };
 
 export type ResolveColumnFilterValue = "all" | "true" | "false";
 

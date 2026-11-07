@@ -61,6 +61,7 @@ function normalizeFormDataRecord(
 }
 
 interface ClientProfile {
+  id?: string;
   submissionId?: string;
   lead_id: string;
   name: string;

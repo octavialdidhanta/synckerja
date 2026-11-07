@@ -45,6 +45,16 @@ export interface Lead {
   createdAt?: string;
   updatedAt?: string;
   riwayatFollowUp?: FollowUpHistory[];
+  // Legacy CRM form / table fields (Indonesian reference port).
+  tanggal?: string;
+  sumberLead?: string;
+  namaAdmin?: string;
+  statusFollowUp?: string;
+  keterangan?: string;
+  kesimpulanKonsultan?: string;
+  statusRespon?: string;
+  tags?: string[];
+  progress?: unknown[];
 }
 
 export interface CRMFilters {
@@ -54,4 +64,12 @@ export interface CRMFilters {
   source?: string;
   dateFrom?: string;
   dateTo?: string;
+  // Legacy CRMFilters component (multi-select + search).
+  sumberLead?: string[];
+  diagnosa?: string[];
+  statusFollowUp?: string[];
+  konsultan?: string[];
+  kategoriPasien?: string[];
+  dateRange?: { from: Date | null; to: Date | null };
+  searchQuery?: string;
 }
