@@ -397,7 +397,18 @@ const SocialMediaContent = () => {
   }, [filteredContentPlans, briefDialog.id]);
   const canvaRunsQuery = useCanvaCarouselRuns(canvaPlanIds);
   const canvaRunByPlanId = useMemo(() => {
-    const map: Record<string, { social_media_plan_id: string; status: string; design_url: string | null; error: string | null }> = {};
+    const map: Record<
+      string,
+      {
+        social_media_plan_id: string;
+        status: string;
+        design_url: string | null;
+        error: string | null;
+        refresh_requested?: boolean | null;
+        images_ready?: boolean | null;
+        revision_requested?: boolean | null;
+      }
+    > = {};
     for (const row of canvaRunsQuery.data ?? []) map[row.social_media_plan_id] = row;
     return map;
   }, [canvaRunsQuery.data]);

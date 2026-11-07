@@ -72,7 +72,13 @@ const TitleDialog: React.FC<TitleDialogProps> = ({
         .single();
 
       if (error) throw error;
-      return data;
+      // Many-to-one joins return single objects (typed as arrays without generated DB types).
+      return data as unknown as {
+        post_date: string | null;
+        approved: boolean | null;
+        service: { name: string | null } | null;
+        content_type: { name: string | null } | null;
+      } | null;
     },
     enabled: !!socialMediaPlanId && isOpen,
     staleTime: 5 * 60 * 1000, // 5 minutes cache
@@ -220,7 +226,7 @@ const TitleDialog: React.FC<TitleDialogProps> = ({
       if (existingStep.task_steps_assigned && existingStep.task_steps_assigned.length > 0) {
         const assignment = existingStep.task_steps_assigned[0];
         if (assignment.employee) {
-          employeeName = assignment.employee.full_name;
+          employeeName = (assignment.employee as unknown as { full_name?: string | null }).full_name ?? null;
         }
       }
 
@@ -414,7 +420,8 @@ const TitleDialog: React.FC<TitleDialogProps> = ({
           .eq('task_step_id', finalCheck.id)
           .maybeSingle();
 
-        const employeeName = assignmentData?.employee?.full_name || 'employee lain';
+        const employeeName =
+          (assignmentData?.employee as unknown as { full_name?: string | null } | null)?.full_name || 'employee lain';
         toast.error(`Content title ini sudah ditambahkan sebagai daily task step oleh ${employeeName}`);
         return;
       }

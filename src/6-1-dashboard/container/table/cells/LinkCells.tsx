@@ -5,6 +5,7 @@ import { ExternalLink } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { formatTimeWibFromUtc } from '@/6-1-scheduled-posts/lib/resolveScheduledAtUtc';
 import { useTranslation } from 'react-i18next';
+import type { SocialMediaLink } from '@/shared/types/social-media-links';
 
 interface GoogleDriveLinkCellProps {
   googleDriveLink: string | null;

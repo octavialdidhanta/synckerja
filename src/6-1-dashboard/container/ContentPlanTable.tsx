@@ -13,6 +13,7 @@ import type { ApprovalAccess } from '../hook/useBatchApprovalAccess';
 import type { ScheduledPost } from '@/6-1-scheduled-posts/types/scheduled-post';
 import { signSubServicePhotos } from '../lib/subServicePhoto';
 import type { CanvaCarouselRun } from '@/canva/CanvaCarouselNote';
+import type { SocialMediaLink } from '@/shared/types/social-media-links';
 
 interface ContentPlanTableProps {
   contentPlans: ContentPlan[];

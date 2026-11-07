@@ -27,7 +27,7 @@ const ReminderTab: React.FC<ReminderTabProps> = ({ selectedMonth, serviceFilter 
   const { t, language } = useAppTranslation();
   const dateLocale = language === 'id' ? id : enUS;
   // const { data: nationalHolidays = [], isLoading } = useOptimizedNationalHolidays(); // Commented out - hook not available
-  const nationalHolidays: HolidayEvent[] = [];
+  const nationalHolidays: Array<HolidayEvent & { country_code?: string | null }> = [];
   const isLoading = false;
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth();

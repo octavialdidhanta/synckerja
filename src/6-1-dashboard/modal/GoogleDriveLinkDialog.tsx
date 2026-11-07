@@ -968,7 +968,7 @@ const GoogleDriveLinkDialog: React.FC<GoogleDriveLinkDialogProps> = ({
                         onClick={async () => {
                           const r = await startGoogleDriveOAuthAsync();
                           if (!r.ok) {
-                            if (r.reason === 'missing_client_id') {
+                            if ('reason' in r && r.reason === 'missing_client_id') {
                               toast.error(t('googleDrivePreview.connectGoogleMissingClientId'));
                             } else {
                               toast.error(t('googleDrivePreview.connectGooglePopupBlocked'));

@@ -1,6 +1,6 @@
 
 import React, { Component, ReactNode } from 'react';
-import { ERROR_BOUNDARIES } from '@/utils/optimizedConstants';
+import type { ERROR_BOUNDARIES } from '@/6-1-dashboard/utils/optimizedConstants';
 
 interface Props {
   children: ReactNode;

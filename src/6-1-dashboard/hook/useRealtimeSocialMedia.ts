@@ -240,7 +240,7 @@ export const useRealtimeSocialMedia = () => {
           
           // Get social_media_plan_id from the changed assignment
           if (payload.new || payload.old) {
-            const assignmentData = payload.new || payload.old;
+            const assignmentData = (payload.new || payload.old) as { task_step_id?: string };
             try {
               // IMPORTANT: Only sync PIC Production from Content steps (is_concept_step = false), not Concept steps
               const { data: stepData } = await supabase

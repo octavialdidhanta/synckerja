@@ -247,7 +247,10 @@ const SocialMediaLinksDialog: React.FC<SocialMediaLinksDialogProps> = ({
         .eq('id', socialMediaPlanId)
         .single();
       if (error) throw error;
-      return data;
+      // Many-to-one join returns one object (typed as array without generated DB types).
+      return data as unknown as Omit<typeof data, 'content_type'> & {
+        content_type: { id: string; name: string | null } | null;
+      };
     },
     enabled: !!socialMediaPlanId && isOpen,
     staleTime: 30 * 1000, // 30 seconds
