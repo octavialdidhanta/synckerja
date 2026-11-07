@@ -12,6 +12,9 @@ import {
   runGenerateAdmissionChecks,
 } from "@/thinking-lab/big-thought/passChecks";
 
+/** vi.fn() mocks declared without params record calls as `[]`; read them with the real arg types. */
+const callsOf = <T extends unknown[]>(fn: { mock: { calls: unknown[] } }) => fn.mock.calls as unknown as T[];
+
 describe("Big Thought pass checks", () => {
   it("treats ordinary new material as allowed on the premise gate", () => {
     const prompt = buildBigThoughtPassPrompt({
@@ -122,7 +125,7 @@ describe("Big Thought pass checks", () => {
       ask,
     });
     expect(result.passed).toBe(true);
-    expect(ask.mock.calls.length).toBe(5);
+    expect(callsOf<[string]>(ask).length).toBe(5);
     expect(result.items.find((item) => item.id === "resolved")?.state).toBe("pass");
   });
 
@@ -149,8 +152,8 @@ describe("Big Thought pass checks", () => {
       ],
       ask,
     });
-    expect(String(ask.mock.calls[0]?.[0])).toContain("Earlier premise failures for this Big Thought");
-    expect(String(ask.mock.calls[0]?.[0])).toContain("Every batch is always 100% free of smell.");
+    expect(String(callsOf<[string]>(ask)[0]?.[0])).toContain("Earlier premise failures for this Big Thought");
+    expect(String(callsOf<[string]>(ask)[0]?.[0])).toContain("Every batch is always 100% free of smell.");
   });
 
   it("keeps the two generate passes and audits the remaining checks", async () => {
@@ -168,8 +171,8 @@ describe("Big Thought pass checks", () => {
       },
     });
     expect(ask).toHaveBeenCalledTimes(4);
-    expect(String(ask.mock.calls[0]?.[0])).toContain("its job is a premise");
-    expect(String(ask.mock.calls[3]?.[0])).toContain("Big Thoughts that already passed:");
+    expect(String(callsOf<[string]>(ask)[0]?.[0])).toContain("its job is a premise");
+    expect(String(callsOf<[string]>(ask)[3]?.[0])).toContain("Big Thoughts that already passed:");
     expect(steps[0]).toBe("checking:role");
     expect(steps).not.toContain("checking:resolved");
     expect(steps).not.toContain("checking:relation");
@@ -188,7 +191,7 @@ describe("Big Thought pass checks", () => {
       ask,
     });
     expect(ask).toHaveBeenCalledTimes(3);
-    expect(String(ask.mock.calls.map((call) => call[0])).includes("Big Thoughts that already passed:")).toBe(false);
+    expect(String(callsOf<[string]>(ask).map((call) => call[0])).includes("Big Thoughts that already passed:")).toBe(false);
     expect(result.items.find((item) => item.id === "duplicate")?.state).toBe("pass");
   });
 

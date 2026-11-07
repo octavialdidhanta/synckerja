@@ -342,7 +342,7 @@ export async function replaceLabIdea(input: {
   const validation =
     input.validation === undefined
       ? undefined
-      : await validationWithHistory({ ...input, statement: input.statement });
+      : await validationWithHistory({ ...input, validation: input.validation as IdeaValidation, statement: input.statement });
   const { error } = await supabase
     .from("thinking_lab_ideas")
     .update({

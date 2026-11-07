@@ -8,7 +8,7 @@ vi.mock("@/shared/i18n/useAppTranslation", () => ({
       const text = fallback ?? key;
       if (!variables) return text;
       return Object.entries(variables).reduce(
-        (acc, [name, value]) => acc.replaceAll(`{{${name}}}`, String(value)),
+        (acc, [name, value]) => acc.split(`{{${name}}}`).join(String(value)),
         text,
       );
     },

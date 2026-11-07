@@ -6911,9 +6911,13 @@ export function ThinkingLabPage() {
     }, "skip-gap");
 
   const ensureAnsweredQuestion = async (thought: NonNullable<typeof focusedThought>) => {
+    // Stored on the Big Thought row; not part of this view model's type.
+    const semantic = (thought as {
+      canonicalSemantic?: { answeredQuestionVersion?: unknown; answeredQuestion?: string | null } | null;
+    }).canonicalSemantic;
     const stored =
-      thought.canonicalSemantic?.answeredQuestionVersion === ANSWERED_QUESTION_VERSION
-        ? thought.canonicalSemantic.answeredQuestion?.trim() ?? ""
+      semantic?.answeredQuestionVersion === ANSWERED_QUESTION_VERSION
+        ? semantic.answeredQuestion?.trim() ?? ""
         : "";
     if (stored) return stored;
     const question = await resolveAnsweredQuestion({

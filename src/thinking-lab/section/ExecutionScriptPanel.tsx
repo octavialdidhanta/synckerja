@@ -733,7 +733,9 @@ export function ExecutionScriptPanel({
             : [];
   const visibleChecks =
     script?.medium === "image"
-      ? ensureImageLegacySwitches(shownChecks.filter((check) => !retiredImagePassCheck(check.id)))
+      ? ensureImageLegacySwitches(
+          shownChecks.filter((check) => !retiredImagePassCheck(check.id)) as Parameters<typeof ensureImageLegacySwitches>[0],
+        )
       : shownChecks;
   const failedVisible = visibleChecks.some((check) => check.enabled !== false && check.state === "fail");
   const scriptWarning = failing.size > 0;

@@ -1473,7 +1473,7 @@ export function rejectAsDuplicate(validation: IdeaValidation, duplicate: Duplica
   );
 }
 
-function duplicateFrom(raw: unknown, peers: readonly Array<{ id: string; code: string; statement: string }>): DuplicateConceptRecord | null {
+function duplicateFrom(raw: unknown, peers: ReadonlyArray<{ id: string; code: string; statement: string }>): DuplicateConceptRecord | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as {
     code?: unknown;

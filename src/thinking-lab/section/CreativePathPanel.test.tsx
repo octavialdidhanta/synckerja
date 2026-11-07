@@ -7,7 +7,7 @@ vi.mock("@/shared/i18n/useAppTranslation", () => ({
     t: (key: string, fallback?: string, variables?: Record<string, string | number>) => {
       const template = fallback ?? key;
       if (!variables) return template;
-      return Object.entries(variables).reduce((text, [name, value]) => text.replaceAll(`{{${name}}}`, String(value)), template);
+      return Object.entries(variables).reduce((text, [name, value]) => text.split(`{{${name}}}`).join(String(value)), template);
     },
   }),
 }));

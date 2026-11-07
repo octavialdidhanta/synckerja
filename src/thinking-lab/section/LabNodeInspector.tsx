@@ -1606,8 +1606,8 @@ export function LabNodeInspector({
             !(angleStage === "fix" && onFixAngle)) ? (
             <div className="mt-3 flex flex-wrap items-center gap-3">
               {angleStage &&
-              angleStage !== "lock" &&
-              angleStage !== "audit" &&
+              (angleStage as string) !== "lock" &&
+              (angleStage as string) !== "audit" &&
               onAngleStage &&
               pendingAction !== "generate-angle" &&
               !(angleStage === "generate" && manualRunning) &&
