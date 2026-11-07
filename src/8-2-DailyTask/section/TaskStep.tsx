@@ -186,7 +186,7 @@ const TaskStepWithSortable = forwardRef<TaskStepHandle, TaskStepProps>(function 
       {...props}
       sortableNodeRef={setNodeRef}
       sortableNodeStyle={style}
-      sortableHandleAttributes={attributes}
+      sortableHandleAttributes={attributes as unknown as Record<string, unknown>}
       sortableHandleListeners={listeners}
       sortableIsDragging={isDragging}
     />

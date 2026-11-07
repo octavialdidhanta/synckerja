@@ -146,9 +146,10 @@ export function TaskStepDescriptionEditor({
           {
             key: 'Backspace',
             shiftKey: false,
-            altKey: event.altKey,
-            ctrlKey: event.ctrlKey,
-            metaKey: event.metaKey,
+            // InputEvent has no modifier keys; these read as undefined, same as before.
+            altKey: (event as InputEvent & Partial<Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'metaKey'>>).altKey,
+            ctrlKey: (event as InputEvent & Partial<Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'metaKey'>>).ctrlKey,
+            metaKey: (event as InputEvent & Partial<Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'metaKey'>>).metaKey,
             preventDefault() {},
           },
           el,
