@@ -1320,7 +1320,7 @@ export const EditableBriefTable: React.FC<EditableBriefTableProps> = ({
     const ranges = getSequenceRowRanges(sequencesRef.current);
     const range = ranges.find((item) => item.sequence.id === sequenceId);
     if (!range) return;
-    const insertAfter = range.rowCount === 0 ? range.startRow - 1 : range.endRow - 1;
+    const insertAfter = range.sequence.rowCount === 0 ? range.startRow - 1 : range.endRow - 1;
     await handleAddRow(insertAfter, sequenceId);
   };
 

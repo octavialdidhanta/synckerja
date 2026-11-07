@@ -68,7 +68,7 @@ export function getContentPlansQueryOptions(organizationId: string | undefined) 
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: false, // Selaras halaman tidak reload: tidak refetch massal saat remount/tab
-    refetchInterval: false,
+    refetchInterval: false as const,
     retry: 1,
     retryDelay: (attemptIndex: number) => Math.min(500 * 2 ** attemptIndex, 5000),
   };
@@ -126,7 +126,7 @@ export function getMasterDataQueryOptions(organizationId: string | undefined) {
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
-    refetchInterval: false,
+    refetchInterval: false as const,
     retry: 2,
     retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
   };
@@ -157,7 +157,7 @@ export function getAllSocialMediaLinksQueryOptions(organizationId: string | unde
     enabled: !!organizationId,
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
-    refetchInterval: false,
+    refetchInterval: false as const,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     retry: 1,
@@ -196,7 +196,7 @@ export function getDailyTasksRemindersQueryOptions(organizationId: string | unde
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
-    refetchInterval: false,
+    refetchInterval: false as const,
   };
 }
 
@@ -207,7 +207,6 @@ export function getDigitalMarketingEmployeesQueryOptions(organizationId: string 
       if (!organizationId) return [];
       type EmployeesResult = { data: RawEmployeeRow[] | null; error: Error | null };
       // Supabase relationship select causes TS "excessively deep" inference; we type the result explicitly
-      // @ts-expect-error - complex select inference
       const result = await (supabase
         .from('employees')
         .select(

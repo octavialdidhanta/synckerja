@@ -52,7 +52,7 @@ export const CreateBriefTableDialog: React.FC<CreateBriefTableDialogProps> = ({
 }) => {
   const { t } = useAppTranslation();
   const isMobile = useIsMobile();
-  const [columnCount, setColumnCount] = useState(DEFAULT_BRIEF_STORYBOARD_COLUMN_COUNT);
+  const [columnCount, setColumnCount] = useState<number>(DEFAULT_BRIEF_STORYBOARD_COLUMN_COUNT);
   const [columnNames, setColumnNames] = useState<string[]>(() =>
     Array.from({ length: DEFAULT_BRIEF_STORYBOARD_COLUMN_COUNT }, (_, i) => defaultColumnNameAt(i)),
   );

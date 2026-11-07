@@ -44,6 +44,7 @@ import { CreateTaskDialog } from '@/8-2-DailyTask/section/CreateTaskDialog';
 import { DailyTaskProvider } from '@/8-2-DailyTask/context/DailyTaskContext';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
+import type { SocialMediaLink } from '@/shared/types/social-media-links';
 
 interface ContentPlanRowProps {
   plan: ContentPlan;

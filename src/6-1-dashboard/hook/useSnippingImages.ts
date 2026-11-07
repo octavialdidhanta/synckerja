@@ -168,8 +168,8 @@ const useAddSnipingImage = (socialMediaPlanId: string, linkUrl: string) => {
         const isTableNotFound = 
           error.code === '42P01' || // PostgreSQL table not found
           error.code === 'PGRST116' || // PostgREST table not found  
-          error.status === 404 || // HTTP 404 Not Found
-          error.statusCode === 404 ||
+          (error as { status?: number }).status === 404 || // HTTP 404 Not Found
+          (error as { statusCode?: number }).statusCode === 404 ||
           error.message?.includes('does not exist') ||
           error.message?.includes('relation "sniping_images" does not exist') ||
           error.message?.includes('Not Found');
@@ -179,7 +179,7 @@ const useAddSnipingImage = (socialMediaPlanId: string, linkUrl: string) => {
           tableExistsCache.set('sniping_images_table_exists', false);
           devLog.debug('⚠️ sniping_images table does not exist - image uploaded to storage but not saved to database', {
             errorCode: error.code,
-            errorStatus: error.status,
+            errorStatus: (error as { status?: number }).status,
             errorMessage: error.message
           });
           
