@@ -58,7 +58,9 @@ function extractFullErrorText(err: unknown): string {
     if (value == null) return;
     if (value instanceof Error) {
       parts.push(value.message);
-      if (value.cause) visit(value.cause);
+      // `Error.cause` is ES2022; the app's lib is ES2020.
+      const cause = (value as Error & { cause?: unknown }).cause;
+      if (cause) visit(cause);
       return;
     }
     if (typeof value === "object") {
@@ -227,7 +229,7 @@ async function completeNativeGoogleSession(
   response: Awaited<ReturnType<typeof SocialLogin.login>>,
   rawNonce?: string,
 ): Promise<{ error: string | null }> {
-  if (response.result.responseType !== "online") {
+  if ((response.result as { responseType?: string }).responseType !== "online") {
     return { error: "offline_mode_unsupported" };
   }
 

@@ -208,12 +208,13 @@ export async function fetchCandidateApplicationData(
 
   return {
     profile: (profileResult.data as CandidateProfilePayload) || null,
-    jobApplication: (jobAppData as JobApplicationPayload) || null,
+    // Supabase types many-to-one joins as arrays; at runtime they are objects.
+    jobApplication: (jobAppData as unknown as JobApplicationPayload) || null,
     educations: (educationsResult.data || []) as CandidateEducationPayload[],
     informalEducations: (informalResult.data || []) as CandidateInformalEducationPayload[],
     workExperiences: (workResult.data || []) as CandidateWorkExperiencePayload[],
     familyMembers: (familyResult.data || []) as CandidateFamilyMemberPayload[],
     documents,
-    reviews: (reviewsResult.data || []) as CandidateReviewPayload[]
+    reviews: (reviewsResult.data || []) as unknown as CandidateReviewPayload[]
   };
 }

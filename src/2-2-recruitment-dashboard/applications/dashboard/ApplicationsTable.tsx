@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import { MoreHorizontal } from 'lucide-react';
@@ -388,7 +388,7 @@ export const ApplicationsTable = () => {
     </div>
 
       <CandidateQuickViewModal
-        application={selectedApplication}
+        application={selectedApplication as unknown as ComponentProps<typeof CandidateQuickViewModal>["application"]}
         isOpen={isQuickViewOpen}
         onClose={handleCloseQuickView}
         onStatusUpdate={handleStatusUpdate}

@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, type ComponentType } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { PersonalDetailsTab } from './PersonalDetailsTab';
 import { AddressApplicationTab } from './AddressApplicationTab';
@@ -579,7 +579,8 @@ export const CandidateProfileTabs = ({
         {/* Compact Tab Content */}
         <div className="flex-1 overflow-hidden flex flex-col">
           {tabs.map((tab) => {
-            const TabComponent = tab.component;
+            // Tabs take different props; each tab ignores the ones it does not use.
+            const TabComponent = tab.component as ComponentType<Record<string, unknown>>;
             return (
               <TabsContent 
                 key={tab.id} 

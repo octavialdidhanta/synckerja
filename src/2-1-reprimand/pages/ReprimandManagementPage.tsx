@@ -363,7 +363,7 @@ export const ReprimandManagementPage = () => {
                         <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg border border-border bg-card shadow-sm">
                           <ReprimandManagementTable
                             employeesByDepartment={employeesByDepartment}
-                            reprimands={filteredReprimands}
+                            reprimands={filteredReprimands as unknown as React.ComponentProps<typeof ReprimandManagementTable>["reprimands"]}
                             selectedDepartment={filters.department}
                             getReprimandCount={getReprimandCount}
                             renderReprimandBoxes={renderReprimandBoxes}
