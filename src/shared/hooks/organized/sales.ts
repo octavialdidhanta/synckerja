@@ -91,6 +91,8 @@ export interface SalesActivity {
   status: string;
   payment_method: string;
   total_amount: number;
+  description?: string | null;
+  notes?: string | null;
   [key: string]: any;
 }
 
@@ -102,6 +104,12 @@ export interface SalesActivityItem {
   unit_price: number;
   total_price: number;
   notes?: string;
+  sales_activity_id?: string;
+  organization_id?: string;
+  service_id?: string | null;
+  sub_service_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 /** Resolve service_id and sub_service_id from lead's services (name) and category (name) for org. */
