@@ -10,6 +10,14 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import type { LiveChatConversation, WhatsAppConversation } from '../../types';
+
+/** Channel-specific fields read while searching; optional because not every channel has them. */
+type SearchableConversation = LiveChatConversation & {
+  customer_name?: string | null;
+  customer_wa_id?: string | null;
+  channel?: string | null;
+  last_message_status?: string | null;
+};
 import type { EmailConversation } from '../../types';
 import { stripHtmlForPreview } from './ConversationList';
 import { maskEmailsForDisplay } from '../../utils/maskEmailForDisplay';
@@ -121,7 +129,7 @@ export function SearchConversationPopup({
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
   const { data: waConversations = [], isLoading, error } = useWhatsAppConversations();
-  const conversations: LiveChatConversation[] = conversationsProp ?? waConversations;
+  const conversations = (conversationsProp ?? waConversations) as SearchableConversation[];
   const { data: waMessageResults = [], isLoading: isSearchingWaMessages } = useWhatsAppMessageSearch(searchQuery);
   const { data: fbMessageResults = [], isLoading: isSearchingFbMessages } = useFacebookMessageSearch(searchQuery);
   const messageResults: WhatsAppMessageSearchResult[] = useMemo(() => {
@@ -135,7 +143,7 @@ export function SearchConversationPopup({
   const businessName = whatsappConfig?.whatsapp_business_name ?? whatsappConfig?.display_phone_number ?? null;
 
   const convById = useMemo(() => {
-    const m: Record<string, LiveChatConversation> = {};
+    const m: Record<string, SearchableConversation> = {};
     conversations.forEach((c) => { m[c.id] = c; });
     return m;
   }, [conversations]);
@@ -177,13 +185,14 @@ export function SearchConversationPopup({
       if (unreadByConversation[conv.id] > 0) markConversationRead(conv).catch(() => {});
     }
     if (conv.source === 'whatsapp') {
-      supabase
+      // Builder `.then` returns PromiseLike in the types; wrap so `.catch` type-checks.
+      Promise.resolve(supabase
         .from('whatsapp_conversations')
         .update({ last_opened_at: new Date().toISOString() })
         .eq('id', conv.id)
         .then(() => {
           if (organizationId) queryClient.invalidateQueries({ queryKey: ['leads', organizationId] });
-        })
+        }))
         .catch(() => {});
     }
     onSelectConversation(conv);
@@ -194,13 +203,14 @@ export function SearchConversationPopup({
     if (!conv) return;
     if (unreadByConversation[conv.id] > 0) markConversationRead(conv).catch(() => {});
     if (conv.source === 'whatsapp') {
-      supabase
+      // Builder `.then` returns PromiseLike in the types; wrap so `.catch` type-checks.
+      Promise.resolve(supabase
         .from('whatsapp_conversations')
         .update({ last_opened_at: new Date().toISOString() })
         .eq('id', conv.id)
         .then(() => {
           if (organizationId) queryClient.invalidateQueries({ queryKey: ['leads', organizationId] });
-        })
+        }))
         .catch(() => {});
     }
     onSelectMessageResult?.(conv, row.message_id);

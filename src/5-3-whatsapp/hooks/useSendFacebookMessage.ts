@@ -60,7 +60,8 @@ export function useSendFacebookMessage() {
           'Gagal mengirim pesan Messenger.';
         throw new Error(msg);
       }
-      return json;
+      // Success body shape (the error shape above is only used when !res.ok).
+      return json as unknown as { success?: boolean; message?: FacebookMessage | null; lead_status_id?: string | null };
     },
     onSuccess: (data: { success?: boolean; message?: FacebookMessage | null; lead_status_id?: string | null }, variables) => {
       const conversationId = variables.conversation_id;

@@ -48,7 +48,11 @@ export function useSendWhatsAppMessage() {
           reply_to_sender: params.reply_to_sender ?? null,
         }),
       });
-      const json = await res.json().catch(() => ({})) as { error?: string; code?: string; details?: unknown };
+      const json = await res.json().catch(() => ({})) as {
+        error?: string;
+        code?: string | number;
+        details?: { error?: { message?: string }; error_message?: string };
+      };
       if (!res.ok) {
         if (json?.code === 'NOT_ASSIGNEE' && typeof json.error === 'string') {
           throw new Error(json.error);
@@ -63,7 +67,8 @@ export function useSendWhatsAppMessage() {
           : msg;
         throw new Error(friendlyMsg);
       }
-      return json;
+      // Success body shape (the error shape above is only used when !res.ok).
+      return json as unknown as { success?: boolean; message?: WhatsAppMessage | null; lead_status_id?: string | null };
     },
     onSuccess: (data: { success?: boolean; message?: WhatsAppMessage | null; lead_status_id?: string | null }, variables) => {
       const conversationId = variables.conversation_id;

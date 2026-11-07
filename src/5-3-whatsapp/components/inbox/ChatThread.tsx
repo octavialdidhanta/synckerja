@@ -513,7 +513,8 @@ function getMediaType(file: File): 'image' | 'video' | 'document' {
 
 const ACCEPT_MEDIA = 'image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip';
 
-const MEDIA_TYPES = [...WHATSAPP_MEDIA_TYPES];
+/** Widened to string so `.includes(rawType)` accepts unvalidated message types. */
+const MEDIA_TYPES: readonly string[] = [...WHATSAPP_MEDIA_TYPES];
 
 const DEFAULT_EXT: Record<string, string> = {
   image: 'jpg',
@@ -1810,7 +1811,7 @@ export function ChatThread({
     (m) => m.message_type !== 'unsupported' && m.body !== '[unsupported]'
   );
   const showOptimistic = optimisticEntry && !hasMatchingRealMessage(filteredMessages, optimisticEntry);
-  type DisplayMessage = (WhatsAppMessage | (InstagramMessage & { wa_message_id?: string | null; reply_to_wa_message_id?: string | null; read_at?: null; reply_to_sender?: string | null })) & { status?: WhatsAppMessage['status'] | 'sending' };
+  type DisplayMessage = (WhatsAppMessage | (InstagramMessage & { wa_message_id?: string | null; reply_to_wa_message_id?: string | null; read_at?: null; reply_to_sender?: string | null })) & { status?: WhatsAppMessage['status'] | 'sending'; source?: string | null };
   const displayMessages: DisplayMessage[] = [
     ...(filteredMessages as DisplayMessage[]),
     ...(showOptimistic
@@ -2980,7 +2981,7 @@ export function ChatThread({
                         iso={tlIso(msg)}
                         timeZone={browserTimeZone}
                         direction={msg.direction}
-                        status={(msg as { status?: string | null }).status ?? null}
+                        status={msg.status ?? null}
                         variant="overlay"
                       />
                     </div>
@@ -3011,7 +3012,7 @@ export function ChatThread({
                         iso={tlIso(msg)}
                         timeZone={browserTimeZone}
                         direction={msg.direction}
-                        status={(msg as { status?: string | null }).status ?? null}
+                        status={msg.status ?? null}
                         variant="corner"
                       />
                     </>

@@ -81,7 +81,7 @@ export function FacebookConnectPage() {
 
   const handleSubscribeWebhooks = async () => {
     try {
-      const sub = await subscribeMessengerWebhooks();
+      const sub = await subscribeMessengerWebhooks(undefined);
       const fields = sub.results?.flatMap((r) => r.subscribedFields ?? []) ?? [];
       const hasMessages = fields.includes('messages');
       const hasFeed = fields.includes('feed');

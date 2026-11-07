@@ -56,7 +56,9 @@ function MetaVerifiedBadge({ className, title, 'aria-label': ariaLabel }: { clas
   }
   const serratedCircle = `M ${points.join(' L ')} Z`;
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" title={title} aria-label={ariaLabel}>
+    <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label={ariaLabel}>
+      {/* SVG tooltip via <title> child (`title` is not a typed <svg> prop). */}
+      {title ? <title>{title}</title> : null}
       <path d={serratedCircle} fill="#1877F2" />
       <path d="M7 12l3 3 6-6" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </svg>
