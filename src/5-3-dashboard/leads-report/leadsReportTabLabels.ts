@@ -1,4 +1,5 @@
-import type { TFunction } from "i18next";
+/** App translate fn (`useAppTranslation().t`): key + fallback. */
+type TFunction = (key: string, fallback?: string) => string;
 
 export function getLeadsReportTabLabel(t: TFunction, tab: string): string {
   if (tab === "overview") {

@@ -210,7 +210,7 @@ function applyApiBasePlaceholders(content: string, apiBase: string): string {
   ];
   let result = content;
   for (const placeholder of placeholders) {
-    result = result.replaceAll(placeholder, apiBase);
+    result = result.split(placeholder).join(apiBase);
   }
   return result;
 }

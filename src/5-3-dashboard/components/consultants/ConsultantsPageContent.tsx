@@ -390,7 +390,7 @@ export const ConsultantsPageContent = () => {
       // Prepare comprehensive data for PDF
       const pdfData = {
         leads: filteredLeads,
-        filters: filters || {},
+        filters: filters || ({} as Parameters<typeof generateLeadsPDF>[0]["filters"]),
         clientStatuses,
         clientProfiles
       };

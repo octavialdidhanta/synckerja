@@ -148,7 +148,7 @@ export const EditLeadDialog = ({
       [field]: value,
       // If updating status_id, also update the lead_status for display
       ...(field === 'status_id' && {
-        lead_status: leadStatuses.find(s => s.id === value) || prev.lead_status
+        lead_status: (leadStatuses.find(s => s.id === value) as Partial<NewLead>["lead_status"]) || prev.lead_status
       })
     }));
   };

@@ -116,7 +116,10 @@ export const LeadsFilters = ({
       embeddedSecondRow
         ? embeddedAttributionLabelOptions
         : showAttributionLandingBar
-          ? distinctLeadAttributionValues(attributionBarLeads ?? [], "attribution_label")
+          ? distinctLeadAttributionValues(
+              (attributionBarLeads ?? []) as unknown as Array<Record<string, string | null | undefined>>,
+              "attribution_label",
+            )
           : [],
     [
       embeddedSecondRow,
