@@ -69,7 +69,8 @@ function createSupabaseClient(): SupabaseClient {
        * acceptable for typical single-tab SPA usage.
        */
       lock: processLockWithMinAcquireTimeout,
-      lockAcquireTimeout: 60_000,
+      // Read by GoTrue at runtime but missing from the installed supabase-js auth option types.
+      ...({ lockAcquireTimeout: 60_000 } as Record<string, unknown>),
     },
   });
 }

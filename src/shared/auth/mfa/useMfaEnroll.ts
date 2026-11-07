@@ -1,5 +1,4 @@
 import { useCallback, useState } from "react";
-import type { AuthMfaEnrollTOTPResponse } from "@supabase/supabase-js";
 import { supabase } from "@/shared/lib/supabaseClient";
 import { generateRecoveryCodes, hashRecoveryCode } from "./recoveryCodes";
 
@@ -27,7 +26,8 @@ export function useMfaEnroll() {
         friendlyName: "Authenticator",
       });
       if (enrollError) throw enrollError;
-      const totp = (data as AuthMfaEnrollTOTPResponse).totp;
+      // TOTP enroll response shape (the exported type name differs across supabase-js versions).
+      const totp = (data as unknown as { totp: { qr_code: string; secret: string; uri: string } }).totp;
       setEnrollState({
         factorId: data.id,
         qrCode: totp.qr_code,

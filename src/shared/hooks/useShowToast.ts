@@ -17,7 +17,8 @@ export function useShowToast() {
       description: React.ReactNode;
       variant?: "default" | "destructive" | "warning" | "info";
     }) => {
-      toast({ title, description, variant });
+      // Toast UI has no "warning"/"info" style; they render as the default toast.
+      toast({ title, description, variant: variant === "destructive" ? "destructive" : "default" });
     },
     [toast]
   );

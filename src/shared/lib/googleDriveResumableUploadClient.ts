@@ -611,7 +611,7 @@ export async function uploadVideoToGoogleDriveResumable(args: {
     const oauth = await startGoogleDriveOAuthAsync();
     if (!oauth.ok) {
       throw new Error(
-        oauth.reason === "popup_blocked"
+        "reason" in oauth && oauth.reason === "popup_blocked"
           ? "Google connect popup blocked"
           : "Google Drive is not connected",
       );

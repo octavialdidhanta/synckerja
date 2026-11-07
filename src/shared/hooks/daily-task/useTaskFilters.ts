@@ -11,7 +11,7 @@ export interface TaskFilters {
   status: string;
   priority: string;
   dateFilter: string;
-  dateRange?: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'last_month' | 'custom';
+  dateRange?: 'all' | 'today' | 'yesterday' | 'this_week' | 'this_month' | 'last_month' | 'custom';
   customStartDate?: string;
   customEndDate?: string;
   planDateRange?: 'this_month_plan' | 'next_month_plan' | 'last_month_plan' | 'custom_month_plan';
@@ -580,7 +580,7 @@ export const useTaskFilters = ({
               }
               return null;
             })
-            .filter((step): step is TaskStep => step !== null);
+            .filter((step): step is NonNullable<typeof step> => step !== null);
         } else if (picLevel === 'sub_step') {
           // Jika level adalah 'sub_step', hanya tampilkan step yang memiliki sub-step assigned kepada PIC
           steps = steps
@@ -601,7 +601,7 @@ export const useTaskFilters = ({
               }
               return null;
             })
-            .filter((step): step is TaskStep => step !== null);
+            .filter((step): step is NonNullable<typeof step> => step !== null);
         } else if (picLevel === 'all') {
           // Backward compatibility: 'all' behavior - filter step dan sub-step berdasarkan PIC
           steps = steps
@@ -660,7 +660,7 @@ export const useTaskFilters = ({
               
               return null;
             })
-            .filter((step): step is TaskStep => step !== null);
+            .filter((step): step is NonNullable<typeof step> => step !== null);
         } else {
           // Default to 'task' behavior if unknown level
           steps = steps;
@@ -705,7 +705,7 @@ export const useTaskFilters = ({
               // Step tidak ditampilkan jika tidak ada sub-step yang di-assign ke PIC
               return null;
             })
-            .filter((step): step is TaskStep => step !== null);
+            .filter((step): step is NonNullable<typeof step> => step !== null);
         } else if (picLevel === 'all') {
           // Backward compatibility: Level 'all' - filter sub-steps berdasarkan PIC
           steps = steps.map((step) => {
@@ -844,7 +844,7 @@ export const useTaskFilters = ({
               // Step tidak ditampilkan jika tidak ada sub-step yang di-assign ke PIC
               return null;
             })
-            .filter((step): step is TaskStep => step !== null);
+            .filter((step): step is NonNullable<typeof step> => step !== null);
         } else if (picLevel === 'all') {
           // Backward compatibility: Level 'all' - filter step dan sub-step berdasarkan PIC
           steps = steps.filter((step) => {

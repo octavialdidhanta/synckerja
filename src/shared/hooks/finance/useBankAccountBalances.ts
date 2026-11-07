@@ -4,7 +4,7 @@ import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
 const LEDGER_PAGE_SIZE = 1000;
 
 async function fetchPaginatedRows<T>(
-  fetchPage: (from: number, to: number) => Promise<{ data: T[] | null; error: unknown }>,
+  fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
 ): Promise<T[]> {
   const rows: T[] = [];
   let from = 0;

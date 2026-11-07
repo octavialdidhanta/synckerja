@@ -106,7 +106,7 @@ export interface SalesActivityItem {
 
 /** Resolve service_id and sub_service_id from lead's services (name) and category (name) for org. */
 async function resolveServiceAndSubFromLead(
-  supabaseClient: ReturnType<typeof supabase>,
+  supabaseClient: typeof supabase,
   orgId: string,
   serviceName: string | null | undefined,
   categoryName: string | null | undefined
@@ -147,7 +147,7 @@ async function resolveServiceAndSubFromLead(
 
 /** Get default unit_price from default_prices for (org, service_id, sub_service_id). Services only — products are POS catalog. Returns 0 if either id is null or no row. */
 async function getDefaultPrice(
-  supabaseClient: ReturnType<typeof supabase>,
+  supabaseClient: typeof supabase,
   orgId: string,
   serviceId: string | null,
   subServiceId: string | null
@@ -498,7 +498,7 @@ export const useSalesActivities = () => {
       const subServicesMap = new Map<string, { id: string; name: string }>();
       (subServicesResult.data || []).forEach((s: { id: string; name: string }) => subServicesMap.set(s.id, { id: s.id, name: s.name }));
 
-      const enrichedActivities = rows.map((activity: Record<string, unknown>) => ({
+      const enrichedActivities: SalesActivity[] = rows.map((activity: SalesActivity) => ({
         ...activity,
         services: activity.service_id ? servicesMap.get(activity.service_id as string) ?? null : null,
         sub_services: activity.sub_service_id ? subServicesMap.get(activity.sub_service_id as string) ?? null : null,
@@ -2077,7 +2077,10 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
         .select('id, organization_id, customer_ig_id, customer_external_id, customer_name, instagram_business_account_id, last_message_at, last_message_body, lead_status_id, last_inbound_at, assignee_id, created_at, updated_at, ticket_id, meta_session_expires_at')
         .eq('organization_id', organizationId)
         .order('last_message_at', { ascending: false, nullsFirst: false });
-      const instagramConvs = dedupeInstagramConversations(instagramConvsRaw ?? []);
+      // Partial select: dedupe only reads id / account / customer / timestamp columns selected above.
+      const instagramConvs = dedupeInstagramConversations(
+        (instagramConvsRaw ?? []) as unknown as Parameters<typeof dedupeInstagramConversations>[0],
+      );
       if (instagramError) {
         console.error('Error fetching instagram conversations for leads:', instagramError);
       }
@@ -2526,7 +2529,7 @@ export const useLeads = (options?: { scope?: LeadsScope }) => {
           const r = row as { id?: string };
           if (r.id !== lead.id) return row;
           return {
-            ...row,
+            ...(row as Record<string, unknown>),
             assignee_id: nextAssigneeId,
             assignee: nextAssigneeId ? nextAssigneeName : '',
           };

@@ -24,11 +24,10 @@ export async function loadTranslationDictionary(
   lang: AppLanguage,
 ): Promise<TranslationDictionary> {
   if (cache[lang]) return cache[lang]!;
-  const mod =
+  const dict =
     lang === "en"
-      ? await import("./translations-en")
-      : await import("./translations-id");
-  const dict = lang === "en" ? mod.enTranslations : mod.idTranslations;
+      ? (await import("./translations-en")).enTranslations
+      : (await import("./translations-id")).idTranslations;
   cache[lang] = dict;
   return dict;
 }

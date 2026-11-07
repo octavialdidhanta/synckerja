@@ -376,7 +376,7 @@ export function resolveLeadMagnetConversationSyncTarget(
 ): LeadMagnetConversationSyncTarget | null {
   return resolveLeadMagnetConversationSyncTargetFromMeta({
     _leadMagnetConversationId: lead._leadMagnetConversationId as string | null | undefined,
-    _leadMagnetConversationTable: lead._leadMagnetConversationTable as string | null | undefined,
+    _leadMagnetConversationTable: lead._leadMagnetConversationTable as LeadMagnetConversationTable | null | undefined,
   });
 }
 
