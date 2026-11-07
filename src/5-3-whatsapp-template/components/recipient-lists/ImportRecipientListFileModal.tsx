@@ -129,7 +129,7 @@ export function ImportRecipientListFileModal({ open, onOpenChange, organizationI
 
     const parsed = await parseRecipientImportFile(file);
     if (!parsed.ok) {
-      parseErrorToast(parsed.code);
+      parseErrorToast("code" in parsed ? parsed.code : undefined);
       return;
     }
     if (!parsed.validRows.length) {

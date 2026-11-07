@@ -46,7 +46,7 @@ export function ensureFlowTemplateButton(buttons: WizardTemplateButton[]): Wizar
   if (buttons.some((b) => b.kind === "FLOW")) return buttons;
   if (buttons.length >= MAX_BUTTONS) return buttons;
   const flow = defaultButton("FLOW", newId());
-  return [...buttons, { ...flow, text: "View flow" }];
+  return [...buttons, { ...flow, text: "View flow" } as WizardTemplateButton];
 }
 
 function defaultButton(kind: WizardTemplateButton["kind"], id: string): WizardTemplateButton {

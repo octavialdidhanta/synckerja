@@ -54,6 +54,7 @@ const defaultFilters = (): LeadsFiltersState => ({
   services: "all",
   category: "all",
   createdBy: "all",
+  webProperty: "all",
   assignee: "all",
   fuPriority: "all",
   status: "all",

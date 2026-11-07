@@ -50,6 +50,7 @@ export const ConsultantsTableViewContent = ({}: ConsultantsTableViewContentProps
     utmTerm: 'all',
     attributionLabel: 'all',
     landingUrlContains: '',
+    surveyRating: 'all',
   });
   const [attributionSort, setAttributionSort] = useState(defaultLeadAttributionSortState);
   const { leads, loading, createLead, updateLead, deleteLead, refetch } = useLeads();
