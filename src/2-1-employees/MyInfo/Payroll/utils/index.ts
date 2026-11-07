@@ -2,7 +2,7 @@
 // All utility functions used by the /my-info/payroll page
 
 export { devLog } from './devLogger';
-export { logger } from './productionLogger';
+export { logger } from '@/shared/utils/productionLogger';
 export {
   formatNpwp,
   stripNpwpDigits,

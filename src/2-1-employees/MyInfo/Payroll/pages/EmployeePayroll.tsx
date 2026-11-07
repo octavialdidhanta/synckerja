@@ -32,10 +32,11 @@ const EmployeePayroll = () => {
   const currentMonth = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
   
   // Calculate total salary (this is a placeholder, can be calculated from actual data)
-  const totalSalary = employee?.salary || 0; // This should come from actual payroll data
+  // `salary` is not an employees column; placeholder stays 0 until payroll data is wired.
+  const totalSalary = (employee as { salary?: number } | undefined)?.salary || 0; // This should come from actual payroll data
   
   // Calculate monthly salary (placeholder)
-  const monthlySalary = employee?.salary || 0; // This should be calculated from payroll data
+  const monthlySalary = (employee as { salary?: number } | undefined)?.salary || 0; // This should be calculated from payroll data
 
   const navigationItems = [
     {

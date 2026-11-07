@@ -74,11 +74,13 @@ const EmployeeRow = memo(({
   const { t } = useAppTranslation();
 
   const orgRoleLabel = useMemo(() => {
+    // formatOrganizationRole passes interpolation options as the 2nd arg; the app t takes them 3rd.
+    const roleT = (key: string, options?: Record<string, string>) => t(key, undefined, options);
     if (employee.is_organization_owner) {
-      return formatOrganizationRole(t, 'owner');
+      return formatOrganizationRole(roleT, 'owner');
     }
     const r = employee.organization_role;
-    return r ? formatOrganizationRole(t, r) : formatOrganizationRole(t, 'employee');
+    return r ? formatOrganizationRole(roleT, r) : formatOrganizationRole(roleT, 'employee');
   }, [employee.is_organization_owner, employee.organization_role, t]);
 
   const OrgRoleIcon = useMemo(() => {
