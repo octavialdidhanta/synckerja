@@ -36,7 +36,7 @@ const emptySnapshot = (): HeaderIdentitySnapshot => ({
 export function useHeaderUserProfile() {
   const queryClient = useQueryClient();
   const { user: authUser } = useAuth();
-  const { data: orgData, isPending: orgPending, isSwitching } = useUserOrganizations();
+  const { data: orgData, isLoading: orgPending, isSwitching } = useUserOrganizations();
   const { data: profile, isPending: profilePending } = useProfile();
 
   const userIdRef = useRef<string | undefined>(authUser?.id);
