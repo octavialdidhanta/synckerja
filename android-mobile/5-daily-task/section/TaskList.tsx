@@ -520,7 +520,7 @@ export const TaskList = () => {
           <BlockerDetailsModal
             open={blockerModalOpen}
             onOpenChange={setBlockerModalOpen}
-            items={blockerModalItems}
+            items={blockerModalItems as unknown as Parameters<typeof BlockerDetailsModal>[0]['items']}
             initialTab={'list'}
             loading={loadingBlockers}
           />

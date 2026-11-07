@@ -6,6 +6,7 @@ import { NetBankAccountSwipeRow } from "@/4-1-dashboard/components/NetBankAccoun
 import { GatewayWalletDrawerRow } from "@/4-1-dashboard/components/GatewayWalletDrawerRow";
 import { FINANCIAL_DRAWERS_LIST_SCROLL } from "@/4-1-dashboard/utils/financialDrawersScroll";
 import type { IncomeDashboardModel } from "@/4-1-dashboard/hooks/useIncomeDashboardModel";
+import type { GatewayWalletRow } from "@/shared/hooks/finance/useGatewayWalletBalances";
 
 type Props = Pick<
   IncomeDashboardModel,
@@ -17,18 +18,20 @@ type Props = Pick<
   | "setNetBankOpenSwipeId"
   | "setBankTransferSource"
   | "setBankTransferDialogOpen"
-  | "brickWallet"
   | "xenditWallet"
-  | "brickEligible"
   | "xenditEligible"
-  | "isStaleBrick"
   | "isStaleXendit"
   | "gatewayPeriodNet"
-  | "syncingBrick"
   | "syncingXendit"
-  | "syncBrickWallet"
   | "syncXenditWallet"
->;
+> & {
+  /** Brick gateway was removed from the income model; the mobile row stays behind brickEligible. */
+  brickWallet: GatewayWalletRow | null;
+  brickEligible: boolean;
+  isStaleBrick: boolean;
+  syncingBrick: boolean;
+  syncBrickWallet: () => void;
+};
 
 export function MobileNetIncomePerBankSection({
   bankAccounts,

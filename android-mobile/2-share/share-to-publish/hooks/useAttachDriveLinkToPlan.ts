@@ -99,7 +99,10 @@ export function useAttachDriveLinkToPlan() {
             : currentPlan.production_status,
           production_revision_baseline_link: currentPlan.production_revision_baseline_link,
           pic_production_id: currentPlan.pic_production?.id ?? null,
-          pic_production_source: currentPlan.pic_production_source,
+          pic_production_source: currentPlan.pic_production_source as
+            | "google_drive_link"
+            | "task_steps_assigned"
+            | null,
         };
 
         const patch = getGoogleDriveLinkNonEmptyUpdates(

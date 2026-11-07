@@ -307,7 +307,8 @@ export type LeadAttributionOptionKey =
 const OPTION_CAP = 100;
 
 export function distinctLeadAttributionValues(
-  leads: Array<Record<string, string | null | undefined>>,
+  // Only the attribution fields are read, so typed rows (e.g. NewLead) are accepted as well.
+  leads: ReadonlyArray<Partial<Record<LeadAttributionOptionKey, string | null | undefined>>>,
   field: LeadAttributionOptionKey
 ): string[] {
   const set = new Set<string>();

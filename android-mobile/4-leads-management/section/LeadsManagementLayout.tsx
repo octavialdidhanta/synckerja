@@ -47,6 +47,8 @@ const defaultFilters: LeadsFilters = {
   utmTerm: 'all',
   attributionLabel: 'all',
   landingUrlContains: '',
+  webProperty: 'all',
+  surveyRating: 'all',
 };
 
 function hasActiveFilters(f: LeadsFilters): boolean {

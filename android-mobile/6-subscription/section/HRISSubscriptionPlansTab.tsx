@@ -238,7 +238,9 @@ const HRISSubscriptionPlansTab = ({ refetchRef }: HRISSubscriptionPlansTabProps)
           billingCycle={isYearly ? "yearly" : "monthly"}
           currentMemberCount={subscriptionStatus.member_count || 0}
           newMemberCount={selectedMemberCount}
-          proRatedData={proRatedData ?? undefined}
+          proRatedData={
+            (proRatedData ?? undefined) as Parameters<typeof MobileUpgradeConfirmationModal>[0]['proRatedData']
+          }
           isLoading={isMidtransConfirmLoading}
           isBillingCycleUpgradeOnly={
             currentPlanId === selectedPlan.id &&
@@ -268,7 +270,9 @@ const HRISSubscriptionPlansTab = ({ refetchRef }: HRISSubscriptionPlansTabProps)
             ? {
                 remainingDays: proRatedData.calculation.remaining_days,
                 proRatePercentage: proRatedData.calculation.prorate_percentage ?? 0,
-                memberCostIncrease: proRatedData.calculation.member_change_charge ?? proRatedData.calculation.prorate_amount,
+                memberCostIncrease:
+                  (proRatedData.calculation as { member_change_charge?: number }).member_change_charge ??
+                  proRatedData.calculation.prorate_amount,
                 currentPlanCredit: Number(
                   (proRatedData.calculation as { current_plan_credit?: number }).current_plan_credit ?? 0,
                 ),

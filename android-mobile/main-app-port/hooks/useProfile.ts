@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/shared/lib/supabaseClient';
 import { logger } from '@/shared/lib/logger';
 
+/** Many-to-one joins return one object (typed as arrays without generated DB types). */
+const joinName = (join: unknown): string | undefined => (join as { name?: string } | null)?.name;
+
 export interface EmergencyContactData {
   id: string;
   name: string;
@@ -229,10 +232,10 @@ export const useProfile = () => {
             religion: employeeData.religion ?? undefined,
             nik: employeeData.nik ?? undefined,
             citizen_address: employeeData.citizen_address ?? undefined,
-            status: employeeData.employee_statuses?.name ?? 'active',
-            department_name: employeeData.departments?.name,
-            job_position_name: employeeData.job_positions?.name,
-            job_level_name: employeeData.job_levels?.name,
+            status: joinName(employeeData.employee_statuses) ?? 'active',
+            department_name: joinName(employeeData.departments),
+            job_position_name: joinName(employeeData.job_positions),
+            job_level_name: joinName(employeeData.job_levels),
             employee_id: employeeData.employee_id,
             photo_url: employeeData.profile_photo_url ?? undefined,
             hasEmployeeRecord: true,
