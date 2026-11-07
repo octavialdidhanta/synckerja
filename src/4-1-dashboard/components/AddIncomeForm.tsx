@@ -182,7 +182,7 @@ export function AddIncomeForm({ onSuccess }: AddIncomeFormProps) {
               <Input
                 id="amount"
                 type="text"
-                value={field.value === undefined || field.value === null || field.value === '' 
+                value={field.value === undefined || field.value === null || (field.value as unknown) === '' 
                   ? '' 
                   : formatInputNumber(field.value)}
                 onChange={(e) => {
