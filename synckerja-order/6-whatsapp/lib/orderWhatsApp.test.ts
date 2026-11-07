@@ -62,8 +62,9 @@ describe("orderWhatsAppAccountLabel", () => {
 });
 
 describe("resolveOutletWhatsAppAccountId", () => {
-  it("auto-picks the only account", () => {
-    expect(resolveOutletWhatsAppAccountId({ buttonEnabled: true, selectedAccountId: null, accounts: [A] })).toBe("a");
+  it("never auto-picks, even with a single account", () => {
+    expect(resolveOutletWhatsAppAccountId({ buttonEnabled: true, selectedAccountId: null, accounts: [A] })).toBeNull();
+    expect(resolveOutletWhatsAppAccountId({ buttonEnabled: true, selectedAccountId: "a", accounts: [A] })).toBe("a");
   });
 
   it("needs a pick when there are several accounts", () => {

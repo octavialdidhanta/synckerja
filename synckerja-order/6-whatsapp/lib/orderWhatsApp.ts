@@ -70,9 +70,7 @@ export function resolveOutletWhatsAppAccountId(args: {
   selectedAccountId: string | null;
   accounts: OrderWhatsAppAccountOption[];
 }): string | null {
-  if (!args.buttonEnabled) return null;
-  if (args.selectedAccountId) {
-    return args.accounts.some((a) => a.id === args.selectedAccountId) ? args.selectedAccountId : null;
-  }
-  return args.accounts.length === 1 ? args.accounts[0].id : null;
+  if (!args.buttonEnabled || !args.selectedAccountId) return null;
+  // Always an explicit pick (no auto-pick, even with a single account).
+  return args.accounts.some((a) => a.id === args.selectedAccountId) ? args.selectedAccountId : null;
 }
