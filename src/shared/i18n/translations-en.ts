@@ -6287,6 +6287,7 @@ export const enTranslations: TranslationDictionary = {
   "whatsappInbox.flowSend.templateLabelShort": "Template",
   "whatsappInbox.composerActions.menu": "Message options",
   "whatsappInbox.followUp.button": "Follow-up",
+  "whatsappInbox.followUp.sessionClosedHint": "24-hour window has ended — session Form Flows are unavailable; send an approved template instead.",
   "whatsappInbox.followUp.title": "Follow-up",
   "whatsappInbox.followUp.sender": "Sender number",
   "whatsappInbox.followUp.template": "Message template",

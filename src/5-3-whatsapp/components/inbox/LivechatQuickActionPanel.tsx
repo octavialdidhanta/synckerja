@@ -1067,15 +1067,37 @@ export function LivechatQuickActionPanel({
           );
           return false;
         }
-        const { error } = await supabase.from('lead_follow_up_updates').insert({
-          lead_id: leadUuid,
-          conversation_id: conversation.id,
-          update_details: details,
-          status: prospect || null,
-          created_by: user.id,
-          created_by_name: profile?.full_name || user.email || 'Unknown',
-          organization_id: orgId,
-        });
+        const insertFollowUp = (leadId: string) =>
+          supabase.from('lead_follow_up_updates').insert({
+            lead_id: leadId,
+            conversation_id: conversation.id,
+            update_details: details,
+            status: prospect || null,
+            created_by: user.id,
+            created_by_name: profile?.full_name || user.email || 'Unknown',
+            organization_id: orgId,
+          });
+        let { error } = await insertFollowUp(leadUuid);
+        if (error?.code === '23503' && ticketId) {
+          // Cached lead id can be stale (lead deleted / recreated). Resolve fresh by ticket and retry once.
+          void queryClient.invalidateQueries({ queryKey: ['lead-by-ticket'] });
+          const { data: freshLead } = await supabase
+            .from('leads')
+            .select('id')
+            .eq('organization_id', orgId)
+            .ilike('ticket_id', ticketId)
+            .maybeSingle();
+          if (!freshLead?.id) {
+            toast.error(
+              t(
+                'whatsappInbox.saveServiceCategoryFirst',
+                'Save service and category first to link this conversation to a lead.',
+              ),
+            );
+            return false;
+          }
+          ({ error } = await insertFollowUp(freshLead.id));
+        }
         if (error) throw error;
       }
 
