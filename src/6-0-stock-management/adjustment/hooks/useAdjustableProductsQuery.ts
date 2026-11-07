@@ -52,7 +52,7 @@ export function useAdjustableProductsQuery(args: { organizationId: string | null
         : { data: [] as Array<{ variant_id: string; in_stock: number | string }>, error: null };
       if (variantError) throw variantError;
 
-      const variantQty = new Map((variantStocks ?? []).map((r) => [String(r.variant_id), num(r.in_stock)]));
+      const variantQty = new Map((variantStocks ?? []).map((r): [string, number] => [String(r.variant_id), num(r.in_stock)]));
 
       const adjustable: AdjustableProduct[] = [];
       for (const row of products) {
