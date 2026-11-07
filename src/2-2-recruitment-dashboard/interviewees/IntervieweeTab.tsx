@@ -24,7 +24,6 @@ import { getSjtResultFromScores, getDimensionDisplayValue, SJT_DIMENSION_LABELS,
 import { useToast } from '@/shared/components/ui/use-toast';
 import { useCentralizedUserData } from '@/shared/auth/contexts/CentralizedUserDataContext';
 import { useCurrentOrg } from '@/shared/auth/hooks/useCurrentOrg';
-import { InterviewWhatsAppButton } from './InterviewWhatsAppButton';
 import { useNavigate } from 'react-router-dom';
 import { CandidateToEmployeeConfirmModal } from './CandidateToEmployeeConfirmModal';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
