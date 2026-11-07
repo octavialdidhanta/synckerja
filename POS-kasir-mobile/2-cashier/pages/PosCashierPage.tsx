@@ -2218,10 +2218,11 @@ export default function PosCashierPage() {
         email,
       });
       if (!result.ok) {
+        const failureCode = "code" in result ? result.code : undefined;
         const title =
-          result.code === "share_disabled"
+          failureCode === "share_disabled"
             ? t(POS_PAY_SUCCESS_I18N.shareEmailOff, "Email receipt is disabled in outlet receipt settings.")
-            : result.code === "invalid_email"
+            : failureCode === "invalid_email"
               ? t(POS_PAY_SUCCESS_I18N.invalidEmail, "Enter a valid email address")
               : t(POS_PAY_SUCCESS_I18N.sendError, "Failed to send receipt");
         toast({ title, variant: "destructive" });
@@ -2254,10 +2255,11 @@ export default function PosCashierPage() {
         phoneLocal,
       });
       if (!result.ok) {
+        const failureCode = "code" in result ? result.code : undefined;
         const title =
-          result.code === "share_disabled"
+          failureCode === "share_disabled"
             ? t(POS_PAY_SUCCESS_I18N.shareSmsOff, "SMS receipt is disabled in outlet receipt settings.")
-            : result.code === "invalid_phone"
+            : failureCode === "invalid_phone"
               ? t(POS_PAY_SUCCESS_I18N.invalidPhone, "Enter a valid phone number")
               : t(POS_PAY_SUCCESS_I18N.sendError, "Failed to send receipt");
         toast({ title, variant: "destructive" });

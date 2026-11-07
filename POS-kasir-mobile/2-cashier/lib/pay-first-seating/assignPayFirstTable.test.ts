@@ -53,7 +53,7 @@ describe("pay-first seating occupancy", () => {
     expect(computeTableOccupancy(byTable.get("t5") ?? [], 4).state).toBe("partial");
 
     const cleared = { ...seated, status: "paid" as const, closed_at: "2026-08-30T13:00:00.000Z" };
-    const stillOpen = [cleared].filter((s) => s.status === "open");
+    const stillOpen = [cleared].filter((s) => (s.status as string) === "open");
     const afterClear = groupOpenSessionsByTableId(stillOpen);
     expect(afterClear.size).toBe(0);
     expect(computeTableOccupancy(stillOpen, 4).state).toBe("empty");
