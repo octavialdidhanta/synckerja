@@ -5,7 +5,7 @@ This module handles leads management functionality for the consultant system.
 ## Folder layout
 
 - **`pages/`** — Route-level screens (e.g. consultant leads management page).
-- **`components/`** — Tables, filters, dialogs, and forms for leads UI.
+- **`components/`** — `LeadStatusSelect` only. Leads table, filters, dialogs and forms live in `@/5-3-dashboard/components/leads`.
 - **`utils/`** — Pure helpers (`leadStatusDisplay`, follow-up priority logic).
 - **`skeletons/`** — Loading shells aligned with the page layout.
 
@@ -13,26 +13,7 @@ Public exports stay available from `index.ts` at the module root.
 
 ## Components
 
-### Leads Tables and Views
-- **LeadsTable** - Main leads table component
-- **LeadsTableNew** - Enhanced leads table with advanced features
-- **LeadsTableViewContent** - Table view content wrapper for leads
-
-### Leads Filters and Metrics
-- **LeadsFilters** - Filters for leads data
-- **LeadsMetricsCards** - Key metrics display for leads
-- **LeadsInsights** - Insights and analytics for leads
-- **generateLeadsPDF** - PDF generation function for leads
-
-### Lead Forms and Dialogs
-- **LeadForm** - Form for creating/editing leads
-- **NewLeadForm** - Form for creating new leads
-- **LeadDetail** - Detailed view of a lead
-- **EditLeadDialog** - Dialog for editing leads
-- **ViewLeadDialog** - Dialog for viewing lead details
-- **LeadFollowUpForm** - Form for lead follow-ups
-- **LeadActionsDropdown** - Actions dropdown for leads
-- **LeadStatusHistoryDialog** - Dialog showing lead status history
+- **LeadStatusSelect** — lead status picker (shared by inbox and leads UI).
 
 ## Usage
 
