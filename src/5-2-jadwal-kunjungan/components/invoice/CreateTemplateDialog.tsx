@@ -170,7 +170,7 @@ export const CreateTemplateDialog: React.FC<CreateTemplateDialogProps> = ({
       };
 
       const result = await createTemplate(payload);
-      if (result.success) {
+      if ('data' in result && result.success) {
         toast({
           title: 'Template saved',
           description: `"${result.data.template_name}" is ready to use.`,
@@ -181,7 +181,7 @@ export const CreateTemplateDialog: React.FC<CreateTemplateDialogProps> = ({
         handleSignatureChange(null);
         onOpenChange(false);
       } else {
-        const err = result.error as { message?: string } | undefined;
+        const err = ('error' in result ? result.error : undefined) as { message?: string } | undefined;
         const message =
           err?.message?.includes('invoice_templates')
             ? 'Invoice templates table is not set up. Apply database migrations or contact an admin.'

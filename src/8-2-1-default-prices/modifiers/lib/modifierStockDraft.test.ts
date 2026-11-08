@@ -41,7 +41,7 @@ describe("validateModifierStockDrafts", () => {
       row({ key: "c" }),
     ]);
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if ('missingKeys' in result) {
       expect(result.missingKeys).toEqual(["a", "b"]);
     }
   });

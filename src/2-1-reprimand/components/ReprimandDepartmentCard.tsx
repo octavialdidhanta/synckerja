@@ -29,13 +29,13 @@ interface ReprimandData {
   follow_up_date?: string;
   status: string;
   acknowledgment_required: boolean;
-  employee_acknowledged: boolean;
+  employee_acknowledged?: boolean;
   acknowledgment_date?: string;
   is_formal: boolean;
   impact_on_performance_review: boolean;
   notes?: string;
   document_path?: string;
-  issued_by: string;
+  issued_by?: string;
   created_at: string;
   updated_at: string;
 }

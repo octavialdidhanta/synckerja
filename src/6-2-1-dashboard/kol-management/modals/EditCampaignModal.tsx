@@ -103,7 +103,7 @@ const EditCampaignModal = ({ open, onOpenChange, campaign }: EditCampaignModalPr
       target_engagement: targetEngagement,
       target_conversion: targetConversion,
     });
-    if (!targetCheck.ok) {
+    if ('message' in targetCheck) {
       const { message } = targetCheck;
       toast({
         title: "Target belum lengkap",

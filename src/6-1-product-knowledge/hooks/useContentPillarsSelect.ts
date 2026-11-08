@@ -31,10 +31,9 @@ export function useContentPillarsSelect() {
 
       if (error) throw error;
 
-      const rows = (data || []).filter(
-        (r): r is ContentPillarOption =>
-          Boolean(r?.id && typeof r.name === 'string' && r.name.trim() !== ''),
-      );
+      const rows = (data || []).filter((r) =>
+        Boolean(r?.id && typeof r.name === 'string' && r.name.trim() !== ''),
+      ) as ContentPillarOption[];
 
       return dedupeMasterRowsByNamePreferOrg(rows, organizationId);
     },

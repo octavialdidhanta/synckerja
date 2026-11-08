@@ -128,7 +128,7 @@ export function ImportRecipientListFileModal({ open, onOpenChange, organizationI
     }
 
     const parsed = await parseRecipientImportFile(file);
-    if (!parsed.ok) {
+    if ('code' in parsed) {
       const code = parsed.code;
       parseErrorToast(code);
       return;

@@ -618,7 +618,7 @@ export const PaymentTable = ({
       expiresInSeconds: 3600,
     });
     if (result.ok) return;
-    console.error('Error creating signed URL:', !result.ok ? result.error : undefined);
+    console.error('Error creating signed URL:', 'error' in result ? result.error : undefined);
     toast({
       title: 'Error',
       description: 'Failed to open invoice. Please try again.',

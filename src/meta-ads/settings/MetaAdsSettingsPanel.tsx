@@ -678,7 +678,7 @@ export function MetaAdsSettingsPanel({
 
   const handleSaveAccount = async () => {
     const resolved = resolveMetaCapiEventNameForSave(accountEventSelect, accountEventCustom);
-    if (!resolved.ok) {
+    if ('error' in resolved) {
       const { error } = resolved;
       toast.error(
         error === "custom_too_long"

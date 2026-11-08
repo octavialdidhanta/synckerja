@@ -54,7 +54,7 @@ export function usePublicSurveyForm(token: string | undefined) {
       });
       if (error) throw error;
       const parsed = parseFormPayload(data);
-      if (!parsed.ok) {
+      if ('error' in parsed) {
         const { error } = parsed;
         throw new Error(error);
       }

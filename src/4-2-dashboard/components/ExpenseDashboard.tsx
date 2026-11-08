@@ -58,7 +58,7 @@ import { useWithdrawalFromBalanceOptions } from '@/shared/hooks/finance/useWithd
 async function handleViewInvoice(filePath: string | null | undefined) {
   const result = await openSupabaseFinanceReceiptOrInvoice(filePath, 3600);
   if (result.ok) return;
-  if (!result.ok && result.reason === 'missing_path') {
+  if ('reason' in result && result.reason === 'missing_path') {
     toast.error('Invoice file path not found');
     return;
   }
@@ -822,7 +822,7 @@ export function ExpenseDashboard() {
         request_title: pr.request_title,
         requester_name: pr.requester_name,
         ...withdrawalJoinsFromPurchaseRequest(pr, debtsForExpense, bankAccounts),
-      } as Expense & { request_title?: string; requester_name?: string });
+      } as (typeof combined)[number]);
     });
     
     // Sort by date (newest first)
@@ -975,7 +975,7 @@ export function ExpenseDashboard() {
         request_title: pr.request_title,
         requester_name: pr.requester_name,
         ...withdrawalJoinsFromPurchaseRequest(pr, debtsForExpense, bankAccounts),
-      } as Expense & { request_title?: string; requester_name?: string });
+      } as (typeof combined)[number]);
     });
     const sorted = combined.sort((a, b) => {
       const dateA = new Date(a.create_date).getTime();

@@ -115,7 +115,7 @@ export const useKOLCampaigns = () => {
         target_engagement: campaignData.target_engagement,
         target_conversion: campaignData.target_conversion,
       });
-      if (!targetCheck.ok) {
+      if ('message' in targetCheck) {
         const { message } = targetCheck;
         throw new Error(message);
       }

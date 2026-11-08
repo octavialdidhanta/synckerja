@@ -37,6 +37,7 @@ import {
   ScriptGeneratorRequest,
   isStoryTellingContentPillar,
   type ScriptBreakdownFillRule,
+  type ScriptBreakdownKeywordHint,
   type ScriptBreakdownTableSnapshot,
 } from '../services/scriptGeneratorService';
 import { useScriptBreakdownTableTemplates } from '@/6-1-product-knowledge/hooks/useScriptBreakdownTableTemplates';
@@ -174,7 +175,7 @@ function sanitizeScriptBreakdownSnapshotForPayload(
       detail_body: c.detail_body != null ? richTextToPlainText(c.detail_body) : null,
       fill_rule: (c.fill_rule === 'honest_empty' ? 'honest_empty' : 'strict') as ScriptBreakdownFillRule,
       keyword_hint:
-        c.keyword_hint === 'narasi' ? 'narasi' : c.keyword_hint === 'visual' ? 'visual' : 'none',
+        (c.keyword_hint === 'narasi' ? 'narasi' : c.keyword_hint === 'visual' ? 'visual' : 'none') as ScriptBreakdownKeywordHint,
     }))
     .filter((c) => c.header_label !== '');
   if (!columns.length) return undefined;
