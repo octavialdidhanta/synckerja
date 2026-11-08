@@ -137,6 +137,10 @@ import {
   posDailyResult,
   stockInput,
   stockResult,
+  summaryListInput,
+  summaryListResult,
+  purchaseOrderInput,
+  purchaseOrderResult,
   updateExpenseInput,
   updateExpenseResult,
   updateExpenseSchema,
@@ -271,6 +275,14 @@ export type McpReadDeps = {
   listKolCampaigns: (ctx: McpAuthContext) => Promise<KolCampaignRow[]>;
   listKolProfiles: (ctx: McpAuthContext) => Promise<KolProfileRow[]>;
   listInventoryStock: (ctx: McpAuthContext) => Promise<StockRow[]>;
+  listInventorySummary: (
+    ctx: McpAuthContext,
+    query: import("../tools/inventory/summaryList").InventorySummaryQuery,
+  ) => Promise<import("../db/inventorySummary").InventorySummary>;
+  createInventoryPurchaseOrder: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/purchaseOrderCreate").InventoryPurchaseOrderInput,
+  ) => Promise<import("../db/inventoryPurchaseOrder").InventoryPurchaseOrder>;
   createContentPlan: (
     ctx: McpAuthContext,
     input: { title: string; postDate: string | null; brief: string | null },
@@ -584,6 +596,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "kol.campaigns.list": kolCampaignsInput,
   "kol.profiles.list": kolProfilesInput,
   "inventory.stock.list": stockInput,
+  "inventory.summary.list": summaryListInput,
+  "inventory.purchase_order.create": purchaseOrderInput,
   "content.plans.create": createPlanInput,
   "content.briefs.create": createBriefInput,
   "content.plans.update": updatePlanSchema,
@@ -792,6 +806,29 @@ async function runTool(
       return kolProfilesResult(ctx, deps.listKolProfiles);
     case "inventory.stock.list":
       return stockResult(ctx, deps.listInventoryStock);
+    case "inventory.summary.list": {
+      const parsed = summaryListInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      return summaryListResult(ctx, {
+        outletId: parsed.data.outlet_id ?? null,
+        kind: parsed.data.kind ?? null,
+        dateStart: parsed.data.date_start ?? null,
+        dateEnd: parsed.data.date_end ?? null,
+        search: parsed.data.search ?? null,
+      }, deps.listInventorySummary);
+    }
+    case "inventory.purchase_order.create": {
+      const parsed = purchaseOrderInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      return purchaseOrderResult(ctx, {
+        outletId: parsed.data.outlet_id,
+        search: parsed.data.search,
+        qty: parsed.data.qty,
+        unitCost: parsed.data.unit_cost,
+        supplierId: parsed.data.supplier_id ?? null,
+        note: parsed.data.note ? parsed.data.note : null,
+      }, deps.createInventoryPurchaseOrder);
+    }
     case "content.plans.create":
       return createPlanResult(
         ctx,

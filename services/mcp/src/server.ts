@@ -24,6 +24,8 @@ import {
   listKolCampaigns,
   listKolProfiles,
 } from "./db/phase2Reads";
+import { listInventorySummary } from "./db/inventorySummary";
+import { createInventoryPurchaseOrder } from "./db/inventoryPurchaseOrder";
 import { listAdsAudience, listAdsBreakdown, listAdsPerformance, listAdsSegments } from "./db/adsPerformance";
 import {
   createCompanyObjective,
@@ -112,6 +114,8 @@ const app = createApp({
   listKolCampaigns: (ctx) => listKolCampaigns(admin, ctx),
   listKolProfiles: (ctx) => listKolProfiles(admin, ctx),
   listInventoryStock: (ctx) => listInventoryStock(admin, ctx),
+  listInventorySummary: (ctx, query) => listInventorySummary(admin, ctx, query),
+  createInventoryPurchaseOrder: (ctx, input) => createInventoryPurchaseOrder(admin, ctx, input),
   createContentPlan: (ctx, input) => createContentPlan(admin, ctx, input),
   createContentBrief: (ctx, input) => createContentBrief(admin, ctx, input),
   listLeadMagnetDrafts: (ctx, campaignId) => listLeadMagnetDrafts(admin, ctx, campaignId),

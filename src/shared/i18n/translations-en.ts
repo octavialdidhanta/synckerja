@@ -3848,6 +3848,7 @@ export const enTranslations: TranslationDictionary = {
   "ingredient.library.columnUnit": "Unit",
   "ingredient.library.columnAlert": "Stock Alert",
   "ingredient.library.uncategorized": "Uncategorized",
+  "ingredient.library.categoryCreateNew": "{{name}} (create new)",
   "ingredient.library.statusLow": "Low Stock",
   "ingredient.library.statusOut": "Out of Stock",
   "posInventory.title": "Inventory",

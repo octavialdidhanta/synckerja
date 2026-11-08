@@ -9,13 +9,6 @@ import {
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -39,7 +32,9 @@ import { formatIngredientStockQty } from "../lib/ingredientStockStatus";
 import { DEFAULT_INGREDIENT_UNIT_CODE } from "../lib/ingredientUnits";
 import { stockForOutlet, type CatalogIngredient } from "../types";
 import { IngredientPhotoPicker } from "./IngredientPhotoPicker";
+import { IngredientCategoryCombobox } from "./IngredientCategoryCombobox";
 import { IngredientUnitSelect } from "./IngredientUnitSelect";
+import { UNCATEGORIZED_CATEGORY_VALUE } from "../lib/ingredientCategoryChoices";
 import { ManageIngredientCogsDialog, type CogsDraft } from "./ManageIngredientCogsDialog";
 import { ManageIngredientInventoryDialog, type InventoryDraft } from "./ManageIngredientInventoryDialog";
 
@@ -53,8 +48,6 @@ export type SemiFinishedIngredientFormSheetProps = {
 function toStockDisplay(value: number): string {
   return value ? formatIngredientStockQty(value) : "";
 }
-
-const UNCATEGORIZED_VALUE = "__uncategorized__";
 
 export function SemiFinishedIngredientFormSheet({
   ingredient,
@@ -71,7 +64,7 @@ export function SemiFinishedIngredientFormSheet({
   recipesRef.current = recipes;
   const { rows: categoryRows } = useCatalogIngredientCategories();
   const [name, setName] = useState("");
-  const [categoryId, setCategoryId] = useState(UNCATEGORIZED_VALUE);
+  const [categoryId, setCategoryId] = useState(UNCATEGORIZED_CATEGORY_VALUE);
   const [unitCode, setUnitCode] = useState(DEFAULT_INGREDIENT_UNIT_CODE);
   const [recipeDraft, setRecipeDraft] = useState<RecipeDraft>(emptyRecipeDraft);
   const [trackInventory, setTrackInventory] = useState(false);
@@ -114,7 +107,7 @@ export function SemiFinishedIngredientFormSheet({
     if (ingredient) {
       const stock = stockForOutlet(ingredient, selectedOutletId);
       setName(ingredient.name);
-      setCategoryId(ingredient.category_id ?? UNCATEGORIZED_VALUE);
+      setCategoryId(ingredient.category_id ?? UNCATEGORIZED_CATEGORY_VALUE);
       setUnitCode(ingredient.unit_code || DEFAULT_INGREDIENT_UNIT_CODE);
       setRecipeDraft(
         existing
@@ -138,7 +131,7 @@ export function SemiFinishedIngredientFormSheet({
       setExistingPhotoPath(ingredient.photo_path ?? null);
     } else {
       setName("");
-      setCategoryId(UNCATEGORIZED_VALUE);
+      setCategoryId(UNCATEGORIZED_CATEGORY_VALUE);
       setUnitCode(DEFAULT_INGREDIENT_UNIT_CODE);
       setRecipeDraft(emptyRecipeDraft());
       setTrackInventory(false);
@@ -305,7 +298,7 @@ export function SemiFinishedIngredientFormSheet({
         id: outputId,
         name: name.trim() || resolvedIngredient?.name || "—",
         kind: "semi_finished",
-        category_id: categoryId === UNCATEGORIZED_VALUE ? null : categoryId,
+        category_id: categoryId === UNCATEGORIZED_CATEGORY_VALUE ? null : categoryId,
         unit_code: unitCode,
         track_inventory: true,
         outlet_id: selectedOutletId,
@@ -379,7 +372,7 @@ export function SemiFinishedIngredientFormSheet({
         id: draftId,
         name: name.trim(),
         kind: "semi_finished",
-        category_id: categoryId === UNCATEGORIZED_VALUE ? null : categoryId,
+        category_id: categoryId === UNCATEGORIZED_CATEGORY_VALUE ? null : categoryId,
         unit_code: unitCode,
         track_inventory: allowInventory,
         outlet_id: selectedOutletId,
@@ -432,7 +425,7 @@ export function SemiFinishedIngredientFormSheet({
       organization_id: organizationId,
       name: name.trim() || "—",
       kind: "semi_finished",
-      category_id: categoryId === UNCATEGORIZED_VALUE ? null : categoryId,
+      category_id: categoryId === UNCATEGORIZED_CATEGORY_VALUE ? null : categoryId,
       unit_code: unitCode,
       track_inventory: trackInventory,
       sort_order: 0,
@@ -549,23 +542,12 @@ export function SemiFinishedIngredientFormSheet({
                   <Check className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" />
                 ) : null}
               </div>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={t("ingredient.library.uncategorized", "Uncategorized")}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNCATEGORIZED_VALUE}>
-                    {t("ingredient.library.uncategorized", "Uncategorized")}
-                  </SelectItem>
-                  {outletCategories.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <IngredientCategoryCombobox
+                value={categoryId}
+                categories={outletCategories}
+                outletId={selectedOutletId}
+                onChange={setCategoryId}
+              />
             </div>
           </div>
 

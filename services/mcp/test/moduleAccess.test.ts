@@ -231,6 +231,8 @@ describe("phase 2 tool visibility", () => {
     expect(names).not.toContain("kol.campaigns.list");
     expect(names).not.toContain("kol.profiles.list");
     expect(names).not.toContain("inventory.stock.list");
+    expect(names).not.toContain("inventory.summary.list");
+    expect(names).not.toContain("inventory.purchase_order.create");
   });
 
   it("shows employees and hides finance and stock when only the employees page is granted", () => {
@@ -245,6 +247,8 @@ describe("phase 2 tool visibility", () => {
     expect(names).not.toContain("finance.income.list");
     expect(names).not.toContain("finance.expenses.list");
     expect(names).not.toContain("inventory.stock.list");
+    expect(names).not.toContain("inventory.summary.list");
+    expect(names).not.toContain("inventory.purchase_order.create");
   });
 
   it("shows stock for the permission path and hides it for the browser URL alone", () => {
@@ -259,7 +263,32 @@ describe("phase 2 tool visibility", () => {
       configurations: [{ page_path: "/operations/inventory", roles_allowed: ["employee"] }],
     });
     expect(filterTools(allowed).map((tool) => tool.name)).toContain("inventory.stock.list");
+    expect(filterTools(allowed).map((tool) => tool.name)).toContain("inventory.summary.list");
+    expect(filterTools(allowed).map((tool) => tool.name)).not.toContain("inventory.purchase_order.create");
     expect(filterTools(browserOnly).map((tool) => tool.name)).not.toContain("inventory.stock.list");
+    expect(filterTools(browserOnly).map((tool) => tool.name)).not.toContain("inventory.summary.list");
+    expect(filterTools(browserOnly).map((tool) => tool.name)).not.toContain("inventory.purchase_order.create");
+  });
+
+  it("shows purchase order create only with commerce write and the stock page", () => {
+    const allowed = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: [...phase2Scopes, "commerce:write"] },
+      configurations: [{ page_path: "/operations/sales/stock-management", roles_allowed: ["employee"] }],
+    });
+    const readOnly = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: phase2Scopes },
+      configurations: [{ page_path: "/operations/sales/stock-management", roles_allowed: ["employee"] }],
+    });
+    const wrongPage = buildAuthContext({
+      ...base,
+      claims: { ...claims, scopes: [...phase2Scopes, "commerce:write"] },
+      configurations: [{ page_path: "/operations/inventory", roles_allowed: ["employee"] }],
+    });
+    expect(filterTools(allowed).map((tool) => tool.name)).toContain("inventory.purchase_order.create");
+    expect(filterTools(readOnly).map((tool) => tool.name)).not.toContain("inventory.purchase_order.create");
+    expect(filterTools(wrongPage).map((tool) => tool.name)).not.toContain("inventory.purchase_order.create");
   });
 
   it("shows ads accounts when any one ads page is granted", () => {

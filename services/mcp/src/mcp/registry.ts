@@ -57,6 +57,8 @@ export type McpToolName =
   | "kol.campaigns.list"
   | "kol.profiles.list"
   | "inventory.stock.list"
+  | "inventory.summary.list"
+  | "inventory.purchase_order.create"
   | "content.plans.create"
   | "content.briefs.create"
   | "content.plans.update"
@@ -381,8 +383,24 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "inventory.stock.list",
     description:
-      "List up to 50 stock rows for the organization locked in this session, lowest available quantity first. Returns product name, SKU name, internal SKU, available quantity, and reserved quantity. Movement history is not returned.",
+      "List up to 50 legacy SKU stock rows for the organization locked in this session, lowest available quantity first. This is the old shared SKU pool in inventory_stock_levels, not the Inventory Summary page. Returns product name, SKU name, internal SKU, available quantity, and reserved quantity. Movement history is not returned. For the stock shown on Inventory Summary, call inventory.summary.list.",
     scopes: ["commerce:read"],
+    moduleKey: "operations",
+    pagePath: INVENTORY_PAGE_PATH,
+  },
+  {
+    name: "inventory.summary.list",
+    description:
+      "Read the Inventory Summary for one outlet in the organization locked in this session. This is the stock on the Inventory page, not inventory.stock.list. Optional outlet_id; omit it for the default active outlet. Optional kind is both (default), ingredients, or item_library. Optional date_start and date_end are YYYY-MM-DD in Asia/Jakarta, both or neither; omit them for today. The range is at most 366 days. Optional search matches name, variant, or category. Returns up to 200 rows with current quantity and the Summary columns beginning, purchase order, sales, transfer, adjustment, and ending. truncated is true when more rows match. Parent products that only group variants are omitted. Read only.",
+    scopes: ["commerce:read"],
+    moduleKey: "operations",
+    pagePath: INVENTORY_PAGE_PATH,
+  },
+  {
+    name: "inventory.purchase_order.create",
+    description:
+      "Receive one purchased item into one outlet through the same Purchase Order used by the Inventory page. Requires outlet_id, the exact item name in search, qty, and unit_cost. Supplier is optional; omit supplier_id for No Supplier. Optional note is at most 500 characters. One item per call. Owner or omnichannel roster admin only; an organization admin is rejected. The organization mode is not chosen here. Simple mode receives the stock now and stock_received is true. Advanced mode only submits the purchase order, stock_received is false, and qty_after stays equal to qty_before until the page fulfills it. Say that clearly. This does not adjust, transfer, edit quantity directly, or fulfill an existing purchase order.",
+    scopes: ["commerce:write"],
     moduleKey: "operations",
     pagePath: INVENTORY_PAGE_PATH,
   },
@@ -765,6 +783,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
 ];
 
 const MUTATING_TOOLS = new Set<McpToolName>([
+  "inventory.purchase_order.create",
   "finance.income.create",
   "finance.income.update",
   "finance.expenses.create",

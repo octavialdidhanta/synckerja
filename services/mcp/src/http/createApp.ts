@@ -121,6 +121,14 @@ export type AppDeps = {
   listKolCampaigns: (ctx: McpAuthContext) => Promise<KolCampaignRow[]>;
   listKolProfiles: (ctx: McpAuthContext) => Promise<KolProfileRow[]>;
   listInventoryStock: (ctx: McpAuthContext) => Promise<StockRow[]>;
+  listInventorySummary: (
+    ctx: McpAuthContext,
+    query: import("../tools/inventory/summaryList").InventorySummaryQuery,
+  ) => Promise<import("../db/inventorySummary").InventorySummary>;
+  createInventoryPurchaseOrder: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/purchaseOrderCreate").InventoryPurchaseOrderInput,
+  ) => Promise<import("../db/inventoryPurchaseOrder").InventoryPurchaseOrder>;
   createContentPlan: (
     ctx: McpAuthContext,
     input: { title: string; postDate: string | null; brief: string | null },

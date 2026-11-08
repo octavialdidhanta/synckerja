@@ -12,6 +12,7 @@ export const PHASE0_SCOPES = [
   "pos:read",
   "kol:read",
   "commerce:read",
+  "commerce:write",
   "tasks:read",
   "tasks:write",
   "habits:read",

@@ -3848,6 +3848,7 @@ export const idTranslations: TranslationDictionary = {
   "ingredient.library.columnUnit": "Satuan",
   "ingredient.library.columnAlert": "Peringatan stok",
   "ingredient.library.uncategorized": "Tanpa kategori",
+  "ingredient.library.categoryCreateNew": "{{name}} (buat baru)",
   "ingredient.library.statusLow": "Stok menipis",
   "ingredient.library.statusOut": "Stok habis",
   "posInventory.title": "Inventori",
