@@ -63,7 +63,7 @@ async function handleViewInvoice(filePath: string | null | undefined) {
     return;
   }
   if (!result.ok) {
-    console.error('Error creating signed URL:', result.error);
+    console.error('Error creating signed URL:', 'error' in result ? result.error : undefined);
     toast.error('Failed to open invoice. Please try again.');
   }
 }

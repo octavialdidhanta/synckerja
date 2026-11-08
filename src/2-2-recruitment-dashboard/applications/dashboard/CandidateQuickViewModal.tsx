@@ -54,12 +54,12 @@ interface JobApplication {
   nik?: string;
   cv_file_path?: string | null;
   cover_letter?: string | null;
-  experience_years: string | null;
-  expected_salary: string | null;
-  skills: any;
-  status: string;
+  experience_years?: string | null;
+  expected_salary?: string | null;
+  skills?: any;
+  status?: string;
   created_at: string;
-  recruitment_token: string | null; // This will be synced from candidate_profiles
+  recruitment_token?: string | null; // This will be synced from candidate_profiles
   job_opening_id: string;
   candidate_profile_id?: string;
   interview_date?: string;
