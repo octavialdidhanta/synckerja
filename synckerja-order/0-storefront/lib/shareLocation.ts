@@ -1,3 +1,5 @@
+import { googleMapsPinUrl } from "../../shared/lib/googleMapsLink";
+
 export type LocationSharePayload = {
   title: string;
   text: string;
@@ -14,7 +16,7 @@ export function locationSharePayload(args: {
   const address = args.address?.trim() ?? "";
   const mapsUrl = args.mapsUrl?.trim() ?? "";
   const pageUrl = args.pageUrl.trim();
-  const url = mapsUrl || pageUrl;
+  const url = (mapsUrl ? googleMapsPinUrl(mapsUrl) : null) || mapsUrl || pageUrl;
   const text = [name, address].filter(Boolean).join("\n");
   return {
     title: name || url,

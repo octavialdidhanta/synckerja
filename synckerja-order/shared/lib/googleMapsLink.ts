@@ -54,6 +54,25 @@ export function canonicalGoogleMapsUrl(raw: string): string | null {
 }
 
 /**
+ * A link that drops a pin when opened from WhatsApp or a browser.
+ * A place URL that only has an `@` viewport opens the area without a marker.
+ */
+export function googleMapsPinUrl(raw: string): string | null {
+  const url = parseHttpsUrl(raw);
+  if (!url || !isGoogleMapsUrl(raw) || isGoogleMapsShortLink(raw)) return null;
+  const pin = extractPin(url);
+  const query = pin
+    ? `${pin.lat},${pin.lng}`
+    : url.searchParams.get("q")?.trim() ||
+      url.searchParams.get("query")?.trim() ||
+      url.searchParams.get("ll")?.trim() ||
+      placeName(url);
+  if (!query) return null;
+  const params = new URLSearchParams({ api: "1", query });
+  return `https://www.google.com/maps/search/?${params.toString()}`;
+}
+
+/**
  * Directions in Google Maps from the device's current location to this pin.
  * Origin is omitted so Maps uses the user's location.
  */

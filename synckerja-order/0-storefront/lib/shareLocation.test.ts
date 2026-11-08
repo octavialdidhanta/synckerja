@@ -13,7 +13,7 @@ describe("locationSharePayload", () => {
     ).toEqual({
       title: "Sate Sultan PIK",
       text: "Sate Sultan PIK\nTrimaran Indah 1",
-      url: "https://www.google.com/maps/place/Sate+Sultan+PIK/@-6.11,106.75,17z",
+      url: "https://www.google.com/maps/search/?api=1&query=-6.11%2C106.75",
     });
   });
 
@@ -30,7 +30,7 @@ describe("locationSharePayload", () => {
 describe("shareOrCopy", () => {
   const payload = locationSharePayload({
     name: "Sate Sultan PIK",
-    mapsUrl: "https://www.google.com/maps/place/Sate",
+    mapsUrl: "https://www.google.com/maps/place/Sate+Sultan/@-6.11,106.75,17z",
     pageUrl: "https://order.example/sate",
   });
 
@@ -40,7 +40,7 @@ describe("shareOrCopy", () => {
     expect(share).toHaveBeenCalledWith({
       title: "Sate Sultan PIK",
       text: "Sate Sultan PIK",
-      url: "https://www.google.com/maps/place/Sate",
+      url: "https://www.google.com/maps/search/?api=1&query=-6.11%2C106.75",
     });
   });
 
@@ -56,7 +56,7 @@ describe("shareOrCopy", () => {
   it("copies the link when sharing is unavailable", async () => {
     const copy = vi.fn(async () => true);
     await expect(shareOrCopy(payload, { copy })).resolves.toBe("copied");
-    expect(copy).toHaveBeenCalledWith("https://www.google.com/maps/place/Sate");
+    expect(copy).toHaveBeenCalledWith("https://www.google.com/maps/search/?api=1&query=-6.11%2C106.75");
   });
 
   it("tries a simpler share payload before copying", async () => {

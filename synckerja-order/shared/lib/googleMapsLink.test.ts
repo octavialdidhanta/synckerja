@@ -3,6 +3,7 @@ import {
   canonicalGoogleMapsUrl,
   googleMapsDirectionsUrl,
   googleMapsEmbedSrc,
+  googleMapsPinUrl,
   isGoogleMapsUrl,
 } from "./googleMapsLink";
 
@@ -49,5 +50,14 @@ describe("googleMapsLink", () => {
     expect(params.get("travelmode")).toBe("driving");
     expect(params.get("origin")).toBeNull();
     expect(googleMapsDirectionsUrl("https://maps.app.goo.gl/abc123")).toBeNull();
+  });
+
+  it("shares a pin link instead of the map viewport", () => {
+    const shared =
+      "https://www.google.com/maps/place/Sate+Sultan+PIK/@-6.1153649,106.7379257,15z/data=!3d-6.1153649!4d106.7569801";
+    const pin = googleMapsPinUrl(shared);
+    expect(pin?.startsWith("https://www.google.com/maps/search/?")).toBe(true);
+    expect(new URL(pin ?? "").searchParams.get("query")).toBe("-6.1153649,106.7569801");
+    expect(googleMapsPinUrl("https://maps.app.goo.gl/abc123")).toBeNull();
   });
 });
