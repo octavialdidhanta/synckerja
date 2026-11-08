@@ -60,6 +60,7 @@ export {
 } from "./inventory/ingredientCreate";
 export { confirmInput } from "./inventory/confirmation";
 export { supplierListInput } from "./inventory/supplierList";
+export { RECIPE_COSTS_HOW_TO_READ, recipeCostsInput, recipeCostsQuery } from "./inventory/recipeCosts";
 export type { InventoryPurchaseOrderInput } from "./inventory/purchaseOrderCreate";
 export { createPlanInput, createPlanResult } from "./content/plansCreate";
 export { createBriefInput, createBriefResult } from "./content/briefsCreate";

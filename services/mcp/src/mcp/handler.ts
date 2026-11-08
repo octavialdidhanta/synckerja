@@ -147,6 +147,9 @@ import {
   ingredientWriteInput,
   confirmInput,
   supplierListInput,
+  RECIPE_COSTS_HOW_TO_READ,
+  recipeCostsInput,
+  recipeCostsQuery,
   updateExpenseInput,
   updateExpenseResult,
   updateExpenseSchema,
@@ -285,6 +288,10 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     query: import("../tools/inventory/summaryList").InventorySummaryQuery,
   ) => Promise<import("../db/inventorySummary").InventorySummary>;
+  listRecipeCosts: (
+    ctx: McpAuthContext,
+    query: import("../tools/inventory/recipeCosts").RecipeCostsQuery,
+  ) => Promise<Record<string, unknown>>;
   listCatalogSuppliers: (
     ctx: McpAuthContext,
     search: string | null,
@@ -633,6 +640,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "inventory.stock.list": stockInput,
   "inventory.summary.list": summaryListInput,
   "inventory.suppliers.list": supplierListInput,
+  "recipes.costs.list": recipeCostsInput,
   "inventory.purchase_order.preview": purchaseOrderInput,
   "inventory.purchase_order.create": confirmInput,
   "inventory.ingredient.preview": ingredientPreviewInput,
@@ -855,6 +863,12 @@ async function runTool(
         dateEnd: parsed.data.date_end ?? null,
         search: parsed.data.search ?? null,
       }, deps.listInventorySummary);
+    }
+    case "recipes.costs.list": {
+      const parsed = recipeCostsInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const body = await deps.listRecipeCosts(ctx, recipeCostsQuery(parsed.data));
+      return { ...body, how_to_read: RECIPE_COSTS_HOW_TO_READ };
     }
     case "inventory.suppliers.list": {
       const parsed = supplierListInput.safeParse(args ?? {});

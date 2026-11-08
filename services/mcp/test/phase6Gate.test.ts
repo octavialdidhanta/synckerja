@@ -198,6 +198,7 @@ function gateDeps(overrides: Record<string, unknown>) {
     createInventoryPurchaseOrder: unused,
     previewInventoryPurchaseOrder: unused,
     listCatalogSuppliers: unused,
+    listRecipeCosts: unused,
     writeInventoryIngredient: unused,
     createContentPlan: unused,
     updateContentPlan: unused,

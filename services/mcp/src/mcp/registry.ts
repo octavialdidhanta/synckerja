@@ -9,6 +9,7 @@ import {
   HABITS_PAGE_PATH,
   INVENTORY_PAGE_PATH,
   INGREDIENT_LIST_PAGE_PATH,
+  INGREDIENT_RECIPES_PAGE_PATH,
   PAYROLL_PAGE_PATH,
   POS_SALES_SUMMARY_PAGE_PATH,
   KOL_CAMPAIGNS_PAGE_PATH,
@@ -60,6 +61,7 @@ export type McpToolName =
   | "inventory.stock.list"
   | "inventory.summary.list"
   | "inventory.suppliers.list"
+  | "recipes.costs.list"
   | "inventory.purchase_order.preview"
   | "inventory.purchase_order.create"
   | "inventory.ingredient.preview"
@@ -400,6 +402,14 @@ const TOOL_DEFINITIONS: McpTool[] = [
     scopes: ["commerce:read"],
     moduleKey: "operations",
     pagePath: INVENTORY_PAGE_PATH,
+  },
+  {
+    name: "recipes.costs.list",
+    description:
+      "Read HPP (cost of goods per portion) and margin for menu items at one outlet, using the same rule as the POS checkout: the product's own buy cost when it tracks one, else its base recipe (quantity \u00d7 each ingredient's average buy cost). Call this for questions like the HPP of a menu, which menus have low margin, which menus have no recipe, or what happens to HPP if an ingredient price changes. Optional outlet_id (default outlet when omitted), search (part of the menu name), only (all, with_recipe, without_recipe, incomplete = recipe has ingredients without a buy cost), max_margin_pct (only menus at or below this margin %, lowest first), and cost_overrides (what-if: exact ingredient name and unit_cost per its unit; up to 30). Returns per menu: selling_price, hpp, hpp_pct, margin, margin_pct, cogs_source, recipe lines with quantity in the ingredient's unit, missing_cost_ingredients, add_ons with extra cost, plus totals. Always mention missing_cost_ingredients, because they count as Rp0. Read only: it never changes recipes, prices, or stock, including in what-if mode. Follow how_to_read.",
+    scopes: ["commerce:read"],
+    moduleKey: "operations",
+    pagePath: INGREDIENT_RECIPES_PAGE_PATH,
   },
   {
     name: "inventory.suppliers.list",

@@ -28,6 +28,7 @@ export const KOL_PROFILES_PAGE_PATH = "/kol-management/kol-management";
 /** Permission catalog key. The browser URL is /operations/inventory. */
 export const INVENTORY_PAGE_PATH = "/operations/sales/stock-management";
 export const INGREDIENT_LIST_PAGE_PATH = "/operations/ingredient/list";
+export const INGREDIENT_RECIPES_PAGE_PATH = "/operations/ingredient/recipes";
 export const DAILY_TASK_PAGE_PATH = "/tools/daily-task";
 export const HABITS_PAGE_PATH = "/tools/habits-tracker";
 export const LEAD_MAGNET_PAGE_PATH = "/digital-marketing/lead-magnet";
@@ -156,6 +157,7 @@ export function buildAuthContext(input: {
     KOL_PROFILES_PAGE_PATH,
     INVENTORY_PAGE_PATH,
     INGREDIENT_LIST_PAGE_PATH,
+    INGREDIENT_RECIPES_PAGE_PATH,
     DAILY_TASK_PAGE_PATH,
     HABITS_PAGE_PATH,
     LEAD_MAGNET_PAGE_PATH,

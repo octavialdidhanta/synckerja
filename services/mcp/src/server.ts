@@ -28,6 +28,7 @@ import { listInventorySummary } from "./db/inventorySummary";
 import { createInventoryPurchaseOrder, previewInventoryPurchaseOrder } from "./db/inventoryPurchaseOrder";
 import { writeCatalogIngredient } from "./db/inventoryIngredient";
 import { listCatalogSuppliers } from "./db/inventorySuppliers";
+import { listRecipeCosts } from "./db/recipeCosts";
 import { listAdsAudience, listAdsBreakdown, listAdsPerformance, listAdsSegments } from "./db/adsPerformance";
 import {
   createCompanyObjective,
@@ -117,6 +118,7 @@ const app = createApp({
   listKolProfiles: (ctx) => listKolProfiles(admin, ctx),
   listInventoryStock: (ctx) => listInventoryStock(admin, ctx),
   listInventorySummary: (ctx, query) => listInventorySummary(admin, ctx, query),
+  listRecipeCosts: (ctx, query) => listRecipeCosts(admin, ctx, query),
   listCatalogSuppliers: (ctx, search) => listCatalogSuppliers(admin, ctx, search),
   previewInventoryPurchaseOrder: (ctx, input) => previewInventoryPurchaseOrder(admin, ctx, input),
   createInventoryPurchaseOrder: (ctx, input, confirmId) => createInventoryPurchaseOrder(admin, ctx, input, confirmId),

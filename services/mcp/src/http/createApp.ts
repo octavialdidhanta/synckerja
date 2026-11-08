@@ -126,6 +126,10 @@ export type AppDeps = {
     ctx: McpAuthContext,
     query: import("../tools/inventory/summaryList").InventorySummaryQuery,
   ) => Promise<import("../db/inventorySummary").InventorySummary>;
+  listRecipeCosts: (
+    ctx: McpAuthContext,
+    query: import("../tools/inventory/recipeCosts").RecipeCostsQuery,
+  ) => Promise<Record<string, unknown>>;
   listCatalogSuppliers: (
     ctx: McpAuthContext,
     search: string | null,
