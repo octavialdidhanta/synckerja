@@ -16,7 +16,16 @@ describe("ingredientCategoryChoices", () => {
       { kind: "uncategorized" },
       { kind: "existing", id: "1", name: "Daging" },
       { kind: "existing", id: "2", name: "test" },
+      { kind: "create", name: "" },
     ]);
+  });
+
+  it("still offers create new when the outlet has no categories", () => {
+    expect(ingredientCategoryChoices({
+      query: "",
+      categories: [],
+      uncategorizedLabel: "Uncategorized",
+    })).toEqual([{ kind: "uncategorized" }, { kind: "create", name: "" }]);
   });
 
   it("offers create new when the typed name does not exist", () => {

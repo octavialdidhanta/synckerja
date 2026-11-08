@@ -21,6 +21,8 @@ export function ingredientCategoryChoices(args: {
     return [
       { kind: "uncategorized" },
       ...categories.map((row) => ({ kind: "existing" as const, id: row.id, name: row.name })),
+      // Always reachable, even when the outlet has no categories yet.
+      { kind: "create", name: "" },
     ];
   }
   const matches = categories.filter((row) => row.name.toLowerCase().includes(query.toLowerCase()));
