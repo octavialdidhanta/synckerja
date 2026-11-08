@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 import { writeCatalogIngredient } from "../src/db/inventoryIngredient";
+import { MCP_SERVER_INSTRUCTIONS } from "../src/mcp/instructions";
 import { MCP_TOOLS } from "../src/mcp/registry";
 import {
   CONFIRMATION_TTL_SECONDS,
@@ -45,9 +46,28 @@ describe("inventory.ingredient.preview input", () => {
     }
   });
 
-  it("accepts an explicit null category and zero stock without a price", () => {
-    expect(ingredientPreviewInput.safeParse({ ...valid, category_name: null }).success).toBe(true);
+  it("makes the category an explicit choice", () => {
+    const { category_name: _omit, ...noCategoryGiven } = valid;
+    const missing = ingredientPreviewInput.safeParse(noCategoryGiven);
+    expect(missing.success).toBe(false);
+    if (!missing.success) {
+      expect(missing.error.issues.some((issue) => issue.message === "ingredient_category_choice_required")).toBe(true);
+    }
+    expect(ingredientPreviewInput.safeParse({ ...valid, category_name: null }).success).toBe(false);
+    expect(ingredientPreviewInput.safeParse({ ...valid, category_name: "  " }).success).toBe(false);
+    expect(ingredientPreviewInput.safeParse({ ...valid, no_category: true }).success).toBe(false);
+    expect(ingredientPreviewInput.safeParse({ ...noCategoryGiven, no_category: true }).success).toBe(true);
+    expect(ingredientWriteInput(ingredientPreviewInput.parse({ ...noCategoryGiven, no_category: true })).categoryName).toBeNull();
+  });
+
+  it("allows zero stock without a price", () => {
     expect(ingredientPreviewInput.safeParse({ ...valid, opening_stock: 0, unit_cost: 0 }).success).toBe(true);
+  });
+
+  it("round-trips a no-category choice through the confirm payload", () => {
+    const { category_name: _omit, ...noCategoryGiven } = valid;
+    const input = ingredientWriteInput(ingredientPreviewInput.parse({ ...noCategoryGiven, no_category: true }));
+    expect(ingredientInputFromConfirmation({ ...input })).toEqual(input);
   });
 
   it("rejects stock without a price, unknown units, negatives, extra fields", () => {
@@ -149,6 +169,10 @@ describe("registry and SQL", () => {
       expect(byName.get(name)?.pagePath).toBe("/operations/ingredient/list");
     }
     expect(byName.get("inventory.ingredient.preview")?.description).toContain("Never guess");
+    expect(byName.get("inventory.ingredient.preview")?.description).toContain("never because they did not mention one");
+    expect(byName.get("inventory.ingredient.create")?.description).toContain("never save two writes on one confirmation");
+    expect(byName.get("inventory.purchase_order.create")?.description).toContain("never save two writes on one confirmation");
+    expect(MCP_SERVER_INSTRUCTIONS).toContain("One yes confirms one write");
   });
 
   it("previews without writing and stores each confirmation once", () => {

@@ -16,17 +16,23 @@ function decimalPlaces(value: number): number {
 
 /**
  * Every field the page needs is required, so the assistant cannot call this without asking.
- * category_name must be sent explicitly: a name, or null for Uncategorized.
+ * Category is an explicit choice: a category_name, or no_category: true when the user said
+ * they want no category. Sending neither (or both) is rejected, so a missing answer cannot
+ * silently become "Uncategorized".
  */
 export const ingredientPreviewInput = z.object({
   outlet_id: z.string().uuid(),
   name: z.string().trim().min(1).max(120),
   unit_code: z.enum(INGREDIENT_UNIT_CODES),
-  category_name: z.string().trim().max(80).nullable(),
+  category_name: z.string().trim().min(1).max(80).optional(),
+  no_category: z.literal(true).optional(),
   opening_stock: z.number().min(0).max(99999999999.999),
   unit_cost: z.number().min(0).max(999999999999.99),
   alert_at: z.number().min(0).max(99999999999.999).nullable().optional(),
 }).strict().superRefine((value, ctx) => {
+  if ((value.category_name == null) === (value.no_category !== true)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "ingredient_category_choice_required" });
+  }
   if (decimalPlaces(value.opening_stock) > 3) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "invalid_input" });
   }
@@ -46,7 +52,7 @@ export type IngredientWriteInput = {
 };
 
 export function ingredientWriteInput(data: z.infer<typeof ingredientPreviewInput>): IngredientWriteInput {
-  const category = data.category_name?.trim() ?? "";
+  const category = data.no_category ? "" : data.category_name?.trim() ?? "";
   return {
     outletId: data.outlet_id,
     name: data.name,
@@ -64,7 +70,9 @@ export function ingredientInputFromConfirmation(payload: Record<string, unknown>
     outlet_id: payload.outletId,
     name: payload.name,
     unit_code: payload.unitCode,
-    category_name: payload.categoryName ?? null,
+    ...(typeof payload.categoryName === "string" && payload.categoryName
+      ? { category_name: payload.categoryName }
+      : { no_category: true }),
     opening_stock: payload.openingStock,
     unit_cost: payload.unitCost,
     alert_at: payload.alertAt ?? null,

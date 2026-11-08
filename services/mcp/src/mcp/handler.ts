@@ -526,7 +526,9 @@ type HandlerDeps = McpReadDeps & {
 type ToolArgs = Record<string, unknown>;
 
 const CONFIRM_NEXT_STEP =
-  "Nothing is saved yet. Show this summary to the user and ask them to confirm. Call the create tool with confirm_token only after they clearly say yes.";
+  "Nothing is saved yet. Show every field of this summary to the user, including category_display, and ask them to confirm this one write. "
+  + "Call the create tool with this confirm_token only after they clearly say yes to this summary. "
+  + "One yes confirms one write: do not save a second write (for example a purchase order) on the same yes; preview it and ask again.";
 
 function forbidden() {
   return {
@@ -870,13 +872,22 @@ async function runTool(
     case "inventory.ingredient.preview": {
       const parsed = ingredientPreviewInput.safeParse(args ?? {});
       if (!parsed.success) {
-        const costMissing = parsed.error.issues.some((issue) => issue.message === "ingredient_cost_required");
-        throw new Error(costMissing ? "ingredient_cost_required" : "invalid_input");
+        const codes = parsed.error.issues.map((issue) => issue.message);
+        if (codes.includes("ingredient_category_choice_required")) throw new Error("ingredient_category_choice_required");
+        if (codes.includes("ingredient_cost_required")) throw new Error("ingredient_cost_required");
+        throw new Error("invalid_input");
       }
       const input = ingredientWriteInput(parsed.data);
       const preview = await deps.writeInventoryIngredient(ctx, input, null);
       const signed = await deps.signInventoryConfirmation(ctx, "inventory.ingredient.create", { ...input });
-      return { ...preview, ...signed, next_step: CONFIRM_NEXT_STEP };
+      return {
+        ...preview,
+        category_display: preview.category_name
+          ? `${preview.category_name}${preview.category_is_new ? " (new category)" : ""}`
+          : "(no category)",
+        ...signed,
+        next_step: CONFIRM_NEXT_STEP,
+      };
     }
     case "inventory.ingredient.create": {
       const parsed = confirmInput.safeParse(args ?? {});
