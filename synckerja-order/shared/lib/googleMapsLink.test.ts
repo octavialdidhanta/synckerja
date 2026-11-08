@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { canonicalGoogleMapsUrl, googleMapsEmbedSrc, isGoogleMapsUrl } from "./googleMapsLink";
+import {
+  canonicalGoogleMapsUrl,
+  googleMapsDirectionsUrl,
+  googleMapsEmbedSrc,
+  isGoogleMapsUrl,
+} from "./googleMapsLink";
 
 describe("googleMapsLink", () => {
   it("accepts Google Maps hosts and rejects other links", () => {
@@ -31,5 +36,18 @@ describe("googleMapsLink", () => {
     expect(canonicalGoogleMapsUrl(shared)).toBe(
       "https://www.google.com/maps/place/Sate+Sultan+PIK/@-6.1153649,106.7569801,17z",
     );
+  });
+
+  it("builds a route from the user's location to the place pin", () => {
+    const shared =
+      "https://www.google.com/maps/place/Sate+Sultan+PIK/@-6.1153649,106.7379257,15z/data=!3d-6.1153649!4d106.7569801";
+    const directions = googleMapsDirectionsUrl(shared);
+    expect(directions).toContain("https://www.google.com/maps/dir/?");
+    const params = new URL(directions ?? "").searchParams;
+    expect(params.get("api")).toBe("1");
+    expect(params.get("destination")).toBe("-6.1153649,106.7569801");
+    expect(params.get("travelmode")).toBe("driving");
+    expect(params.get("origin")).toBeNull();
+    expect(googleMapsDirectionsUrl("https://maps.app.goo.gl/abc123")).toBeNull();
   });
 });

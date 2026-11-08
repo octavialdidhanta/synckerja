@@ -243,7 +243,7 @@ export function OrderListRow({
       <OrderProductPhoto
         url={item.photo_url}
         alt={item.name}
-        className="h-16 w-16 shrink-0 rounded"
+        className="h-24 w-24 shrink-0 rounded-md"
       />
       <div className="min-w-0 flex-1">
         <p className="text-[13px] font-semibold uppercase leading-snug text-neutral-900">{item.name}</p>

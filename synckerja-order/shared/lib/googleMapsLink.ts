@@ -53,6 +53,25 @@ export function canonicalGoogleMapsUrl(raw: string): string | null {
   return googleMapsEmbedSrc(raw) ? url.toString() : null;
 }
 
+/**
+ * Directions in Google Maps from the device's current location to this pin.
+ * Origin is omitted so Maps uses the user's location.
+ */
+export function googleMapsDirectionsUrl(raw: string): string | null {
+  const url = parseHttpsUrl(raw);
+  if (!url || !isGoogleMapsUrl(raw) || isGoogleMapsShortLink(raw)) return null;
+  const pin = extractPin(url);
+  const query = url.searchParams.get("q") || url.searchParams.get("query") || url.searchParams.get("ll");
+  const destination = pin ? `${pin.lat},${pin.lng}` : query?.trim() || placeName(url);
+  if (!destination) return null;
+  const params = new URLSearchParams({
+    api: "1",
+    destination,
+    travelmode: "driving",
+  });
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
 function extractPin(url: URL): { lat: string; lng: string } | null {
   const placeCoords = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/.exec(url.toString());
   if (placeCoords) return { lat: placeCoords[1], lng: placeCoords[2] };

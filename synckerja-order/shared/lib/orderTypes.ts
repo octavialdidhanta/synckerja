@@ -57,8 +57,11 @@ export type PublicOrderStore = {
   outlet_id?: string;
   outlet_name?: string;
   outlet_address?: string | null;
+  outlet_phone?: string | null;
   business_name?: string;
   logo_path?: string | null;
+  outlet_logo_path?: string | null;
+  logo_url?: string | null;
   cover_path?: string | null;
   cover_url?: string | null;
   pickup_enabled?: boolean;

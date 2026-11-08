@@ -551,6 +551,7 @@ export function OrderStorefrontPage() {
       >
         <OrderStoreHero
           coverUrl={store.cover_url}
+          logoUrl={store.logo_url}
           storeName={storeName}
           isOpen={isOpen}
           hours={store.hours}
@@ -822,6 +823,7 @@ export function OrderStorefrontPage() {
           locationName={store.outlet_name || storeName}
           address={store.outlet_address}
           mapsUrl={linkQuery.data?.maps_url ?? null}
+          phone={store.outlet_phone || orderWhatsApp?.phoneDigits}
           branches={branchesQuery.data ?? []}
           onBack={() => setProfileOpen(false)}
         />

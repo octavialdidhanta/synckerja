@@ -6,6 +6,7 @@ import { ORDER_STOREFRONT_PX } from "../lib/orderStorefrontGutter";
 
 type Props = {
   coverUrl: string | null | undefined;
+  logoUrl?: string | null;
   storeName: string;
   isOpen: boolean;
   hours: PublicOrderHours | null | undefined;
@@ -18,6 +19,7 @@ type Props = {
 
 export function OrderStoreHero({
   coverUrl,
+  logoUrl,
   storeName,
   isOpen,
   hours,
@@ -74,14 +76,19 @@ export function OrderStoreHero({
           onClick={onStoreInfo}
           className="flex w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3 text-left shadow-[0_8px_24px_rgba(0,0,0,0.18)]"
         >
-          <span className="min-w-0">
-            <span className="block truncate text-[15px] font-semibold text-neutral-900">{storeName}</span>
-            <span
-              className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                isOpen ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
-              }`}
-            >
-              {badgeLabel}
+          <span className="flex min-w-0 items-center gap-1">
+            {logoUrl ? (
+              <img src={logoUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
+            ) : null}
+            <span className="min-w-0">
+              <span className="block truncate text-[15px] font-semibold text-neutral-900">{storeName}</span>
+              <span
+                className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  isOpen ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+                }`}
+              >
+                {badgeLabel}
+              </span>
             </span>
           </span>
           <span className="ml-3 inline-flex shrink-0 items-center gap-1 text-neutral-400">
