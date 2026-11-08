@@ -63,7 +63,9 @@ export type PublicOrderStore = {
   outlet_logo_path?: string | null;
   logo_url?: string | null;
   cover_path?: string | null;
+  cover_paths?: string[] | null;
   cover_url?: string | null;
+  cover_urls?: string[] | null;
   pickup_enabled?: boolean;
   is_open?: boolean;
   hours?: PublicOrderHours | null;

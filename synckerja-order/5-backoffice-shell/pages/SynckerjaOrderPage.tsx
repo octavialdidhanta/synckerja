@@ -260,9 +260,9 @@ export default function SynckerjaOrderPage() {
                       outlets={configurableOutlets}
                       outletId={orderOutlet?.id ?? null}
                       onOutletChange={setOrderOutletId}
-                      coverPath={outletCover.coverPath}
+                      coverPaths={outletCover.coverPaths}
                       coverLoading={outletCover.isLoading}
-                      onCoverChange={(coverPath) => outletCover.save.mutateAsync(coverPath)}
+                      onCoverPathsChange={(coverPaths) => outletCover.save.mutateAsync(coverPaths)}
                     />
                   ) : null}
                   {tab === "contact" ? (

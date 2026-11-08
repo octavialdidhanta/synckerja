@@ -1,6 +1,7 @@
 import { supabase } from "@/shared/lib/supabaseClient";
 import { signOutletReceiptLogo } from "@/8-2-6-receipt/lib/receiptLogoStorage";
-import { normalizeCatalogStoragePath, resolveCatalogPhotoUrls, resolvePublicOrderPhotoUrls } from "@/synckerja-order/shared/lib/orderStorePhoto";
+import { publicOrderCoverPaths } from "@/synckerja-order/shared/lib/orderCoverSlides";
+import { normalizeCatalogStoragePath, resolvePublicOrderPhotoUrls } from "@/synckerja-order/shared/lib/orderStorePhoto";
 import { normalizePublicCode } from "./publicCode";
 import type { PublicOrderCatalog, PublicOrderItemOptions, PublicOrderStore } from "./orderTypes";
 
@@ -27,11 +28,19 @@ export async function fetchPublicOrderStore(args: {
   }
   const store = (data ?? { ok: false, error: "not_found" }) as PublicOrderStore;
   if (!store.ok) return store;
-  const photos = await resolveCatalogPhotoUrls([store.cover_path, store.logo_path]);
-  const logoUrl = await signOutletReceiptLogo(store.outlet_logo_path);
+  const coverPaths = publicOrderCoverPaths(store);
+  const [photos, logoUrl] = await Promise.all([
+    resolvePublicOrderPhotoUrls(code, [...coverPaths, store.logo_path]),
+    signOutletReceiptLogo(store.outlet_logo_path),
+  ]);
+  const coverUrls = coverPaths
+    .map((path) => photos.get(normalizeCatalogStoragePath(path)) ?? null)
+    .filter((url): url is string => Boolean(url));
   return {
     ...store,
-    cover_url: store.cover_path ? photos.get(normalizeCatalogStoragePath(store.cover_path)) ?? null : null,
+    cover_paths: coverPaths,
+    cover_url: coverUrls[0] ?? null,
+    cover_urls: coverUrls,
     logo_url: logoUrl,
   };
 }

@@ -551,6 +551,7 @@ export function OrderStorefrontPage() {
       >
         <OrderStoreHero
           coverUrl={store.cover_url}
+          coverUrls={store.cover_urls}
           logoUrl={store.logo_url}
           storeName={storeName}
           isOpen={isOpen}

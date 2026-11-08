@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { ChevronRight, MapPin, Menu, Search } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { orderHoursBadge } from "@/synckerja-order/shared/lib/orderHours";
 import type { PublicOrderHours } from "@/synckerja-order/shared/lib/orderTypes";
+import { useOneWayCoverSlide } from "../lib/useCoverSlideIndex";
 import { ORDER_STOREFRONT_PX } from "../lib/orderStorefrontGutter";
 
 type Props = {
   coverUrl: string | null | undefined;
+  coverUrls?: readonly string[] | null;
   logoUrl?: string | null;
   storeName: string;
   isOpen: boolean;
@@ -19,6 +22,7 @@ type Props = {
 
 export function OrderStoreHero({
   coverUrl,
+  coverUrls,
   logoUrl,
   storeName,
   isOpen,
@@ -29,6 +33,12 @@ export function OrderStoreHero({
   showLocation = false,
 }: Props) {
   const { t } = useAppTranslation();
+  const [coverPaused, setCoverPaused] = useState(false);
+  const slides = (coverUrls ?? []).map((url) => url.trim()).filter(Boolean);
+  const photos = slides.length > 0 ? slides : coverUrl?.trim() ? [coverUrl.trim()] : [];
+  const coverMotion = useOneWayCoverSlide(photos.length, coverPaused);
+  const coverFrames =
+    photos.length > 1 ? [photos[coverMotion.incoming], photos[coverMotion.visible]] : photos;
   const badge = orderHoursBadge({
     isOpen,
     closeHhmm: hours?.close_hhmm ?? null,
@@ -49,11 +59,50 @@ export function OrderStoreHero({
   return (
     <div className="relative">
       <div
-        className="h-[240px] overflow-hidden bg-neutral-900"
+        className="relative h-[240px] overflow-hidden bg-neutral-900"
         style={{ height: 240, borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}
+        onMouseEnter={() => setCoverPaused(true)}
+        onMouseLeave={() => setCoverPaused(false)}
       >
-        {coverUrl ? (
-          <img src={coverUrl} alt="" className="h-full w-full object-cover" />
+        {photos.length > 0 ? (
+          <>
+            <div
+              data-cover-track
+              className={`flex h-full ${
+                coverMotion.animate ? "transition-transform duration-500 ease-out motion-reduce:transition-none" : ""
+              }`}
+              style={{
+                width: photos.length > 1 ? "200%" : "100%",
+                transform: `translateX(${photos.length > 1 && coverMotion.phase === 0 ? "-50%" : "0%"})`,
+              }}
+              onTransitionEnd={(event) => {
+                if (event.propertyName !== "transform") return;
+                coverMotion.settle();
+              }}
+            >
+              {coverFrames.map((url, slide) => (
+                <img
+                  key={`${slide}:${url}`}
+                  src={url}
+                  alt=""
+                  className="h-full object-cover"
+                  style={{ width: photos.length > 1 ? "50%" : "100%" }}
+                />
+              ))}
+            </div>
+            {photos.length > 1 ? (
+              <div className="absolute bottom-14 left-0 right-0 z-10 flex justify-center gap-1.5" aria-hidden>
+                {photos.map((url, slide) => (
+                  <span
+                    key={`${slide}:${url}`}
+                    className={`h-1.5 w-1.5 rounded-full shadow-[0_0_0_1px_rgba(0,0,0,0.35)] ${
+                      slide === coverMotion.visible ? "bg-white" : "bg-white/50"
+                    }`}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </>
         ) : (
           <div className={`flex h-full flex-col justify-end bg-gradient-to-br from-neutral-800 via-neutral-900 to-black ${ORDER_STOREFRONT_PX} pb-16`}>
             <p className="whitespace-pre-line text-[28px] font-black leading-none tracking-tight text-white">
