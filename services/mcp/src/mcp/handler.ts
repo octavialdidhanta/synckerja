@@ -140,7 +140,12 @@ import {
   summaryListInput,
   summaryListResult,
   purchaseOrderInput,
-  purchaseOrderResult,
+  purchaseOrderInputFromConfirmation,
+  purchaseOrderWriteInput,
+  ingredientInputFromConfirmation,
+  ingredientPreviewInput,
+  ingredientWriteInput,
+  confirmInput,
   updateExpenseInput,
   updateExpenseResult,
   updateExpenseSchema,
@@ -279,10 +284,30 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     query: import("../tools/inventory/summaryList").InventorySummaryQuery,
   ) => Promise<import("../db/inventorySummary").InventorySummary>;
+  previewInventoryPurchaseOrder: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/purchaseOrderCreate").InventoryPurchaseOrderInput,
+  ) => Promise<import("../db/inventoryPurchaseOrder").InventoryPurchaseOrderPreview>;
   createInventoryPurchaseOrder: (
     ctx: McpAuthContext,
     input: import("../tools/inventory/purchaseOrderCreate").InventoryPurchaseOrderInput,
+    confirmId: string,
   ) => Promise<import("../db/inventoryPurchaseOrder").InventoryPurchaseOrder>;
+  writeInventoryIngredient: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/ingredientCreate").IngredientWriteInput,
+    confirmId: string | null,
+  ) => Promise<import("../db/inventoryIngredient").IngredientWriteResult>;
+  signInventoryConfirmation: (
+    ctx: McpAuthContext,
+    tool: import("../tools/inventory/confirmation").ConfirmableTool,
+    payload: Record<string, unknown>,
+  ) => Promise<import("../tools/inventory/confirmation").SignedConfirmation>;
+  verifyInventoryConfirmation: (
+    ctx: McpAuthContext,
+    tool: import("../tools/inventory/confirmation").ConfirmableTool,
+    token: string,
+  ) => Promise<import("../tools/inventory/confirmation").VerifiedConfirmation>;
   createContentPlan: (
     ctx: McpAuthContext,
     input: { title: string; postDate: string | null; brief: string | null },
@@ -500,6 +525,9 @@ type HandlerDeps = McpReadDeps & {
 
 type ToolArgs = Record<string, unknown>;
 
+const CONFIRM_NEXT_STEP =
+  "Nothing is saved yet. Show this summary to the user and ask them to confirm. Call the create tool with confirm_token only after they clearly say yes.";
+
 function forbidden() {
   return {
     isError: true as const,
@@ -597,7 +625,10 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "kol.profiles.list": kolProfilesInput,
   "inventory.stock.list": stockInput,
   "inventory.summary.list": summaryListInput,
-  "inventory.purchase_order.create": purchaseOrderInput,
+  "inventory.purchase_order.preview": purchaseOrderInput,
+  "inventory.purchase_order.create": confirmInput,
+  "inventory.ingredient.preview": ingredientPreviewInput,
+  "inventory.ingredient.create": confirmInput,
   "content.plans.create": createPlanInput,
   "content.briefs.create": createBriefInput,
   "content.plans.update": updatePlanSchema,
@@ -817,17 +848,46 @@ async function runTool(
         search: parsed.data.search ?? null,
       }, deps.listInventorySummary);
     }
-    case "inventory.purchase_order.create": {
+    case "inventory.purchase_order.preview": {
       const parsed = purchaseOrderInput.safeParse(args ?? {});
       if (!parsed.success) throw new Error("invalid_input");
-      return purchaseOrderResult(ctx, {
-        outletId: parsed.data.outlet_id,
-        search: parsed.data.search,
-        qty: parsed.data.qty,
-        unitCost: parsed.data.unit_cost,
-        supplierId: parsed.data.supplier_id ?? null,
-        note: parsed.data.note ? parsed.data.note : null,
-      }, deps.createInventoryPurchaseOrder);
+      const input = purchaseOrderWriteInput(parsed.data);
+      const preview = await deps.previewInventoryPurchaseOrder(ctx, input);
+      const signed = await deps.signInventoryConfirmation(ctx, "inventory.purchase_order.create", { ...input });
+      return { ...preview, ...signed, next_step: CONFIRM_NEXT_STEP };
+    }
+    case "inventory.purchase_order.create": {
+      const parsed = confirmInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const verified = await deps.verifyInventoryConfirmation(
+        ctx,
+        "inventory.purchase_order.create",
+        parsed.data.confirm_token,
+      );
+      const input = purchaseOrderInputFromConfirmation(verified.payload);
+      return deps.createInventoryPurchaseOrder(ctx, input, verified.confirmId);
+    }
+    case "inventory.ingredient.preview": {
+      const parsed = ingredientPreviewInput.safeParse(args ?? {});
+      if (!parsed.success) {
+        const costMissing = parsed.error.issues.some((issue) => issue.message === "ingredient_cost_required");
+        throw new Error(costMissing ? "ingredient_cost_required" : "invalid_input");
+      }
+      const input = ingredientWriteInput(parsed.data);
+      const preview = await deps.writeInventoryIngredient(ctx, input, null);
+      const signed = await deps.signInventoryConfirmation(ctx, "inventory.ingredient.create", { ...input });
+      return { ...preview, ...signed, next_step: CONFIRM_NEXT_STEP };
+    }
+    case "inventory.ingredient.create": {
+      const parsed = confirmInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const verified = await deps.verifyInventoryConfirmation(
+        ctx,
+        "inventory.ingredient.create",
+        parsed.data.confirm_token,
+      );
+      const input = ingredientInputFromConfirmation(verified.payload);
+      return deps.writeInventoryIngredient(ctx, input, verified.confirmId);
     }
     case "content.plans.create":
       return createPlanResult(

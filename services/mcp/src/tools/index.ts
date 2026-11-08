@@ -48,7 +48,17 @@ export { kolProfilesInput, kolProfilesResult } from "./kol/profilesList";
 export { stockInput, stockResult } from "./inventory/stockList";
 export { summaryListInput, summaryListResult } from "./inventory/summaryList";
 export type { InventorySummaryQuery } from "./inventory/summaryList";
-export { purchaseOrderInput, purchaseOrderResult } from "./inventory/purchaseOrderCreate";
+export {
+  purchaseOrderInput,
+  purchaseOrderInputFromConfirmation,
+  purchaseOrderWriteInput,
+} from "./inventory/purchaseOrderCreate";
+export {
+  ingredientInputFromConfirmation,
+  ingredientPreviewInput,
+  ingredientWriteInput,
+} from "./inventory/ingredientCreate";
+export { confirmInput } from "./inventory/confirmation";
 export type { InventoryPurchaseOrderInput } from "./inventory/purchaseOrderCreate";
 export { createPlanInput, createPlanResult } from "./content/plansCreate";
 export { createBriefInput, createBriefResult } from "./content/briefsCreate";

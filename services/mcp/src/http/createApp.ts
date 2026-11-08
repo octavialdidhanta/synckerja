@@ -57,6 +57,7 @@ import type { GrantStore } from "../oauth/store";
 import { exchangeToken } from "../oauth/token";
 import { verifyAccessToken, type AccessClaims } from "../oauth/tokens";
 import type { SchedulePlanResult } from "../tools/content/plansSchedule";
+import { signConfirmation, verifyConfirmation } from "../tools/inventory/confirmation";
 
 export type AppDeps = {
   config: McpServiceConfig;
@@ -125,10 +126,20 @@ export type AppDeps = {
     ctx: McpAuthContext,
     query: import("../tools/inventory/summaryList").InventorySummaryQuery,
   ) => Promise<import("../db/inventorySummary").InventorySummary>;
+  previewInventoryPurchaseOrder: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/purchaseOrderCreate").InventoryPurchaseOrderInput,
+  ) => Promise<import("../db/inventoryPurchaseOrder").InventoryPurchaseOrderPreview>;
   createInventoryPurchaseOrder: (
     ctx: McpAuthContext,
     input: import("../tools/inventory/purchaseOrderCreate").InventoryPurchaseOrderInput,
+    confirmId: string,
   ) => Promise<import("../db/inventoryPurchaseOrder").InventoryPurchaseOrder>;
+  writeInventoryIngredient: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/ingredientCreate").IngredientWriteInput,
+    confirmId: string | null,
+  ) => Promise<import("../db/inventoryIngredient").IngredientWriteResult>;
   createContentPlan: (
     ctx: McpAuthContext,
     input: { title: string; postDate: string | null; brief: string | null },
@@ -485,7 +496,13 @@ export function createApp(deps: AppDeps) {
       return unauthorized(deps.config);
     }
     try {
-      return await handleMcpRequest(c.req.raw, claims, deps);
+      return await handleMcpRequest(c.req.raw, claims, {
+        ...deps,
+        signInventoryConfirmation: (ctx, tool, payload) =>
+          signConfirmation(deps.config.jwtSecret, ctx, tool, payload, now()),
+        verifyInventoryConfirmation: (ctx, tool, confirmToken) =>
+          verifyConfirmation(deps.config.jwtSecret, ctx, tool, confirmToken, now()),
+      });
     } catch (error) {
       if (error instanceof AuthzError) {
         return Response.json({ error: error.message }, { status: error.status });

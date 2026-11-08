@@ -1,6 +1,4 @@
 import { z } from "zod";
-import type { McpAuthContext } from "../../authz/context";
-import type { InventoryPurchaseOrder } from "../../db/inventoryPurchaseOrder";
 
 function decimalPlaces(value: number): number {
   const text = value.toString();
@@ -35,10 +33,27 @@ export type InventoryPurchaseOrderInput = {
   note: string | null;
 };
 
-export function purchaseOrderResult(
-  ctx: McpAuthContext,
-  input: InventoryPurchaseOrderInput,
-  create: (ctx: McpAuthContext, input: InventoryPurchaseOrderInput) => Promise<InventoryPurchaseOrder>,
-): Promise<InventoryPurchaseOrder> {
-  return create(ctx, input);
+export function purchaseOrderWriteInput(data: z.infer<typeof purchaseOrderInput>): InventoryPurchaseOrderInput {
+  return {
+    outletId: data.outlet_id,
+    search: data.search,
+    qty: data.qty,
+    unitCost: data.unit_cost,
+    supplierId: data.supplier_id ?? null,
+    note: data.note ? data.note : null,
+  };
+}
+
+/** Rebuild the input from a verified confirm token; rejects anything the preview would not have produced. */
+export function purchaseOrderInputFromConfirmation(payload: Record<string, unknown>): InventoryPurchaseOrderInput {
+  const parsed = purchaseOrderInput.safeParse({
+    outlet_id: payload.outletId,
+    search: payload.search,
+    qty: payload.qty,
+    unit_cost: payload.unitCost,
+    ...(typeof payload.supplierId === "string" ? { supplier_id: payload.supplierId } : {}),
+    ...(typeof payload.note === "string" ? { note: payload.note } : {}),
+  });
+  if (!parsed.success) throw new Error("confirmation_invalid");
+  return purchaseOrderWriteInput(parsed.data);
 }

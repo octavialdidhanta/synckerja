@@ -11,6 +11,7 @@ const sql = readFileSync(
 );
 
 const outletId = "9ade0045-0fc0-4545-9a3d-34866dff903a";
+const confirmId = "6f1c2a7e-3d4b-4c5a-9e8f-0a1b2c3d4e5f";
 
 const input = {
   outlet_id: outletId,
@@ -116,12 +117,13 @@ describe("purchase order receipt", () => {
     const received = await createInventoryPurchaseOrder(admin, {
       userId: "user-1",
       organizationId: "org-1",
-    }, args);
+    }, args, confirmId);
     const waiting = await createInventoryPurchaseOrder(admin, {
       userId: "user-1",
       organizationId: "org-1",
-    }, args);
-    expect(rpc).toHaveBeenCalledWith("mcp_create_inventory_purchase_order", {
+    }, args, confirmId);
+    expect(rpc).toHaveBeenCalledWith("mcp_confirm_inventory_purchase_order", {
+      p_confirm_id: confirmId,
       p_user_id: "user-1",
       p_organization_id: "org-1",
       p_outlet_id: outletId,
@@ -166,18 +168,18 @@ describe("purchase order receipt", () => {
     await expect(createInventoryPurchaseOrder(member, {
       userId: "outsider",
       organizationId: "org-1",
-    }, args)).rejects.toThrow("not_a_member");
+    }, args, confirmId)).rejects.toThrow("not_a_member");
     await expect(createInventoryPurchaseOrder(manager, {
       userId: "user-1",
       organizationId: "org-1",
-    }, args)).rejects.toThrow("forbidden");
+    }, args, confirmId)).rejects.toThrow("forbidden");
     await expect(createInventoryPurchaseOrder(feature, {
       userId: "user-1",
       organizationId: "org-1",
-    }, args)).rejects.toThrow("catalog_inventory_feature_forbidden");
+    }, args, confirmId)).rejects.toThrow("catalog_inventory_feature_forbidden");
     await expect(createInventoryPurchaseOrder(otherOrgOutlet, {
       userId: "user-1",
       organizationId: "org-1",
-    }, args)).rejects.toThrow("catalog_po_forbidden");
+    }, args, confirmId)).rejects.toThrow("catalog_po_forbidden");
   });
 });

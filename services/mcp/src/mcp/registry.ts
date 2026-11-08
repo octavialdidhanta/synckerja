@@ -8,6 +8,7 @@ import {
   DAILY_TASK_PAGE_PATH,
   HABITS_PAGE_PATH,
   INVENTORY_PAGE_PATH,
+  INGREDIENT_LIST_PAGE_PATH,
   PAYROLL_PAGE_PATH,
   POS_SALES_SUMMARY_PAGE_PATH,
   KOL_CAMPAIGNS_PAGE_PATH,
@@ -58,7 +59,10 @@ export type McpToolName =
   | "kol.profiles.list"
   | "inventory.stock.list"
   | "inventory.summary.list"
+  | "inventory.purchase_order.preview"
   | "inventory.purchase_order.create"
+  | "inventory.ingredient.preview"
+  | "inventory.ingredient.create"
   | "content.plans.create"
   | "content.briefs.create"
   | "content.plans.update"
@@ -397,12 +401,36 @@ const TOOL_DEFINITIONS: McpTool[] = [
     pagePath: INVENTORY_PAGE_PATH,
   },
   {
-    name: "inventory.purchase_order.create",
+    name: "inventory.purchase_order.preview",
     description:
-      "Receive one purchased item into one outlet through the same Purchase Order used by the Inventory page. Requires outlet_id, the exact item name in search, qty, and unit_cost. Supplier is optional; omit supplier_id for No Supplier. Optional note is at most 500 characters. One item per call. Owner or omnichannel roster admin only; an organization admin is rejected. The organization mode is not chosen here. Simple mode receives the stock now and stock_received is true. Advanced mode only submits the purchase order, stock_received is false, and qty_after stays equal to qty_before until the page fulfills it. Say that clearly. This does not adjust, transfer, edit quantity directly, or fulfill an existing purchase order.",
+      "Preview receiving one purchased item into one outlet through the Purchase Order used by the Inventory page. Nothing is saved. Requires outlet_id, the exact item name in search, qty, and unit_cost (price per unit). Supplier is optional; omit supplier_id for No Supplier. Optional note is at most 500 characters. One item per call. Returns the item, unit, current stock, expected stock after, subtotal, supplier, and po_mode. Simple mode receives the stock on confirm; Advanced mode only submits the purchase order and stock arrives when the page fulfills it. Say that clearly. Owner or omnichannel roster admin only; an organization admin is rejected. Never guess a value. If the user did not give a field, ask for it before calling this tool. After this tool returns, show the user the full summary in plain words and ask them to confirm. Only call inventory.purchase_order.create with the returned confirm_token after the user clearly says yes. If the user changes anything, call this preview again; a token is valid for 15 minutes and works once.",
     scopes: ["commerce:write"],
     moduleKey: "operations",
     pagePath: INVENTORY_PAGE_PATH,
+  },
+  {
+    name: "inventory.purchase_order.create",
+    description:
+      "Save the purchase order shown by inventory.purchase_order.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the preview summary and clearly confirmed it. Never call it right after preview without asking. Simple mode receives the stock now and stock_received is true. Advanced mode only submits the purchase order, stock_received is false, and qty_after stays equal to qty_before until the page fulfills it. Say that clearly. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again. This does not adjust, transfer, edit quantity directly, or fulfill an existing purchase order.",
+    scopes: ["commerce:write"],
+    moduleKey: "operations",
+    pagePath: INVENTORY_PAGE_PATH,
+  },
+  {
+    name: "inventory.ingredient.preview",
+    description:
+      "Preview adding one raw ingredient to one outlet's inventory, exactly as the Ingredient page would. Nothing is saved. Requires outlet_id (from inventory.summary.list), name, unit_code (one of the listed codes, e.g. kg, g, l, ml, pcs, ikt, krg, bks), category_name (an ingredient category name, or null for Uncategorized; a new name creates that category), opening_stock (0 if there is no stock yet), and unit_cost per unit (buy price; required above 0 when opening_stock is above 0). Optional alert_at is the low-stock alert quantity. Rejects a name that already exists. Semi-finished ingredients and recipes are not created here. Owner or omnichannel roster admin only. Never guess a value. If the user did not give a field, ask for it before calling this tool. After this tool returns, show the user the full summary in plain words and ask them to confirm. Only call inventory.ingredient.create with the returned confirm_token after the user clearly says yes. If the user changes anything, call this preview again; a token is valid for 15 minutes and works once.",
+    scopes: ["commerce:write"],
+    moduleKey: "operations",
+    pagePath: INGREDIENT_LIST_PAGE_PATH,
+  },
+  {
+    name: "inventory.ingredient.create",
+    description:
+      "Save the ingredient shown by inventory.ingredient.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the preview summary and clearly confirmed it. Never call it right after preview without asking. Creates the category if it was new, links it to the outlet, and records opening stock as an Opening movement. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again; ingredient_duplicate means the name now exists.",
+    scopes: ["commerce:write"],
+    moduleKey: "operations",
+    pagePath: INGREDIENT_LIST_PAGE_PATH,
   },
   {
     name: "content.plans.create",
@@ -784,6 +812,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
 
 const MUTATING_TOOLS = new Set<McpToolName>([
   "inventory.purchase_order.create",
+  "inventory.ingredient.create",
   "finance.income.create",
   "finance.income.update",
   "finance.expenses.create",
