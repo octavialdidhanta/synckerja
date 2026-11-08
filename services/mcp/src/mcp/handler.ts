@@ -146,6 +146,7 @@ import {
   ingredientPreviewInput,
   ingredientWriteInput,
   confirmInput,
+  supplierListInput,
   updateExpenseInput,
   updateExpenseResult,
   updateExpenseSchema,
@@ -284,6 +285,10 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     query: import("../tools/inventory/summaryList").InventorySummaryQuery,
   ) => Promise<import("../db/inventorySummary").InventorySummary>;
+  listCatalogSuppliers: (
+    ctx: McpAuthContext,
+    search: string | null,
+  ) => Promise<import("../tools/inventory/supplierList").SupplierRow[]>;
   previewInventoryPurchaseOrder: (
     ctx: McpAuthContext,
     input: import("../tools/inventory/purchaseOrderCreate").InventoryPurchaseOrderInput,
@@ -627,6 +632,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "kol.profiles.list": kolProfilesInput,
   "inventory.stock.list": stockInput,
   "inventory.summary.list": summaryListInput,
+  "inventory.suppliers.list": supplierListInput,
   "inventory.purchase_order.preview": purchaseOrderInput,
   "inventory.purchase_order.create": confirmInput,
   "inventory.ingredient.preview": ingredientPreviewInput,
@@ -849,6 +855,19 @@ async function runTool(
         dateEnd: parsed.data.date_end ?? null,
         search: parsed.data.search ?? null,
       }, deps.listInventorySummary);
+    }
+    case "inventory.suppliers.list": {
+      const parsed = supplierListInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const search = parsed.data.search ? parsed.data.search : null;
+      const suppliers = await deps.listCatalogSuppliers(ctx, search);
+      return {
+        search,
+        suppliers,
+        how_to_read: suppliers.length === 0
+          ? "No supplier matches. Tell the user; suppliers are added on the Inventory page. Do not invent a supplier_id. You may record the purchase with No Supplier only if the user agrees."
+          : "Pass the id of the supplier the user meant as supplier_id. If more than one could match, ask the user which one.",
+      };
     }
     case "inventory.purchase_order.preview": {
       const parsed = purchaseOrderInput.safeParse(args ?? {});

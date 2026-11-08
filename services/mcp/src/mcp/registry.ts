@@ -59,6 +59,7 @@ export type McpToolName =
   | "kol.profiles.list"
   | "inventory.stock.list"
   | "inventory.summary.list"
+  | "inventory.suppliers.list"
   | "inventory.purchase_order.preview"
   | "inventory.purchase_order.create"
   | "inventory.ingredient.preview"
@@ -323,7 +324,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
   {
     name: "finance.expenses.create",
     description:
-      "Record one expense for the organization locked in this session. Requires a name, amount, date, expense type, and category. Status stays active. Does not pay it, attach a bank account or wallet, or upload a receipt.",
+      "Record one expense for the organization locked in this session. Requires a name, amount, date, expense type, and category. Status stays active. Does not pay it, attach a bank account or wallet, or upload a receipt. Not for buying stock items (ingredients or tracked products): record those with inventory.purchase_order.preview, because a purchase order already creates a purchase request on the expense page, and an extra expense would count the same purchase twice. If it is unclear whether a purchase is stock, ask the user.",
     scopes: ["finance:write"],
     moduleKey: "finance",
     pagePath: EXPENSES_PAGE_PATH,
@@ -401,9 +402,17 @@ const TOOL_DEFINITIONS: McpTool[] = [
     pagePath: INVENTORY_PAGE_PATH,
   },
   {
+    name: "inventory.suppliers.list",
+    description:
+      "Find suppliers of the organization locked in this session by name, to get the supplier_id for inventory.purchase_order.preview. Optional search matches part of the name; omit it to list up to 50 suppliers. Returns id, name, phone, and city. Bank details are not returned. Read only; it does not create a supplier. If nothing matches, tell the user instead of guessing.",
+    scopes: ["commerce:read"],
+    moduleKey: "operations",
+    pagePath: INVENTORY_PAGE_PATH,
+  },
+  {
     name: "inventory.purchase_order.preview",
     description:
-      "Preview receiving one purchased item into one outlet through the Purchase Order used by the Inventory page. Nothing is saved. Requires outlet_id, the exact item name in search, qty, and unit_cost (price per unit). Supplier is optional; omit supplier_id for No Supplier. Optional note is at most 500 characters. One item per call. Returns the item, unit, current stock, expected stock after, subtotal, supplier, and po_mode. Simple mode receives the stock on confirm; Advanced mode only submits the purchase order and stock arrives when the page fulfills it. Say that clearly. Owner or omnichannel roster admin only; an organization admin is rejected. Never guess a value. If the user did not give a field, ask for it before calling this tool. After this tool returns, show the user the full summary in plain words and ask them to confirm. Only call inventory.purchase_order.create with the returned confirm_token after the user clearly says yes. If the user changes anything, call this preview again; a token is valid for 15 minutes and works once. If the item does not exist yet, first add it with inventory.ingredient.preview and inventory.ingredient.create (opening_stock 0, with its own yes), then call this preview and ask again.",
+      "Preview receiving one purchased item into one outlet through the Purchase Order used by the Inventory page. Nothing is saved. Requires outlet_id, the exact item name in search, qty, and unit_cost (price per unit). Supplier: when the user names one, call inventory.suppliers.list first and pass its id as supplier_id; omit supplier_id for No Supplier only when the user said there is none or agreed to record without one. Optional note is at most 500 characters. One item per call. Returns the item, unit, current stock, expected stock after, subtotal, supplier, and po_mode. Simple mode receives the stock on confirm; Advanced mode only submits the purchase order and stock arrives when the page fulfills it. Say that clearly. Owner or omnichannel roster admin only; an organization admin is rejected. Never guess a value. If the user did not give a field, ask for it before calling this tool. After this tool returns, show the user the full summary in plain words and ask them to confirm. Only call inventory.purchase_order.create with the returned confirm_token after the user clearly says yes. If the user changes anything, call this preview again; a token is valid for 15 minutes and works once. If the item does not exist yet, first add it with inventory.ingredient.preview and inventory.ingredient.create (opening_stock 0, with its own yes), then call this preview and ask again.",
     scopes: ["commerce:write"],
     moduleKey: "operations",
     pagePath: INVENTORY_PAGE_PATH,

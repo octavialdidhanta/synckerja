@@ -59,6 +59,7 @@ export {
   ingredientWriteInput,
 } from "./inventory/ingredientCreate";
 export { confirmInput } from "./inventory/confirmation";
+export { supplierListInput } from "./inventory/supplierList";
 export type { InventoryPurchaseOrderInput } from "./inventory/purchaseOrderCreate";
 export { createPlanInput, createPlanResult } from "./content/plansCreate";
 export { createBriefInput, createBriefResult } from "./content/briefsCreate";

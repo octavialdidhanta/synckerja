@@ -188,3 +188,35 @@ describe("registry and SQL", () => {
     expect(sql).toContain("TO service_role");
   });
 });
+
+describe("inventory.suppliers.list", () => {
+  it("reads only the session organization and never returns bank details", async () => {
+    const { listCatalogSuppliers } = await import("../src/db/inventorySuppliers");
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ id: "s-1", name: "Pak Budi", phone: "0812", city: null, bank_account_number: "123" }],
+      error: null,
+    });
+    const rows = await listCatalogSuppliers({ rpc } as unknown as SupabaseClient, me, "budi");
+    expect(rpc).toHaveBeenCalledWith("mcp_list_catalog_suppliers", {
+      p_user_id: "user-1",
+      p_organization_id: "org-1",
+      p_search: "budi",
+    });
+    expect(rows).toEqual([{ id: "s-1", name: "Pak Budi", phone: "0812", city: null }]);
+    const supplierSql = readFileSync(
+      new URL("../../../supabase/migrations/20261108190000_mcp_list_catalog_suppliers.sql", import.meta.url),
+      "utf8",
+    );
+    expect(supplierSql).not.toContain("bank_account_number");
+    expect(supplierSql).toContain("s.organization_id = p_organization_id");
+  });
+
+  it("routes stock purchases to purchase orders, not expenses", () => {
+    const byName = new Map(MCP_TOOLS.map((tool) => [tool.name, tool]));
+    expect(byName.get("inventory.suppliers.list")?.scopes).toEqual(["commerce:read"]);
+    expect(byName.get("inventory.suppliers.list")?.mutates).toBeUndefined();
+    expect(byName.get("finance.expenses.create")?.description).toContain("count the same purchase twice");
+    expect(byName.get("inventory.purchase_order.preview")?.description).toContain("inventory.suppliers.list");
+    expect(MCP_SERVER_INSTRUCTIONS).toContain("never also create an expense for the same purchase");
+  });
+});

@@ -126,6 +126,10 @@ export type AppDeps = {
     ctx: McpAuthContext,
     query: import("../tools/inventory/summaryList").InventorySummaryQuery,
   ) => Promise<import("../db/inventorySummary").InventorySummary>;
+  listCatalogSuppliers: (
+    ctx: McpAuthContext,
+    search: string | null,
+  ) => Promise<import("../tools/inventory/supplierList").SupplierRow[]>;
   previewInventoryPurchaseOrder: (
     ctx: McpAuthContext,
     input: import("../tools/inventory/purchaseOrderCreate").InventoryPurchaseOrderInput,
