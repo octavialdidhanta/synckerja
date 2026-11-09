@@ -33,9 +33,11 @@ export function RecipeDraftBanner({ drafts, onReview }: RecipeDraftBannerProps) 
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-blue-900">
-            {t("recipeDrafts.banner.title", "{{count}} recipe drafts from Claude awaiting review", {
-              count: drafts.length,
-            })}
+            {drafts.length === 1
+              ? t("recipeDrafts.banner.titleOne", "1 recipe draft from Claude awaiting review")
+              : t("recipeDrafts.banner.title", "{{count}} recipe drafts from Claude awaiting review", {
+                  count: drafts.length,
+                })}
           </p>
           <p className="text-xs text-blue-800">
             {t(
@@ -58,7 +60,9 @@ export function RecipeDraftBanner({ drafts, onReview }: RecipeDraftBannerProps) 
                     ? t("recipeDrafts.type.new", "New recipe")
                     : t("recipeDrafts.type.update", "Recipe change")}
                   {" · "}
-                  {t("recipeDrafts.banner.lines", "{{count}} ingredients", { count: draft.line_count })}
+                  {draft.line_count === 1
+                    ? t("recipeDrafts.banner.linesOne", "1 ingredient")
+                    : t("recipeDrafts.banner.lines", "{{count}} ingredients", { count: draft.line_count })}
                   {draft.requested_by_name ? ` · ${draft.requested_by_name}` : ""}
                   {" · "}
                   {new Date(draft.created_at).toLocaleString(dateLocale, {

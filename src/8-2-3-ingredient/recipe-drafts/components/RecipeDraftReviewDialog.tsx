@@ -492,9 +492,11 @@ export function RecipeDraftReviewDialog({ draftId, open, onOpenChange }: RecipeD
                     />
                     <span className="flex flex-col gap-0.5">
                       <span className="text-sm font-semibold text-orange-900">
-                        {t("recipeDrafts.confirmLabel", "I have checked the {{count}} items under “To check”", {
-                          count: warnings.length,
-                        })}
+                        {warnings.length === 1
+                          ? t("recipeDrafts.confirmLabelOne", "I have checked the item under “To check”")
+                          : t("recipeDrafts.confirmLabel", "I have checked the {{count}} items under “To check”", {
+                              count: warnings.length,
+                            })}
                       </span>
                       <span className="text-xs text-orange-800">
                         {t("recipeDrafts.confirmHint", "Required because this draft has warnings.")}
