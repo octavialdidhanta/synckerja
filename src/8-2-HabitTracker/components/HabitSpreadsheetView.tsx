@@ -367,15 +367,16 @@ export const HabitSpreadsheetView = () => {
                             }`}
                             style={{ width: "250px", minWidth: "250px", height: "45px", verticalAlign: "middle", overflow: "hidden" }}
                           >
-                            <div className="overflow-hidden" style={{ width: HABIT_NAME_CELL_WIDTH }}>
+                            {/* Lebar ikut kolom sebenarnya: tabel `width: 100%` bisa melebarkan kolom > 250px di layar lebar. */}
+                            <div className="overflow-hidden w-full" style={{ minWidth: HABIT_NAME_CELL_WIDTH }}>
                               <div
                                 className="flex items-stretch transition-transform duration-150 ease-out"
                                 style={{
-                                  width: HABIT_NAME_CELL_WIDTH + ACTIONS_TOTAL_WIDTH,
+                                  width: `calc(100% + ${ACTIONS_TOTAL_WIDTH}px)`,
                                   transform: expandedHabitId === habit.id ? `translateX(-${ACTIONS_TOTAL_WIDTH}px)` : "translateX(0)",
                                 }}
                               >
-                                <div className="flex items-center gap-2 flex-shrink-0 py-1.5 pl-3 pr-0" style={{ width: HABIT_NAME_CELL_WIDTH }}>
+                                <div className="flex items-center gap-2 flex-shrink-0 py-1.5 pl-3 pr-0" style={{ width: `calc(100% - ${ACTIONS_TOTAL_WIDTH}px)` }}>
                                   <div className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-300" style={{ backgroundColor: habit.color || "#3b82f6" }} />
                                   <span className="font-medium text-sm text-gray-900 flex-1 truncate min-w-0">{habit.name}</span>
                                   <button
