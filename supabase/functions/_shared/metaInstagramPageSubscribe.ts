@@ -1,8 +1,9 @@
 import { metaGraphVersion } from "./metaPlatformScopes.ts";
 
 /** DM livechat fields for Page Subscribed Apps (message_reads covers read receipts). */
+/** message_echoes: copies of replies typed in the Facebook / Messenger / Business Suite apps. */
 export const INSTAGRAM_DM_SUBSCRIBED_FIELDS =
-  "messages,messaging_postbacks,message_reads";
+  "messages,message_echoes,messaging_postbacks,message_reads";
 
 /** Instagram comment webhooks — configure `comments` on the Instagram object in Meta App Dashboard (not Page subscribed_apps). */
 export const INSTAGRAM_COMMENT_SUBSCRIBED_FIELDS = "comments";

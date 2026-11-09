@@ -4,6 +4,12 @@ import {
   processFacebookMessengerEvents,
   resolveFacebookPageForWebhookEntry,
 } from "../_shared/facebookMessengerWebhook.ts";
+import {
+  findInstagramEchoConversationIds,
+  ownMetaAppId,
+  planNativeEcho,
+  storeNativeEcho,
+} from "../_shared/livechat/metaNativeEcho.ts";
 import { resolveInstagramDmRecipientIdWithRetry } from "../_shared/instagramMessagingRecipient.ts";
 import {
   instagramConversationCustomerDedupeKey,
@@ -550,18 +556,8 @@ async function resolveEchoBridgeInboxAccount(
     }
   }
 
-  const fallback = (siblings ?? []).find((row) => {
-    const sibling = row as InstagramWebhookAccount;
-    return String(sibling.instagram_business_account_id).trim() !== senderBizId;
-  }) as InstagramWebhookAccount | undefined;
-
-  if (fallback && (siblings ?? []).length === 2) {
-    console.log("[instagram-webhook] echo bridge inbox via sibling fallback", {
-      recipientIgsid: rid,
-      inbox: fallback.instagram_username,
-    });
-    return fallback;
-  }
+  // No guessing: an org with exactly two connected inboxes used to treat every customer as the
+  // "other" inbox, which dropped replies typed in the Instagram app. Bridge only on a real match.
 
   return null;
 }
@@ -1519,11 +1515,51 @@ Deno.serve(async (req: Request) => {
             ? await resolveEchoBridgeInboxAccount(supabase, account, recipientId)
             : null;
           if (!echoRecipientInbox) {
-            console.log("[instagram-webhook] skip: is_echo (outbound to external customer)", {
-              senderId,
-              recipientId,
-              inbox: account.instagram_username,
-            });
+            // Reply typed in the Instagram app (or Business Suite) to a customer: store it as outbound.
+            const plan = planNativeEcho(e.message, recipientId, ownMetaAppId());
+            if (plan.store && recipientId) {
+              let conversationIds = await findInstagramEchoConversationIds(supabase, effectiveId, [recipientId]);
+              if (conversationIds.length === 0) {
+                // Thread stored under another customer id: resolve it the same way inbound does.
+                try {
+                  const { customerMessagingId } = await resolveInstagramCustomerIdentity(
+                    supabase,
+                    orgId,
+                    effectiveId,
+                    recipientId,
+                    account.facebook_page_id,
+                    accessToken,
+                  );
+                  if (customerMessagingId && customerMessagingId !== recipientId) {
+                    conversationIds = await findInstagramEchoConversationIds(
+                      supabase,
+                      effectiveId,
+                      [String(customerMessagingId)],
+                    );
+                  }
+                } catch (err) {
+                  console.warn("[instagram-webhook] echo customer identity lookup failed", err);
+                }
+              }
+              const stored = await storeNativeEcho(supabase, {
+                messageTable: "instagram_messages",
+                conversationTable: "instagram_conversations",
+                conversationIds,
+                plan,
+                ts,
+                rawEvent: evt,
+                channel: "instagram",
+              });
+              processedCount += stored;
+              console.log("[instagram-webhook] native app echo", {
+                inbox: account.instagram_username,
+                recipientId,
+                conversations: conversationIds.length,
+                stored,
+              });
+            } else if (!plan.store) {
+              console.log("[instagram-webhook] echo skipped", { reason: plan.reason, recipientId });
+            }
             continue;
           }
           console.log("[instagram-webhook] bridge is_echo to connected inbox", {

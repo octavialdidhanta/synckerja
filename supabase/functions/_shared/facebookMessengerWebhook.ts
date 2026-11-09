@@ -8,6 +8,12 @@ import {
 } from "./leadMagnet/facebookLeadMagnetInbound.ts";
 import { fillClientProfileEmailFromInboundMessage } from "./livechat/fillClientProfileEmailFromInbound.ts";
 import { reconcileLeadMagnetChannelLead } from "./leadMagnet/reconcileInstagramLeadMagnetLead.ts";
+import {
+  findFacebookEchoConversationIds,
+  ownMetaAppId,
+  planNativeEcho,
+  storeNativeEcho,
+} from "./livechat/metaNativeEcho.ts";
 
 const META_GRAPH_VERSION = "v21.0";
 const MEDIA_BUCKET = "whatsapp-media";
@@ -333,7 +339,33 @@ export async function processFacebookMessengerEvents(
     const senderId = evt.sender?.id != null ? String(evt.sender.id) : null;
     const ts = evt.timestamp != null ? new Date(Number(evt.timestamp)).toISOString() : new Date().toISOString();
 
-    if (evt.message?.is_echo) continue;
+    if (evt.message?.is_echo) {
+      // Reply typed in the Facebook / Messenger / Business Suite app: store it as outbound.
+      const customerPsid = evt.recipient?.id != null ? String(evt.recipient.id).trim() : null;
+      const plan = planNativeEcho(evt.message, customerPsid, ownMetaAppId());
+      if (plan.store && customerPsid) {
+        const conversationIds = await findFacebookEchoConversationIds(supabase, pageId, customerPsid);
+        const stored = await storeNativeEcho(supabase, {
+          messageTable: "facebook_messages",
+          conversationTable: "facebook_conversations",
+          conversationIds,
+          plan,
+          ts,
+          rawEvent: evt,
+          channel: "facebook",
+        });
+        processedCount += stored;
+        if (stored === 0) {
+          console.log("[facebook-messenger] echo not stored", {
+            mid: plan.mid,
+            conversations: conversationIds.length,
+          });
+        }
+      } else if (!plan.store) {
+        console.log("[facebook-messenger] echo skipped", { reason: plan.reason });
+      }
+      continue;
+    }
 
     if (evt.postback) {
       if (!senderId) continue;
