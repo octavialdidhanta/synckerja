@@ -153,6 +153,19 @@ export type AppDeps = {
     input: import("../tools/inventory/ingredientCreate").IngredientWriteInput,
     confirmId: string | null,
   ) => Promise<import("../db/inventoryIngredient").IngredientWriteResult>;
+  listOpenPurchaseOrders: (
+    ctx: McpAuthContext,
+    outletId: string | null,
+  ) => Promise<Record<string, unknown>>;
+  previewReceivePurchaseOrder: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/purchaseOrderReceive").ReceivePreviewInput,
+  ) => Promise<Record<string, unknown>>;
+  receivePurchaseOrder: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/purchaseOrderReceive").ReceiveWriteInput,
+    confirmId: string,
+  ) => Promise<Record<string, unknown>>;
   previewIngredientProduction: (
     ctx: McpAuthContext,
     input: import("../tools/inventory/productionCreate").ProductionPreviewInput,
