@@ -246,17 +246,18 @@ Deno.serve(async (req: Request) => {
   else if (!pixelId || pixelId === "0") fbclidBlock = "pixel_not_configured";
 
   let conversionValue = 0;
-  let currency = "IDR";
+  const currency = "IDR";
   if (salesActivityId) {
-    const { data: activity } = await admin
+    // sales_activities has no currency column (selecting it fails the whole query and sends value 0); amounts are IDR.
+    const { data: activity, error: activityErr } = await admin
       .from("sales_activities")
-      .select("total_amount, currency")
+      .select("total_amount")
       .eq("id", salesActivityId)
       .maybeSingle();
+    if (activityErr) console.error("sales_activities value lookup:", activityErr.message);
     if (activity?.total_amount != null) {
       conversionValue = Number(activity.total_amount) || 0;
     }
-    if (activity?.currency?.trim()) currency = String(activity.currency).trim();
   }
 
   const convertedAt = lead.converted_at ? new Date(String(lead.converted_at)) : new Date();
