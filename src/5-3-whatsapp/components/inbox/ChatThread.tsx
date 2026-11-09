@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWhatsAppMessages } from '../../hooks/useWhatsAppMessages';
 import { useInstagramMessages } from '../../hooks/useInstagramMessages';
 import { useFacebookMessages } from '../../hooks/useFacebookMessages';
+import { metaNativeAppSource } from '../../utils/metaNativeAppSource';
 import { useResolveWhatsAppMedia } from '../../hooks/useResolveWhatsAppMedia';
 import { useResolveInstagramMedia } from '../../hooks/useResolveInstagramMedia';
 import { useResolveFacebookMedia } from '../../hooks/useResolveFacebookMedia';
@@ -1513,12 +1514,14 @@ export function ChatThread({
         ...m,
         wa_message_id: m.platform_message_id,
         reply_to_wa_message_id: m.reply_to_platform_message_id ?? undefined,
+        source: metaNativeAppSource(m),
       }))
     : isFacebook
       ? (fbMessages as FacebookMessage[]).map((m) => ({
           ...m,
           wa_message_id: m.platform_message_id,
           reply_to_wa_message_id: m.reply_to_platform_message_id ?? undefined,
+          source: metaNativeAppSource(m),
         }))
       : waMessages;
   const isLoading = isInstagram ? igMessagesQuery.isLoading : isFacebook ? fbMessagesQuery.isLoading : waMessagesQuery.isLoading;
