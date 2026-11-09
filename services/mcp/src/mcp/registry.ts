@@ -69,6 +69,8 @@ export type McpToolName =
   | "inventory.purchase_order.open_list"
   | "inventory.purchase_order.receive.preview"
   | "inventory.purchase_order.receive"
+  | "inventory.adjustment.preview"
+  | "inventory.adjustment.create"
   | "inventory.ingredient.preview"
   | "inventory.ingredient.create"
   | "inventory.production.preview"
@@ -478,6 +480,22 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "inventory.purchase_order.receive",
     description:
       "Receive the purchase order shown by inventory.purchase_order.receive.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the preview summary and clearly confirmed it. Never call it right after preview without asking. Adds every line to stock, updates average cost, and marks the PO completed, exactly like the Mark as Fulfilled button. It does not create or change any expense: the purchase request already holds the cost. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again; catalog_po_changed means the PO was edited after the preview; catalog_po_not_waiting means it was already received or cancelled. Each write needs its own preview and its own yes: never save two writes on one confirmation, and never describe a write to the user from your own summary instead of its preview.",
+    scopes: ["commerce:write"],
+    moduleKey: "operations",
+    pagePath: INVENTORY_PAGE_PATH,
+  },
+  {
+    name: "inventory.adjustment.preview",
+    description:
+      "Preview a stock adjustment (stock correction) for one tracked item at one outlet, like the Adjustment tab on the Inventory page. Nothing is saved. Requires outlet_id (from inventory.summary.list), item (exact name: ingredient, product, or variant), reason (why, for example stock count, damaged, expired), and exactly one of set_to (the counted stock, for example \"stok nasi sebenarnya 20\") or change (a +/- amount, for example -2 for 2 damaged). Returns the item, qty_before, qty_change, and qty_after. Owner, organization admin, or omnichannel admin only; others get catalog_adjustment_forbidden. Not for goods that arrived from a supplier (use a purchase order) or for production. Never guess a value or the reason: ask. After this tool returns, show the user the full summary in plain words and ask them to confirm. Only call inventory.adjustment.create with the returned confirm_token after the user clearly says yes. If the user changes anything, call this preview again; a token is valid for 15 minutes and works once.",
+    scopes: ["commerce:write"],
+    moduleKey: "operations",
+    pagePath: INVENTORY_PAGE_PATH,
+  },
+  {
+    name: "inventory.adjustment.create",
+    description:
+      "Save the stock adjustment shown by inventory.adjustment.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the preview summary and clearly confirmed it. Never call it right after preview without asking. The adjustment appears on the Adjustment tab with the reason. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again; catalog_adjustment_stock_changed means the stock changed since the preview, so preview again. Each write needs its own preview and its own yes: never save two writes on one confirmation, and never describe a write to the user from your own summary instead of its preview.",
     scopes: ["commerce:write"],
     moduleKey: "operations",
     pagePath: INVENTORY_PAGE_PATH,
@@ -896,6 +914,7 @@ const MUTATING_TOOLS = new Set<McpToolName>([
   "recipes.drafts.create",
   "inventory.purchase_order.create",
   "inventory.purchase_order.receive",
+  "inventory.adjustment.create",
   "inventory.ingredient.create",
   "inventory.production.create",
   "finance.income.create",

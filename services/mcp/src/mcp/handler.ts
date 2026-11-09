@@ -151,6 +151,11 @@ import {
   productionInputFromConfirmation,
   PRODUCTION_HOW_TO_READ,
   OPEN_PURCHASE_ORDERS_HOW_TO_READ,
+  ADJUSTMENT_HOW_TO_READ,
+  adjustmentInputFromConfirmation,
+  adjustmentPreviewArgs,
+  adjustmentPreviewInput,
+  adjustmentWriteFromPreview,
   RECEIVE_HOW_TO_READ,
   openPurchaseOrdersInput,
   receiveInputFromConfirmation,
@@ -340,6 +345,15 @@ export type McpReadDeps = {
   receivePurchaseOrder: (
     ctx: McpAuthContext,
     input: import("../tools/inventory/purchaseOrderReceive").ReceiveWriteInput,
+    confirmId: string,
+  ) => Promise<Record<string, unknown>>;
+  previewStockAdjustment: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/adjustmentCreate").AdjustmentPreviewInput,
+  ) => Promise<Record<string, unknown>>;
+  createStockAdjustment: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/adjustmentCreate").AdjustmentWriteInput,
     confirmId: string,
   ) => Promise<Record<string, unknown>>;
   previewIngredientProduction: (
@@ -689,6 +703,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "inventory.purchase_order.open_list": openPurchaseOrdersInput,
   "inventory.purchase_order.receive.preview": receivePreviewInput,
   "inventory.purchase_order.receive": confirmInput,
+  "inventory.adjustment.preview": adjustmentPreviewInput,
+  "inventory.adjustment.create": confirmInput,
   "inventory.ingredient.preview": ingredientPreviewInput,
   "inventory.ingredient.create": confirmInput,
   "inventory.production.preview": productionPreviewInput,
@@ -998,6 +1014,26 @@ async function runTool(
       );
       const input = receiveInputFromConfirmation(verified.payload);
       return deps.receivePurchaseOrder(ctx, input, verified.confirmId);
+    }
+    case "inventory.adjustment.preview": {
+      const parsed = adjustmentPreviewInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const input = adjustmentPreviewArgs(parsed.data);
+      const preview = await deps.previewStockAdjustment(ctx, input);
+      const write = adjustmentWriteFromPreview(preview, input.reason);
+      const signed = await deps.signInventoryConfirmation(ctx, "inventory.adjustment.create", { ...write });
+      return { ...preview, ...signed, how_to_read: ADJUSTMENT_HOW_TO_READ, next_step: CONFIRM_NEXT_STEP };
+    }
+    case "inventory.adjustment.create": {
+      const parsed = confirmInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const verified = await deps.verifyInventoryConfirmation(
+        ctx,
+        "inventory.adjustment.create",
+        parsed.data.confirm_token,
+      );
+      const input = adjustmentInputFromConfirmation(verified.payload);
+      return deps.createStockAdjustment(ctx, input, verified.confirmId);
     }
     case "inventory.ingredient.preview": {
       const parsed = ingredientPreviewInput.safeParse(args ?? {});

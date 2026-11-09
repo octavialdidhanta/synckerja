@@ -4483,6 +4483,8 @@ export const idTranslations: TranslationDictionary = {
   "operations.inventory.adjustment.itemsEmpty": "Belum ada item.",
   "operations.inventory.adjustment.noItemsSelected": "Pilih item yang akan disesuaikan.",
   "operations.inventory.adjustment.noChanges": "Tidak ada perubahan.",
+  "operations.inventory.adjustment.noteRequired": "Tulis alasan adjustment di Catatan.",
+  "operations.inventory.adjustment.notePlaceholder": "Alasan, mis. stock opname, rusak, kedaluwarsa",
   "operations.inventory.adjustment.saved": "Penyesuaian tersimpan.",
   "operations.inventory.adjustment.adjustments": "PENYESUAIAN",
   "operations.inventory.adjustment.itemsAdjusted": "ITEM DISESUAIKAN",

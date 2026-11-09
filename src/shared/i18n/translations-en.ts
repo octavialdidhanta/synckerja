@@ -4483,6 +4483,8 @@ export const enTranslations: TranslationDictionary = {
   "operations.inventory.adjustment.itemsEmpty": "No items yet.",
   "operations.inventory.adjustment.noItemsSelected": "Select items to adjust.",
   "operations.inventory.adjustment.noChanges": "No changes detected.",
+  "operations.inventory.adjustment.noteRequired": "Write the reason for this adjustment in Note.",
+  "operations.inventory.adjustment.notePlaceholder": "Reason, e.g. stock count, damaged, expired",
   "operations.inventory.adjustment.saved": "Adjustment saved.",
   "operations.inventory.adjustment.adjustments": "ADJUSTMENTS",
   "operations.inventory.adjustment.itemsAdjusted": "ITEM ADJUSTED",

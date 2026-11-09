@@ -75,6 +75,14 @@ export {
   receivePreviewInput,
 } from "./inventory/purchaseOrderReceive";
 export type { ReceivePreviewInput, ReceiveWriteInput } from "./inventory/purchaseOrderReceive";
+export {
+  ADJUSTMENT_HOW_TO_READ,
+  adjustmentInputFromConfirmation,
+  adjustmentPreviewArgs,
+  adjustmentPreviewInput,
+  adjustmentWriteFromPreview,
+} from "./inventory/adjustmentCreate";
+export type { AdjustmentPreviewInput, AdjustmentWriteInput } from "./inventory/adjustmentCreate";
 export { supplierListInput } from "./inventory/supplierList";
 export { RECIPE_COSTS_HOW_TO_READ, recipeCostsInput, recipeCostsQuery } from "./inventory/recipeCosts";
 export {

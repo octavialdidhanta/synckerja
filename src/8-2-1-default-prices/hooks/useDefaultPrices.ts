@@ -268,6 +268,7 @@ async function persistProductStockLedger(args: {
       previousQty: args.previousProductStock?.in_stock ?? 0,
       targetQty: args.selectedStock?.in_stock ?? 0,
       previouslyTracked: args.previouslyTracked,
+      note: "Stock edited on Item Library",
     });
     return;
   }
@@ -289,6 +290,7 @@ async function persistProductStockLedger(args: {
       previousQty: previousByVariant.get(variant.id) ?? 0,
       targetQty: next?.in_stock ?? 0,
       previouslyTracked: args.previouslyTracked,
+      note: "Stock edited on Item Library",
     });
   }
 }

@@ -208,6 +208,7 @@ export function useCatalogIngredients() {
           previousQty: previousStock?.in_stock ?? 0,
           targetQty: in_stock,
           previouslyTracked: Boolean(existing?.track_inventory),
+          note: "Stock edited on Ingredient Library",
         });
       }
       return ingredientId;

@@ -154,6 +154,12 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     receivePurchaseOrder: async () => {
       throw new Error("unused");
     },
+    previewStockAdjustment: async () => {
+      throw new Error("unused");
+    },
+    createStockAdjustment: async () => {
+      throw new Error("unused");
+    },
     previewIngredientProduction: async () => {
       throw new Error("unused");
     },
