@@ -69,7 +69,12 @@ export function AdjustmentItemPickerDialog(props: {
               {filtered.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={isProductMode ? 3 : 2} className="text-center text-sm text-muted-foreground">
-                    {t("operations.inventory.adjustment.noItems", "No items found.")}
+                    {isProductMode && props.products.length === 0 && !search.trim()
+                      ? t(
+                          "operations.inventory.adjustment.noTrackedProducts",
+                          "No products with stock tracking yet. To adjust raw materials, choose Ingredients in the filter.",
+                        )
+                      : t("operations.inventory.adjustment.noItems", "No items found.")}
                   </TableCell>
                 </TableRow>
               ) : (

@@ -3,6 +3,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { toInventoryQty } from "../lib/adjustmentFormMath";
+import { formatSignedRupiah } from "../lib/adjustmentValueFormat";
 import type { InventoryAdjustmentBatch, InventoryAdjustmentIngredientLine, InventoryAdjustmentProductLine } from "../types";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 
@@ -12,6 +13,16 @@ export function InventoryAdjustmentDetailDialog(props: {
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useAppTranslation();
+  const renderValue = (value: number | null) =>
+    value == null ? (
+      <span className="text-xs text-muted-foreground">
+        {t("operations.inventory.adjustment.noBuyPrice", "No buy price yet")}
+      </span>
+    ) : (
+      <span className={value < 0 ? "text-red-600" : value > 0 ? "text-emerald-600" : undefined}>
+        {formatSignedRupiah(value)}
+      </span>
+    );
   const batch = props.batch;
 
   const groupedLines = useMemo(() => {
@@ -67,6 +78,7 @@ export function InventoryAdjustmentDetailDialog(props: {
                   <TableHead className="text-right">{t("operations.inventory.adjustment.colInStock", "In Stock")}</TableHead>
                   <TableHead className="text-right">{t("operations.inventory.adjustment.colActualStock", "Actual Stock")}</TableHead>
                   <TableHead className="text-right">{t("operations.inventory.adjustment.colAdjustment", "Adjustment")}</TableHead>
+                  <TableHead className="text-right">{t("operations.inventory.adjustment.colValue", "Value")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -82,6 +94,7 @@ export function InventoryAdjustmentDetailDialog(props: {
                           </TableCell>
                           <TableCell className="text-right tabular-nums">{toInventoryQty(line.actualStock)}</TableCell>
                           <TableCell className="text-right tabular-nums">{toInventoryQty(line.qtyDelta)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{renderValue(line.value)}</TableCell>
                         </TableRow>
                       ))}
                   </>
@@ -90,7 +103,7 @@ export function InventoryAdjustmentDetailDialog(props: {
                     <Fragment key={group.productId}>
                       <TableRow>
                         <TableCell className="font-medium">{group.productName}</TableCell>
-                        <TableCell colSpan={3} />
+                        <TableCell colSpan={4} />
                       </TableRow>
                       {group.lines.map((line) => {
                         return (
@@ -107,6 +120,7 @@ export function InventoryAdjustmentDetailDialog(props: {
                             <TableCell className="text-right tabular-nums">
                               {toInventoryQty(line.qtyDelta)}
                             </TableCell>
+                            <TableCell className="text-right tabular-nums">{renderValue(line.value)}</TableCell>
                           </TableRow>
                         );
                       })}
@@ -118,6 +132,11 @@ export function InventoryAdjustmentDetailDialog(props: {
                   <TableCell colSpan={2} />
                   <TableCell className="text-right tabular-nums font-semibold">
                     {toInventoryQty(batch.totalQtyDelta)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-semibold">
+                    {batch.totalExpense > 0 || batch.totalIncome > 0 || !batch.hasMissingCost
+                      ? formatSignedRupiah(batch.totalIncome - batch.totalExpense)
+                      : "—"}
                   </TableCell>
                 </TableRow>
               </TableBody>

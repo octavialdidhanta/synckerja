@@ -3,6 +3,7 @@ import { Eye } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/components/ui/button";
 import type { InventoryAdjustmentBatch } from "../types";
+import { formatSignedRupiah } from "../lib/adjustmentValueFormat";
 import {
   Table,
   TableBody,
@@ -69,7 +70,9 @@ export function InventoryAdjustmentTable({
                 <TableCell>{batch.note ?? "—"}</TableCell>
                 <TableCell className="max-w-[320px] truncate">{batch.itemsLabel}</TableCell>
                 <TableCell className="text-right tabular-nums">{batch.totalQtyDelta}</TableCell>
-                <TableCell className="text-right tabular-nums">Rp 0</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  <BatchValueCell batch={batch} />
+                </TableCell>
                 <TableCell className="text-right">
                   <Button
                     type="button"
@@ -97,5 +100,28 @@ export function InventoryAdjustmentTable({
         }}
       />
     </>
+  );
+}
+
+function BatchValueCell({ batch }: { batch: InventoryAdjustmentBatch }) {
+  const { t } = useTranslation();
+  const net = batch.totalIncome - batch.totalExpense;
+  const hasValue = batch.totalIncome > 0 || batch.totalExpense > 0;
+  if (!hasValue && batch.hasMissingCost) {
+    return (
+      <span className="text-muted-foreground">
+        {t("operations.inventory.adjustment.noBuyPrice", "No buy price yet")}
+      </span>
+    );
+  }
+  return (
+    <div>
+      <span className={net < 0 ? "text-red-600" : net > 0 ? "text-emerald-600" : undefined}>{formatSignedRupiah(net)}</span>
+      {batch.hasMissingCost ? (
+        <div className="text-xs text-muted-foreground">
+          {t("operations.inventory.adjustment.partialBuyPrice", "Some items have no buy price")}
+        </div>
+      ) : null}
+    </div>
   );
 }

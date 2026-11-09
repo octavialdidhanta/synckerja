@@ -42,6 +42,7 @@ export function InventoryAdjustmentPage() {
     itemsAdjusted: 0,
     totalAdjustmentExpense: 0,
     totalAdjustmentIncome: 0,
+    itemsWithoutCost: 0,
   };
   const batches = query.data?.batches ?? [];
 

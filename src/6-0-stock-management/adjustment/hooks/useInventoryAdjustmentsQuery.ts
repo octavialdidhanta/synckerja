@@ -1,6 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabaseClient";
-import { groupAdjustmentMovements, type InventoryAdjustmentMovementRow } from "../lib/adjustmentGrouping";
+import {
+  groupAdjustmentMovements,
+  summarizeAdjustmentBatches,
+  type InventoryAdjustmentMovementRow,
+} from "../lib/adjustmentGrouping";
 import type {
   InventoryAdjustmentBatch,
   InventoryAdjustmentIngredientLine,
@@ -70,7 +74,13 @@ export function useInventoryAdjustmentsQuery(args: {
       if (!args.organizationId || !args.outletId) {
         return {
           batches: [],
-          stats: { adjustmentsCount: 0, itemsAdjusted: 0, totalAdjustmentExpense: 0, totalAdjustmentIncome: 0 },
+          stats: {
+            adjustmentsCount: 0,
+            itemsAdjusted: 0,
+            totalAdjustmentExpense: 0,
+            totalAdjustmentIncome: 0,
+            itemsWithoutCost: 0,
+          },
         };
       }
 
@@ -79,7 +89,7 @@ export function useInventoryAdjustmentsQuery(args: {
       const { data, error } = await supabase
         .from("catalog_stock_movements")
         .select(
-          "id, reference_id, reference_type, note, occurred_at, item_kind, product_id, variant_id, ingredient_id, qty_delta, qty_after",
+          "id, reference_id, reference_type, note, occurred_at, item_kind, product_id, variant_id, ingredient_id, qty_delta, qty_after, unit_cost",
         )
         .eq("organization_id", args.organizationId)
         .eq("outlet_id", args.outletId)
@@ -103,6 +113,7 @@ export function useInventoryAdjustmentsQuery(args: {
         ingredient_id: (row.ingredient_id as string | null) ?? null,
         qty_delta: num(row.qty_delta),
         qty_after: num(row.qty_after),
+        unit_cost: row.unit_cost == null ? null : num(row.unit_cost),
       }));
 
       const batches = groupAdjustmentMovements(movements);
@@ -214,8 +225,7 @@ export function useInventoryAdjustmentsQuery(args: {
         stats: {
           adjustmentsCount: batchesWithLabels.length,
           itemsAdjusted: movements.length,
-          totalAdjustmentExpense: 0,
-          totalAdjustmentIncome: 0,
+          ...summarizeAdjustmentBatches(batchesWithLabels),
         },
       };
     },
