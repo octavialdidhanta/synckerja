@@ -184,6 +184,13 @@ export function CreateInventoryAdjustmentDialog(props: {
         return;
       }
 
+      if (!note.trim()) {
+        toast.error(
+          t("operations.inventory.adjustment.noteRequired", "Write the reason for this adjustment in Note."),
+        );
+        return;
+      }
+
       await createMutation.mutateAsync({
         organizationId: props.organizationId,
         outletId: props.outletId,
@@ -214,11 +221,16 @@ export function CreateInventoryAdjustmentDialog(props: {
           {step === "draft" ? (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>{t("operations.inventory.adjustment.note", "Note")}</Label>
+                <Label>
+                  {t("operations.inventory.adjustment.note", "Note")} <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder={t("common.note", "Notes")}
+                  placeholder={t(
+                    "operations.inventory.adjustment.notePlaceholder",
+                    "Reason, e.g. stock count, damaged, expired",
+                  )}
                 />
               </div>
 

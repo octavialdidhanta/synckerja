@@ -27,6 +27,7 @@ import {
 import { listInventorySummary } from "./db/inventorySummary";
 import { createInventoryPurchaseOrder, previewInventoryPurchaseOrder } from "./db/inventoryPurchaseOrder";
 import { createIngredientProduction, previewIngredientProduction } from "./db/inventoryProduction";
+import { createStockAdjustment, previewStockAdjustment } from "./db/inventoryAdjustment";
 import {
   listOpenPurchaseOrders,
   previewReceivePurchaseOrder,
@@ -135,6 +136,8 @@ const app = createApp({
   listOpenPurchaseOrders: (ctx, outletId) => listOpenPurchaseOrders(admin, ctx, outletId),
   previewReceivePurchaseOrder: (ctx, input) => previewReceivePurchaseOrder(admin, ctx, input),
   receivePurchaseOrder: (ctx, input, confirmId) => receivePurchaseOrder(admin, ctx, input, confirmId),
+  previewStockAdjustment: (ctx, input) => previewStockAdjustment(admin, ctx, input),
+  createStockAdjustment: (ctx, input, confirmId) => createStockAdjustment(admin, ctx, input, confirmId),
   previewIngredientProduction: (ctx, input) => previewIngredientProduction(admin, ctx, input),
   createIngredientProduction: (ctx, input, confirmId) => createIngredientProduction(admin, ctx, input, confirmId),
   createContentPlan: (ctx, input) => createContentPlan(admin, ctx, input),

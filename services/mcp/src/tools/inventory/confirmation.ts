@@ -17,7 +17,8 @@ export type ConfirmableTool =
   | "inventory.ingredient.create"
   | "inventory.purchase_order.create"
   | "inventory.production.create"
-  | "inventory.purchase_order.receive";
+  | "inventory.purchase_order.receive"
+  | "inventory.adjustment.create";
 
 export type ConfirmationIdentity = { userId: string; organizationId: string };
 

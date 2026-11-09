@@ -44,6 +44,8 @@ export async function syncCatalogStockToTarget(args: {
   previousQty: number;
   targetQty: number;
   previouslyTracked: boolean;
+  /** Saved as the movement note; an adjustment must have a reason. */
+  note?: string;
 }): Promise<void> {
   const delta = args.targetQty - args.previousQty;
   if (!args.outletId || delta === 0) return;
@@ -56,5 +58,6 @@ export async function syncCatalogStockToTarget(args: {
     ingredientId: args.ingredientId,
     movementType: args.previouslyTracked ? "adjustment" : "opening",
     qtyDelta: delta,
+    note: args.note ?? "Stock edited on the item form",
   });
 }
