@@ -7,7 +7,7 @@ export type ApplyCatalogStockMovementInput = {
   productId?: string | null;
   variantId?: string | null;
   ingredientId?: string | null;
-  movementType: "opening" | "adjustment" | "purchase_order";
+  movementType: "opening" | "adjustment";
   qtyDelta: number;
   note?: string;
   referenceType?: string | null;
@@ -16,7 +16,9 @@ export type ApplyCatalogStockMovementInput = {
 
 export async function applyCatalogStockMovement(input: ApplyCatalogStockMovementInput): Promise<void> {
   if (!input.outletId || !Number.isFinite(input.qtyDelta) || input.qtyDelta === 0) return;
-  const { error } = await supabase.rpc("apply_catalog_stock_movement", {
+  // App-facing wrapper: checks that the outlet and item belong to the organization and only allows
+  // opening/adjustment. The internal apply_catalog_stock_movement is service-role only.
+  const { error } = await supabase.rpc("app_apply_catalog_stock_movement", {
     p_organization_id: input.organizationId,
     p_outlet_id: input.outletId,
     p_item_kind: input.itemKind,
