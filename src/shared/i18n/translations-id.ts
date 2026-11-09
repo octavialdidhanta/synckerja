@@ -4560,6 +4560,7 @@ export const idTranslations: TranslationDictionary = {
   "operations.inventory.purchaseOrders.advanced": "Advanced",
   "operations.inventory.purchaseOrders.createdFulfilled": "Purchase order dibuat dan stok diterima.",
   "operations.inventory.purchaseOrders.fulfillRoleLocked": "Anda tidak memiliki akses PO Fulfillment.",
+  "operations.inventory.purchaseOrders.fulfillAccessCheckFailed": "Gagal memeriksa akses PO Fulfillment. Muat ulang halaman lalu coba lagi.",
   "operations.inventory.purchaseOrders.kindItems": "Items",
   "operations.inventory.purchaseOrders.kindIngredients": "Ingredients",
   "operations.inventory.purchaseOrders.status.all": "Semua Status",

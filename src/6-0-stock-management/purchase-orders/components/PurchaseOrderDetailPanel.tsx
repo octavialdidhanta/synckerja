@@ -274,7 +274,12 @@ export function PurchaseOrderDetailPanel(props: {
                     </TooltipTrigger>
                     {!canFulfillAction ? (
                       <TooltipContent>
-                        {poMode === "advanced" && fulfillAccess.data === false
+                        {poMode === "advanced" && fulfillAccess.isError
+                          ? t(
+                              "operations.inventory.purchaseOrders.fulfillAccessCheckFailed",
+                              "Could not check PO Fulfillment access. Please reload and try again.",
+                            )
+                          : poMode === "advanced" && fulfillAccess.data === false
                           ? t(
                               "operations.inventory.purchaseOrders.fulfillRoleLocked",
                               "You do not have PO Fulfillment access.",

@@ -4560,6 +4560,7 @@ export const enTranslations: TranslationDictionary = {
   "operations.inventory.purchaseOrders.advanced": "Advanced",
   "operations.inventory.purchaseOrders.createdFulfilled": "Purchase order created and stock received.",
   "operations.inventory.purchaseOrders.fulfillRoleLocked": "You do not have PO Fulfillment access.",
+  "operations.inventory.purchaseOrders.fulfillAccessCheckFailed": "Could not check PO Fulfillment access. Please reload and try again.",
   "operations.inventory.purchaseOrders.kindItems": "Items",
   "operations.inventory.purchaseOrders.kindIngredients": "Ingredients",
   "operations.inventory.purchaseOrders.status.all": "All Status",
