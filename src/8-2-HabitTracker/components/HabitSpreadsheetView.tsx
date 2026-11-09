@@ -380,7 +380,7 @@ export const HabitSpreadsheetView = () => {
                                   <span className="font-medium text-sm text-gray-900 flex-1 truncate min-w-0">{habit.name}</span>
                                   <button
                                     type="button"
-                                    className="flex-shrink-0 ml-auto p-0.5 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-200 transition-colors"
+                                    className="flex-shrink-0 ml-auto -mr-1 p-0.5 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-200 transition-colors"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleToggleActionsReveal(habit.id);

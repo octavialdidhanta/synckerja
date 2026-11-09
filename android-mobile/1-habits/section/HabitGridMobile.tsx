@@ -597,7 +597,7 @@ export const HabitGridMobile = ({ currentMonth: currentMonthProp, onMonthChange 
                           ) : null}
                           <button
                             type="button"
-                            className="ml-auto flex-shrink-0 rounded p-0.5 text-gray-500 transition-colors touch-manipulation hover:bg-gray-200 hover:text-gray-900"
+                            className="ml-auto -mr-1 flex-shrink-0 rounded p-0.5 text-gray-500 transition-colors touch-manipulation hover:bg-gray-200 hover:text-gray-900"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleToggleSwipeReveal(habit.id);
