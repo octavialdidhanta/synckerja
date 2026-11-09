@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { endOfDay, format, startOfDay } from "date-fns";
 import { toast } from "sonner";
 import { useDebouncedReady } from "@/shared/hooks/useDebouncedReady";
@@ -18,6 +19,11 @@ import { CreatePurchaseOrderDialog } from "../components/CreatePurchaseOrderDial
 import { PurchaseOrderDetailPanel } from "../components/PurchaseOrderDetailPanel";
 import { usePurchaseOrdersQuery } from "../hooks/usePurchaseOrdersQuery";
 import { exportPurchaseOrdersXlsx } from "../lib/exportPurchaseOrdersXlsx";
+import {
+  PO_DEEP_LINK_ID_PARAM,
+  PO_DEEP_LINK_KIND_PARAM,
+  parsePoDeepLinkKind,
+} from "../lib/purchaseOrderDeepLink";
 import type {
   PurchaseOrderKindFilter,
   PurchaseOrderListRow,
@@ -38,7 +44,11 @@ export function InventoryPurchaseOrdersPage() {
   const { poMode } = usePoWorkflowMode();
   const poRequestAccess = useInventoryFeatureAccessCheck(poMode === "advanced" ? "po_request" : null);
 
-  const [kind, setKind] = useState<PurchaseOrderKindFilter>("item_library");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepLinkPoId = searchParams.get(PO_DEEP_LINK_ID_PARAM);
+  const deepLinkKind = parsePoDeepLinkKind(searchParams.get(PO_DEEP_LINK_KIND_PARAM));
+
+  const [kind, setKind] = useState<PurchaseOrderKindFilter>(deepLinkKind ?? "item_library");
   const [status, setStatus] = useState<PurchaseOrderStatusFilter>("all");
   const [from, setFrom] = useState(() => startOfDay(new Date()));
   const [to, setTo] = useState(() => endOfDay(new Date()));
@@ -78,6 +88,18 @@ export function InventoryPurchaseOrdersPage() {
       : undefined;
 
   const filename = useMemo(() => `purchase-orders-${format(new Date(), "yyyy-MM-dd")}.xlsx`, []);
+
+  // Link dari Approvals/Expense: ?po=<id>&kind=<ingredients|item_library> membuka detail PO itu langsung.
+  useEffect(() => {
+    if (!deepLinkPoId) return;
+    if (deepLinkKind) setKind(deepLinkKind);
+    setSelectedPoId(deepLinkPoId);
+    setDetailOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete(PO_DEEP_LINK_ID_PARAM);
+    next.delete(PO_DEEP_LINK_KIND_PARAM);
+    setSearchParams(next, { replace: true });
+  }, [deepLinkPoId, deepLinkKind, searchParams, setSearchParams]);
 
   const openDetail = (row: PurchaseOrderListRow) => {
     setSelectedPoId(row.id);

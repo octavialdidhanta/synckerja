@@ -38,7 +38,7 @@ import { PurchaseRequestPDFViewer } from './PurchaseRequestPDFViewer';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
 import { cn } from '@/shared/lib/utils';
 import { Link } from 'react-router-dom';
-import { STOCK_MANAGEMENT_PURCHASE_ORDERS_PATH } from '@/stock-management/lib/inventoryPaths';
+import { purchaseOrderDetailHref } from '@/6-0-stock-management/purchase-orders/lib/purchaseOrderDeepLink';
 import { isInventoryPurchaseType } from '@/6-0-stock-management/purchase-orders/finance/resolvePoExpenseClassification';
 import { usePoWorkflowMode } from '@/6-0-stock-management/hooks/useCatalogInventoryWorkflowModes';
 import { useInventoryFeatureAccessCheck } from '@/8-2-5-inventory-settings/hooks/useInventoryFeatureAccess';
@@ -321,7 +321,7 @@ export const PurchaseRequestDetailsModal = ({ request, isOpen, onClose }: Purcha
                   <p className="text-sm text-slate-600">{request.purchase_type}</p>
                 ) : null}
                 <Link
-                  to={STOCK_MANAGEMENT_PURCHASE_ORDERS_PATH}
+                  to={purchaseOrderDetailHref(request.catalog_purchase_order_id, request.purchase_type)}
                   className="text-sm text-brand-blue hover:underline"
                 >
                   Open purchase orders
