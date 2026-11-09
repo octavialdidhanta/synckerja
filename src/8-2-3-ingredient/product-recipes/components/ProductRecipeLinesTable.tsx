@@ -1,10 +1,9 @@
 import { Trash2 } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useCatalogIngredients } from "../../library/hooks/useCatalogIngredients";
 import { ingredientInitials } from "../../library/lib/ingredientInitials";
-import { formatIngredientStockQty } from "../../library/lib/ingredientStockStatus";
+import { RecipeQtyInput } from "../../library/components/RecipeQtyInput";
 import { formatIngredientUnitCode } from "../../library/lib/ingredientUnits";
 import type { CatalogIngredient } from "../../library/types";
 import { formatRecipeCost, lineAvgCost } from "../lib/productRecipeCost";
@@ -66,23 +65,16 @@ export function ProductRecipeLinesTable({
                   </div>
                 </td>
                 <td className="px-3 py-2">
-                  <Input
-                    value={line.quantity ? formatIngredientStockQty(line.quantity) : ""}
-                    onChange={(e) => {
-                      const next = Number(e.target.value);
+                  <RecipeQtyInput
+                    value={line.quantity}
+                    onChange={(quantity) =>
                       onChange(
                         lines.map((item) =>
-                          item.ingredient_id === line.ingredient_id
-                            ? {
-                                ...item,
-                                quantity: Number.isFinite(next) && next >= 0 ? next : 0,
-                              }
-                            : item,
+                          item.ingredient_id === line.ingredient_id ? { ...item, quantity } : item,
                         ),
-                      );
-                    }}
-                    className="h-8 w-24"
-                    inputMode="decimal"
+                      )
+                    }
+                    aria-label={ingredient?.name}
                   />
                 </td>
                 <td className="px-3 py-2 text-muted-foreground">

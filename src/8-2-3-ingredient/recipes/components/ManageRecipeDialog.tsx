@@ -11,6 +11,8 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { RecipeQtyInput } from "../../library/components/RecipeQtyInput";
+import { parseRecipeQtyText } from "../../library/lib/recipeQtyText";
 import { ingredientInitials } from "../../library/lib/ingredientInitials";
 import { formatIngredientStockQty } from "../../library/lib/ingredientStockStatus";
 import { formatIngredientUnitCode } from "../../library/lib/ingredientUnits";
@@ -79,11 +81,11 @@ export function ManageRecipeDialog({
     [lines, ingredientsById, selectedOutletId],
   );
 
-  const yieldQtyNumber = Number(yieldQty);
+  const yieldQtyNumber = parseRecipeQtyText(yieldQty) ?? 0;
   const avgCostPerUnit = recipeUnitAvgCost(lines, yieldQtyNumber, ingredientsById, selectedOutletId);
 
   const handleSave = async () => {
-    const qty = Number(yieldQty);
+    const qty = parseRecipeQtyText(yieldQty) ?? 0;
     if (!isRecipeComplete(qty, lines)) {
       toast({
         title: t(
@@ -220,26 +222,18 @@ export function ManageRecipeDialog({
                                 </div>
                               </td>
                               <td className="px-3 py-2">
-                                <Input
-                                  value={
-                                    line.quantity ? formatIngredientStockQty(line.quantity) : ""
-                                  }
-                                  onChange={(e) => {
-                                    const next = Number(e.target.value);
+                                <RecipeQtyInput
+                                  value={line.quantity}
+                                  onChange={(quantity) =>
                                     setLines((prev) =>
                                       prev.map((item) =>
                                         item.ingredient_id === line.ingredient_id
-                                          ? {
-                                              ...item,
-                                              quantity:
-                                                Number.isFinite(next) && next >= 0 ? next : 0,
-                                            }
+                                          ? { ...item, quantity }
                                           : item,
                                       ),
-                                    );
-                                  }}
-                                  className="h-8 w-24"
-                                  inputMode="decimal"
+                                    )
+                                  }
+                                  aria-label={ingredient?.name}
                                 />
                               </td>
                               <td className="px-3 py-2 text-muted-foreground">
