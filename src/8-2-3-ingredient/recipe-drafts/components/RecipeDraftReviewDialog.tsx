@@ -485,7 +485,7 @@ export function RecipeDraftReviewDialog({ draftId, open, onOpenChange }: RecipeD
               </div>
 
               <footer className="shrink-0 border-t bg-white shadow-[0_-6px_16px_rgba(15,23,42,0.05)] sm:shadow-none">
-                {canManage && needsConfirm ? (
+                {canManage && needsConfirm && mode === "read" ? (
                   <label className="flex cursor-pointer items-start gap-2.5 border-b border-orange-200 bg-orange-50 px-4 py-3 sm:px-7">
                     <Checkbox
                       checked={confirmed}
