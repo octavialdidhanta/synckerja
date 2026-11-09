@@ -7,6 +7,7 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveCtwaDestination } from "../_shared/ctwaCapiDestination.ts";
 import { resolveCtwaClidForLead } from "../_shared/ctwaLeadSync.ts";
 import {
   fbclidCapturedAtToEpoch,
@@ -237,24 +238,12 @@ Deno.serve(async (req: Request) => {
     fbc_click_epoch: fbcClickEpoch ?? null,
   };
 
-  if (!resolved) {
-    baseLog.skip_reason = "meta_ads_not_configured";
-    await upsertLog(admin, baseLog);
-    return json({ ok: true, skipped: true, reason: baseLog.skip_reason }, 200);
-  }
-
-  if (!resolved.uploadsEnabled) {
-    baseLog.skip_reason = "uploads_disabled";
-    await upsertLog(admin, baseLog);
-    return json({ ok: true, skipped: true, reason: baseLog.skip_reason }, 200);
-  }
-
-  const pixelId = resolved.account.pixel_id?.replace(/\D/g, "") ?? "";
-  if (!pixelId || pixelId === "0") {
-    baseLog.skip_reason = "pixel_not_configured";
-    await upsertLog(admin, baseLog);
-    return json({ ok: true, skipped: true, reason: baseLog.skip_reason }, 200);
-  }
+  // Web ads (fbclid) go to the ad account Pixel with the Meta Ads token.
+  const pixelId = resolved?.account.pixel_id?.replace(/\D/g, "") ?? "";
+  let fbclidBlock: string | null = null;
+  if (!resolved) fbclidBlock = "meta_ads_not_configured";
+  else if (!resolved.uploadsEnabled) fbclidBlock = "uploads_disabled";
+  else if (!pixelId || pixelId === "0") fbclidBlock = "pixel_not_configured";
 
   let conversionValue = 0;
   let currency = "IDR";
@@ -273,32 +262,39 @@ Deno.serve(async (req: Request) => {
   const convertedAt = lead.converted_at ? new Date(String(lead.converted_at)) : new Date();
   const eventTime = Math.floor(convertedAt.getTime() / 1000);
 
+  // Click-to-WhatsApp (ctwa_clid) goes to the WhatsApp account dataset with the WhatsApp token,
+  // so it does not need the Meta Ads connection or a Pixel.
   const canSendCtwa = Boolean(ctwaClid);
-  const canSendFbclid = Boolean(fbc || (fbclid && hasContact));
+  const canSendFbclid = !fbclidBlock && Boolean(fbc || (fbclid && hasContact));
 
   if (isDuplicateSuccess(existingLog, canSendCtwa, canSendFbclid)) {
     return json({ ok: true, duplicate: true }, 200);
   }
 
   const priorKind = existingLog?.status === "success" ? existingLog.upload_kind : null;
-  const sendCtwaOnly = priorKind === "fbclid" && canSendCtwa;
-  const sendFbclidOnly = priorKind === "ctwa" && canSendFbclid;
+  const includeCtwa = canSendCtwa && priorKind !== "ctwa" && priorKind !== "both";
+  const includeFbclid = canSendFbclid && priorKind !== "fbclid" && priorKind !== "both";
 
-  if (!sendCtwaOnly && !sendFbclidOnly && !canSendCtwa && !canSendFbclid) {
-    baseLog.skip_reason = "no_ctwa_or_fbclid_or_contact";
+  if (!includeCtwa && !includeFbclid) {
+    baseLog.skip_reason = fbclidBlock && !canSendCtwa ? fbclidBlock : "no_ctwa_or_fbclid_or_contact";
     await upsertLog(admin, baseLog);
     return json({ ok: true, skipped: true, reason: baseLog.skip_reason }, 200);
   }
 
-  const events: MetaCapiEventPayload[] = [];
-
-  const includeCtwa = sendCtwaOnly || (!sendFbclidOnly && canSendCtwa);
-  const includeFbclid = sendFbclidOnly || (!sendCtwaOnly && canSendFbclid);
+  const succeeded = new Set<"ctwa" | "fbclid">();
+  if (priorKind === "ctwa" || priorKind === "fbclid") succeeded.add(priorKind);
+  const errors: string[] = [];
+  const responses: Record<string, unknown> = {};
 
   if (includeCtwa && ctwaClid) {
-    events.push(
-      buildCtwaCapiEvent({
+    const dest = await resolveCtwaDestination(admin, organizationId, ctwaClid, metaGraphVersion());
+    if (dest.ok === false) {
+      errors.push(`ctwa: ${dest.reason}`);
+      responses.ctwa = dest.detail ?? null;
+    } else {
+      const ctwaEvent = buildCtwaCapiEvent({
         ctwa_clid: ctwaClid,
+        whatsapp_business_account_id: dest.destination.wabaId,
         event_name: eventName,
         event_time: eventTime,
         event_id: `lead_${leadId}:ctwa`,
@@ -306,14 +302,23 @@ Deno.serve(async (req: Request) => {
         conversionValue,
         currency,
         leadId,
-      }),
-    );
+      });
+      const result = await sendMetaCapiEvents(
+        dest.destination.datasetId,
+        dest.destination.accessToken,
+        [ctwaEvent],
+        metaGraphVersion(),
+      );
+      responses.ctwa = result.body;
+      if (result.ok) succeeded.add("ctwa");
+      else errors.push(`ctwa: ${result.error ?? "capi_failed"}`);
+    }
   }
 
-  if (includeFbclid) {
+  if (includeFbclid && resolved) {
     const userData: Record<string, unknown> = { ...hashed };
     if (fbc) userData.fbc = fbc;
-    events.push({
+    const fbclidEvent: MetaCapiEventPayload = {
       event_name: eventName,
       event_time: eventTime,
       event_id: `lead_${leadId}`,
@@ -324,33 +329,26 @@ Deno.serve(async (req: Request) => {
         currency,
         lead_id: leadId,
       },
-    });
+    };
+    const result = await sendMetaCapiEvents(pixelId, resolved.accessToken, [fbclidEvent], metaGraphVersion());
+    responses.fbclid = result.body;
+    if (result.ok) succeeded.add("fbclid");
+    else errors.push(`fbclid: ${result.error ?? "capi_failed"}`);
   }
 
-  let uploadKind: UploadKind = "fbclid";
-  if (includeCtwa && includeFbclid) uploadKind = "both";
-  else if (includeCtwa) uploadKind = "ctwa";
-  else if (sendCtwaOnly || sendFbclidOnly) uploadKind = "both";
+  baseLog.meta_response = responses;
+  baseLog.error_message = errors.length ? errors.join("; ") : null;
 
-  const capiResult = await sendMetaCapiEvents(
-    pixelId,
-    resolved.accessToken,
-    events,
-    metaGraphVersion(),
-  );
-
-  if (!capiResult.ok) {
+  if (succeeded.size === 0) {
     baseLog.status = "failed";
-    baseLog.upload_kind = uploadKind;
-    baseLog.error_message = capiResult.error ?? "capi_failed";
-    baseLog.meta_response = capiResult.body;
+    baseLog.upload_kind = includeCtwa && includeFbclid ? "both" : includeCtwa ? "ctwa" : "fbclid";
     await upsertLog(admin, baseLog);
-    return json({ ok: false, error: baseLog.error_message }, 400);
+    return json({ ok: false, error: baseLog.error_message ?? "capi_failed" }, 400);
   }
 
+  const uploadKind: UploadKind = succeeded.size === 2 ? "both" : succeeded.has("ctwa") ? "ctwa" : "fbclid";
   baseLog.status = "success";
   baseLog.upload_kind = uploadKind;
-  baseLog.meta_response = capiResult.body;
   await upsertLog(admin, baseLog);
-  return json({ ok: true, upload_kind: uploadKind }, 200);
+  return json({ ok: true, upload_kind: uploadKind, partial_error: baseLog.error_message }, 200);
 });

@@ -103,6 +103,8 @@ export type MetaCapiEventPayload = {
 
 export type CtwaCapiEventInput = {
   ctwa_clid: string;
+  /** Required by Meta for WhatsApp business messaging events. */
+  whatsapp_business_account_id: string;
   event_name: string;
   event_time: number;
   event_id: string;
@@ -114,6 +116,7 @@ export type CtwaCapiEventInput = {
 
 export function buildCtwaCapiEvent(input: CtwaCapiEventInput): MetaCapiEventPayload {
   const userData: Record<string, unknown> = {
+    whatsapp_business_account_id: input.whatsapp_business_account_id.trim(),
     ctwa_clid: input.ctwa_clid.trim(),
     ...input.hashedUserData,
   };

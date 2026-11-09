@@ -165,3 +165,15 @@ openssl rand -base64 32
 Set as `META_ADS_CONFIG_ENCRYPTION_KEY`. **Back up this key** — losing it requires all orgs to reconnect Meta.
 
 Implementation: `supabase/functions/_shared/metaAdsConfigCrypto.ts` (AES-256-GCM).
+
+## Click-to-WhatsApp (ctwa_clid)
+
+Leads from Click-to-WhatsApp ads have no UTM or fbclid; the WhatsApp webhook stores `ctwa_clid` from the first message's `referral`.
+
+On Converted, the ctwa event is sent per Meta "Conversions API for Business Messaging":
+
+- destination: the **WhatsApp Business Account dataset** (`POST /{WABA_ID}/dataset` returns or creates it), cached in `organization_whatsapp_accounts.capi_dataset_id`
+- token: the WhatsApp Embedded Signup token (`whatsapp_business_management` + `whatsapp_business_manage_events`), not the Meta Ads token
+- payload: `action_source: business_messaging`, `messaging_channel: whatsapp`, `user_data.whatsapp_business_account_id` + `user_data.ctwa_clid`
+
+So the ctwa path works without the Meta Ads connection or a Pixel. The fbclid path still uses the ad account Pixel and the Meta Ads token. See `_shared/ctwaCapiDestination.ts`.
