@@ -16,7 +16,8 @@ const CONFIRMATION_TYPE = "mcp_inventory_confirmation";
 export type ConfirmableTool =
   | "inventory.ingredient.create"
   | "inventory.purchase_order.create"
-  | "inventory.production.create";
+  | "inventory.production.create"
+  | "inventory.purchase_order.receive";
 
 export type ConfirmationIdentity = { userId: string; organizationId: string };
 

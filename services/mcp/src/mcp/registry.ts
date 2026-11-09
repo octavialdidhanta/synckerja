@@ -66,6 +66,9 @@ export type McpToolName =
   | "recipes.drafts.list"
   | "inventory.purchase_order.preview"
   | "inventory.purchase_order.create"
+  | "inventory.purchase_order.open_list"
+  | "inventory.purchase_order.receive.preview"
+  | "inventory.purchase_order.receive"
   | "inventory.ingredient.preview"
   | "inventory.ingredient.create"
   | "inventory.production.preview"
@@ -451,6 +454,30 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "inventory.purchase_order.create",
     description:
       "Save the purchase order shown by inventory.purchase_order.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the preview summary and clearly confirmed it. Never call it right after preview without asking. Simple mode receives the stock now and stock_received is true. Advanced mode only submits the purchase order, stock_received is false, and qty_after stays equal to qty_before until the page fulfills it. Say that clearly. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again. This does not adjust, transfer, edit quantity directly, or fulfill an existing purchase order. Each write needs its own preview and its own yes: never save two writes on one confirmation, and never describe a write to the user from your own summary instead of its preview.",
+    scopes: ["commerce:write"],
+    moduleKey: "operations",
+    pagePath: INVENTORY_PAGE_PATH,
+  },
+  {
+    name: "inventory.purchase_order.open_list",
+    description:
+      "List purchase orders of the organization locked in this session that are still waiting to be received (goods not yet in stock), newest first, up to 30. Optional outlet_id. Returns per PO: purchase_order_id, order_number, outlet, supplier, items (name \u00d7 qty), total_value, finance_status (none, submitted, approved, paid, rejected, cancelled), and ready_to_receive. Call this when the user says goods from a purchase order arrived (for example \"barang PO ayam sudah datang\") and you need the purchase_order_id. Read only.",
+    scopes: ["commerce:read"],
+    moduleKey: "operations",
+    pagePath: INVENTORY_PAGE_PATH,
+  },
+  {
+    name: "inventory.purchase_order.receive.preview",
+    description:
+      "Preview receiving the goods of one existing purchase order into stock, exactly like the Mark as Fulfilled button on the Purchase Order page. Nothing is saved. Requires exactly one of purchase_order_id (from inventory.purchase_order.open_list) or order_number (for example 1794230422762). Optional comment (at most 500 characters) is saved in the PO history. The whole PO is received at its own qty and price; partial receipt is not supported. Returns the PO lines with stock_now and stock_after_expected, total_value, finance_status, can_receive, and blocked_reason. A PO with a purchase request must be approved and paid first, and in Advanced mode the user needs PO Fulfillment access. Never guess which PO: if unsure, call inventory.purchase_order.open_list and ask. After this tool returns, show the user the full summary in plain words and ask them to confirm. Only call inventory.purchase_order.receive with the returned confirm_token after the user clearly says yes. If the user changes anything, call this preview again; a token is valid for 15 minutes and works once.",
+    scopes: ["commerce:write"],
+    moduleKey: "operations",
+    pagePath: INVENTORY_PAGE_PATH,
+  },
+  {
+    name: "inventory.purchase_order.receive",
+    description:
+      "Receive the purchase order shown by inventory.purchase_order.receive.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the preview summary and clearly confirmed it. Never call it right after preview without asking. Adds every line to stock, updates average cost, and marks the PO completed, exactly like the Mark as Fulfilled button. It does not create or change any expense: the purchase request already holds the cost. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again; catalog_po_changed means the PO was edited after the preview; catalog_po_not_waiting means it was already received or cancelled. Each write needs its own preview and its own yes: never save two writes on one confirmation, and never describe a write to the user from your own summary instead of its preview.",
     scopes: ["commerce:write"],
     moduleKey: "operations",
     pagePath: INVENTORY_PAGE_PATH,
@@ -868,6 +895,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
 const MUTATING_TOOLS = new Set<McpToolName>([
   "recipes.drafts.create",
   "inventory.purchase_order.create",
+  "inventory.purchase_order.receive",
   "inventory.ingredient.create",
   "inventory.production.create",
   "finance.income.create",

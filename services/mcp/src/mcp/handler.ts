@@ -150,6 +150,12 @@ import {
   productionPreviewArgs,
   productionInputFromConfirmation,
   PRODUCTION_HOW_TO_READ,
+  OPEN_PURCHASE_ORDERS_HOW_TO_READ,
+  RECEIVE_HOW_TO_READ,
+  openPurchaseOrdersInput,
+  receiveInputFromConfirmation,
+  receivePreviewArgs,
+  receivePreviewInput,
   supplierListInput,
   RECIPE_COSTS_HOW_TO_READ,
   recipeCostsInput,
@@ -323,6 +329,19 @@ export type McpReadDeps = {
     input: import("../tools/inventory/ingredientCreate").IngredientWriteInput,
     confirmId: string | null,
   ) => Promise<import("../db/inventoryIngredient").IngredientWriteResult>;
+  listOpenPurchaseOrders: (
+    ctx: McpAuthContext,
+    outletId: string | null,
+  ) => Promise<Record<string, unknown>>;
+  previewReceivePurchaseOrder: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/purchaseOrderReceive").ReceivePreviewInput,
+  ) => Promise<Record<string, unknown>>;
+  receivePurchaseOrder: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/purchaseOrderReceive").ReceiveWriteInput,
+    confirmId: string,
+  ) => Promise<Record<string, unknown>>;
   previewIngredientProduction: (
     ctx: McpAuthContext,
     input: import("../tools/inventory/productionCreate").ProductionPreviewInput,
@@ -667,6 +686,9 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "recipes.drafts.list": recipeDraftListInput,
   "inventory.purchase_order.preview": purchaseOrderInput,
   "inventory.purchase_order.create": confirmInput,
+  "inventory.purchase_order.open_list": openPurchaseOrdersInput,
+  "inventory.purchase_order.receive.preview": receivePreviewInput,
+  "inventory.purchase_order.receive": confirmInput,
   "inventory.ingredient.preview": ingredientPreviewInput,
   "inventory.ingredient.create": confirmInput,
   "inventory.production.preview": productionPreviewInput,
@@ -938,6 +960,44 @@ async function runTool(
       );
       const input = purchaseOrderInputFromConfirmation(verified.payload);
       return deps.createInventoryPurchaseOrder(ctx, input, verified.confirmId);
+    }
+    case "inventory.purchase_order.open_list": {
+      const parsed = openPurchaseOrdersInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const result = await deps.listOpenPurchaseOrders(ctx, parsed.data.outlet_id ?? null);
+      return { ...result, how_to_read: OPEN_PURCHASE_ORDERS_HOW_TO_READ };
+    }
+    case "inventory.purchase_order.receive.preview": {
+      const parsed = receivePreviewInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const input = receivePreviewArgs(parsed.data);
+      const preview = await deps.previewReceivePurchaseOrder(ctx, input);
+      const signed = preview.can_receive === true
+        ? await deps.signInventoryConfirmation(ctx, "inventory.purchase_order.receive", {
+          purchaseOrderId: String(preview.purchase_order_id),
+          expectedTotal: Number(preview.total_value),
+          comment: input.comment,
+        })
+        : null;
+      return {
+        ...preview,
+        ...(signed ?? {}),
+        how_to_read: RECEIVE_HOW_TO_READ,
+        next_step: signed
+          ? CONFIRM_NEXT_STEP
+          : "This PO cannot be received now, so no confirm_token was issued. Explain blocked_reason to the user.",
+      };
+    }
+    case "inventory.purchase_order.receive": {
+      const parsed = confirmInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const verified = await deps.verifyInventoryConfirmation(
+        ctx,
+        "inventory.purchase_order.receive",
+        parsed.data.confirm_token,
+      );
+      const input = receiveInputFromConfirmation(verified.payload);
+      return deps.receivePurchaseOrder(ctx, input, verified.confirmId);
     }
     case "inventory.ingredient.preview": {
       const parsed = ingredientPreviewInput.safeParse(args ?? {});
