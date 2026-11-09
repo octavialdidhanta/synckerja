@@ -59,6 +59,13 @@ export {
   ingredientWriteInput,
 } from "./inventory/ingredientCreate";
 export { confirmInput } from "./inventory/confirmation";
+export {
+  PRODUCTION_HOW_TO_READ,
+  productionInputFromConfirmation,
+  productionPreviewArgs,
+  productionPreviewInput,
+} from "./inventory/productionCreate";
+export type { ProductionPreviewInput, ProductionWriteInput } from "./inventory/productionCreate";
 export { supplierListInput } from "./inventory/supplierList";
 export { RECIPE_COSTS_HOW_TO_READ, recipeCostsInput, recipeCostsQuery } from "./inventory/recipeCosts";
 export {

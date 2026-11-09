@@ -153,6 +153,15 @@ export type AppDeps = {
     input: import("../tools/inventory/ingredientCreate").IngredientWriteInput,
     confirmId: string | null,
   ) => Promise<import("../db/inventoryIngredient").IngredientWriteResult>;
+  previewIngredientProduction: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/productionCreate").ProductionPreviewInput,
+  ) => Promise<Record<string, unknown>>;
+  createIngredientProduction: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/productionCreate").ProductionWriteInput,
+    confirmId: string,
+  ) => Promise<Record<string, unknown>>;
   createContentPlan: (
     ctx: McpAuthContext,
     input: { title: string; postDate: string | null; brief: string | null },

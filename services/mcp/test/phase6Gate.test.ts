@@ -202,6 +202,8 @@ function gateDeps(overrides: Record<string, unknown>) {
     createRecipeDraft: unused,
     listRecipeDrafts: unused,
     writeInventoryIngredient: unused,
+    previewIngredientProduction: unused,
+    createIngredientProduction: unused,
     createContentPlan: unused,
     updateContentPlan: unused,
     createCompanyObjective: unused,

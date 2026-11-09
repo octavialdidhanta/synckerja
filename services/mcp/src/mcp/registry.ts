@@ -68,6 +68,8 @@ export type McpToolName =
   | "inventory.purchase_order.create"
   | "inventory.ingredient.preview"
   | "inventory.ingredient.create"
+  | "inventory.production.preview"
+  | "inventory.production.create"
   | "content.plans.create"
   | "content.briefs.create"
   | "content.plans.update"
@@ -470,6 +472,22 @@ const TOOL_DEFINITIONS: McpTool[] = [
     pagePath: INGREDIENT_LIST_PAGE_PATH,
   },
   {
+    name: "inventory.production.preview",
+    description:
+      "Preview recording production of one semi-finished ingredient (for example Nasi made from Beras) at one outlet, through the same production the Produce button on the Ingredient page uses. Nothing is saved. Requires outlet_id (from inventory.summary.list), item (the semi-finished ingredient name, for example \"Nasi\"), and qty in that item's own unit (for example 20 portions of Nasi), not in batches. Uses the item's recipe and yield: returns each ingredient that will be used with stock before and after, can_produce, short_of, the cost per unit, and the average cost before and after. Ingredients in short_of must be bought (purchase order) or produced first; do not offer to confirm while can_produce is false. Only semi-finished ingredients that already have a recipe can be produced; recipes are made on the Ingredient page. Owner or omnichannel roster admin only. Never guess a value. If the user did not give the item, outlet, or quantity, ask before calling this tool. After this tool returns, show the user the full summary in plain words and ask them to confirm. Only call inventory.production.create with the returned confirm_token after the user clearly says yes. If the user changes anything, call this preview again; a token is valid for 15 minutes and works once.",
+    scopes: ["commerce:write"],
+    moduleKey: "operations",
+    pagePath: INGREDIENT_LIST_PAGE_PATH,
+  },
+  {
+    name: "inventory.production.create",
+    description:
+      "Save the production shown by inventory.production.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the preview summary and clearly confirmed it. Never call it right after preview without asking. Uses the recipe ingredients, adds the semi-finished stock, and updates its average cost, exactly like the Produce button. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again; catalog_stock_insufficient means stock changed since the preview. This does not undo a production, change a recipe, or record a different actual yield. Each write needs its own preview and its own yes: never save two writes on one confirmation, and never describe a write to the user from your own summary instead of its preview.",
+    scopes: ["commerce:write"],
+    moduleKey: "operations",
+    pagePath: INGREDIENT_LIST_PAGE_PATH,
+  },
+  {
     name: "content.plans.create",
     description:
       "Create a draft content plan for the organization locked in this session. Requires a title. Optional post_date is YYYY-MM-DD in Asia/Jakarta, and brief is an optional short note of at most 4000 characters. The signed-in member becomes the PIC. A storyboard table, concept, and caption are created with content.briefs.create, not with this brief field. Approval, production, and publish fields stay at their defaults.",
@@ -851,6 +869,7 @@ const MUTATING_TOOLS = new Set<McpToolName>([
   "recipes.drafts.create",
   "inventory.purchase_order.create",
   "inventory.ingredient.create",
+  "inventory.production.create",
   "finance.income.create",
   "finance.income.update",
   "finance.expenses.create",

@@ -146,6 +146,10 @@ import {
   ingredientPreviewInput,
   ingredientWriteInput,
   confirmInput,
+  productionPreviewInput,
+  productionPreviewArgs,
+  productionInputFromConfirmation,
+  PRODUCTION_HOW_TO_READ,
   supplierListInput,
   RECIPE_COSTS_HOW_TO_READ,
   recipeCostsInput,
@@ -319,6 +323,15 @@ export type McpReadDeps = {
     input: import("../tools/inventory/ingredientCreate").IngredientWriteInput,
     confirmId: string | null,
   ) => Promise<import("../db/inventoryIngredient").IngredientWriteResult>;
+  previewIngredientProduction: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/productionCreate").ProductionPreviewInput,
+  ) => Promise<Record<string, unknown>>;
+  createIngredientProduction: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/productionCreate").ProductionWriteInput,
+    confirmId: string,
+  ) => Promise<Record<string, unknown>>;
   signInventoryConfirmation: (
     ctx: McpAuthContext,
     tool: import("../tools/inventory/confirmation").ConfirmableTool,
@@ -656,6 +669,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "inventory.purchase_order.create": confirmInput,
   "inventory.ingredient.preview": ingredientPreviewInput,
   "inventory.ingredient.create": confirmInput,
+  "inventory.production.preview": productionPreviewInput,
+  "inventory.production.create": confirmInput,
   "content.plans.create": createPlanInput,
   "content.briefs.create": createBriefInput,
   "content.plans.update": updatePlanSchema,
@@ -954,6 +969,38 @@ async function runTool(
       );
       const input = ingredientInputFromConfirmation(verified.payload);
       return deps.writeInventoryIngredient(ctx, input, verified.confirmId);
+    }
+    case "inventory.production.preview": {
+      const parsed = productionPreviewInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const preview = await deps.previewIngredientProduction(ctx, productionPreviewArgs(parsed.data));
+      const payload = {
+        outletId: String(preview.outlet_id),
+        itemId: String(preview.item_id),
+        qty: parsed.data.qty,
+      };
+      const signed = preview.can_produce === false
+        ? null
+        : await deps.signInventoryConfirmation(ctx, "inventory.production.create", payload);
+      return {
+        ...preview,
+        ...(signed ?? {}),
+        how_to_read: PRODUCTION_HOW_TO_READ,
+        next_step: signed
+          ? CONFIRM_NEXT_STEP
+          : "Stock is not enough, so no confirm_token was issued. Tell the user which ingredients are short (short_of) and that they must be bought or produced first.",
+      };
+    }
+    case "inventory.production.create": {
+      const parsed = confirmInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const verified = await deps.verifyInventoryConfirmation(
+        ctx,
+        "inventory.production.create",
+        parsed.data.confirm_token,
+      );
+      const input = productionInputFromConfirmation(verified.payload);
+      return deps.createIngredientProduction(ctx, input, verified.confirmId);
     }
     case "content.plans.create":
       return createPlanResult(

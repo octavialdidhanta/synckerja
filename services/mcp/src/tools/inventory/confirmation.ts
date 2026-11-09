@@ -13,7 +13,10 @@ import { z } from "zod";
 export const CONFIRMATION_TTL_SECONDS = 15 * 60;
 const CONFIRMATION_TYPE = "mcp_inventory_confirmation";
 
-export type ConfirmableTool = "inventory.ingredient.create" | "inventory.purchase_order.create";
+export type ConfirmableTool =
+  | "inventory.ingredient.create"
+  | "inventory.purchase_order.create"
+  | "inventory.production.create";
 
 export type ConfirmationIdentity = { userId: string; organizationId: string };
 
