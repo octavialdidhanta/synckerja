@@ -18,6 +18,9 @@ import { buildProductRecipeListRows } from "../lib/productRecipeListRows";
 import { useCatalogProductRecipes } from "../hooks/useCatalogProductRecipes";
 import { ProductRecipeFormSheet } from "./ProductRecipeFormSheet";
 import { ProductRecipeImportExportMenu } from "./ProductRecipeImportExportMenu";
+import { useRecipeDrafts } from "../../recipe-drafts/hooks/useRecipeDrafts";
+import { RecipeDraftBanner } from "../../recipe-drafts/components/RecipeDraftBanner";
+import { RecipeDraftReviewDialog } from "../../recipe-drafts/components/RecipeDraftReviewDialog";
 
 export type ProductRecipesManagerProps = {
   selectedOutletId: string;
@@ -42,6 +45,24 @@ export function ProductRecipesManager({ selectedOutletId, onOutletChange }: Prod
   const [editProductId, setEditProductId] = useState("");
   const [editModifierOptionId, setEditModifierOptionId] = useState<string | null>(null);
   const [selectedRecipeId, setSelectedRecipeId] = useState("");
+  const { drafts } = useRecipeDrafts();
+  const [reviewDraftId, setReviewDraftId] = useState<string | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+
+  // Drafts belong to one outlet; show only the ones for the outlet being viewed.
+  const outletDrafts = useMemo(
+    () => drafts.filter((draft) => !draft.outlet_id || draft.outlet_id === selectedOutletId),
+    [drafts, selectedOutletId],
+  );
+  const draftByProduct = useMemo(
+    () => new Map<string, string>(outletDrafts.map((draft) => [draft.product_id, draft.id] as const)),
+    [outletDrafts],
+  );
+
+  const openReview = (draftId: string) => {
+    setReviewDraftId(draftId);
+    setReviewOpen(true);
+  };
 
   const listRows = useMemo(
     () =>
@@ -111,6 +132,12 @@ export function ProductRecipesManager({ selectedOutletId, onOutletChange }: Prod
         </Button>
       </div>
 
+      {outletDrafts.length > 0 ? (
+        <div className="mb-3 shrink-0">
+          <RecipeDraftBanner drafts={outletDrafts} onReview={openReview} />
+        </div>
+      ) : null}
+
       <Table
         containerClassName="min-h-0 flex-1 overflow-auto rounded-md border border-border/60 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
@@ -148,7 +175,23 @@ export function ProductRecipesManager({ selectedOutletId, onOutletChange }: Prod
                   className={cn("cursor-pointer", selectedRecipeId === row.recipeId && "bg-muted/50")}
                   onClick={() => openEdit(row)}
                 >
-                  <TableCell className="font-medium">{row.productName}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      {row.productName}
+                      {!row.modifierOptionId && draftByProduct.has(row.productId) ? (
+                        <button
+                          type="button"
+                          className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800 hover:bg-blue-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openReview(draftByProduct.get(row.productId)!);
+                          }}
+                        >
+                          {t("recipeDrafts.rowBadge", "Draft pending")}
+                        </button>
+                      ) : null}
+                    </span>
+                  </TableCell>
                   <TableCell>{row.variantLabel || "—"}</TableCell>
                   <TableCell>
                     {t("ingredient.productRecipe.ingredientCount", "{{count}} ingredients", {
@@ -175,6 +218,8 @@ export function ProductRecipesManager({ selectedOutletId, onOutletChange }: Prod
         onSave={save}
         isSaving={isSaving}
       />
+
+      <RecipeDraftReviewDialog draftId={reviewDraftId} open={reviewOpen} onOpenChange={setReviewOpen} />
     </div>
   );
 }
