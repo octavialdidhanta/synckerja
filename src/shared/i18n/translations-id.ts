@@ -4088,7 +4088,7 @@ export const idTranslations: TranslationDictionary = {
   "recipeDrafts.deleted": "Sudah dihapus dari Library",
   "recipeDrafts.down": "Turun",
   "recipeDrafts.edit": "Edit draft",
-  "recipeDrafts.editFooterNote": "Simpan = tetap draft. Publish = simpan lalu resep langsung aktif di POS.",
+  "recipeDrafts.editFooterNote": "Simpan atau batalkan perubahan dulu. Setelah itu baru bisa publish.",
   "recipeDrafts.editHint": "Ubah jumlah di kolom Sesudah. Pilih g/kg atau ml/l; otomatis dikonversi ke satuan di Library. Versi asli dari Claude tetap disimpan.",
   "recipeDrafts.editTitle": "Edit draft resep",
   "recipeDrafts.editedBy": "Diedit manual oleh {{name}} · {{time}}",

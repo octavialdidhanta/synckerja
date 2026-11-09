@@ -4088,7 +4088,7 @@ export const enTranslations: TranslationDictionary = {
   "recipeDrafts.deleted": "Deleted from Library",
   "recipeDrafts.down": "Down",
   "recipeDrafts.edit": "Edit draft",
-  "recipeDrafts.editFooterNote": "Save keeps a draft. Publish saves and activates the recipe in POS.",
+  "recipeDrafts.editFooterNote": "Save or cancel your changes first. Publish is available after that.",
   "recipeDrafts.editHint": "Change quantities in the After column. Choose g/kg or ml/l; it is converted to the unit in Library. Claude's original version is kept.",
   "recipeDrafts.editTitle": "Edit recipe draft",
   "recipeDrafts.editedBy": "Edited by {{name}} · {{time}}",

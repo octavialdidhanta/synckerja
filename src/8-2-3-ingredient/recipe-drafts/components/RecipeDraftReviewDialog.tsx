@@ -224,7 +224,6 @@ export function RecipeDraftReviewDialog({ draftId, open, onOpenChange }: RecipeD
 
   const handlePublish = async () => {
     try {
-      if (computed && dirty) await actions.save(computed.payload);
       await actions.publish(needsConfirm && confirmed);
       toast({
         title: t("recipeDrafts.published", "Recipe published. It applies to the next sales at {{outlet}}.", {
@@ -248,7 +247,10 @@ export function RecipeDraftReviewDialog({ draftId, open, onOpenChange }: RecipeD
     }
   };
 
+  // Publishing only happens from read mode, after edits are saved or cancelled, so what is
+  // published is exactly what the reviewer last saw in the comparison.
   const publishDisabled =
+    mode === "edit" ||
     actions.isBusy ||
     !review?.can_manage ||
     !pending ||
@@ -510,7 +512,7 @@ export function RecipeDraftReviewDialog({ draftId, open, onOpenChange }: RecipeD
                     {!pending
                       ? t("recipeDrafts.closedNote", "This draft is closed. The active recipe is not affected.")
                       : mode === "edit"
-                        ? t("recipeDrafts.editFooterNote", "Save keeps a draft. Publish saves and activates the recipe in POS.")
+                        ? t("recipeDrafts.editFooterNote", "Save or cancel your changes first. Publish is available after that.")
                         : t("recipeDrafts.historyNote", "The old recipe is kept in history. Applies to the next sales at {{outlet}}.", {
                             outlet: review.draft.outlet_name ?? "",
                           })}
