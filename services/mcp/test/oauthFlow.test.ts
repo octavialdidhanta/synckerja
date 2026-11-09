@@ -137,6 +137,8 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     },
     listCatalogSuppliers: async () => [],
     listRecipeCosts: async () => ({}),
+    createRecipeDraft: async () => ({}),
+    listRecipeDrafts: async () => ({}),
     previewInventoryPurchaseOrder: async () => {
       throw new Error("unused");
     },

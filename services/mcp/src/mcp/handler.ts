@@ -150,6 +150,10 @@ import {
   RECIPE_COSTS_HOW_TO_READ,
   recipeCostsInput,
   recipeCostsQuery,
+  RECIPE_DRAFT_HOW_TO_READ,
+  recipeDraftCreate,
+  recipeDraftCreateInput,
+  recipeDraftListInput,
   updateExpenseInput,
   updateExpenseResult,
   updateExpenseSchema,
@@ -288,6 +292,11 @@ export type McpReadDeps = {
     ctx: McpAuthContext,
     query: import("../tools/inventory/summaryList").InventorySummaryQuery,
   ) => Promise<import("../db/inventorySummary").InventorySummary>;
+  createRecipeDraft: (
+    ctx: McpAuthContext,
+    input: import("../tools/inventory/recipeDrafts").RecipeDraftCreate,
+  ) => Promise<Record<string, unknown>>;
+  listRecipeDrafts: (ctx: McpAuthContext, status: string | null) => Promise<Record<string, unknown>>;
   listRecipeCosts: (
     ctx: McpAuthContext,
     query: import("../tools/inventory/recipeCosts").RecipeCostsQuery,
@@ -641,6 +650,8 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "inventory.summary.list": summaryListInput,
   "inventory.suppliers.list": supplierListInput,
   "recipes.costs.list": recipeCostsInput,
+  "recipes.drafts.create": recipeDraftCreateInput,
+  "recipes.drafts.list": recipeDraftListInput,
   "inventory.purchase_order.preview": purchaseOrderInput,
   "inventory.purchase_order.create": confirmInput,
   "inventory.ingredient.preview": ingredientPreviewInput,
@@ -863,6 +874,17 @@ async function runTool(
         dateEnd: parsed.data.date_end ?? null,
         search: parsed.data.search ?? null,
       }, deps.listInventorySummary);
+    }
+    case "recipes.drafts.create": {
+      const parsed = recipeDraftCreateInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      const body = await deps.createRecipeDraft(ctx, recipeDraftCreate(parsed.data));
+      return { ...body, how_to_read: RECIPE_DRAFT_HOW_TO_READ };
+    }
+    case "recipes.drafts.list": {
+      const parsed = recipeDraftListInput.safeParse(args ?? {});
+      if (!parsed.success) throw new Error("invalid_input");
+      return deps.listRecipeDrafts(ctx, parsed.data.status ?? null);
     }
     case "recipes.costs.list": {
       const parsed = recipeCostsInput.safeParse(args ?? {});

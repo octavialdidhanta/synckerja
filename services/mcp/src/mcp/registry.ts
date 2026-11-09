@@ -62,6 +62,8 @@ export type McpToolName =
   | "inventory.summary.list"
   | "inventory.suppliers.list"
   | "recipes.costs.list"
+  | "recipes.drafts.create"
+  | "recipes.drafts.list"
   | "inventory.purchase_order.preview"
   | "inventory.purchase_order.create"
   | "inventory.ingredient.preview"
@@ -407,6 +409,22 @@ const TOOL_DEFINITIONS: McpTool[] = [
     name: "recipes.costs.list",
     description:
       "Read HPP (cost of goods per portion) and margin for menu items at one outlet, using the same rule as the POS checkout: the product's own buy cost when it tracks one, else its base recipe (quantity \u00d7 each ingredient's average buy cost). Call this for questions like the HPP of a menu, which menus have low margin, which menus have no recipe, or what happens to HPP if an ingredient price changes. Optional outlet_id (default outlet when omitted), search (part of the menu name), only (all, with_recipe, without_recipe, incomplete = recipe has ingredients without a buy cost), max_margin_pct (only menus at or below this margin %, lowest first), and cost_overrides (what-if: exact ingredient name and unit_cost per its unit; up to 30). Returns per menu: selling_price, hpp, hpp_pct, margin, margin_pct, cogs_source, recipe lines with quantity in the ingredient's unit, missing_cost_ingredients, add_ons with extra cost, plus totals. Always mention missing_cost_ingredients, because they count as Rp0. Read only: it never changes recipes, prices, or stock, including in what-if mode. Follow how_to_read.",
+    scopes: ["commerce:read"],
+    moduleKey: "operations",
+    pagePath: INGREDIENT_RECIPES_PAGE_PATH,
+  },
+  {
+    name: "recipes.drafts.create",
+    description:
+      "Save a DRAFT recipe for one menu item; it is NOT active until the owner or an admin reviews and publishes it in the Synckerja app (Operations \u2192 Ingredient \u2192 Recipes). You cannot publish. Use it when the user wants to set or change a menu's recipe. Requires menu (exact menu name), lines (each: ingredient = exact ingredient name, quantity per ONE portion, unit as the user said it: g, kg, mg, ons, ml, l, or the ingredient's own unit such as pcs), and request_note (the user's request in their words). Optional outlet_id (default outlet when omitted). Send the WHOLE recipe, not only the changed lines: ingredients left out are removed. For a change, read the current lines first with recipes.costs.list. Never guess quantities, units, or whether an amount is per portion or per batch: ask. Owner or admin only. A newer draft for the same menu replaces the older open one. Returns HPP before/after, per-line changes, warnings and blocking items. Follow how_to_read.",
+    scopes: ["commerce:write"],
+    moduleKey: "operations",
+    pagePath: INGREDIENT_RECIPES_PAGE_PATH,
+  },
+  {
+    name: "recipes.drafts.list",
+    description:
+      "List recipe drafts of the organization locked in this session. Optional status: pending (default), published, rejected, superseded, expired, or all. Returns per draft: menu, new or update, status, who asked, HPP before/after, warning count, and whether publishing is blocked. Read only.",
     scopes: ["commerce:read"],
     moduleKey: "operations",
     pagePath: INGREDIENT_RECIPES_PAGE_PATH,
@@ -830,6 +848,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
 ];
 
 const MUTATING_TOOLS = new Set<McpToolName>([
+  "recipes.drafts.create",
   "inventory.purchase_order.create",
   "inventory.ingredient.create",
   "finance.income.create",
