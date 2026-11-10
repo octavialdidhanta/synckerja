@@ -378,7 +378,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "List daily store-checkout totals for the organization locked in this session. Optional month is YYYY-MM in Asia/Jakarta; omit it for the current month. Returns up to 31 days that have sales: the date, transaction count, and total collected. Days without sales are omitted. Line items, customer phone numbers, payment methods, and cashier pins are not returned.",
     scopes: ["pos:read"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: POS_SALES_SUMMARY_PAGE_PATH,
   },
   {
@@ -402,7 +402,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "List up to 50 legacy SKU stock rows for the organization locked in this session, lowest available quantity first. This is the old shared SKU pool in inventory_stock_levels, not the Inventory Summary page. Returns product name, SKU name, internal SKU, available quantity, and reserved quantity. Movement history is not returned. For the stock shown on Inventory Summary, call inventory.summary.list.",
     scopes: ["commerce:read"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INVENTORY_PAGE_PATH,
   },
   {
@@ -410,7 +410,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Read the Inventory Summary for one outlet in the organization locked in this session. This is the stock on the Inventory page, not inventory.stock.list. Optional outlet_id; omit it for the default active outlet. Optional kind is both (default), ingredients, or item_library. Optional date_start and date_end are YYYY-MM-DD in Asia/Jakarta, both or neither; omit them for today. The range is at most 366 days. Optional search matches name, variant, or category. Returns up to 200 rows with current quantity and the Summary columns beginning, purchase order, sales, transfer, adjustment, and ending. truncated is true when more rows match. Parent products that only group variants are omitted. Read only.",
     scopes: ["commerce:read"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INVENTORY_PAGE_PATH,
   },
   {
@@ -418,7 +418,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Read HPP (cost of goods per portion) and margin for menu items at one outlet, using the same rule as the POS checkout: the product's own buy cost when it tracks one, else its base recipe (quantity \u00d7 each ingredient's average buy cost). Call this for questions like the HPP of a menu, which menus have low margin, which menus have no recipe, or what happens to HPP if an ingredient price changes. Optional outlet_id (default outlet when omitted), search (part of the menu name), only (all, with_recipe, without_recipe, incomplete = recipe has ingredients without a buy cost), max_margin_pct (only menus at or below this margin %, lowest first), and cost_overrides (what-if: exact ingredient name and unit_cost per its unit; up to 30). Returns per menu: selling_price, hpp, hpp_pct, margin, margin_pct, cogs_source, recipe lines with quantity in the ingredient's unit, missing_cost_ingredients, add_ons with extra cost, plus totals. Always mention missing_cost_ingredients, because they count as Rp0. Read only: it never changes recipes, prices, or stock, including in what-if mode. Follow how_to_read.",
     scopes: ["commerce:read"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INGREDIENT_RECIPES_PAGE_PATH,
   },
   {
@@ -426,7 +426,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Save a DRAFT recipe for one menu item; it is NOT active until the owner or an admin reviews and publishes it in the Synckerja app (Operations \u2192 Ingredient \u2192 Recipes). You cannot publish. Use it when the user wants to set or change a menu's recipe. Requires menu (exact menu name), lines (each: ingredient = exact ingredient name, quantity per ONE portion, unit as the user said it: g, kg, mg, ons, ml, l, or the ingredient's own unit such as pcs), and request_note (the user's request in their words). Optional outlet_id (default outlet when omitted). Send the WHOLE recipe, not only the changed lines: ingredients left out are removed. For a change, read the current lines first with recipes.costs.list. Never guess quantities, units, or whether an amount is per portion or per batch: ask. Owner or admin only. A newer draft for the same menu replaces the older open one. Returns HPP before/after, per-line changes, warnings and blocking items. Follow how_to_read.",
     scopes: ["commerce:write"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INGREDIENT_RECIPES_PAGE_PATH,
   },
   {
@@ -434,7 +434,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "List recipe drafts of the organization locked in this session. Optional status: pending (default), published, rejected, superseded, expired, or all. Returns per draft: menu, new or update, status, who asked, HPP before/after, warning count, and whether publishing is blocked. Read only.",
     scopes: ["commerce:read"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INGREDIENT_RECIPES_PAGE_PATH,
   },
   {
@@ -442,7 +442,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Find suppliers of the organization locked in this session by name, to get the supplier_id for inventory.purchase_order.preview. Optional search matches part of the name; omit it to list up to 50 suppliers. Returns id, name, phone, and city. Bank details are not returned. Read only; it does not create a supplier. If nothing matches, tell the user instead of guessing.",
     scopes: ["commerce:read"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INVENTORY_PAGE_PATH,
   },
   {
@@ -450,7 +450,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Preview receiving one purchased item into one outlet through the Purchase Order used by the Inventory page. Nothing is saved. Requires outlet_id, the exact item name in search, qty, and unit_cost (price per unit). Supplier: when the user names one, call inventory.suppliers.list first and pass its id as supplier_id; omit supplier_id for No Supplier only when the user said there is none or agreed to record without one. Optional note is at most 500 characters. One item per call. Returns the item, unit, current stock, expected stock after, subtotal, supplier, and po_mode. Simple mode receives the stock on confirm; Advanced mode only submits the purchase order and stock arrives when the page fulfills it. Say that clearly. Owner or omnichannel roster admin only; an organization admin is rejected. Never guess a value. If the user did not give a field, ask for it before calling this tool. After this tool returns, show the user the full summary in plain words and ask them to confirm. Only call inventory.purchase_order.create with the returned confirm_token after the user clearly says yes. If the user changes anything, call this preview again; a token is valid for 15 minutes and works once. If the item does not exist yet, first add it with inventory.ingredient.preview and inventory.ingredient.create (opening_stock 0, with its own yes), then call this preview and ask again.",
     scopes: ["commerce:write"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INVENTORY_PAGE_PATH,
   },
   {
@@ -458,7 +458,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Save the purchase order shown by inventory.purchase_order.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the preview summary and clearly confirmed it. Never call it right after preview without asking. Simple mode receives the stock now and stock_received is true. Advanced mode only submits the purchase order, stock_received is false, and qty_after stays equal to qty_before until the page fulfills it. Say that clearly. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again. This does not adjust, transfer, edit quantity directly, or fulfill an existing purchase order. Each write needs its own preview and its own yes: never save two writes on one confirmation, and never describe a write to the user from your own summary instead of its preview.",
     scopes: ["commerce:write"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INVENTORY_PAGE_PATH,
   },
   {
@@ -466,7 +466,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "List purchase orders of the organization locked in this session that are still waiting to be received (goods not yet in stock), newest first, up to 30. Optional outlet_id. Returns per PO: purchase_order_id, order_number, outlet, supplier, items (name \u00d7 qty), total_value, finance_status (none, submitted, approved, paid, rejected, cancelled), and ready_to_receive. Call this when the user says goods from a purchase order arrived (for example \"barang PO ayam sudah datang\") and you need the purchase_order_id. Read only.",
     scopes: ["commerce:read"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INVENTORY_PAGE_PATH,
   },
   {
@@ -474,7 +474,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Preview receiving the goods of one existing purchase order into stock, exactly like the Mark as Fulfilled button on the Purchase Order page. Nothing is saved. Requires exactly one of purchase_order_id (from inventory.purchase_order.open_list) or order_number (for example 1794230422762). Optional comment (at most 500 characters) is saved in the PO history. The whole PO is received at its own qty and price; partial receipt is not supported. Returns the PO lines with stock_now and stock_after_expected, total_value, finance_status, can_receive, and blocked_reason. A PO with a purchase request must be approved and paid first, and in Advanced mode the user needs PO Fulfillment access. Never guess which PO: if unsure, call inventory.purchase_order.open_list and ask. After this tool returns, show the user the full summary in plain words and ask them to confirm. Only call inventory.purchase_order.receive with the returned confirm_token after the user clearly says yes. If the user changes anything, call this preview again; a token is valid for 15 minutes and works once.",
     scopes: ["commerce:write"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INVENTORY_PAGE_PATH,
   },
   {
@@ -482,7 +482,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Receive the purchase order shown by inventory.purchase_order.receive.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the preview summary and clearly confirmed it. Never call it right after preview without asking. Adds every line to stock, updates average cost, and marks the PO completed, exactly like the Mark as Fulfilled button. It does not create or change any expense: the purchase request already holds the cost. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again; catalog_po_changed means the PO was edited after the preview; catalog_po_not_waiting means it was already received or cancelled. Each write needs its own preview and its own yes: never save two writes on one confirmation, and never describe a write to the user from your own summary instead of its preview.",
     scopes: ["commerce:write"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INVENTORY_PAGE_PATH,
   },
   {
@@ -490,7 +490,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Preview a stock adjustment (stock correction) for one tracked item at one outlet, like the Adjustment tab on the Inventory page. Nothing is saved. Requires outlet_id (from inventory.summary.list), item (exact name: ingredient, product, or variant), reason (why, for example stock count, damaged, expired), and exactly one of set_to (the counted stock, for example \"stok nasi sebenarnya 20\") or change (a +/- amount, for example -2 for 2 damaged). Returns the item, qty_before, qty_change, and qty_after. Owner, organization admin, or omnichannel admin only; others get catalog_adjustment_forbidden. Not for goods that arrived from a supplier (use a purchase order) or for production. Never guess a value or the reason: ask. After this tool returns, show the user the full summary in plain words and ask them to confirm. Only call inventory.adjustment.create with the returned confirm_token after the user clearly says yes. If the user changes anything, call this preview again; a token is valid for 15 minutes and works once.",
     scopes: ["commerce:write"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INVENTORY_PAGE_PATH,
   },
   {
@@ -498,7 +498,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Save the stock adjustment shown by inventory.adjustment.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the preview summary and clearly confirmed it. Never call it right after preview without asking. The adjustment appears on the Adjustment tab with the reason. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again; catalog_adjustment_stock_changed means the stock changed since the preview, so preview again. Each write needs its own preview and its own yes: never save two writes on one confirmation, and never describe a write to the user from your own summary instead of its preview.",
     scopes: ["commerce:write"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INVENTORY_PAGE_PATH,
   },
   {
@@ -506,7 +506,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Preview adding one raw ingredient to one outlet's inventory, exactly as the Ingredient page would. Nothing is saved. Requires outlet_id (from inventory.summary.list), name, unit_code (one of the listed codes, e.g. kg, g, l, ml, pcs, ikt, krg, bks), the category: either category_name (an ingredient category name; a new name creates that category) or no_category true. Ask the user which category; send no_category true only when the user explicitly said they want no category, never because they did not mention one. opening_stock (0 if there is no stock yet), and unit_cost per unit (buy price; required above 0 when opening_stock is above 0). Optional alert_at is the low-stock alert quantity. Rejects a name that already exists. Semi-finished ingredients and recipes are not created here. Owner or omnichannel roster admin only. Never guess a value. If the user did not give a field, ask for it before calling this tool. After this tool returns, show the user the full summary in plain words and ask them to confirm. Only call inventory.ingredient.create with the returned confirm_token after the user clearly says yes. If the user changes anything, call this preview again; a token is valid for 15 minutes and works once.",
     scopes: ["commerce:write"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INGREDIENT_LIST_PAGE_PATH,
   },
   {
@@ -514,7 +514,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Save the ingredient shown by inventory.ingredient.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the preview summary and clearly confirmed it. Never call it right after preview without asking. Creates the category if it was new, links it to the outlet, and records opening stock as an Opening movement. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again; ingredient_duplicate means the name now exists. Each write needs its own preview and its own yes: never save two writes on one confirmation, and never describe a write to the user from your own summary instead of its preview.",
     scopes: ["commerce:write"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INGREDIENT_LIST_PAGE_PATH,
   },
   {
@@ -522,7 +522,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Preview recording production of one semi-finished ingredient (for example Nasi made from Beras) at one outlet, through the same production the Produce button on the Ingredient page uses. Nothing is saved. Requires outlet_id (from inventory.summary.list), item (the semi-finished ingredient name, for example \"Nasi\"), and qty in that item's own unit (for example 20 portions of Nasi), not in batches. Uses the item's recipe and yield: returns each ingredient that will be used with stock before and after, can_produce, short_of, the cost per unit, and the average cost before and after. Ingredients in short_of must be bought (purchase order) or produced first; do not offer to confirm while can_produce is false. Only semi-finished ingredients that already have a recipe can be produced; recipes are made on the Ingredient page. Owner or omnichannel roster admin only. Never guess a value. If the user did not give the item, outlet, or quantity, ask before calling this tool. After this tool returns, show the user the full summary in plain words and ask them to confirm. Only call inventory.production.create with the returned confirm_token after the user clearly says yes. If the user changes anything, call this preview again; a token is valid for 15 minutes and works once.",
     scopes: ["commerce:write"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INGREDIENT_LIST_PAGE_PATH,
   },
   {
@@ -530,7 +530,7 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Save the production shown by inventory.production.preview. Requires only the confirm_token that preview returned. Call this only after the user has seen the preview summary and clearly confirmed it. Never call it right after preview without asking. Uses the recipe ingredients, adds the semi-finished stock, and updates its average cost, exactly like the Produce button. Errors: confirmation_expired or confirmation_used mean you must run the preview again and ask again; catalog_stock_insufficient means stock changed since the preview. This does not undo a production, change a recipe, or record a different actual yield. Each write needs its own preview and its own yes: never save two writes on one confirmation, and never describe a write to the user from your own summary instead of its preview.",
     scopes: ["commerce:write"],
-    moduleKey: "operations",
+    moduleKey: "pos",
     pagePath: INGREDIENT_LIST_PAGE_PATH,
   },
   {

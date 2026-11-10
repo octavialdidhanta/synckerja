@@ -8,10 +8,19 @@ type SalesModuleUpsellPageProps = {
   className?: string;
 };
 
+const FLAG_ONLY_MODULE_LABEL_KEYS: Partial<Record<SalesModuleKey, string>> = {
+  whatsappBusiness: "salesModule.whatsappBusiness.label",
+  pos: "salesModule.pos.label",
+  operations: "salesModule.operations.label",
+};
+
 export function SalesModuleUpsellPage({ moduleKey, className }: SalesModuleUpsellPageProps) {
   const { t } = useTranslation();
   const definition = salesModuleDefinition(moduleKey);
-  const moduleLabel = definition ? t(definition.labelKey) : moduleKey;
+  const labelKey = FLAG_ONLY_MODULE_LABEL_KEYS[moduleKey] ?? definition?.labelKey;
+  const moduleLabel = labelKey
+    ? t(labelKey, labelKey === "salesModule.whatsappBusiness.label" ? "WhatsApp Business API" : labelKey)
+    : moduleKey;
 
   return (
     <div className={className}>

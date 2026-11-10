@@ -4,6 +4,7 @@ import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDa
 import { supabase } from "@/shared/lib/supabaseClient";
 import {
   isSalesModulePathBlocked,
+  isWhatsappBusinessPackagePath,
   mergeSalesModuleAccess,
   resolveSalesModuleForPath,
   salesModuleDefinition,
@@ -47,12 +48,18 @@ export function useSalesModuleAccess() {
     return access[moduleKey] ?? false;
   };
 
-  const isPathBlocked = (pathname: string): boolean =>
-    isSalesModulePathBlocked(pathname, isModuleGatingActive, access);
+  const isPathBlocked = (pathname: string): boolean => {
+    if (isSalesModulePathBlocked(pathname, isModuleGatingActive, access)) return true;
+    if (!isModuleGatingActive || !access || !isWhatsappBusinessPackagePath(pathname)) return false;
+    return !access.whatsappBusiness;
+  };
 
   const getUpsellModuleForPath = (pathname: string): SalesModuleKey | null => {
     if (!isPathBlocked(pathname)) return null;
-    return resolveSalesModuleForPath(pathname);
+    const parentKey = resolveSalesModuleForPath(pathname);
+    if (parentKey && access && !access[parentKey]) return parentKey;
+    if (isWhatsappBusinessPackagePath(pathname)) return "whatsappBusiness";
+    return parentKey;
   };
 
   const getUpsellModuleLabelKey = (moduleKey: SalesModuleKey): string =>

@@ -27,7 +27,7 @@ export async function fetchPublicOrderStore(args: {
     return { ok: false, error: error.message };
   }
   const store = (data ?? { ok: false, error: "not_found" }) as PublicOrderStore;
-  if (!store.ok) return store;
+  if (!store.ok && store.error !== "ordering_unavailable") return store;
   const coverPaths = publicOrderCoverPaths(store);
   const [photos, logoUrl] = await Promise.all([
     resolvePublicOrderPhotoUrls(code, [...coverPaths, store.logo_path]),

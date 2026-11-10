@@ -417,6 +417,7 @@ function denialContext(overrides: Partial<McpAuthContext>): McpAuthContext {
       omnichannel: true,
       finance: true,
       humanResources: true,
+      pos: true,
       operations: true,
       tools: true,
     },

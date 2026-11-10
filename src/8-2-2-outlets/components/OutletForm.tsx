@@ -6,6 +6,7 @@ import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useToast } from "@/shared/components/ui/use-toast";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { useOutletQuota } from "../hooks/useOutletQuota";
 import { usePosOutlets } from "../hooks/usePosOutlets";
 import type { PosOutlet } from "../types";
 import { draftFromOutlet, emptyOutletDraft, isOutletDraftValid } from "../types";

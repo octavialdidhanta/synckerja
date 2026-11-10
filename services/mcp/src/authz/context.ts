@@ -40,6 +40,7 @@ export const MCP_MODULE_KEYS = [
   "omnichannel",
   "finance",
   "humanResources",
+  "pos",
   "operations",
   "tools",
 ] as const;
@@ -72,6 +73,7 @@ const NO_MODULES: Record<McpModuleKey, boolean> = {
   omnichannel: false,
   finance: false,
   humanResources: false,
+  pos: false,
   operations: false,
   tools: false,
 };
@@ -181,6 +183,7 @@ export function buildAuthContext(input: {
       omnichannel: isModuleEnabled("omnichannel", enablement),
       finance: isModuleEnabled("finance", enablement),
       humanResources: isModuleEnabled("humanResources", enablement),
+      pos: isModuleEnabled("pos", enablement),
       operations: isModuleEnabled("operations", enablement),
       tools: isModuleEnabled("tools", enablement),
     },

@@ -13,6 +13,9 @@ export const CMS_MODULE_LABEL_TO_KEY: Record<string, SalesModuleKey> = {
   Finance: "finance",
   "Digital Marketing": "digitalMarketing",
   "Operations / Omnichannel": "omnichannel",
+  POS: "pos",
+  Operations: "operations",
+  /** Label before POS and Operations were split. */
   "Sales Operations": "operations",
   Tools: "tools",
   "Request Form": "requestForm",
@@ -33,7 +36,13 @@ export function moduleAccessFromPlanFeatures(features: string[]): ModuleAccessMa
   for (const feature of features) {
     const match = feature.trim().match(/^Modul\s+(.+)$/i);
     if (!match) continue;
-    const key = CMS_MODULE_LABEL_TO_KEY[match[1].trim()];
+    const label = match[1].trim();
+    if (label === "Sales Operations") {
+      access.operations = true;
+      access.pos = true;
+      continue;
+    }
+    const key = CMS_MODULE_LABEL_TO_KEY[label];
     if (key) access[key] = true;
   }
   return access;

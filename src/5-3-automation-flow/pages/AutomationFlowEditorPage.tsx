@@ -3,8 +3,9 @@ import { useTranslation } from "react-i18next";
 import { AutomationFlowEditorShell } from "@/5-3-automation-flow/components/editor/AutomationFlowEditorShell";
 import { AutomationFlowEditorSkeleton } from "@/5-3-automation-flow/skeletons/AutomationFlowEditorSkeleton";
 import { useAutomationFlow } from "@/5-3-automation-flow/hooks/useAutomationFlow";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 
-export function AutomationFlowEditorPage() {
+function AutomationFlowEditorContent() {
   const { flowId } = useParams<{ flowId: string }>();
   const { t } = useTranslation();
   const { data: flow, isPending, isError, error } = useAutomationFlow(flowId);
@@ -19,6 +20,14 @@ export function AutomationFlowEditorPage() {
   }
 
   return <AutomationFlowEditorShell flow={flow} />;
+}
+
+export function AutomationFlowEditorPage() {
+  return (
+    <ModuleShellContentGate>
+      <AutomationFlowEditorContent />
+    </ModuleShellContentGate>
+  );
 }
 
 export default AutomationFlowEditorPage;

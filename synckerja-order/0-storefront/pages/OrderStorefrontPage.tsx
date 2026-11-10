@@ -113,21 +113,23 @@ export function OrderStorefrontPage() {
   const catalogQuery = useQuery({
     queryKey: ["public-order-catalog", code],
     queryFn: () => fetchPublicOrderCatalog(code),
-    enabled: isValidPublicCode(code) && menuMode,
+    enabled: isValidPublicCode(code) && menuMode && storeQuery.data?.error !== "ordering_unavailable",
   });
 
+  const orderingUnavailable = storeQuery.data?.error === "ordering_unavailable";
   const orderWhatsApp = usePublicOrderWhatsApp(
-    mode === "link" && isValidPublicCode(code) ? code : "",
+    mode === "link" && isValidPublicCode(code) && !orderingUnavailable ? code : "",
   );
+  const locationAvailable = mode === "link" && !orderingUnavailable;
   const linkQuery = useQuery({
     queryKey: ["public-order-link", code],
     queryFn: () => fetchPublicOrderLink(code),
-    enabled: mode === "link" && isValidPublicCode(code),
+    enabled: locationAvailable && isValidPublicCode(code),
   });
   const branchesQuery = useQuery({
     queryKey: ["public-order-branches", code],
     queryFn: () => fetchPublicOrderBranches(code),
-    enabled: mode === "link" && isValidPublicCode(code),
+    enabled: locationAvailable && isValidPublicCode(code),
   });
 
   const catalogItemIds = useMemo(
@@ -147,7 +149,7 @@ export function OrderStorefrontPage() {
   const storeClosed = store?.ok === true && store.is_open === false;
   const linkOrderingEnabled = mode === "link" && linkQuery.data?.link_ordering_enabled === true;
   const browseOnly = mode === "link" && !linkOrderingEnabled;
-  const orderLocked = tableFull || storeClosed || browseOnly;
+  const orderLocked = orderingUnavailable || tableFull || storeClosed || browseOnly;
   const cart = useOrderCart(orderLocked);
 
   useEffect(() => {
@@ -159,6 +161,10 @@ export function OrderStorefrontPage() {
   useEffect(() => {
     if (mode === "link") rememberOrderLinkLanding();
   }, [mode]);
+
+  useEffect(() => {
+    if (mode === "link" && orderingUnavailable) setProfileOpen(false);
+  }, [mode, orderingUnavailable]);
 
   const qtyByCatalogId = useMemo(() => {
     const map = new Map<string, number>();
@@ -346,7 +352,7 @@ export function OrderStorefrontPage() {
     );
   }
 
-  if (!store?.ok) {
+  if (!store || (!store.ok && !orderingUnavailable)) {
     return (
       <PhoneShell>
         <div className={`${ORDER_STOREFRONT_PX} py-6 text-sm text-muted-foreground`}>
@@ -365,6 +371,12 @@ export function OrderStorefrontPage() {
   });
 
   const checkoutErrorMessage = (error: string | undefined, fallback: string) => {
+    if (error === "ordering_unavailable" || error === "not_found") {
+      return t(
+        "synckerjaOrder.store.orderingUnavailableBody",
+        "Sorry, orders can't be placed from this page right now. Please order at the shop, or try again later.",
+      );
+    }
     if (error === "table_full") {
       return t(SYNCKERJA_ORDER_I18N.tableFull, "This table is full. Please call staff.");
     }
@@ -554,12 +566,15 @@ export function OrderStorefrontPage() {
           coverUrls={store.cover_urls}
           logoUrl={store.logo_url}
           storeName={storeName}
-          isOpen={isOpen}
+          isOpen={orderingUnavailable ? Boolean(store.hours) && store.is_open !== false : isOpen}
           hours={store.hours}
           onSearch={() => setSearchOpen(true)}
           onMenu={() => setProfileOpen(true)}
           onStoreInfo={() => setProfileOpen(true)}
-          showLocation={mode === "link"}
+          showLocation={locationAvailable}
+          storeInfoInteractive={mode !== "link" || !orderingUnavailable}
+          showMenu={mode !== "link" || !orderingUnavailable}
+          showCoverSlogan={!orderingUnavailable}
         />
 
         {tableNumber ? (
@@ -580,6 +595,19 @@ export function OrderStorefrontPage() {
           </div>
         ) : null}
 
+        {orderingUnavailable ? (
+          <div className={`${ORDER_STOREFRONT_PX} mt-4 pb-8`}>
+            <h2 className="text-[15px] font-semibold text-neutral-900">
+              {t("synckerjaOrder.store.orderingUnavailableTitle", "Online ordering is closed")}
+            </h2>
+            <p className="mt-1 text-[13px] leading-5 text-neutral-500">
+              {t(
+                "synckerjaOrder.store.orderingUnavailableBody",
+                "Sorry, orders can't be placed from this page right now. Please order at the shop, or try again later.",
+              )}
+            </p>
+          </div>
+        ) : (
         <OrderStoreCatalog
           categories={catalog?.categories ?? []}
           items={catalog?.items ?? []}
@@ -603,6 +631,7 @@ export function OrderStorefrontPage() {
           onOpenDetail={onOpenDetail}
           bottomPad={(!orderLocked && cart.itemCount > 0) || Boolean(orderWhatsApp)}
         />
+        )}
       </div>
 
       {message ? (
@@ -819,7 +848,7 @@ export function OrderStorefrontPage() {
         />
       ) : null}
 
-      {profileOpen && !historyOpen && !cashierTicket && mode === "link" ? (
+      {profileOpen && !historyOpen && !cashierTicket && locationAvailable ? (
         <OrderLinkLocationScreen
           locationName={store.outlet_name || storeName}
           address={store.outlet_address}

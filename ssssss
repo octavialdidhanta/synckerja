@@ -1,0 +1,9 @@
+[33m8c3afec4[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfix/habits-chevron-spacing[m[33m)[m Merge branch 'main' of https://github.com/octavialdidhanta/synckerja into fix/habits-chevron-spacing
+[33m8ac06429[m Merge branch 'main' of https://github.com/octavialdidhanta/synckerja into fix/habits-chevron-spacing
+[33m1c2adc59[m Merge branch 'main' of https://github.com/octavialdidhanta/synckerja into fix/habits-chevron-spacing
+[33m595671a1[m Merge branch 'main' of https://github.com/octavialdidhanta/synckerja into fix/habits-chevron-spacing
+[33m54626d1f[m Merge branch 'main' of https://github.com/octavialdidhanta/synckerja into fix/habits-chevron-spacing
+[33m979d4c77[m Merge branch 'main' of https://github.com/octavialdidhanta/synckerja into fix/habits-chevron-spacing # Please enter a commit message to explain why this merge is necessary, # especially if it merges an updated upstream into a topic branch. # # Lines starting with '#' will be ignored, and an empty message aborts # the commit.
+[33mc883c616[m[33m ([m[1;31morigin/fix/habits-chevron-spacing[m[33m)[m fix(habits): beri sedikit spasi kanan pada chevron baris habit
+[33m1904b97a[m fix(habits): sel nama habit ikut lebar kolom agar chevron rapat ke kanan
+[33ma7630f66[m fix(habits): rapatkan spasi kanan tombol chevron di baris habit

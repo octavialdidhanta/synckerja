@@ -134,7 +134,7 @@ export function CustomerVisitCheckoutPanel({
           {t('customerVisits.checkout.subtitle', 'Add items, then take payment.')}
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <OutletFilterSelect value={outletId} onChange={onOutletChange} disabled={submitting} />
+          <OutletFilterSelect value={outletId} onChange={onOutletChange} disabled={submitting} activeOnly />
           {salesTypeOptions.length > 0 ? (
             <Select value={salesTypeId || undefined} onValueChange={onSalesTypeChange} disabled={submitting}>
               <SelectTrigger className="h-9 w-[180px]" aria-label={t('customerVisits.checkout.salesType', 'Sales type')}>

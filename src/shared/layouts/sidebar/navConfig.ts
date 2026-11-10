@@ -57,6 +57,13 @@ export type NavSubItem = {
   inactiveWhenSearch?: Record<string, string>;
   /** Sub-item requires Lead Magnet add-on entitlement (in addition to parent module). */
   requiresLeadMagnetAddon?: boolean;
+  /** Sub-item is part of the sales WhatsApp Business API package. */
+  requiresWhatsappBusinessPackage?: boolean;
+  /**
+   * Sales-module key when this row is gated separately from its parent menu.
+   * POS and Operations share one sidebar panel.
+   */
+  salesModuleKey?: "pos" | "operations";
   /** Optional group heading rendered above this item in the flyout. */
   sectionTitleKey?: string;
 };
@@ -210,6 +217,7 @@ export const mainNavItems: MainNavItem[] = [
         titleKey: "sidebar.operations.livechat.title",
         path: "/omnichannel/livechat",
         activePathPrefixes: ["/omnichannel/livechat"],
+        requiresWhatsappBusinessPackage: true,
       },
       {
         titleKey: "sidebar.operations.contact.title",
@@ -226,6 +234,7 @@ export const mainNavItems: MainNavItem[] = [
           "/omnichannel/integrations/threads",
           "/omnichannel/integrations/email",
         ],
+        requiresWhatsappBusinessPackage: true,
       },
       {
         titleKey: "sidebar.operations.whatsappTemplates.menuTitle",
@@ -235,6 +244,7 @@ export const mainNavItems: MainNavItem[] = [
           "/omnichannel/campaign/templates",
           "/omnichannel/campaign/recipient-lists",
         ],
+        requiresWhatsappBusinessPackage: true,
       },
       {
         titleKey: "sidebar.operations.settings.title",
@@ -254,75 +264,95 @@ export const mainNavItems: MainNavItem[] = [
         titleKey: "sidebar.salesOperations.dashboard",
         path: "/operations/dashboard",
         activePathPrefixes: ["/operations/dashboard"],
+        salesModuleKey: "pos",
       },
       {
         titleKey: "sidebar.salesOperations.reports",
         path: "/operations/reports/sales/summary",
         activePathPrefixes: ["/operations/reports"],
+        salesModuleKey: "pos",
       },
       {
         titleKey: "sidebar.tools.defaultPrices.title",
         path: "/operations/library/service-list",
         activePathPrefixes: ["/operations/library"],
+        salesModuleKey: "pos",
       },
       {
         titleKey: "sidebar.salesOperations.ingredient",
         path: "/operations/ingredient/list",
         activePathPrefixes: ["/operations/ingredient"],
+        salesModuleKey: "pos",
       },
       {
         titleKey: "sidebar.salesOperations.customers",
         path: "/operations/customers-list",
         activePathPrefixes: ["/operations/customers-list", "/operations/customers-feedback"],
+        salesModuleKey: "pos",
       },
       {
         titleKey: "sidebar.salesOperations.employees",
         path: "/operations/employees-staff/slots",
         activePathPrefixes: ["/operations/employees-staff"],
+        salesModuleKey: "pos",
       },
       {
         titleKey: "sidebar.salesOperations.tableManagement",
         path: "/operations/table-management/group",
         activePathPrefixes: ["/operations/table-management"],
+        salesModuleKey: "pos",
       },
       {
         titleKey: "sidebar.salesOperations.synckerjaOrder",
         path: "/operations/synckerja-order",
         activePathPrefixes: ["/operations/synckerja-order"],
         sectionTitleKey: "sidebar.salesOperations.groupOnlineChannels",
+        salesModuleKey: "pos",
       },
       {
         titleKey: "sidebar.salesOperations.settings",
         path: "/operations/settings/outlets-list",
         activePathPrefixes: ["/operations/settings"],
         sectionTitleKey: "sidebar.salesOperations.settings",
+        salesModuleKey: "pos",
       },
       {
         titleKey: "sidebar.operations.sales.stockManagement.title",
         path: "/operations/inventory",
-        activePathPrefixes: ["/operations/inventory"],
+        activePathPrefixes: ["/operations/inventory", "/operations/sales/stock-management"],
         sectionTitleKey: "sidebar.salesOperations.groupShared",
+        salesModuleKey: "pos",
       },
       {
         titleKey: "sidebar.operations.sales.title",
         path: "/operations/sales/activities",
-        activePathPrefixes: ["/operations/sales/activities", "/operations/sales/jadwal-kunjungan", "/operations/sales/client-visits", "/operations/sales/customer-visits"],
+        activePathPrefixes: [
+          "/operations/sales",
+          "/operations/sales/activities",
+          "/operations/sales/jadwal-kunjungan",
+          "/operations/sales/client-visits",
+          "/operations/sales/customer-visits",
+        ],
         sectionTitleKey: "sidebar.salesOperations.groupOperations",
+        salesModuleKey: "operations",
       },
       {
         titleKey: "sidebar.operations.sales.tiktokShop.title",
         path: "/operations/sales/tiktok-shop/settings",
         activePathPrefixes: ["/operations/sales/tiktok-shop"],
+        salesModuleKey: "operations",
       },
       {
         titleKey: "sidebar.operations.sales.blibliOrders.title",
         path: "/operations/sales/blibli-orders",
         activePathPrefixes: ["/operations/sales/blibli-orders"],
+        salesModuleKey: "operations",
       },
       {
         titleKey: "sidebar.operations.sales.ecommerceChat.title",
         path: "/operations/sales/ecommerce-chat",
         activePathPrefixes: ["/operations/sales/ecommerce-chat"],
+        salesModuleKey: "operations",
       },
     ],
   },

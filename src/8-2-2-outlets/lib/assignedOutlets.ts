@@ -19,6 +19,7 @@ export function summarizeAssignedOutlets(
 }
 
 export function defaultPosOutletId(rows: PosOutlet[]): string | null {
-  const preferred = rows.find((row) => row.is_default) ?? rows.find((row) => row.is_active) ?? rows[0];
+  const active = rows.filter((row) => row.is_active);
+  const preferred = active.find((row) => row.is_default) ?? active[0];
   return preferred?.id ?? null;
 }

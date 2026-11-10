@@ -12,6 +12,8 @@ export const SALES_MODULE_KEYS = [
   "digitalMarketing",
   "leadMagnet",
   "omnichannel",
+  "whatsappBusiness",
+  "pos",
   "operations",
   "tools",
   "requestForm",
@@ -55,13 +57,58 @@ function collectPathPrefixes(item: MainNavItem): string[] {
   return [...prefixes].filter((p) => p && p !== "/");
 }
 
-export const SALES_MODULE_DEFINITIONS: SalesModuleDefinition[] = mainNavItems
-  .filter((item) => !EXCLUDED_NAV_IDS.has(item.id))
-  .map((item) => ({
-    key: item.id as SalesModuleKey,
-    labelKey: item.titleKey,
-    pathPrefixes: collectPathPrefixes(item),
-  }));
+function addModulePrefixes(
+  buckets: Map<SalesModuleKey, Set<string>>,
+  key: string,
+  prefixes: string[],
+) {
+  if (!SALES_MODULE_KEYS.includes(key as SalesModuleKey)) return;
+  const moduleKey = key as SalesModuleKey;
+  const set = buckets.get(moduleKey) ?? new Set<string>();
+  prefixes.forEach((prefix) => {
+    if (prefix && prefix !== "/") set.add(prefix);
+  });
+  buckets.set(moduleKey, set);
+}
+
+/** Path prefixes per module. POS and Operations share one sidebar item, so their rows carry salesModuleKey. */
+function modulePrefixBuckets(): Map<SalesModuleKey, Set<string>> {
+  const buckets = new Map<SalesModuleKey, Set<string>>();
+
+  for (const item of mainNavItems) {
+    if (EXCLUDED_NAV_IDS.has(item.id)) continue;
+    const split = item.subItems?.some((sub) => sub.salesModuleKey);
+    if (!split) {
+      addModulePrefixes(buckets, item.id, collectPathPrefixes(item));
+      continue;
+    }
+    for (const sub of item.subItems ?? []) {
+      addModulePrefixes(buckets, sub.salesModuleKey ?? item.id, [
+        pathBaseFromNavPath(sub.path),
+        ...(sub.activePathPrefixes ?? []),
+      ]);
+    }
+  }
+
+  return buckets;
+}
+
+const MODULE_PREFIX_BUCKETS = modulePrefixBuckets();
+
+export const SALES_MODULE_DEFINITIONS: SalesModuleDefinition[] = [
+  ...mainNavItems
+    .filter((item) => !EXCLUDED_NAV_IDS.has(item.id))
+    .map((item) => ({
+      key: item.id as SalesModuleKey,
+      labelKey: item.id === "operations" ? "salesModule.operations.label" : item.titleKey,
+      pathPrefixes: [...(MODULE_PREFIX_BUCKETS.get(item.id as SalesModuleKey) ?? [])],
+    })),
+  {
+    key: "pos",
+    labelKey: "salesModule.pos.label",
+    pathPrefixes: [...(MODULE_PREFIX_BUCKETS.get("pos") ?? [])],
+  },
+];
 
 export function createDefaultSalesModuleAccess(): ModuleAccessMap {
   return SALES_MODULE_KEYS.reduce(
@@ -88,12 +135,18 @@ export function mergeSalesModuleAccess(
   rows: Array<{ module_key: string; is_enabled: boolean }> | null | undefined,
 ): ModuleAccessMap {
   const merged = createDefaultSalesModuleAccess();
+  const seen = new Set<SalesModuleKey>();
   rows?.forEach((row) => {
     const key = row.module_key as SalesModuleKey;
     if (SALES_MODULE_KEYS.includes(key)) {
       merged[key] = row.is_enabled;
+      seen.add(key);
     }
   });
+  // Before the POS row exists, the old operations flag covered both products.
+  if (!seen.has("pos") && seen.has("operations")) {
+    merged.pos = merged.operations;
+  }
   return merged;
 }
 
@@ -108,6 +161,27 @@ function pathMatchesPrefix(pathname: string, prefix: string): boolean {
   const base = normalizePath(prefix);
   if (base === "/") return pathname === "/";
   return pathname === base || pathname.startsWith(`${base}/`);
+}
+
+/** Routes included in the sales WhatsApp Business API package. */
+const WHATSAPP_BUSINESS_PACKAGE_PREFIXES = [
+  "/omnichannel/livechat",
+  "/omnichannel/integrations/whatsapp",
+  "/omnichannel/integrations/instagram",
+  "/omnichannel/integrations/facebook",
+  "/omnichannel/integrations/threads",
+  "/omnichannel/integrations/email",
+  "/omnichannel/campaign/whatsapp",
+  "/omnichannel/campaign/templates",
+  "/omnichannel/campaign/recipient-lists",
+  "/omnichannel/settings/flow-builder",
+  "/omnichannel/flow-builder",
+  "/omnichannel/settings/user-management",
+] as const;
+
+export function isWhatsappBusinessPackagePath(pathname: string): boolean {
+  const current = normalizePath(pathname);
+  return WHATSAPP_BUSINESS_PACKAGE_PREFIXES.some((prefix) => pathMatchesPrefix(current, prefix));
 }
 
 /** Resolve a URL path to a sales-managed module key. Dashboard returns null (always allowed). */

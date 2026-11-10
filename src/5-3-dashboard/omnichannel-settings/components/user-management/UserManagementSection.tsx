@@ -37,6 +37,7 @@ import {
   type OmnichannelStaffRole,
 } from "@/shared/hooks/useOrganizationOmnichannelStaff";
 import { useOptimizedSubscription } from "@/10-subscription/hooks/useOptimizedSubscription";
+import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
 import { useMidtransPayment } from "@/10-subscription/hooks/useMidtransPayment";
 import { useActiveOrganization } from "@/10-subscription/shared/useActiveOrganization";
 import { subscriptionQueryKeys } from "@/10-subscription/shared/subscriptionQueryKeys";
@@ -86,6 +87,7 @@ function omnichannelSeatQuoteErrorMessage(
 
 export function UserManagementSection() {
   const { t } = useTranslation();
+  const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { organizationId } = useActiveOrganization();
@@ -235,6 +237,10 @@ export function UserManagementSection() {
 
   const handleAddUserClick = () => {
     if (rosterAtOrOverCap) {
+      if (!selfServiceEnabled) {
+        toast.error(t("omnichannel.settings.userManagement.salesRosterFullHint", { seats: seatCap }));
+        return;
+      }
       setAdditionalSeats(1);
       setBuySeatsOpen(true);
       return;
@@ -259,7 +265,14 @@ export function UserManagementSection() {
       setAddOpen(false);
     } catch (e) {
       if ((e as Error)?.message === "ROSTER_FULL") {
-        toast.error(t("omnichannel.settings.userManagement.rosterFullHint", { seats: seatCap }));
+        toast.error(
+          t(
+            selfServiceEnabled
+              ? "omnichannel.settings.userManagement.rosterFullHint"
+              : "omnichannel.settings.userManagement.salesRosterFullHint",
+            { seats: seatCap },
+          ),
+        );
       } else {
         toast.error(t("omnichannel.settings.userManagement.addFailed"));
       }

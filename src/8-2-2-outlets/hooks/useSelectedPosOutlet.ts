@@ -13,7 +13,9 @@ export function useSelectedPosOutlet(enabled = true, options: UseSelectedPosOutl
   const { rows, isLoading } = usePosOutlets();
   const defaultOutletId = defaultPosOutletId(rows);
   const outletFromUrl = searchParams.get("outlet");
-  const urlMatchesOutlet = Boolean(outletFromUrl && rows.some((row) => row.id === outletFromUrl));
+  const urlMatchesOutlet = Boolean(
+    outletFromUrl && rows.some((row) => row.id === outletFromUrl && row.is_active),
+  );
   const selectedOutletId = urlMatchesOutlet
     ? outletFromUrl!
     : allowAll

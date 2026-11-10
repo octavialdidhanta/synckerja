@@ -11,16 +11,32 @@ export function useOutletQuota() {
   return useMemo(() => {
     const isTrial = Boolean(subscriptionStatus?.is_trial);
     const paidExtras = Math.max(0, Math.round(Number(subscriptionStatus?.pos_paid_outlet_count ?? 0)) || 0);
-    const maxOutlets = isTrial ? HQ_INCLUDED_OUTLETS : HQ_INCLUDED_OUTLETS + paidExtras;
+    const rawSalesQuota = subscriptionStatus?.sales_outlet_quota;
+    const contractLocked = typeof rawSalesQuota === "number" && Number.isFinite(rawSalesQuota);
+    const salesOutletQuota = contractLocked ? Math.max(0, Math.floor(rawSalesQuota)) : null;
+    const maxOutlets = contractLocked
+      ? salesOutletQuota!
+      : isTrial
+        ? HQ_INCLUDED_OUTLETS
+        : HQ_INCLUDED_OUTLETS + paidExtras;
     const activeCount = rows.length;
-    const canCreate = !isTrial && activeCount < maxOutlets;
+    const canCreate = contractLocked ? activeCount < maxOutlets : !isTrial && activeCount < maxOutlets;
     return {
       isTrial,
       paidExtras,
       maxOutlets,
       activeCount,
       canCreate,
+      contractLocked,
+      salesOutletQuota,
       isLoading: outletsLoading || statusLoading,
     };
-  }, [rows.length, outletsLoading, statusLoading, subscriptionStatus?.is_trial, subscriptionStatus?.pos_paid_outlet_count]);
+  }, [
+    rows.length,
+    outletsLoading,
+    statusLoading,
+    subscriptionStatus?.is_trial,
+    subscriptionStatus?.pos_paid_outlet_count,
+    subscriptionStatus?.sales_outlet_quota,
+  ]);
 }

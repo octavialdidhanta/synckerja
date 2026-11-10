@@ -90,6 +90,8 @@ export interface SubscriptionStatus {
   pos_paid_outlet_count?: number;
   /** POS product included (Plans Sertakan); may be true with 0 extras. */
   pos_addon_active?: boolean;
+  /** Total operating outlets locked by a signed sales contract. Null until that contract is applied. */
+  sales_outlet_quota?: number | null;
 }
 
 export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptions) {
@@ -149,6 +151,7 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
     data: subscriptionStatus,
     isLoading: statusLoading,
     isFetching: statusFetching,
+    isFetched: statusFetched,
     error: statusError,
   } = useQuery({
     queryKey: subscriptionQueryKeys.status(organizationId || ""),
@@ -160,7 +163,7 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         }),
         supabase
           .from("organization_subscriptions")
-          .select("omnichannel_paid_seat_count, member_count, lead_magnet_active, lead_magnet_grace_until, pos_paid_outlet_count, pos_addon_active")
+          .select("omnichannel_paid_seat_count, member_count, lead_magnet_active, lead_magnet_grace_until, pos_paid_outlet_count, pos_addon_active, sales_outlet_quota")
           .eq("organization_id", organizationId)
           .maybeSingle(),
       ]);
@@ -218,6 +221,11 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         (osRes.data as { pos_addon_active?: boolean } | null)?.pos_addon_active,
       );
       const posAddonActive = posAddonTable || posAddonRpc || paidPos > 0;
+      const rawSalesQuota = (osRes.data as { sales_outlet_quota?: number | null } | null)?.sales_outlet_quota;
+      const salesOutletQuota =
+        typeof rawSalesQuota === "number" && Number.isFinite(rawSalesQuota)
+          ? Math.max(0, Math.floor(rawSalesQuota))
+          : null;
 
       const isExpired = Boolean(raw.is_expired);
       const isTrial = Boolean(raw.is_trial ?? raw.status === "trial");
@@ -251,6 +259,7 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         lead_magnet_entitled: leadMagnetEntitled,
         pos_paid_outlet_count: paidPos,
         pos_addon_active: posAddonActive,
+        sales_outlet_quota: salesOutletQuota,
       };
       const daysRem = isExpired ? 0 : deriveSubscriptionDaysRemaining(mapped);
       mapped.days_until_expiry = daysRem;
@@ -329,6 +338,7 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
     subscriptionPlans,
     statusFetching,
     statusLoading,
+    statusFetched,
     plansLoading,
     statusError,
     canAddEmployee,

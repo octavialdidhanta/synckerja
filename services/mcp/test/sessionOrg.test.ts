@@ -130,6 +130,7 @@ describe("switchOrgResult", () => {
         omnichannel: false,
         finance: false,
         humanResources: false,
+        pos: false,
         operations: false,
         tools: false,
       },

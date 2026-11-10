@@ -248,6 +248,7 @@ describe("inbox tool registration", () => {
         omnichannel,
         finance: false,
         humanResources: false,
+        pos: false,
         operations: false,
         tools: false,
       },

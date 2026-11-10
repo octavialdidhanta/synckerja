@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { HeaderAndTab } from "@/5-3-dashboard/components/layout/HeaderAndTab";
+import { ModuleShellContentGate } from "@/shared/layouts/ModuleShellContentGate";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -195,6 +196,7 @@ export function WhatsAppRecipientListDetailPage() {
               <div className="mb-1 min-w-0 shrink-0">
                 <HeaderAndTab />
               </div>
+              <ModuleShellContentGate pagePath="/omnichannel/campaign/recipient-lists">
               <div className="grid min-h-[calc(100vh-120px)] min-w-0 w-full flex-1 grid-cols-12 gap-2 [grid-template-rows:minmax(0,1fr)] items-stretch">
                 <div className="col-span-12 flex min-h-0 min-w-0 flex-1 flex-col">
                   {showOwnerGate ? (
@@ -380,6 +382,7 @@ export function WhatsAppRecipientListDetailPage() {
                   )}
                 </div>
               </div>
+              </ModuleShellContentGate>
               <div
                 className="h-2 flex-shrink-0 [@media(max-height:900px)]:h-3 [@media(max-height:760px)]:h-4"
                 aria-hidden

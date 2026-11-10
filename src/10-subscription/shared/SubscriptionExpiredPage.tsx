@@ -7,6 +7,19 @@ import { useUserOrganizations } from "@/shared/hooks/useUserOrganizations";
 import type { SubscriptionExpiryStatus } from "@/10-subscription/hooks/useSubscriptionExpiry";
 import { canManageSubscriptionRole } from "@/10-subscription/shared/subscriptionExpiryPolicy";
 
+const SYNCKERJA_SUPPORT_EMAIL = "support@synckerja.com";
+
+function gmailComposeUrl(to: string, subject: string, body: string): string {
+  const query = [
+    "view=cm",
+    "fs=1",
+    `to=${encodeURIComponent(to)}`,
+    `su=${encodeURIComponent(subject)}`,
+    `body=${encodeURIComponent(body)}`,
+  ].join("&");
+  return `https://mail.google.com/mail/?${query}`;
+}
+
 export function SubscriptionExpiredPage({
   expiryStatus,
   selfServiceEnabled = true,
@@ -22,7 +35,19 @@ export function SubscriptionExpiredPage({
     (m) => m.organizationId === orgData.activeOrganizationId,
   );
   const organizationName = activeMembership?.companyName;
+  const organizationId = orgData?.activeOrganizationId ?? "";
   const canRenew = selfServiceEnabled && canManageSubscriptionRole(activeMembership?.role);
+  const renewalGmailUrl = gmailComposeUrl(
+    SYNCKERJA_SUPPORT_EMAIL,
+    t("subscription.expired.renewalEmailSubject", "Subscription renewal — {{name}}", {
+      name: organizationName || "—",
+    }),
+    t(
+      "subscription.expired.renewalEmailBody",
+      "Hello Synckerja team,\n\nPlease renew this subscription.\n\nOrganization: {{name}}\nOrganization ID: {{id}}",
+      { name: organizationName || "—", id: organizationId || "—" },
+    ),
+  );
 
   const formattedDate = expiryStatus.expiredDate
     ? new Date(expiryStatus.expiredDate).toLocaleDateString(
@@ -97,6 +122,16 @@ export function SubscriptionExpiredPage({
                   )}
             </p>
           )}
+          {!selfServiceEnabled ? (
+            <a
+              href={renewalGmailUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-primary underline underline-offset-4"
+            >
+              {SYNCKERJA_SUPPORT_EMAIL}
+            </a>
+          ) : null}
         </CardContent>
       </Card>
     </div>

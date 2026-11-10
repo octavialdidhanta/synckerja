@@ -16,7 +16,7 @@ export interface SubscriptionExpiryStatus {
 
 export function useSubscriptionExpiry() {
   const { organizationId, orgBootstrapPending } = useOrgBootstrapPending();
-  const { subscriptionStatus, statusLoading, statusError } = useOptimizedSubscription({
+  const { subscriptionStatus, statusLoading, statusFetched, statusError } = useOptimizedSubscription({
     includePlans: false,
   });
 
@@ -26,6 +26,8 @@ export function useSubscriptionExpiry() {
   );
 
   const isLoading = orgBootstrapPending || (!!organizationId && statusLoading);
+  const statusSettled =
+    Boolean(organizationId) && !orgBootstrapPending && (statusFetched || Boolean(statusError));
 
-  return { expiryStatus, isLoading, error: statusError, subscriptionStatus };
+  return { expiryStatus, isLoading, statusSettled, error: statusError, subscriptionStatus };
 }

@@ -45,6 +45,7 @@ function contextFor(claims: AccessClaims, organizationId = claims.orgId ?? ORG):
       omnichannel: true,
       finance: true,
       humanResources: true,
+      pos: true,
       operations: true,
       tools: true,
     },

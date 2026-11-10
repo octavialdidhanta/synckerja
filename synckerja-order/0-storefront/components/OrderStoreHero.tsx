@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronRight, MapPin, Menu, Search } from "lucide-react";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { orderHoursBadge } from "@/synckerja-order/shared/lib/orderHours";
@@ -18,7 +18,33 @@ type Props = {
   onStoreInfo: () => void;
   /** Advertising link only. QR / dine-in keeps the chevron without this label. */
   showLocation?: boolean;
+  /** Link mode with ordering paused has no location screen, so the card is not a button. */
+  storeInfoInteractive?: boolean;
+  /** The link-mode menu opens the location screen. Hide it when that screen is closed. */
+  showMenu?: boolean;
+  /** Empty cover on the live menu shows the marketing line. A paused store leaves the band plain. */
+  showCoverSlogan?: boolean;
 };
+
+const identityCardClass =
+  "flex w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3 text-left shadow-[0_8px_24px_rgba(0,0,0,0.18)]";
+
+function StoreIdentityCard({
+  interactive,
+  onClick,
+  children,
+}: {
+  interactive: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  if (!interactive) return <div className={identityCardClass}>{children}</div>;
+  return (
+    <button type="button" onClick={onClick} className={identityCardClass}>
+      {children}
+    </button>
+  );
+}
 
 export function OrderStoreHero({
   coverUrl,
@@ -31,6 +57,9 @@ export function OrderStoreHero({
   onMenu,
   onStoreInfo,
   showLocation = false,
+  storeInfoInteractive = true,
+  showMenu = true,
+  showCoverSlogan = true,
 }: Props) {
   const { t } = useAppTranslation();
   const [coverPaused, setCoverPaused] = useState(false);
@@ -47,14 +76,18 @@ export function OrderStoreHero({
   });
   const badgeLabel =
     badge.kind === "open"
-      ? t("synckerjaOrder.store.openBadge", "OPEN – Closes {{time}}", { time: badge.time ?? "" })
-      : badge.kind === "closedToday"
+      ? badge.time
+        ? t("synckerjaOrder.store.openBadge", "OPEN – Closes {{time}}", { time: badge.time })
+        : t("synckerjaOrder.store.openNow", "OPEN")
+      : badge.kind === "closedToday" && badge.time
         ? t("synckerjaOrder.store.closedToday", "CLOSED – Open Today {{time}}", {
-            time: badge.time ?? "",
+            time: badge.time,
           })
-        : t("synckerjaOrder.store.closedLater", "CLOSED – Opens {{time}}", {
-            time: badge.time ?? "",
-          });
+        : badge.time
+          ? t("synckerjaOrder.store.closedLater", "CLOSED – Opens {{time}}", {
+              time: badge.time,
+            })
+          : t("synckerjaOrder.store.closedNow", "CLOSED");
 
   return (
     <div className="relative">
@@ -105,9 +138,11 @@ export function OrderStoreHero({
           </>
         ) : (
           <div className={`flex h-full flex-col justify-end bg-gradient-to-br from-neutral-800 via-neutral-900 to-black ${ORDER_STOREFRONT_PX} pb-16`}>
-            <p className="whitespace-pre-line text-[28px] font-black leading-none tracking-tight text-white">
-              {t("synckerjaOrder.store.heroTitle", "NEW delicious\nMENU")}
-            </p>
+            {showCoverSlogan ? (
+              <p className="whitespace-pre-line text-[28px] font-black leading-none tracking-tight text-white">
+                {t("synckerjaOrder.store.heroTitle", "NEW delicious\nMENU")}
+              </p>
+            ) : null}
           </div>
         )}
       </div>
@@ -115,16 +150,14 @@ export function OrderStoreHero({
         <button type="button" aria-label="Search" className="p-1" onClick={onSearch}>
           <Search className="h-6 w-6" strokeWidth={2} />
         </button>
-        <button type="button" aria-label="Menu" className="p-1" onClick={onMenu}>
-          <Menu className="h-6 w-6" strokeWidth={2} />
-        </button>
+        {showMenu ? (
+          <button type="button" aria-label="Menu" className="p-1" onClick={onMenu}>
+            <Menu className="h-6 w-6" strokeWidth={2} />
+          </button>
+        ) : null}
       </div>
       <div className={`relative z-10 ${ORDER_STOREFRONT_PX}`} style={{ marginTop: -40 }}>
-        <button
-          type="button"
-          onClick={onStoreInfo}
-          className="flex w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3 text-left shadow-[0_8px_24px_rgba(0,0,0,0.18)]"
-        >
+        <StoreIdentityCard interactive={storeInfoInteractive} onClick={onStoreInfo}>
           <span className="flex min-w-0 items-center gap-1">
             {logoUrl ? (
               <img src={logoUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
@@ -140,18 +173,20 @@ export function OrderStoreHero({
               </span>
             </span>
           </span>
-          <span className="ml-3 inline-flex shrink-0 items-center gap-1 text-neutral-400">
-            {showLocation ? (
-              <>
-                <MapPin className="h-3.5 w-3.5" strokeWidth={2} />
-                <span className="text-[12px] font-medium leading-none">
-                  {t("synckerjaOrder.store.ourLocation", "Lokasi Kami")}
-                </span>
-              </>
-            ) : null}
-            <ChevronRight className="h-5 w-5" />
-          </span>
-        </button>
+          {showLocation || storeInfoInteractive ? (
+            <span className="ml-3 inline-flex shrink-0 items-center gap-1 text-neutral-400">
+              {showLocation ? (
+                <>
+                  <MapPin className="h-3.5 w-3.5" strokeWidth={2} />
+                  <span className="text-[12px] font-medium leading-none">
+                    {t("synckerjaOrder.store.ourLocation", "Lokasi Kami")}
+                  </span>
+                </>
+              ) : null}
+              {storeInfoInteractive ? <ChevronRight className="h-5 w-5" /> : null}
+            </span>
+          ) : null}
+        </StoreIdentityCard>
       </div>
     </div>
   );

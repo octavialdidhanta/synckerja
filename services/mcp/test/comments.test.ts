@@ -276,7 +276,7 @@ describe("comments tool registration", () => {
     const ctx = (scopes: string[], page: boolean, module = true) => ({
       roles: ["owner"],
       scopes,
-      modules: { digitalMarketing: module, okr: false, omnichannel: false, finance: false, humanResources: false, operations: false, tools: false },
+      modules: { digitalMarketing: module, okr: false, omnichannel: false, finance: false, humanResources: false, pos: false, operations: false, tools: false },
       pages: { [MANAGE_COMMENTS_PAGE_PATH]: page },
     }) as unknown as McpAuthContext;
     const visible = (c: McpAuthContext) => filterTools(c).map((t) => t.name).filter((n) => n.startsWith("comments."));

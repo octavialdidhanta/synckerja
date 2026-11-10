@@ -124,7 +124,7 @@ export function OutletsListManager() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      {quota.isTrial && !bannerDismissed ? (
+      {quota.isTrial && !quota.contractLocked && !bannerDismissed ? (
         <OutletTrialBanner onDismiss={() => setBannerDismissed(true)} />
       ) : null}
 

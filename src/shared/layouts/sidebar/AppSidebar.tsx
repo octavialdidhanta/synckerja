@@ -102,7 +102,9 @@ function SubSidebarPanel({ items, titleKey, isSubItemLocked }: SubSidebarPanelPr
         type="button"
         title={
           locked
-            ? t("leadMagnet.sidebar.lockedHint", "Lead Magnet add-on is not activated")
+            ? item.salesModuleKey
+              ? t("salesModule.upsell.title", "Module not activated")
+              : t("leadMagnet.sidebar.lockedHint", "Lead Magnet add-on is not activated")
             : undefined
         }
         onMouseEnter={() => prefetchAppRoute(item.path)}
@@ -169,12 +171,21 @@ export function AppSidebar() {
   const railExpanded = sidebarState === "expanded";
   const currentPath = location.pathname;
   const selfServiceEnabled = useSubscriptionSelfServiceEnabled();
-  const { isModuleGatingActive, isModuleEnabled } = useEffectiveModuleAccess();
+  const { gatingMode, isModuleGatingActive, isModuleEnabled } = useEffectiveModuleAccess();
   const { hasEntitlement: hasLeadMagnetEntitlement, isPending: leadMagnetPending } =
     useLeadMagnetEntitlement();
   const posStaffPermissions = usePosStaffPermissions();
 
   const isSubItemLocked = (item: NavSubItem) => {
+    if (item.requiresWhatsappBusinessPackage) {
+      if (gatingMode !== "sales" || !isModuleGatingActive) return false;
+      if (!isModuleEnabled("omnichannel")) return false;
+      return !isModuleEnabled("whatsappBusiness");
+    }
+    if (item.salesModuleKey) {
+      if (!isModuleGatingActive) return false;
+      return !isModuleEnabled(item.salesModuleKey);
+    }
     if (!item.requiresLeadMagnetAddon) return false;
     if (leadMagnetPending) return false;
     if (!isModuleGatingActive) return false;
@@ -185,6 +196,9 @@ export function AppSidebar() {
   const isNavModuleLocked = (itemId: string) => {
     if (!isModuleGatingActive || itemId === "dashboard" || itemId === "subscription") return false;
     if (itemId === "aiEmployees") return !isModuleEnabled("humanResources");
+    if (itemId === "operations") {
+      return !isModuleEnabled("pos") && !isModuleEnabled("operations");
+    }
     return !isModuleEnabled(itemId as SalesModuleKey);
   };
 

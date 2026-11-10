@@ -17,6 +17,7 @@ export type OutletFilterSelectProps = {
   className?: string;
   disabled?: boolean;
   includeAll?: boolean;
+  activeOnly?: boolean;
 };
 
 export function OutletFilterSelect({

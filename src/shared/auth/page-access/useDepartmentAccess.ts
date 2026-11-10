@@ -21,7 +21,10 @@ import {
   isSubscriptionSelfServiceEnabled,
 } from "@/10-subscription/shared/subscriptionSelfService";
 import { useEffectiveModuleAccess } from "@/shared/auth/hooks/useEffectiveModuleAccess";
-import { isSalesModulePathBlocked } from "@/shared/auth/module-access/moduleCatalog";
+import {
+  isSalesModulePathBlocked,
+  isWhatsappBusinessPackagePath,
+} from "@/shared/auth/module-access/moduleCatalog";
 
 const CROSS_DEPARTMENT_PAGES = ["/employees", "/reports", "/company", "/organization"];
 
@@ -50,6 +53,7 @@ export const useDepartmentAccess = () => {
   const { configurations, loading: configLoading, configBootstrapPending } =
     usePermissionConfiguration();
   const {
+    gatingMode,
     isModuleGatingActive,
     moduleAccess,
     moduleAccessPending,
@@ -120,6 +124,16 @@ export const useDepartmentAccess = () => {
       if (
         !moduleAccessPending &&
         isSalesModulePathBlocked(current, isModuleGatingActive, moduleAccess)
+      ) {
+        return false;
+      }
+
+      if (
+        gatingMode === "sales" &&
+        !moduleAccessPending &&
+        moduleAccess &&
+        isWhatsappBusinessPackagePath(current) &&
+        !moduleAccess.whatsappBusiness
       ) {
         return false;
       }
@@ -275,6 +289,7 @@ export const useDepartmentAccess = () => {
     configBootstrapPending,
     centralProfileHydrated,
     t,
+    gatingMode,
     isModuleGatingActive,
     moduleAccess,
     moduleAccessPending,

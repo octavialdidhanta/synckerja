@@ -234,6 +234,29 @@ Deno.serve(async (req: Request) => {
         .eq("is_active", true)
         .maybeSingle();
       if (!outlet) return xenditJson({ error: "not_found" }, 404);
+      const { data: subscriptionCurrent, error: subscriptionError } = await admin.rpc(
+        "synckerja_order_subscription_current",
+        { p_organization_id: outlet.organization_id },
+      );
+      if (subscriptionError || subscriptionCurrent !== true) {
+        return xenditJson({ error: "ordering_unavailable" }, 403);
+      }
+      const { data: salesOrg } = await admin
+        .from("organizations")
+        .select("subscription_self_service_enabled")
+        .eq("id", outlet.organization_id)
+        .maybeSingle();
+      if (salesOrg?.subscription_self_service_enabled === false) {
+        const { data: posModule } = await admin
+          .from("organization_sales_module_access")
+          .select("is_enabled")
+          .eq("organization_id", outlet.organization_id)
+          .eq("module_key", "pos")
+          .maybeSingle();
+        if (posModule?.is_enabled !== true) {
+          return xenditJson({ error: "ordering_unavailable" }, 403);
+        }
+      }
       const { data: pending } = await admin
         .from("pos_pending_checkouts")
         .select("id, organization_id, pos_outlet_id, status")

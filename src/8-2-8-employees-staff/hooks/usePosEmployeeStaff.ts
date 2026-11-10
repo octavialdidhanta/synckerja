@@ -276,11 +276,10 @@ export function usePosEmployeeStaff() {
   });
 
   const staff = query.data ?? [];
-  const memberLimit = Math.max(
-    1,
-    Number(subscriptionStatus?.member_limit ?? subscriptionStatus?.member_count ?? staff.length) ||
-      Math.max(staff.length, 1),
-  );
+  const rawMemberLimit = Number(subscriptionStatus?.member_limit ?? subscriptionStatus?.member_count);
+  const memberLimit = Number.isFinite(rawMemberLimit)
+    ? Math.max(0, Math.floor(rawMemberLimit))
+    : Math.max(staff.length, 0);
 
   const slotRows: EmployeeSlotRow[] = (() => {
     const filled: EmployeeSlotRow[] = staff.map((s) => ({ kind: "staff", staff: s }));
