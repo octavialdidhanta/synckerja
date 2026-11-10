@@ -4,7 +4,7 @@ import { loadContext } from "./authz/loadContext";
 import { createAdmin } from "./db/admin";
 import { isActiveMember, loadConsentIdentity, verifySupabaseUser } from "./db/identity";
 import { listContentPlans } from "./db/listContentPlans";
-import { createContentBrief, listContentCatalog } from "./db/contentBriefs";
+import { createContentBrief, getContentBrief, listContentCatalog } from "./db/contentBriefs";
 import { attachLeadMagnetDelivery, listLeadMagnetDrafts } from "./db/leadMagnet";
 import {
   checkThinkingExecution,
@@ -142,6 +142,7 @@ const app = createApp({
   createIngredientProduction: (ctx, input, confirmId) => createIngredientProduction(admin, ctx, input, confirmId),
   createContentPlan: (ctx, input) => createContentPlan(admin, ctx, input),
   createContentBrief: (ctx, input) => createContentBrief(admin, ctx, input),
+  getContentBrief: (ctx, id) => getContentBrief(admin, ctx, id),
   listLeadMagnetDrafts: (ctx, campaignId) => listLeadMagnetDrafts(admin, ctx, campaignId),
   attachLeadMagnetDelivery: (ctx, input) => attachLeadMagnetDelivery(admin, config.supabaseUrl, ctx, input),
   listThinkingIdeas: (ctx) => listThinkingIdeas(admin, ctx),
