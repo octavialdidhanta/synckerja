@@ -149,6 +149,7 @@ describe("buildAuthContext", () => {
       "content.calendar.list",
       "content.catalog.list",
       "product_knowledge.list",
+      "content.briefs.get",
       ...aiEmployeeTools,
     ]);
   });
