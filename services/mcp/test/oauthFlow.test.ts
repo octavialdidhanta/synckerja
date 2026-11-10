@@ -172,6 +172,9 @@ function appFor(store: MemoryGrantStore, members = new Set([`${USER}:${ORG}`])) 
     createContentBrief: async () => {
       throw new Error("unused");
     },
+    getContentBrief: async () => {
+      throw new Error("unused");
+    },
     listLeadMagnetDrafts: async () => [],
     attachLeadMagnetDelivery: async () => {
       throw new Error("unused");

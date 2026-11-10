@@ -77,6 +77,7 @@ export type McpToolName =
   | "inventory.production.create"
   | "content.plans.create"
   | "content.briefs.create"
+  | "content.briefs.get"
   | "content.plans.update"
   | "okr.objectives.create"
   | "okr.objectives.update"
@@ -545,6 +546,14 @@ const TOOL_DEFINITIONS: McpTool[] = [
     description:
       "Create one content plan with a storyboard table, optional concept, and optional caption for the organization locked in this session. The same table is used for Carousel, Post, Reel, Story, Youtube, and any other active content type. Requires a title, content_type_id, and at least one sequence of shots. Call content.catalog.list first and pass those ids. Optional service_id, sub_service_id, and feature_id must belong to this organization. A subcategory must belong to the selected category. A feature locked to one subcategory selects that subcategory. Optional post_date is YYYY-MM-DD in Asia/Jakarta. Each shot has timing, visual, vo, element, and tagging. Carousel timing is Slide 1, Slide 2, and so on. Reel and Story timing is seconds. Youtube timing is chapters. A Post is usually one shot. The visual field is a scene description. The image cell stays empty because images are added in Office. post_aspect is 4:5 or 1:1 and is stored only for Post and Carousel. Optional characters, locations, and properties are a name plus a description. Optional voice_over and caption are plain text. The signed-in member becomes the PIC. Does not approve, schedule, upload an image, or set a Drive link or a published link.",
     scopes: ["content:write"],
+    moduleKey: "digitalMarketing",
+    pagePath: CONTENT_PAGE_PATH,
+  },
+  {
+    name: "content.briefs.get",
+    description:
+      "Read one content plan's full brief for the organization locked in this session. Requires id from content.plans.list or content.calendar.list. Returns title, status, approval, production status, post date, content type, category, subcategory, feature, pillar, PIC name, the storyboard grouped by sequence (timing, visual, vo, scene, element, tagging, and any other column), notes outside the table, voice over, characters, locations, properties, caption, and whether a Drive file exists and whether it is published. Image paths, Drive links, and published links are not returned. Read only. Call this before content.plans.update so nothing is overwritten blindly, and to compare briefs of ads that perform well or badly before writing a new brief with content.briefs.create. Follow how_to_read.",
+    scopes: ["content:read"],
     moduleKey: "digitalMarketing",
     pagePath: CONTENT_PAGE_PATH,
   },

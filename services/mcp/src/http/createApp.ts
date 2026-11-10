@@ -4,7 +4,7 @@ import type { McpServiceConfig } from "../config";
 import type { McpAuthContext } from "../authz/context";
 import { AuthzError } from "../authz/errors";
 import type { ContentPlanRow } from "../db/listContentPlans";
-import type { ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
+import type { ContentBriefDetail, ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
 import type { LeadMagnetDeliveryResult, LeadMagnetDraft } from "../db/leadMagnet";
 import type { ThinkingChain, ThinkingCheckResult, ThinkingIdeaRow, ThinkingPlanResult } from "../db/thinkingLab";
 import type { ThinkingPlanDirectInput } from "../tools/thinking/planDirect";
@@ -189,6 +189,7 @@ export type AppDeps = {
     input: { title: string; postDate: string | null; brief: string | null },
   ) => Promise<ContentPlanRow>;
   createContentBrief: (ctx: McpAuthContext, input: ContentBriefWrite) => Promise<ContentBriefRecord>;
+  getContentBrief: (ctx: McpAuthContext, id: string) => Promise<ContentBriefDetail>;
   listLeadMagnetDrafts: (ctx: McpAuthContext, campaignId: string | null) => Promise<LeadMagnetDraft[]>;
   attachLeadMagnetDelivery: (
     ctx: McpAuthContext,

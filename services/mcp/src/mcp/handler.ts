@@ -4,7 +4,7 @@ import { z, type ZodRawShape, type ZodTypeAny } from "zod";
 import { AuthzError } from "../authz/errors";
 import type { McpAuthContext } from "../authz/context";
 import type { ContentPlanRow } from "../db/listContentPlans";
-import type { ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
+import type { ContentBriefDetail, ContentBriefRecord, ContentBriefWrite, ContentCatalogRow } from "../db/contentBriefs";
 import type { LeadMagnetDeliveryResult, LeadMagnetDraft } from "../db/leadMagnet";
 import type { ThinkingChain, ThinkingCheckResult, ThinkingIdeaRow, ThinkingPlanResult } from "../db/thinkingLab";
 import type { ThinkingScriptDraft } from "../tools/thinking/scriptInput";
@@ -105,6 +105,8 @@ import {
   catalogResult,
   createBriefInput,
   createBriefResult,
+  getBriefInput,
+  getBriefResult,
   cyclesInput,
   cyclesResult,
   departmentsInput,
@@ -380,6 +382,7 @@ export type McpReadDeps = {
     input: { title: string; postDate: string | null; brief: string | null },
   ) => Promise<ContentPlanRow>;
   createContentBrief: (ctx: McpAuthContext, input: ContentBriefWrite) => Promise<ContentBriefRecord>;
+  getContentBrief: (ctx: McpAuthContext, id: string) => Promise<ContentBriefDetail>;
   listLeadMagnetDrafts: (ctx: McpAuthContext, campaignId: string | null) => Promise<LeadMagnetDraft[]>;
   attachLeadMagnetDelivery: (
     ctx: McpAuthContext,
@@ -711,6 +714,7 @@ const toolInputs: Record<McpToolName, ZodTypeAny> = {
   "inventory.production.create": confirmInput,
   "content.plans.create": createPlanInput,
   "content.briefs.create": createBriefInput,
+  "content.briefs.get": getBriefInput,
   "content.plans.update": updatePlanSchema,
   "okr.objectives.create": createObjectiveInput,
   "okr.objectives.update": updateObjectiveSchema,
@@ -1142,6 +1146,8 @@ async function runTool(
         deps.createContentBrief,
       );
     }
+    case "content.briefs.get":
+      return getBriefResult(ctx, requiredString(args.id), deps.getContentBrief);
     case "content.plans.update":
       if (!updatePlanInput.safeParse(args).success) throw new Error("invalid_input");
       return updatePlanResult(
