@@ -448,6 +448,7 @@ describe("oauth and mcp http flow", () => {
       "content.calendar.list",
       "content.catalog.list",
       "product_knowledge.list",
+      "content.briefs.get",
       "ai_employee.list",
       "ai_employee.status",
       "ai_employee.runs.list",
