@@ -1162,7 +1162,7 @@ export default function AiEmployeePage() {
           <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
             <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex min-h-full flex-col">
-                <div className="mb-1 flex-shrink-0 px-1 py-3">
+                <div className="mb-2 flex-shrink-0 px-1 pt-1">
                   <Link to="/employees" className="text-xs font-medium text-blue-600 hover:underline">
                     {t("aiEmployee.page.back", "Karyawan")}
                   </Link>
@@ -1177,7 +1177,7 @@ export default function AiEmployeePage() {
                 </div>
 
                 {page && brief ? (
-                  <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 items-start gap-2">
+                  <div className="grid w-full min-w-0 flex-1 content-start grid-cols-12 items-start gap-2">
                     <div className="col-span-12 flex min-w-0 flex-col gap-2 xl:col-span-8">
                       <section className="rounded-md border border-border bg-card p-3">
                         <h2 className="mb-2 text-sm font-semibold">{t("aiEmployee.summary.title", "Ringkasan")}</h2>

@@ -13,12 +13,12 @@ export function AiEmployeePageSkeleton() {
         <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex min-h-full flex-col">
-              <div className="mb-1 flex-shrink-0 px-1 py-3">
+              <div className="mb-2 flex-shrink-0 px-1 pt-1">
                 <Skeleton className="mb-2 h-3 w-24" />
                 <Skeleton className="mb-1 h-7 w-56 max-w-[80%]" />
                 <Skeleton className="h-3 w-72 max-w-full" />
               </div>
-              <div className="grid min-h-[calc(100vh-120px)] w-full min-w-0 flex-1 grid-cols-12 items-stretch gap-2 [grid-template-rows:minmax(0,1fr)]">
+              <div className="grid w-full min-w-0 flex-1 content-start grid-cols-12 items-start gap-2">
                 <div className="col-span-12 flex min-w-0 flex-col gap-2 xl:col-span-8">
                   <div className="rounded-md border border-border bg-card p-3">
                     <Skeleton className="mb-3 h-4 w-32" />
