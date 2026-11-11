@@ -18,7 +18,8 @@ function isMissingTableError(err: unknown): boolean {
 export type SocialMediaProductionEventType =
   | 'approved'
   | 'revision_requested'
-  | 'revision_submitted';
+  | 'revision_submitted'
+  | 'need_review';
 
 export interface SocialMediaProductionNotificationRow {
   id: string;

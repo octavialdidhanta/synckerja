@@ -1,15 +1,33 @@
+import { useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, toast } from "sonner";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
+/** Di bawah jam/baterai, di atas konten. env sering 0 di WebView; variabel plugin yang dipakai. */
+const ANDROID_TOAST_TOP =
+  "max(12px, env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px))";
+
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme();
+  const [androidNative, setAndroidNative] = useState(false);
+
+  useEffect(() => {
+    setAndroidNative(Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android");
+  }, []);
+
+  const androidOffset = androidNative
+    ? { top: ANDROID_TOAST_TOP, right: "16px", bottom: "16px", left: "16px" }
+    : undefined;
 
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      position={androidNative ? "top-center" : "bottom-right"}
+      offset={androidOffset}
+      mobileOffset={androidOffset}
       toastOptions={{
         classNames: {
           toast:

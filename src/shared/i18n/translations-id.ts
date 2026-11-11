@@ -11980,6 +11980,7 @@ export const idTranslations: TranslationDictionary = {
   "briefDialog.loadingBrief": "Memuat brief",
   "briefDialog.sectionTargetAudience": "Concept",
   "briefDialog.conceptVoiceOver": "Naskah VO",
+  "briefDialog.conceptReason": "Mengapa konten ini dibuat",
   "briefDialog.conceptLocationImage": "Buat atau tambahkan gambar lokasi",
   "briefDialog.conceptPasteHint": "Ctrl+V untuk menempel screenshot",
   "briefDialog.conceptLocationUpload": "Unggah",

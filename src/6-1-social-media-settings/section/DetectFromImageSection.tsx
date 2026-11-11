@@ -509,11 +509,13 @@ export const DetectFromImageSection: React.FC = () => {
           .from('digital_asset_brand_colors')
           .select('id, brand_name, primary_color_hex, secondary_color_hex, accent_color_hex, text_color_hex')
           .eq('organization_id', organizationId)
+          .is('service_id', null)
           .order('updated_at', { ascending: false }),
         supabase
           .from('digital_asset_company_logos')
           .select('id, brand_name, logo_path')
           .eq('organization_id', organizationId)
+          .is('service_id', null)
           .order('updated_at', { ascending: false }),
       ]);
       if (charRes.error) throw charRes.error;

@@ -379,6 +379,37 @@ All colors MUST be HSL.
     ) !important;
   }
 
+  /**
+   * Footer komentar halaman review di app: tombol di atas pita navigasi Android.
+   * Lantai 3.75rem dipakai bila plugin sempat mengembalikan inset 0.
+   */
+  .review-footer-safe {
+    padding-bottom: max(
+      0.75rem,
+      calc(0.75rem + var(--footer-bottom-inset, 0px)),
+      calc(0.75rem + var(--safe-area-inset-bottom, 0px)),
+      calc(0.75rem + env(safe-area-inset-bottom, 0px))
+    );
+  }
+
+  /**
+   * Toast di app Android duduk di atas, di bawah status bar (jam dan baterai),
+   * bukan di pita navigasi bawah.
+   */
+  html[data-synckerja-android-native] [data-sonner-toaster][data-y-position="top"] {
+    top: max(12px, env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)) !important;
+    bottom: auto !important;
+  }
+
+  html[data-synckerja-android-native] .review-footer-safe {
+    padding-bottom: max(
+      3.75rem,
+      calc(0.75rem + var(--footer-bottom-inset, 0px)),
+      calc(0.75rem + var(--safe-area-inset-bottom, 0px)),
+      calc(0.75rem + env(safe-area-inset-bottom, 0px))
+    ) !important;
+  }
+
   /** Padding bawah untuk konten yang full-tinggi (bukan offset `bottom`); gunakan jika perlu teks di atas area nav */
   .safe-area-bottom {
     padding-bottom: max(
@@ -402,13 +433,59 @@ All colors MUST be HSL.
    * sit flush on the keyboard — avoid black gap from leftover inset / nav scrim pad.
    */
   html[data-keyboard-open] {
-    --footer-bottom-inset: 0px;
-    --safe-area-inset-bottom: 0px;
+    /* !important: nilai inline dari plugin kalau tidak ditimpa, max() tetap mengangkat modal. */
+    --footer-bottom-inset: 0px !important;
+    --safe-area-inset-bottom: 0px !important;
   }
 
   html[data-keyboard-open] .safe-area-bottom,
   html[data-keyboard-open] .safe-area-bottom-lower {
     padding-bottom: 0 !important;
+  }
+
+  /**
+   * Keyboard terbuka: WebView sudah menyusut (adjustResize). Lantai 3rem untuk pita navigasi
+   * membuat tombol modal/halaman menggantung di atas keyboard. Saat keyboard tutup, atribut
+   * ini hilang dan offset pita navigasi kembali.
+   */
+  html[data-keyboard-open] .modal-above-safe-area,
+  html[data-keyboard-open][data-mobile-shell-nav-suppressed="true"] .modal-above-safe-area,
+  html[data-synckerja-android-native][data-keyboard-open] .modal-above-safe-area,
+  html[data-synckerja-android-native][data-keyboard-open][data-mobile-shell-nav-suppressed="true"] .modal-above-safe-area {
+    bottom: 0 !important;
+    height: auto !important;
+  }
+
+  html[data-keyboard-open] .modal-overlay-above-safe-area,
+  html[data-keyboard-open][data-mobile-shell-nav-suppressed="true"] .modal-overlay-above-safe-area,
+  html[data-synckerja-android-native][data-keyboard-open] .modal-overlay-above-safe-area,
+  html[data-synckerja-android-native][data-keyboard-open][data-mobile-shell-nav-suppressed="true"] .modal-overlay-above-safe-area {
+    bottom: 0 !important;
+  }
+
+  html[data-keyboard-open] .drawer-safe-area-spacer,
+  html[data-synckerja-android-native][data-keyboard-open] .drawer-safe-area-spacer {
+    height: 0.5rem !important;
+  }
+
+  html[data-keyboard-open] .review-footer-safe,
+  html[data-keyboard-open] .camera-footer-safe,
+  html[data-synckerja-android-native][data-keyboard-open] .review-footer-safe,
+  html[data-synckerja-android-native][data-keyboard-open] .camera-footer-safe {
+    padding-bottom: 0.5rem !important;
+  }
+
+  html[data-synckerja-android-native][data-keyboard-open] .content-padding-above-nav-default,
+  html[data-synckerja-android-native][data-keyboard-open] .content-padding-above-nav-client-visit,
+  html[data-synckerja-android-native][data-keyboard-open] .content-padding-above-nav-home,
+  html[data-synckerja-android-native][data-keyboard-open] .content-padding-above-nav-livechat,
+  html[data-synckerja-android-native][data-keyboard-open] .content-padding-above-nav-daily-task,
+  html[data-synckerja-android-native][data-keyboard-open] .content-padding-above-nav-meeting-notes,
+  html[data-synckerja-android-native][data-keyboard-open] .content-padding-above-nav-daily-task-report,
+  html[data-synckerja-android-native][data-keyboard-open] .content-padding-above-nav-leads-management,
+  html[data-synckerja-android-native][data-keyboard-open] .content-padding-above-nav-job-desc,
+  html[data-synckerja-android-native][data-keyboard-open] .content-padding-above-nav-habits {
+    padding-bottom: 0.75rem !important;
   }
 
   /**

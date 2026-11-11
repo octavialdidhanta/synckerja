@@ -6,6 +6,16 @@ export const DEFAULT_BRIEF_STORYBOARD_HEADERS = [
   'Tagging',
 ] as const;
 
+/** Carousel has on-slide text, not a voice over. */
+export const CAROUSEL_BRIEF_STORYBOARD_HEADERS = [
+  'Timing',
+  'Visual',
+  'Scene Visual',
+  'Teks',
+  'Element Lainnya',
+  'Tagging',
+] as const;
+
 export const DEFAULT_BRIEF_STORYBOARD_COLUMN_COUNT = DEFAULT_BRIEF_STORYBOARD_HEADERS.length;
 export const DEFAULT_BRIEF_STORYBOARD_ROW_COUNT = 3;
 export const MAX_BRIEF_STORYBOARD_COLUMNS = 12;
@@ -63,6 +73,22 @@ export function isBriefElementHeader(header: string): boolean {
 export function isBriefTaggingHeader(header: string): boolean {
   const h = normalizeHeaderKey(header);
   return h.includes('tag');
+}
+
+export function isBriefSceneHeader(header: string): boolean {
+  const h = normalizeHeaderKey(header);
+  return h === 'scene visual' || h === 'scene' || h.startsWith('scene ');
+}
+
+/** On-slide carousel copy. Voice-over headers stay on isBriefVoHeader. */
+export function isBriefCopyHeader(header: string): boolean {
+  const h = normalizeHeaderKey(header);
+  return h === 'teks' || h.startsWith('teks ') || h === 'copy' || h === 'copywriting';
+}
+
+export function isCarouselContentBrief(contentTypeName?: string | null, markdown?: string | null): boolean {
+  if (String(contentTypeName ?? '').trim().toLowerCase() === 'carousel') return true;
+  return /"name"\s*:\s*"Carousel"/i.test(String(markdown ?? ''));
 }
 
 /**
@@ -162,6 +188,47 @@ export function normalizeBriefStoryboardTable(table: string[][]): string[][] {
   });
 
   return [outHeaders, ...outBody];
+}
+
+/**
+ * Carousel storyboard: Timing | Visual | Scene Visual | Teks | Element Lainnya | Tagging.
+ * The Visual cell stays the image slot. Copy that was stored under VO moves to Teks.
+ */
+export function toCarouselStoryboardTable(table: string[][]): string[][] {
+  if (!table.length) return table;
+  const rawHeaders = (table[0] ?? []).map((header) => String(header ?? '').trim());
+  if (
+    rawHeaders.length >= CAROUSEL_BRIEF_STORYBOARD_HEADERS.length
+    && CAROUSEL_BRIEF_STORYBOARD_HEADERS.every((header, index) => rawHeaders[index] === header)
+    && !rawHeaders.some(isBriefVoHeader)
+  ) {
+    return table;
+  }
+
+  const body = table.slice(1);
+  const timingIdx = rawHeaders.findIndex(isBriefTimingHeader);
+  const visualIdx = rawHeaders.findIndex(isBriefVisualHeader);
+  const sceneIdx = rawHeaders.findIndex(isBriefSceneHeader);
+  const copyIdx = rawHeaders.findIndex(isBriefCopyHeader);
+  const voIdx = rawHeaders.findIndex(isBriefVoHeader);
+  const elementIdx = rawHeaders.findIndex(isBriefElementHeader);
+  const taggingIdx = rawHeaders.findIndex(isBriefTaggingHeader);
+  const cellAt = (row: string[], index: number) => (index >= 0 ? String(row[index] ?? '') : '');
+
+  const outBody = body.map((row) => {
+    const scene = sceneIdx >= 0 ? cellAt(row, sceneIdx) : cellAt(row, visualIdx);
+    const copy = cellAt(row, copyIdx) || cellAt(row, voIdx);
+    return [
+      cellAt(row, timingIdx),
+      '',
+      scene,
+      copy,
+      cellAt(row, elementIdx),
+      cellAt(row, taggingIdx),
+    ];
+  });
+
+  return [[...CAROUSEL_BRIEF_STORYBOARD_HEADERS], ...outBody];
 }
 
 /** True when header row already matches Timing | Visual | VO … */

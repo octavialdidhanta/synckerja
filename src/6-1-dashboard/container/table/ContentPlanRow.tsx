@@ -260,10 +260,12 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
   );
 
   // For PIC Production, use the data from the database relation first, then fallback to digitalEmployees
+  const listedProductionPIC = digitalEmployees.find(emp => emp.id === plan.pic_production_id);
   const selectedProductionPIC = plan.pic_production?.full_name ? {
     full_name: plan.pic_production.full_name,
-    id: plan.pic_production.id
-  } : digitalEmployees.find(emp => emp.id === plan.pic_production_id);
+    id: plan.pic_production.id,
+    is_ai: plan.pic_production.is_ai === true || listedProductionPIC?.is_ai === true,
+  } : listedProductionPIC;
   
   // Only log if there's a mismatch (pic_production_id exists but employee not found)
   if (plan.pic_production_id && !selectedProductionPIC) {
@@ -366,6 +368,14 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
 
   // Check if Google Drive Link should be disabled (when Approved is false)
   const isGoogleDriveLinkDisabled = !plan.approved;
+  const canvaWorking = Boolean(
+    plan.approved &&
+    canvaRun && (
+      canvaRun.status === "queued"
+      || canvaRun.status === "running"
+      || (canvaRun.revision_requested && canvaRun.status === "succeeded")
+    ),
+  );
 
   // Check if Post Link should be disabled (when Production Approved is false)
   const isPostLinkDisabled = !plan.production_approved;
@@ -797,7 +807,6 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         minWidth: '280px',
         maxWidth: '280px'
       }} className="px-2 py-1 border-r border-gray-200 border-b border-gray-200">
-          <div className="flex min-w-0 flex-col gap-0.5">
           <Button
             variant="ghost"
             className={cn(
@@ -812,10 +821,6 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
                 {plan.title || 'Click to add title...'}
               </span>
             </Button>
-            {canvaRun && (canvaRun.status !== 'succeeded' || canvaRun.revision_requested) ? (
-              <CanvaCarouselNote run={canvaRun} showSuccess={false} onPrimary={isSelected} />
-            ) : null}
-          </div>
         </td>
 
         {/* POINT 4: Content Pillar - No longer locked when approved */}
@@ -958,17 +963,30 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         minWidth: '160px',
         maxWidth: '160px'
       }} className="px-2 py-1 border-r border-gray-200 border-b border-gray-200">
-          {selectedProductionPIC?.full_name ? (
+          {productionDeliverableReady && selectedProductionPIC?.full_name ? (
             <div
               className={cn(
                 'flex h-8 items-center gap-2 rounded-[5px] border px-3 text-xs',
-                isSelected ? 'border-white bg-transparent text-white' : 'border-primary/20 bg-accent text-primary'
+                isSelected
+                  ? 'border-white bg-transparent'
+                  : selectedProductionPIC.is_ai
+                    ? 'border-gray-300 bg-gray-50'
+                    : 'border-primary/20 bg-accent text-primary'
               )}
             >
-              <User className={cn('h-3 w-3', isSelected ? 'text-white' : 'text-primary')} />
-              <span className={cn('font-medium', isSelected ? 'text-white' : 'text-primary')}>
+              {selectedProductionPIC.is_ai ? (
+                <Lock className={cn('h-3 w-3', isSelected ? 'text-white' : 'text-gray-500')} />
+              ) : (
+                <User className={cn('h-3 w-3', isSelected ? 'text-white' : 'text-primary')} />
+              )}
+              <span className={cn('truncate font-medium', isSelected ? 'text-white' : selectedProductionPIC.is_ai ? 'text-gray-800' : 'text-primary')}>
                 {selectedProductionPIC.full_name}
               </span>
+              {selectedProductionPIC.is_ai ? (
+                <span className={cn('shrink-0 rounded px-1 text-[10px] font-medium', isSelected ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600')}>
+                  AI
+                </span>
+              ) : null}
             </div>
           ) : (
             <div
@@ -988,10 +1006,17 @@ export const ContentPlanRow = memo<ContentPlanRowProps>(({
         minWidth: '280px',
         maxWidth: '280px'
       }} className="px-2 py-1 text-center border-r border-gray-200 border-b border-gray-200">
+          <div className="flex w-full min-w-0 flex-col items-center gap-0.5">
+          {canvaWorking ? null : (
           <GoogleDriveLinkCell googleDriveLink={plan.google_drive_link} isDisabled={isGoogleDriveLinkDisabled} onClick={() => {
           if (!plan.approved) return; // Don't open if not approved
           setIsGoogleDriveDialogOpen(true);
         }} isSelected={isSelected} contentType={contentTypeName} carouselImageCount={carouselImageCount} />
+          )}
+            {plan.approved && canvaRun && (canvaRun.status !== 'succeeded' || canvaRun.revision_requested) ? (
+              <CanvaCarouselNote run={canvaRun} showSuccess={false} onPrimary={isSelected} />
+            ) : null}
+          </div>
         </td>
 
         {/* POINT 3: Production Status - No longer locked when production approved; display in sync with APPROVED */}

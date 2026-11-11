@@ -52,12 +52,16 @@ function inferDailyTaskPathFromPayload(payload: Record<string, unknown>): string
 }
 
 function inferProductionReviewPathFromPayload(payload: Record<string, unknown>): string | null {
+  const eventType = payload.event_type != null ? String(payload.event_type) : "";
+  const planId = payload.social_media_plan_id != null ? String(payload.social_media_plan_id) : "";
+  if (eventType === "need_review" && planId) {
+    return `/tools/daily-task?view=jobdesc&productionPlan=${encodeURIComponent(planId)}`;
+  }
   const url = payload.url != null ? String(payload.url) : "";
   const parsed = parseUrlToPath(url);
   if (parsed) return parsed;
   const reviewToken = payload.review_token != null ? String(payload.review_token) : "";
   if (reviewToken) return `/review/${encodeURIComponent(reviewToken)}`;
-  const planId = payload.social_media_plan_id != null ? String(payload.social_media_plan_id) : "";
   if (planId) return `/digital-marketing/social-media/dashboard`;
   return "/digital-marketing/social-media/dashboard";
 }

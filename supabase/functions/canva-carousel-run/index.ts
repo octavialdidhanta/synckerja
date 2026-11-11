@@ -1,16 +1,19 @@
 /// <reference path="../edge-runtime.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildCanvaCarouselBrief, carouselSlidesFromBrief } from "../_shared/canvaCarouselBrief.ts";
+import { buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, layoutOnlyDescription } from "../_shared/canvaCarouselBrief.ts";
 import { callCanvaTool, listCanvaMcpTools } from "../_shared/canvaMcp.ts";
 import { readCanvaToolJson } from "../_shared/canvaMcpParse.ts";
 import { getCanvaAccessToken } from "../_shared/canvaToken.ts";
+import { Image } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
 import { reviseCarousel } from "./revise.ts";
 
 const POLL_BUDGET_MS = 100_000;
 const EXPORT_POLL_MS = 45_000;
 const CAROUSEL_BUCKET = "social-media-carousel";
-const USER_INTENT = "membuat carousel yang bisa diedit";
+const REFERENCE_BUCKET = "ai-employee-references";
+const USER_INTENT = "carousel 4:5 yang mengikuti naskah, layout referensi, dan warna katalog";
+const LOGO_BUCKET = "digital-asset-company-logos";
 const PORTRAIT_FORMAT = "Instagram Post (Portrait)";
 
 function json(body: Record<string, unknown>, status = 200): Response {
@@ -116,6 +119,10 @@ async function markSucceeded(
       design_url: designUrl,
       error: null,
       continuation_token: null,
+      images_ready: false,
+      refresh_requested: true,
+      logo_placed: false,
+      export_attempts: 0,
       finished_at: now,
       updated_at: now,
     })
@@ -218,6 +225,195 @@ async function pollExport(
   throw new Error("export_pending");
 }
 
+async function stampLogoOnSlide(jpeg: Uint8Array, logo: Uint8Array): Promise<Uint8Array> {
+  const page = await Image.decode(jpeg);
+  const decoded = await Image.decode(logo);
+  const shortSide = Math.min(page.width, page.height);
+  const target = Math.max(72, Math.round(shortSide * 0.16));
+  const scale = target / Math.max(decoded.width, decoded.height);
+  const width = Math.max(1, Math.round(decoded.width * scale));
+  const height = Math.max(1, Math.round(decoded.height * scale));
+  const mark = decoded.resize(width, height);
+  let maxAlpha = 0;
+  for (let index = 3; index < mark.bitmap.length; index += 4) {
+    if (mark.bitmap[index] > maxAlpha) maxAlpha = mark.bitmap[index];
+  }
+  if (maxAlpha === 0) {
+    for (let index = 3; index < mark.bitmap.length; index += 4) mark.bitmap[index] = 255;
+  }
+  const pad = Math.round(target * 0.12);
+  const plate = new Image(width + pad * 2, height + pad * 2);
+  plate.fill(Image.rgbaToColor(255, 255, 255, 255));
+  const left = Math.round((page.width - width) / 2);
+  const top = Math.round(shortSide * 0.03);
+  page.composite(plate, left - pad, top - pad);
+  page.composite(mark, left, top);
+  return await page.encodeJPEG(90);
+}
+
+function nestedRecord(value: unknown, key: string): Record<string, unknown> | null {
+  return asRecord(asRecord(value)?.[key]);
+}
+
+function logoAssetId(payload: Record<string, unknown>): string {
+  const job = asRecord(payload.job) ?? payload;
+  const asset = asRecord(job.asset) ?? asRecord(payload.asset);
+  const id = String(job.asset_id ?? payload.asset_id ?? asset?.id ?? "").trim();
+  return /^[a-zA-Z0-9_-]{1,50}$/.test(id) ? id : "";
+}
+
+async function pollLogoUpload(
+  admin: SupabaseClient,
+  organizationId: string,
+  token: string,
+  jobId: string,
+): Promise<string> {
+  const deadline = Date.now() + 40_000;
+  let current = token;
+  while (Date.now() < deadline) {
+    await sleep(2000);
+    const response = await fetch(`https://api.canva.com/rest/v1/url-asset-uploads/${encodeURIComponent(jobId)}`, {
+      headers: { Authorization: `Bearer ${current}` },
+    });
+    if (response.status === 401) {
+      current = await accessToken(admin, organizationId, true);
+      continue;
+    }
+    if (!response.ok) throw new Error("logo_place_failed");
+    const body = asRecord(await response.json()) ?? {};
+    const id = logoAssetId(body);
+    if (id) return id;
+    const status = String(nestedRecord(body, "job")?.status ?? body.status ?? "").toLowerCase();
+    if (status === "failed" || status === "failure" || status === "error") throw new Error("logo_place_failed");
+  }
+  throw new Error("logo_place_failed");
+}
+
+async function placeLogoInDesign(
+  admin: SupabaseClient,
+  organizationId: string,
+  token: string,
+  designId: string,
+  logoPath: string,
+): Promise<void> {
+  const signed = await admin.storage.from(LOGO_BUCKET).createSignedUrl(logoPath, 300);
+  const url = signed.data?.signedUrl ?? "";
+  if (!url.startsWith("https://")) throw new Error("logo_missing");
+  const uploaded = await callRaw(admin, organizationId, token, "upload-asset-from-url", {
+    url,
+    name: "company-logo.png",
+    user_intent: "mengunggah logo perusahaan untuk ditaruh di tengah atas setiap slide",
+  });
+  token = uploaded.token;
+  let assetId = logoAssetId(uploaded.payload);
+  const job = asRecord(uploaded.payload.job);
+  const jobId = String(job?.id ?? uploaded.payload.job_id ?? "").trim();
+  const uploadStatus = String(job?.status ?? uploaded.payload.status ?? "").toLowerCase();
+  if (!assetId && uploadStatus !== "failed" && jobId) {
+    assetId = await pollLogoUpload(admin, organizationId, token, jobId);
+  }
+  if (!assetId) throw new Error("logo_place_failed");
+
+  const started = await callRaw(admin, organizationId, token, "start-editing-transaction", {
+    design_id: designId,
+    user_intent: "membuka desain untuk menempelkan logo perusahaan",
+  });
+  token = started.token;
+  const transactionId = String(started.payload.transaction_id ?? nestedRecord(started.payload, "transaction")?.id ?? "").trim();
+  let pages = Array.isArray(started.payload.pages) ? started.payload.pages : [];
+  if (!transactionId || pages.length === 0) throw new Error("logo_place_failed");
+  let inserted = 0;
+  const pageList = [...pages];
+
+  for (const item of pageList) {
+    const page = asRecord(item);
+    if (!page || page.is_responsive === true) continue;
+    const pageId = String(page.page_id ?? "").trim();
+    const number = Number(page.page_number ?? page.page_index ?? 0);
+    const pageIndex = number === 0 ? 1 : number;
+    const dimension = asRecord(page.dimension) ?? {};
+    const pageWidth = Number(dimension.width) > 0 ? Number(dimension.width) : 1080;
+    const pageHeight = Number(dimension.height) > 0 ? Number(dimension.height) : 1440;
+    if (!pageId || !Number.isInteger(pageIndex) || pageIndex < 1) continue;
+    const box = Math.max(72, Math.round(Math.min(pageWidth, pageHeight) * 0.16));
+    const edited = await callRaw(admin, organizationId, token, "perform-editing-operations", {
+      transaction_id: transactionId,
+      pages,
+      page_index: pageIndex,
+      user_intent: "menempelkan logo perusahaan di tengah atas slide",
+      operations: [{
+        type: "insert_fill",
+        page_id: pageId,
+        asset_type: "image",
+        asset_id: assetId,
+        alt_text: "Logo perusahaan",
+        top: Math.round(Math.min(pageWidth, pageHeight) * 0.03),
+        left: Math.round((pageWidth - box) / 2),
+        width: box,
+        height: box,
+      }],
+    });
+    token = edited.token;
+    if (Array.isArray(edited.payload.pages)) pages = edited.payload.pages;
+    inserted += 1;
+    const results = edited.payload.edit_operation_results;
+    if (Array.isArray(results) && results.some((result) => {
+      const status = String(asRecord(result)?.status ?? "").toLowerCase();
+      return status === "failed" || status === "failure" || status === "error";
+    })) throw new Error("logo_place_failed");
+  }
+
+  if (inserted === 0) throw new Error("logo_place_failed");
+  const committed = await callRaw(admin, organizationId, token, "commit-editing-transaction", {
+    transaction_id: transactionId,
+    user_intent: "menyimpan logo perusahaan di setiap slide",
+  });
+  if (String(committed.payload.status ?? "").toLowerCase() === "failed") throw new Error("logo_place_failed");
+}
+
+async function selectedLogo(
+  admin: SupabaseClient,
+  planId: string,
+): Promise<{ path: string } | null> {
+  const { data: plan } = await admin
+    .from("social_media_plans")
+    .select("pic_id, organization_id")
+    .eq("id", planId)
+    .maybeSingle();
+  if (!plan?.pic_id) return null;
+  const { data: brief } = await admin
+    .from("ai_employee_briefs")
+    .select("company_logo_id, service_ids, organization_id")
+    .eq("employee_id", plan.pic_id)
+    .maybeSingle();
+  if (!brief?.company_logo_id) return null;
+  const services = Array.isArray(brief.service_ids) ? brief.service_ids.map((id) => String(id)) : [];
+  if (services.length !== 1) throw new Error("logo_missing");
+  const { data: logo } = await admin
+    .from("digital_asset_company_logos")
+    .select("logo_path, service_id, organization_id")
+    .eq("id", brief.company_logo_id)
+    .maybeSingle();
+  const path = String(logo?.logo_path ?? "").trim();
+  if (!logo || logo.organization_id !== plan.organization_id || String(logo.service_id ?? "") !== services[0] || !path) {
+    throw new Error("logo_missing");
+  }
+  return { path };
+}
+
+async function activeLogoBytes(
+  admin: SupabaseClient,
+  planId: string,
+): Promise<Uint8Array | null> {
+  const logo = await selectedLogo(admin, planId);
+  if (!logo) return null;
+  const { data, error } = await admin.storage.from(LOGO_BUCKET).download(logo.path);
+  if (error || !data) throw new Error("logo_missing");
+  const bytes = new Uint8Array(await data.arrayBuffer());
+  if (bytes.byteLength < 32) throw new Error("logo_missing");
+  return bytes;
+}
+
 async function exportCarouselImages(
   admin: SupabaseClient,
   planId: string,
@@ -280,6 +476,17 @@ async function exportCarouselImages(
     let inserted = false;
     try {
       let token = await accessToken(admin, organizationId);
+      const logoChoice = await selectedLogo(admin, planId);
+      const logo = logoChoice ? await activeLogoBytes(admin, planId) : null;
+      let placedInDesign = false;
+      if (logo && logoChoice) {
+        try {
+          await placeLogoInDesign(admin, organizationId, token, String(locked.design_id), logoChoice.path);
+          placedInDesign = true;
+        } catch (error) {
+          if (publicError(error) === "logo_missing") throw error;
+        }
+      }
       const formatsCall = await callRaw(admin, organizationId, token, "get-export-formats", {
         design_id: locked.design_id,
       });
@@ -316,7 +523,8 @@ async function exportCarouselImages(
       if (urls.length === 0) throw new Error("export_empty");
 
       for (const url of urls) {
-        const bytes = await downloadJpeg(url);
+        const original = await downloadJpeg(url);
+        const bytes = logo && !placedInDesign ? await stampLogoOnSlide(original, logo) : original;
         const path = `${organizationId}/${planId}/${crypto.randomUUID()}.jpg`;
         const { error } = await admin.storage.from(CAROUSEL_BUCKET).upload(
           path,
@@ -353,6 +561,7 @@ async function exportCarouselImages(
         .from("canva_carousel_runs")
         .update({
           images_ready: true,
+          logo_placed: !logo || placedInDesign,
           refresh_requested: false,
           review_after_export: false,
           revision_requested: false,
@@ -409,6 +618,123 @@ async function exportCarouselImages(
   }
 }
 
+function mimeFromPath(path: string): string {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".webp")) return "image/webp";
+  return "image/jpeg";
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
+  return btoa(binary);
+}
+
+function geminiModel(stored: string): string {
+  const name = stored.trim();
+  const model = name.startsWith("gemini-") ? name : "gemini-2.5-flash";
+  const replaced: Record<string, string> = {
+    "gemini-1.5-flash": "gemini-2.5-flash",
+    "gemini-1.5-flash-latest": "gemini-2.5-flash",
+    "gemini-1.5-pro": "gemini-2.5-flash",
+    "gemini-2.0-flash": "gemini-2.5-flash",
+    "gemini-2.0-flash-exp": "gemini-2.5-flash",
+  };
+  return replaced[model] ?? model;
+}
+
+async function referenceStyleLock(
+  admin: SupabaseClient,
+  organizationId: string,
+  employeeId: string,
+  preferred: number | null,
+): Promise<string> {
+  if (!employeeId) return "";
+  const { data } = await admin
+    .from("ai_employee_brief_references")
+    .select("position, storage_path")
+    .eq("employee_id", employeeId)
+    .eq("organization_id", organizationId)
+    .order("position");
+  const rows = (data ?? []).filter((row) => String(row.storage_path ?? "").trim());
+  if (rows.length === 0) return "";
+  const ordered = preferred
+    ? [
+      ...rows.filter((row) => Number(row.position) === preferred),
+      ...rows.filter((row) => Number(row.position) !== preferred),
+    ]
+    : rows;
+  const { data: config } = await admin
+    .from("organization_script_ai_config")
+    .select("google_ai_api_key, model")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  const apiKey = String(config?.google_ai_api_key ?? "").trim();
+  if (!apiKey) return "";
+  const model = geminiModel(String(config?.model ?? ""));
+  const notes: string[] = [];
+  for (const row of ordered.slice(0, 5)) {
+    const path = String(row.storage_path);
+    const signed = await admin.storage.from(REFERENCE_BUCKET).createSignedUrl(path, 120);
+    const url = signed.data?.signedUrl ?? "";
+    if (!url.startsWith("https://")) continue;
+    const image = await fetch(url);
+    if (!image.ok) continue;
+    const bytes = new Uint8Array(await image.arrayBuffer());
+    if (bytes.byteLength < 32 || bytes.byteLength > 5_000_000) continue;
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              {
+                inlineData: {
+                  mimeType: mimeFromPath(path),
+                  data: bytesToBase64(bytes),
+                },
+              },
+              {
+                text: `This image is layout reference ${row.position}. Reply with two short sentences only. First sentence: where the picture and the text blocks sit. Second sentence: the font family if you recognize it, otherwise the letter style, plus its weight and case. Do not mention colors, logos, or the words printed on the image. Maximum 40 words.`,
+              },
+            ],
+          }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 160 },
+        }),
+      },
+    );
+    if (!response.ok) continue;
+    const body = await response.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const text = layoutOnlyDescription((body.candidates?.[0]?.content?.parts ?? [])
+      .map((part) => part.text ?? "")
+      .join(" "));
+    if (text) notes.push(`Referensi ${row.position}: ${text}`);
+  }
+  return notes.join(" ");
+}
+
+async function completeDesign(
+  admin: SupabaseClient,
+  planId: string,
+  organizationId: string,
+  token: string,
+  designId: string,
+  designUrl: string,
+): Promise<void> {
+  await markSucceeded(admin, planId, designId, designUrl);
+  await exportCarouselImages(admin, planId, organizationId);
+}
+
 async function callTool(
   admin: SupabaseClient,
   organizationId: string,
@@ -427,6 +753,15 @@ async function callTool(
   }
 }
 
+function jobStillOpen(status: string, failureMessage: string): boolean {
+  if (/polled_too_early|too early/i.test(status) || /polled_too_early|too early/i.test(failureMessage)) return true;
+  return ["pending", "in_progress", "processing", "queued", "running"].includes(status);
+}
+
+function pollIsTransient(message: string): boolean {
+  return /polled_too_early|too early|canva_mcp_http_429|canva_mcp_http_5\d\d|network|timed? ?out|fetch failed/i.test(message);
+}
+
 async function pollJob(
   admin: SupabaseClient,
   planId: string,
@@ -434,17 +769,19 @@ async function pollJob(
   token: string,
   jobId: string,
   continuationToken: string,
+  initialWait = 2,
 ): Promise<"succeeded" | "running"> {
   const deadline = Date.now() + POLL_BUDGET_MS;
   let currentToken = token;
   let nextContinuation = continuationToken;
-  let waitSeconds = 2;
+  let waitSeconds = Math.min(Math.max(initialWait, 2), 20);
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now();
     if (remaining < 1500) break;
     await sleep(Math.min(Math.max(waitSeconds, 2), 20, Math.floor(remaining / 1000)) * 1000);
     const called = await callTool(admin, organizationId, currentToken, "get-create-design-async-job", {
       job_id: jobId,
+      user_intent: USER_INTENT,
       ...(nextContinuation ? { continuation_token: nextContinuation } : {}),
     });
     currentToken = called.token;
@@ -452,10 +789,12 @@ async function pollJob(
     if (job.token) nextContinuation = job.token;
     if (job.status === "completed" || job.status === "success") {
       if (!job.designUrl.startsWith("https://")) throw new Error("design_missing");
-      await markSucceeded(admin, planId, job.designId, job.designUrl);
+      await completeDesign(admin, planId, organizationId, currentToken, job.designId, job.designUrl);
       return "succeeded";
     }
-    if (job.status === "failed") throw new Error(job.failureMessage || "canva_failed");
+    if (!jobStillOpen(job.status, job.failureMessage)) {
+      throw new Error(`canva_job_failed:${job.failureMessage || job.status || "canva_failed"}`);
+    }
     waitSeconds = job.wait;
     await saveJob(admin, planId, jobId, nextContinuation);
   }
@@ -485,7 +824,7 @@ Deno.serve(async (req: Request) => {
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const { data: run, error: runError } = await admin
     .from("canva_carousel_runs")
-    .select("status, canva_job_id, continuation_token, attempts, updated_at, organization_id, images_ready, revision_requested")
+    .select("status, canva_job_id, continuation_token, attempts, updated_at, organization_id, images_ready, revision_requested, design_id, logo_placed, error, export_attempts")
     .eq("social_media_plan_id", planId)
     .maybeSingle();
   if (runError || !run) return json({ error: "missing" }, 404);
@@ -497,6 +836,20 @@ Deno.serve(async (req: Request) => {
         String(run.organization_id),
         () => exportCarouselImages(admin, planId, String(run.organization_id)),
       );
+      return json({ ok: true, status: "succeeded" });
+    }
+    const logoStillMissing = run.logo_placed !== true
+      && Boolean(run.design_id)
+      && !String(run.error ?? "").startsWith("logo_");
+    if (logoStillMissing && Number(run.export_attempts ?? 0) < 3) {
+      const organizationId = String(run.organization_id);
+      await admin.from("canva_carousel_runs").update({
+        images_ready: false,
+        refresh_requested: true,
+        error: null,
+        updated_at: new Date().toISOString(),
+      }).eq("social_media_plan_id", planId).eq("status", "succeeded");
+      await exportCarouselImages(admin, planId, organizationId);
       return json({ ok: true, status: "succeeded" });
     }
     if (run.images_ready !== true) {
@@ -528,9 +881,6 @@ Deno.serve(async (req: Request) => {
         String(locked.canva_job_id),
         String(locked.continuation_token ?? ""),
       );
-      if (outcome === "succeeded") {
-        await exportCarouselImages(admin, planId, String(run.organization_id));
-      }
       return json({ ok: true, status: outcome });
     }
 
@@ -605,13 +955,23 @@ Deno.serve(async (req: Request) => {
       .select("content")
       .eq("social_media_plan_id", planId)
       .limit(1);
+    const organizationId = String(plan.organization_id);
+    const styleLock = await referenceStyleLock(
+      admin,
+      organizationId,
+      String(plan.pic_id ?? ""),
+      carouselReferencePosition(slides),
+    ).catch(() => "");
+    const logo = await selectedLogo(admin, planId);
     const brief = buildCanvaCarouselBrief({
       title: String(plan.title ?? ""),
       caption: String(captions?.[0]?.content ?? ""),
       slides,
+      styleLock,
+      palette: carouselPalette(String(plan.brief ?? "")),
+      logo: logo ? "required" : "none",
     });
 
-    const organizationId = String(plan.organization_id);
     let token = await accessToken(admin, organizationId);
     let tools: string[] = [];
     try {
@@ -659,8 +1019,7 @@ Deno.serve(async (req: Request) => {
     }
     if (created.job.status === "completed" || created.job.status === "success") {
       if (!created.job.designUrl.startsWith("https://")) throw new Error("design_missing");
-      await markSucceeded(admin, planId, created.job.designId, created.job.designUrl);
-      await exportCarouselImages(admin, planId, organizationId);
+      await completeDesign(admin, planId, organizationId, token, created.job.designId, created.job.designUrl);
       return json({ ok: true, status: "succeeded" });
     }
     await saveJob(admin, planId, created.job.jobId, created.job.token);
@@ -671,12 +1030,12 @@ Deno.serve(async (req: Request) => {
       token,
       created.job.jobId,
       created.job.token,
+      created.job.wait,
     );
-    if (outcome === "succeeded") await exportCarouselImages(admin, planId, organizationId);
     return json({ ok: true, status: outcome });
   } catch (error) {
     const message = publicError(error);
-    if (message === "design_missing") {
+    if (message === "design_missing" || message === "logo_missing" || message === "logo_place_failed") {
       await markFailed(admin, planId, message);
       return json({ ok: false, status: "failed" });
     }
@@ -685,8 +1044,13 @@ Deno.serve(async (req: Request) => {
       .select("canva_job_id, continuation_token, status")
       .eq("social_media_plan_id", planId)
       .maybeSingle();
-    if (current?.canva_job_id && current.status !== "succeeded") {
+    if (current?.canva_job_id && current.status !== "succeeded" && pollIsTransient(message)) {
       await saveJob(admin, planId, String(current.canva_job_id), String(current.continuation_token ?? ""));
+      await admin
+        .from("canva_carousel_runs")
+        .update({ error: message, updated_at: new Date().toISOString() })
+        .eq("social_media_plan_id", planId)
+        .neq("status", "succeeded");
       return json({ ok: false, status: "running" });
     }
     await markFailed(admin, planId, message);

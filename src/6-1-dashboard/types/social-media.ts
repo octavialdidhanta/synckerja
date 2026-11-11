@@ -16,7 +16,7 @@ export interface ContentPlan {
   approved: boolean;
   completion_date: string | null;
   pic_production_id: string | null;
-  pic_production_source: 'task_steps_assigned' | 'google_drive_link' | null;
+  pic_production_source: 'task_steps_assigned' | 'google_drive_link' | 'content_pic' | null;
   google_drive_link: string | null;
   /** Snapshot of google_drive_link when production_status became Request Revision (DB trigger + app reads). */
   production_revision_baseline_link?: string | null;
@@ -58,6 +58,7 @@ export interface ContentPlan {
   pic_production?: {
     id: string;
     full_name: string;
+    is_ai?: boolean;
   };
   post_link_creator?: {
     id: string;

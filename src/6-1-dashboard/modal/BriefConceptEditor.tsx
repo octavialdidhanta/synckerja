@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
+import { briefPalette } from "@/shared/utils/briefUtils";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";
 import {
   generateBriefLocationVisual,
@@ -115,6 +116,7 @@ export function BriefConceptEditor({
   const [locationBusy, setLocationBusy] = useState<{ handle: string; mode: "upload" | "generate" } | null>(null);
   const [propertyBusy, setPropertyBusy] = useState<{ handle: string; mode: "upload" | "generate" } | null>(null);
   const shape = locationContentShape(contentTypeName);
+  const palette = briefPalette(briefText);
   const frame = locationFrameForContentType(contentTypeName, document.postAspect);
 
   const updateCharacter = (handle: string, patch: Partial<BriefConceptAsset>) => {
@@ -374,6 +376,30 @@ export function BriefConceptEditor({
 
   return (
     <div className="scrollbar-hide h-full min-h-0 space-y-4 overflow-y-auto pr-1 text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {document.reason?.trim() ? (
+        <section className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <p className="font-medium text-foreground">{t("briefDialog.conceptReason", "Mengapa konten ini dibuat")}</p>
+          <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800">{document.reason}</p>
+        </section>
+      ) : null}
+      {palette ? (
+        <section className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <p className="font-medium text-foreground">{t("briefDialog.conceptPalette", "Warna")}</p>
+          <ul className="mt-2 flex flex-wrap gap-3">
+            {([
+              ["primer", palette.primary],
+              ["sekunder", palette.secondary],
+              ["aksen", palette.accent],
+            ] as const).map(([name, hex]) => (
+              <li key={name} className="flex items-center gap-2 text-sm text-gray-800">
+                <span className="h-4 w-4 rounded border border-gray-300" style={{ backgroundColor: hex }} />
+                <span className="capitalize">{name}</span>
+                <span className="font-mono text-xs">{hex}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {document.voiceOver?.trim() ? (
         <section className="rounded-lg border border-gray-200 bg-gray-50 p-3">
           <p className="font-medium text-foreground">{t("briefDialog.conceptVoiceOver", "Script VO")}</p>

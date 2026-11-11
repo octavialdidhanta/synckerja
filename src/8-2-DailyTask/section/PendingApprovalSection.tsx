@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, User, Loader2, ClipboardCheck, Eye } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Textarea } from '@/shared/components/ui/textarea';
@@ -12,6 +12,7 @@ import {
   DialogDescription,
 } from '@/shared/components/ui/dialog';
 import { useCompletionApprovals } from '../hooks/useCompletionApprovals';
+import { useProductionNeedReviewItems, type ProductionNeedReviewItem } from '../hooks/useProductionNeedReviewItems';
 import { useDailyTask } from '../context/DailyTaskContext';
 import { useAppTranslation } from '@/shared/i18n/useAppTranslation';
 import { useToast } from '@/shared/components/ui/use-toast';
@@ -49,6 +50,9 @@ export const PendingApprovalSection = ({ variant, onOpenPreview }: PendingApprov
   const isMobile = useIsMobile();
   const { getOrCreate } = usePublicReviewToken();
   const { pending, rejected, loading, fetchError, approve, reject, refresh } = useCompletionApprovals([]);
+  const { items: productionReviews, loading: productionLoading, refresh: refreshProductionReviews } = useProductionNeedReviewItems();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openedProductionPlanRef = useRef<string | null>(null);
   const { refetchTasks, uncheckCompletionLocally, applyApprovalDecisionLocally, setPendingApprovalFocus, navigateToTask } = useDailyTask();
   const { toast } = useToast();
   const [rejectDialog, setRejectDialog] = useState<{ open: boolean; row: CompletionApprovalRow | null; reason: string }>({
@@ -228,10 +232,66 @@ export const PendingApprovalSection = ({ variant, onOpenPreview }: PendingApprov
   const showViewContent = (row: CompletionApprovalRow) =>
     row.entity_type === 'step' && !!row.task_steps?.social_media_plan_id;
 
+  const openProductionReview = async (item: ProductionNeedReviewItem) => {
+    const useModal = !isMobile && onOpenPreview && variant !== 'jobdesc-overview';
+    if (useModal) {
+      onOpenPreview(item.planId, {
+        onClose: () => {
+          void refreshProductionReviews();
+          void refresh();
+        },
+      });
+      return;
+    }
+
+    setViewContentLoadingRowId(item.notificationId);
+    try {
+      const { data, error } = await supabase
+        .from('social_media_plans')
+        .select('google_drive_link')
+        .eq('id', item.planId)
+        .maybeSingle();
+      if (error) throw error;
+      const linkUrl =
+        (data as { google_drive_link?: string | null } | null)?.google_drive_link?.trim() || 'default-link';
+      const { token } = await getOrCreate({ socialMediaPlanId: item.planId, linkUrl });
+      navigate(`/review/${token}`, { state: { from: 'jobdesc' } });
+    } catch (e) {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : t('dailyTask.approval.reviewOpenFailed', 'Failed to open review.');
+      toast({
+        title: t('dailyTask.approval.error', 'Error'),
+        description: msg,
+        variant: 'destructive',
+      });
+    } finally {
+      setViewContentLoadingRowId(null);
+    }
+  };
+
+  const productionPlanFromLink = (searchParams.get('productionPlan') ?? '').trim();
+  useEffect(() => {
+    if (!productionPlanFromLink || productionLoading) return;
+    if (openedProductionPlanRef.current === productionPlanFromLink) return;
+    const match = productionReviews.find((item) => item.planId === productionPlanFromLink);
+    if (!match) return;
+    openedProductionPlanRef.current = productionPlanFromLink;
+    const next = new URLSearchParams(searchParams);
+    next.delete('productionPlan');
+    setSearchParams(next, { replace: true });
+    void openProductionReview(match);
+    // Open once when the linked plan is in the manager's review list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productionPlanFromLink, productionLoading, productionReviews]);
+
+  const inJobDescOverview = variant === 'jobdesc-overview';
+
   return (
     <>
       {/* Pending Approval card (same style as Task Summary cards) */}
-      <div className="mt-4 min-w-0">
+      <div className={inJobDescOverview ? 'min-w-0' : 'mt-4 min-w-0'}>
         <div
           className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between min-h-[60px] min-w-0"
         >
@@ -241,11 +301,11 @@ export const PendingApprovalSection = ({ variant, onOpenPreview }: PendingApprov
               {t('dailyTask.approval.pendingTitle', 'Pending your approval')}
             </span>
           </div>
-          <span className="text-xl font-bold text-amber-600">{pending.length}</span>
+          <span className="text-xl font-bold text-amber-600">{pending.length + productionReviews.length}</span>
         </div>
 
         {/* List of items to approve (seamless vertical scroll; per .cursor/rules/scroll-chaining.mdc: chain on all views including jobdesc) */}
-        <div className={`mt-2 max-h-[min(40vh,320px)] overflow-y-auto overflow-x-hidden min-h-0 min-w-0 ${hideScrollbarClassName}`}>
+        <div className={`${inJobDescOverview ? 'mt-3' : 'mt-2'} max-h-[min(40vh,320px)] overflow-y-auto overflow-x-hidden min-h-0 min-w-0 ${hideScrollbarClassName}`}>
           {fetchError ? (
             <p className="text-xs text-red-600 py-2">
               {t('dailyTask.approval.fetchError', 'Failed to load approvals. Please try again.')}
@@ -271,15 +331,52 @@ export const PendingApprovalSection = ({ variant, onOpenPreview }: PendingApprov
                 {t('dailyTask.approval.retry', 'Retry')}
               </button>
             </p>
-          ) : loading && pending.length === 0 ? (
+          ) : loading && pending.length === 0 && productionReviews.length === 0 ? (
             <p className="text-xs text-gray-500 py-2 flex items-center gap-2">
               <Loader2 className="h-3.5 w-3.5 animate-spin flex-shrink-0" />
               {t('dailyTask.approval.loading', 'Loading...')}
             </p>
-          ) : pending.length === 0 ? (
+          ) : pending.length === 0 && productionReviews.length === 0 ? (
             <p className="text-xs text-gray-500 py-2">{t('dailyTask.approval.noPending', 'No items pending approval.')}</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className={inJobDescOverview ? 'space-y-3' : 'space-y-2'}>
+              {productionReviews.map((item) => (
+                <li
+                  key={item.notificationId}
+                  className="border border-gray-200 rounded-lg p-3 bg-white text-sm overflow-hidden min-w-0"
+                >
+                  <button
+                    type="button"
+                    onClick={() => void openProductionReview(item)}
+                    className="w-full text-left font-medium text-gray-900 truncate cursor-pointer hover:text-amber-700 hover:underline focus:outline-none focus:ring-1 focus:ring-amber-400 rounded"
+                    title={item.title}
+                  >
+                    {item.title}
+                  </button>
+                  <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+                    <User className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate">{item.picName}</span>
+                    <span className="text-gray-400 flex-shrink-0">·</span>
+                    <span className="flex-shrink-0">{t('dailyTask.approval.entityProduction', 'Produksi')}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-gray-700 border-gray-200 hover:bg-gray-50 h-7 px-2 text-xs"
+                      onClick={() => void openProductionReview(item)}
+                      disabled={viewContentLoadingRowId !== null}
+                    >
+                      {viewContentLoadingRowId === item.notificationId ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                      ) : (
+                        <Eye className="h-3.5 w-3.5 mr-1" />
+                      )}
+                      {t('dailyTask.approval.viewContent', 'View Content')}
+                    </Button>
+                  </div>
+                </li>
+              ))}
               {pending.map((row) => (
                 <li
                   key={row.id}
@@ -351,11 +448,11 @@ export const PendingApprovalSection = ({ variant, onOpenPreview }: PendingApprov
 
       {/* Rejected by assigner (for assignee) */}
       {rejected.length > 0 && (
-        <div className="mt-4">
-          <h4 className="font-semibold text-gray-900 text-sm mb-2">
+        <div className={inJobDescOverview ? 'min-w-0' : 'mt-4'}>
+          <h4 className={`font-semibold text-gray-900 text-sm ${inJobDescOverview ? 'mb-3' : 'mb-2'}`}>
             {t('dailyTask.approval.rejectedTitle', 'Rejected by assigner')}
           </h4>
-          <ul className="space-y-2">
+          <ul className={inJobDescOverview ? 'space-y-3' : 'space-y-2'}>
             {rejected.slice(0, 10).map((row) => (
               <li key={row.id} className="border border-red-100 rounded-lg p-3 bg-red-50/50 text-sm">
                 <button

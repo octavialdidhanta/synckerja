@@ -11981,6 +11981,7 @@ export const enTranslations: TranslationDictionary = {
   "briefDialog.loadingBrief": "Loading brief",
   "briefDialog.sectionTargetAudience": "Concept",
   "briefDialog.conceptVoiceOver": "Script VO",
+  "briefDialog.conceptReason": "Why this content was made",
   "briefDialog.conceptLocationImage": "Create or add your location image",
   "briefDialog.conceptPasteHint": "Ctrl+V to paste a screenshot",
   "briefDialog.conceptLocationUpload": "Upload",

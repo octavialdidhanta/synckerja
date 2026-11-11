@@ -6,6 +6,8 @@ import {
   buildChatPrompt,
   buildSop1Prompt,
   buildSop2Prompt,
+  catalogChoice,
+  catalogPalette,
   chooseBrandFocus,
   chooseSop1Pillar,
   executionVerdict,
@@ -21,6 +23,8 @@ import {
   interpretReserve,
   jakartaToday,
   contentPlanDates,
+  dailySlotIndex,
+  manualCatalogIndex,
   nextMonthDays,
   nextWeekDays,
   nextWeeklyRun,
@@ -34,8 +38,11 @@ import {
   judgeJobDesk,
   withJobClaim,
   parseExecutionCheck,
+  carouselReferenceOk,
+  normalizeCarouselReference,
   parseCarouselDraft,
   parsePlanDraft,
+  referencePositions,
   publicModelFailure,
   resolvePostDate,
   scriptAiCall,
@@ -315,13 +322,33 @@ test("SOP1 mengisi hari kosong dan menahan pillar di atas 40 persen", () => {
     today: "2026-11-04",
     frequency: 3,
     plans: [{ post_date: "2026-11-04" }],
-  }), ["2026-11-04", "2026-11-04"]);
+  }), ["2026-11-04"]);
   assert.deepEqual(contentPlanDates({
     cadence: "days",
     today: "2026-11-04",
     frequency: 1,
     plans: [{ post_date: "2026-11-04" }],
-  }), []);
+  }), ["2026-11-04"]);
+  assert.equal(dailySlotIndex(["20:00", "09:00:00", "15:00"], "16:00"), 1);
+  assert.equal(dailySlotIndex(["09:00", "15:00", "20:00"], "08:30"), 0);
+  assert.equal(dailySlotIndex(["09:00", "15:00", "20:00"], "20:00"), 2);
+  const focusBrief = { service_ids: ["alfa", "beta"] };
+  const focusCatalog = [{ id: "alfa", name: "Alfa" }, { id: "beta", name: "Beta" }];
+  assert.equal(chooseBrandFocus({
+    brief: focusBrief,
+    catalog: focusCatalog,
+    dayIndex: dailySlotIndex(["09:00", "15:00", "20:00"], "16:00"),
+  }).id, "beta");
+  assert.equal(manualCatalogIndex([
+    { post_date: "2026-11-11" },
+    { post_date: "2026-11-11" },
+    { post_date: "2026-11-10" },
+  ], "2026-11-11"), 2);
+  assert.equal(chooseBrandFocus({
+    brief: focusBrief,
+    catalog: focusCatalog,
+    dayIndex: manualCatalogIndex([{ post_date: "2026-11-11" }], "2026-11-11"),
+  }).id, "beta");
   assert.deepEqual(contentPlanDates({
     cadence: "weekly",
     today: "2026-11-04",
@@ -396,32 +423,46 @@ test("SOP1 mengisi hari kosong dan menahan pillar di atas 40 persen", () => {
 test("carousel menolak jumlah slide dan caption tanpa hashtag", () => {
   const slides = (count) => Array.from({ length: count }, (_, index) => ({
     timing: `Slide ${index + 1}`,
-    visual: `Adegan ${index + 1}`,
-    vo: "",
-    element: "",
+    visual: `Adegan ${index + 1} yang terlihat di slide.`,
+    vo: `Copy slide ${index + 1} yang dibaca penonton.`,
+    element: index === 0
+      ? "Hook headline: Berhenti menebak. Visual hook: Kalender di depan wajah ibu."
+      : `Kontras ekspresi pada slide ${index + 1}.`,
     tagging: "",
   }));
-  const raw = (count, caption) => JSON.stringify({
+  const reason = "Konten ini dibuat karena penonton sering menebak solusi tanpa melihat masalah yang sebenarnya.";
+  const raw = (count, caption, concept = reason) => JSON.stringify({
     title: "Carousel uji",
     post_date: "2026-11-10",
     caption,
+    concept,
     slides: slides(count),
     content_pillar_id: pillarId,
   });
   const accepted = parseCarouselDraft(raw(6, "Singkat saja #synckerja"));
   assert.equal(accepted?.slides.length, 6);
+  assert.equal(accepted?.concept, reason);
   assert.equal(accepted?.slides[0].timing, "Slide 1");
   assert.equal(parseCarouselDraft(raw(2, "Singkat #synckerja"))?.slides.length, 2);
   assert.equal(parseCarouselDraft(raw(10, "Singkat #synckerja"))?.slides.length, 10);
   assert.equal(parseCarouselDraft(raw(1, "Singkat #synckerja")), null);
   assert.equal(parseCarouselDraft(raw(11, "Singkat #synckerja")), null);
   assert.equal(parseCarouselDraft(raw(5, "Tanpa tagar")), null);
+  const shortConcept = parseCarouselDraft(raw(5, "Singkat #synckerja", "terlalu pendek"));
+  assert.ok(shortConcept);
+  assert.match(shortConcept.concept, /^terlalu pendek /);
+  assert.ok(shortConcept.concept.length >= 40);
+  assert.ok(shortConcept.concept.length <= 800);
+  const missingConcept = parseCarouselDraft(raw(2, "Singkat #synckerja", ""));
+  assert.ok(missingConcept);
+  assert.ok(missingConcept.concept.length >= 40);
   const shifted = slides(5);
   shifted[1].timing = "Slide 3";
   assert.equal(parseCarouselDraft(JSON.stringify({
     title: "Carousel uji",
     post_date: "2026-11-10",
     caption: "Singkat #synckerja",
+    concept: "Konten ini dibuat karena penonton sering menebak solusi tanpa melihat masalah yang sebenarnya.",
     slides: shifted,
   })), null);
   const prompt = buildSop1Prompt({
@@ -441,6 +482,27 @@ test("carousel menolak jumlah slide dan caption tanpa hashtag", () => {
   assert.match(prompt, /carousel/);
   assert.match(prompt, /4:5/);
   assert.match(prompt, /hashtag/i);
+  assert.match(prompt, /alasan konten ini dibuat/);
+  assert.match(prompt, /Hook headline/);
+  assert.match(prompt, /copywriting/);
+  const bare = slides(2);
+  bare[0].vo = "";
+  assert.equal(parseCarouselDraft(JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption: "Singkat #synckerja",
+    concept: reason,
+    slides: bare,
+  })), null);
+  const noHook = slides(2);
+  noHook[0].element = "Hanya ikon panah tanpa hook.";
+  assert.equal(parseCarouselDraft(JSON.stringify({
+    title: "Carousel uji",
+    post_date: "2026-11-10",
+    caption: "Singkat #synckerja",
+    concept: reason,
+    slides: noHook,
+  })), null);
   assert.doesNotMatch(prompt, /Ini pengulangan/);
 
   const fresh = buildSop1Prompt({
@@ -493,6 +555,183 @@ test("carousel menolak jumlah slide dan caption tanpa hashtag", () => {
   assert.match(repeat, /Judul lama/);
   assert.match(repeat, /Caption lama #lama/);
   assert.match(repeat, /Jangan menyalin judul atau caption/);
+});
+
+test("katalog brief paling banyak satu", () => {
+  assert.deepEqual(catalogChoice(null), { status: "missing" });
+  assert.deepEqual(catalogChoice({ service_ids: [] }), { status: "missing" });
+  assert.deepEqual(catalogChoice({ service_ids: ["svc-a"] }), { status: "one", id: "svc-a" });
+  assert.deepEqual(catalogChoice({ service_ids: ["svc-a", "svc-b"] }), { status: "many" });
+  assert.equal(chooseBrandFocus({
+    brief: { service_ids: ["svc-a"] },
+    catalog: [{ id: "svc-a", name: "Satu" }, { id: "svc-b", name: "Dua" }],
+    dayIndex: 4,
+  }).id, "svc-a");
+});
+
+test("carousel memakai satu referensi yang sama di setiap slide", () => {
+  const base = (count) => Array.from({ length: count }, (_, index) => ({
+    timing: `Slide ${index + 1}`,
+    visual: `Adegan ${index + 1} yang terlihat di slide.`,
+    vo: `Copy slide ${index + 1} yang dibaca penonton.`,
+    element: index === 0
+      ? "Hook headline: Berhenti menebak. Visual hook: Kalender di depan wajah ibu."
+      : `Kontras ekspresi pada slide ${index + 1}.`,
+    tagging: "",
+  }));
+  const cited = (label) => base(2).map((slide) => ({ ...slide, element: `${slide.element} ${label}` }));
+  assert.equal(carouselReferenceOk(base(2), []), true);
+  assert.equal(referencePositions({ references: [] }).length, 0);
+  assert.equal(carouselReferenceOk(cited("Referensi 2"), [2]), true);
+  assert.equal(carouselReferenceOk(cited("Referensi 1"), [2]), false);
+  const mixed = cited("Referensi 2");
+  mixed[1] = { ...mixed[1], element: mixed[1].element.replace("Referensi 2", "Referensi 1") };
+  assert.equal(carouselReferenceOk(mixed, [1, 2]), true);
+  const doubled = cited("Referensi 2 dan Referensi 1");
+  assert.equal(carouselReferenceOk(doubled, [1, 2]), false);
+  const prompt = buildSop1Prompt({
+    day: "2026-11-10",
+    pillar: pillars[0],
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief: {
+      service_ids: ["svc"],
+      services: [],
+      audience: "",
+      personas: [],
+      voice: "",
+      required_notes: "",
+      forbidden_notes: "",
+      references: [
+        { position: 2, storage_path: "org/employee/2.png" },
+        { position: 5, storage_path: "org/employee/5.png" },
+      ],
+    },
+    performance: [],
+    service: null,
+    idea: { id: "idea-1", idea_statement: "Ide apa pun" },
+    product: [],
+  });
+  assert.match(prompt, /Semua slot ini boleh dipakai/);
+  assert.match(prompt, /Jangan menulis slot pertama di setiap slide/);
+  assert.match(prompt, /Referensi 2/);
+  assert.match(prompt, /Referensi 5/);
+  assert.doesNotMatch(prompt, /org\/employee\/2\.png/);
+  const single = buildSop1Prompt({
+    day: "2026-11-10",
+    pillar: pillars[0],
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief: {
+      service_ids: ["svc"],
+      services: [],
+      references: [{ position: 4 }],
+    },
+    performance: [],
+    service: null,
+    idea: null,
+    product: [],
+  });
+  assert.match(single, /hanya slot 4/);
+  assert.match(single, /Referensi 4/);
+  const opening = "Hook headline: Berhenti menebak. Visual hook: Kalender di depan wajah ibu.";
+  const follow = "Kontras ekspresi pada slide kedua.";
+  const picked = normalizeCarouselReference([
+    { element: `${opening} Referensi 5` },
+    { element: follow },
+  ], [2, 5]);
+  assert.equal(carouselReferenceOk(picked, [2, 5]), true);
+  assert.match(picked[0].element, /Hook headline:/);
+  assert.match(picked[0].element, /Visual hook:/);
+  assert.match(picked[1].element, /Referensi 5$/);
+  const mixedChoice = normalizeCarouselReference([
+    { element: `${opening} Referensi 2` },
+    { element: `${follow} Referensi 5` },
+  ], [2, 5]);
+  assert.match(mixedChoice[0].element, /Referensi 2$/);
+  assert.match(mixedChoice[1].element, /Referensi 5$/);
+  const blank = normalizeCarouselReference([
+    { element: opening },
+    { element: follow },
+  ], [2, 5]);
+  assert.match(blank[0].element, /Referensi 2$/);
+  assert.match(blank[1].element, /Referensi 2$/);
+  const onlyFourth = normalizeCarouselReference([
+    { element: opening },
+    { element: `${follow} Referensi 1` },
+  ], [4]);
+  assert.match(onlyFourth[0].element, /Referensi 4$/);
+  assert.match(onlyFourth[1].element, /Referensi 4$/);
+  assert.doesNotMatch(onlyFourth[1].element, /Referensi 1/);
+  const untouched = normalizeCarouselReference([
+    { element: opening },
+    { element: follow },
+  ], []);
+  assert.equal(untouched[0].element, opening);
+  const long = normalizeCarouselReference([
+    { element: `Hook headline: ${"a".repeat(220)} Visual hook: wajah ibu di depan kalender. ${"b".repeat(400)}` },
+    { element: follow },
+  ], [1, 3]);
+  assert.match(long[0].element, /hook headline\s*:/i);
+  assert.match(long[0].element, /visual hook\s*:/i);
+  assert.match(long[0].element, /Referensi 1$/);
+  assert.ok(long[0].element.length <= 500);
+  const plain = buildSop1Prompt({
+    day: "2026-11-10",
+    pillar: pillars[0],
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief: null,
+    performance: [],
+    service: null,
+    idea: null,
+    product: [],
+  });
+  assert.doesNotMatch(plain, /Referensi visual/);
+});
+
+test("palet katalog masuk prompt dan logo tidak ikut", () => {
+  const prompt = buildSop1Prompt({
+    day: "2026-11-10",
+    pillar: pillars[0],
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief: {
+      service_ids: ["svc"],
+      palette: { primary: "#112233", secondary: "#445566", accent: "#778899" },
+      references: [{ position: 1 }],
+    },
+    performance: [],
+    service: null,
+    idea: null,
+    product: [],
+  });
+  assert.match(prompt, /primer #112233/);
+  assert.match(prompt, /sekunder #445566/);
+  assert.match(prompt, /aksen #778899/);
+  assert.match(prompt, /bukan sumber warna/);
+  assert.match(prompt, /Jangan menulis kode warna ke dalam slide/);
+  assert.match(prompt, /referensi layout dan font/);
+  assert.match(prompt, /Font slide harus sama dengan font pada referensi yang dipilih/);
+  assert.doesNotMatch(prompt, /logo/i);
+  assert.equal(catalogPalette({ palette: { primary: "112233", secondary: "#445566", accent: "#778899" } }), null);
+  assert.deepEqual(catalogPalette({ palette: { primary: "#AABBCC", secondary: "#112233", accent: "#445566" } }), {
+    primary: "#aabbcc",
+    secondary: "#112233",
+    accent: "#445566",
+  });
 });
 
 test("JSON model diterima hanya bila pillar ada di context", () => {

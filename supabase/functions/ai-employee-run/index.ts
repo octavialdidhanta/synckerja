@@ -8,6 +8,7 @@ import {
   buildExecutionCheckPrompt,
   buildSop1Prompt,
   buildSop2Prompt,
+  catalogChoice,
   chooseBrandFocus,
   chooseProduct,
   chooseBriefProduct,
@@ -16,7 +17,8 @@ import {
   judgeJobDesk,
   withJobClaim,
   chooseSop1Pillar,
-  contentPlanDates,
+  dailySlotIndex,
+  manualCatalogIndex,
   fourWeekBounds,
   greetingReply,
   isSimpleChatGreeting,
@@ -29,7 +31,11 @@ import {
   jakartaToday,
   nextMonthDays,
   nextWeekDays,
+  catalogPalette,
+  carouselReferenceOk,
+  normalizeCarouselReference,
   parseCarouselDraft,
+  referencePositions,
   parseChatReply,
   parseExecutionVerdict,
   pickUnusedIdea,
@@ -116,7 +122,10 @@ Deno.serve(async (req: Request) => {
   if (!isUuid(employeeId) || instruction.length > 4000 || (!sop1 && !jobMode && !instruction)) return json({ error: "invalid_input" }, 400);
   if (requestedDate && (!isDay(requestedDate) || requestedDate < today)) return json({ error: "invalid_input" }, 400);
   if (body.dry_run != null && typeof body.dry_run !== "boolean") return json({ error: "invalid_input" }, 400);
+  if (body.manual != null && typeof body.manual !== "boolean") return json({ error: "invalid_input" }, 400);
   const dryRun = body.dry_run === true;
+  const manual = body.manual === true;
+  if (manual && mode !== "sop1") return json({ error: "invalid_input" }, 400);
 
   const internalHeader = req.headers.get("x-synckerja-internal-secret");
   const internalHeaderPresent = internalHeader != null;
@@ -297,14 +306,34 @@ Deno.serve(async (req: Request) => {
         : `${title}\n${description}`.trim();
     }
 
-    const started = await rpc("ai_employee_run_start", {
-      p_employee_id: employeeId,
-      p_sop_code: sop1 ? "SOP1" : chat ? "CHAT" : (sop3 || jobSource === "revision") ? "SOP3" : "SOP2",
-    });
-    runId = typeof started.body === "string" && isUuid(started.body) ? started.body : null;
-    if (!runId) {
-      if (jobTaken) await closeJob("failed", "run_start_failed").catch(() => undefined);
-      return json({ error: "run_start_failed" }, started.status === 401 ? 500 : 502);
+    if (manual) {
+      if (caller.mode !== "user" || !userId) return json({ error: "forbidden" }, 403);
+      const begun = await rpc("ai_employee_sop1_manual_begin", {
+        p_user_id: userId,
+        p_employee_id: employeeId,
+      });
+      const begunMessage = begun.body && typeof begun.body === "object"
+        ? String((begun.body as { message?: unknown }).message ?? "")
+        : "";
+      if (begun.status < 200 || begun.status >= 300 || typeof begun.body !== "string" || !isUuid(begun.body)) {
+        if (begunMessage.includes("too_soon")) return json({ ok: false, error: "too_soon" }, 409);
+        if (begunMessage.includes("forbidden") || begunMessage.includes("profile_inactive")) {
+          return json({ ok: false, error: "forbidden" }, 403);
+        }
+        if (begunMessage.includes("not_found")) return json({ ok: false, error: "not_found" }, 404);
+        return json({ ok: false, error: "run_start_failed" }, 500);
+      }
+      runId = begun.body;
+    } else {
+      const started = await rpc("ai_employee_run_start", {
+        p_employee_id: employeeId,
+        p_sop_code: sop1 ? "SOP1" : chat ? "CHAT" : (sop3 || jobSource === "revision") ? "SOP3" : "SOP2",
+      });
+      runId = typeof started.body === "string" && isUuid(started.body) ? started.body : null;
+      if (!runId) {
+        if (jobTaken) await closeJob("failed", "run_start_failed").catch(() => undefined);
+        return json({ error: "run_start_failed" }, started.status === 401 ? 500 : 502);
+      }
     }
 
     if (jobMode) {
@@ -555,7 +584,7 @@ Deno.serve(async (req: Request) => {
       const scheduleId = typeof body.schedule_id === "string" ? body.schedule_id.trim() : "";
       let scheduleQuery = admin
         .from("ai_employee_schedules")
-        .select("id, cadence, plan_count")
+        .select("id, cadence, plan_count, start_times")
         .eq("employee_id", employeeId)
         .eq("organization_id", employee.organization_id)
         .eq("sop_code", "SOP1");
@@ -603,25 +632,27 @@ Deno.serve(async (req: Request) => {
       const performance = await loadScope("performance", {});
       const product = await loadProduct();
       const brief = briefRows[0] ?? null;
-      const serviceIds = Array.isArray(brief?.service_ids) ? brief.service_ids : [];
-      if (serviceIds.length === 0) {
+      const chosenCatalog = catalogChoice(brief);
+      if (chosenCatalog.status === "missing") {
         await closeSop1("failed", "brief_missing", 0);
         return json({ ok: false, error: "brief_missing", mode: "sop1", run_id: runId, model_calls: 0 }, 422);
+      }
+      if (chosenCatalog.status === "many") {
+        await closeSop1("failed", "catalog_limit", 0);
+        return json({ ok: false, error: "catalog_limit", mode: "sop1", run_id: runId, model_calls: 0 }, 422);
       }
       const preferredPillars = new Set(Array.isArray(brief?.pillar_ids) ? brief.pillar_ids.filter((id: unknown) => typeof id === "string") : []);
       const pillars = preferredPillars.size > 0
         ? pillarRows.filter((row) => preferredPillars.has(String(row.id ?? "")))
         : pillarRows;
-      if (!scheduleResult.data) {
+      if (!manual && String(scheduleResult.data?.cadence ?? "") !== "days") {
         await closeSop1("failed", "schedule_missing", 0);
         return json({ ok: false, error: "schedule_missing", mode: "sop1", run_id: runId, model_calls: 0 }, 422);
       }
-      const open = contentPlanDates({
-        cadence: String(scheduleResult.data.cadence ?? ""),
-        today: sopToday,
-        frequency: Number(scheduleResult.data.plan_count ?? 1),
-        plans: calendar,
-      });
+      const open = [sopToday];
+      const catalogIndex = manual
+        ? manualCatalogIndex(nayaPlans, sopToday)
+        : dailySlotIndex(scheduleResult.data?.start_times, sopClock.time);
       const angleIds = Array.isArray(brief?.angle_ids)
         ? brief.angle_ids.filter((id: unknown) => typeof id === "string" && id)
         : [];
@@ -673,7 +704,7 @@ Deno.serve(async (req: Request) => {
           ? { ...brief, voice: String(path?.prompt_voice ?? brief?.voice ?? "") }
           : brief;
         const promptPath = focused ? path : null;
-        const service = chooseBrandFocus({ brief, catalog, dayIndex, allowOverride: false });
+        const service = chooseBrandFocus({ brief, catalog, dayIndex: catalogIndex, allowOverride: false });
         if (!service) {
           stop = "failed";
           failure = { status: 0, message: "brief_missing" };
@@ -683,7 +714,8 @@ Deno.serve(async (req: Request) => {
           const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief: promptBrief, performance, service, idea, product, path: promptPath }));
           if (result.kind !== "ok") return result;
           const parsed = parseCarouselDraft(result.script);
-          if (!parsed || !pillars.some((row) => String(row.id ?? "") === choice.id)) {
+          if (parsed) parsed.slides = normalizeCarouselReference(parsed.slides, referencePositions(promptBrief));
+          if (!parsed || !pillars.some((row) => String(row.id ?? "") === choice.id) || !carouselReferenceOk(parsed.slides, referencePositions(promptBrief))) {
             return { kind: "failed", detail: { status: 0, message: "invalid_model_output" } };
           }
           parsed.post_date = day;
@@ -729,7 +761,10 @@ Deno.serve(async (req: Request) => {
               const result = await modelScript(buildSop1Prompt({ day, pillar: choice, steps, catalog, thinking, feedback, plans: calendar, brief: promptBrief, performance, service, idea, product, path: promptPath }));
               if (result.kind !== "ok") return result;
               const next = parseCarouselDraft(result.script);
-              if (!next) return { kind: "failed" as const, detail: { status: 0, message: "invalid_model_output" } };
+              if (next) next.slides = normalizeCarouselReference(next.slides, referencePositions(promptBrief));
+              if (!next || !carouselReferenceOk(next.slides, referencePositions(promptBrief))) {
+                return { kind: "failed" as const, detail: { status: 0, message: "invalid_model_output" } };
+              }
               next.post_date = day;
               next.content_pillar_id = choice.id;
               return { kind: "ok" as const, script: JSON.stringify(next) };
@@ -818,12 +853,14 @@ Deno.serve(async (req: Request) => {
           dayIndex += 1;
           continue;
         }
+        const palette = catalogPalette(brief);
         const performed = await rpc("ai_employee_perform", {
           p_employee_id: employeeId,
           p_run_id: runId,
           p_action: "thinking.plan.save",
           p_payload: withJobClaim({
             ...plan,
+            ...(palette ? { palette } : {}),
             idea_id: String(idea.idea_id ?? idea.id ?? ""),
             execution_id: executionId,
             ...(focused ? {

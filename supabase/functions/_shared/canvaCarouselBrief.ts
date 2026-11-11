@@ -1,6 +1,9 @@
 export type CarouselSlide = {
   label: string;
   scene: string;
+  copy: string;
+  elements: string;
+  tagging: string;
 };
 
 function cells(line: string): string[] {
@@ -12,9 +15,20 @@ function headerKey(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function columnIndex(headers: string[], match: (header: string) => boolean): number {
+  return headers.findIndex(match);
+}
+
+function cellText(row: string[], index: number): string {
+  if (index < 0) return "";
+  return (row[index] ?? "").trim().slice(0, 500);
+}
+
 /**
- * Scene text from the storyboard. The image column stays empty; the words
- * Canva needs are in Scene Visual.
+ * Creative text from the storyboard. The image column stays empty.
+ * Scene Visual is the picture. Teks is the on-slide copy. Older boards
+ * stored that copy under VO. Element Lainnya carries the hook and the
+ * other pieces that sit with that copy.
  */
 export function carouselSlidesFromBrief(markdown: string): CarouselSlide[] {
   const lines = String(markdown ?? "")
@@ -24,10 +38,15 @@ export function carouselSlidesFromBrief(markdown: string): CarouselSlide[] {
   if (lines.length < 2) return [];
 
   const headers = cells(lines[0]).map(headerKey);
-  const sceneIndex = headers.findIndex((header) => header.includes("scene"));
-  const visualIndex = headers.findIndex((header) => header === "visual");
+  const sceneIndex = columnIndex(headers, (header) => header.includes("scene"));
+  const visualIndex = columnIndex(headers, (header) => header === "visual");
   const textIndex = sceneIndex >= 0 ? sceneIndex : visualIndex;
-  const timingIndex = headers.findIndex((header) => header === "timing" || header === "no" || header === "#");
+  const teksIndex = columnIndex(headers, (header) => header === "teks" || header.startsWith("teks ") || header === "copy" || header === "copywriting");
+  const voiceIndex = columnIndex(headers, (header) => header === "vo" || header.startsWith("vo ") || header.includes("voice over"));
+  const copyIndex = teksIndex >= 0 ? teksIndex : voiceIndex;
+  const elementIndex = columnIndex(headers, (header) => header.includes("element"));
+  const taggingIndex = columnIndex(headers, (header) => header.includes("tag"));
+  const timingIndex = columnIndex(headers, (header) => header === "timing" || header === "no" || header === "#");
   if (textIndex < 0) return [];
 
   const slides: CarouselSlide[] = [];
@@ -36,31 +55,182 @@ export function carouselSlidesFromBrief(markdown: string): CarouselSlide[] {
     const row = cells(line);
     const timing = timingIndex >= 0 ? row[timingIndex] ?? "" : "";
     if (timing && !/^slide\s+\d+\b/i.test(timing)) continue;
-    const scene = (row[textIndex] ?? "").trim();
+    const scene = cellText(row, textIndex);
     if (!scene) continue;
     const number = slides.length + 1;
     const label = /^slide\s+\d+\b/i.test(timing) ? timing : `Slide ${number}`;
-    slides.push({ label, scene: scene.slice(0, 500) });
+    slides.push({
+      label,
+      scene,
+      copy: cellText(row, copyIndex),
+      elements: cellText(row, elementIndex),
+      tagging: cellText(row, taggingIndex),
+    });
     if (slides.length >= 10) break;
   }
   return slides;
+}
+
+/** One shared reference slot, or null when the board does not agree. */
+export function carouselReferencePosition(slides: CarouselSlide[]): number | null {
+  if (slides.length === 0) return null;
+  let chosen = 0;
+  for (const slide of slides) {
+    const matches = [...slide.elements.matchAll(/referensi\s+([1-5])\b/gi)];
+    if (matches.length !== 1) return null;
+    const position = Number(matches[0][1]);
+    if (chosen === 0) chosen = position;
+    else if (chosen !== position) return null;
+  }
+  return chosen > 0 ? chosen : null;
+}
+
+const COLOR_SENTENCE = /\b(colou?rs?|palette|palet|warna|hex|red|blue|green|yellow|orange|purple|pink|black|white|gr[ae]y|brown|gold|navy|teal|beige|cream|maroon|cyan|magenta|merah|biru|hijau|kuning|ungu|hitam|putih|abu|emas|coklat)\b|#[0-9a-fA-F]{3,8}/i;
+const LOGO_SENTENCE = /\blogos?\b|wordmark|brand mark/i;
+
+/** Drop any sentence that names a color. Layout reference is not a palette. */
+export function layoutOnlyDescription(text: string): string {
+  return String(text ?? "")
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((part) => part.replace(/\s+/g, " ").trim())
+    .filter((part) => part.length > 0 && !COLOR_SENTENCE.test(part) && !LOGO_SENTENCE.test(part))
+    .join(" ")
+    .slice(0, 900);
+}
+
+function referenceNotes(styleLock: string): Map<number, string> {
+  const cleaned = layoutOnlyDescription(styleLock);
+  const notes = new Map<number, string>();
+  const marks = [...cleaned.matchAll(/Referensi\s+([1-5])\s*:\s*/gi)];
+  if (marks.length === 0) {
+    if (cleaned) notes.set(0, cleaned.slice(0, 280));
+    return notes;
+  }
+  for (let index = 0; index < marks.length; index += 1) {
+    const start = (marks[index].index ?? 0) + marks[index][0].length;
+    const end = marks[index + 1]?.index ?? cleaned.length;
+    const note = cleaned.slice(start, end).replace(/\s+/g, " ").trim().slice(0, 280);
+    if (note) notes.set(Number(marks[index][1]), note);
+  }
+  return notes;
+}
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+export type CatalogPalette = {
+  primary: string;
+  secondary: string;
+  accent: string;
+};
+
+/** Colors written outside the storyboard table. Missing line means no palette. */
+export function carouselPalette(markdown: string): CatalogPalette | null {
+  const match = /Warna:\s*primer\s+(#[0-9a-fA-F]{6})\s*,\s*sekunder\s+(#[0-9a-fA-F]{6})\s*,\s*aksen\s+(#[0-9a-fA-F]{6})/i.exec(String(markdown ?? ""));
+  if (!match) return null;
+  return {
+    primary: match[1].toLowerCase(),
+    secondary: match[2].toLowerCase(),
+    accent: match[3].toLowerCase(),
+  };
+}
+
+const ELEMENT_MARK = /(Hook headline|Headline|Point|Ajakan|Tips|Pesan Utama|Pesan|Teks)\s*:\s*|(Visual hook|Dialog bubble|Arah gambar|Ilustrasi|Gambar)\b\s*:?\s*|Referensi\s+[1-5]\b/gi;
+const PICTURE_LABEL = new Set(["visual hook", "ilustrasi", "gambar", "dialog bubble", "arah gambar"]);
+const PICTURE_LEAD = /^(ilustrasi|gambar|visual hook|dialog bubble|arah gambar)\b[:\s,-]*/i;
+
+function elementPieces(elements: string): { copy: string[]; picture: string[] } {
+  const source = elements.replace(/\s+/g, " ").trim();
+  if (!source) return { copy: [], picture: [] };
+  const marks: Array<{ index: number; end: number; label: string | null }> = [];
+  for (const match of source.matchAll(ELEMENT_MARK)) {
+    marks.push({
+      index: match.index ?? 0,
+      end: (match.index ?? 0) + match[0].length,
+      label: (match[1] || match[2]) ? (match[1] || match[2]).toLowerCase() : null,
+    });
+  }
+  const copy: string[] = [];
+  const picture: string[] = [];
+  const push = (kind: "copy" | "picture", value: string) => {
+    let text = value.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
+    if (!text) return;
+    if (kind === "copy" && PICTURE_LEAD.test(text)) {
+      text = text.replace(PICTURE_LEAD, "").trim().replace(/[.\s]+$/, "");
+      if (!text) return;
+      picture.push(text);
+      return;
+    }
+    (kind === "picture" ? picture : copy).push(text);
+  };
+  if (marks.length === 0) {
+    push("copy", source);
+    return { copy, picture };
+  }
+  if (marks[0].index > 0) push("copy", source.slice(0, marks[0].index));
+  for (let index = 0; index < marks.length; index += 1) {
+    const mark = marks[index];
+    if (!mark.label) continue;
+    const next = marks[index + 1]?.index ?? source.length;
+    push(PICTURE_LABEL.has(mark.label) ? "picture" : "copy", source.slice(mark.end, next));
+  }
+  return { copy, picture };
+}
+
+function referenceSlot(elements: string): number | null {
+  const matches = [...String(elements ?? "").matchAll(/referensi\s+([1-5])\b/gi)];
+  if (matches.length !== 1) return null;
+  return Number(matches[0][1]);
+}
+
+function paletteLine(palette?: CatalogPalette | null): string {
+  const primary = HEX.test(palette?.primary ?? "") ? palette!.primary.toLowerCase() : "";
+  const secondary = HEX.test(palette?.secondary ?? "") ? palette!.secondary.toLowerCase() : "";
+  const accent = HEX.test(palette?.accent ?? "") ? palette!.accent.toLowerCase() : "";
+  if (!primary || !secondary || !accent) {
+    return "Choose readable colors. Do not copy colors from another design.";
+  }
+  return `Colors: primary ${primary}, secondary ${secondary}, accent ${accent}. Keep the words readable.`;
+}
+
+function logoLine(logo?: "required" | "none"): string {
+  if (logo === "required") return "Leave the top center of every page empty.";
+  return "";
 }
 
 export function buildCanvaCarouselBrief(input: {
   title: string;
   caption: string;
   slides: CarouselSlide[];
+  styleLock?: string;
+  palette?: CatalogPalette | null;
+  logo?: "required" | "none";
 }): string {
   const title = input.title.replace(/\s+/g, " ").trim().slice(0, 200) || "Carousel";
-  const caption = input.caption.replace(/\s+/g, " ").trim().slice(0, 400);
+  const caption = input.caption.replace(/\s+/g, " ").trim().slice(0, 280);
+  const notes = referenceNotes(input.styleLock ?? "");
+  const sharedNote = notes.get(0) ?? "";
   const pages = input.slides
-    .map((slide, index) => `${slide.label || `Slide ${index + 1}`}: ${slide.scene}`)
+    .map((slide, index) => {
+      const pieces = elementPieces(slide.elements);
+      const slot = referenceSlot(slide.elements);
+      const note = (slot ? notes.get(slot) : "") || sharedNote;
+      const words = [slide.copy, ...pieces.copy].map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+      const picture = [slide.scene, ...pieces.picture].map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+      const lines = [`Page ${index + 1}`];
+      if (note) lines.push(`Layout and type: ${note}`);
+      if (picture.length > 0) lines.push(`Draw: ${picture.join(". ")}`);
+      if (words.length > 0) lines.push(`Write only: ${words.join(" | ")}`);
+      if (slide.tagging) lines.push(`Small label: ${slide.tagging}`);
+      return lines.join("\n");
+    })
     .join("\n");
-  const captionLine = caption ? `\nCaption: ${caption}` : "";
+  const captionLine = caption ? ` Caption: ${caption}` : "";
   return [
-    `Instagram carousel, portrait 4:5, ${input.slides.length} pages, one page per slide.`,
-    `Subject: ${title}.${captionLine}`,
+    `Design an Instagram carousel with ${input.slides.length} portrait 4:5 pages. One page per slide. Make every page editable.`,
+    paletteLine(input.palette),
+    logoLine(input.logo),
+    `Title: ${title}.${captionLine}`,
     pages,
-    "Each page is editable. Keep the 4:5 portrait ratio. Do not make a square.",
-  ].join("\n").slice(0, 6000);
+    "Write only the listed words. Draw the picture, and do not turn the picture instructions into text. Use the layout and the named typeface for that page.",
+  ].filter(Boolean).join("\n").slice(0, 3500);
 }

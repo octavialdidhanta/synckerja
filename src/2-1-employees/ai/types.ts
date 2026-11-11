@@ -38,6 +38,14 @@ export type BriefDraft = {
   angleIds: string[];
   repeatVoices: string[];
   splitRule: string;
+  subServiceId: string | null;
+  contentPlanAutoApprove: boolean;
+};
+
+export type SubServiceOption = {
+  id: string;
+  name: string;
+  serviceId: string;
 };
 
 export type ScheduleRow = {
@@ -47,7 +55,7 @@ export type ScheduleRow = {
   weekdays: number[];
   planCount: number;
   startLocal: string;
-  dueLocal: string;
+  startTimes: string[];
   isActive: boolean;
   nextRunAt: string | null;
 };
@@ -135,6 +143,12 @@ export type AiEmployeePageData = {
   schedules: ScheduleRow[];
   routines: RoutineRow[];
   brief: BriefDraft;
+  references: BriefReference[];
+  brandColorId: string | null;
+  companyLogoId: string | null;
+  brandColors: CatalogBrandColor[];
+  companyLogos: CatalogCompanyLogo[];
+  subServices: SubServiceOption[];
   briefLabels: {
     services: CatalogOption[];
     personas: CatalogOption[];
@@ -150,6 +164,25 @@ export type AiEmployeePageData = {
     angles: AngleOption[];
   };
   quota: AiEmployeeQuota;
+};
+
+export type BriefReference = {
+  position: number;
+  storagePath: string;
+};
+
+export type CatalogBrandColor = {
+  id: string;
+  brandName: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+};
+
+export type CatalogCompanyLogo = {
+  id: string;
+  brandName: string;
+  logoPath: string;
 };
 
 export type BriefChange = {

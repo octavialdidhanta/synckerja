@@ -1,3 +1,36 @@
+const BRIEF_PALETTE_LINE = /^Warna:\s*primer\s+(#[0-9A-Fa-f]{6})\s*,\s*sekunder\s+(#[0-9A-Fa-f]{6})\s*,\s*aksen\s+(#[0-9A-Fa-f]{6})\s*$/i;
+
+export type BriefPalette = {
+  primary: string;
+  secondary: string;
+  accent: string;
+};
+
+/** Catalog colors stored after the storyboard. They belong in Concept, not the brief header. */
+export function briefPalette(text: string): BriefPalette | null {
+  if (!text?.trim()) return null;
+  for (const line of text.split(/\r?\n/)) {
+    const match = BRIEF_PALETTE_LINE.exec(line.trim());
+    if (!match) continue;
+    return {
+      primary: match[1].toLowerCase(),
+      secondary: match[2].toLowerCase(),
+      accent: match[3].toLowerCase(),
+    };
+  }
+  return null;
+}
+
+export function stripBriefPaletteLine(text: string): string {
+  if (!text?.trim()) return text;
+  return text
+    .split(/\r?\n/)
+    .filter((line) => !BRIEF_PALETTE_LINE.test(line.trim()))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 /**
  * Extract the main title from brief content (first h1, **Judul Script:** value, or first substantial line before Format & Style).
  * Used to display in the Brief Content header to save vertical space.
@@ -8,6 +41,7 @@ export function extractBriefTitle(text: string): string | null {
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i].trim();
     if (!t) continue;
+    if (BRIEF_PALETTE_LINE.test(t)) continue;
     // Skip HTML comments (e.g. sequence metadata) and alignment-only noise
     if (t.startsWith('<!--') || t.endsWith('-->')) continue;
     if (/^##\s+Format|^Format\s*&?\s*Style/i.test(t)) break;

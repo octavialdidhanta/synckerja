@@ -214,14 +214,14 @@ export const JobDescTracker = ({
             </Alert>
           </div>
         ) : (
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col space-y-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
         <div className="shrink-0 px-0">
           {renderFilters()}
         </div>
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as "overview" | "detail")}
-          className="flex min-h-0 w-full min-w-0 flex-1 flex-col"
+          className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3"
         >
           <div className="shrink-0 px-0">
             <TabsList className="grid h-9 w-full grid-cols-2">
@@ -241,7 +241,7 @@ export const JobDescTracker = ({
           </div>
 
           {isError && (
-            <div className="flex shrink-0 flex-col space-y-1 px-0">
+            <div className="flex shrink-0 flex-col gap-3 px-0">
               <Alert>
                 <AlertDescription className="text-xs">
                   {t("dailyTask.jobDesc.error", "Tidak dapat memuat data: {{message}}", {
@@ -266,10 +266,10 @@ export const JobDescTracker = ({
               onTouchEnd={pullTouchHandlers?.onTouchEnd}
               className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-              <div className="content-padding-above-nav-job-desc flex w-full min-w-0 flex-col space-y-1 px-0 pb-1">
+              <div className="content-padding-above-nav-job-desc flex w-full min-w-0 flex-col gap-3 px-0 pb-1">
               {isLoading ? null : (
                 <>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-lg border border-primary/20 bg-primary/10 p-3">
                       <p className="text-[11px] text-primary">
                         {t("dailyTask.jobDesc.metrics.activeAssignments", "Tugas Aktif")}
@@ -315,13 +315,13 @@ export const JobDescTracker = ({
               onTouchEnd={pullTouchHandlers?.onTouchEnd}
               className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-              <div className="content-padding-above-nav-job-desc flex w-full min-w-0 flex-col space-y-1 px-0 pb-1">
+              <div className="content-padding-above-nav-job-desc flex w-full min-w-0 flex-col gap-3 px-0 pb-1">
               {isLoading ? null : filteredSummaries.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
                   {t("dailyTask.jobDesc.emptyState", "Belum ada tugas aktif pada rentang waktu ini")}
                 </div>
               ) : (
-                <div className="flex w-full min-w-0 flex-col space-y-1">
+                <div className="flex w-full min-w-0 flex-col gap-3">
                   {filteredSummaries.map((summary) => (
                     <JobDescEmployeeCard key={summary.employeeId} summary={summary} />
                   ))}

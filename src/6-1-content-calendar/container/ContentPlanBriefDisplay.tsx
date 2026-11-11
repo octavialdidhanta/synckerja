@@ -12,7 +12,9 @@ import { CreateBriefTableDialog } from '@/6-1-dashboard/modal/CreateBriefTableDi
 import {
   DEFAULT_BRIEF_STORYBOARD_HEADERS,
   isBriefStoryboardTableCanonical,
+  isCarouselContentBrief,
   normalizeBriefStoryboardTable,
+  toCarouselStoryboardTable,
 } from '@/6-1-dashboard/modal/briefStoryboardConstants';
 import {
   stripBreakdownScriptLabel,
@@ -149,6 +151,9 @@ export const ContentPlanBriefDisplay: React.FC<ContentPlanBriefDisplayProps> = (
     if (!briefText) return null;
     const parsed = parseMarkdownTable(briefText);
     if (!parsed?.table?.length) return parsed;
+    if (isCarouselContentBrief(null, briefText)) {
+      return { ...parsed, table: toCarouselStoryboardTable(parsed.table) };
+    }
     if (isBriefStoryboardTableCanonical(parsed.table)) return parsed;
     return {
       ...parsed,

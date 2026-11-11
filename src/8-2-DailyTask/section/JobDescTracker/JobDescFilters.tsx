@@ -48,9 +48,6 @@ export const JobDescFilters = ({
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-xs font-semibold text-gray-600 mb-1">
-          {t("dailyTask.jobDesc.filters.timeframe", "Timeframe")}
-        </p>
         <div className="flex flex-wrap gap-2">
           {timeframeOptions.map((option) => (
             <button

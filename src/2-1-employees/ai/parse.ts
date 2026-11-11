@@ -8,11 +8,15 @@ import type {
   AiEmployeeSummary,
   BriefChange,
   BriefDraft,
+  BriefReference,
+  CatalogBrandColor,
+  CatalogCompanyLogo,
   AngleOption,
   CatalogOption,
   ProductOption,
   RoutineRow,
   ScheduleRow,
+  SubServiceOption,
 } from "./types";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -126,6 +130,8 @@ export function briefDraftFromPayload(value: unknown): { draft: BriefDraft; labe
       angleIds: asStringArray(row.angle_ids),
       repeatVoices: asStringArray(row.repeat_voices),
       splitRule: asString(row.split_rule),
+      subServiceId: chosenSubServiceId(asString(row.sub_service_id), parseSubServices(row.sub_services)),
+      contentPlanAutoApprove: row.content_plan_auto_approve === true,
     },
     labels: {
       services: asOptions(row.services).map((item) => ({ ...item, label: item.label })),
@@ -260,18 +266,102 @@ function parseSchedules(value: unknown): ScheduleRow[] {
     const weekdays = Array.isArray(row.weekdays)
       ? row.weekdays.map((day) => asNumber(day)).filter((day): day is number => day != null && day >= 1 && day <= 7)
       : [];
+    const startLocal = asString(row.start_local, "00:00").slice(0, 5);
+    const startTimes = Array.isArray(row.start_times)
+      ? [...new Set(row.start_times.map((item) => typeof item === "string" ? item.slice(0, 5) : "").filter((item) => /^\d{2}:\d{2}$/.test(item)))].sort()
+      : [];
     return [{
       sopCode: row.sop_code,
       cadence,
       weekday: cadence === "weekly" ? weekday : null,
       weekdays: cadence === "days" ? weekdays : [],
       planCount: planCount != null && planCount >= 1 && planCount <= 7 ? planCount : 1,
-      startLocal: asString(row.start_local, "00:00").slice(0, 5),
-      dueLocal: asString(row.due_local, "00:00").slice(0, 5),
+      startLocal,
+      startTimes: startTimes.length > 0 ? startTimes : [startLocal],
       isActive: asBoolean(row.is_active) ?? false,
       nextRunAt: asNullableString(row.next_run_at),
     }];
   });
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseBrandColors(value: unknown): CatalogBrandColor[] {
+  if (!Array.isArray(value)) return [];
+  const rows: CatalogBrandColor[] = [];
+  for (const item of value) {
+    const row = asRecord(item);
+    const id = asString(row?.id);
+    if (!UUID_PATTERN.test(id)) continue;
+    rows.push({
+      id,
+      brandName: asString(row?.brand_name),
+      primary: asString(row?.primary_color_hex),
+      secondary: asString(row?.secondary_color_hex),
+      accent: asString(row?.accent_color_hex),
+    });
+  }
+  return rows;
+}
+
+function parseCompanyLogos(value: unknown): CatalogCompanyLogo[] {
+  if (!Array.isArray(value)) return [];
+  const rows: CatalogCompanyLogo[] = [];
+  for (const item of value) {
+    const row = asRecord(item);
+    const id = asString(row?.id);
+    const logoPath = asString(row?.logo_path);
+    if (!UUID_PATTERN.test(id) || !logoPath) continue;
+    rows.push({
+      id,
+      brandName: asString(row?.brand_name),
+      logoPath,
+    });
+  }
+  return rows;
+}
+
+function isGeneralContent(name: string): boolean {
+  return name.trim().toLowerCase() === "general content";
+}
+
+function parseSubServices(value: unknown): SubServiceOption[] {
+  if (!Array.isArray(value)) return [];
+  const rows: SubServiceOption[] = [];
+  for (const item of value) {
+    const row = asRecord(item);
+    const id = asString(row?.id);
+    const serviceId = asString(row?.service_id);
+    const name = asString(row?.name).trim();
+    if (!UUID_PATTERN.test(id) || !UUID_PATTERN.test(serviceId) || !name || isGeneralContent(name)) continue;
+    rows.push({ id, name, serviceId });
+  }
+  return rows;
+}
+
+function chosenSubServiceId(id: string, options: SubServiceOption[]): string | null {
+  return options.some((option) => option.id === id) ? id : null;
+}
+
+function selectedCatalogId(value: unknown, ids: string[]): string | null {
+  const id = asString(value);
+  return UUID_PATTERN.test(id) && ids.includes(id) ? id : null;
+}
+
+function parseReferences(value: unknown): BriefReference[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<number>();
+  const rows: BriefReference[] = [];
+  for (const item of value) {
+    const row = asRecord(item);
+    const position = asNumber(row?.position);
+    const storagePath = asString(row?.storage_path);
+    if (position == null || !Number.isInteger(position) || position < 1 || position > 5) continue;
+    if (!storagePath || seen.has(position)) continue;
+    seen.add(position);
+    rows.push({ position, storagePath });
+  }
+  return rows.sort((left, right) => left.position - right.position);
 }
 
 function parseQuota(value: unknown): AiEmployeeQuota {
@@ -292,6 +382,9 @@ export function parseAiEmployeePage(value: unknown): AiEmployeePageData {
   const row = asRecord(value);
   if (!row || typeof row.organization_id !== "string") throw new Error("invalid_payload");
   const brief = briefDraftFromPayload(row.brief);
+  const briefRow = asRecord(row.brief);
+  const brandColors = parseBrandColors(briefRow?.brand_colors);
+  const companyLogos = parseCompanyLogos(briefRow?.company_logos);
   const options = asRecord(row.options) ?? {};
   return {
     organizationId: row.organization_id,
@@ -303,6 +396,12 @@ export function parseAiEmployeePage(value: unknown): AiEmployeePageData {
     schedules: parseSchedules(row.schedules),
     routines: parseRoutines(row.routines),
     brief: brief.draft,
+    references: parseReferences(briefRow?.references),
+    brandColorId: selectedCatalogId(briefRow?.brand_color_id, brandColors.map((item) => item.id)),
+    companyLogoId: selectedCatalogId(briefRow?.company_logo_id, companyLogos.map((item) => item.id)),
+    brandColors,
+    companyLogos,
+    subServices: parseSubServices(briefRow?.sub_services),
     briefLabels: brief.labels,
     options: {
       services: asOptions(options.services),
@@ -334,7 +433,9 @@ export function sameBrief(left: BriefDraft, right: BriefDraft): boolean {
     && sameIds(left.angleIds, right.angleIds)
     && left.repeatVoices.length === right.repeatVoices.length
     && left.repeatVoices.every((voice, index) => voice === right.repeatVoices[index])
-    && left.splitRule === right.splitRule;
+    && left.splitRule === right.splitRule
+    && left.subServiceId === right.subServiceId
+    && left.contentPlanAutoApprove === right.contentPlanAutoApprove;
 }
 
 export function sameSchedule(left: ScheduleRow, right: ScheduleRow): boolean {
@@ -345,6 +446,7 @@ export function sameSchedule(left: ScheduleRow, right: ScheduleRow): boolean {
     && days(left.weekdays) === days(right.weekdays)
     && left.planCount === right.planCount
     && left.startLocal === right.startLocal
+    && [...left.startTimes].sort().join(",") === [...right.startTimes].sort().join(",")
     && left.isActive === right.isActive;
 }
 
@@ -355,6 +457,11 @@ export function sameRoutine(left: RoutineRow, right: RoutineRow): boolean {
     && [...(left.weekdays ?? [])].sort((a, b) => a - b).join(",") === [...(right.weekdays ?? [])].sort((a, b) => a - b).join(",")
     && left.timeLocal === right.timeLocal
     && left.isActive === right.isActive;
+}
+
+function subCategoryLabel(id: string | null, names: Map<string, string>): string {
+  if (!id) return "General Content";
+  return names.get(id) ?? "Tidak ada di katalog";
 }
 
 function nameList(ids: string[], names: Map<string, string>): string {
@@ -376,6 +483,7 @@ export function briefChanges(
     pillars: Map<string, string>;
     products: Map<string, string>;
     angles: Map<string, string>;
+    subServices: Map<string, string>;
   },
 ): BriefChange[] {
   const rows: BriefChange[] = [];
@@ -392,6 +500,8 @@ export function briefChanges(
   push("Fokus angle", !sameIds(before.angleIds, after.angleIds), nameList(before.angleIds, names.angles), nameList(after.angleIds, names.angles));
   push("Gaya pengulangan", before.repeatVoices.join("\n") !== after.repeatVoices.join("\n"), textValue(before.repeatVoices.join("\n")), textValue(after.repeatVoices.join("\n")));
   push("Product Knowledge", !sameIds(before.productIds, after.productIds), nameList(before.productIds, names.products), nameList(after.productIds, names.products));
+  push("Sub Category", before.subServiceId !== after.subServiceId, subCategoryLabel(before.subServiceId, names.subServices), subCategoryLabel(after.subServiceId, names.subServices));
+  push("Content Plan auto approve", before.contentPlanAutoApprove !== after.contentPlanAutoApprove, before.contentPlanAutoApprove ? "Hidup" : "Mati", after.contentPlanAutoApprove ? "Hidup" : "Mati");
   push("Aturan pecahan", before.splitRule !== after.splitRule, textValue(before.splitRule), textValue(after.splitRule));
   return rows;
 }

@@ -135,6 +135,7 @@ export function useDigitalAssetBrandColorsListQuery() {
         .from('digital_asset_brand_colors')
         .select('*')
         .eq('organization_id', organizationId)
+        .is('service_id', null)
         .order('updated_at', { ascending: false });
       if (error) throw error;
       return (data as DigitalAssetBrandColor[]) || [];
@@ -156,6 +157,7 @@ export function useDigitalAssetCompanyLogosListQuery() {
         .from('digital_asset_company_logos')
         .select('*')
         .eq('organization_id', organizationId)
+        .is('service_id', null)
         .order('updated_at', { ascending: false });
       if (error) throw error;
       return (data as DigitalAssetCompanyLogo[]) || [];

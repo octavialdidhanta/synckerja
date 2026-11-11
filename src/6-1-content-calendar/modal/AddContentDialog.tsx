@@ -14,7 +14,9 @@ import {
 } from '@/6-1-dashboard/utils/markdownTableUtils';
 import {
   isBriefStoryboardTableCanonical,
+  isCarouselContentBrief,
   normalizeBriefStoryboardTable,
+  toCarouselStoryboardTable,
 } from '@/6-1-dashboard/modal/briefStoryboardConstants';
 import { upsertBriefSequencesInMarkdown, type BriefSequence } from '@/6-1-dashboard/modal/briefSequences';
 import {
@@ -613,12 +615,16 @@ export const AddContentDialog: React.FC<AddContentDialogProps> = ({
     if (!briefText) return null;
     const parsed = parseMarkdownTable(briefText);
     if (!parsed?.table?.length) return parsed;
+    const typeName = contentTypes.find((type) => type.id === formData.content_type_id)?.name ?? '';
+    if (isCarouselContentBrief(typeName, briefText)) {
+      return { ...parsed, table: toCarouselStoryboardTable(parsed.table) };
+    }
     if (isBriefStoryboardTableCanonical(parsed.table)) return parsed;
     return {
       ...parsed,
       table: normalizeBriefStoryboardTable(parsed.table),
     };
-  }, [formData.brief]);
+  }, [formData.brief, formData.content_type_id, contentTypes]);
 
   const handleCreateStoryboardTable = (tableData: string[][]) => {
     const markdown = stringifyMarkdownTable(tableData, { trimTrailingEmptyBodyRows: false });

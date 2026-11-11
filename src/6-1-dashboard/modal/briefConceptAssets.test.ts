@@ -64,6 +64,7 @@ describe("location frames", () => {
     });
     const view = reviewConceptView(serializeBriefConcept({
       voiceOver: "Dengarkan dulu.",
+      reason: "Konten ini dibuat karena penonton perlu melihat masalahnya lebih dulu.",
       locations: [{ handle: "@location_rumah", description: "Ruang tamu pagi hari" }],
       characters: [],
       properties: [],
@@ -71,6 +72,7 @@ describe("location frames", () => {
     expect(view).toMatchObject({
       mode: "structured",
       voiceOver: "Dengarkan dulu.",
+      reason: "Konten ini dibuat karena penonton perlu melihat masalahnya lebih dulu.",
       locations: [{ handle: "@location_rumah", description: "Ruang tamu pagi hari" }],
     });
   });

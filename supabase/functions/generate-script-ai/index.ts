@@ -63,13 +63,14 @@ function parseCarouselObject(raw: string): Record<string, unknown> | null {
 }
 
 function shrinkCarouselPrompt(prompt: string): string {
-  if (prompt.length <= 4500) return prompt;
+  if (prompt.length <= 8000) return prompt;
+  const briefAt = prompt.indexOf("Brief kerja");
+  const rules = prompt.slice(0, briefAt > 0 ? briefAt : 2400).trim();
   const productAt = prompt.indexOf("Product Knowledge:");
   const ideaAt = prompt.lastIndexOf("Idea yang dipakai:");
-  const head = prompt.slice(0, 1600);
-  const product = productAt >= 0 ? prompt.slice(productAt, productAt + 900) : "";
-  const idea = ideaAt >= 0 ? prompt.slice(ideaAt, ideaAt + 1200) : "";
-  return `${head}\n${product}\n${idea}`.slice(0, 4000);
+  const product = productAt >= 0 ? prompt.slice(productAt, productAt + 900).trim() : "";
+  const idea = ideaAt >= 0 ? prompt.slice(ideaAt, ideaAt + 1400).trim() : "";
+  return [rules, product, idea].filter(Boolean).join("\n").slice(0, 8000);
 }
 
 function carouselCellText(input: unknown, limit = 500): string {
@@ -192,10 +193,10 @@ function normalizeCarouselScript(raw: string): string {
     typeof value?.storyboard === "string" ? value.storyboard : "",
     raw,
   ].join("\n");
-  const slides = fromRows.length >= 5 ? fromRows : carouselFromProse(proseSource);
+  const slides = fromRows.length >= 2 ? fromRows : carouselFromProse(proseSource);
   const finished = value ? finishCarouselScript(value, slides) : null;
   if (finished) return finished;
-  if (slides.length >= 5) {
+  if (slides.length >= 2) {
     const finishedProse = finishCarouselScript({ title: "", caption: "" }, slides);
     if (finishedProse) return finishedProse;
   }
@@ -443,7 +444,7 @@ Return HANYA teks yang sudah direvisi, tanpa penjelasan tambahan. Format output 
       const carouselDraft = isThinkingJson && prompt.includes("Content Plan Carousel");
       const executionCheck = isThinkingJson && prompt.includes("thinking.execution.check");
       const thinkingPrefix = carouselDraft
-        ? "Return JSON only. Use the keys title, post_date, caption, slides, content_pillar_id, product_knowledge_id, and product_knowledge_fields. Do not use a brief key. caption is one short Indonesian sentence and must contain #. slides has 2 to 10 objects. Choose the count. timing is exactly Slide 1, then Slide 2, and so on, with no extra punctuation. visual is one scene sentence, not a file path. vo, element, and tagging may be empty strings. Do not write anything outside that JSON."
+        ? "Return JSON only. Use the keys title, post_date, caption, concept, slides, content_pillar_id, product_knowledge_id, and product_knowledge_fields. Do not use a brief key. caption is one short Indonesian sentence and must contain #. concept is required, 40 to 800 Indonesian characters, and explains why this content was made. slides has 2 to 10 objects. Choose the count. timing is exactly Slide 1, then Slide 2, and so on, with no extra punctuation. visual is one scene sentence, not a file path. vo and element are required on every slide and must not be empty. vo is the on-slide Indonesian copy. element holds the other on-slide parts. Slide 1 element must start with Hook headline: and then Visual hook:. tagging may be empty. Do not write anything outside that JSON."
         : executionCheck
           ? "Return JSON only. Use the keys statement, checks, facts, and script. checks must contain exactly these ids, each as an object with id and state: hookHolds, soundsSpoken, usesSlang, pillarFits, formatHolds, mechanismVisible, messageStays, causeChain, viewerClimb, emotionalTone. state is pass or fail. facts.resolution is RESOLVED, facts.relationToParent is VALID_EXECUTION, and facts.unresolvedReasons is an empty array only when every state is pass. script is an object with title. Do not return only an ok key."
           : THINKING_JSON_SYSTEM;

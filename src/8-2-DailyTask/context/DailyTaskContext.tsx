@@ -2142,14 +2142,12 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
               if (assignedEmployeeId) {
                 newPicProductionId = assignedEmployeeId;
                 newPicProductionSource = 'task_steps_assigned';
-              } else if (planData.google_drive_link) {
-                if (planData.pic_production_source === 'google_drive_link' && planData.pic_production_id) {
-                  newPicProductionId = planData.pic_production_id;
-                  newPicProductionSource = 'google_drive_link';
-                } else {
-                  newPicProductionId = null;
-                  newPicProductionSource = null;
-                }
+              } else if (planData.pic_production_source === 'content_pic' && planData.pic_production_id) {
+                newPicProductionId = planData.pic_production_id;
+                newPicProductionSource = 'content_pic';
+              } else if (planData.google_drive_link && planData.pic_production_source === 'google_drive_link' && planData.pic_production_id) {
+                newPicProductionId = planData.pic_production_id;
+                newPicProductionSource = 'google_drive_link';
               } else {
                 newPicProductionId = null;
                 newPicProductionSource = null;
@@ -2237,14 +2235,12 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
               if (assignedEmployeeId) {
                 newPicProductionId = assignedEmployeeId;
                 newPicProductionSource = 'task_steps_assigned';
-              } else if (planData.google_drive_link) {
-                if (planData.pic_production_source === 'google_drive_link' && planData.pic_production_id) {
-                  newPicProductionId = planData.pic_production_id;
-                  newPicProductionSource = 'google_drive_link';
-                } else {
-                  newPicProductionId = null;
-                  newPicProductionSource = null;
-                }
+              } else if (planData.pic_production_source === 'content_pic' && planData.pic_production_id) {
+                newPicProductionId = planData.pic_production_id;
+                newPicProductionSource = 'content_pic';
+              } else if (planData.google_drive_link && planData.pic_production_source === 'google_drive_link' && planData.pic_production_id) {
+                newPicProductionId = planData.pic_production_id;
+                newPicProductionSource = 'google_drive_link';
               } else {
                 newPicProductionId = null;
                 newPicProductionSource = null;
@@ -2444,14 +2440,12 @@ export const DailyTaskProvider = ({ children }: DailyTaskProviderProps) => {
               if (assignedEmployeeId) {
                 newPicProductionId = assignedEmployeeId;
                 newPicProductionSource = 'task_steps_assigned';
-              } else if (planData.google_drive_link) {
-                if (planData.pic_production_source === 'google_drive_link' && planData.pic_production_id) {
-                  newPicProductionId = planData.pic_production_id;
-                  newPicProductionSource = 'google_drive_link';
-                } else {
-                  newPicProductionId = null;
-                  newPicProductionSource = null;
-                }
+              } else if (planData.pic_production_source === 'content_pic' && planData.pic_production_id) {
+                newPicProductionId = planData.pic_production_id;
+                newPicProductionSource = 'content_pic';
+              } else if (planData.google_drive_link && planData.pic_production_source === 'google_drive_link' && planData.pic_production_id) {
+                newPicProductionId = planData.pic_production_id;
+                newPicProductionSource = 'google_drive_link';
               } else {
                 newPicProductionId = null;
                 newPicProductionSource = null;

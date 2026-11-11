@@ -1,3 +1,5 @@
+import { Loader2 } from "lucide-react";
+
 export type CanvaCarouselRun = {
   social_media_plan_id: string;
   status: string;
@@ -13,6 +15,8 @@ function failedSentence(error: string | null): string {
   if (error === "canva_not_connected" || error === "canva_dispatch_missing") return "Canva belum terhubung";
   if (error === "canva_tool_missing") return "Canva belum punya alat desain";
   if (error === "not_approved") return "Persetujuan berubah sebelum desain dibuat";
+  const detail = String(error ?? "").replace(/^canva_job_failed:/, "").trim();
+  if (detail && detail !== "canva_failed") return `Canva gagal: ${detail.slice(0, 120)}`;
   return "Canva gagal membuat desain";
 }
 
@@ -27,18 +31,10 @@ export function CanvaCarouselNote({
 }) {
   if (!run) return null;
   if (run.revision_requested && run.status === "succeeded") {
-    return (
-      <p className={onPrimary ? "text-[11px] leading-4 text-white/85" : "text-[11px] leading-4 text-muted-foreground"}>
-        Canva sedang merevisi
-      </p>
-    );
+    return <CanvaWorkingNote text="Canva sedang merevisi" onPrimary={onPrimary} />;
   }
   if (run.status === "queued" || run.status === "running") {
-    return (
-      <p className={onPrimary ? "text-[11px] leading-4 text-white/85" : "text-[11px] leading-4 text-muted-foreground"}>
-        Canva sedang membuat desain
-      </p>
-    );
+    return <CanvaWorkingNote text="Canva sedang membuat desain" onPrimary={onPrimary} />;
   }
   if (run.status === "failed") {
     return (
@@ -62,4 +58,20 @@ export function CanvaCarouselNote({
     );
   }
   return null;
+}
+
+function CanvaWorkingNote({ text, onPrimary = false }: { text: string; onPrimary?: boolean }) {
+  return (
+    <p
+      role="status"
+      className={
+        onPrimary
+          ? "inline-flex items-center gap-1 text-[11px] leading-4 text-white/85"
+          : "inline-flex items-center gap-1 text-[11px] leading-4 text-muted-foreground"
+      }
+    >
+      <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden />
+      {text}
+    </p>
+  );
 }

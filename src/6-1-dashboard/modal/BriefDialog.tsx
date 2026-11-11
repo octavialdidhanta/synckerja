@@ -20,11 +20,11 @@ import {
   upsertBriefFieldVersionsInMarkdown,
   type BriefFieldVersions,
 } from './briefFieldVersions';
-import { stripBriefIntroductorySentence, extractBriefTitle, removeBriefTitleFromStart, stripBreakdownScriptLabel, makeBriefSectionsInline } from '@/shared/utils/briefUtils';
+import { stripBriefIntroductorySentence, extractBriefTitle, removeBriefTitleFromStart, stripBreakdownScriptLabel, makeBriefSectionsInline, stripBriefPaletteLine } from '@/shared/utils/briefUtils';
 import { EditableBriefTable } from './EditableBriefTable';
 import { BriefStoryboardEmptyState } from './BriefStoryboardEmptyState';
 import { CreateBriefTableDialog } from './CreateBriefTableDialog';
-import { DEFAULT_BRIEF_STORYBOARD_HEADERS, isBriefStoryboardTableCanonical, normalizeBriefStoryboardTable } from './briefStoryboardConstants';
+import { DEFAULT_BRIEF_STORYBOARD_HEADERS, isBriefStoryboardTableCanonical, isCarouselContentBrief, normalizeBriefStoryboardTable, toCarouselStoryboardTable } from './briefStoryboardConstants';
 import { useLinkComments } from '../hook/useLinkComments';
 import { useBriefExtended } from '../hook/useBriefExtended';
 import { formatDistanceToNow } from 'date-fns';
@@ -493,12 +493,15 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   const parsedTable = useMemo(() => {
     const parsed = parseMarkdownTable(briefText);
     if (!parsed?.table?.length) return parsed;
+    if (!isThinkingLabBrief(briefText) && isCarouselContentBrief(contentTypeName, briefText)) {
+      return { ...parsed, table: toCarouselStoryboardTable(parsed.table) };
+    }
     if (isThinkingLabBrief(briefText) || isBriefStoryboardTableCanonical(parsed.table)) return parsed;
     return {
       ...parsed,
       table: normalizeBriefStoryboardTable(parsed.table),
     };
-  }, [briefText]);
+  }, [briefText, contentTypeName]);
   const thinkingLabParts = useMemo(() => {
     if (!isThinkingLabBrief(briefText)) return [];
     const tables = parseAllMarkdownTables(briefText);
@@ -516,12 +519,11 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
     if (tail) parts.push({ kind: "prose", text: tail });
     return parts;
   }, [briefText]);
+  const planTitle = contentPlans?.find((plan) => plan.id === socialMediaPlanId)?.title?.trim() ?? "";
   const briefTitle = useMemo(
     () =>
-      extractBriefTitle(
-        stripBriefStorageComments(briefText),
-      ),
-    [briefText],
+      extractBriefTitle(stripBriefPaletteLine(stripBriefStorageComments(briefText))) || planTitle || null,
+    [briefText, planTitle],
   );
   const briefProseBeforeTable = useMemo(() => {
     if (!parsedTable || parsedTable.startIndex <= 0) return '';
@@ -535,7 +537,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
   }, [briefText, parsedTable]);
   const briefProseAfterTable = useMemo(() => {
     if (!parsedTable || parsedTable.endIndex >= briefText.length) return '';
-    return stripBriefStorageComments(briefText.slice(parsedTable.endIndex)).trim();
+    return stripBriefPaletteLine(stripBriefStorageComments(briefText.slice(parsedTable.endIndex))).trim();
   }, [briefText, parsedTable]);
 
   const normalizeTableDataForSave = (
@@ -913,7 +915,7 @@ const BriefDialog: React.FC<BriefDialogProps> = ({
                             {parseBriefConcept(targetAudienceText) ? (
                               <BriefConceptEditor
                                 planId={socialMediaPlanId}
-                                planTitle={contentPlans?.find((plan) => plan.id === socialMediaPlanId)?.title ?? ""}
+                                planTitle={planTitle}
                                 briefText={briefText}
                                 captionText={captionText}
                                 contentTypeName={contentTypeName}

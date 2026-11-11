@@ -52,24 +52,16 @@ export const useSyncPicProduction = () => {
       let newPicProductionSource: string | null = null;
       
       if (assignedEmployeeId) {
-        // Priority: task_steps_assigned > google_drive_link
+        // Priority: task_steps_assigned > content plan PIC > google_drive_link
         newPicProductionId = assignedEmployeeId;
         newPicProductionSource = 'task_steps_assigned';
-      } else if (googleDriveLink) {
-        // Fallback to Google Drive Link if no assignment
-        // If current pic_production_id exists and source is 'google_drive_link', keep it
-        // Otherwise, we can't auto-assign without knowing who added the link
-        if (currentPicProductionSource === 'google_drive_link' && currentPicProductionId) {
-          newPicProductionId = currentPicProductionId;
-          newPicProductionSource = 'google_drive_link';
-        } else {
-          // If no current pic_production_id from Google Drive Link, we can't auto-assign
-          // This should be handled by the Google Drive Link change handler
-          newPicProductionId = null;
-          newPicProductionSource = null;
-        }
+      } else if (currentPicProductionSource === 'content_pic' && currentPicProductionId) {
+        newPicProductionId = currentPicProductionId;
+        newPicProductionSource = 'content_pic';
+      } else if (googleDriveLink && currentPicProductionSource === 'google_drive_link' && currentPicProductionId) {
+        newPicProductionId = currentPicProductionId;
+        newPicProductionSource = 'google_drive_link';
       } else {
-        // No assignment and no Google Drive Link
         newPicProductionId = null;
         newPicProductionSource = null;
       }
@@ -190,7 +182,7 @@ export const useSyncPicProduction = () => {
         // Jadi: Abaikan latestAssignment di sini, kecuali kita sedang menyamakan source 'google_drive_link'.
 
         // Jika ada Google Drive Link dan sudah ada pic_production_id, pastikan sumbernya 'google_drive_link'.
-        if (plan.google_drive_link && plan.pic_production_id && plan.pic_production_source !== 'google_drive_link') {
+        if (plan.google_drive_link && plan.pic_production_id && plan.pic_production_source !== 'google_drive_link' && plan.pic_production_source !== 'content_pic') {
           updates.push({
             id: plan.id,
             pic_production_id: plan.pic_production_id,

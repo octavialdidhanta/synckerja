@@ -14,6 +14,7 @@ export type LocationFrame = "9:16" | BriefPostAspect | "16:9";
 
 export type BriefConceptDocument = {
   voiceOver?: string;
+  reason?: string;
   locations: BriefConceptAsset[];
   characters: BriefConceptAsset[];
   properties: BriefConceptAsset[];
@@ -134,9 +135,11 @@ export function emptyBriefConcept(): BriefConceptDocument {
 
 export function serializeBriefConcept(document: BriefConceptDocument): string {
   const voiceOver = document.voiceOver?.trim() ?? "";
+  const reason = document.reason?.trim() ?? "";
   return JSON.stringify({
     v: 1,
     ...(voiceOver ? { voiceOver } : {}),
+    ...(reason ? { reason } : {}),
     ...(document.postAspect ? { postAspect: document.postAspect } : {}),
     locations: document.locations,
     characters: document.characters,
@@ -153,12 +156,14 @@ export function parseBriefConcept(raw: string): BriefConceptDocument | null {
   if (!text) return emptyBriefConcept();
   if (!text.startsWith("{")) return null;
   try {
-    const row = JSON.parse(text) as { v?: unknown; voiceOver?: unknown; postAspect?: unknown; locations?: unknown; characters?: unknown; properties?: unknown };
+    const row = JSON.parse(text) as { v?: unknown; voiceOver?: unknown; reason?: unknown; postAspect?: unknown; locations?: unknown; characters?: unknown; properties?: unknown };
     if (row.v !== 1) return null;
     const postAspect = readPostAspect(row.postAspect);
     const voiceOver = asText(row.voiceOver);
+    const reason = asText(row.reason);
     return {
       ...(voiceOver ? { voiceOver } : {}),
+      ...(reason ? { reason } : {}),
       ...(postAspect ? { postAspect } : {}),
       locations: readAssets(row.locations, "location"),
       characters: readAssets(row.characters, "character"),
@@ -197,6 +202,7 @@ export function mergeBriefConceptVisuals(previousRaw: string | null | undefined,
   return serializeBriefConcept({
     ...next,
     voiceOver: next.voiceOver?.trim() || previous.voiceOver,
+    reason: next.reason?.trim() || previous.reason,
     postAspect: next.postAspect ?? previous.postAspect,
     locations: next.locations.map((item) => keepStoredVisual(item, locations.get(item.handle))),
     characters: next.characters.map((item) => keepStoredVisual(item, characters.get(item.handle))),
@@ -205,7 +211,9 @@ export function mergeBriefConceptVisuals(previousRaw: string | null | undefined,
 }
 
 export function briefConceptHasContent(document: BriefConceptDocument): boolean {
-  return Boolean(document.voiceOver?.trim()) || document.locations.length + document.characters.length + document.properties.length > 0;
+  return Boolean(document.reason?.trim())
+    || Boolean(document.voiceOver?.trim())
+    || document.locations.length + document.characters.length + document.properties.length > 0;
 }
 
 export type ReviewConceptView =
@@ -213,6 +221,7 @@ export type ReviewConceptView =
   | { mode: 'plain'; text: string }
   | {
       mode: 'structured';
+      reason: string;
       voiceOver: string;
       locations: BriefConceptAsset[];
       characters: BriefConceptAsset[];
@@ -228,6 +237,7 @@ export function reviewConceptView(raw: string | null | undefined): ReviewConcept
   if (!briefConceptHasContent(concept)) return { mode: 'hidden' };
   return {
     mode: 'structured',
+    reason: concept.reason?.trim() ?? '',
     voiceOver: concept.voiceOver?.trim() ?? '',
     locations: concept.locations,
     characters: concept.characters,

@@ -102,7 +102,7 @@ type DbWebhookPayload = {
 type ClaimedRow = {
   id: string;
   recipient_user_id: string;
-  event_type: "approved" | "revision_requested" | "revision_submitted";
+  event_type: "approved" | "revision_requested" | "revision_submitted" | "need_review";
   plan_title: string;
   url: string;
   review_token: string | null;
@@ -129,6 +129,11 @@ function pushCopyForEvent(
       return {
         title: "Revisi siap direview",
         body: `${label} sudah dikirim ulang untuk review.`,
+      };
+    case "need_review":
+      return {
+        title: "Produksi perlu direview",
+        body: `${label} menunggu review produksi.`,
       };
     default:
       return { title: "Produksi konten", body: label };

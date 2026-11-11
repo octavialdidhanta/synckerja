@@ -52,9 +52,8 @@ export function MobileToolsDailyTaskJobDescPageSkeletonOverlay() {
                     </div>
                     <Skeleton className="mt-2 h-3 w-56 max-w-full" aria-hidden />
                   </CardHeader>
-                  <CardContent className="flex min-h-0 flex-1 flex-col space-y-1 p-0">
-                    <div className="shrink-0 space-y-1 px-0">
-                      <Skeleton className="h-3 w-24" aria-hidden />
+                  <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-0">
+                    <div className="shrink-0 space-y-3 px-0">
                       <div className="flex flex-wrap gap-2">
                         <Skeleton className="h-8 w-20 rounded-md" aria-hidden />
                         <Skeleton className="h-8 w-24 rounded-md" aria-hidden />
@@ -69,8 +68,8 @@ export function MobileToolsDailyTaskJobDescPageSkeletonOverlay() {
                         <Skeleton className="h-8 rounded-sm" aria-hidden />
                       </div>
                     </div>
-                    <div className="content-padding-above-nav-job-desc flex min-h-0 w-full min-w-0 flex-1 flex-col space-y-1 px-0 pb-1">
-                      <div className="grid grid-cols-2 gap-2">
+                    <div className="content-padding-above-nav-job-desc flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 px-0 pb-1">
+                      <div className="grid grid-cols-2 gap-3">
                         <Skeleton className="h-24 w-full rounded-lg border border-primary/20 bg-primary/5" aria-hidden />
                         <Skeleton className="h-24 w-full rounded-lg border border-emerald-100 bg-emerald-50/80" aria-hidden />
                       </div>

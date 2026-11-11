@@ -47,12 +47,14 @@ import GoogleDriveFolderCarousel from '../modal/GoogleDriveFolderCarousel';
 import { useProdApprovalAccess } from '../hook/useProdApprovalAccess';
 import { useAuth } from '@/shared/auth/contexts/AuthContext';
 import { useUnifiedProfile } from '@/shared/hooks/useUnifiedProfile';
-import { useSafeAreaInsets } from '@/mobile/shared/contexts/SafeAreaInsetsContext';
 import { useIsMobile } from '@/mobile/shared/hooks/use-mobile';
+import { useStatusBarStyle } from '@/shared/hooks/useStatusBarStyle';
 import { revertStepCompletionFromDriveLinkRemovalWithRpc } from '@/8-2-DailyTask/services/completionApprovalService';
 import { triggerPlanAutoSchedule } from '@/6-1-scheduled-posts/lib/triggerPlanAutoSchedule';
 
 const REVIEW_COMMENTER_STORAGE_KEY = 'review_commenter_';
+/** Tinggi baris header di bawah status bar (padding + judul), tanpa inset sistem. */
+const REVIEW_HEADER_BODY_PX = 52;
 
 const LOAD_TIMEOUT_MS = 20000;
 
@@ -343,6 +345,12 @@ function ReviewConceptCard({
           <p className="whitespace-pre-wrap break-words">{view.text}</p>
         ) : (
           <>
+            {view.reason ? (
+              <div>
+                <p className="font-medium text-gray-900">{t('briefDialog.conceptReason', 'Mengapa konten ini dibuat')}</p>
+                <p className="mt-1 whitespace-pre-wrap">{view.reason}</p>
+              </div>
+            ) : null}
             {view.voiceOver ? (
               <div>
                 <p className="font-medium text-gray-900">{t('briefDialog.conceptVoiceOver', 'Script VO')}</p>
@@ -364,7 +372,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   const navigate = useNavigate();
   const location = useLocation();
   const t = usePublicReviewT();
-  const safeArea = useSafeAreaInsets();
+  useStatusBarStyle('light');
   const [content, setContent] = useState<PublicReviewContent | null>(null);
   const [briefExtended, setBriefExtended] = useState<PublicReviewBriefExtended | null>(null);
   const [comments, setComments] = useState<PublicReviewComment[]>([]);
@@ -390,6 +398,10 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   const [drivePreviewPosterUrl, setDrivePreviewPosterUrl] = useState<string | null>(null);
   const [videoStreamReady, setVideoStreamReady] = useState(false);
   const [approvalLoading, setApprovalLoading] = useState(false);
+  /** True after this plan is already Approved, including a successful approve in this session. */
+  const [productionApproved, setProductionApproved] = useState(false);
+  const [approvalKnown, setApprovalKnown] = useState(false);
+  const [pendingDeleteCommentId, setPendingDeleteCommentId] = useState<string | null>(null);
   const [carouselPreviewIndex, setCarouselPreviewIndex] = useState(0);
   const [carouselDownloading, setCarouselDownloading] = useState(false);
   /** True only after user has successfully sent at least one comment this session (enables Request Revision) */
@@ -560,6 +572,36 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
       }
     }
   }, [token, isLoggedIn, profileDisplayName]);
+
+  useEffect(() => {
+    const planId = content?.social_media_plan_id;
+    if (!planId || !isLoggedIn) {
+      setApprovalKnown(!planId || !isLoggedIn);
+      return;
+    }
+    let cancelled = false;
+    setApprovalKnown(false);
+    void supabase
+      .from('social_media_plans')
+      .select('production_approved, production_status')
+      .eq('id', planId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (!error) {
+          setProductionApproved(
+            data?.production_approved === true || data?.production_status === 'Approved',
+          );
+        }
+        setApprovalKnown(true);
+      })
+      .catch(() => {
+        if (!cancelled) setApprovalKnown(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [content?.social_media_plan_id, isLoggedIn]);
 
   /** Preconnect Supabase functions origin for faster stream/thumbnail on public review. */
   useEffect(() => {
@@ -865,8 +907,13 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
     }
   };
 
-  const isOwnComment = (c: PublicReviewComment) =>
-    !!commenterDisplayName.trim() && c.creator_display_name.trim().toLowerCase() === commenterDisplayName.trim().toLowerCase();
+  const isOwnComment = (c: PublicReviewComment) => {
+    if (user?.id && c.created_by && c.created_by === user.id) return true;
+    return (
+      !!commenterDisplayName.trim() &&
+      c.creator_display_name.trim().toLowerCase() === commenterDisplayName.trim().toLowerCase()
+    );
+  };
 
   /** Request Revision hanya boleh setelah user saat ini (nama di kolom comment) sudah mengirim minimal satu komentar */
   const hasCurrentUserCommented = comments.some(isOwnComment);
@@ -887,10 +934,12 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
     if (!text) return;
     setActionLoading(true);
     try {
+      const editingComment = comments.find((item) => item.id === editingCommentId);
+      const authorName = (editingComment?.creator_display_name || commenterDisplayName).trim();
       const { error: rpcError } = await supabase.rpc('update_public_review_comment', {
         comment_id: editingCommentId,
         token_param: token,
-        commenter_display_name: commenterDisplayName.trim(),
+        commenter_display_name: authorName,
         new_comment_text: text,
       });
       if (rpcError) throw rpcError;
@@ -907,17 +956,20 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
   };
 
   const handleDeleteComment = async (c: PublicReviewComment) => {
-    if (!token || !commenterDisplayName.trim()) return;
-    if (!window.confirm(t('publicReview.comments.deleteConfirm', 'Delete this comment?'))) return;
+    if (!token || !isOwnComment(c)) return;
+    const authorName = (c.creator_display_name || commenterDisplayName).trim();
+    if (!authorName) return;
     setActionLoading(true);
     try {
       const { error: rpcError } = await supabase.rpc('delete_public_review_comment', {
         comment_id: c.id,
         token_param: token,
-        commenter_display_name: commenterDisplayName.trim(),
+        commenter_display_name: authorName,
       });
       if (rpcError) throw rpcError;
       toast.success(t('publicReview.toast.deleted', 'Comment deleted'));
+      setPendingDeleteCommentId(null);
+      setEditingCommentId((current) => (current === c.id ? null : current));
       await loadComments();
     } catch (e) {
       devLog.warn('Delete comment error', e);
@@ -958,6 +1010,8 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
       if (planRow?.organization_id) {
         void triggerPlanAutoSchedule(planId, planRow.organization_id);
       }
+      setProductionApproved(true);
+      setApprovalKnown(true);
       toast.success(t('publicReview.toast.approveSuccess', 'Production approved successfully'));
     } catch (e) {
       devLog.error('Error in handleApprove:', e);
@@ -1077,6 +1131,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
           });
         }
       }
+      setProductionApproved(false);
       toast.success(t('publicReview.toast.revisionSuccess', 'Production status updated to Request Revision'));
       if (showBackToHome) {
         const from = (location.state as { from?: string } | null)?.from;
@@ -1194,11 +1249,6 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                 minHeight: '100dvh',
                 height: '100dvh',
                 maxHeight: '100dvh',
-                ...(showBackToHome
-                  ? {
-                      marginTop: safeArea.top > 24 ? 0 : safeArea.top > 0 ? -safeArea.top : 0,
-                    }
-                  : {}),
               }
             : scrollContainerStyle
       }
@@ -1250,14 +1300,9 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
       {showBackToHome && (
         <>
           <header
-            className="z-30 flex items-center gap-2 px-3 pb-2 bg-card border-b border-border min-w-0 fixed left-0 right-0"
+            className="safe-area-top z-30 flex items-center gap-2 bg-card border-b border-border min-w-0 fixed left-0 right-0 p-3"
             style={{
               top: headerFixed ? viewportOffsetTop : 0,
-              paddingTop: safeArea.top + 16,
-              paddingBottom: 12,
-              position: 'fixed' as const,
-              left: 0,
-              right: 0,
             }}
           >
             <button
@@ -1311,12 +1356,14 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
             ? {
                 paddingTop: showBackToHome
                   ? headerFixed
-                    ? viewportOffsetTop + safeArea.top + 68
-                    : safeArea.top + 68
+                    ? `calc(${viewportOffsetTop}px + var(--safe-area-inset-top, 0px) + ${REVIEW_HEADER_BODY_PX}px)`
+                    : `calc(var(--safe-area-inset-top, 0px) + ${REVIEW_HEADER_BODY_PX}px)`
                   : '1rem',
                 paddingBottom: '0.25rem',
               }
-            : { paddingBottom: `calc(5.5rem + ${safeArea.bottom}px)` }
+            : {
+                paddingBottom: `calc(5.5rem + max(var(--footer-bottom-inset, 0px), var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px)))`,
+              }
         }
       >
         {/* Preview with header (title + metadata). Video: portrait (Reel) = 9/16, landscape = 16/9. Section responsive: min-height on video wrapper so content is not cut off. */}
@@ -1449,7 +1496,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                             )}
                           </Button>
                         </div>
-                        <div className="flex items-center justify-center gap-2 flex-shrink-0">
+                        <div className="flex items-center justify-center gap-2 flex-shrink-0 pb-3">
                           {isMobileViewport ? (
                             <div className="flex items-center gap-1.5" role="tablist" aria-label="Carousel slides">
                               {urls.map((_, i) => (
@@ -1787,7 +1834,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                           <span className="font-medium text-gray-800 truncate block">{c.creator_display_name}</span>
                           <span className="text-gray-500 whitespace-nowrap">{c.created_at ? format(new Date(c.created_at), 'dd MMM yyyy, HH:mm') : ''}</span>
                         </div>
-                        {own && !isEditing && (
+                        {own && !isEditing && pendingDeleteCommentId !== c.id && (
                           <div className="absolute top-0 right-0 flex items-center gap-0 flex-shrink-0 mt-0.5 mr-0.5 sm:mt-1 sm:mr-1">
                             <button
                               type="button"
@@ -1800,7 +1847,7 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDeleteComment(c)}
+                              onClick={() => setPendingDeleteCommentId(c.id)}
                               disabled={actionLoading}
                               className="min-h-[32px] min-w-[32px] flex items-center justify-center p-1 rounded text-gray-500 hover:text-red-600 hover:bg-red-50 touch-manipulation"
                               aria-label={t('publicReview.comments.delete', 'Delete')}
@@ -1829,6 +1876,32 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                         </div>
                       ) : (
                         <p className="text-sm text-gray-900 whitespace-pre-wrap break-words">{c.comment_text ?? ''}</p>
+                      )}
+                      {own && pendingDeleteCommentId === c.id && (
+                        <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                          <p className="mr-auto text-xs text-gray-600">
+                            {t('publicReview.comments.deleteConfirm', 'Delete this comment?')}
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setPendingDeleteCommentId(null)}
+                            disabled={actionLoading}
+                            className="h-8 min-h-[36px] touch-manipulation"
+                          >
+                            {t('publicReview.comments.cancel', 'Cancel')}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => void handleDeleteComment(c)}
+                            disabled={actionLoading}
+                            className="h-8 min-h-[36px] bg-red-600 text-white hover:bg-red-700 touch-manipulation"
+                          >
+                            {actionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t('publicReview.comments.delete', 'Delete')}
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1867,11 +1940,15 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
                 <div className="w-full flex flex-nowrap items-center gap-3 pt-2 border-t border-gray-100 flex-shrink-0 pb-4">
                   <Button
                     onClick={handleApprove}
-                    disabled={approvalLoading || !!commentText.trim() || hasSuccessfullySentCommentThisSession}
-                    className="flex-1 min-w-0 h-9 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium px-3 gap-2 min-h-[44px] touch-manipulation"
+                    disabled={approvalLoading || !approvalKnown || productionApproved || !!commentText.trim() || hasSuccessfullySentCommentThisSession}
+                    className="flex-1 min-w-0 h-9 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium px-3 gap-2 min-h-[44px] touch-manipulation disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Check className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{t('publicReview.approveContent', 'Approve Content')}</span>
+                    <span className="truncate">
+                      {productionApproved
+                        ? t('publicReview.approveContentDone', 'Approved')
+                        : t('publicReview.approveContent', 'Approve Content')}
+                    </span>
                   </Button>
                   <Button
                     onClick={handleRevision}
@@ -1890,12 +1967,11 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
         </div>
       {commentFooterOutsideScroll && (
         <div
-          className="flex-shrink-0 w-full max-w-2xl mx-auto bg-gray-50 border-t border-gray-200 px-3 sm:p-4 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]"
-          style={{
-            paddingBottom: keyboardOpen
-              ? '0.5rem'
-              : safeArea.bottom > 0 ? `${safeArea.bottom}px` : '0.125rem',
-          }}
+          className={cn(
+            'flex-shrink-0 w-full max-w-2xl mx-auto bg-gray-50 border-t border-gray-200 px-3 sm:p-4 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]',
+            !keyboardOpen && 'review-footer-safe',
+          )}
+          style={keyboardOpen ? { paddingBottom: '0.5rem' } : undefined}
         >
           <div className="space-y-3 pt-3">
             <div className="relative">
@@ -1947,11 +2023,15 @@ const PublicContentReviewPage: React.FC<PublicContentReviewPageProps> = ({ showB
               <div className="w-full flex flex-nowrap items-center gap-3 pt-2 border-t border-gray-200 flex-shrink-0 pb-2">
                 <Button
                   onClick={handleApprove}
-                  disabled={approvalLoading || !!commentText.trim() || hasSuccessfullySentCommentThisSession}
-                  className="flex-1 min-w-0 h-9 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium px-3 gap-2 min-h-[44px] touch-manipulation"
+                  disabled={approvalLoading || !approvalKnown || productionApproved || !!commentText.trim() || hasSuccessfullySentCommentThisSession}
+                  className="flex-1 min-w-0 h-9 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium px-3 gap-2 min-h-[44px] touch-manipulation disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Check className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{t('publicReview.approveContent', 'Approve Content')}</span>
+                  <span className="truncate">
+                    {productionApproved
+                      ? t('publicReview.approveContentDone', 'Approved')
+                      : t('publicReview.approveContent', 'Approve Content')}
+                  </span>
                 </Button>
                 <Button
                   onClick={handleRevision}

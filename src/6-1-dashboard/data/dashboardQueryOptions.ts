@@ -43,7 +43,7 @@ const CONTENT_PLANS_SELECT = `
   sub_service:sub_services(id, name),
   content_pillar:content_pillars(id, name, color),
   pic:employees!social_media_plans_pic_id_fkey(id, full_name, is_ai),
-  pic_production:employees!social_media_plans_pic_production_id_fkey(id, full_name),
+  pic_production:employees!social_media_plans_pic_production_id_fkey(id, full_name, is_ai),
   post_link_creator:employees!social_media_plans_post_link_created_by_fkey(id, full_name)
 `;
 

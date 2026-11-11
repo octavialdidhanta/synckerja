@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { buildCanvaCarouselBrief, carouselSlidesFromBrief } from "./canvaCarouselBrief.ts";
+import { buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, layoutOnlyDescription } from "./canvaCarouselBrief.ts";
 
 const storyboard = [
   "| Timing | Visual | VO (Voice Over) | Scene Visual | Element Lainnya | Tagging |",
@@ -31,6 +31,112 @@ Deno.test("buildCanvaCarouselBrief keeps the 4:5 ratio and every slide", () => {
     slides: carouselSlidesFromBrief(storyboard),
   });
   assertEquals(brief.includes("4:5"), true);
-  assertEquals(brief.includes("Slide 1:"), true);
+  assertEquals(brief.includes("Page 1"), true);
+  assertEquals(brief.includes("Draw: Ibu bertanya di meja makan"), true);
   assertEquals(brief.includes("#kemandirian"), true);
+});
+
+Deno.test("carouselSlidesFromBrief keeps copy, hook, and other elements", () => {
+  const filled = [
+    "| Timing | Visual | VO (Voice Over) | Scene Visual | Element Lainnya | Tagging |",
+    "| --- | --- | --- | --- | --- | --- |",
+    "| Slide 1 |  | Ibu mengira sibuk adalah sayang. | Ibu memandang kalender | Hook headline: Sibuk bukan sayang. Visual hook: Kalender menutup wajah. |  |",
+    "| Slide 2 |  | Anak butuh ibu yang hadir. | Anak menunjuk ke luar jendela | Kontras ekspresi ibu dan anak. |  |",
+  ].join("\n");
+  const slides = carouselSlidesFromBrief(filled);
+  assertEquals(slides[0].copy, "Ibu mengira sibuk adalah sayang.");
+  assertEquals(slides[0].elements.includes("Hook headline:"), true);
+  assertEquals(slides[0].elements.includes("Visual hook:"), true);
+  const brief = buildCanvaCarouselBrief({
+    title: "Hadir",
+    caption: "Lihat lagi #keluarga",
+    slides,
+  });
+  assertEquals(brief.includes("Write only: Ibu mengira sibuk adalah sayang. | Sibuk bukan sayang"), true);
+  assertEquals(brief.includes("Draw: Ibu memandang kalender. Kalender menutup wajah"), true);
+  assertEquals(brief.includes("Write only: Anak butuh ibu yang hadir. | Kontras ekspresi ibu dan anak"), true);
+  assertEquals(brief.includes("Visual hook:"), false);
+  const locked = buildCanvaCarouselBrief({
+    title: "Hadir",
+    caption: "Lihat lagi #keluarga",
+    slides,
+    styleLock: "Bold poster, red and yellow blocks, heavy sans type. Headline sits at the top.",
+    palette: { primary: "#112233", secondary: "#445566", accent: "#778899" },
+    logo: "required",
+  });
+  assertEquals(locked.includes("Layout and type: Headline sits at the top."), true);
+  assertEquals(locked.includes("named typeface"), true);
+  assertEquals(locked.includes("red and yellow"), false);
+  assertEquals(locked.includes("primary #112233"), true);
+  assertEquals(locked.includes("secondary #445566"), true);
+  assertEquals(locked.includes("accent #778899"), true);
+  assertEquals(locked.includes("text color"), false);
+  assertEquals(locked.includes("Leave the top center of every page empty."), true);
+  assertEquals(locked.includes("Do not draw a logo"), false);
+  assertEquals(locked.includes("Write only the listed words"), true);
+  assertEquals(locked.includes("Write only: Ibu mengira sibuk adalah sayang."), true);
+  const plain = buildCanvaCarouselBrief({
+    title: "Hadir",
+    caption: "Lihat lagi #keluarga",
+    slides,
+    logo: "none",
+  });
+  assertEquals(plain.includes("Leave the top center"), false);
+  assertEquals(plain.includes("Choose readable colors"), true);
+  assertEquals(carouselPalette("Warna: primer #aabbcc, sekunder #112233, aksen #445566"), {
+    primary: "#aabbcc",
+    secondary: "#112233",
+    accent: "#445566",
+  });
+  assertEquals(carouselPalette("tanpa warna"), null);
+  assertEquals(
+    layoutOnlyDescription("Photo on the left. Red blocks fill the page. The logo sits in a circle. Headline sits at the top."),
+    "Photo on the left. Headline sits at the top.",
+  );
+});
+
+Deno.test("carouselSlidesFromBrief reads Teks when the board has no voice over", () => {
+  const board = [
+    "| Timing | Visual | Scene Visual | Teks | Element Lainnya | Tagging |",
+    "| --- | --- | --- | --- | --- | --- |",
+    "| Slide 1 |  | Ibu memegang buku rencana | Sibuk merencanakan masa depan anak. | Hook headline: Visi. Visual hook: Buku. Referensi 1 |  |",
+  ].join("\n");
+  const slides = carouselSlidesFromBrief(board);
+  assertEquals(slides[0].scene, "Ibu memegang buku rencana");
+  assertEquals(slides[0].copy, "Sibuk merencanakan masa depan anak.");
+  assertEquals(slides[0].elements.includes("Referensi 1"), true);
+});
+
+Deno.test("carouselReferencePosition keeps one agreed slot", () => {
+  const withReference = [
+    "| Timing | Visual | VO (Voice Over) | Scene Visual | Element Lainnya | Tagging |",
+    "| --- | --- | --- | --- | --- | --- |",
+    "| Slide 1 |  | Ibu mengira sibuk adalah sayang. | Ibu memandang kalender | Hook headline: Sibuk bukan sayang. Visual hook: Kalender menutup wajah. Referensi 2 |  |",
+    "| Slide 2 |  | Anak butuh ibu yang hadir. | Anak menunjuk ke luar jendela | Kontras ekspresi ibu dan anak. Referensi 2 |  |",
+  ].join("\n");
+  const slides = carouselSlidesFromBrief(withReference);
+  assertEquals(carouselReferencePosition(slides), 2);
+  const brief = buildCanvaCarouselBrief({ title: "Hadir", caption: "Lihat lagi #keluarga", slides });
+  assertEquals(brief.includes("Write only: Anak butuh ibu yang hadir. | Kontras ekspresi ibu dan anak"), true);
+  assertEquals(brief.includes("Referensi 2"), false);
+  const directions = carouselSlidesFromBrief([
+    "| Timing | Visual | Scene Visual | Teks | Element Lainnya | Tagging |",
+    "| --- | --- | --- | --- | --- | --- |",
+    "| Slide 1 |  | Pertanyaan ibu | Membangun masa depan anak. | Hook headline: Visi hari ini. Visual hook: Ibu dan anak di taman. Referensi 1 |  |",
+    "| Slide 2 |  | Anak di meja belajar | Fokus pada rencana besar. | Ilustrasi anak bingung dengan tumpukan buku. Referensi 2 |  |",
+    "| Slide 3 |  | Ibu berlutut | Tanyakan hal kecil hari ini. | Dialog bubble: Apa yang ingin kamu lakukan hari ini? Referensi 1 |  |",
+    "| Slide 4 |  | Dapur | Masukkan keinginan kecil. | Gambar ibu dan anak membuat kue. Referensi 2 |  |",
+    "| Slide 5 |  | Anak tersenyum | Ajarkan keseimbangan. | Teks: Keseimbangan & Kehadiran. Referensi 1 |  |",
+  ].join("\n"));
+  const directed = buildCanvaCarouselBrief({ title: "Hadir", caption: "Lihat", slides: directions });
+  assertEquals(directed.includes("Ilustrasi anak bingung"), false);
+  assertEquals(directed.includes("Gambar ibu dan anak"), false);
+  assertEquals(/Write only:[^\n]*Apa yang ingin kamu lakukan hari ini/.test(directed), false);
+  assertEquals(directed.includes("Write only: Ajarkan keseimbangan. | Keseimbangan & Kehadiran"), true);
+  assertEquals(directed.includes("Draw: Anak di meja belajar. anak bingung dengan tumpukan buku"), true);
+  const mixed = slides.map((slide, index) => (
+    index === 1 ? { ...slide, elements: slide.elements.replace("Referensi 2", "Referensi 4") } : slide
+  ));
+  assertEquals(carouselReferencePosition(mixed), null);
+  assertEquals(carouselReferencePosition(carouselSlidesFromBrief(storyboard)), null);
 });

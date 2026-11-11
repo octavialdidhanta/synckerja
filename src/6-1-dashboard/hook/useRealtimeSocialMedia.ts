@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/shared/lib/supabaseClient';
@@ -11,7 +11,57 @@ export const useRealtimeSocialMedia = () => {
   const queryClient = useQueryClient();
   const { organizationId } = useCurrentOrg();
   const channelRef = useRef<any>(null);
+  const plansRetryRef = useRef(0);
+  const [plansEpoch, setPlansEpoch] = useState(0);
   const { syncPicProduction } = useSyncPicProduction();
+
+  useEffect(() => {
+    if (!organizationId) return;
+    let stopped = false;
+    let debounceId = 0;
+    const channel = supabase
+      .channel(`content-plan-rows-${organizationId}-${plansEpoch}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'social_media_plans',
+          filter: `organization_id=eq.${organizationId}`,
+        },
+        () => {
+          // Skip full-table refetch while Brief / Preview (Drive) / Title modal is open.
+          if (shouldDeferSocialMediaPlansRefetch()) return;
+          window.clearTimeout(debounceId);
+          debounceId = window.setTimeout(() => {
+            if (stopped) return;
+            void queryClient.refetchQueries({
+              queryKey: ['social-media-plans', organizationId],
+            });
+          }, 350);
+        },
+      )
+      .subscribe((status) => {
+        if (stopped || status === 'SUBSCRIBED') {
+          if (status === 'SUBSCRIBED') plansRetryRef.current = 0;
+          return;
+        }
+        if (status !== 'CHANNEL_ERROR' && status !== 'TIMED_OUT') return;
+        const attempt = plansRetryRef.current + 1;
+        plansRetryRef.current = attempt;
+        if (attempt > 6) return;
+        const wait = Math.min(1000 * 2 ** (attempt - 1), 10000);
+        window.setTimeout(() => {
+          if (!stopped) setPlansEpoch((value) => value + 1);
+        }, wait);
+      });
+
+    return () => {
+      stopped = true;
+      window.clearTimeout(debounceId);
+      void supabase.removeChannel(channel);
+    };
+  }, [organizationId, queryClient, plansEpoch]);
 
   useEffect(() => {
     if (!organizationId) return;
@@ -24,26 +74,6 @@ export const useRealtimeSocialMedia = () => {
     // Enhanced realtime channel with immediate updates for ALL social media data
     const channel = supabase
       .channel(`social-media-enhanced-${organizationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'social_media_plans',
-          filter: `organization_id=eq.${organizationId}`
-        },
-        (payload) => {
-          // Refetch so STATUS/APPROVED (Concept + Production) stay in sync when changed from
-          // modal Preview, /review/ page, or another tab/device.
-          // Skip full-table refetch while Brief / Preview (Drive) / Title modal is open.
-          if (shouldDeferSocialMediaPlansRefetch()) return;
-          if (organizationId) {
-            queryClient.refetchQueries({
-              queryKey: ['social-media-plans', organizationId],
-            });
-          }
-        }
-      )
       .on(
         'postgres_changes',
         {
