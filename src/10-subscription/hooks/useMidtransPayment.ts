@@ -53,6 +53,8 @@ export interface PaymentParams {
     bundled_pos_outlet_units?: number;
     /** POS product included (Sertakan); may be true with 0 extra outlets. */
     bundled_pos_addon_included?: boolean;
+    /** AI employee seats in this checkout. Webhook writes organization_subscriptions.ai_employee_paid_seat_count. */
+    bundled_ai_employee_units?: number;
     /** Full-period renewal checkout — webhook assigns add-on entitlements (not max with prior). */
     renewal_full_period?: boolean;
   };

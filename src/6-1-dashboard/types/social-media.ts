@@ -93,6 +93,7 @@ export interface SubService {
   service_id: string;
   organization_id?: string;
   image_path?: string | null;
+  library_photo_path?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

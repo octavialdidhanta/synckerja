@@ -78,6 +78,8 @@ export interface SubscriptionStatus {
   next_payment_date?: string;
   /** Purchased omnichannel roster seat entitlement (DB). */
   omnichannel_paid_seat_count?: number;
+  ai_employee_paid_seat_count?: number;
+  active_ai_employee_count?: number;
   /** Cap for roster rows = min(HR member_limit, paid omnichannel seats). */
   omnichannel_roster_seat_cap?: number;
   /** Purchased Lead Magnet add-on (flat per org). */
@@ -157,15 +159,16 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
     queryKey: subscriptionQueryKeys.status(organizationId || ""),
     queryFn: async () => {
       if (!organizationId) throw new Error("No organization ID");
-      const [{ data, error }, osRes] = await Promise.all([
+      const [{ data, error }, osRes, aiCountRes] = await Promise.all([
         supabase.rpc("get_subscription_status", {
           p_org_id: organizationId,
         }),
         supabase
           .from("organization_subscriptions")
-          .select("omnichannel_paid_seat_count, member_count, lead_magnet_active, lead_magnet_grace_until, pos_paid_outlet_count, pos_addon_active, sales_outlet_quota")
+          .select("omnichannel_paid_seat_count, member_count, lead_magnet_active, lead_magnet_grace_until, pos_paid_outlet_count, pos_addon_active, sales_outlet_quota, ai_employee_paid_seat_count")
           .eq("organization_id", organizationId)
           .maybeSingle(),
+        supabase.rpc("count_active_ai_employees_for_org", { p_org_id: organizationId }),
       ]);
       if (error) throw error;
       const raw = parseSubscriptionStatusRpcPayload(data);
@@ -260,6 +263,11 @@ export function useOptimizedSubscription(options?: UseOptimizedSubscriptionOptio
         pos_paid_outlet_count: paidPos,
         pos_addon_active: posAddonActive,
         sales_outlet_quota: salesOutletQuota,
+        ai_employee_paid_seat_count: Math.max(
+          0,
+          Number((osRes.data as { ai_employee_paid_seat_count?: number } | null)?.ai_employee_paid_seat_count ?? 0) || 0,
+        ),
+        active_ai_employee_count: Math.max(0, Number(aiCountRes.data ?? 0) || 0),
       };
       const daysRem = isExpired ? 0 : deriveSubscriptionDaysRemaining(mapped);
       mapped.days_until_expiry = daysRem;

@@ -13,9 +13,12 @@ export function AiEmployeesIndexSkeleton() {
         <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
           <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex h-full min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex min-h-full flex-col">
-              <div className="mb-1 flex-shrink-0 px-1 py-3">
-                <Skeleton className="mb-1 h-7 w-48" />
-                <Skeleton className="h-3 w-72 max-w-full" />
+              <div className="mb-1 flex flex-shrink-0 items-start justify-between gap-3 px-1 py-3">
+                <div className="min-w-0">
+                  <Skeleton className="mb-1 h-7 w-48" />
+                  <Skeleton className="h-3 w-72 max-w-full" />
+                </div>
+                <Skeleton className="h-10 w-40 shrink-0" />
               </div>
               <div
                 className="min-h-[calc(100vh-150px)] flex-1 rounded-lg p-4"

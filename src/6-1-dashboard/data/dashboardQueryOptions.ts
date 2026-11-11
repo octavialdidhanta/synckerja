@@ -3,7 +3,7 @@ import { supabase } from '@/shared/lib/supabaseClient';
 import { isEmployeeActive } from '@/2-1-employees/utils/employeeUtils';
 import type { DigitalMarketingEmployee } from '../hook/useDigitalMarketingEmployees';
 import type { SocialMediaLink } from '@/shared/types/social-media-links';
-import type { ContentPlan } from '../types/social-media';
+import type { ContentPlan, SubService } from '../types/social-media';
 
 const CONTENT_PLANS_SELECT = `
   id,
@@ -100,7 +100,7 @@ export function getMasterDataQueryOptions(organizationId: string | undefined) {
         organizationId
           ? supabase
               .from('sub_services')
-              .select('id, name, service_id, is_active, organization_id, image_path')
+              .select('id, name, service_id, is_active, organization_id, image_path, catalog_product_id')
               .eq('organization_id', organizationId)
               .eq('is_active', true)
               .order('name')
@@ -117,10 +117,26 @@ export function getMasterDataQueryOptions(organizationId: string | undefined) {
       if (servicesResult.error) throw servicesResult.error;
       if (subServicesResult.error) throw subServicesResult.error;
       if (contentPillarsResult.error) throw contentPillarsResult.error;
+      const subRows = (subServicesResult.data || []) as Array<SubService & { catalog_product_id?: string | null }>;
+      const productIds = [...new Set(subRows.map((row) => row.catalog_product_id).filter(Boolean))] as string[];
+      const photoByProduct = new Map<string, string>();
+      if (productIds.length > 0) {
+        const { data: products } = await supabase
+          .from('default_prices')
+          .select('id, photo_path')
+          .in('id', productIds);
+        for (const product of products ?? []) {
+          const path = typeof product.photo_path === 'string' ? product.photo_path.trim() : '';
+          if (product.id && path) photoByProduct.set(product.id, path);
+        }
+      }
       return {
         contentTypes: contentTypesResult.data || [],
         services: servicesResult.data || [],
-        subServices: subServicesResult.data || [],
+        subServices: subRows.map((row) => ({
+          ...row,
+          library_photo_path: row.catalog_product_id ? photoByProduct.get(row.catalog_product_id) ?? null : null,
+        })),
         contentPillars: contentPillarsResult.data || [],
       };
     },

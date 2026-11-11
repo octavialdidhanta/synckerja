@@ -421,6 +421,61 @@ Deno.serve(async (req) => {
           }
         }
 
+        const prorateForAi = payment.prorate_details as {
+          bundled_ai_employee_units?: number | string;
+          renewal_full_period?: boolean | string;
+        } | null;
+        if (prorateForAi && Object.prototype.hasOwnProperty.call(prorateForAi, "bundled_ai_employee_units")) {
+          const alreadyAi =
+            (payment as { ai_employee_seats_applied?: boolean }).ai_employee_seats_applied === true;
+          if (!alreadyAi) {
+            const { data: claimedAi } = await supabase
+              .from("payments")
+              .update({ ai_employee_seats_applied: true })
+              .eq("id", payment.id)
+              .eq("ai_employee_seats_applied", false)
+              .select("id");
+            if (claimedAi && claimedAi.length > 0) {
+              const rawAi = prorateForAi.bundled_ai_employee_units;
+              const bundledAi =
+                typeof rawAi === "number" && Number.isFinite(rawAi)
+                  ? Math.round(rawAi)
+                  : typeof rawAi === "string" && rawAi.trim() !== ""
+                    ? Math.round(Number(rawAi))
+                    : 0;
+              const renewalAi =
+                prorateForAi.renewal_full_period === true ||
+                prorateForAi.renewal_full_period === "true" ||
+                prorateForAi.renewal_full_period === 1 ||
+                prorateForAi.renewal_full_period === "1";
+              const { data: subAi } = await supabase
+                .from("organization_subscriptions")
+                .select("ai_employee_paid_seat_count")
+                .eq("organization_id", payment.organization_id)
+                .maybeSingle();
+              const currentAi = Number(
+                (subAi as { ai_employee_paid_seat_count?: number } | null)?.ai_employee_paid_seat_count ?? 0,
+              );
+              const { data: activeAi } = await supabase.rpc("count_active_ai_employees_for_org", {
+                p_org_id: payment.organization_id,
+              });
+              const activeFloor = Math.max(0, Number(activeAi ?? 0) || 0);
+              const requested = Math.min(50, Math.max(0, bundledAi));
+              const nextAi = renewalAi
+                ? Math.max(requested, activeFloor)
+                : Math.max(currentAi, requested, activeFloor);
+              await supabase
+                .from("organization_subscriptions")
+                .update({
+                  ai_employee_paid_seat_count: nextAi,
+                  last_payment_id: payment.id,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("organization_id", payment.organization_id);
+            }
+          }
+        }
+
         const { data: employeesToRemove, error: employeesError } = await supabase
           .from("employees")
           .select("id, full_name, email")

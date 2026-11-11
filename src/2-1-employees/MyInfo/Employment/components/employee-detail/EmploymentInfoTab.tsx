@@ -99,7 +99,9 @@ export const EmploymentInfoTab = ({ employee, isEditMode, onUpdate }: Employment
     onEdit, 
     onDelete, 
     placeholder,
-    disabled 
+    fallbackLabel,
+    disabled,
+    readOnly
   }: {
     label: string;
     value: string;
@@ -110,7 +112,9 @@ export const EmploymentInfoTab = ({ employee, isEditMode, onUpdate }: Employment
     onEdit: (item: { id: string; name: string; isDefault?: boolean }) => void;
     onDelete: (id: string) => void;
     placeholder: string;
+    fallbackLabel?: string;
     disabled?: boolean;
+    readOnly?: boolean;
   }) => (
     <div>
       <div className="flex items-center justify-between mb-2">
@@ -132,15 +136,15 @@ export const EmploymentInfoTab = ({ employee, isEditMode, onUpdate }: Employment
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
-            className="w-full justify-between text-sm h-10 px-3"
+            className={`w-full justify-between text-sm h-10 px-3${readOnly ? " bg-gray-100 disabled:opacity-100" : ""}`}
             disabled={isLoading || disabled}
           >
             <span className="truncate">
-              {isLoading 
-                ? "Loading..." 
-                : value 
-                ? options.find(opt => opt.id === value)?.name || placeholder
-                : placeholder
+              {isLoading && !readOnly
+                ? "Loading..."
+                : value
+                ? options.find(opt => opt.id === value)?.name || fallbackLabel || placeholder
+                : fallbackLabel || placeholder
               }
             </span>
             <ChevronDown className="h-4 w-4 opacity-50" />
@@ -211,6 +215,8 @@ export const EmploymentInfoTab = ({ employee, isEditMode, onUpdate }: Employment
   const employeeStatusesCrud = useEmployeeStatusesCrud(organizationId);
 
   // Filter job positions based on selected department
+  const jobPositionLocked = employee?.is_ai === true;
+
   const filteredJobPositions = jobPositionsCrud.data?.filter(position => {
     if (!formData.department_id) {
       // If no department selected, show only global positions (no department_id)
@@ -219,6 +225,17 @@ export const EmploymentInfoTab = ({ employee, isEditMode, onUpdate }: Employment
     // Show positions for selected department + global positions
     return position.department_id === formData.department_id || !position.department_id;
   }) || [];
+
+  const jobPositionOptions = jobPositionLocked && formData.job_position_id
+    && !filteredJobPositions.some((position) => position.id === formData.job_position_id)
+    ? [
+        ...filteredJobPositions,
+        {
+          id: formData.job_position_id,
+          name: employee?.job_position_name || "Content Plan",
+        },
+      ]
+    : filteredJobPositions;
 
   useEffect(() => {
     if (employee) {
@@ -276,11 +293,12 @@ export const EmploymentInfoTab = ({ employee, isEditMode, onUpdate }: Employment
       [field]: value
     };
 
-    // If department changes, clear job position selection
-    if (field === 'department_id') {
+    // If department changes, clear job position selection.
+    // AI employees keep the built job description position.
+    if (field === 'department_id' && employee?.is_ai !== true) {
       newFormData = {
         ...newFormData,
-        job_position_id: '' // Clear job position when department changes
+        job_position_id: ''
       };
     }
 
@@ -305,7 +323,9 @@ export const EmploymentInfoTab = ({ employee, isEditMode, onUpdate }: Employment
       
       const updateData = {
         department_id: data.department_id || null,
-        job_position_id: data.job_position_id || null,
+        job_position_id: employee?.is_ai === true
+          ? (employee.job_position_id || null)
+          : (data.job_position_id || null),
         job_level_id: data.job_level_id || null,
         branch_id: data.branch_id || null,
         employee_status_id: data.employee_status_id || null,
@@ -374,21 +394,33 @@ export const EmploymentInfoTab = ({ employee, isEditMode, onUpdate }: Employment
               disabled={!isEditMode || isSaving}
             />
 
-            <CustomDropdown
-              label="Job Position"
-              value={formData.job_position_id}
-              onChange={(value) => handleInputChange('job_position_id', value)}
-              options={filteredJobPositions}
-              isLoading={jobPositionsCrud.isLoading}
-              onAdd={jobPositionsCrud.openAddModal}
-              onEdit={jobPositionsCrud.openEditModal}
-              onDelete={jobPositionsCrud.deleteItem}
-              placeholder={!formData.department_id ? "Select department first" : "Select job position"}
-              disabled={!isEditMode || isSaving || !formData.department_id}
-            />
-            {!formData.department_id && (
-              <p className="text-sm text-gray-500">Please select a department first</p>
-            )}
+            <div className="space-y-2">
+              <CustomDropdown
+                label="Job Position"
+                value={formData.job_position_id}
+                onChange={(value) => handleInputChange('job_position_id', value)}
+                options={jobPositionOptions}
+                isLoading={jobPositionsCrud.isLoading}
+                onAdd={jobPositionsCrud.openAddModal}
+                onEdit={jobPositionsCrud.openEditModal}
+                onDelete={jobPositionsCrud.deleteItem}
+                placeholder={
+                  jobPositionLocked
+                    ? (employee?.job_position_name || "Content Plan")
+                    : !formData.department_id
+                      ? "Select department first"
+                      : "Select job position"
+                }
+                fallbackLabel={employee?.job_position_name || (jobPositionLocked ? "Content Plan" : undefined)}
+                disabled={!isEditMode || isSaving || jobPositionLocked || (!jobPositionLocked && !formData.department_id)}
+                readOnly={isEditMode && jobPositionLocked}
+              />
+              {isEditMode && jobPositionLocked ? (
+                <p className="text-sm text-gray-500">This job position follows the built AI job description.</p>
+              ) : !jobPositionLocked && !formData.department_id ? (
+                <p className="text-sm text-gray-500">Please select a department first</p>
+              ) : null}
+            </div>
 
             <CustomDropdown
               label="Job Level"

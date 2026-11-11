@@ -165,6 +165,13 @@ export const POS_OUTLETS_ADD_ON_MAX = 20;
 
 export const POS_OUTLETS_ADDON_IDR_PER_OUTLET_MONTHLY = 99_000;
 
+/** One active AI employee, per month. Not capped by HR member seats. */
+export const AI_EMPLOYEE_ADD_ON_CODE = "ai_employee" as const;
+
+export const AI_EMPLOYEE_ADD_ON_MAX = 50;
+
+export const AI_EMPLOYEE_ADDON_IDR_PER_MONTH = 1_500_000;
+
 export function isFlatPerOrganizationAddOn(billingUnit: string | null | undefined): boolean {
   return billingUnit === "per_organization_month";
 }
@@ -173,9 +180,10 @@ export function isPerOutletMonthAddOn(billingUnit: string | null | undefined): b
   return billingUnit === "per_outlet_month";
 }
 
-/** Quantity cap: POS extras are independent of HR member seats. */
+/** Quantity cap: POS extras and AI employees are independent of HR member seats. */
 export function addOnLineQuantityCap(code: string, memberCount: number): number {
   if (code === POS_OUTLETS_ADD_ON_CODE) return POS_OUTLETS_ADD_ON_MAX;
+  if (code === AI_EMPLOYEE_ADD_ON_CODE) return AI_EMPLOYEE_ADD_ON_MAX;
   return Math.max(1, Math.round(Number(memberCount)) || 1);
 }
 
@@ -226,6 +234,17 @@ export function bundledPosOutletUnitsFromSelections(
   const q = Math.round(Number(row.quantity));
   if (!Number.isFinite(q) || q < 1) return 0;
   return Math.min(POS_OUTLETS_ADD_ON_MAX, q);
+}
+
+/** AI employee seats from merged checkout selections (stored on payment for webhook). */
+export function bundledAiEmployeeUnitsFromSelections(
+  selections: Record<string, { included: boolean; quantity: number } | undefined>,
+): number {
+  const row = selections[AI_EMPLOYEE_ADD_ON_CODE];
+  if (!row?.included || row.quantity < 1) return 0;
+  const q = Math.round(Number(row.quantity));
+  if (!Number.isFinite(q) || q < 1) return 0;
+  return Math.min(AI_EMPLOYEE_ADD_ON_MAX, q);
 }
 
 /** Whether POS product (Sertakan) is included — may be true with 0 extra outlets. */
@@ -460,9 +479,13 @@ export function summarizeAddOnSelectionsForDisplay(
 export function resolvePlanAddOnUnitMonthly(link: SubscriptionPlanAddOnLink): number {
   const def = Number(link.subscription_add_ons.default_unit_price_per_month);
   const ov = link.unit_price_override_per_month;
-  if (ov != null && Number.isFinite(Number(ov))) return Math.max(0, Number(ov));
-  if (Number.isFinite(def)) return Math.max(0, def);
-  return 0;
+  const fromOverride = ov != null && Number.isFinite(Number(ov)) ? Math.max(0, Number(ov)) : null;
+  const fromDefault = Number.isFinite(def) ? Math.max(0, def) : 0;
+  const unit = fromOverride ?? fromDefault;
+  if (unit <= 0 && link.subscription_add_ons.code === AI_EMPLOYEE_ADD_ON_CODE) {
+    return AI_EMPLOYEE_ADDON_IDR_PER_MONTH;
+  }
+  return unit;
 }
 
 /** Pricing breakdown for one catalog add-on line (gross, discount, net). */
@@ -539,6 +562,7 @@ export type PaidAddOnBaselines = {
   posPaidOutletCount?: number;
   /** POS product active (Sertakan), independent of extra outlet qty. */
   posAddonActive?: boolean;
+  aiEmployeePaidSeats?: number;
 };
 
 /** Paid entitlement baseline per add-on code (from DB, not UI). */
@@ -552,6 +576,9 @@ export function paidAddOnBaselineQty(
   if (code === LEAD_MAGNET_ADD_ON_CODE && baselines.leadMagnetActive) return 1;
   if (code === POS_OUTLETS_ADD_ON_CODE) {
     return Math.max(0, Math.round(Number(baselines.posPaidOutletCount ?? 0)) || 0);
+  }
+  if (code === AI_EMPLOYEE_ADD_ON_CODE) {
+    return Math.max(0, Math.round(Number(baselines.aiEmployeePaidSeats ?? 0)) || 0);
   }
   return 0;
 }
@@ -597,6 +624,8 @@ export function mergePlanAddOnSelections(
   leadMagnetActive = false,
   posPaidOutletCount = 0,
   posAddonActive = false,
+  aiEmployeePaidSeats = 0,
+  activeAiEmployeeCount = 0,
 ): Record<string, { included: boolean; quantity: number }> {
   const cap = Math.max(1, Math.round(Number(maxAddonQuantityPerLine)) || 1);
   const baselines: PaidAddOnBaselines = {
@@ -604,7 +633,9 @@ export function mergePlanAddOnSelections(
     leadMagnetActive,
     posPaidOutletCount,
     posAddonActive,
+    aiEmployeePaidSeats,
   };
+  const aiFloor = Math.max(1, Math.round(Number(activeAiEmployeeCount)) || 0);
 
   const out: Record<string, { included: boolean; quantity: number }> = {};
   for (const link of sortPlanAddOnLinks(plan)) {
@@ -642,9 +673,26 @@ export function mergePlanAddOnSelections(
       };
       continue;
     }
+    if (code === AI_EMPLOYEE_ADD_ON_CODE && isCurrentPlan) {
+      const paid = Math.max(0, Math.round(Number(aiEmployeePaidSeats)) || 0);
+      out[code] = {
+        included: paid > 0,
+        quantity: Math.min(lineCap, paid > 0 ? Math.max(aiFloor, paid) : aiFloor),
+      };
+      continue;
+    }
     out[code] = {
       included: false,
-      quantity: code === POS_OUTLETS_ADD_ON_CODE ? 0 : 1,
+      quantity: code === POS_OUTLETS_ADD_ON_CODE ? 0 : code === AI_EMPLOYEE_ADD_ON_CODE ? aiFloor : 1,
+    };
+  }
+  const aiRow = out[AI_EMPLOYEE_ADD_ON_CODE];
+  if (aiRow) {
+    const lineCap = addOnLineQuantityCap(AI_EMPLOYEE_ADD_ON_CODE, cap);
+    const floor = aiRow.included ? aiFloor : Math.max(aiFloor, 1);
+    out[AI_EMPLOYEE_ADD_ON_CODE] = {
+      ...aiRow,
+      quantity: Math.min(lineCap, Math.max(floor, aiRow.quantity)),
     };
   }
   return out;
@@ -689,6 +737,7 @@ export type SchedulableDowngradeParams = {
   legacyLeadMagnetActive?: boolean;
   legacyPosPaidOutletCount?: number;
   legacyPosAddonActive?: boolean;
+  legacyAiEmployeePaidSeatCount?: number;
   isTargetPlanDowngrade?: boolean;
   currentEmployeeCount?: number;
   rosterCount?: number;
@@ -724,6 +773,7 @@ export function hasSchedulableDowngrade(params: SchedulableDowngradeParams): boo
       leadMagnetActive: Boolean(params.legacyLeadMagnetActive),
       posPaidOutletCount: params.legacyPosPaidOutletCount ?? 0,
       posAddonActive: Boolean(params.legacyPosAddonActive),
+      aiEmployeePaidSeats: params.legacyAiEmployeePaidSeatCount ?? 0,
     },
   );
   if (addonDowngrade && params.isRenewWindow) {
@@ -750,6 +800,10 @@ export function buildCurrentAddonSnapshot(baselines: PaidAddOnBaselines): Record
     [OMNICHANNEL_ROSTER_ADD_ON_CODE]: { included: omni > 0, quantity: omni },
     [LEAD_MAGNET_ADD_ON_CODE]: { included: baselines.leadMagnetActive, quantity: baselines.leadMagnetActive ? 1 : 0 },
     [POS_OUTLETS_ADD_ON_CODE]: { included: posActive, quantity: pos },
+    [AI_EMPLOYEE_ADD_ON_CODE]: {
+      included: Math.max(0, Math.round(Number(baselines.aiEmployeePaidSeats ?? 0)) || 0) > 0,
+      quantity: Math.max(0, Math.round(Number(baselines.aiEmployeePaidSeats ?? 0)) || 0),
+    },
   };
 }
 
@@ -841,6 +895,7 @@ export function hasCheckoutableCatalogAddOnDelta(params: {
   legacyLeadMagnetActive?: boolean;
   legacyPosPaidOutletCount?: number;
   legacyPosAddonActive?: boolean;
+  legacyAiEmployeePaidSeatCount?: number;
   isExpired?: boolean;
   remainingDays?: number | null;
 }): boolean {
@@ -863,6 +918,7 @@ export function hasCheckoutableCatalogAddOnDelta(params: {
       legacyLeadMagnetActive: params.legacyLeadMagnetActive,
       legacyPosPaidOutletCount: params.legacyPosPaidOutletCount,
       legacyPosAddonActive: params.legacyPosAddonActive,
+      legacyAiEmployeePaidSeatCount: params.legacyAiEmployeePaidSeatCount,
     }) > 0
   );
 }
@@ -881,6 +937,7 @@ export function isAddOnOnlyMidCycleCheckout(params: {
   legacyLeadMagnetActive?: boolean;
   legacyPosPaidOutletCount?: number;
   legacyPosAddonActive?: boolean;
+  legacyAiEmployeePaidSeatCount?: number;
   isExpired?: boolean;
   remainingDays: number;
 }): boolean {
@@ -905,6 +962,7 @@ export function catalogAddOnIncrementalListAmountIdr(params: {
   legacyLeadMagnetActive?: boolean;
   legacyPosPaidOutletCount?: number;
   legacyPosAddonActive?: boolean;
+  legacyAiEmployeePaidSeatCount?: number;
 }): number {
   const termMonths = resolveBillingPeriodMonths(params.billingCycle, params.billingTermMonths);
   const paidOmnichannel = Math.max(0, Math.round(Number(params.legacyOmnichannelPaidSeatCount)) || 0);
@@ -921,6 +979,7 @@ export function catalogAddOnIncrementalListAmountIdr(params: {
         leadMagnetActive: Boolean(params.legacyLeadMagnetActive),
         posPaidOutletCount: paidPos,
         posAddonActive: Boolean(params.legacyPosAddonActive),
+        aiEmployeePaidSeats: params.legacyAiEmployeePaidSeatCount ?? 0,
       });
       const deltaQty = Math.max(0, Math.round(Number(sel.quantity)) - baseline);
       if (deltaQty < 1) continue;
@@ -983,6 +1042,7 @@ export function catalogAddonChargeForMidtransSplit(params: {
   legacyLeadMagnetActive?: boolean;
   legacyPosPaidOutletCount?: number;
   legacyPosAddonActive?: boolean;
+  legacyAiEmployeePaidSeatCount?: number;
   calculation: AddonBillingCalculationSlice | null | undefined;
 }): number {
   if (usesMidCycleIncrementalAddonProrate(params.calculation)) {
@@ -996,6 +1056,7 @@ export function catalogAddonChargeForMidtransSplit(params: {
       legacyLeadMagnetActive: params.legacyLeadMagnetActive,
       legacyPosPaidOutletCount: params.legacyPosPaidOutletCount,
       legacyPosAddonActive: params.legacyPosAddonActive,
+      legacyAiEmployeePaidSeatCount: params.legacyAiEmployeePaidSeatCount,
     });
     return proratedCatalogAddonChargeIdr({
       incrementalListAmountIdr: inc,
@@ -1021,7 +1082,10 @@ export function catalogAddOnListAmountForMidtransSplit(params: {
   billingTermMonths?: BillingTermMonths;
   selections: Record<string, { included: boolean; quantity: number } | undefined>;
   legacyOmnichannelPaidSeatCount: number;
+  /** Accepted so checkout can pass the paid AI baseline; full-period price uses the selected quantity. */
+  legacyAiEmployeePaidSeatCount?: number;
 }): number {
+  void params.legacyAiEmployeePaidSeatCount;
   const termMonths = params.billingTermMonths ?? (params.billingCycle === "yearly" ? 12 : 1);
   const termDiscount = resolveTermDiscount(params.plan, termMonths);
   if (sortPlanAddOnLinks(params.plan).length > 0) {

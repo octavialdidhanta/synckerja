@@ -69,7 +69,8 @@ export function useAiEmployeePage(employeeId: string | undefined) {
         angle_ids: draft.angleIds,
         repeat_voices: draft.repeatVoices,
         split_rule: draft.splitRule,
-        sub_service_id: draft.subServiceId,
+        sub_service_id: draft.subServiceIds[0] ?? null,
+        sub_service_ids: draft.subServiceIds,
         content_plan_auto_approve: draft.contentPlanAutoApprove,
       },
     });

@@ -39,6 +39,7 @@ export type BriefDraft = {
   repeatVoices: string[];
   splitRule: string;
   subServiceId: string | null;
+  subServiceIds: string[];
   contentPlanAutoApprove: boolean;
 };
 
@@ -46,6 +47,7 @@ export type SubServiceOption = {
   id: string;
   name: string;
   serviceId: string;
+  hasLibraryPhoto: boolean;
 };
 
 export type ScheduleRow = {

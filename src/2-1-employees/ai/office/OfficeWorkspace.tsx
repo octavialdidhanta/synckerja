@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { SYNCKERJA_BRAND_LOGO_SRC } from "@/shared/brand/brandLogo";
 import type { Employee } from "../../hooks/useEmployees";
 import { appearanceFromId, BAY_CARPETS, type OfficeAppearance } from "./appearance";
 
@@ -67,16 +68,18 @@ function OfficeCharacter({ appearance }: { appearance: OfficeAppearance }) {
 function Workstation({
   employee,
   roleLabel,
+  catalogLabel,
 }: {
   employee: Employee;
   roleLabel: string;
+  catalogLabel: string;
 }) {
   const appearance = appearanceFromId(employee.id);
   return (
     <Link
       to={`/ai-employees/${employee.id}`}
-      aria-label={`${employee.full_name}, ${roleLabel}`}
-      title={`${employee.full_name} · ${roleLabel}`}
+      aria-label={`${employee.full_name}, ${roleLabel}, ${catalogLabel}`}
+      title={`${employee.full_name} · ${roleLabel} · ${catalogLabel}`}
       className="group flex w-[220px] flex-col items-center rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1d4ed8]"
     >
       <svg viewBox="0 0 220 210" className="h-[210px] w-[220px] overflow-visible" aria-hidden>
@@ -86,11 +89,22 @@ function Workstation({
         <rect x="38" y="160" width="144" height="26" fill="#7a4b2c" />
         <rect x="46" y="186" width="8" height="14" fill="#5c3a22" />
         <rect x="166" y="186" width="8" height="14" fill="#5c3a22" />
-        <rect x="78" y="112" width="64" height="40" rx="3" fill="#0f172a" />
-        <rect x="82" y="116" width="56" height="32" fill="#7dd3fc" />
-        <path d="M84 118h16v28H84z" fill="#fff" opacity="0.25" />
-        <rect x="104" y="152" width="12" height="8" fill="#334155" />
-        <rect x="92" y="158" width="36" height="4" rx="1" fill="#1e293b" />
+        <rect x="56" y="100" width="108" height="52" rx="5" fill="#e7e7ec" />
+        <clipPath id={`screen-${employee.id}`}>
+          <rect x="59" y="103" width="102" height="46" rx="2" />
+        </clipPath>
+        <rect x="59" y="103" width="102" height="46" rx="2" fill="#f7f8fa" />
+        <image
+          href={SYNCKERJA_BRAND_LOGO_SRC}
+          x="98"
+          y="114"
+          width="24"
+          height="24"
+          preserveAspectRatio="xMidYMid meet"
+          clipPath={`url(#screen-${employee.id})`}
+        />
+        <rect x="106" y="152" width="8" height="6" rx="2" fill="#d4d4d8" />
+        <rect x="88" y="157" width="44" height="4" rx="2" fill="#c8c8ce" />
         <clipPath id={`plate-${employee.id}`}>
           <rect x="62" y="166" width="96" height="14" />
         </clipPath>
@@ -108,6 +122,10 @@ function Workstation({
           {employee.full_name}
         </text>
       </svg>
+      <span className="mt-1 w-[168px] rounded-sm bg-[#fffaf3] px-2 py-1 text-center shadow-sm ring-1 ring-[#e4d5c0]">
+        <span className="block truncate text-[11px] font-semibold leading-4 text-[#3f3428]">{roleLabel}</span>
+        <span className="block truncate text-[10px] leading-4 text-[#6b5a45]">{catalogLabel}</span>
+      </span>
     </Link>
   );
 }
@@ -128,10 +146,12 @@ function DepartmentRoom({
   bay,
   carpet,
   noRoleLabel,
+  catalogLabelFor,
 }: {
   bay: OfficeBay;
   carpet: string;
   noRoleLabel: string;
+  catalogLabelFor: (employeeId: string) => string;
 }) {
   return (
     <section className="relative w-fit max-w-full overflow-hidden rounded-md shadow-[0_10px_24px_rgba(70,52,32,0.12)]" aria-label={bay.name}>
@@ -170,6 +190,7 @@ function DepartmentRoom({
               key={employee.id}
               employee={employee}
               roleLabel={employee.job_position_name?.trim() || noRoleLabel}
+              catalogLabel={catalogLabelFor(employee.id)}
             />
           ))}
         </div>
@@ -181,9 +202,11 @@ function DepartmentRoom({
 export function OfficeWorkspace({
   bays,
   noRoleLabel,
+  catalogLabelFor,
 }: {
   bays: OfficeBay[];
   noRoleLabel: string;
+  catalogLabelFor: (employeeId: string) => string;
 }) {
   return (
     <div
@@ -218,6 +241,7 @@ export function OfficeWorkspace({
             bay={bay}
             carpet={BAY_CARPETS[index % BAY_CARPETS.length] ?? BAY_CARPETS[0]}
             noRoleLabel={noRoleLabel}
+            catalogLabelFor={catalogLabelFor}
           />
         ))}
       </div>

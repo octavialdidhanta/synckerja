@@ -9,6 +9,7 @@ import { FamilyMembersInfoTab } from '../components/employee-detail/FamilyMember
 import { useEmployeeDetail } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useEmployeeDetail';
 import { useAvatarSync } from '@/2-1-employees/MyInfo/PersonalInformation/hooks/useAvatarSync';
 import { toast } from 'sonner';
+import { EmployeeQuickNav, isAiEmployeeNavLocked, useRedirectLockedAiEmployee } from '@/2-1-employees/MyInfo/shared/EmployeeQuickNav';
 import { useFamilyMembers } from '@/shared/hooks/employees/useFamilyMembers';
 import { FamilySidebarFooter } from '../components/FamilySidebarFooter';
 import { FamilyTableFooter } from '../components/FamilyTableFooter';
@@ -24,6 +25,7 @@ const EmployeeFamily = () => {
   const { syncAvatarAcrossApp } = useAvatarSync();
   
   const { data: employee, isLoading, error, refetch } = useEmployeeDetail(employeeId);
+  useRedirectLockedAiEmployee(employee, 'family');
   
   // Get family members data for footer
   const { familyMembers } = useFamilyMembers(employeeId || '');
@@ -139,6 +141,14 @@ const EmployeeFamily = () => {
     );
   }
 
+  if (isAiEmployeeNavLocked(employee.is_ai, 'family')) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-100 font-sans">
         <div className="flex min-h-0 flex-1">
@@ -203,25 +213,11 @@ const EmployeeFamily = () => {
                       <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         <h4 className="font-semibold text-gray-900 mb-3 text-sm">Quick Navigation</h4>
                         <div className="space-y-1">
-                          {navigationItems.map((item) => {
-                            const Icon = item.icon;
-                            return (
-                              <Button 
-                                key={item.id}
-                                variant={item.active ? "default" : "ghost"}
-                                size="sm"
-                                className={`w-full justify-start text-xs ${
-                                  item.active 
-                                    ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
-                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                                }`}
-                                onClick={() => navigate(item.path)}
-                              >
-                                <Icon className="h-3 w-3 mr-2" />
-                                {item.label}
-                              </Button>
-                            );
-                          })}
+                          <EmployeeQuickNav
+                            items={navigationItems}
+                            isAi={employee.is_ai}
+                            onNavigate={navigate}
+                          />
                         </div>
                       </div>
 

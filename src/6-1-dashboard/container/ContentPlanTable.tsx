@@ -12,6 +12,7 @@ import type { CreativeEmployee } from '../hook/useCreativeEmployees';
 import type { ApprovalAccess } from '../hook/useBatchApprovalAccess';
 import type { ScheduledPost } from '@/6-1-scheduled-posts/types/scheduled-post';
 import { signSubServicePhotos } from '../lib/subServicePhoto';
+import { signCatalogProductPhotos } from '@/8-2-1-default-prices/lib/catalogProductPhoto';
 import type { CanvaCarouselRun } from '@/canva/CanvaCarouselNote';
 import type { SocialMediaLink } from '@/shared/types/social-media-links';
 
@@ -78,17 +79,25 @@ export const ContentPlanTable = memo(function ContentPlanTable({
 }: ContentPlanTableProps) {
   const [subServicePhotoUrls, setSubServicePhotoUrls] = useState<Record<string, string>>({});
   const subServicePhotoKey = useMemo(
-    () => subServices.map((item) => `${item.id}:${item.image_path ?? ''}`).join('|'),
+    () => subServices.map((item) => `${item.id}:${item.image_path ?? ''}:${item.library_photo_path ?? ''}`).join('|'),
     [subServices],
   );
   useEffect(() => {
-    const paths = subServices.flatMap((item) => (item.image_path ? [item.image_path] : []));
+    const ownPaths = subServices.flatMap((item) => (item.image_path ? [item.image_path] : []));
+    const libraryPaths = subServices.flatMap((item) => (
+      !item.image_path && item.library_photo_path ? [item.library_photo_path] : []
+    ));
     let cancelled = false;
-    void signSubServicePhotos(paths).then((urls) => {
+    void Promise.all([
+      signSubServicePhotos(ownPaths),
+      signCatalogProductPhotos(libraryPaths),
+    ]).then(([ownUrls, libraryUrls]) => {
       if (cancelled) return;
       const next: Record<string, string> = {};
       for (const item of subServices) {
-        const signed = item.image_path ? urls.get(item.image_path) : undefined;
+        const own = item.image_path ? ownUrls.get(item.image_path) : undefined;
+        const library = !own && item.library_photo_path ? libraryUrls.get(item.library_photo_path) : undefined;
+        const signed = own || library;
         if (signed) next[item.id] = signed;
       }
       setSubServicePhotoUrls(next);

@@ -9,6 +9,7 @@ import { PersonalInfoTab } from '../components/employee-detail/PersonalInfoTab';
 import { useEmployeeDetail } from '../hooks/useEmployeeDetail';
 import { useAvatarSync } from '../hooks/useAvatarSync';
 import { toast } from 'sonner';
+import { EmployeeQuickNav } from '@/2-1-employees/MyInfo/shared/EmployeeQuickNav';
 import { MyInfoSidebarFooter } from '@/2-1-employees/MyInfo/shared/MyInfoSidebarFooter';
 import { MyInfoContentFooter } from '@/2-1-employees/MyInfo/shared/MyInfoContentFooter';
 
@@ -204,25 +205,11 @@ const EmployeePersonalInfo = () => {
                     <div className="scrollbar-hide seamless-scroll nested-scroll-touch-chain flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       <h4 className="font-semibold text-gray-900 mb-3 text-sm">Quick Navigation</h4>
                       <div className="space-y-1">
-                        {navigationItems.map((item) => {
-                          const Icon = item.icon;
-                          return (
-                            <Button 
-                              key={item.id}
-                              variant={item.active ? "default" : "ghost"}
-                              size="sm"
-                              className={`w-full justify-start text-xs ${
-                                item.active 
-                                  ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
-                                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                              }`}
-                              onClick={() => navigate(item.path)}
-                            >
-                              <Icon className="h-3 w-3 mr-2" />
-                              {item.label}
-                            </Button>
-                          );
-                        })}
+                        <EmployeeQuickNav
+                          items={navigationItems}
+                          isAi={employee.is_ai}
+                          onNavigate={navigate}
+                        />
                       </div>
                     </div>
 

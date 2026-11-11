@@ -25,6 +25,8 @@ type PlanAddOnsPanelProps = {
   leadMagnetActive?: boolean;
   posPaidOutletCount?: number;
   posAddonActive?: boolean;
+  aiEmployeePaidSeats?: number;
+  activeAiEmployeeCount?: number;
   isMidCycleActive?: boolean;
   isTrialPlan?: boolean;
   isExpired?: boolean;
@@ -46,6 +48,8 @@ export const PlanAddOnsPanel = memo(
     leadMagnetActive = false,
     posPaidOutletCount = 0,
     posAddonActive = false,
+    aiEmployeePaidSeats = 0,
+    activeAiEmployeeCount = 0,
     isMidCycleActive = false,
     isTrialPlan = false,
     isExpired = false,
@@ -96,6 +100,8 @@ export const PlanAddOnsPanel = memo(
           leadMagnetActive={leadMagnetActive}
           posPaidOutletCount={posPaidOutletCount}
           posAddonActive={posAddonActive}
+          aiEmployeePaidSeats={aiEmployeePaidSeats}
+          activeAiEmployeeCount={activeAiEmployeeCount}
           isMidCycleActive={isMidCycleActive}
           isTrialPlan={isTrialPlan}
           isExpired={isExpired}

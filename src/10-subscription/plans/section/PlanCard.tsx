@@ -86,6 +86,8 @@ interface PlanCardProps {
   omnichannelRosterActiveCount: number;
   posPaidOutletCount?: number;
   posAddonActive?: boolean;
+  aiEmployeePaidSeats?: number;
+  activeAiEmployeeCount?: number;
   onMemberCountChange: (planId: string, count: number) => void;
   onBillingCycleChange: (planId: string, isYearly: boolean) => void;
   onBillingTermChange?: (planId: string, months: BillingTermMonths) => void;
@@ -146,6 +148,8 @@ export const PlanCard = memo(
     omnichannelRosterActiveCount,
     posPaidOutletCount = 0,
     posAddonActive = false,
+    aiEmployeePaidSeats = 0,
+    activeAiEmployeeCount = 0,
     onMemberCountChange,
     onBillingCycleChange,
     onBillingTermChange,
@@ -239,8 +243,9 @@ export const PlanCard = memo(
           billingTermMonths: periodMonths,
           selections: {},
           legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyAiEmployeePaidSeatCount: aiEmployeePaidSeats,
         }),
-      [plan, cycleKey, periodMonths, omnichannelPaidSeats],
+      [plan, cycleKey, periodMonths, omnichannelPaidSeats, aiEmployeePaidSeats],
     );
 
     const addonTotalForHero = catalogLinks.length > 0 ? selectedCatalogAddonTotal : legacyFallbackAddonTotal;
@@ -619,6 +624,8 @@ export const PlanCard = memo(
                 leadMagnetActive={subscriptionStatus?.lead_magnet_active ?? false}
                 posPaidOutletCount={posPaidOutletCount}
                 posAddonActive={posAddonActive}
+                aiEmployeePaidSeats={aiEmployeePaidSeats}
+                activeAiEmployeeCount={activeAiEmployeeCount}
               />
             )}
           </div>

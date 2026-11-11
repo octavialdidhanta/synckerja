@@ -14,6 +14,8 @@ const CAROUSEL_BUCKET = "social-media-carousel";
 const REFERENCE_BUCKET = "ai-employee-references";
 const USER_INTENT = "carousel 4:5 yang mengikuti naskah, layout referensi, dan warna katalog";
 const LOGO_BUCKET = "digital-asset-company-logos";
+const PRODUCT_BUCKET = "catalog-product-photos";
+const MAX_PRODUCT_PHOTOS = 8;
 const PORTRAIT_FORMAT = "Instagram Post (Portrait)";
 
 function json(body: Record<string, unknown>, status = 200): Response {
@@ -371,6 +373,157 @@ async function placeLogoInDesign(
   if (String(committed.payload.status ?? "").toLowerCase() === "failed") throw new Error("logo_place_failed");
 }
 
+type ProductPhoto = { name: string; path: string };
+
+async function briefProductPhotos(
+  admin: SupabaseClient,
+  planId: string,
+): Promise<ProductPhoto[]> {
+  const { data: plan } = await admin
+    .from("social_media_plans")
+    .select("pic_id, organization_id, sub_service_id")
+    .eq("id", planId)
+    .maybeSingle();
+  if (!plan?.pic_id || !plan.organization_id) return [];
+  const { data: brief } = await admin
+    .from("ai_employee_briefs")
+    .select("sub_service_ids, sub_service_id")
+    .eq("employee_id", plan.pic_id)
+    .maybeSingle();
+  const stored = Array.isArray(brief?.sub_service_ids)
+    ? brief.sub_service_ids.map((id: unknown) => String(id))
+    : [];
+  const fallback = brief?.sub_service_id ? [String(brief.sub_service_id)] : [];
+  const ids = stored.length > 0 ? stored : fallback;
+  const planSub = plan.sub_service_id ? String(plan.sub_service_id) : "";
+  const ordered = [...(planSub ? [planSub] : []), ...ids.filter((id) => id !== planSub)]
+    .filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+    .slice(0, MAX_PRODUCT_PHOTOS);
+  if (ordered.length === 0) return [];
+  const { data, error } = await admin.rpc("sub_service_library_photos", {
+    p_organization_id: plan.organization_id,
+    p_ids: ordered,
+  });
+  if (error || !Array.isArray(data)) return [];
+  return data.flatMap((row) => {
+    const record = asRecord(row);
+    const path = String(record?.photo_path ?? "").trim();
+    if (!path) return [];
+    const name = String(record?.product_name ?? "Produk").replace(/\s+/g, " ").trim().slice(0, 80) || "Produk";
+    return [{ name, path }];
+  });
+}
+
+async function pollProductUpload(
+  admin: SupabaseClient,
+  organizationId: string,
+  token: string,
+  jobId: string,
+): Promise<string> {
+  const deadline = Date.now() + 40_000;
+  let current = token;
+  while (Date.now() < deadline) {
+    await sleep(2000);
+    const response = await fetch(`https://api.canva.com/rest/v1/url-asset-uploads/${encodeURIComponent(jobId)}`, {
+      headers: { Authorization: `Bearer ${current}` },
+    });
+    if (response.status === 401) {
+      current = await accessToken(admin, organizationId, true);
+      continue;
+    }
+    if (!response.ok) throw new Error("product_photo_place_failed");
+    const body = asRecord(await response.json()) ?? {};
+    const id = logoAssetId(body);
+    if (id) return id;
+    const status = String(nestedRecord(body, "job")?.status ?? body.status ?? "").toLowerCase();
+    if (status === "failed" || status === "failure" || status === "error") throw new Error("product_photo_place_failed");
+  }
+  throw new Error("product_photo_place_failed");
+}
+
+async function placeProductPhotos(
+  admin: SupabaseClient,
+  organizationId: string,
+  token: string,
+  designId: string,
+  photos: ProductPhoto[],
+): Promise<void> {
+  const assets: Array<{ name: string; assetId: string }> = [];
+  for (const [index, photo] of photos.slice(0, MAX_PRODUCT_PHOTOS).entries()) {
+    const signed = await admin.storage.from(PRODUCT_BUCKET).createSignedUrl(photo.path, 300);
+    const url = signed.data?.signedUrl ?? "";
+    if (!url.startsWith("https://")) continue;
+    const uploaded = await callRaw(admin, organizationId, token, "upload-asset-from-url", {
+      url,
+      name: `product-photo-${index + 1}.jpg`,
+      user_intent: "mengunggah foto produk dari library untuk ditaruh di tengah slide",
+    });
+    token = uploaded.token;
+    let assetId = logoAssetId(uploaded.payload);
+    const job = asRecord(uploaded.payload.job);
+    const jobId = String(job?.id ?? uploaded.payload.job_id ?? "").trim();
+    const uploadStatus = String(job?.status ?? uploaded.payload.status ?? "").toLowerCase();
+    if (!assetId && uploadStatus !== "failed" && jobId) {
+      assetId = await pollProductUpload(admin, organizationId, token, jobId);
+    }
+    if (assetId) assets.push({ name: photo.name, assetId });
+  }
+  if (assets.length === 0) return;
+
+  const started = await callRaw(admin, organizationId, token, "start-editing-transaction", {
+    design_id: designId,
+    user_intent: "membuka desain untuk menempelkan foto produk",
+  });
+  token = started.token;
+  const transactionId = String(started.payload.transaction_id ?? nestedRecord(started.payload, "transaction")?.id ?? "").trim();
+  let pages = Array.isArray(started.payload.pages) ? started.payload.pages : [];
+  if (!transactionId || pages.length === 0) throw new Error("product_photo_place_failed");
+  let inserted = 0;
+  const pageList = [...pages];
+
+  for (const [index, item] of pageList.entries()) {
+    const page = asRecord(item);
+    if (!page || page.is_responsive === true) continue;
+    const pageId = String(page.page_id ?? "").trim();
+    const number = Number(page.page_number ?? page.page_index ?? 0);
+    const pageIndex = number === 0 ? index + 1 : number;
+    const dimension = asRecord(page.dimension) ?? {};
+    const pageWidth = Number(dimension.width) > 0 ? Number(dimension.width) : 1080;
+    const pageHeight = Number(dimension.height) > 0 ? Number(dimension.height) : 1350;
+    const asset = assets[(pageIndex - 1) % assets.length];
+    if (!pageId || !asset || !Number.isInteger(pageIndex) || pageIndex < 1) continue;
+    const width = Math.round(pageWidth * 0.62);
+    const height = Math.round(pageHeight * 0.46);
+    const edited = await callRaw(admin, organizationId, token, "perform-editing-operations", {
+      transaction_id: transactionId,
+      pages,
+      page_index: pageIndex,
+      user_intent: "menempelkan foto produk di tengah slide",
+      operations: [{
+        type: "insert_fill",
+        page_id: pageId,
+        asset_type: "image",
+        asset_id: asset.assetId,
+        alt_text: asset.name || "Foto produk",
+        top: Math.round(pageHeight * 0.22),
+        left: Math.round((pageWidth - width) / 2),
+        width,
+        height,
+      }],
+    });
+    token = edited.token;
+    if (Array.isArray(edited.payload.pages)) pages = edited.payload.pages;
+    inserted += 1;
+  }
+
+  if (inserted === 0) throw new Error("product_photo_place_failed");
+  const committed = await callRaw(admin, organizationId, token, "commit-editing-transaction", {
+    transaction_id: transactionId,
+    user_intent: "menyimpan foto produk di slide",
+  });
+  if (String(committed.payload.status ?? "").toLowerCase() === "failed") throw new Error("product_photo_place_failed");
+}
+
 async function selectedLogo(
   admin: SupabaseClient,
   planId: string,
@@ -476,6 +629,14 @@ async function exportCarouselImages(
     let inserted = false;
     try {
       let token = await accessToken(admin, organizationId);
+      try {
+        const photos = await briefProductPhotos(admin, planId);
+        if (photos.length > 0) {
+          await placeProductPhotos(admin, organizationId, token, String(locked.design_id), photos);
+        }
+      } catch (error) {
+        if (publicError(error) === "canva_unauthorized") throw error;
+      }
       const logoChoice = await selectedLogo(admin, planId);
       const logo = logoChoice ? await activeLogoBytes(admin, planId) : null;
       let placedInDesign = false;
@@ -963,6 +1124,7 @@ Deno.serve(async (req: Request) => {
       carouselReferencePosition(slides),
     ).catch(() => "");
     const logo = await selectedLogo(admin, planId);
+    const productPhotos = await briefProductPhotos(admin, planId).catch(() => []);
     const brief = buildCanvaCarouselBrief({
       title: String(plan.title ?? ""),
       caption: String(captions?.[0]?.content ?? ""),
@@ -970,6 +1132,7 @@ Deno.serve(async (req: Request) => {
       styleLock,
       palette: carouselPalette(String(plan.brief ?? "")),
       logo: logo ? "required" : "none",
+      productPhotos: productPhotos.map((photo) => photo.name),
     });
 
     let token = await accessToken(admin, organizationId);

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  AI_EMPLOYEE_ADD_ON_CODE,
+  AI_EMPLOYEE_ADDON_IDR_PER_MONTH,
   LEAD_MAGNET_ADD_ON_CODE,
   OMNICHANNEL_ROSTER_ADD_ON_CODE,
+  computeCatalogAddOnLineAmountIdr,
   POS_OUTLETS_ADD_ON_CODE,
   POS_OUTLETS_ADD_ON_MAX,
   addOnLineQuantityCap,
@@ -778,5 +781,35 @@ describe("POS outlets add-on", () => {
       legacyPosPaidOutletCount: 1,
     });
     expect(amount).toBe(99_000 * 2);
+  });
+});
+
+describe("ai employee add-on seats", () => {
+  const link = {
+    display_order: 20,
+    unit_price_override_per_month: null as number | null,
+    subscription_add_ons: {
+      code: AI_EMPLOYEE_ADD_ON_CODE,
+      name: "Karyawan AI",
+      is_active: true,
+      default_unit_price_per_month: AI_EMPLOYEE_ADDON_IDR_PER_MONTH,
+      follows_plan_annual_discount: true,
+      billing_unit: "per_ai_employee_month",
+    },
+  };
+
+  it("bills 2 seats at 1_500_000 each before annual discount and PPN", () => {
+    const amount = computeCatalogAddOnLineAmountIdr({
+      link: link as SubscriptionPlan["plan_add_ons"][number],
+      quantity: 2,
+      plan: { annual_discount_percentage: 0 } as SubscriptionPlan,
+      billingCycle: "monthly",
+      billingTermMonths: 1,
+    });
+    expect(amount).toBe(3_000_000);
+  });
+
+  it("does not cap the seat slider by HR member count", () => {
+    expect(addOnLineQuantityCap(AI_EMPLOYEE_ADD_ON_CODE, 3)).toBe(50);
   });
 });

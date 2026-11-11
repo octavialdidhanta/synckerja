@@ -197,6 +197,15 @@ function logoLine(logo?: "required" | "none"): string {
   return "";
 }
 
+function productPhotoLine(names?: string[]): string {
+  const list = (names ?? [])
+    .map((name) => name.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(0, 8);
+  if (list.length === 0) return "";
+  return `Product photos are placed in the center of the pages: ${list.join("; ")}. Leave the center of every page empty for that photo. Do not draw a substitute picture of the food.`;
+}
+
 export function buildCanvaCarouselBrief(input: {
   title: string;
   caption: string;
@@ -204,6 +213,7 @@ export function buildCanvaCarouselBrief(input: {
   styleLock?: string;
   palette?: CatalogPalette | null;
   logo?: "required" | "none";
+  productPhotos?: string[];
 }): string {
   const title = input.title.replace(/\s+/g, " ").trim().slice(0, 200) || "Carousel";
   const caption = input.caption.replace(/\s+/g, " ").trim().slice(0, 280);
@@ -229,6 +239,7 @@ export function buildCanvaCarouselBrief(input: {
     `Design an Instagram carousel with ${input.slides.length} portrait 4:5 pages. One page per slide. Make every page editable.`,
     paletteLine(input.palette),
     logoLine(input.logo),
+    productPhotoLine(input.productPhotos),
     `Title: ${title}.${captionLine}`,
     pages,
     "Write only the listed words. Draw the picture, and do not turn the picture instructions into text. Use the layout and the named typeface for that page.",

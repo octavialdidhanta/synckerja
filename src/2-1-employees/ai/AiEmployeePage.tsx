@@ -548,26 +548,87 @@ function SubCategoryField({
   ready: boolean;
   canEdit: boolean;
   saving: boolean;
-  value: string | null;
-  options: Array<{ id: string; name: string }>;
-  onChange: (id: string | null) => void;
+  value: string[];
+  options: Array<{ id: string; name: string; hasLibraryPhoto: boolean }>;
+  onChange: (ids: string[]) => void;
 }) {
-  const selected = options.find((option) => option.id === value);
+  const selected = options.filter((option) => value.includes(option.id));
+  const summary = selected.length > 0 ? selected.map((option) => option.name).join(", ") : "General Content";
+  const withPhoto = selected.filter((option) => option.hasLibraryPhoto);
   if (!ready) return <span className="text-sm text-muted-foreground">Simpan katalog dulu.</span>;
-  if (!canEdit) return <span>{selected?.name ?? "General Content"}</span>;
+  if (!canEdit) {
+    return (
+      <div className="space-y-1">
+        <span>{summary}</span>
+        {withPhoto.length > 0 ? (
+          <p className="text-xs text-muted-foreground">Foto library dari pilihan ini dikirim ke Canva.</p>
+        ) : null}
+      </div>
+    );
+  }
+  const toggle = (id: string) => {
+    if (value.includes(id)) {
+      onChange(value.filter((item) => item !== id));
+      return;
+    }
+    if (value.length >= 8) return;
+    onChange([...value, id]);
+  };
   return (
-    <select
-      aria-label="Sub Category"
-      className="h-8 w-full max-w-xs rounded-md border border-input bg-background px-2 text-sm"
-      value={value ?? ""}
-      disabled={saving}
-      onChange={(event) => onChange(event.target.value || null)}
-    >
-      <option value="">General Content</option>
-      {options.map((option) => (
-        <option key={option.id} value={option.id}>{option.name}</option>
-      ))}
-    </select>
+    <div className="space-y-1">
+      <Popover modal>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saving}
+            aria-label="Sub Category"
+            className="h-auto min-h-9 w-full max-w-md justify-start px-3 py-2 text-left text-sm font-normal"
+          >
+            <span className="line-clamp-2">{summary}</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          collisionPadding={12}
+          className="z-[60] max-h-[min(16rem,var(--radix-popover-content-available-height))] w-80 overflow-y-auto overscroll-contain p-2"
+          onWheel={(event) => event.stopPropagation()}
+          onTouchMove={(event) => event.stopPropagation()}
+        >
+          <label className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={value.length === 0}
+              disabled={saving}
+              onChange={() => onChange([])}
+            />
+            <span>General Content</span>
+          </label>
+          {options.map((option) => (
+            <label key={option.id} className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={value.includes(option.id)}
+                disabled={saving || (!value.includes(option.id) && value.length >= 8)}
+                onChange={() => toggle(option.id)}
+              />
+              <span>
+                {option.name}
+                {option.hasLibraryPhoto ? <span className="mt-0.5 block text-xs text-muted-foreground">Foto library</span> : null}
+              </span>
+            </label>
+          ))}
+        </PopoverContent>
+      </Popover>
+      {selected.length > 0 && withPhoto.length > 0 ? (
+        <p className="text-xs text-muted-foreground">Foto library dari pilihan ini dikirim ke Canva.</p>
+      ) : null}
+      {selected.length > 0 && withPhoto.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Pilihan ini belum punya foto di product list.</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -1676,6 +1737,7 @@ export default function AiEmployeePage() {
                                         ...current,
                                         serviceIds,
                                         subServiceId: null,
+                                        subServiceIds: [],
                                         productIds,
                                         angleIds,
                                         pillarIds: current.pillarIds.filter((pillarId) => pillarAllowed.has(pillarId)),
@@ -1687,14 +1749,14 @@ export default function AiEmployeePage() {
                               {
                                 key: "subCategory",
                                 label: t("aiEmployee.brief.subCategory", "Sub Category"),
-                                hint: "Anak dari katalog yang sudah disimpan. Kosong berarti generate memakai General Content.",
+                                hint: "Bisa lebih dari satu, paling banyak 8. Kosong berarti General Content. Foto product list dari yang dipilih dikirim ke Canva. Menghapus plan tidak menghapus produk.",
                                 value: <SubCategoryField
                                   ready={sameIds(page.brief.serviceIds, brief.serviceIds) && brief.serviceIds.length === 1}
                                   canEdit={canEdit}
                                   saving={saving}
-                                  value={brief.subServiceId}
+                                  value={brief.subServiceIds}
                                   options={page.subServices.filter((item) => item.serviceId === brief.serviceIds[0])}
-                                  onChange={(subServiceId) => setBrief((current) => current ? { ...current, subServiceId } : current)}
+                                  onChange={(subServiceIds) => setBrief((current) => current ? { ...current, subServiceIds, subServiceId: subServiceIds[0] ?? null } : current)}
                                 />,
                                 editor: null,
                               },

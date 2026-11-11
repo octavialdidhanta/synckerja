@@ -24,6 +24,17 @@ Deno.test("carouselSlidesFromBrief rejects a storyboard without scene text", () 
   assertEquals(carouselSlidesFromBrief(empty), []);
 });
 
+Deno.test("buildCanvaCarouselBrief reserves the center for a library product photo", () => {
+  const brief = buildCanvaCarouselBrief({
+    title: "Menu",
+    caption: "",
+    slides: carouselSlidesFromBrief(storyboard),
+    productPhotos: ["Ayam Kampung (Paha / Sayap / Dada)"],
+  });
+  assertEquals(brief.includes("Ayam Kampung (Paha / Sayap / Dada)"), true);
+  assertEquals(brief.includes("Leave the center of every page empty"), true);
+});
+
 Deno.test("buildCanvaCarouselBrief keeps the 4:5 ratio and every slide", () => {
   const brief = buildCanvaCarouselBrief({
     title: "Langkah Cepat",

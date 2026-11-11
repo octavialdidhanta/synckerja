@@ -130,7 +130,7 @@ export function briefDraftFromPayload(value: unknown): { draft: BriefDraft; labe
       angleIds: asStringArray(row.angle_ids),
       repeatVoices: asStringArray(row.repeat_voices),
       splitRule: asString(row.split_rule),
-      subServiceId: chosenSubServiceId(asString(row.sub_service_id), parseSubServices(row.sub_services)),
+      ...chosenSubCategory(row),
       contentPlanAutoApprove: row.content_plan_auto_approve === true,
     },
     labels: {
@@ -334,13 +334,37 @@ function parseSubServices(value: unknown): SubServiceOption[] {
     const serviceId = asString(row?.service_id);
     const name = asString(row?.name).trim();
     if (!UUID_PATTERN.test(id) || !UUID_PATTERN.test(serviceId) || !name || isGeneralContent(name)) continue;
-    rows.push({ id, name, serviceId });
+    rows.push({ id, name, serviceId, hasLibraryPhoto: row?.has_library_photo === true });
   }
   return rows;
 }
 
 function chosenSubServiceId(id: string, options: SubServiceOption[]): string | null {
   return options.some((option) => option.id === id) ? id : null;
+}
+
+function chosenSubServiceIds(value: unknown, options: SubServiceOption[]): string[] {
+  if (!Array.isArray(value)) return [];
+  const allowed = new Set(options.map((option) => option.id));
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of value) {
+    const id = asString(item);
+    if (!allowed.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+    if (ids.length >= 8) break;
+  }
+  return ids;
+}
+
+function chosenSubCategory(row: Record<string, unknown>): { subServiceId: string | null; subServiceIds: string[] } {
+  const options = parseSubServices(row.sub_services);
+  const single = chosenSubServiceId(asString(row.sub_service_id), options);
+  const subServiceIds = Array.isArray(row.sub_service_ids)
+    ? chosenSubServiceIds(row.sub_service_ids, options)
+    : (single ? [single] : []);
+  return { subServiceId: subServiceIds[0] ?? null, subServiceIds };
 }
 
 function selectedCatalogId(value: unknown, ids: string[]): string | null {
@@ -434,7 +458,7 @@ export function sameBrief(left: BriefDraft, right: BriefDraft): boolean {
     && left.repeatVoices.length === right.repeatVoices.length
     && left.repeatVoices.every((voice, index) => voice === right.repeatVoices[index])
     && left.splitRule === right.splitRule
-    && left.subServiceId === right.subServiceId
+    && sameIds(left.subServiceIds, right.subServiceIds)
     && left.contentPlanAutoApprove === right.contentPlanAutoApprove;
 }
 
@@ -459,9 +483,9 @@ export function sameRoutine(left: RoutineRow, right: RoutineRow): boolean {
     && left.isActive === right.isActive;
 }
 
-function subCategoryLabel(id: string | null, names: Map<string, string>): string {
-  if (!id) return "General Content";
-  return names.get(id) ?? "Tidak ada di katalog";
+function subCategoryList(ids: string[], names: Map<string, string>): string {
+  if (ids.length === 0) return "General Content";
+  return ids.map((id) => names.get(id) ?? "Tidak ada di katalog").join(", ");
 }
 
 function nameList(ids: string[], names: Map<string, string>): string {
@@ -500,7 +524,7 @@ export function briefChanges(
   push("Fokus angle", !sameIds(before.angleIds, after.angleIds), nameList(before.angleIds, names.angles), nameList(after.angleIds, names.angles));
   push("Gaya pengulangan", before.repeatVoices.join("\n") !== after.repeatVoices.join("\n"), textValue(before.repeatVoices.join("\n")), textValue(after.repeatVoices.join("\n")));
   push("Product Knowledge", !sameIds(before.productIds, after.productIds), nameList(before.productIds, names.products), nameList(after.productIds, names.products));
-  push("Sub Category", before.subServiceId !== after.subServiceId, subCategoryLabel(before.subServiceId, names.subServices), subCategoryLabel(after.subServiceId, names.subServices));
+  push("Sub Category", !sameIds(before.subServiceIds, after.subServiceIds), subCategoryList(before.subServiceIds, names.subServices), subCategoryList(after.subServiceIds, names.subServices));
   push("Content Plan auto approve", before.contentPlanAutoApprove !== after.contentPlanAutoApprove, before.contentPlanAutoApprove ? "Hidup" : "Mati", after.contentPlanAutoApprove ? "Hidup" : "Mati");
   push("Aturan pecahan", before.splitRule !== after.splitRule, textValue(before.splitRule), textValue(after.splitRule));
   return rows;

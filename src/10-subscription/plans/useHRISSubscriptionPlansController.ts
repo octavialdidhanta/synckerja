@@ -27,6 +27,7 @@ import {
   bundledLeadMagnetFromSelections,
   bundledPosOutletUnitsFromSelections,
   bundledPosAddonFromSelections,
+  bundledAiEmployeeUnitsFromSelections,
   hasPosAddonEnableDelta,
   getOmnichannelAddonMonthlyTotalIdr,
   getOmnichannelRosterAddonConfig,
@@ -42,6 +43,7 @@ import {
   addOnLineQuantityCap,
   OMNICHANNEL_ADDON_IDR_PER_STAFF_MONTHLY,
   POS_OUTLETS_ADD_ON_CODE,
+  AI_EMPLOYEE_ADD_ON_CODE,
   hasCheckoutableCatalogAddOnDelta,
   hasSchedulableDowngrade,
   isAddOnOnlyMidCycleCheckout,
@@ -154,6 +156,8 @@ export function useHRISSubscriptionPlansController(
   const { rows: posOutlets = [] } = usePosOutlets();
   const activeOutletCount = posOutlets.length;
   const omnichannelPaidSeats = subscriptionStatus?.omnichannel_paid_seat_count ?? 0;
+  const aiEmployeePaidSeats = subscriptionStatus?.ai_employee_paid_seat_count ?? 0;
+  const activeAiEmployeeCount = subscriptionStatus?.active_ai_employee_count ?? 0;
   const leadMagnetActive = subscriptionStatus?.lead_magnet_active ?? false;
   const posPaidOutletCount = subscriptionStatus?.pos_paid_outlet_count ?? 0;
   const posAddonActive = subscriptionStatus?.pos_addon_active ?? false;
@@ -332,6 +336,7 @@ export function useHRISSubscriptionPlansController(
       let changed = false;
       const nextRow: Record<string, { included: boolean; quantity: number }> = { ...row };
       for (const [code, sel] of Object.entries(row)) {
+        if (code === AI_EMPLOYEE_ADD_ON_CODE) continue;
         if (sel && sel.quantity > cap) {
           nextRow[code] = { ...sel, quantity: cap };
           changed = true;
@@ -372,8 +377,10 @@ export function useHRISSubscriptionPlansController(
         leadMagnetActive,
         posPaidOutletCount,
         posAddonActive,
+        aiEmployeePaidSeats,
+        activeAiEmployeeCount,
       ),
-    [planAddOnUi, omnichannelPaidSeats, leadMagnetActive, posPaidOutletCount, posAddonActive],
+    [planAddOnUi, omnichannelPaidSeats, leadMagnetActive, posPaidOutletCount, posAddonActive, aiEmployeePaidSeats, activeAiEmployeeCount],
   );
 
   /** Merged add-on map for the open checkout (`selectedPlan`), preferring the card snapshot from click time. */
@@ -401,6 +408,7 @@ export function useHRISSubscriptionPlansController(
       billingTermMonths,
       selections: mergeCheckoutSelectionsForSelectedPlan(),
       legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyAiEmployeePaidSeatCount: aiEmployeePaidSeats,
       legacyLeadMagnetActive: leadMagnetActive,
       legacyPosPaidOutletCount: posPaidOutletCount,
             legacyPosAddonActive: posAddonActive,
@@ -410,6 +418,7 @@ export function useHRISSubscriptionPlansController(
     selectedPlan,
     resolveBillingForPlan,
     omnichannelPaidSeats,
+    aiEmployeePaidSeats,
     mergeCheckoutSelectionsForSelectedPlan,
     proRatedData?.calculation,
     leadMagnetActive,
@@ -432,6 +441,7 @@ export function useHRISSubscriptionPlansController(
         billingTermMonths,
         selections: mergeCheckoutSelectionsForSelectedPlan(),
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyAiEmployeePaidSeatCount: aiEmployeePaidSeats,
       });
     }
     return catalogAddOnBillingChargeIdr;
@@ -444,25 +454,40 @@ export function useHRISSubscriptionPlansController(
     currentOrgBillingTermMonths,
     resolveBillingForPlan,
     omnichannelPaidSeats,
+    aiEmployeePaidSeats,
     mergeCheckoutSelectionsForSelectedPlan,
     catalogAddOnBillingChargeIdr,
   ]);
 
   const handleAddOnIncludedChange = useCallback((planId: string, code: string, included: boolean) => {
     setPlanAddOnUi((prev) => {
-      const defaultQty = code === POS_OUTLETS_ADD_ON_CODE ? 0 : 1;
+      const defaultQty =
+        code === POS_OUTLETS_ADD_ON_CODE
+          ? 0
+          : code === AI_EMPLOYEE_ADD_ON_CODE
+            ? Math.max(1, activeAiEmployeeCount)
+            : 1;
       const cur = prev[planId]?.[code] ?? { included: false, quantity: defaultQty };
+      const quantity =
+        included && code === AI_EMPLOYEE_ADD_ON_CODE
+          ? Math.max(cur.quantity, Math.max(1, activeAiEmployeeCount))
+          : cur.quantity;
       return {
         ...prev,
-        [planId]: { ...(prev[planId] ?? {}), [code]: { ...cur, included } },
+        [planId]: { ...(prev[planId] ?? {}), [code]: { ...cur, included, quantity } },
       };
     });
-  }, []);
+  }, [activeAiEmployeeCount]);
 
   const handleAddOnQuantityChange = useCallback(
     (planId: string, code: string, quantity: number, hrMemberCap: number) => {
       const cap = addOnLineQuantityCap(code, hrMemberCap);
-      const minQ = code === POS_OUTLETS_ADD_ON_CODE ? 0 : 1;
+      const minQ =
+        code === POS_OUTLETS_ADD_ON_CODE
+          ? 0
+          : code === AI_EMPLOYEE_ADD_ON_CODE
+            ? Math.max(1, activeAiEmployeeCount)
+            : 1;
       const q = Math.min(cap, Math.max(minQ, Math.round(Number(quantity)) || minQ));
       setPlanAddOnUi((prev) => {
         const cur = prev[planId]?.[code] ?? { included: false, quantity: minQ };
@@ -472,7 +497,7 @@ export function useHRISSubscriptionPlansController(
         };
       });
     },
-    [],
+    [activeAiEmployeeCount],
   );
 
   const calculatePlanPrice = (
@@ -538,6 +563,7 @@ export function useHRISSubscriptionPlansController(
         plan,
         selections: mergedAtClick,
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyAiEmployeePaidSeatCount: aiEmployeePaidSeats,
         legacyLeadMagnetActive: leadMagnetActive,
         legacyPosPaidOutletCount: posPaidOutletCount,
             legacyPosAddonActive: posAddonActive,
@@ -566,6 +592,7 @@ export function useHRISSubscriptionPlansController(
           leadMagnetActive,
           posPaidOutletCount,
           posAddonActive,
+          aiEmployeePaidSeats,
         }) &&
         rosterCount > bundledOmnichannelRosterUnitsFromSelections(mergedAtClick)
       ) {
@@ -584,6 +611,7 @@ export function useHRISSubscriptionPlansController(
           leadMagnetActive,
           posPaidOutletCount,
           posAddonActive,
+          aiEmployeePaidSeats,
         }) &&
         activeOutletCount > 1 + bundledPosOutletUnitsFromSelections(mergedAtClick)
       ) {
@@ -638,6 +666,7 @@ export function useHRISSubscriptionPlansController(
             annualDiscountPercent: plan.annual_discount_percentage,
             selections: mergedAtClick,
             legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyAiEmployeePaidSeatCount: aiEmployeePaidSeats,
             legacyLeadMagnetActive: leadMagnetActive,
             legacyPosPaidOutletCount: posPaidOutletCount,
             legacyPosAddonActive: posAddonActive,
@@ -730,6 +759,13 @@ export function useHRISSubscriptionPlansController(
         const selections =
           addOnAtClick ??
           mergePlanAddOnSelectionsForCheckout(plan, planAddOnUi[plan.id], memberCount);
+        const aiRow = selections[AI_EMPLOYEE_ADD_ON_CODE];
+        if (aiRow?.included && Math.round(aiRow.quantity) < activeAiEmployeeCount) {
+          toast.error(
+            `Kursi Karyawan AI tidak boleh kurang dari ${activeAiEmployeeCount} karyawan AI yang masih aktif.`,
+          );
+          return;
+        }
 
         const { billingCycle: chargeCycle, billingTermMonths } = resolvePlanBillingSelection(
           plan,
@@ -751,6 +787,7 @@ export function useHRISSubscriptionPlansController(
           billingTermMonths,
           selections,
           legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyAiEmployeePaidSeatCount: aiEmployeePaidSeats,
         });
         const grossRenew = finalAmount + catalogAddonRenew;
         const itemDetails = buildMidtransExplicitHrAndAddonItemDetails({
@@ -779,6 +816,7 @@ export function useHRISSubscriptionPlansController(
             bundled_lead_magnet_included: bundledLeadMagnetFromSelections(selections),
             bundled_pos_outlet_units: bundledPosOutletUnitsFromSelections(selections),
             bundled_pos_addon_included: bundledPosAddonFromSelections(selections),
+            bundled_ai_employee_units: bundledAiEmployeeUnitsFromSelections(selections),
             renewal_full_period: true,
           },
           ...(itemDetails ? { itemDetails } : {}),
@@ -788,10 +826,17 @@ export function useHRISSubscriptionPlansController(
       } finally {
         setPlanCardPrimaryPendingId(null);
       }
-  }, [subscriptionStatus, initiateMidtransPayment, t, omnichannelPaidSeats, planAddOnUi, billingCycles, billingTerms, currentOrgBillingTermMonths]);
+  }, [subscriptionStatus, initiateMidtransPayment, t, omnichannelPaidSeats, aiEmployeePaidSeats, activeAiEmployeeCount, planAddOnUi, billingCycles, billingTerms, currentOrgBillingTermMonths]);
 
   const handleConfirmUpgrade = useCallback(async () => {
     if (!selectedPlan || isEnterpriseSubscriptionPlan(selectedPlan)) return;
+    const aiCheckoutRow = mergeCheckoutSelectionsForSelectedPlan()[AI_EMPLOYEE_ADD_ON_CODE];
+    if (aiCheckoutRow?.included && Math.round(aiCheckoutRow.quantity) < activeAiEmployeeCount) {
+      toast.error(
+        `Kursi Karyawan AI tidak boleh kurang dari ${activeAiEmployeeCount} karyawan AI yang masih aktif.`,
+      );
+      return;
+    }
 
     if (planUsesPerMemberPricing(selectedPlan) && selectedMemberCount < paidMemberFloor) {
       toast.error(t("subscription.plans.error.paidMemberFloor", { min: paidMemberFloor }));
@@ -818,6 +863,7 @@ export function useHRISSubscriptionPlansController(
           billingTermMonths,
           selections: mergeCheckoutSelectionsForSelectedPlan(),
           legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyAiEmployeePaidSeatCount: aiEmployeePaidSeats,
         });
         const grossTerm = fullTermPrice + catalogAddonTerm;
         const itemDetailsTerm = buildMidtransExplicitHrAndAddonItemDetails({
@@ -853,6 +899,9 @@ export function useHRISSubscriptionPlansController(
             bundled_pos_addon_included: bundledPosAddonFromSelections(
               mergeCheckoutSelectionsForSelectedPlan(),
             ),
+            bundled_ai_employee_units: bundledAiEmployeeUnitsFromSelections(
+              mergeCheckoutSelectionsForSelectedPlan(),
+            ),
           },
           ...(itemDetailsTerm ? { itemDetails: itemDetailsTerm } : {}),
         });
@@ -874,6 +923,7 @@ export function useHRISSubscriptionPlansController(
           billingTermMonths,
           selections: mergeCheckoutSelectionsForSelectedPlan(),
           legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyAiEmployeePaidSeatCount: aiEmployeePaidSeats,
           legacyLeadMagnetActive: leadMagnetActive,
           legacyPosPaidOutletCount: posPaidOutletCount,
             legacyPosAddonActive: posAddonActive,
@@ -937,6 +987,9 @@ export function useHRISSubscriptionPlansController(
             bundled_pos_addon_included: bundledPosAddonFromSelections(
               mergeCheckoutSelectionsForSelectedPlan(),
             ),
+            bundled_ai_employee_units: bundledAiEmployeeUnitsFromSelections(
+              mergeCheckoutSelectionsForSelectedPlan(),
+            ),
           },
         });
         setIsModalOpen(false);
@@ -971,6 +1024,7 @@ export function useHRISSubscriptionPlansController(
             leadMagnetActive,
             posPaidOutletCount,
             posAddonActive,
+            aiEmployeePaidSeats,
           }),
         };
 
@@ -1003,6 +1057,7 @@ export function useHRISSubscriptionPlansController(
         billingTermMonths,
         selections: mergeCheckoutSelectionsForSelectedPlan(),
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyAiEmployeePaidSeatCount: aiEmployeePaidSeats,
         legacyLeadMagnetActive: leadMagnetActive,
         legacyPosPaidOutletCount: posPaidOutletCount,
             legacyPosAddonActive: posAddonActive,
@@ -1050,6 +1105,9 @@ export function useHRISSubscriptionPlansController(
               bundled_pos_addon_included: bundledPosAddonFromSelections(
                 mergeCheckoutSelectionsForSelectedPlan(),
               ),
+              bundled_ai_employee_units: bundledAiEmployeeUnitsFromSelections(
+                mergeCheckoutSelectionsForSelectedPlan(),
+              ),
             }
           : {
               is_member_upgrade: false,
@@ -1066,6 +1124,9 @@ export function useHRISSubscriptionPlansController(
               bundled_pos_addon_included: bundledPosAddonFromSelections(
                 mergeCheckoutSelectionsForSelectedPlan(),
               ),
+              bundled_ai_employee_units: bundledAiEmployeeUnitsFromSelections(
+                mergeCheckoutSelectionsForSelectedPlan(),
+              ),
             },
       });
       
@@ -1075,12 +1136,19 @@ export function useHRISSubscriptionPlansController(
     } catch {
       // Error surfaced via toast from payment/schedule
     }
-  }, [selectedPlan, selectedMemberCount, selectedBillingTermMonths, initiateMidtransPayment, proRatedData, schedulePlanChange, subscriptionStatus, currentPlanId, currentMemberCount, currentOrgBillingTermMonths, omnichannelPaidSeats, leadMagnetActive, posPaidOutletCount, posAddonActive, mergeCheckoutSelectionsForSelectedPlan, paidMemberFloor, organizationId, queryClient, t, resolveBillingForPlan, refreshSubscriptionStatus]);
+  }, [selectedPlan, selectedMemberCount, selectedBillingTermMonths, initiateMidtransPayment, proRatedData, schedulePlanChange, subscriptionStatus, currentPlanId, currentMemberCount, currentOrgBillingTermMonths, omnichannelPaidSeats, aiEmployeePaidSeats, activeAiEmployeeCount, leadMagnetActive, posPaidOutletCount, posAddonActive, mergeCheckoutSelectionsForSelectedPlan, paidMemberFloor, organizationId, queryClient, t, resolveBillingForPlan, refreshSubscriptionStatus]);
 
   const handleChooseImmediate = useCallback(async () => {
     setIsOptionsModalOpen(false);
     
     if (!selectedPlan) return;
+    const aiImmediateRow = mergeCheckoutSelectionsForSelectedPlan()[AI_EMPLOYEE_ADD_ON_CODE];
+    if (aiImmediateRow?.included && Math.round(aiImmediateRow.quantity) < activeAiEmployeeCount) {
+      toast.error(
+        `Kursi Karyawan AI tidak boleh kurang dari ${activeAiEmployeeCount} karyawan AI yang masih aktif.`,
+      );
+      return;
+    }
 
     const { billingCycle: selectedBillingCycle, billingTermMonths } = resolveBillingForPlan(selectedPlan);
 
@@ -1101,6 +1169,7 @@ export function useHRISSubscriptionPlansController(
         billingTermMonths,
         selections: mergeCheckoutSelectionsForSelectedPlan(),
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyAiEmployeePaidSeatCount: aiEmployeePaidSeats,
         legacyLeadMagnetActive: leadMagnetActive,
         legacyPosPaidOutletCount: posPaidOutletCount,
             legacyPosAddonActive: posAddonActive,
@@ -1148,6 +1217,9 @@ export function useHRISSubscriptionPlansController(
               bundled_pos_addon_included: bundledPosAddonFromSelections(
                 mergeCheckoutSelectionsForSelectedPlan(),
               ),
+              bundled_ai_employee_units: bundledAiEmployeeUnitsFromSelections(
+                mergeCheckoutSelectionsForSelectedPlan(),
+              ),
             }
           : {
               is_member_upgrade: false,
@@ -1164,6 +1236,9 @@ export function useHRISSubscriptionPlansController(
               bundled_pos_addon_included: bundledPosAddonFromSelections(
                 mergeCheckoutSelectionsForSelectedPlan(),
               ),
+              bundled_ai_employee_units: bundledAiEmployeeUnitsFromSelections(
+                mergeCheckoutSelectionsForSelectedPlan(),
+              ),
             },
       });
       
@@ -1172,7 +1247,7 @@ export function useHRISSubscriptionPlansController(
     } catch {
       // Error surfaced via toast from payment
     }
-  }, [selectedPlan, selectedMemberCount, initiateMidtransPayment, proRatedData, omnichannelPaidSeats, leadMagnetActive, mergeCheckoutSelectionsForSelectedPlan, resolveBillingForPlan]);
+  }, [selectedPlan, selectedMemberCount, initiateMidtransPayment, proRatedData, omnichannelPaidSeats, aiEmployeePaidSeats, activeAiEmployeeCount, leadMagnetActive, mergeCheckoutSelectionsForSelectedPlan, resolveBillingForPlan]);
 
   const handleChooseScheduled = useCallback(async () => {
     if (!selectedPlan || !proRatedData?.calculation) return;
@@ -1230,6 +1305,7 @@ export function useHRISSubscriptionPlansController(
         plan,
         selections,
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyAiEmployeePaidSeatCount: aiEmployeePaidSeats,
         legacyLeadMagnetActive: leadMagnetActive,
         legacyPosPaidOutletCount: posPaidOutletCount,
             legacyPosAddonActive: posAddonActive,
@@ -1306,6 +1382,7 @@ export function useHRISSubscriptionPlansController(
           leadMagnetActive,
           posPaidOutletCount,
           posAddonActive,
+          aiEmployeePaidSeats,
         }));
     
     if (isCurrent) {
@@ -1376,6 +1453,7 @@ export function useHRISSubscriptionPlansController(
         annualDiscountPercent: plan.annual_discount_percentage,
         selections,
         legacyOmnichannelPaidSeatCount: omnichannelPaidSeats,
+          legacyAiEmployeePaidSeatCount: aiEmployeePaidSeats,
         legacyLeadMagnetActive: leadMagnetActive,
         legacyPosPaidOutletCount: posPaidOutletCount,
             legacyPosAddonActive: posAddonActive,
@@ -1472,6 +1550,8 @@ export function useHRISSubscriptionPlansController(
     lastPaidAmount,
     lastPaidMemberCount,
     omnichannelPaidSeats,
+    aiEmployeePaidSeats,
+    activeAiEmployeeCount,
     posPaidOutletCount,
     posAddonActive,
     rosterCount,

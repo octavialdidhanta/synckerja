@@ -8,6 +8,7 @@ import {
   LEAD_MAGNET_ADD_ON_CODE,
   OMNICHANNEL_ROSTER_ADD_ON_CODE,
   POS_OUTLETS_ADD_ON_CODE,
+  AI_EMPLOYEE_ADD_ON_CODE,
   addOnLineQuantityCap,
   computeCatalogAddOnLineAmountIdr,
   describeCatalogAddOnLinePricing,
@@ -39,6 +40,8 @@ type PlanAddOnCatalogRowsProps = {
   leadMagnetActive?: boolean;
   posPaidOutletCount?: number;
   posAddonActive?: boolean;
+  aiEmployeePaidSeats?: number;
+  activeAiEmployeeCount?: number;
   isMidCycleActive?: boolean;
   isTrialPlan?: boolean;
   isExpired?: boolean;
@@ -56,6 +59,7 @@ function paidAddOnBaseline(
   leadMagnetActive: boolean,
   posPaidOutletCount: number,
   posAddonActive: boolean,
+  aiEmployeePaidSeats: number,
 ): number {
   if (code === OMNICHANNEL_ROSTER_ADD_ON_CODE) {
     return Math.max(0, Math.round(Number(omnichannelPaidSeats)) || 0);
@@ -63,6 +67,9 @@ function paidAddOnBaseline(
   if (code === LEAD_MAGNET_ADD_ON_CODE && leadMagnetActive) return 1;
   if (code === POS_OUTLETS_ADD_ON_CODE) {
     return Math.max(0, Math.round(Number(posPaidOutletCount)) || 0);
+  }
+  if (code === AI_EMPLOYEE_ADD_ON_CODE) {
+    return Math.max(0, Math.round(Number(aiEmployeePaidSeats)) || 0);
   }
   void posAddonActive;
   return 0;
@@ -82,6 +89,8 @@ export const PlanAddOnCatalogRows = memo(
     leadMagnetActive = false,
     posPaidOutletCount = 0,
     posAddonActive = false,
+    aiEmployeePaidSeats = 0,
+    activeAiEmployeeCount = 0,
     isMidCycleActive = false,
     isTrialPlan = false,
     isExpired = false,
@@ -104,6 +113,7 @@ export const PlanAddOnCatalogRows = memo(
           const qtyCap = addOnLineQuantityCap(code, memberCount);
           const isOmni = code === OMNICHANNEL_ROSTER_ADD_ON_CODE;
           const isPos = code === POS_OUTLETS_ADD_ON_CODE;
+          const isAi = code === AI_EMPLOYEE_ADD_ON_CODE;
           const billedQty = isPos
             ? Math.min(qtyCap, Math.max(0, sel.quantity))
             : Math.min(qtyCap, Math.max(1, sel.quantity));
@@ -132,6 +142,7 @@ export const PlanAddOnCatalogRows = memo(
             leadMagnetActive,
             posPaidOutletCount,
             posAddonActive,
+            aiEmployeePaidSeats,
           );
           const posProductActive = posAddonActive || posPaidOutletCount > 0;
           const toggleOffSchedulable =
@@ -140,8 +151,11 @@ export const PlanAddOnCatalogRows = memo(
             sel.included &&
             (isPos
               ? posProductActive
-              : qtyBaseline > 0 && (isOmni || code === LEAD_MAGNET_ADD_ON_CODE));
-          const sliderMin = isPos
+              : qtyBaseline > 0 && (isOmni || isAi || code === LEAD_MAGNET_ADD_ON_CODE));
+          const aiFloor = Math.max(1, Math.round(activeAiEmployeeCount) || 0);
+          const sliderMin = isAi
+            ? aiFloor
+            : isPos
             ? !isExpired && isMidCycleActive && qtyBaseline > 0
               ? qtyBaseline
               : 0
