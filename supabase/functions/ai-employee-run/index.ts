@@ -1263,7 +1263,9 @@ Deno.serve(async (req: Request) => {
               attempt,
               field: collision.field,
               prior_title: collision.title,
+              prior_used: "used" in collision ? collision.used : undefined,
               draft_title: candidate.title,
+              draft_opening: copyFingerprint(candidate).lines[0] ?? "",
             }));
             if (attempt >= 3) { idea.skip = true; break; }
             avoid = collision.reason;

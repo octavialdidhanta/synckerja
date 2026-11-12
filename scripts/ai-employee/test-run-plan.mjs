@@ -1438,3 +1438,20 @@ test("penolakan copy dicatat dengan bagian dan judul pembandingnya", () => {
   assert.match(source, /lastReject = `copy:\$\{collision\.field\}@/);
   assert.match(source, /event: "sop1_copy_reject"/);
 });
+
+test("penolakan pembuka menyebut kalimat lama yang harus dihindari", () => {
+  const prior = {
+    title: "Garansi Daging Empuk Sate Sultan PIK",
+    hook: "Sate Kambing Alot? Itu Dulu!",
+    opening: "Pernah kecewa karena daging sate kambing yang alot?",
+    lines: ["Pernah kecewa karena daging sate kambing yang alot?"],
+  };
+  const draft = {
+    title: "Jurnal Rasa: Catatan Tiap Kunjungan",
+    slides: [{ vo: "Pernah kecewa sama daging sate kambing yang alot?", element: "Hook headline: Catat Rasamu Visual hook: buku" }],
+  };
+  const hit = copyCollides(draft, [prior]);
+  assert.equal(hit?.field, "opening");
+  assert.equal(hit?.used, "Pernah kecewa karena daging sate kambing yang alot?");
+  assert.match(hit?.reason ?? "", /sudah memakai: "Pernah kecewa karena daging sate kambing yang alot\?"/);
+});

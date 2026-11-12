@@ -775,11 +775,16 @@ export function copyCollides(draft, priors, { claimTokens = null } = {}) {
     }
     const priorHook = copyTokens(prior?.hook ?? "");
     const priorOpening = copyTokens(prior?.opening ?? prior?.lines?.[0] ?? "");
-    if (openingTooClose(hookTokens, priorHook) || openingTooClose(openingTokens, priorOpening)) {
+    const hookClose = openingTooClose(hookTokens, priorHook);
+    if (hookClose || openingTooClose(openingTokens, priorOpening)) {
+      const used = clip(hookClose ? prior?.hook : (prior?.opening ?? prior?.lines?.[0]), 160);
       return {
         field: "opening",
         title,
-        reason: `Kalimat pembuka terlalu mirip dengan "${clip(title, 120)}". Ganti headline dan kalimat slide 1.`,
+        used,
+        reason: used
+          ? `Kalimat pembuka terlalu mirip dengan rencana "${clip(title, 120)}" yang sudah memakai: "${used}". Jangan buka dengan pertanyaan atau keluhan yang sama. Mulai slide 1 dari sudut ide ini sendiri, dengan kata dan struktur kalimat yang berbeda.`
+          : `Kalimat pembuka terlalu mirip dengan "${clip(title, 120)}". Ganti headline dan kalimat slide 1.`,
       };
     }
     const priorLines = (Array.isArray(prior?.lines) ? prior.lines : [])
