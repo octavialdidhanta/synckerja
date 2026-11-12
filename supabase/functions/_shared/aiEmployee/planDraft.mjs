@@ -1084,6 +1084,8 @@ export function buildSop1Prompt({ day, pillar, steps, catalog, thinking, feedbac
     "Setiap slide wajib mengisi visual, vo, dan element. Jangan mengosongkannya.",
     "visual adalah Scene Visual: adegan yang terlihat, bukan file gambar dan bukan path. Bila adegan memuat orang, minta foto manusia sungguhan: kulit alami, kamera nyata, bukan ilustrasi, kartun, 3D, atau wajah sintetis.",
     "vo adalah copywriting yang dibaca di slide itu, satu atau dua kalimat bahasa Indonesia. Copy menyambung dengan adegan. Jangan mengulang caption.",
+    "Bahasa vo dan Hook headline: bahasa lisan sehari-hari yang diucapkan audiens ke teman dekat. Pakai bentuk pendek seperti nggak, aja, banget, sih, deh, kok, atau dong bila pas. Sapa penonton dengan kamu, bukan Anda. Jangan memakai kata formal seperti tidak, sangat, namun, merupakan, atau oleh karena itu. Tetap jelas dan jangan menumpuk singkatan.",
+    "title dan Hook headline berangkat dari Idea dan Development pilar, bukan dari klaim Product Knowledge. Klaim produk boleh muncul di slide tengah atau penutup.",
     "element adalah Element Lainnya: komponen yang tampil bersama copy, misalnya bukti, angka, kontras, panah, atau ajakan. Tulis konkret.",
     "Slide 1 adalah halaman pembuka. element slide 1 wajib diawali dua label ini: 'Hook headline: ...' lalu 'Visual hook: ...'. Hook headline adalah kalimat pendek yang menghentikan scroll. Visual hook adalah hal yang mata tangkap lebih dulu. Komponen lain menyusul setelah kedua label itu.",
     "tagging boleh kosong. Isi hanya label singkat yang benar-benar tampil di slide.",
