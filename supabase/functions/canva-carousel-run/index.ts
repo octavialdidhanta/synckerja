@@ -381,10 +381,17 @@ async function briefProductPhotos(
 ): Promise<ProductPhoto[]> {
   const { data: plan } = await admin
     .from("social_media_plans")
-    .select("pic_id, organization_id, sub_service_id")
+    .select("pic_id, organization_id, sub_service_id, sub_service_ids")
     .eq("id", planId)
     .maybeSingle();
-  if (!plan?.pic_id || !plan.organization_id) return [];
+  if (!plan?.organization_id) return [];
+  // Menus the AI run picked for this plan: send only their real photos.
+  const picked = (Array.isArray(plan.sub_service_ids) ? plan.sub_service_ids : [])
+    .map((id: unknown) => String(id))
+    .filter((id: string) => /^[0-9a-f-]{36}$/i.test(id))
+    .slice(0, 3);
+  if (picked.length > 0) return libraryPhotos(admin, String(plan.organization_id), picked);
+  if (!plan.pic_id) return [];
   const { data: brief } = await admin
     .from("ai_employee_briefs")
     .select("sub_service_ids, sub_service_id")
@@ -400,9 +407,17 @@ async function briefProductPhotos(
     .filter((id) => /^[0-9a-f-]{36}$/i.test(id))
     .slice(0, MAX_PRODUCT_PHOTOS);
   if (ordered.length === 0) return [];
+  return libraryPhotos(admin, String(plan.organization_id), ordered);
+}
+
+async function libraryPhotos(
+  admin: SupabaseClient,
+  organizationId: string,
+  ids: string[],
+): Promise<ProductPhoto[]> {
   const { data, error } = await admin.rpc("sub_service_library_photos", {
-    p_organization_id: plan.organization_id,
-    p_ids: ordered,
+    p_organization_id: organizationId,
+    p_ids: ids,
   });
   if (error || !Array.isArray(data)) return [];
   return data.flatMap((row) => {

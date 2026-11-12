@@ -36,6 +36,7 @@ import {
   carouselReferenceOk,
   normalizeCarouselReference,
   parseCarouselDraft,
+  pickMenuIds,
   referencePositions,
   parseChatReply,
   parseExecutionVerdict,
@@ -710,6 +711,48 @@ Deno.serve(async (req: Request) => {
       const performance = await loadScope("performance", {});
       const product = await loadProduct();
       const brief = briefRows[0] ?? null;
+      // Menus (sub categories) of the brief's catalog that have a real library photo.
+      // The draft may pick up to 3; canva-carousel-run then places only those photos.
+      const menus: { id: string; name: string }[] = [];
+      {
+        const catalogIds = (Array.isArray(brief?.service_ids) ? brief.service_ids : [])
+          .map((id: unknown) => String(id))
+          .filter((id: string) => isUuid(id));
+        if (catalogIds.length > 0) {
+          const briefSubs = await admin
+            .from("ai_employee_briefs")
+            .select("sub_service_ids")
+            .eq("employee_id", employeeId)
+            .eq("organization_id", employee.organization_id)
+            .maybeSingle();
+          const allowedSubs = (Array.isArray(briefSubs.data?.sub_service_ids) ? briefSubs.data.sub_service_ids : [])
+            .map((id: unknown) => String(id))
+            .filter((id: string) => isUuid(id));
+          let subQuery = admin
+            .from("sub_services")
+            .select("id, name")
+            .eq("organization_id", employee.organization_id)
+            .in("service_id", catalogIds)
+            .or("is_active.is.null,is_active.eq.true");
+          if (allowedSubs.length > 0) subQuery = subQuery.in("id", allowedSubs);
+          const subs = await subQuery.order("name").limit(60);
+          const subRows = (subs.data ?? []) as Array<{ id: string; name: string | null }>;
+          if (!subs.error && subRows.length > 0) {
+            const photos = await admin.rpc("sub_service_library_photos", {
+              p_organization_id: employee.organization_id,
+              p_ids: subRows.map((row) => row.id),
+            });
+            const withPhoto = new Set(
+              ((photos.data ?? []) as Array<{ sub_service_id?: string }>).map((row) => String(row.sub_service_id ?? "")),
+            );
+            for (const row of subRows) {
+              const name = String(row.name ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+              if (name && withPhoto.has(String(row.id))) menus.push({ id: String(row.id), name });
+            }
+          }
+        }
+      }
+      const menuIds = new Set(menus.map((row) => row.id));
       const chosenCatalog = catalogChoice(brief);
       if (chosenCatalog.status === "missing") {
         await closeSop1("failed", "brief_missing", 0);
@@ -1236,6 +1279,7 @@ Deno.serve(async (req: Request) => {
               product,
               path: promptPath,
               avoid,
+              menus,
             }));
             if (result.kind !== "ok") return result;
             const parsed = parseCarouselDraft(result.script, draftNotes);
@@ -1365,12 +1409,14 @@ Deno.serve(async (req: Request) => {
           continue;
         }
         const palette = catalogPalette(brief);
+        const { sub_service_ids: draftMenus, ...planPayload } = plan as typeof plan & { sub_service_ids?: unknown };
+        const pickedMenus = pickMenuIds(draftMenus, menuIds);
         const performed = await rpc("ai_employee_perform", {
           p_employee_id: employeeId,
           p_run_id: runId,
           p_action: "thinking.plan.save",
           p_payload: withJobClaim({
-            ...plan,
+            ...planPayload,
             ...(palette ? { palette } : {}),
             idea_id: String(idea.idea_id ?? idea.id ?? ""),
             execution_id: executionId,
@@ -1391,6 +1437,19 @@ Deno.serve(async (req: Request) => {
           continue;
         }
         if (performed.status < 200 || performed.status >= 300 || !isUuid(createdId)) throw new Error("perform_failed");
+        if (pickedMenus.length > 0) {
+          const tagged = await admin
+            .from("social_media_plans")
+            .update({ sub_service_id: pickedMenus[0], sub_service_ids: pickedMenus })
+            .eq("id", String(createdId))
+            .eq("organization_id", employee.organization_id);
+          console.log(JSON.stringify({
+            event: tagged.error ? "sop1_menu_tag_failed" : "sop1_menu_tagged",
+            run_id: runId,
+            plan_id: String(createdId),
+            menus: pickedMenus.map((id) => menus.find((row) => row.id === id)?.name ?? id),
+          }));
+        }
         takeProduct();
         idea.used = true;
         planIds.push(String(createdId));

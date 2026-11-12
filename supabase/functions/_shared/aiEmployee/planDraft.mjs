@@ -1069,7 +1069,21 @@ function pathLines(path) {
   return lines.join("\n");
 }
 
-export function buildSop1Prompt({ day, pillar, steps, catalog, thinking, feedback, plans, brief, performance, service, idea, product, path = null, avoid = "" }) {
+function menuLines(menus) {
+  const list = (Array.isArray(menus) ? menus : [])
+    .filter((row) => row && MENU_ID.test(String(row.id ?? "")) && String(row.name ?? "").trim())
+    .slice(0, 60)
+    .map((row) => ({ id: String(row.id), name: clip(row.name, 80) }));
+  if (list.length === 0) return [];
+  return [
+    "Tambahkan kunci sub_service_ids di JSON yang sama: array 0 sampai 3 id dari daftar Menu di bawah, urut dari menu paling utama.",
+    "Pilih hanya menu yang makanannya benar-benar tampil di visual atau disebut di vo. Baca nama menu dengan teliti: sate kambing bukan sate babi atau sate ayam. Kosongkan array bila tidak ada menu yang cocok.",
+    "Foto asli menu terpilih akan dipasang di desain. Pada visual slide yang menampilkan makanan itu, sebut nama menunya persis.",
+    `Menu: ${JSON.stringify(list)}`,
+  ];
+}
+
+export function buildSop1Prompt({ day, pillar, steps, catalog, thinking, feedback, plans, brief, performance, service, idea, product, path = null, avoid = "", menus = [] }) {
   const lockedPath = pathLines(path);
   const focusedFacts = Boolean(path) || briefHasAngles(brief);
   const referenceRule = referenceInstruction(brief);
@@ -1100,6 +1114,7 @@ export function buildSop1Prompt({ day, pillar, steps, catalog, thinking, feedbac
     `content_pillar_id wajib persis ${pillar?.id ?? ""}.`,
     service?.id ? `service_id wajib persis ${service.id}. Jangan memakai katalog di luar fokus brief.` : "Fokus katalog belum ada.",
     "Kembalikan JSON saja dengan kunci title, post_date, caption, concept, slides, content_pillar_id, product_knowledge_id, product_knowledge_fields. slides adalah array object dengan kunci timing, visual, vo, element, tagging. product_knowledge_fields adalah array nama kolom Product Knowledge yang benar-benar dipakai.",
+    ...menuLines(menus),
     briefLines(brief, { omitReader: focusedFacts }),
     ...briefNoteCommands(brief),
     ...(lockedPath ? [lockedPath] : []),
@@ -1291,6 +1306,22 @@ export function carouselNotesOk(draft, notes) {
   return facts.every((fact) => textHasFact(caption, fact) && textHasFact(lastText, fact));
 }
 
+const MENU_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Up to 3 distinct menu ids from a draft; the run checks them against its menu list. */
+export function pickMenuIds(value, allowed = null) {
+  const allow = allowed ? new Set([...allowed].map((id) => String(id))) : null;
+  const picked = [];
+  for (const item of Array.isArray(value) ? value : []) {
+    const id = typeof item === "string" ? item.trim() : "";
+    if (!MENU_ID.test(id) || picked.includes(id)) continue;
+    if (allow && !allow.has(id)) continue;
+    picked.push(id);
+    if (picked.length === 3) break;
+  }
+  return picked;
+}
+
 export function parseCarouselDraft(text, notes) {
   const value = jsonObject(text);
   if (!value) return null;
@@ -1334,6 +1365,7 @@ export function parseCarouselDraft(text, notes) {
     product_knowledge_fields: Array.isArray(value.product_knowledge_fields)
       ? value.product_knowledge_fields.filter((item) => typeof item === "string").map((item) => item.trim()).slice(0, 13)
       : [],
+    sub_service_ids: pickMenuIds(value.sub_service_ids),
   };
   placeBriefFacts(draft, notes);
   if (notes && !carouselNotesOk(draft, notes)) return null;
