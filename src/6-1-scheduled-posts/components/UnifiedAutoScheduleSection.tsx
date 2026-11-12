@@ -381,7 +381,6 @@ export function UnifiedAutoScheduleSection({
 
         const skippedLabel = formatSkippedTargetLabels(skipped);
 
-        if (succeeded > 0 && failed === 0) {
         const waiting = results.some((result) => result.waitingRetry);
 
         if (waiting) {
@@ -392,6 +391,8 @@ export function UnifiedAutoScheduleSection({
             ),
           );
         } else if (succeeded > 0 && failed === 0) {
+          if (action === 'schedule') {
+            toast.success(
               t('digitalMarketing.scheduledPosts.bulkScheduleSuccess', { count: succeeded }),
             );
           } else if (processing > 0 && processing === succeeded) {
@@ -483,8 +484,6 @@ export function UnifiedAutoScheduleSection({
   if (!serviceId) return null;
 
   const sectionHeader = (
-    <header className="flex min-w-0 items-center gap-3 border-b border-border/60 bg-muted/30 px-3 py-2">
-      <h3 className="shrink-0 text-sm font-semibold leading-none text-foreground">
     <header
       className={
         nativeAppLayout
@@ -555,9 +554,9 @@ export function UnifiedAutoScheduleSection({
                     <div
                       className={`${nativeAppLayout ? SCHEDULE_TABLE_TIME_HEAD_NATIVE_CLASS : SCHEDULE_TABLE_TIME_CELL_CLASS} ${SCHEDULE_TABLE_MIDDLE_HEAD_CLASS}`}
                     >
+                      {t('digitalMarketing.scheduledPosts.postTimeLabel', 'Post time (WIB)')}
+                    </div>
                   </div>
-                  <div className={SCHEDULE_TABLE_ACTIONS_HEAD_CLASS}>
-                    {t('digitalMarketing.scheduledPosts.tableActions', 'Actions')}
                   <div className={nativeAppLayout ? SCHEDULE_TABLE_ACTIONS_HEAD_STATIC_CLASS : SCHEDULE_TABLE_ACTIONS_HEAD_CLASS}>
                     {t('digitalMarketing.scheduledPosts.tableActions', 'Actions')}
                   </div>
@@ -633,6 +632,8 @@ export function UnifiedAutoScheduleSection({
                       bulkRunning={isBulkRunning}
                       reconnectHint={getReconnectHint(target.platform, t)}
                       pinActions={!nativeAppLayout}
+                    />
+                  );
                 })}
               </div>
             </div>
@@ -696,8 +697,6 @@ export function UnifiedAutoScheduleSection({
         </div>
 
         <div
-          className={`flex min-h-0 min-w-0 flex-1 shrink-0 flex-col px-3 py-2 md:w-1/2 ${
-            tiktokCarouselOnly ? 'min-h-[46dvh]' : 'bg-muted/15'
           className={`flex min-h-0 min-w-0 shrink-0 flex-col px-3 py-2 md:w-1/2 md:flex-1 ${
             nativeAppLayout
               ? 'order-first h-[min(40vh,300px)] max-h-[300px] flex-none overflow-hidden border-b border-border/60 bg-muted/15 md:order-none md:h-auto md:max-h-none md:overflow-visible md:border-b-0'
@@ -713,7 +712,9 @@ export function UnifiedAutoScheduleSection({
                 'digitalMarketing.scheduledPosts.carouselPreviewEmpty',
                 'Add carousel images before posting.',
               )}
+              className="min-h-0 flex-1"
               contained={nativeAppLayout}
+            />
           ) : (
             <div className="relative aspect-video min-h-[140px] w-full flex-1 overflow-hidden rounded-lg border border-border/80 bg-black shadow-sm">
               {driveValidation.valid ? (

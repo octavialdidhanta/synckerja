@@ -286,6 +286,8 @@ export function RequiredPlatformScheduleRow({
       </div>
 
       <div className={pinActions ? SCHEDULE_TABLE_ACTIONS_CELL_CLASS : SCHEDULE_TABLE_ACTIONS_CELL_STATIC_CLASS}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
               type="button"
               variant="ghost"
