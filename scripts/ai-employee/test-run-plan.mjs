@@ -52,6 +52,7 @@ import {
   carouselReferenceOk,
   normalizeCarouselReference,
   parseCarouselDraft,
+  pickMenuIds,
   copyClaimTokens,
   copyCollides,
   orderCopyFallbackPaths,
@@ -1463,4 +1464,38 @@ test("prompt SOP1 meminta bahasa lisan dan judul dari Idea", () => {
   const source = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
   assert.match(source, /checkId === "usesSlang"/);
   assert.match(source, /checkId === "soundsSpoken"/);
+});
+
+test("menu pilihan draft: maksimal 3, unik, hanya dari daftar menu", () => {
+  const sate = "11111111-1111-4111-8111-111111111111";
+  const sop = "22222222-2222-4222-8222-222222222222";
+  const babi = "33333333-3333-4333-8333-333333333333";
+  const nasi = "44444444-4444-4444-8444-444444444444";
+  assert.deepEqual(pickMenuIds([sate, sate, "bukan-id", sop, babi, nasi]), [sate, sop, babi]);
+  assert.deepEqual(pickMenuIds([babi, sate], [sate, sop]), [sate]);
+  assert.deepEqual(pickMenuIds("bukan array"), []);
+});
+
+test("prompt SOP1 menyertakan daftar menu dan meminta sub_service_ids", () => {
+  const menus = [
+    { id: "11111111-1111-4111-8111-111111111111", name: "Sate Kambing Full Daging" },
+    { id: "33333333-3333-4333-8333-333333333333", name: "Sate Babi Sultan Asin" },
+  ];
+  const prompt = buildSop1Prompt({ day: "2026-11-13", pillar: { id: "p", name: "Edukasi" }, steps: [], catalog: [], thinking: [], feedback: [], plans: [], brief: {}, performance: [], service: { id: "s", name: "Sate Sultan PIK" }, idea: null, product: [], menus });
+  assert.match(prompt, /Tambahkan kunci sub_service_ids/);
+  assert.match(prompt, /sate kambing bukan sate babi atau sate ayam/);
+  assert.match(prompt, /Sate Kambing Full Daging/);
+  const without = buildSop1Prompt({ day: "2026-11-13", pillar: { id: "p", name: "Edukasi" }, steps: [], catalog: [], thinking: [], feedback: [], plans: [], brief: {}, performance: [], service: null, idea: null, product: [] });
+  assert.doesNotMatch(without, /sub_service_ids/);
+});
+
+test("run menyimpan menu pilihan dan Canva hanya mengirim foto menu itu", () => {
+  const run = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
+  assert.match(run, /sub_service_library_photos/);
+  assert.match(run, /pickMenuIds\(draftMenus, menuIds\)/);
+  assert.match(run, /update\(\{ sub_service_id: pickedMenus\[0\], sub_service_ids: pickedMenus \}\)/);
+  assert.match(run, /\.\.\.planPayload,/);
+  const canva = readFileSync(new URL("../../supabase/functions/canva-carousel-run/index.ts", import.meta.url), "utf8");
+  assert.match(canva, /select\("pic_id, organization_id, sub_service_id, sub_service_ids"\)/);
+  assert.match(canva, /if \(picked\.length > 0\) return libraryPhotos/);
 });
