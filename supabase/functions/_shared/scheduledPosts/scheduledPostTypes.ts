@@ -58,6 +58,10 @@ export type FacebookProviderConfig = {
   fb_upload_phase?: string;
   /** Kept after publish (unlike `fb_video_id`) so delete can target the video node. */
   fb_published_video_id?: string;
+  /** Unpublished or published photo ids for a carousel. Reel publish leaves this empty. */
+  fb_photo_ids?: string[];
+  /** Page feed post id for a carousel. Distinct from the Reel video id. */
+  fb_carousel_post_id?: string;
   publish_step?: string;
 };
 

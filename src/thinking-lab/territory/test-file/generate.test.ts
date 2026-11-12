@@ -226,6 +226,32 @@ describe("runTerritoryGenerate", () => {
     expect(result.incumbents.some((row) => row.statement === "Nama yang tidak boleh diperiksa")).toBe(false);
   });
 
+  it("does not keep a name that only adds a word to one already kept", async () => {
+    const names = ["Diskusi kuliner", "Diskusi kuliner malam", "Pilihan sate"];
+    let step = 0;
+    const judge = vi.fn(async (_parent: unknown, code: string) => validFacts(code));
+    const result = await runTerritoryGenerate({
+      loadParent: async () => ({ ok: true, parent: { id: "bt-1", code: "BT01", statement: "Parent" } }),
+      incumbents: [],
+      carryLessons: true,
+      propose: async () => {
+        const name = names[step] ?? "";
+        step += 1;
+        return name ? [name] : [];
+      },
+      judge,
+      persist: async (input) => ({
+        code: input.code,
+        statement: input.statement,
+        admission: input.admission,
+        bigThoughtId: input.parent.id,
+        relationToParent: input.facts.relationToParent,
+      }),
+    });
+    expect(judge.mock.calls.map((call) => call[2])).toEqual(["Diskusi kuliner", "Pilihan sate"]);
+    expect(result.incumbents.map((row) => row.statement)).toEqual(["Diskusi kuliner", "Pilihan sate"]);
+  });
+
   it("adds one Territory beside an already locked set and keeps those incumbents", async () => {
     const propose = vi.fn(async () => ["A further space", "Ignored"]);
     const locked = ["TR01", "TR02", "TR03"].map((code) => ({

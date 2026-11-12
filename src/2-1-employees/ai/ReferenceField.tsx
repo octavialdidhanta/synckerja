@@ -110,11 +110,6 @@ export function ReferenceField({ references, canEdit, onSave, onClear }: Referen
           );
         })}
       </div>
-      {canEdit ? (
-        <p className="text-xs text-muted-foreground">
-          Klik kotak, lalu tempel gambar. Tersimpan langsung.
-        </p>
-      ) : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );

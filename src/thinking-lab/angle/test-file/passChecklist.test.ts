@@ -41,6 +41,30 @@ describe("angle pass checklist", () => {
         parentStatement: parent,
       }),
     ).toContain("because-clause");
+    expect(
+      buildAnglePassPrompt({
+        id: "ownSubject",
+        statement: "Menu kantor terlihat murah karena porsinya kecil",
+        parentStatement: parent,
+        subject: "Porsi kecil",
+      }),
+    ).toContain("still carries the distinctive fact");
+    expect(
+      buildAnglePassPrompt({
+        id: "ownSubject",
+        statement: "Menu kantor terlihat murah karena porsinya kecil",
+        parentStatement: parent,
+        subject: "Porsi kecil",
+      }),
+    ).toContain("A noun phrase is the right shape.");
+    expect(
+      buildAnglePassPrompt({
+        id: "ownSubject",
+        statement: "Menu kantor terlihat murah karena porsinya kecil",
+        parentStatement: parent,
+        subject: "Porsi kecil",
+      }),
+    ).toContain("sayable in another place. That does not make pass false.");
   });
 
   it("treats an undecided answer as a failure", () => {

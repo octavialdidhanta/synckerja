@@ -21,6 +21,7 @@ import {
   isPlanEligibleForYouTubeAutoSchedule,
 } from '../../../supabase/functions/_shared/scheduledPosts/scheduledPostEligibility.ts';
 import { publicCarouselImageUrl } from '../../../supabase/functions/_shared/metaContent/instagramCarouselPublishApi.ts';
+import { facebookAttachedMediaFields } from '../../../supabase/functions/_shared/metaContent/facebookCarouselPublishApi.ts';
 import {
   getPlanPublishEligibilityMissing,
   isPlanEligibleForPublish,
@@ -151,7 +152,12 @@ describe('TikTok carousel eligibility', () => {
     expect(isPlanEligibleForInstagramAutoSchedule(carouselPlan)).toBe(true);
     expect(isPlanEligibleForInstagramAutoSchedule(reelPlan)).toBe(true);
     expect(isPlanEligibleForYouTubeAutoSchedule(carouselPlan)).toBe(false);
-    expect(isPlanEligibleForFacebookAutoSchedule(carouselPlan)).toBe(false);
+    expect(isPlanEligibleForFacebookAutoSchedule(carouselPlan)).toBe(true);
+    expect(isPlanEligibleForFacebookAutoSchedule(reelPlan)).toBe(true);
+    expect(isPlanEligibleForFacebookAutoSchedule({
+      ...carouselPlan,
+      carousel_image_count: 0,
+    })).toBe(false);
     expect(isPlanEligibleForLinkedInAutoSchedule(carouselPlan)).toBe(false);
     expect(isPlanEligibleForReelAutoSchedule(carouselPlan)).toBe(false);
     expect(isPlanEligibleForAutoSchedule(carouselPlan)).toBe(false);
@@ -161,6 +167,15 @@ describe('TikTok carousel eligibility', () => {
       ...carouselPlan,
       carousel_image_count: 0,
     })).toContain('carousel_images');
+  });
+});
+
+describe('Facebook carousel photo fields', () => {
+  it('attaches each uploaded photo as its own media id', () => {
+    expect(facebookAttachedMediaFields(['11', '22'])).toEqual({
+      'attached_media[0]': '{"media_fbid":"11"}',
+      'attached_media[1]': '{"media_fbid":"22"}',
+    });
   });
 });
 

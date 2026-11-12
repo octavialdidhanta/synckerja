@@ -570,6 +570,15 @@ export function normalizeCarouselReference(slides, positions) {
   });
 }
 
+function briefNoteCommands(brief) {
+  const required = String(brief?.required_notes ?? "").replace(/\s+/g, " ").trim();
+  const forbidden = String(brief?.forbidden_notes ?? "").replace(/\s+/g, " ").trim();
+  const lines = [];
+  if (required) lines.push(`Catatan wajib adalah perintah. Salin teks ini apa adanya ke caption dan ke vo slide terakhir: ${required}`);
+  if (forbidden) lines.push(`Catatan terlarang adalah perintah. Teks ini tidak boleh muncul di judul, caption, concept, visual, vo, atau element: ${forbidden}`);
+  return lines;
+}
+
 function briefLines(brief, options = {}) {
   if (!brief || !Array.isArray(brief.service_ids) || brief.service_ids.length === 0) {
     return "Brief kerja: belum diisi.";
@@ -899,7 +908,7 @@ export function buildSop1Prompt({ day, pillar, steps, catalog, thinking, feedbac
     "concept wajib, bahasa Indonesia, dua sampai empat kalimat, 40 sampai 800 karakter. Isinya alasan konten ini dibuat: masalah penonton, sudut ide, dan apa yang harus mereka sadari. Jangan mengulang caption. Jangan menulis adegan slide. Jangan mengarang fakta di luar Idea dan Product Knowledge.",
     "slides wajib 2 sampai 10. Naya yang memilih jumlahnya. timing persis Slide 1, Slide 2, berurutan.",
     "Setiap slide wajib mengisi visual, vo, dan element. Jangan mengosongkannya.",
-    "visual adalah Scene Visual: adegan yang terlihat, bukan file gambar dan bukan path.",
+    "visual adalah Scene Visual: adegan yang terlihat, bukan file gambar dan bukan path. Bila adegan memuat orang, minta foto manusia sungguhan: kulit alami, kamera nyata, bukan ilustrasi, kartun, 3D, atau wajah sintetis.",
     "vo adalah copywriting yang dibaca di slide itu, satu atau dua kalimat bahasa Indonesia. Copy menyambung dengan adegan. Jangan mengulang caption.",
     "element adalah Element Lainnya: komponen yang tampil bersama copy, misalnya bukti, angka, kontras, panah, atau ajakan. Tulis konkret.",
     "Slide 1 adalah halaman pembuka. element slide 1 wajib diawali dua label ini: 'Hook headline: ...' lalu 'Visual hook: ...'. Hook headline adalah kalimat pendek yang menghentikan scroll. Visual hook adalah hal yang mata tangkap lebih dulu. Komponen lain menyusul setelah kedua label itu.",
@@ -913,6 +922,7 @@ export function buildSop1Prompt({ day, pillar, steps, catalog, thinking, feedbac
     service?.id ? `service_id wajib persis ${service.id}. Jangan memakai katalog di luar fokus brief.` : "Fokus katalog belum ada.",
     "Kembalikan JSON saja dengan kunci title, post_date, caption, concept, slides, content_pillar_id, product_knowledge_id, product_knowledge_fields. slides adalah array object dengan kunci timing, visual, vo, element, tagging. product_knowledge_fields adalah array nama kolom Product Knowledge yang benar-benar dipakai.",
     briefLines(brief, { omitReader: focusedFacts }),
+    ...briefNoteCommands(brief),
     ...(lockedPath ? [lockedPath] : []),
     focusedFacts ? focusedProductLines(product) : carouselProductLines(product),
     `Langkah SOP: ${JSON.stringify(listed(steps, (row) => ({ step_no: row.step_no, instruction: clip(row.instruction, 120) }), 4))}`,
@@ -1052,7 +1062,30 @@ function carouselConcept(value, support = "") {
   return merged.slice(0, 800);
 }
 
-export function parseCarouselDraft(text) {
+function noteNeedle(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+export function carouselNotesOk(draft, notes) {
+  const required = noteNeedle(notes?.required ?? notes?.required_notes);
+  const forbidden = noteNeedle(notes?.forbidden ?? notes?.forbidden_notes);
+  const slides = Array.isArray(draft?.slides) ? draft.slides : [];
+  const fields = [
+    draft?.title,
+    draft?.caption,
+    draft?.concept,
+    ...slides.flatMap((slide) => [slide?.visual, slide?.vo, slide?.element]),
+  ].map((value) => noteNeedle(value).toLowerCase());
+  if (forbidden && fields.some((field) => field.includes(forbidden.toLowerCase()))) return false;
+  if (!required) return true;
+  const needle = required.toLowerCase();
+  const caption = noteNeedle(draft?.caption).toLowerCase();
+  const last = slides[slides.length - 1];
+  const lastText = noteNeedle(last?.vo).toLowerCase();
+  return caption.includes(needle) && lastText.includes(needle);
+}
+
+export function parseCarouselDraft(text, notes) {
   const value = jsonObject(text);
   if (!value) return null;
   const title = typeof value.title === "string" ? value.title.replace(/\s+/g, " ").trim().slice(0, 200) : "";
@@ -1083,7 +1116,7 @@ export function parseCarouselDraft(text) {
   const lead = packed[0];
   const concept = carouselConcept(value.concept, [title, lead?.visual, lead?.vo].filter(Boolean).join(" "));
   if (!concept) return null;
-  return {
+  const draft = {
     title,
     post_date: postDate,
     caption,
@@ -1096,6 +1129,8 @@ export function parseCarouselDraft(text) {
       ? value.product_knowledge_fields.filter((item) => typeof item === "string").map((item) => item.trim()).slice(0, 13)
       : [],
   };
+  if (notes && !carouselNotesOk(draft, notes)) return null;
+  return draft;
 }
 
 export function parsePlanDraft(text) {
@@ -1198,4 +1233,279 @@ function isRealDay(value) {
 
 export function isDay(value) {
   return isRealDay(String(value ?? "").trim());
+}
+
+function readJsonValue(value) {
+  if (typeof value !== "string") return value;
+  let raw = value.trim();
+  const fence = /```(?:json)?\s*([\s\S]*?)```/i.exec(raw);
+  if (fence) raw = fence[1].trim();
+  const objectAt = raw.indexOf("{");
+  const arrayAt = raw.indexOf("[");
+  const start = objectAt < 0 ? arrayAt : arrayAt < 0 ? objectAt : Math.min(objectAt, arrayAt);
+  if (start < 0) return null;
+  const end = Math.max(raw.lastIndexOf("}"), raw.lastIndexOf("]"));
+  if (end <= start) return null;
+  try {
+    return JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+export function rankCarouselPillars(pillars, context, limit = 12) {
+  const words = String(context ?? "")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word.length > 3);
+  const ranked = [...(Array.isArray(pillars) ? pillars : [])]
+    .filter((pillar) => pillar && typeof pillar.name === "string" && pillar.name.trim())
+    .sort((left, right) => {
+      const score = (pillar) => {
+        const haystack = `${pillar.name} ${pillar.category ?? ""} ${pillar.description ?? ""}`.toLowerCase();
+        return words.reduce((total, word) => total + (haystack.includes(word) ? 1 : 0), 0);
+      };
+      const difference = score(right) - score(left);
+      if (difference !== 0) return difference;
+      return String(left.name).localeCompare(String(right.name), "id");
+    });
+  const cap = Math.max(0, Number(limit) || 0);
+  return ranked.slice(0, cap);
+}
+
+function turnCount(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+function turnStamp(value) {
+  return String(value ?? "");
+}
+
+function sortTurnPillars(rows) {
+  return [...rows].sort((left, right) => {
+    const countDiff = turnCount(left?.count) - turnCount(right?.count);
+    if (countDiff !== 0) return countDiff;
+    const leftLast = turnStamp(left?.lastUsed);
+    const rightLast = turnStamp(right?.lastUsed);
+    if (leftLast !== rightLast) return leftLast < rightLast ? -1 : 1;
+    return turnStamp(left?.name || left?.id).localeCompare(turnStamp(right?.name || right?.id), "id");
+  });
+}
+
+export function chooseContentTurn({ angles, ideas, pillars, takenPairs, previous } = {}) {
+  const pillarRows = (Array.isArray(pillars) ? pillars : []).filter((row) => row && row.id);
+  const ideaRows = (Array.isArray(ideas) ? ideas : []).filter((row) => row && row.id);
+  const taken = new Set((Array.isArray(takenPairs) ? takenPairs : []).map((pair) => String(pair)));
+  const prevAngle = turnStamp(previous?.angleId);
+  const prevIdea = turnStamp(previous?.ideaId);
+  const prevPillar = turnStamp(previous?.pillarId);
+  const openPillars = (ideaId) => {
+    const open = pillarRows.filter((pillar) => !taken.has(`${ideaId}:${pillar.id}`));
+    if (!prevPillar || open.length < 2) return sortTurnPillars(open);
+    const skipped = open.filter((pillar) => String(pillar.id) !== prevPillar);
+    return sortTurnPillars(skipped.length > 0 ? skipped : open);
+  };
+  const eligible = (rows) => rows.filter((idea) => openPillars(idea.id).length > 0);
+  const sortIdeas = (rows) => [...rows].sort((left, right) => {
+    const countDiff = turnCount(left?.planCount) - turnCount(right?.planCount);
+    if (countDiff !== 0) return countDiff;
+    const leftLast = turnStamp(left?.lastUsed);
+    const rightLast = turnStamp(right?.lastUsed);
+    if (leftLast !== rightLast) return leftLast < rightLast ? -1 : 1;
+    return turnStamp(left?.id).localeCompare(turnStamp(right?.id));
+  });
+  const withoutPreviousIdea = (rows) => {
+    if (!prevIdea || rows.length < 2) return rows;
+    const current = rows.find((idea) => String(idea.id) === prevIdea);
+    if (!current) return rows;
+    const currentCount = turnCount(current.planCount);
+    const alternative = rows.some((idea) => String(idea.id) !== prevIdea && turnCount(idea.planCount) <= currentCount);
+    return alternative ? rows.filter((idea) => String(idea.id) !== prevIdea) : rows;
+  };
+  const pickFrom = (rows) => {
+    const ranked = sortIdeas(eligible(rows));
+    for (const list of [withoutPreviousIdea(ranked), ranked]) {
+      for (const idea of list) {
+        const pillar = openPillars(idea.id)[0];
+        if (!pillar) continue;
+        return { ideaId: turnStamp(idea.id), angleId: turnStamp(idea.angleId), pillarId: turnStamp(pillar.id) };
+      }
+    }
+    return null;
+  };
+  const angleRows = (Array.isArray(angles) ? angles : []).filter((row) => row && row.id);
+  if (angleRows.length === 0) return pickFrom(ideaRows);
+  const allowed = new Set(angleRows.map((angle) => turnStamp(angle.id)));
+  const scoped = ideaRows.filter((idea) => allowed.has(turnStamp(idea.angleId)));
+  const lastUsed = new Map(angleRows.map((angle) => [turnStamp(angle.id), turnStamp(angle.lastUsed)]));
+  for (const idea of scoped) {
+    const last = turnStamp(idea.lastUsed);
+    const angleId = turnStamp(idea.angleId);
+    if (last > (lastUsed.get(angleId) ?? "")) lastUsed.set(angleId, last);
+  }
+  const rankedAngles = angleRows
+    .filter((angle) => eligible(scoped.filter((idea) => turnStamp(idea.angleId) === turnStamp(angle.id))).length > 0)
+    .sort((left, right) => {
+      const leftLast = lastUsed.get(turnStamp(left.id)) ?? "";
+      const rightLast = lastUsed.get(turnStamp(right.id)) ?? "";
+      if (leftLast !== rightLast) return leftLast < rightLast ? -1 : 1;
+      return turnStamp(left.id).localeCompare(turnStamp(right.id));
+    });
+  const skipped = prevAngle && rankedAngles.some((angle) => turnStamp(angle.id) !== prevAngle)
+    ? rankedAngles.filter((angle) => turnStamp(angle.id) !== prevAngle)
+    : rankedAngles;
+  for (const angle of skipped) {
+    const chosen = pickFrom(scoped.filter((idea) => turnStamp(idea.angleId) === turnStamp(angle.id)));
+    if (chosen) return chosen;
+  }
+  if (skipped.length !== rankedAngles.length) {
+    for (const angle of rankedAngles) {
+      const chosen = pickFrom(scoped.filter((idea) => turnStamp(idea.angleId) === turnStamp(angle.id)));
+      if (chosen) return chosen;
+    }
+  }
+  return null;
+}
+
+export function rankPillarsForRotation(pillars, usage) {
+  const byId = new Map();
+  for (const row of Array.isArray(usage) ? usage : []) {
+    const id = String(row?.id ?? "");
+    if (!id) continue;
+    byId.set(id, {
+      count: Number(row.count) || 0,
+      lastUsed: String(row.lastUsed ?? ""),
+    });
+  }
+  return [...(Array.isArray(pillars) ? pillars : [])]
+    .filter((pillar) => pillar && typeof pillar.id === "string" && typeof pillar.name === "string" && pillar.name.trim())
+    .sort((left, right) => {
+      const a = byId.get(left.id) ?? { count: 0, lastUsed: "" };
+      const b = byId.get(right.id) ?? { count: 0, lastUsed: "" };
+      if (a.count !== b.count) return a.count - b.count;
+      if (a.lastUsed !== b.lastUsed) return a.lastUsed < b.lastUsed ? -1 : 1;
+      return String(left.name).localeCompare(String(right.name), "id");
+    });
+}
+
+export function buildCarouselPathPrompt({ context, pillars }) {
+  const lines = (Array.isArray(pillars) ? pillars : []).map((pillar) => {
+    const detail = [pillar?.funnel, pillar?.category, clip(pillar?.description ?? "", 180)].filter(Boolean).join(" — ");
+    const name = String(pillar?.name ?? "").trim();
+    return detail ? `- ${name}: ${detail}` : `- ${name}`;
+  });
+  return [
+    "Recommend only the pillars listed below that can carry this conceptual idea.",
+    "Use a pillar name exactly as listed. Do not invent a pillar.",
+    ...(lines.length === 1
+      ? ["This pillar is already selected so the audience meets a different pillar. Develop the idea in this pillar, or return {\"reviews\":[]} if it cannot carry the idea."]
+      : []),
+    "Do not force a pillar to fit. Omit it when you cannot show the idea living in that pillar.",
+    "Return exactly 1 recommendation, the strongest. If no listed pillar can carry the idea, return {\"reviews\":[]}.",
+    "development shows what this same conceptual idea becomes in that pillar. Keep its substance. Show the pillar's way of carrying it.",
+    "development is not a title, a pillar label, a script, or a new idea.",
+    "reason says why this pillar can carry the idea without replacing it. A label is not a reason.",
+    "Write development and reason in the same language as the idea.",
+    "Return JSON only:",
+    JSON.stringify({ reviews: [{ pillar: "", development: "", reason: "" }] }),
+    "",
+    "Conceptual idea and its context:",
+    String(context ?? "").trim(),
+    "",
+    "Pillars to review:",
+    lines.join("\n") || "(none)",
+  ].join("\n");
+}
+
+export function parseCarouselPathReviews(raw, pillars) {
+  const parsed = readJsonValue(raw);
+  const row = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  const list = Array.isArray(parsed) ? parsed : Array.isArray(row?.reviews) ? row.reviews : [];
+  const reviewed = Array.isArray(pillars) ? pillars : [];
+  const seen = new Set();
+  return list.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const named = String(item.pillar ?? item.pillarName ?? item.name ?? "").trim();
+    const reason = clip(item.reason, 500);
+    const development = clip(item.development ?? item.becomes, 700);
+    if (!named || !reason || !development) return [];
+    const match = reviewed.find((pillar) => String(pillar?.name ?? "").trim().toLowerCase() === named.toLowerCase());
+    const id = String(match?.id ?? "");
+    if (!match || !UUID.test(id) || seen.has(id) || development.toLowerCase() === String(match.name).trim().toLowerCase()) return [];
+    seen.add(id);
+    return [{
+      contentPillarId: id,
+      pillarName: String(match.name).trim(),
+      development,
+      reason,
+    }];
+  });
+}
+
+export function buildCarouselPathCheckPrompt({ context, pillar, development, claim }) {
+  const detail = [pillar?.funnel, pillar?.category, clip(pillar?.description ?? "", 240)].filter(Boolean).join(" — ");
+  return [
+    "Check this pillar recommendation. The proposal is not proof.",
+    "PASS only when the development keeps the conceptual idea and shows how this pillar carries it, and the claim explains that fit.",
+    "FAIL when the development replaces the idea, only names the pillar, or the claim does not show why the pillar fits.",
+    "When pass is true, reason is the evidence in the idea's language, in one or two sentences.",
+    "When pass is false, reason says what is missing.",
+    "Return JSON only: {\"pass\":true,\"reason\":\"\"} or {\"pass\":false,\"reason\":\"...\"}",
+    "",
+    `Pillar: ${String(pillar?.name ?? "").trim()}`,
+    ...(detail ? [`Pillar detail: ${detail}`] : []),
+    "",
+    "Conceptual idea:",
+    String(context ?? "").trim(),
+    "",
+    "What the idea becomes in this pillar:",
+    String(development ?? "").trim(),
+    "",
+    "Claimed reason:",
+    String(claim ?? "").trim(),
+  ].join("\n");
+}
+
+export function parseCarouselPathCheck(raw) {
+  const row = readJsonValue(raw);
+  if (!row || typeof row !== "object" || Array.isArray(row) || typeof row.pass !== "boolean") return null;
+  const reason = clip(row.reason, 500);
+  if (!reason) return null;
+  return { pass: row.pass === true, reason };
+}
+
+export function carouselDevelopmentPath({ id, name, development, reason, savedAt }) {
+  const contentPillarId = String(id ?? "").trim();
+  const pillarName = String(name ?? "").trim();
+  const developmentText = clip(development, 700);
+  const reasonText = clip(reason, 500);
+  if (!UUID.test(contentPillarId) || !pillarName || !developmentText || !reasonText) return null;
+  if (developmentText.toLowerCase() === pillarName.toLowerCase()) return null;
+  const review = {
+    contentPillarId,
+    pillarName,
+    status: "RECOMMENDED",
+    reason: reasonText,
+    development: developmentText,
+  };
+  return {
+    contentPillarId,
+    pillarName,
+    format: "carousel",
+    status: "RECOMMENDED",
+    reason: reasonText,
+    reviews: [review],
+    savedAt: typeof savedAt === "string" && savedAt.trim() ? savedAt.trim() : new Date().toISOString(),
+  };
+}
+
+export function appendCarouselDevelopmentPath(existing, path) {
+  const paths = (Array.isArray(existing) ? existing : []).filter((item) => item && typeof item === "object");
+  if (!path || typeof path !== "object" || !UUID.test(String(path.contentPillarId ?? ""))) return paths;
+  const kept = paths.filter((item) => {
+    const samePillar = String(item.contentPillarId ?? "") === String(path.contentPillarId);
+    return !(samePillar && item.format === "carousel");
+  });
+  return [...kept, path];
 }

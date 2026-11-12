@@ -57,6 +57,27 @@ describe("territory pass checklist", () => {
         parentStatement: parent,
       }),
     ).toContain("several different Angles");
+    expect(
+      buildTerritoryPassPrompt({
+        id: "wideEnough",
+        statement: "Daging sate",
+        parentStatement: parent,
+      }),
+    ).toContain("If the only observation you can cite comes from the Big Thought, pass is true.");
+    expect(
+      buildTerritoryPassPrompt({
+        id: "wideEnough",
+        statement: "Daging sate",
+        parentStatement: parent,
+      }),
+    ).toContain("only observation you can cite comes from the Big Thought, return pass true");
+    expect(
+      buildTerritoryPassPrompt({
+        id: "wideEnough",
+        statement: "Daging sate",
+        parentStatement: parent,
+      }),
+    ).toContain("Kurir motor lebih murah fails because the name is already that one claim.");
   });
 
   it("treats an undecided answer as a failure", () => {
@@ -235,7 +256,7 @@ describe("territory pass checklist", () => {
     expect(result.checks.find((check) => check.id === "partOfBigThought")?.state).toBe("pass");
   });
 
-  it("asks the two Generate checks again when the name changes", () => {
+  it("keeps checks that already passed when the name changes", () => {
     const next = fixPriorForNextTerritoryName(
       [
         { id: "partOfBigThought", state: "pass" },
@@ -247,9 +268,10 @@ describe("territory pass checklist", () => {
       "Makan siang kantor",
       "Bekal kantor",
     );
-    expect(next.find((check) => check.id === "partOfBigThought")?.state).toBe("pending");
-    expect(next.find((check) => check.id === "audienceLanguage")?.state).toBe("pending");
+    expect(next.find((check) => check.id === "partOfBigThought")?.state).toBe("pass");
+    expect(next.find((check) => check.id === "audienceLanguage")?.state).toBe("pass");
     expect(next.find((check) => check.id === "questionArises")?.state).toBe("fail");
     expect(next.find((check) => check.id === "wideEnough")?.state).toBe("pass");
+    expect(next.find((check) => check.id === "siblingsDistinct")?.state).toBe("pending");
   });
 });

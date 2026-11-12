@@ -411,7 +411,12 @@ export async function runPlanAutoSchedule(
 
   for (const target of targets) {
     const lockKey = `${target.platform}::${target.platform_account_id}`;
-    if (carouselMode && target.platform !== "TikTok" && target.platform !== "Instagram") {
+    if (
+      carouselMode &&
+      target.platform !== "TikTok" &&
+      target.platform !== "Instagram" &&
+      target.platform !== "Facebook"
+    ) {
       skipped.push({
         platform: target.platform,
         platform_account_id: target.platform_account_id,

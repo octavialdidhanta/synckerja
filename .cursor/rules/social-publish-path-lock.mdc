@@ -1,5 +1,5 @@
 ---
-description: Kunci jalur publish sosial yang sudah terbukti. Reel tetap lewat URL video. Carousel TikTok dan Instagram yang sudah terbit di produksi jangan diubah urutannya.
+description: Kunci jalur publish sosial yang sudah terbukti. Reel tetap lewat URL video. Carousel TikTok, Instagram, dan Facebook yang sudah terbit jangan diubah urutannya.
 globs: supabase/functions/_shared/scheduledPosts/**/*.ts,supabase/functions/_shared/metaContent/**/*.ts,supabase/functions/_shared/tiktokContent/**/*.ts,supabase/functions/social-media-plan-publish/**/*.ts,supabase/functions/social-media-scheduler/**/*.ts,supabase/functions/meta-content-publish/**/*.ts,supabase/functions/tiktok-content-publish/**/*.ts,src/6-1-scheduled-posts/**/*.{ts,tsx},vercel.json
 alwaysApply: false
 ---
@@ -27,7 +27,8 @@ Konten `Post` dan `Carousel` memakai foto di bucket `social-media-carousel`, buk
 
 - TikTok foto memakai `initTikTokPhotoPublishPullFromUrl` dan log `tiktok_publish_path=photo_pull`. URL gambar adalah `https://office.synckerja.com/api/tiktok-carousel/...`. Rewrite di `vercel.json` mem-proxy path itu ke objek publik Supabase dan harus menjawab `200` `image/jpeg` tanpa header `Location`. TikTok menolak redirect.
 - Instagram carousel memakai URL publik Supabase (`/storage/v1/object/public/social-media-carousel/...`). Satu foto menjadi posting gambar. Dua sampai sepuluh foto menjadi `media_type=CAROUSEL`. Lognya `instagram_publish_path=carousel`.
-- Di Social Media Publish Setup, konten carousel menampilkan TikTok dan Instagram. YouTube tidak ditampilkan. Facebook dan LinkedIn tidak ikut di-post.
+- Facebook carousel memakai URL publik yang sama. Satu foto dipublish lewat `/{page-id}/photos`. Dua sampai sepuluh foto diunggah `published=false`, lalu dijadikan satu postingan feed dengan `attached_media`. Lognya `facebook_publish_path=carousel`, dan cabang ini kembali sebelum `uploadFacebookReelsFromUrl`. Reel Facebook tidak melewati cabang foto.
+- Di Social Media Publish Setup, konten carousel menampilkan TikTok, Instagram, dan Facebook. YouTube tidak ditampilkan. LinkedIn tidak ikut di-post.
 - Post Now carousel tidak memakai `social-media-plan-publish` (`parallelPostNow` tetap false). Orchestrator itu masih untuk Reel.
 - Trigger `trg_cancel_scheduled_posts_on_plan_gate_change` tidak boleh membatalkan jadwal carousel hanya karena `google_drive_link` kosong atau tipe konten bukan Reel. Syarat batal untuk carousel: belum disetujui, tidak ada tanggal posting, atau jumlah gambar di luar 1–10.
 - Preview kanan adalah satu slide yang bisa digeser, tanpa bingkai hitam, dan mengikuti ukuran panel. Jangan kembalikan ke pemutar video atau grid semua foto.

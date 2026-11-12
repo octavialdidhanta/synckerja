@@ -159,7 +159,7 @@ export function fixScopeLines(scope: FixScope): string[] {
       ? ["Remove only the because-reason or the restatement of the parent. Keep the observation that already passed."]
       : []),
     ...(onlyRepair === "ownSubject"
-      ? ["Write only a short subject for the same observation. Do not use the Territory's name. Keep the observation sentence."]
+      ? ["Write only a short noun phrase that carries the rarely noticed fact. Do not name the place or use the Territory's name. Keep the observation sentence."]
       : []),
     ...(onlyRepair === "livedExample"
       ? ["Write only one concrete situation a person could point at. Keep the observation sentence and the short subject."]

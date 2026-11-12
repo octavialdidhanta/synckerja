@@ -102,7 +102,7 @@ export function AppSidebar() {
   const onOrganizationSwitched = useOrganizationSwitchCallback();
   const [orgDrawerOpen, setOrgDrawerOpen] = useState(false);
 
-  const canOpenOrgDrawer = isMobile && organizations.length > 1 && selfServiceEnabled;
+  const canOpenOrgDrawer = isMobile && organizations.length > 1;
   const organizationDisplayName = activeOrganization?.company_name ?? "Organisasi";
 
   return (

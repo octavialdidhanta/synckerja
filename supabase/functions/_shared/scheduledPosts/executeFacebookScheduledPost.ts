@@ -17,9 +17,22 @@ import { downloadGoogleDriveVideo } from "./googleDriveVideoDownload.ts";
 import { resolveGoogleDrivePublicVideoUrl } from "./googleDrivePublicVideoUrl.ts";
 import { touchPublishingHeartbeat } from "./publishingHeartbeat.ts";
 import {
+  isCarouselContentType,
   isPlanEligibleForFacebookAutoSchedule,
   shouldCancelScheduleDueToDriveMismatch,
 } from "./scheduledPostEligibility.ts";
+import {
+  assertCarouselPublishPaths,
+  carouselMediaSnapshot,
+  loadCarouselStoragePaths,
+} from "./carouselImagePaths.ts";
+import {
+  buildFacebookPhotoPostUrl,
+  facebookCarouselImageUrls,
+  fetchFacebookPostPermalink,
+  publishFacebookMultiPhotoPost,
+  uploadFacebookPagePhoto,
+} from "../metaContent/facebookCarouselPublishApi.ts";
 import { resolveVideoBytesForUpload, type SharedPublishContext } from "./sharedPublishContext.ts";
 import { syncPlanCompletionStateForPlan } from "./syncPlanCompletionStateDb.ts";
 import type { FacebookProviderConfig, ScheduledPostRow } from "./scheduledPostTypes.ts";
@@ -114,6 +127,115 @@ async function upsertFacebookLink(
   await syncPlanCompletionStateForPlan(admin, plan.id);
 }
 
+function storedFacebookPhotoIds(config: Record<string, unknown>): string[] {
+  const raw = config.fb_photo_ids;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => String(item ?? "").trim()).filter(Boolean);
+}
+
+async function executeFacebookCarouselScheduledPost(
+  admin: SupabaseClient,
+  schedule: ScheduledPostRow,
+  plan: PlanRow,
+): Promise<{ published_url: string; external_post_id: string | null }> {
+  const storagePaths = assertCarouselPublishPaths(
+    await loadCarouselStoragePaths(admin, plan.id),
+  );
+  const imageCount = storagePaths.length;
+  if (!isPlanEligibleForFacebookAutoSchedule({
+    ...planEligibilityInput(plan),
+    carousel_image_count: imageCount,
+  })) {
+    throw new Error("plan_not_eligible");
+  }
+  if (schedule.media_url_snapshot !== carouselMediaSnapshot(storagePaths)) {
+    throw new Error("carousel_images_changed");
+  }
+
+  const cfg = schedule.provider_config as FacebookProviderConfig;
+  const pageId = String(cfg.facebook_page_id ?? "").trim();
+  if (!pageId) throw new Error("missing_facebook_page_id");
+
+  const account = await resolveMetaContentAccount(
+    admin,
+    schedule.organization_id,
+    "facebook",
+    pageId,
+  );
+  if (!account?.pageAccessToken) throw new Error("facebook_page_not_found");
+  if (!facebookPublishScopesOk(account.grantedScopes)) {
+    throw new Error("publish_scopes_not_granted");
+  }
+
+  let providerConfig = { ...(schedule.provider_config as Record<string, unknown>) };
+  const caption = schedule.caption?.trim() || schedule.title?.trim() || "";
+  const accountLabel = String(cfg.account_label ?? account.accountLabel ?? "Facebook");
+  const heartbeat = () => touchPublishingHeartbeat(admin, [schedule.id]);
+
+  const finalize = async (postId: string) => {
+    const permalink = await fetchFacebookPostPermalink(postId, account.pageAccessToken);
+    const publishedUrl = permalink ?? buildFacebookPhotoPostUrl(postId);
+    await upsertFacebookLink(admin, plan, {
+      url: publishedUrl,
+      accountId: pageId,
+      accountLabel,
+      externalPostId: postId,
+      employeeId: cfg.employee_id,
+    });
+    return { published_url: publishedUrl, external_post_id: postId };
+  };
+
+  let photoIds = storedFacebookPhotoIds(providerConfig);
+  let postId = String(providerConfig.fb_carousel_post_id ?? "").trim();
+  if (postId) {
+    console.info(
+      `facebook_publish_path=carousel scheduleId=${schedule.id} resume=1 images=${imageCount}`,
+    );
+    return finalize(postId);
+  }
+  if (photoIds.length > imageCount) throw new Error("carousel_images_changed");
+
+  const imageUrls = facebookCarouselImageUrls(storagePaths);
+  while (photoIds.length < imageUrls.length) {
+    const single = imageUrls.length === 1;
+    const uploaded = await uploadFacebookPagePhoto(pageId, account.pageAccessToken, {
+      imageUrl: imageUrls[photoIds.length],
+      published: single,
+      caption: single ? caption : undefined,
+    });
+    photoIds = [...photoIds, uploaded.photoId];
+    postId = uploaded.postId ?? "";
+    providerConfig = await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
+      fb_photo_ids: photoIds,
+      ...(postId ? { fb_carousel_post_id: postId } : {}),
+      fb_upload_phase: postId ? "published" : "photos",
+      publish_step: postId ? "processing" : "uploading",
+    });
+    await heartbeat();
+    if (postId) {
+      console.info(
+        `facebook_publish_path=carousel scheduleId=${schedule.id} images=${imageCount}`,
+      );
+      return finalize(postId);
+    }
+  }
+
+  const created = await publishFacebookMultiPhotoPost(pageId, account.pageAccessToken, {
+    photoIds,
+    message: caption,
+  });
+  providerConfig = await persistFacebookProviderConfig(admin, schedule.id, providerConfig, {
+    fb_photo_ids: photoIds,
+    fb_carousel_post_id: created.postId,
+    fb_upload_phase: "published",
+    publish_step: "processing",
+  });
+  console.info(
+    `facebook_publish_path=carousel scheduleId=${schedule.id} images=${imageCount}`,
+  );
+  return finalize(created.postId);
+}
+
 export async function executeFacebookScheduledPost(
   admin: SupabaseClient,
   schedule: ScheduledPostRow,
@@ -121,6 +243,9 @@ export async function executeFacebookScheduledPost(
 ): Promise<{ published_url: string; external_post_id: string | null }> {
   const plan = await loadPlan(admin, schedule.social_media_plan_id);
   if (!plan) throw new Error("plan_not_found");
+  if (isCarouselContentType(plan.content_type?.name)) {
+    return executeFacebookCarouselScheduledPost(admin, schedule, plan);
+  }
   if (!isPlanEligibleForFacebookAutoSchedule(planEligibilityInput(plan))) {
     throw new Error("plan_not_eligible");
   }

@@ -47,18 +47,13 @@ export function territoryAdmissionChecks(
   });
 }
 
-/** A new name loses the two Generate passes. Checks that passed on this name stay. */
+/** A new name keeps every check that already passed. Only a failed or unrun check is asked again. */
 export function fixPriorForNextTerritoryName(
   prior: readonly TerritoryPassCheck[],
-  previousStatement: string,
-  nextStatement: string,
+  _previousStatement: string,
+  _nextStatement: string,
 ): TerritoryPassCheck[] {
-  const changed = previousStatement.trim().toLocaleLowerCase() !== nextStatement.trim().toLocaleLowerCase();
-  return prior.map((item) =>
-    changed && (item.id === "partOfBigThought" || item.id === "audienceLanguage")
-      ? { id: item.id, state: "pending" }
-      : { ...item },
-  );
+  return prior.map((item) => ({ ...item }));
 }
 
 /** The checklist a card shows after refresh, before a live run replaces it. */
@@ -132,9 +127,14 @@ export function buildTerritoryPassPrompt(input: {
               "Judge the supplied question only. Do not replace it with a question taken from the Territory name or from another subject.",
               question ? `Question the Big Thought answers: ${question}` : "No question was supplied, so pass is false.",
             ]
-          : [
-              "pass is true when this area can hold several different Angles, not paraphrases of one observation.",
-              "pass is false when the area can hold only one observation.",
+            : [
+              "An Angle is one observation inside a Territory. This check asks whether the name is still a place or has already become one Angle.",
+              "pass is true when the name is a place where several different Angles can live, and a second observation can be pointed at there without leaving the name or only restating the first.",
+              "pass is false only when the name itself is already one observation, one claim, one conclusion, or one method.",
+              "The Big Thought's answer is one future Angle. Quoting that answer is not proof the place holds only one observation. If the only observation you can cite comes from the Big Thought, pass is true.",
+              "A narrow place still passes. Do not fail a recognizable place because the Big Thought is specific, or because the other Angles have not been written yet.",
+              "Kurir paket passes under a Big Thought that one courier type is cheaper. Route, weight, and speed remain other observations. Kurir motor lebih murah fails because the name is already that one claim.",
+              "When pass is false, the reason names the observation already stated by the Territory name. Do not quote the Big Thought's answer as that observation.",
             ];
   return [
     "Decide one Territory pass check. Do not rewrite the name.",
@@ -142,7 +142,9 @@ export function buildTerritoryPassPrompt(input: {
     "When pass is false, reason says why in the same language as the Big Thought.",
     input.id === "partOfBigThought"
       ? "When the name is a recognizable area and the only doubt is a shared word or whether the area is exclusive to the Big Thought, return pass true. When you cannot decide whether it names an area at all, do not return pass true."
-      : "When you cannot decide, do not return pass true.",
+      : input.id === "wideEnough"
+        ? "When the name is a recognizable place and the only observation you can cite comes from the Big Thought, return pass true. When the name itself is already one observation or one claim, do not return pass true."
+        : "When you cannot decide, do not return pass true.",
     'Return JSON only: {"pass":true,"reason":""} or {"pass":false,"reason":"..."}',
     "",
     `Territory: ${input.statement.trim()}`,

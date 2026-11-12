@@ -3,6 +3,7 @@ import {
   angleCodesHeldPass,
   angleConflictFailures,
   angleFailureLessons,
+  buildAngleSiblingPrompt,
   holdPassingAngleVerdicts,
   mergeAngleAuditLessons,
   normalizeAngleSet,
@@ -19,6 +20,19 @@ function resolved(raw: Record<string, unknown>) {
 }
 
 describe("angle sibling audit", () => {
+  it("compares the fact inside each Angle, not the shared Territory topic", () => {
+    const prompt = buildAngleSiblingPrompt({
+      parentStatement: "Diskusi kuliner",
+      rows: [
+        { code: "AN02", statement: "Kualitas daging muda tidak bisa diubah teknik memasak." },
+        { code: "AN03", statement: "Reputasi dipakai sebagai bukti, bukan dagingnya." },
+      ],
+    });
+    expect(prompt).toContain("Remove the Territory's topic before comparing.");
+    expect(prompt).toContain("If telling the pair apart requires two different facts, they do not overlap.");
+    expect(prompt).toContain("Do not replace a sentence with a fact it does not state.");
+  });
+
   it("fails only the unique broad container", () => {
     const set = resolved({
       coreDistinct: false,

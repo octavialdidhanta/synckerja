@@ -275,7 +275,7 @@ export function territoryPassLines(audience?: string): string[] {
     named
       ? "The question answered by the Big Thought must actually show up in that area of this audience's real life. It fails when a different question comes up there, or when the question only restates the Big Thought. Other questions coming up in that area do not make it fail. An area where this Big Thought can still be discussed stays valid when that question shows up."
       : "The question answered by the Big Thought must actually show up in that area of real life. It fails when a different question comes up there, or when the question only restates the Big Thought. Other questions coming up in that area do not make it fail.",
-    "It must be wide enough for several different Angles.",
+    "It must be wide enough for several different Angles. A narrow place still passes. The Big Thought's own answer is one future Angle, not proof that the place holds only one observation. This fails only when the name itself is already one observation, claim, or method.",
     ...(named ? [`Audience: ${named}`] : []),
   ];
 }

@@ -3876,7 +3876,9 @@ export function ThinkingLabPage() {
         const failures = failureItemsFromIdeas(loaded.ideas, focusedAngle.id).filter(
           (item) => item.statement.trim().toLowerCase() !== ownStatement,
         );
-        const peers = crossPeersFromIdeas(loaded.ideas.filter((row) => row.id !== idea.id));
+        const peers = crossPeersFromIdeas(loaded.ideas.filter((row) => row.id !== idea.id)).filter(
+          (peer) => peer.validation.decision === "LOLOS",
+        );
         const failed = current.criteria
           .filter((criterion) => criterion.status === "FAIL" || (criterion.status === "BELUM_TERVERIFIKASI" && Boolean(lessonSentence(criterion))))
           .map((criterion) => ({ id: criterion.id, reason: lessonSentence(criterion) || criterion.reason }));
@@ -7094,16 +7096,19 @@ export function ThinkingLabPage() {
           scope = fixScopeFromChecks(shown);
           continue;
         }
-        publishTerritoryChecklist(row.code, beginSiblingCheck(checked.checks));
+        const siblingAlreadyPassed = checked.checks.some(
+          (check) => check.id === "siblingsDistinct" && check.state === "pass",
+        );
         const siblingRows = [
           ...keepers
             .filter((item) => item.code.toUpperCase() !== row.code.toUpperCase())
             .map((item) => ({ code: item.code, statement: item.statement })),
           { code: row.code, statement },
         ];
-        let siblingPass = siblingRows.length < 2;
+        let siblingPass = siblingAlreadyPassed || siblingRows.length < 2;
         let siblingReason = "";
         if (!siblingPass) {
+          publishTerritoryChecklist(row.code, beginSiblingCheck(checked.checks));
           const fingerprint = territorySetFingerprint({
             bigThoughtFingerprint: focusedBigThoughtFingerprint,
             territoryFingerprints: siblingRows.map((item) =>
@@ -8875,7 +8880,9 @@ export function ThinkingLabPage() {
                                     : undefined
                                 }
                                 ideaGenerateChecklist={
-                                  focus.kind === "angle" && ideaGenerateRun?.angleId === focusedAngle?.id
+                                  focus.kind === "angle" &&
+                                  ideaGenerateRun != null &&
+                                  ideaGenerateRun.angleId === focusedAngle?.id
                                     ? { checks: ideaGenerateRun.checks, report: ideaGenerateRun.report }
                                     : null
                                 }

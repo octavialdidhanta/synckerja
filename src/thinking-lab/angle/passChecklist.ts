@@ -151,15 +151,19 @@ export function buildAnglePassPrompt(input: {
                   `Example: ${input.example?.trim() || "(none)"}`,
                 ]
               : [
-                  "pass is true only when the short subject, read alone, names this same observation.",
-                  "pass is false when the subject is the Territory's name, a piece of the Territory, or a chopped opening that does not name the observation.",
+                  "pass is true when the short subject, read alone, still carries the distinctive fact of this observation.",
+                  "A noun phrase is the right shape. It does not have to repeat the sentence, mention the Territory, or be exclusive to this Territory.",
+                  "The same words may be sayable in another place. That does not make pass false.",
+                  "pass is false only when the subject names the place instead of the fact: the Territory's name, a piece of the Territory, a chopped opening, or a heading under which a different observation would still fit.",
                   `Subject: ${input.subject?.trim() || "(none)"}`,
                 ];
   return [
     "Decide one Angle pass check. Do not rewrite the sentence.",
     ...rule,
     "When pass is false, reason says why in the same language as the Territory.",
-    "When you cannot decide, do not return pass true.",
+    input.id === "ownSubject"
+      ? "When the words still carry the distinctive fact, return pass true even if they are a noun phrase and could be said in another place. When the words only name the place, do not return pass true."
+      : "When you cannot decide, do not return pass true.",
     'Return JSON only: {"pass":true,"reason":""} or {"pass":false,"reason":"..."}',
     "",
     `Angle: ${input.statement.trim()}`,

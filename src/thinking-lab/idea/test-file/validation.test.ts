@@ -432,6 +432,61 @@ describe("idea K1–K7", () => {
     expect(checksFromValidation(validation).find((check) => check.id === "K1")?.reason).toBe("Mekanismenya belum konkret.");
   });
 
+  it("does not fail K1 when the reason is about ordinary life", async () => {
+    const asked: string[] = [];
+    const validation = await runIdeaPassChecks({
+      statement: "Bagaimana jika mengamati respons daging mentah terhadap cahaya?",
+      mechanism: "Mengamati dan membandingkan respons daging mentah terhadap cahaya.",
+      value: "Perbedaan respons cahaya menjadi petunjuk saat memilih.",
+      angle: ANGLE,
+      territory: TERRITORY,
+      bigThought: BIG,
+      masterThought: MASTER,
+      failures: [],
+      validatedAt: NOW,
+      ask: async (prompt) => {
+        const id = prompt.match(/Decide check (K\d)/)?.[1] ?? "";
+        asked.push(id);
+        if (id === "K1") {
+          return JSON.stringify({
+            pass: false,
+            reason:
+              "Bagaimana jika mengamati dan membandingkan respons daging kambing mentah terhadap cahaya bukanlah tindakan yang dilakukan orang yang suka makan di luar dalam kehidupan sehari-hari.",
+          });
+        }
+        if (id === "K2") return JSON.stringify({ status: "BELUM_TERVERIFIKASI", reason: "Berhenti setelah K1." });
+        return passSentence;
+      },
+    });
+    expect(validation.criteria.find((criterion) => criterion.id === "K1")?.status).toBe("PASS");
+    expect(validation.criteria.find((criterion) => criterion.id === "K1")?.explanation).toContain("bagaimana-jika");
+    expect(asked).toContain("K2");
+  });
+
+  it("fails K1 when the statement is only a fact", async () => {
+    const asked: string[] = [];
+    const validation = await runIdeaPassChecks({
+      statement: "Bagaimana jika daging mentah berubah warna di bawah cahaya?",
+      mechanism: "Cahaya mengubah warna daging.",
+      value: "Warna terlihat berbeda.",
+      angle: ANGLE,
+      territory: TERRITORY,
+      bigThought: BIG,
+      masterThought: MASTER,
+      failures: [],
+      validatedAt: NOW,
+      ask: async (prompt) => {
+        const id = prompt.match(/Decide check (K\d)/)?.[1] ?? "";
+        asked.push(id);
+        if (id === "K1") return JSON.stringify({ pass: false, reason: "Ini hanya fakta, bukan proposal bagaimana-jika." });
+        return passSentence;
+      },
+    });
+    expect(validation.criteria.find((criterion) => criterion.id === "K1")?.status).toBe("FAIL");
+    expect(validation.criteria.find((criterion) => criterion.id === "K1")?.explanation).toContain("hanya fakta");
+    expect(asked).not.toContain("K2");
+  });
+
   it("does not ask again when the model says the check is unverified", async () => {
     let calls = 0;
     const validation = await runIdeaPassChecks({
@@ -526,6 +581,66 @@ describe("idea K1–K7", () => {
     expect(validation.criteria.find((criterion) => criterion.id === "K3")?.explanation).toBe("Mekanisme tim menutup syarat ini.");
   });
 
+  it("does not fail K3 when the reason says the mechanism does not solve the Angle", async () => {
+    const asked: string[] = [];
+    const validation = await runIdeaPassChecks({
+      statement: "Bagaimana jika mengamati reaksi wajah saat orang mencicipi sate?",
+      mechanism: "Mengamati dan membandingkan ekspresi wajah pengunjung lain.",
+      value: "Reaksi itu menjadi referensi konsistensi di diskusi.",
+      angle: ANGLE,
+      territory: TERRITORY,
+      bigThought: BIG,
+      masterThought: MASTER,
+      failures: [],
+      validatedAt: NOW,
+      ask: async (prompt) => {
+        const id = prompt.match(/Decide check (K\d)/)?.[1] ?? "";
+        asked.push(id);
+        if (id === "K3") {
+          return JSON.stringify({
+            pass: false,
+            reason:
+              "Bagaimana jika mengamati dan membandingkan reaksi wajah tidak secara langsung mengatasi masalah penilaian keempukan yang didasarkan pada konsistensi pengalaman di satu tempat.",
+          });
+        }
+        if (id === "K4") return JSON.stringify({ status: "BELUM_TERVERIFIKASI", reason: "Berhenti setelah K3." });
+        return passSentence;
+      },
+    });
+    expect(validation.criteria.find((criterion) => criterion.id === "K3")?.status).toBe("PASS");
+    expect(validation.criteria.find((criterion) => criterion.id === "K3")?.explanation).toContain("nilai ide ini");
+    expect(asked).toContain("K4");
+  });
+
+  it("fails K3 when the stated value does not follow from the mechanism", async () => {
+    const asked: string[] = [];
+    const validation = await runIdeaPassChecks({
+      statement: "Bagaimana jika mengamati reaksi wajah saat orang mencicipi sate?",
+      mechanism: "Mengamati dan membandingkan ekspresi wajah pengunjung lain.",
+      value: "Reaksi itu menjadi referensi konsistensi di diskusi.",
+      angle: ANGLE,
+      territory: TERRITORY,
+      bigThought: BIG,
+      masterThought: MASTER,
+      failures: [],
+      validatedAt: NOW,
+      ask: async (prompt) => {
+        const id = prompt.match(/Decide check (K\d)/)?.[1] ?? "";
+        asked.push(id);
+        if (id === "K3") {
+          return JSON.stringify({
+            pass: false,
+            reason: "Nilai yang dinyatakan tidak mengikuti mekanisme ini karena ada kontradiksi.",
+          });
+        }
+        return passSentence;
+      },
+    });
+    expect(validation.criteria.find((criterion) => criterion.id === "K3")?.status).toBe("FAIL");
+    expect(validation.criteria.find((criterion) => criterion.id === "K3")?.explanation).toContain("kontradiksi");
+    expect(asked).not.toContain("K4");
+  });
+
   it("does not pass K5 when the reason never names a passed idea", async () => {
     const asked: string[] = [];
     const validation = await runIdeaPassChecks({
@@ -560,6 +675,181 @@ describe("idea K1–K7", () => {
     expect(validation.criteria.find((criterion) => criterion.id === "K5")?.status).toBe("BELUM_TERVERIFIKASI");
     expect(validation.criteria.find((criterion) => criterion.id === "K5")?.explanation).toContain("lolos");
     expect(validation.decision).toBe("BELUM_TERVERIFIKASI");
+  });
+
+  it("does not fail K5 when the reason judges ordinary life instead of another idea", async () => {
+    const asked: string[] = [];
+    const validation = await runIdeaPassChecks({
+      statement: "Bagaimana jika peserta membandingkan dua potongan tanpa label?",
+      mechanism: "Peserta membandingkan dua potongan dan menyebut perbedaannya.",
+      value: "Perbedaan kualitas terasa langsung.",
+      angle: ANGLE,
+      territory: TERRITORY,
+      bigThought: BIG,
+      masterThought: MASTER,
+      failures: [],
+      peers: [
+        {
+          code: "ID01",
+          statement: "Bagaimana jika peserta menyebut asal daging sebelum diskusi?",
+          concept: "Asal daging disebut lebih dulu",
+          mechanism: "Peserta menyebut sumber daging",
+          value: "Asal daging terlihat",
+          decision: "LOLOS",
+        },
+      ],
+      validatedAt: NOW,
+      ask: async (prompt) => {
+        const id = prompt.match(/Decide check (K\d)/)?.[1] ?? "";
+        asked.push(id);
+        if (id === "K5") {
+          return JSON.stringify({
+            pass: false,
+            reason: "Bagaimana jika meminta peserta untuk melakukan uji gigit buta adalah tindakan yang tidak dilakukan orang dalam kehidupan sehari-hari.",
+          });
+        }
+        return passSentence;
+      },
+    });
+    expect(validation.criteria.find((criterion) => criterion.id === "K5")?.status).toBe("PASS");
+    expect(validation.criteria.find((criterion) => criterion.id === "K5")?.explanation).toContain("prinsip kerja yang sama");
+    expect(asked).toContain("K6");
+  });
+
+  it("fails K5 when the reason names the passed idea and the same working principle", async () => {
+    const asked: string[] = [];
+    const validation = await runIdeaPassChecks({
+      statement: "Bagaimana jika bagan menampilkan skor individu?",
+      mechanism: "Bagan menampilkan skor individu",
+      value: "Orang melihat angkanya sendiri",
+      angle: ANGLE,
+      territory: TERRITORY,
+      bigThought: BIG,
+      masterThought: MASTER,
+      failures: [],
+      peers: [
+        {
+          code: "ID01",
+          statement: "Bagaimana jika papan skor menampilkan skor individu?",
+          concept: "skor individu",
+          mechanism: "papan skor",
+          value: "melihat angka sendiri",
+          decision: "LOLOS",
+        },
+      ],
+      validatedAt: NOW,
+      ask: async (prompt) => {
+        const id = prompt.match(/Decide check (K\d)/)?.[1] ?? "";
+        asked.push(id);
+        if (id === "K5") return JSON.stringify({ pass: false, reason: "ID01 memakai prinsip yang sama: hanya judul yang berganti." });
+        return passSentence;
+      },
+    });
+    expect(validation.criteria.find((criterion) => criterion.id === "K5")?.status).toBe("FAIL");
+    expect(validation.criteria.find((criterion) => criterion.id === "K5")?.explanation).toContain("ID01");
+    expect(asked).not.toContain("K6");
+  });
+
+  it("does not fail K5 when telling is called emphasis on a recorded comparison", async () => {
+    const asked: string[] = [];
+    const validation = await runIdeaPassChecks({
+      statement: "Bagaimana jika menceritakan pengalaman makan yang konsisten secara spesifik?",
+      mechanism: "Menceritakan pengalaman pribadi yang terakumulasi.",
+      value: "Argumen konsistensi keempukan terbangun dari cerita itu.",
+      angle: ANGLE,
+      territory: TERRITORY,
+      bigThought: BIG,
+      masterThought: MASTER,
+      failures: [],
+      peers: [
+        {
+          code: "ID01",
+          statement: "Bagaimana jika mencatat dan membandingkan pengalaman makan sate?",
+          concept: "Catatan pengalaman makan",
+          mechanism: "Mencatat dan membandingkan pengalaman makan.",
+          value: "Konsistensi terlihat dari catatan",
+          decision: "LOLOS",
+        },
+      ],
+      validatedAt: NOW,
+      ask: async (prompt) => {
+        const id = prompt.match(/Decide check (K\d)/)?.[1] ?? "";
+        asked.push(id);
+        if (id === "K5") {
+          return JSON.stringify({
+            pass: false,
+            reason:
+              "Bagaimana jika ide ini memiliki konsep dan mekanisme yang sama dengan ID01 (LOLOS) yaitu mencatat dan membandingkan pengalaman makan, hanya berbeda pada penekanan menceritakan secara spesifik.",
+          });
+        }
+        return passSentence;
+      },
+    });
+    expect(validation.criteria.find((criterion) => criterion.id === "K5")?.status).toBe("PASS");
+    expect(asked).toContain("K6");
+  });
+
+  it("does not fail K7 when the reason says the mechanism does not guarantee the Angle", async () => {
+    const asked: string[] = [];
+    const kept = passedCriteria().map((criterion) =>
+      criterion.id === "K7" ? { ...criterion, status: "FAIL" as const, explanation: "", reason: "", evidence: "", weakness: "" } : criterion,
+    );
+    const validation = await runIdeaPassChecks({
+      statement: "Bagaimana jika peserta membandingkan tampilan daging dengan deskripsi dan bertanya kepada penjual?",
+      mechanism: "Peserta membandingkan tampilan dengan deskripsi lalu bertanya kepada penjual.",
+      value: "Ciri daging muda bisa dikenali saat memilih.",
+      angle: ANGLE,
+      territory: TERRITORY,
+      bigThought: BIG,
+      masterThought: MASTER,
+      failures: [],
+      keptPasses: kept,
+      validatedAt: NOW,
+      ask: async (prompt) => {
+        const id = prompt.match(/Decide check (K\d)/)?.[1] ?? "";
+        asked.push(id);
+        if (id === "K7") {
+          return JSON.stringify({
+            pass: false,
+            reason:
+              "Bagaimana jika membandingkan tampilan daging kambing dengan deskripsi verbal dan bertanya kepada penjual tidak secara langsung menjamin keempukan daging karena kualitas daging muda adalah prasyarat utama yang tidak bisa diubah oleh teknik memasak.",
+          });
+        }
+        return passSentence;
+      },
+    });
+    expect(asked).toEqual(["K7"]);
+    expect(validation.criteria.find((criterion) => criterion.id === "K7")?.status).toBe("PASS");
+    expect(validation.criteria.find((criterion) => criterion.id === "K7")?.explanation).toContain("hambatan");
+    expect(validation.decision).toBe("LOLOS");
+  });
+
+  it("fails K7 when the audience cannot prepare the barrier", async () => {
+    const validation = await runIdeaPassChecks({
+      statement: "Bagaimana jika peserta membandingkan tampilan daging dengan deskripsi dan bertanya kepada penjual?",
+      mechanism: "Peserta membandingkan tampilan dengan deskripsi lalu bertanya kepada penjual.",
+      value: "Ciri daging muda bisa dikenali saat memilih.",
+      angle: ANGLE,
+      territory: TERRITORY,
+      bigThought: BIG,
+      masterThought: MASTER,
+      failures: [],
+      keptPasses: passedCriteria().filter((criterion) => criterion.id !== "K7"),
+      validatedAt: NOW,
+      ask: async (prompt) => {
+        const id = prompt.match(/Decide check (K\d)/)?.[1] ?? "";
+        if (id === "K7") {
+          return JSON.stringify({
+            pass: false,
+            reason: "Audiens ini harus punya profesi baru yang tidak bisa disiapkan dari kehidupan mereka.",
+          });
+        }
+        return passSentence;
+      },
+    });
+    expect(validation.criteria.find((criterion) => criterion.id === "K7")?.status).toBe("FAIL");
+    expect(validation.criteria.find((criterion) => criterion.id === "K7")?.explanation).toContain("profesi");
+    expect(validation.decision).toBe("DITOLAK");
   });
 
   it("passes K5 without a comparison until one idea has passed", async () => {
@@ -673,6 +963,14 @@ describe("idea K1–K7", () => {
       revision: 1,
     });
     expect(prompt).toContain("Repair this same Idea");
+    expect(prompt).toContain("is not this audience's habit");
+    expect(prompt).toContain("Do not return another version of the same product.");
+    expect(prompt).toContain("differ from an idea that already passed");
+    expect(prompt).toContain("reads or hears");
+    expect(prompt).toContain("does not guarantee the Angle's observation");
+    expect(prompt).toContain("does not directly solve or guarantee the Angle's problem");
+    expect(prompt).toContain("ordinary-life check");
+    expect(prompt).toContain("Telling, recording, comparing, asking, looking, and discussing are different actions.");
     expect(prompt).toContain("Failed requirements to repair:");
     expect(prompt).toContain("K5: Konsepnya sama dengan ide yang sudah lolos.");
     expect(prompt).not.toContain("new proposal");
@@ -744,6 +1042,8 @@ describe("idea K1–K7", () => {
     expect(prompts[0]).toContain("what this audience already does and what is still missing");
     expect(prompts[0]).toContain("cannot prepare from their current conditions");
     expect(prompts[0]).toContain("A short action inside time this audience already spends is a realistic way to adopt it.");
+    expect(prompts[0]).toContain("The work done by a person inside that content is not a habit this audience must adopt.");
+    expect(prompts[0]).toContain("does not guarantee, prove, or change the Angle's observation");
     expect(prompts[0]).toContain("Do not treat the idea's own boundary as the obstacle.");
     const mechanism = buildIdeaCriterionPrompt({
       id: "K2",
@@ -760,6 +1060,7 @@ describe("idea K1–K7", () => {
     });
     expect(mechanism).toContain("specific action people already do in ordinary life");
     expect(mechanism).toContain("automatic analysis");
+    expect(mechanism).toContain("Do not fail that action because the how-if names a tool.");
     expect(mechanism).toContain("only restates the proposed product is not evidence");
     expect(validation.criteria.find((criterion) => criterion.id === "K7")?.status).toBe("PASS");
   });
@@ -842,7 +1143,9 @@ describe("idea K1–K7", () => {
       [],
     );
     expect(prompt).toContain("same Big Thought is not the same concept");
+    expect(prompt).toContain("experiences cannot be told apart");
     expect(prompt).toContain("visualization");
+    expect(prompt).toContain("reads or hears");
     const applied = applyCrossIdeaGroups(
       [
         { code: "ID01", statement: keeperStatement, concept: keeper.concept, mechanism: keeper.mechanism, value: keeper.value, validation: keeper },
@@ -924,6 +1227,69 @@ describe("idea K1–K7", () => {
     });
     expect(settled.map((row) => row.validation.decision)).toEqual(["LOLOS", "LOLOS"]);
     expect(settled.every((row) => row.validation.duplicate === null)).toBe(true);
+  });
+
+  it("does not reject a picture comparison as a duplicate of a description", () => {
+    const validation = {
+      criteria: passedCriteria(),
+      title: "Foto referensi",
+      concept: "Membandingkan tampilan dengan foto",
+      mechanism: "Peserta membandingkan daging dengan foto referensi",
+      value: "Ciri daging muda terlihat",
+      statement: "Bagaimana jika peserta membandingkan daging dengan foto referensi?",
+      strategicContext: { masterThought: MASTER, bigThought: BIG, territory: TERRITORY, angle: ANGLE },
+      classification: "",
+      duplicate: null,
+      crossIdea: "PASS" as const,
+      decision: "LOLOS" as const,
+      decisionReason: "",
+      validatedAt: NOW,
+      schema: 1,
+      generatorVersion: "test",
+      auditHistory: [],
+    };
+    const applied = applyCrossIdeaGroups(
+      [
+        {
+          code: "ID02",
+          statement: validation.statement,
+          concept: validation.concept,
+          mechanism: validation.mechanism,
+          value: validation.value,
+          validation,
+        },
+      ],
+      [
+        {
+          id: "idea-1",
+          code: "ID01",
+          statement: "Bagaimana jika peserta mendengar deskripsi ciri daging muda?",
+          concept: "Deskripsi verbal ciri daging",
+          mechanism: "Peserta mendengar deskripsi verbal",
+          value: "Ciri daging muda disebut",
+          validation,
+        },
+      ],
+      {
+        groups: [
+          {
+            keeperCode: "ID01",
+            duplicates: [
+              {
+                code: "ID02",
+                comparedCode: "ID01",
+                sameConcept: "Mengidentifikasi daging muda untuk keempukan",
+                overlappingMechanism: "Membandingkan tampilan dengan informasi atau panduan",
+                overlappingValue: "Memilih bahan yang lebih empuk",
+                reason: "Perbedaannya hanya pada format panduan (visual sederhana vs. deskripsi verbal detail).",
+              },
+            ],
+          },
+        ],
+      },
+    );
+    expect(applied?.[0]?.validation.decision).toBe("LOLOS");
+    expect(applied?.[0]?.validation.duplicate).toBeNull();
   });
 
   it("does not invent a duplicate when the comparison cannot be checked", async () => {
@@ -1067,6 +1433,7 @@ describe("idea K1–K7", () => {
     expect(criterion).toContain("emphasis of the communication");
     expect(criterion).toContain("not yet verified");
     expect(criterion).toContain("same Big Thought is not a failure");
+    expect(criterion).toContain("The same Angle is not a failure");
     expect(criterion).toContain("ID01 (LOLOS)");
   });
 

@@ -1117,6 +1117,12 @@ Deno.serve(async (req: Request) => {
       .eq("social_media_plan_id", planId)
       .limit(1);
     const organizationId = String(plan.organization_id);
+    const { data: employeeBrief } = await admin
+      .from("ai_employee_briefs")
+      .select("required_notes, forbidden_notes")
+      .eq("employee_id", plan.pic_id)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
     const styleLock = await referenceStyleLock(
       admin,
       organizationId,
@@ -1133,6 +1139,8 @@ Deno.serve(async (req: Request) => {
       palette: carouselPalette(String(plan.brief ?? "")),
       logo: logo ? "required" : "none",
       productPhotos: productPhotos.map((photo) => photo.name),
+      requiredNote: String(employeeBrief?.required_notes ?? ""),
+      forbiddenNote: String(employeeBrief?.forbidden_notes ?? ""),
     });
 
     let token = await accessToken(admin, organizationId);

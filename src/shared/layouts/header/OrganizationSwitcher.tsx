@@ -132,7 +132,7 @@ export function OrganizationSwitcher() {
     );
   }
 
-  if (!selfServiceEnabled) {
+  if (!selfServiceEnabled && count <= 1) {
     return (
       <div
         className={cn(ORG_SWITCHER_TRIGGER_CLASS, isSwitching && "opacity-80")}
@@ -205,18 +205,22 @@ export function OrganizationSwitcher() {
               </DropdownMenuItem>
             );
           })}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="cursor-pointer gap-2 focus:bg-brand-blue/10 focus:text-brand-blue"
-            onSelect={() => {
-              setCreateOpen(true);
-            }}
-          >
-            <div className="flex shrink-0 rounded-md bg-muted/80 p-1.5 text-brand-blue">
-              <Plus className="h-4 w-4" />
-            </div>
-            <span className="font-medium">{t("layout.orgSwitcher.createNew")}</span>
-          </DropdownMenuItem>
+          {selfServiceEnabled ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 focus:bg-brand-blue/10 focus:text-brand-blue"
+                onSelect={() => {
+                  setCreateOpen(true);
+                }}
+              >
+                <div className="flex shrink-0 rounded-md bg-muted/80 p-1.5 text-brand-blue">
+                  <Plus className="h-4 w-4" />
+                </div>
+                <span className="font-medium">{t("layout.orgSwitcher.createNew")}</span>
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
 

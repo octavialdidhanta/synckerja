@@ -129,8 +129,7 @@ const Profile = () => {
     }
   };
 
-  const canOpenOrgDrawer =
-    selfServiceEnabled && organizations.length > 1 && !switchingOrganization;
+  const canOpenOrgDrawer = organizations.length > 1 && !switchingOrganization;
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);

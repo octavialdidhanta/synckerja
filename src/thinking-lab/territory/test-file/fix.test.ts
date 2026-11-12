@@ -79,7 +79,7 @@ describe("territory fix", () => {
     expect(territoryReplacementPasses(null, "TR04")).toBe(false);
   });
 
-  it("reopens the Generate checks for a new name and drops a check that just failed", () => {
+  it("keeps passed checks for a new name and keeps a check that just failed", () => {
     const prior = fixPriorForNextTerritoryName(
       [
         { id: "partOfBigThought", state: "pass" },
@@ -91,8 +91,8 @@ describe("territory fix", () => {
       "Kepuasan pelanggan",
       "Umpan balik pelanggan",
     );
-    expect(prior.find((check) => check.id === "partOfBigThought")?.state).toBe("pending");
-    expect(prior.find((check) => check.id === "audienceLanguage")?.state).toBe("pending");
+    expect(prior.find((check) => check.id === "partOfBigThought")?.state).toBe("pass");
+    expect(prior.find((check) => check.id === "audienceLanguage")?.state).toBe("pass");
     expect(prior.find((check) => check.id === "questionArises")?.state).toBe("pass");
     const scope = fixScopeFromChecks([
       { id: "partOfBigThought", state: "pass" },

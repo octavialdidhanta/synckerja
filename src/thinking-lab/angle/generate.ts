@@ -1,4 +1,5 @@
 import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { sameWording } from "@/thinking-lab/shared/distinct";
 import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/thinking-lab/shared/ancestorStake";
 import { normalizeAngleExample } from "@/thinking-lab/angle/example";
 import { normalizeAngleSubject } from "@/thinking-lab/angle/subject";
@@ -72,11 +73,12 @@ export function buildAngleGeneratePrompt(input: {
     "It is not a topic, a restatement of the Territory, a concrete creative concept, or a format, scene, or production form.",
     "Each candidate must be able to generate several substantively different Ideas.",
     "Do not restate the Territory, repeat an incumbent, or collapse into one concrete concept.",
+    "The same subject as an incumbent, or a sentence that only adds or drops words from an incumbent, is that same Angle. Do not return it.",
     ...ANCESTOR_STAKE_RULES,
     "Do not invent a weak observation to fill a quota. Return fewer candidates when a strong Angle is not available.",
     "Write in the same language as the Territory.",
-    "Each candidate also has a subject: one to six words that name the observation on their own.",
-    "The subject does not use the Territory's name and is not a chopped opening of the sentence.",
+    "Each candidate also has a subject: a noun phrase of one to six words that carries the rarely noticed fact on its own.",
+    "The subject does not name the place. It does not use the Territory's name and is not a chopped opening of the sentence.",
     "Each candidate also has an example: one concrete situation a person could point at that shows the observation.",
     "The statement stays the observation. Do not place that situation inside the statement.",
     "The example is not a second explanation of the pattern and not a finished Idea.",
@@ -120,7 +122,7 @@ export function buildAngleGapPrompt(input: {
     ...ANCESTOR_STAKE_RULES,
     "It must be able to generate several substantively different Ideas.",
     "Write in the same language as the Territory.",
-    "Also write a subject of one to six words and one concrete situation a person could point at.",
+    "Also write a subject of one to six words that carries the rarely noticed fact, not the name of the place, and one concrete situation a person could point at.",
     "The statement stays the observation. Do not place that situation inside the statement.",
     "Do not use examples from any specific industry, belief system, or brand.",
     "Read the earlier failures. Do not return a sentence listed there.",
@@ -263,6 +265,7 @@ export async function runAngleGenerate<
   }
   let incumbents = [...input.incumbents];
   let activeCount = incumbents.filter((row) => row.admission !== "GENERATE_REJECT").length;
+  const keptSubjects: string[] = [];
   const attemptLimit = input.carryLessons ? MAX_GENERATE_ROUNDS * TARGET_GENERATE_VALID : MAX_GENERATE_ROUNDS;
   for (let attempt = 1; attempt <= attemptLimit; attempt += 1) {
     const plan = planAngleGenerate({
@@ -282,8 +285,16 @@ export async function runAngleGenerate<
       )
       .filter((row) => row.statement);
     if (input.carryLessons && drafts.length === 0) break;
+    const keptStatements = incumbents
+      .filter((row) => row.admission === "GENERATE_VALID")
+      .map((row) => row.statement);
     for (const draft of drafts) {
       if (activeCount >= ACTIVE_SET_CAP) break;
+      const repeatedStatement = keptStatements.some((statement) => sameWording(draft.statement, statement));
+      const repeatedSubject = Boolean(
+        draft.subject && keptSubjects.some((subject) => sameWording(draft.subject, subject)),
+      );
+      if (repeatedStatement || repeatedSubject) continue;
       const code = nextAngleCode(incumbents.map((row) => row.code));
       const facts = await input.judge(gate.parent, code, draft.statement);
       const admission = admitAngle(facts);
@@ -300,6 +311,10 @@ export async function runAngleGenerate<
       });
       incumbents = [...incumbents, { ...saved, admission, territoryId: gate.parent.id }];
       if (admission !== "GENERATE_REJECT") activeCount += 1;
+      if (admission === "GENERATE_VALID") {
+        keptStatements.push(draft.statement);
+        if (draft.subject) keptSubjects.push(draft.subject);
+      }
     }
     if (countAdmittedAngles(incumbents) >= TARGET_GENERATE_VALID) break;
   }

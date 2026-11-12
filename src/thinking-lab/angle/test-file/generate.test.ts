@@ -175,6 +175,52 @@ describe("runAngleGenerate", () => {
       true,
     );
   });
+
+  it("does not keep a paraphrase or the same subject", async () => {
+    const drafts = [
+      {
+        statement:
+          "Dalam diskusi kuliner, seringkali keempukan menjadi satu-satunya tolok ukur kualitas, mengabaikan kompleksitas rasa yang sebenarnya.",
+        subject: "Keempukan bukan rasa",
+        example: "Seseorang memuji hanya karena empuk",
+      },
+      {
+        statement: "Pujian berhenti pada tekstur dan tidak pernah sampai pada bumbu atau aroma.",
+        subject: "Keempukan bukan rasa",
+        example: "Seseorang memuji karena sangat empuk",
+      },
+      {
+        statement: "Dalam diskusi kuliner, yang paling sedikit pengalamannya justru paling banyak bicara.",
+        subject: "Pemula paling vokal",
+        example: "Orang yang baru mencoba masakan mendominasi percakapan",
+      },
+    ];
+    let step = 0;
+    const judge = vi.fn(async (_parent: unknown, code: string) => validFacts(code));
+    const result = await runAngleGenerate({
+      loadParent: async () => ({
+        ok: true,
+        parent: { id: "tr-1", code: "TR01", statement: "Diskusi kuliner", territoryFingerprint: "fp-1" },
+      }),
+      incumbents: [],
+      carryLessons: true,
+      propose: async () => {
+        const draft = drafts[step];
+        step += 1;
+        return draft ? [draft] : [];
+      },
+      judge,
+      persist: async (input) => ({
+        code: input.code,
+        statement: input.statement,
+        admission: input.admission,
+        territoryId: input.parent.id,
+        parentCode: input.parent.code,
+      }),
+    });
+    expect(judge.mock.calls.map((call) => call[2])).toEqual([drafts[0]?.statement, drafts[2]?.statement]);
+    expect(result.incumbents.map((row) => row.statement)).toEqual([drafts[0]?.statement, drafts[2]?.statement]);
+  });
 });
 
 describe("buildAngleGeneratePrompt", () => {

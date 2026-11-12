@@ -66,6 +66,10 @@ type Props = {
 
 type PublishResult = { ok: true } | { ok: false; error: string };
 
+function isCarouselPhotoPlatform(platform: string): boolean {
+  return platform === 'TikTok' || platform === 'Instagram' || platform === 'Facebook';
+}
+
 function getReconnectHint(platform: string, t: (key: string) => string): string {
   switch (platform) {
     case 'TikTok':
@@ -183,7 +187,7 @@ export function UnifiedAutoScheduleSection({
   const actionTargets = useMemo(() => {
     if (!tiktokCarouselOnly) return targets;
     if (!tiktokReady) return [];
-    return targets.filter((target) => target.platform === 'TikTok' || target.platform === 'Instagram');
+    return targets.filter((target) => isCarouselPhotoPlatform(target.platform));
   }, [targets, tiktokCarouselOnly, tiktokReady]);
   const { eligible: bulkEligible } = useMemo(
     () => getBulkEligibleTargets(actionTargets, scheduleRows),
@@ -226,10 +230,9 @@ export function UnifiedAutoScheduleSection({
 
       if (
         tiktokCarouselOnly &&
-        target.platform !== 'TikTok' &&
-        target.platform !== 'Instagram'
+        !isCarouselPhotoPlatform(target.platform)
       ) {
-        const error = 'Carousel posts publish to TikTok and Instagram';
+        const error = 'Carousel posts publish to TikTok, Instagram, and Facebook';
         if (!silent) toast.error(error);
         return { ok: false, error };
       }
@@ -583,8 +586,7 @@ export function UnifiedAutoScheduleSection({
                       canDelete={rowCanDelete}
                       actionsDisabled={
                         tiktokCarouselOnly &&
-                        ((target.platform !== 'TikTok' && target.platform !== 'Instagram') ||
-                          !tiktokReady)
+                        (!isCarouselPhotoPlatform(target.platform) || !tiktokReady)
                       }
                       isSchedulePending={isSchedulePending}
                       isPostNowPending={isPostNowPending}
@@ -666,7 +668,7 @@ export function UnifiedAutoScheduleSection({
               urls={carouselPreviewUrls ?? []}
               emptyLabel={t(
                 'digitalMarketing.scheduledPosts.carouselPreviewEmpty',
-                'Add carousel images before posting to TikTok.',
+                'Add carousel images before posting.',
               )}
               className="min-h-0 flex-1"
             />

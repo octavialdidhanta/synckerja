@@ -98,7 +98,7 @@ export function buildAngleFixOptionsPrompt(input: {
     "Read the earlier failures. Do not return a sentence listed there. A new sentence that fails for the same reason is still that mistake.",
     ...fixScopeLines(input.scope ?? { preserve: [], repair: [] }),
     "Write in the same language as the Territory.",
-    "Also write subject: one to six words that name this observation on their own. Do not use the Territory's name.",
+    "Also write subject: a noun phrase of one to six words that carries this observation's rarely noticed fact. Do not name the place or use the Territory's name.",
     "Also write example: one concrete situation a person could point at that shows this observation.",
     "The statement stays the observation. Do not place that situation inside the statement.",
     "The example is not a second explanation of the pattern and not a finished Idea.",
@@ -147,8 +147,9 @@ export function parseAngleFixOptionsScript(script: string | null): string[] {
 export function buildAngleSubjectPrompt(input: { territory: string; statement: string }): string {
   return [
     "Name this Angle with a short subject. Do not rewrite the observation.",
-    "The subject is one to six words. Read alone, it names the observation.",
-    "Do not use the Territory's name or copy a chopped opening of the sentence.",
+    "The subject is a noun phrase of one to six words. Read alone, it carries the rarely noticed fact, the contradiction, or the tension.",
+    "It does not have to mention the Territory, repeat the sentence, or be exclusive to this Territory.",
+    "Do not name the place. Do not use the Territory's name or copy a chopped opening of the sentence.",
     "Write in the same language as the Territory.",
     'Return JSON only: {"subject":"..."}',
     "",

@@ -19,10 +19,12 @@ export function AiEmployeePageSkeleton() {
                 <Skeleton className="h-3 w-72 max-w-full" />
               </div>
               <div className="grid w-full min-w-0 flex-1 content-start grid-cols-12 items-start gap-2">
-                <div className="col-span-12 flex min-w-0 flex-col gap-2 xl:col-span-8">
+                <div className="col-span-12 flex min-w-0 flex-col gap-2">
                   <div className="rounded-md border border-border bg-card p-3">
                     <Skeleton className="mb-3 h-4 w-32" />
                     <div className="grid grid-cols-2 gap-2">
+                      <Skeleton className="h-10" />
+                      <Skeleton className="h-10" />
                       <Skeleton className="h-10" />
                       <Skeleton className="h-10" />
                       <Skeleton className="h-10" />
@@ -36,12 +38,6 @@ export function AiEmployeePageSkeleton() {
                         <Skeleton key={index} className="h-16" />
                       ))}
                     </div>
-                  </div>
-                </div>
-                <div className="col-span-12 flex min-w-0 flex-col gap-2 xl:col-span-4">
-                  <div className="rounded-md border border-border bg-card p-3">
-                    <Skeleton className="mb-2 h-4 w-24" />
-                    <Skeleton className="h-8" />
                   </div>
                 </div>
                 <div className="col-span-12 flex min-w-0 flex-col gap-2">

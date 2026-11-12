@@ -7,7 +7,6 @@ import { Button } from "@/mobile-app/components/ui/button";
 import { useAppTranslation } from "@/shared/i18n/useAppTranslation";
 import { useStatusBarStyle } from "@/shared/hooks/useStatusBarStyle";
 import { useOrganizationList } from "@/mobile-app/hooks/useOrganizationList";
-import { useSubscriptionSelfServiceEnabled } from "@/shared/auth/hooks/useSubscriptionSelfServiceEnabled";
 import { OrganizationSelectDrawer } from "@/mobile-app/components/OrganizationSelectDrawer";
 import { useCentralizedUserData } from "@/shared/auth/contexts/CentralizedUserDataContext";
 import { useCurrentOrg } from "@/shared/auth/hooks/useCurrentOrg";

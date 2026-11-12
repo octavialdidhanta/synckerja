@@ -20,8 +20,8 @@ import {
 } from "../_shared/scheduledPosts/scheduledPostsInternalAuth.ts";
 import { loadCarouselStoragePaths, carouselMediaSnapshot } from "../_shared/scheduledPosts/carouselImagePaths.ts";
 import {
+  getFacebookPlanEligibilityMissingReasons,
   getInstagramPlanEligibilityMissingReasons,
-  getPlanEligibilityMissingReasons,
   isCarouselContentType,
   isPlanEligibleForFacebookAutoSchedule,
   isPlanEligibleForInstagramAutoSchedule,
@@ -226,7 +226,7 @@ Deno.serve(async (req: Request) => {
         error: "plan_not_eligible",
         missing: platform === "Instagram"
           ? getInstagramPlanEligibilityMissingReasons(eligibility)
-          : getPlanEligibilityMissingReasons(eligibility),
+          : getFacebookPlanEligibilityMissingReasons(eligibility),
       }, 400);
     }
 
@@ -235,8 +235,8 @@ Deno.serve(async (req: Request) => {
       : String(body.scheduled_at ?? "").trim();
     if (!scheduledAtRaw) return metaContentJson({ error: "Missing scheduled_at" }, 400);
 
-    const instagramCarousel = platform === "Instagram" && carousel;
-    const driveLink = instagramCarousel
+    const photoCarousel = carousel && (platform === "Instagram" || platform === "Facebook");
+    const driveLink = photoCarousel
       ? carouselMediaSnapshot(carouselPaths)
       : (plan.google_drive_link?.trim() ?? "");
     const accountId = platform === "Instagram"
@@ -262,7 +262,7 @@ Deno.serve(async (req: Request) => {
         userId,
         action: action as "schedule" | "post_now",
         scheduledAtIso: scheduledAtRaw,
-        mediaSource: instagramCarousel ? "carousel_images" : null,
+        mediaSource: photoCarousel ? "carousel_images" : null,
         target: {
           platform,
           account_id: accountId,

@@ -197,6 +197,13 @@ function logoLine(logo?: "required" | "none"): string {
   return "";
 }
 
+const PERSON_SCENE = /(orang|manusia|pria|wanita|perempuan|laki-laki|ibu|ayah|bapak|anak|chef|koki|pelanggan|pelayan|penjual|pembeli|pegawai|karyawan|kasir|barista|bayi|nenek|kakek|suami|istri|remaja|bocah|gadis|pemuda|pemudi|tamu|keluarga|\bperson\b|\bpeople\b|\bman\b|\bwoman\b|\bchild\b|\bboy\b|\bgirl\b)/i;
+
+function pictureInstruction(picture: string): string {
+  if (!PERSON_SCENE.test(picture)) return `Draw: ${picture}`;
+  return `Photograph a real human with natural skin and a real camera. Not an illustration, cartoon, 3D render, or synthetic face. Scene: ${picture}`;
+}
+
 function productPhotoLine(names?: string[]): string {
   const list = (names ?? [])
     .map((name) => name.replace(/\s+/g, " ").trim())
@@ -214,9 +221,13 @@ export function buildCanvaCarouselBrief(input: {
   palette?: CatalogPalette | null;
   logo?: "required" | "none";
   productPhotos?: string[];
+  requiredNote?: string;
+  forbiddenNote?: string;
 }): string {
   const title = input.title.replace(/\s+/g, " ").trim().slice(0, 200) || "Carousel";
   const caption = input.caption.replace(/\s+/g, " ").trim().slice(0, 280);
+  const requiredNote = (input.requiredNote ?? "").replace(/\s+/g, " ").trim().slice(0, 500);
+  const forbiddenNote = (input.forbiddenNote ?? "").replace(/\s+/g, " ").trim().slice(0, 500);
   const notes = referenceNotes(input.styleLock ?? "");
   const sharedNote = notes.get(0) ?? "";
   const pages = input.slides
@@ -225,10 +236,11 @@ export function buildCanvaCarouselBrief(input: {
       const slot = referenceSlot(slide.elements);
       const note = (slot ? notes.get(slot) : "") || sharedNote;
       const words = [slide.copy, ...pieces.copy].map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+      if (requiredNote && index === input.slides.length - 1 && !words.some((word) => word.includes(requiredNote))) words.push(requiredNote);
       const picture = [slide.scene, ...pieces.picture].map((part) => part.replace(/\s+/g, " ").trim()).filter(Boolean);
       const lines = [`Page ${index + 1}`];
       if (note) lines.push(`Layout and type: ${note}`);
-      if (picture.length > 0) lines.push(`Draw: ${picture.join(". ")}`);
+      if (picture.length > 0) lines.push(pictureInstruction(picture.join(". ")));
       if (words.length > 0) lines.push(`Write only: ${words.join(" | ")}`);
       if (slide.tagging) lines.push(`Small label: ${slide.tagging}`);
       return lines.join("\n");
@@ -237,6 +249,8 @@ export function buildCanvaCarouselBrief(input: {
   const captionLine = caption ? ` Caption: ${caption}` : "";
   return [
     `Design an Instagram carousel with ${input.slides.length} portrait 4:5 pages. One page per slide. Make every page editable.`,
+    requiredNote ? `Write exactly this on the last page: ${requiredNote}` : "",
+    forbiddenNote ? `Do not write any of this: ${forbiddenNote}` : "",
     paletteLine(input.palette),
     logoLine(input.logo),
     productPhotoLine(input.productPhotos),

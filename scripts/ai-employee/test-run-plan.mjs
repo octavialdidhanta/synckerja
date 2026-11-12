@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
   authorizeCaller,
   buildChatPrompt,
@@ -38,6 +39,16 @@ import {
   judgeJobDesk,
   withJobClaim,
   parseExecutionCheck,
+  appendCarouselDevelopmentPath,
+  buildCarouselPathCheckPrompt,
+  buildCarouselPathPrompt,
+  carouselDevelopmentPath,
+  parseCarouselPathCheck,
+  parseCarouselPathReviews,
+  rankCarouselPillars,
+  chooseContentTurn,
+  carouselNotesOk,
+  rankPillarsForRotation,
   carouselReferenceOk,
   normalizeCarouselReference,
   parseCarouselDraft,
@@ -1032,4 +1043,185 @@ test("withJobClaim hanya menempelkan token klaim yang ada", () => {
   assert.deepEqual(withJobClaim({ title: "A" }, token), { title: "A", claim_token: token });
   assert.deepEqual(withJobClaim({ title: "A" }, ""), { title: "A" });
   assert.deepEqual(withJobClaim({ title: "A" }, null), { title: "A" });
+});
+
+test("jalur carousel hanya menerima pilar yang ada dan lolos pemeriksaan", () => {
+  const pillars = [
+    { id: "11111111-1111-4111-8111-111111111111", name: "Mitos", description: "kepercayaan yang keliru tentang daging" },
+    { id: "22222222-2222-4222-8222-222222222222", name: "Resep", description: "cara memasak" },
+  ];
+  const context = "Penonton percaya daging kambing selalu berbau prengus.";
+  const ranked = rankCarouselPillars(pillars, context, 1);
+  assert.equal(ranked[0].name, "Mitos");
+  const prompt = buildCarouselPathPrompt({ context, pillars: ranked });
+  assert.match(prompt, /Do not invent a pillar/);
+  assert.match(prompt, /already selected/);
+  assert.match(prompt, /daging kambing selalu berbau prengus/);
+  assert.match(prompt, /- Mitos:/);
+  const reviews = parseCarouselPathReviews({
+    reviews: [
+      { pillar: "Pilar baru", development: "Ide lain.", reason: "Karena baru." },
+      { pillar: "Mitos", development: "Mitos", reason: "Hanya nama pilar." },
+      { pillar: "Mitos", development: "Kepercayaan bau prengus diuji dari satu potong daging.", reason: "Pilar ini menahan kepercayaan yang keliru." },
+    ],
+  }, ranked);
+  assert.equal(reviews.length, 1);
+  assert.equal(reviews[0].contentPillarId, pillars[0].id);
+  assert.equal(parseCarouselPathCheck('{"pass":true,"reason":""}'), null);
+  assert.deepEqual(parseCarouselPathCheck('{"pass":false,"reason":"Development mengganti ide."}'), {
+    pass: false,
+    reason: "Development mengganti ide.",
+  });
+  const check = buildCarouselPathCheckPrompt({
+    context,
+    pillar: ranked[0],
+    development: reviews[0].development,
+    claim: reviews[0].reason,
+  });
+  assert.match(check, /PASS only when the development keeps the conceptual idea/);
+  const saved = carouselDevelopmentPath({
+    id: reviews[0].contentPillarId,
+    name: reviews[0].pillarName,
+    development: reviews[0].development,
+    reason: "Pilar mitos menahan kepercayaan bau prengus tanpa mengganti ide.",
+    savedAt: "2026-11-12T05:00:00.000Z",
+  });
+  assert.equal(saved.format, "carousel");
+  assert.equal(saved.status, "RECOMMENDED");
+  assert.equal(saved.reviews[0].development, reviews[0].development);
+  const video = { contentPillarId: pillars[1].id, format: "video", status: "RECOMMENDED", reviews: [] };
+  const next = appendCarouselDevelopmentPath([video, { contentPillarId: pillars[0].id, format: "carousel", reviews: [] }], saved);
+  assert.equal(next.length, 2);
+  assert.equal(next[0].format, "video");
+  assert.equal(next[1].format, "carousel");
+  assert.equal(next[1].reviews[0].status, "RECOMMENDED");
+});
+
+test("pilar digilir dari yang paling sedikit dipakai, bukan dari idea yang habis", () => {
+  const pillars = [
+    { id: "11111111-1111-4111-8111-111111111111", name: "B-Roll Storytelling" },
+    { id: "22222222-2222-4222-8222-222222222222", name: "Behind The Scene" },
+    { id: "33333333-3333-4333-8333-333333333333", name: "Did You Know?" },
+  ];
+  const ranked = rankPillarsForRotation(pillars, [
+    { id: pillars[0].id, count: 4, lastUsed: "2026-11-12T04:00:00.000Z" },
+    { id: pillars[2].id, count: 0, lastUsed: "" },
+  ]);
+  assert.deepEqual(ranked.map((pillar) => pillar.name), ["Behind The Scene", "Did You Know?", "B-Roll Storytelling"]);
+  const source = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
+  assert.equal(source.includes("usedIdeas"), false);
+  assert.match(source, /rankPillarsForRotation/);
+  assert.match(source, /chooseContentTurn/);
+});
+
+test("sop1 fokus menyusun jalur carousel sebelum antrian kosong ditutup", () => {
+  const source = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
+  const prepare = source.indexOf("const prepareCarouselPath");
+  const blocked = source.indexOf('"ideas_blocked"', prepare);
+  assert.ok(prepare > 0);
+  assert.ok(blocked > prepare);
+  assert.equal(source.includes('closeSop1("succeeded", "no_idea"'), false);
+  assert.match(source, /appendCarouselDevelopmentPath/);
+  assert.match(source, /chooseContentTurn/);
+});
+
+test("angle terisi melewati angle plan terakhir", () => {
+  const turn = chooseContentTurn({
+    angles: [
+      { id: "angle-a", lastUsed: "2026-11-12" },
+      { id: "angle-b", lastUsed: "2026-11-01" },
+    ],
+    ideas: [
+      { id: "idea-a", angleId: "angle-a", planCount: 1, lastUsed: "2026-11-12" },
+      { id: "idea-b", angleId: "angle-b", planCount: 2, lastUsed: "2026-11-01" },
+    ],
+    pillars: [
+      { id: "pillar-1", name: "Mitos", count: 0, lastUsed: "" },
+      { id: "pillar-2", name: "B-Roll", count: 3, lastUsed: "2026-11-10" },
+    ],
+    takenPairs: [],
+    previous: { angleId: "angle-a", ideaId: "idea-a", pillarId: "pillar-2" },
+  });
+  assert.equal(turn.angleId, "angle-b");
+  assert.equal(turn.ideaId, "idea-b");
+  assert.equal(turn.pillarId, "pillar-1");
+});
+
+test("semua idea sudah punya plan, yang jumlahnya paling sedikit yang terpilih", () => {
+  const turn = chooseContentTurn({
+    angles: [],
+    ideas: [
+      { id: "idea-a", angleId: "angle-a", planCount: 3, lastUsed: "2026-11-12" },
+      { id: "idea-b", angleId: "angle-b", planCount: 1, lastUsed: "2026-11-11" },
+      { id: "idea-c", angleId: "angle-c", planCount: 2, lastUsed: "2026-11-01" },
+    ],
+    pillars: [{ id: "pillar-1", name: "Mitos", count: 1, lastUsed: "2026-11-11" }],
+    takenPairs: ["idea-a:pillar-1", "idea-b:pillar-1", "idea-c:pillar-1"],
+    previous: { angleId: "angle-a", ideaId: "idea-a", pillarId: "pillar-1" },
+  });
+  assert.equal(turn, null);
+  const open = chooseContentTurn({
+    angles: [],
+    ideas: [
+      { id: "idea-a", angleId: "angle-a", planCount: 3, lastUsed: "2026-11-12" },
+      { id: "idea-b", angleId: "angle-b", planCount: 1, lastUsed: "2026-11-11" },
+      { id: "idea-c", angleId: "angle-c", planCount: 2, lastUsed: "2026-11-01" },
+    ],
+    pillars: [
+      { id: "pillar-1", name: "Mitos", count: 4, lastUsed: "2026-11-12" },
+      { id: "pillar-2", name: "Cerita", count: 0, lastUsed: "" },
+    ],
+    takenPairs: ["idea-b:pillar-1"],
+    previous: { angleId: "angle-b", ideaId: "idea-b", pillarId: "pillar-1" },
+  });
+  assert.equal(open.ideaId, "idea-b");
+  assert.equal(open.pillarId, "pillar-2");
+});
+
+test("catatan wajib yang hilang dan catatan terlarang yang lolos ditolak", () => {
+  const slides = (lastVo) => ([
+    {
+      timing: "Slide 1",
+      visual: "Daging kambing di atas panggangan.",
+      vo: "Daging muda lebih empuk daripada daging tua.",
+      element: "Hook headline: Empuk. Visual hook: Irisan daging.",
+      tagging: "",
+    },
+    {
+      timing: "Slide 2",
+      visual: "Piring sate di meja.",
+      vo: lastVo,
+      element: "Ajakan datang pada jam buka.",
+      tagging: "",
+    },
+  ]);
+  const body = (caption, lastVo, title = "Daging muda") => JSON.stringify({
+    title,
+    post_date: "2026-11-12",
+    caption,
+    concept: "Konten ini dibuat karena penonton masih mengira daging tua selalu lebih enak untuk sate.",
+    slides: slides(lastVo),
+    content_pillar_id: pillarId,
+  });
+  const notes = { required: "Hubungi jam buka.", forbidden: "harga promo" };
+  const accepted = parseCarouselDraft(body("Datang hari ini. Hubungi jam buka. #sate", "Simpan caranya, lalu hubungi jam buka."));
+  assert.equal(carouselNotesOk(accepted, notes), true);
+  assert.equal(parseCarouselDraft(body("Datang hari ini #sate", "Simpan caranya, lalu hubungi jam buka."), notes), null);
+  assert.equal(parseCarouselDraft(body("Datang hari ini. Hubungi jam buka. #sate", "Simpan caranya di rumah."), notes), null);
+  assert.equal(parseCarouselDraft(body("Datang hari ini. Hubungi jam buka. #sate", "Simpan caranya, lalu hubungi jam buka.", "Tanpa harga promo"), notes), null);
+  const prompt = buildSop1Prompt({
+    day: "2026-11-12",
+    pillar: { id: pillarId, name: "Mitos" },
+    steps: [],
+    catalog: [],
+    thinking: [],
+    feedback: [],
+    plans: [],
+    brief: { service_ids: ["svc-a"], services: [], required_notes: "Hubungi jam buka.", forbidden_notes: "harga promo" },
+    performance: [],
+    service: { id: "svc-a", name: "Sate" },
+  });
+  assert.match(prompt, /Salin teks ini apa adanya ke caption dan ke vo slide terakhir: Hubungi jam buka\./);
+  assert.match(prompt, /harga promo/);
+  assert.match(prompt, /foto manusia sungguhan/);
 });

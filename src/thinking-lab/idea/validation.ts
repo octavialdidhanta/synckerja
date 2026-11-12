@@ -12,10 +12,10 @@ export const IDEA_VALIDATOR_VERSION = "idea-audit/v2";
 export const IDEA_REVISION_CAP = 3;
 
 export const IDEA_K2_RULE =
-  "PASS only when the mechanism is a specific action people already do in ordinary life. The how-if may change how that action is used. FAIL when the mechanism only works by creating a product, an automatic analysis, or a capability that is not part of ordinary life. A vague claim such as becoming more aware is not a mechanism. A reason that only restates the proposed product is not evidence.";
+  "PASS only when the mechanism is a specific action people already do in ordinary life. The how-if may change how that action is used. Name the ordinary action first. Looking, comparing, asking, photographing, watching, or discussing can be that action. PASS when people already do that action, even when the how-if changes what they see or hear while doing it. Do not fail that action because the how-if names a tool. FAIL when the mechanism only works by creating a product, an automatic analysis, or a capability that is not part of ordinary life, and no ordinary action remains. A vague claim such as becoming more aware is not a mechanism. A reason that only restates the proposed product is not evidence.";
 
 export const IDEA_K7_RULE =
-  "PASS only when the mechanism fits the stored audience's needs, conditions, ability, time, and behavior, and it does not have to replace its own substance to be realized. The evidence names what this audience already does and what is still missing. FAIL when the missing piece is a product, system, or capability this audience does not have and cannot prepare from their current conditions. A claim that there is no new habit, or that the idea fits an existing routine, is not evidence. When the idea proposes a new habit, PASS only when a realistic way to adopt that habit is present. A short action inside time this audience already spends is a realistic way to adopt it. Do not treat the idea's own boundary as the obstacle. The boundary is the part the how-if deliberately does not do. FAIL when that new habit has no existing moment in which it can happen. A habit that is not yet common is not automatically unrealistic. Distinguish a habit the audience is not yet used to, a habit that is difficult but possible, and a habit that is unrealistic for this audience. FAIL when the idea depends on unrealistic audience behavior, needs an unreasonable commitment, time, or resources with no way through that barrier, cannot be developed without creating another idea, or is only attractive in theory. Do not return BELUM_TERVERIFIKASI only because the audience field is empty when the Master Thought statement, the prior belief, or the root belief already names who is addressed. Do not invent an audience from the idea, the Territory, the Angle, or the Big Thought. When none of those stored Master Thought texts name who is addressed, return BELUM_TERVERIFIKASI and say that the Master Thought audience needs to be filled.";
+  "PASS only when the mechanism fits the stored audience's needs, conditions, ability, time, and behavior, and it does not have to replace its own substance to be realized. The evidence names what this audience already does and what is still missing. FAIL when the missing piece is a product, system, or capability this audience does not have and cannot prepare from their current conditions. A claim that there is no new habit, or that the idea fits an existing routine, is not evidence. When the idea proposes a new habit, PASS only when a realistic way to adopt that habit is present. A short action inside time this audience already spends is a realistic way to adopt it. Judge this audience, not the people shown inside the idea. A video, story, demonstration, or conversation this audience can watch, hear, read, or join during time they already spend passes. The work done by a person inside that content is not a habit this audience must adopt. FAIL only when this audience themselves must gain a product, skill, profession, or commitment they cannot prepare from their current life. Do not fail because the mechanism does not guarantee, prove, or change the Angle's observation. That observation is what the idea is for. Comparing, asking, looking, reading, or hearing during time this audience already spends passes. Do not treat the idea's own boundary as the obstacle. The boundary is the part the how-if deliberately does not do. FAIL when that new habit has no existing moment in which it can happen. A habit that is not yet common is not automatically unrealistic. Distinguish a habit the audience is not yet used to, a habit that is difficult but possible, and a habit that is unrealistic for this audience. FAIL when the idea depends on unrealistic audience behavior, needs an unreasonable commitment, time, or resources with no way through that barrier, cannot be developed without creating another idea, or is only attractive in theory. Do not return BELUM_TERVERIFIKASI only because the audience field is empty when the Master Thought statement, the prior belief, or the root belief already names who is addressed. Do not invent an audience from the idea, the Territory, the Angle, or the Big Thought. When none of those stored Master Thought texts name who is addressed, return BELUM_TERVERIFIKASI and say that the Master Thought audience needs to be filled.";
 
 export type IdeaCriterion = {
   id: IdeaCriterionId;
@@ -225,6 +225,103 @@ export function comparisonGap(reason: string, peers: readonly RelevantIdea[], an
     "Tidak ada bukti perbandingan dengan ide yang sudah lolos.",
     "The comparison with a passed idea was not shown.",
   );
+}
+
+function assertsSameConcept(reason: string): boolean {
+  return /\bsama\b|\bsame\b|duplikat|duplicate|mengulang|repeats|tidak berbeda|not different|tidak bisa dibedakan|cannot be told apart|hanya judul|only the title|only the wording|visualisasi|visualization|\bemphasis\b|penekanan/i.test(
+    reason,
+  );
+}
+
+function citesComparedIdea(reason: string, peers: readonly RelevantIdea[]): boolean {
+  if (/\bide yang sudah lolos\b|\bpassed idea\b|\balready passed\b|\bide yang ditolak\b|\brejected idea\b/i.test(reason)) return true;
+  return ideasOnThisAngle(peers).some((peer) => {
+    if (peer.code && new RegExp(`\\b${peer.code}\\b`, "i").test(reason)) return true;
+    return [peer.concept, peer.mechanism, peer.value].some((part) => part.trim() && storedTextShown(part, reason));
+  });
+}
+
+const AUDIENCE_ACTION_GROUPS: ReadonlyArray<readonly [string, RegExp]> = [
+  ["tell", /menceritakan|bercerita|menuturkan|\btelling\b|narrat/i],
+  ["record", /mencatat|menulis|\brecord(?:ing)?\b|\blogging\b/i],
+  ["compare", /membandingkan|\bcompar/i],
+  ["ask", /bertanya|menanyakan|\bask(?:ing)?\b/i],
+  ["look", /melihat|menonton|memandang|\blook(?:ing)?\b|\bwatch(?:ing)?\b/i],
+  ["feel", /menyentuh|meraba|menekan|\btouch(?:ing)?\b|\bpress(?:ing)?\b|\bfeel(?:ing)?\b/i],
+  ["read", /membaca|\bread(?:ing)?\b/i],
+  ["hear", /mendengar|mendengarkan|\bhear(?:ing)?\b|\blisten(?:ing)?\b/i],
+  ["choose", /memilih|\bchoos(?:e|ing)\b/i],
+  ["discuss", /berdiskusi|mendiskusikan|membahas|\bdiscuss/i],
+  ["show", /menampilkan|memperlihatkan|\bshow(?:ing)?\b|\bdisplay/i],
+];
+
+export function audienceActions(text: string): string[] {
+  return AUDIENCE_ACTION_GROUPS.filter(([, pattern]) => pattern.test(text)).map(([name]) => name);
+}
+
+/** Both texts name an audience action, and the actions are not the same set. */
+export function audienceActionsDiffer(left: string, right: string): boolean {
+  const a = audienceActions(left);
+  const b = audienceActions(right);
+  if (a.length === 0 || b.length === 0) return false;
+  if (a.length !== b.length) return true;
+  return a.some((action) => !b.includes(action));
+}
+
+/** The reason names one action, then calls a different action mere emphasis. */
+export function foldsDifferentAction(reason: string): boolean {
+  const parts = reason.split(/hanya berbeda pada|only differs in|only different in|\bpenekanan\b|\bemphasis\b/i);
+  if (parts.length < 2) return false;
+  const before = audienceActions(parts[0] ?? "");
+  const after = audienceActions(parts.slice(1).join(" "));
+  return after.some((action) => !before.includes(action));
+}
+
+/** A K5 fail counts only when the reason names another idea and the audience action is the same. */
+export function k5FailIsDuplicate(
+  reason: string,
+  peers: readonly RelevantIdea[],
+  current: { statement?: string; mechanism?: string } = {},
+): boolean {
+  if (foldsDifferentAction(reason)) return false;
+  if (!assertsSameConcept(reason) || !citesComparedIdea(reason, peers)) return false;
+  const currentText = `${current.mechanism ?? ""} ${current.statement ?? ""}`;
+  const cited = ideasOnThisAngle(peers).filter((peer) => {
+    if (peer.code && new RegExp(`\\b${peer.code}\\b`, "i").test(reason)) return true;
+    return [peer.concept, peer.mechanism, peer.value].some((part) => part.trim() && storedTextShown(part, reason));
+  });
+  return !cited.some((peer) => audienceActionsDiffer(currentText, `${peer.mechanism} ${peer.statement}`));
+}
+
+/** A K3 fail counts only when the stated value does not follow. Solving the whole Angle is not this check. */
+export function k3FailShowsBrokenValue(reason: string): boolean {
+  const solvesAngle =
+    /tidak secara langsung (mengatasi|menjamin|menyelesaikan|mengubah)|does not directly (solve|guarantee|overcome|fix)|tidak mengatasi masalah|does not solve the problem/i.test(
+      reason,
+    );
+  const valueBreaks = /tidak mengikuti|does not follow|nilai yang dinyatakan|stated value|kontradiksi|contradiction/i.test(reason);
+  return !solvesAngle || valueBreaks;
+}
+
+/** A K1 fail counts when the statement is not a how-if. Ordinary life belongs to K2. */
+export function k1FailIsHowIf(reason: string): boolean {
+  const ordinary =
+    /kehidupan sehari-hari|ordinary life|bukanlah tindakan|bukan tindakan yang|not an action people|not part of ordinary/i.test(reason);
+  const notProposal =
+    /bukan proposal|not a how-if|how-if proposal|hanya fakta|only a fact|hanya masalah|only a problem|hanya tujuan|only a goal|hanya aktivitas|only an activity|hanya teknik|only a technique|general strategy|strategi umum/i.test(
+      reason,
+    );
+  if (notProposal) return true;
+  if (ordinary) return false;
+  return true;
+}
+
+const AUDIENCE_BARRIER =
+  /\baudiens\b|\baudience\b|\bkebiasaan\b|\bhabit\b|kehidupan sehari-hari|ordinary life|\bprofesi\b|\bprofession\b|\bkomitmen\b|\bcommitment\b|\bketerampilan\b|\bskill\b|tidak bisa disiapkan|cannot prepare|tidak realistis|unrealistic|\bsumber daya\b|\bresources\b|\bmengadopsi\b|\badopt\b/i;
+
+/** A K7 fail counts only when the reason names a barrier this audience cannot prepare. */
+export function k7FailShowsAudienceBarrier(reason: string): boolean {
+  return AUDIENCE_BARRIER.test(reason);
 }
 
 export function strategicContextGap(input: {
@@ -746,6 +843,9 @@ export function formatFailureMemory(items: readonly FailureMemoryItem[]): string
     siblings.length ? siblings.map(lineFor).join("\n") : "(none)",
     "",
     "Similar words alone are not a repeat. When the substance is the same as a failed idea, fail the same criterion.",
+    "A different action is not the same substance. Do not fail K5 when this idea's action differs from the compared idea.",
+    "A stored K3 failure that only says the mechanism does not solve the Angle is not a K3 failure.",
+    "A stored K1 failure that only says the action is not part of ordinary life is not a K1 failure.",
     "A new title, wording, visualization, or delivery format is still that idea when the concept, the working principle, and the value stay the same.",
   ].join("\n");
 }
@@ -814,18 +914,24 @@ export function buildIdeaValidationPrompt(input: {
     "A missing context is BELUM_TERVERIFIKASI. Do not invent a Big Thought, Territory, or reason.",
     "K6. The idea links to the stored Master Thought, Big Thought, and Territory. If one of those is missing or the link cannot be checked, K6 is BELUM_TERVERIFIKASI. Do not pass it from an assumption.",
     "K1. The statement is one specific how-if proposal. Fail it when the substance is only a fact, insight, problem, goal, proposition, general strategy, consequence scenario, activity, or technique.",
+    "Do not fail K1 because the action is unusual or not part of ordinary life. That is another check.",
     "Containing one of those is allowed. It must not be the whole substance.",
     `K2. ${IDEA_K2_RULE}`,
     "K3. PASS when the proposed mechanism can logically produce the stated value. FAIL when the result does not follow from the mechanism or a basic contradiction is present.",
+    "Do not fail K3 because the mechanism does not directly solve, guarantee, or overcome the Angle's problem. That problem is what the idea is for.",
     "K4. PASS when a beneficiary is clear, a relevant problem or need is clear, and the reason this mechanism could deliver that benefit is clear.",
     "K4 FAIL when the value is only a general claim, such as increasing effectiveness, providing transparency, or helping the business, with no concrete link to the mechanism.",
     "Do not pass K4 only because the idea discusses a problem that matches the Angle or the Big Thought.",
     "K5. PASS only when the core concept, the working principle, or the value produced is meaningfully different from other relevant ideas.",
     "K5 FAIL with DUPLICATE_CONCEPT when the idea repeats another idea's core concept, or when only the title, the wording, the visualization, or the emphasis of the communication changes.",
-    "K5 FAIL when a different mechanism still produces the same experience and main value.",
+    "K5 FAIL when the working principle and what the audience does are the same, even if the title differs.",
     "Compare passed ideas, rejected ideas, relevant ideas that are not yet verified, and the other ideas in this batch.",
     "When the idea differs only in part but the mechanism and the value are meaningfully new, name that difference explicitly.",
     "The same topic or the same Big Thought is not a K5 failure.",
+    "The same Angle is not a K5 failure. Making the same observation visible is not a K5 failure.",
+    "K5 FAIL only when the working principle and what the audience does are the same, so the experiences cannot be told apart.",
+    "Do not fail K5 because the action is unusual, new, or not part of ordinary life. That is another check.",
+    "A K5 fail names the other idea and says the working principle and what the audience does are the same.",
     "If the comparison history was not loaded, K5 stays BELUM_TERVERIFIKASI. Do not claim the comparison was complete.",
     "K6 names the stored Master Thought, the stored Big Thought, and the stored Territory, and the relationship to each one.",
     "Angle, Territory, and Big Thought are different. Do not treat them as the same thing.",
@@ -868,6 +974,14 @@ export function buildIdeaRevisionPrompt(input: {
     "Repair this same Idea. Do not create a different idea and do not add another card.",
     howIfInstruction(input.angle),
     "Change only the wording the failed requirements need. Keep every passed requirement true.",
+    "A person, demonstration, or story inside the idea is not this audience's habit. Do not delete it because that person does something the audience does not do.",
+    "When K2 fails because the mechanism is a new product or an automatic analysis, replace that product with the ordinary action people already use for the same job. Keep the observation. Do not return another version of the same product.",
+    "A repair may keep this card's observation. Do not change it only to look different from a rejected idea. It must still differ from an idea that already passed.",
+    "When a failed comparison only contrasts a picture the audience looks at with a description the audience reads or hears, keep that action. Those are not the same idea.",
+    "When K1 fails because the action is not part of ordinary life, keep the how-if. That question belongs to the ordinary-life check.",
+    "When K3 fails because the mechanism does not directly solve or guarantee the Angle's problem, keep the action. K3 only cares whether the mechanism can produce this idea's stated value.",
+    "When K7 fails because the mechanism does not guarantee the Angle's observation, keep the action. That observation is what the idea is for.",
+    "When K5 calls a different audience action mere emphasis, keep that action. Telling, recording, comparing, asking, looking, and discussing are different actions.",
     "The failed requirements are the lesson for this repair and for the next round.",
     "Do not turn it into only a fact, insight, problem, goal, proposition, general strategy, consequence, activity, or technique.",
     "Return one JSON object: {\"ideas\":[{\"title\":\"...\",\"statement\":\"...\",\"concept\":\"...\",\"mechanism\":\"...\",\"value\":\"...\"}]}",
@@ -960,11 +1074,11 @@ const AUDITOR_STANCE = [
 ].join(" ");
 
 const CRITERION_RULE: Record<IdeaCriterionId, string> = {
-  K1: "pass is true only when the statement is one specific how-if proposal. pass is false when the substance is only a fact, an insight, a problem, a goal, a proposition, a general strategy, a consequence scenario, an activity, or a technique. Those may appear inside the proposal. They must not be the whole substance.",
+  K1: "pass is true only when the statement is one specific how-if proposal. pass is false when the substance is only a fact, an insight, a problem, a goal, a proposition, a general strategy, a consequence scenario, an activity, or a technique. Those may appear inside the proposal. They must not be the whole substance. Do not fail because the action is unusual or not part of ordinary life. That is another check.",
   K2: IDEA_K2_RULE,
-  K3: "PASS only when the proposed mechanism can logically produce the stated value. FAIL when the result does not follow from the mechanism, or a basic contradiction is present.",
+  K3: "PASS only when the proposed mechanism can logically produce the stated value. FAIL when the result does not follow from the mechanism, or a basic contradiction is present. Do not fail because the mechanism does not directly solve, guarantee, or overcome the Angle's problem. That problem is what the idea is for. Fail only when this idea's stated value does not follow from the mechanism.",
   K4: "PASS only when a beneficiary is clear, a relevant problem or need is clear, and the reason this mechanism could deliver that benefit is clear. FAIL when the value is only a general claim such as increasing effectiveness, providing transparency, or helping the business, with no concrete link to the mechanism. Do not pass only because the idea discusses a problem that matches the Angle or the Big Thought.",
-  K5: "PASS only when the core concept, the mechanism principle, or the produced value is meaningfully different. Compare ideas that already passed, ideas that were rejected, relevant ideas that are not yet verified, and the other ideas in this batch. A comparison with failed ideas alone is not complete. When a relevant idea exists, name that idea in the reason. A claim that this idea is unique, without naming the passed, rejected, or unverified idea it was compared with, is BELUM_TERVERIFIKASI. FAIL with DUPLICATE_CONCEPT when the only difference is the title, the wording, the visualization, or the emphasis of the communication. FAIL when a different mechanism still produces the same experience and the same main value. When the idea differs only in part but the mechanism and the value are meaningfully new, name that difference explicitly. The same topic or the same Big Thought is not a failure. If the comparison history was not loaded, return BELUM_TERVERIFIKASI and do not claim the comparison was complete.",
+  K5: "PASS only when the core concept, the mechanism principle, or the produced value is meaningfully different. Compare ideas that already passed, ideas that were rejected, relevant ideas that are not yet verified, and the other ideas in this batch. A comparison with failed ideas alone is not complete. When a relevant idea exists, name that idea in the reason. A claim that this idea is unique, without naming the passed, rejected, or unverified idea it was compared with, is BELUM_TERVERIFIKASI. FAIL with DUPLICATE_CONCEPT when the only difference is the title, the wording, the visualization, or the emphasis of the communication. FAIL when the working principle and what the audience does are the same, even if the title differs. When the idea differs only in part but the mechanism and the value are meaningfully new, name that difference explicitly. The same topic or the same Big Thought is not a failure. The same Angle is not a failure. Making the same observation visible is not a failure. Do not call a second action emphasis or part of the first process. Telling, recording, comparing, asking, looking, and discussing are different actions. If this idea's action differs from the other idea's action, pass is true. FAIL only when the working principle and what the audience does are the same, so the experiences cannot be told apart. Do not fail because the action is unusual, new, or not part of ordinary life. That is another check. A fail names the other idea and says the working principle and what the audience does are the same. If the comparison history was not loaded, return BELUM_TERVERIFIKASI and do not claim the comparison was complete.",
   K6: "PASS only when the relationship to the stored Master Thought, the stored Big Thought, and the stored Territory is shown separately. Quote the stored text of each one and say how that text supports the idea. Naming Master Thought, Big Thought, or Territory, without showing the stored text, is BELUM_TERVERIFIKASI. If one of those is missing, or the link cannot be checked, return status BELUM_TERVERIFIKASI. Do not pass from an assumption. The Angle is not the Territory and not the Big Thought.",
   K7: IDEA_K7_RULE,
 };
@@ -1028,6 +1142,9 @@ export function buildIdeaCriterionPrompt(input: {
           "",
           formatRelevantIdeas(ideasOnThisAngle(input.peers ?? [])),
           "An empty list means the stored history loaded and no comparable idea was found.",
+          "Stored failures from other checks are not this check. Do not repeat a reason about ordinary life, a new product, or the audience.",
+          "Do not call a second action emphasis or part of the first process. Telling, recording, comparing, asking, looking, and discussing are different actions.",
+          "Fail only when you name another idea and the working principle and what the audience does are the same.",
         ]
       : []),
   ].join("\n");
@@ -1181,7 +1298,7 @@ export async function runIdeaPassChecks(input: {
   const storedFail = prior?.failed[0];
   const storedOpen = storedFail ? undefined : prior?.unverified?.[0];
   const stored = storedFail ?? storedOpen;
-  if (stored) {
+  if (stored && !(stored.id === "K1" && !k1FailIsHowIf(stored.reason))) {
     const slot = criteria.find((criterion) => criterion.id === stored.id);
     if (slot) {
       const status: IdeaCriterionStatus = storedFail ? "FAIL" : "BELUM_TERVERIFIKASI";
@@ -1326,12 +1443,68 @@ export async function runIdeaPassChecks(input: {
     slot.explanation = parsed.explanation;
     slot.weakness = parsed.weakness;
     slot.reason = parsed.reason;
+    if (id === "K1" && parsed.status === "FAIL" && !k1FailIsHowIf(`${parsed.explanation}\n${parsed.evidence}`)) {
+      const sentence = inAngleLanguage(
+        input.angle,
+        "Alasan ini tidak menunjukkan bahwa pernyataan ini bukan proposal bagaimana-jika.",
+        "This reason does not show that the statement is not a how-if proposal.",
+      );
+      slot.status = "PASS";
+      slot.evidence = sentence;
+      slot.explanation = sentence;
+      slot.weakness = "";
+      slot.reason = formatAuditReason(slot);
+      show(id, "PASS", sentence);
+      continue;
+    }
+    if (id === "K5" && parsed.status === "FAIL" && !k5FailIsDuplicate(`${parsed.explanation}\n${parsed.evidence}`, input.peers ?? [], { statement: input.statement, mechanism: input.mechanism })) {
+      const sentence = inAngleLanguage(
+        input.angle,
+        "Alasan ini tidak menunjukkan ide lain dengan prinsip kerja yang sama.",
+        "This reason does not show another idea with the same working principle.",
+      );
+      slot.status = "PASS";
+      slot.evidence = sentence;
+      slot.explanation = sentence;
+      slot.weakness = "";
+      slot.reason = formatAuditReason(slot);
+      show(id, "PASS", sentence);
+      continue;
+    }
+    if (id === "K3" && parsed.status === "FAIL" && !k3FailShowsBrokenValue(`${parsed.explanation}\n${parsed.evidence}`)) {
+      const sentence = inAngleLanguage(
+        input.angle,
+        "Alasan ini tidak menunjukkan bahwa nilai ide ini gagal mengikuti mekanismenya.",
+        "This reason does not show that this idea's stated value fails to follow from the mechanism.",
+      );
+      slot.status = "PASS";
+      slot.evidence = sentence;
+      slot.explanation = sentence;
+      slot.weakness = "";
+      slot.reason = formatAuditReason(slot);
+      show(id, "PASS", sentence);
+      continue;
+    }
     if (parsed.status === "PASS" && id === "K5") {
       const gap = comparisonGap(`${parsed.explanation}\n${parsed.evidence}`, input.peers ?? [], input.angle);
       if (gap) {
         hold(gap);
         break;
       }
+    }
+    if (id === "K7" && parsed.status === "FAIL" && !k7FailShowsAudienceBarrier(`${parsed.explanation}\n${parsed.evidence}`)) {
+      const sentence = inAngleLanguage(
+        input.angle,
+        "Alasan ini tidak menunjukkan hambatan yang tidak bisa disiapkan audiens ini.",
+        "This reason does not show a barrier this audience cannot prepare.",
+      );
+      slot.status = "PASS";
+      slot.evidence = sentence;
+      slot.explanation = sentence;
+      slot.weakness = "";
+      slot.reason = formatAuditReason(slot);
+      show(id, "PASS", sentence);
+      continue;
     }
     if (id === "K6" && parsed.status !== "FAIL") {
       const gap = strategicContextGap({
@@ -1473,6 +1646,14 @@ export function rejectAsDuplicate(validation: IdeaValidation, duplicate: Duplica
   );
 }
 
+/** A picture and a description are different audience actions, even when a comparison calls that a format change. */
+export function duplicateContrastsAudienceAction(reason: string): boolean {
+  const text = reason.toLowerCase();
+  const looks = /visual|gambar|\bfoto\b|picture|photo/.test(text);
+  const reads = /verbal|deskripsi|description|\bteks\b|membaca|reading|mendengar|hearing/.test(text);
+  return looks && reads;
+}
+
 function duplicateFrom(raw: unknown, peers: ReadonlyArray<{ id: string; code: string; statement: string }>): DuplicateConceptRecord | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as {
@@ -1508,12 +1689,16 @@ export function buildCrossIdeaPrompt(candidates: readonly CrossIdeaCandidate[], 
     `${row.code}: ${row.statement}\nConcept: ${row.concept || "(none)"}\nMechanism: ${row.mechanism || "(none)"}\nValue: ${row.value || "(none)"}`;
   return [
     "Compare ideas by substance. Do this after each idea has already been checked on K1 through K7.",
-    "Group only ideas that share the same core concept. The same topic or the same Big Thought is not the same concept.",
+    "Group only ideas that share the same core concept. The same topic or the same Big Thought is not the same concept. The same Angle is not the same concept.",
+    "Making one observation visible in different ways is not a duplicate.",
+    "Group ideas only when the working principle and what the audience does are the same, so the experiences cannot be told apart.",
     "Compare passed ideas, rejected ideas, and relevant ideas that are not yet verified.",
-    "A different title, wording, visualization, delivery format, or emphasis of the communication is not a substantive difference. Mark that DUPLICATE_CONCEPT.",
-    "When an idea differs only in part but its mechanism and its value are meaningfully new, leave it out of the group and the keeper's note must name that difference.",
+    "A different title, wording, or emphasis is not a substantive difference when the audience still does the same thing. Mark that DUPLICATE_CONCEPT.",
+    "Changing only the visualization, while the audience does the same thing, is not a substantive difference.",
+    "A picture the audience looks at and a description the audience reads or hears are different actions. Do not call both a guide, information, or a format. Leave that pair out of every group.",
+    "Do not fold one action into another by calling it emphasis or part of the same process. Telling is not recording. If the stored mechanisms name different actions, leave the pair out of every group.",
     "A different mechanism is a substantive difference only when it changes how the idea works or the value it produces.",
-    "From each group, keep the one strongest idea by completeness and strategic relevance.",
+    "A different working principle, or a different thing the audience does, is a substantive difference. Leave that idea out of the group.",
     "Mark the others as duplicates of that keeper.",
     "Every duplicate needs the same core concept, the overlapping mechanism, the overlapping value, and a specific reason.",
     "Do not invent a duplicate. If the substance differs, leave it out of every group.",
@@ -1540,6 +1725,8 @@ export function applyCrossIdeaGroups(
     ...candidates.map((row) => ({ id: "", code: row.code, statement: row.statement })),
     ...peers.map((row) => ({ id: row.id, code: row.code, statement: row.statement })),
   ];
+  const actionText = new Map<string, string>();
+  for (const row of [...candidates, ...peers]) actionText.set(row.code.toUpperCase(), `${row.mechanism} ${row.statement}`);
   const next = candidates.map((candidate) => ({
     ...candidate,
     validation: applyCrossStatus(candidate.validation, "PASS"),
@@ -1554,6 +1741,10 @@ export function applyCrossIdeaGroups(
       const code = text((member as { code?: unknown })?.code);
       if (!duplicate || code.toUpperCase() === keeperCode.toUpperCase()) continue;
       const index = next.findIndex((candidate) => candidate.code.toUpperCase() === code.toUpperCase());
+      if (duplicateContrastsAudienceAction(`${duplicate.reason}\n${duplicate.overlappingMechanism}`)) continue;
+      const candidateText = actionText.get(code.toUpperCase()) ?? "";
+      const comparedText = actionText.get(duplicate.comparedCode.toUpperCase()) ?? "";
+      if (foldsDifferentAction(duplicate.reason) || audienceActionsDiffer(candidateText, comparedText)) continue;
       if (index < 0) continue;
       next[index] = { ...next[index], validation: rejectAsDuplicate(next[index].validation, duplicate) };
     }

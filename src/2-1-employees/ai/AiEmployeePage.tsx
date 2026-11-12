@@ -38,6 +38,7 @@ import {
 import { anglesForCatalogs, anglesWithLockedIdeas, pillarsForLockedIdeas } from "./angleCatalog";
 import { canAddScheduleTime } from "./scheduleTimes";
 import type { AngleOption, BriefChange, BriefDraft, CatalogOption, RoutineRow, ScheduleRow } from "./types";
+import { useSubCategoryPhotoUrls } from "./subCategoryPhotos";
 import { useAiEmployeePage } from "./useAiEmployeePage";
 
 const WEEKDAYS = [
@@ -116,10 +117,6 @@ function withoutBlockedDay(rows: RoutineRow[]): RoutineRow[] {
 
 function mergeReportRoutines(saved: RoutineRow[], reviewerName: string | null): RoutineRow[] {
   return withoutBlockedDay(draftRoutines(reviewerName).map((draft) => saved.find((row) => row.actionCode === draft.actionCode) ?? draft));
-}
-
-function toggleId(ids: string[], id: string): string[] {
-  return ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id];
 }
 
 function nameMap(primary: CatalogOption[], extra: CatalogOption[]): Map<string, string> {
@@ -302,7 +299,7 @@ function AngleFocusField({
           ) : null}
         </div>
       </PopoverTrigger>
-      <PopoverContent align="start" className="max-h-60 w-56 overflow-y-auto p-1" onOpenAutoFocus={(event) => event.preventDefault()}>
+      <PopoverContent align="start" className="scrollbar-hide max-h-60 w-56 overflow-y-auto p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" onOpenAutoFocus={(event) => event.preventDefault()}>
         {visible.length === 0 ? (
           <p className="px-2 py-1.5 text-xs text-muted-foreground">{emptyLabel}</p>
         ) : (
@@ -409,7 +406,7 @@ function ProductKnowledgeField({
       <PopoverContent
         align="start"
         collisionPadding={12}
-        className="z-[60] max-h-[min(16rem,var(--radix-popover-content-available-height))] w-80 overflow-y-auto overscroll-contain p-1"
+        className="scrollbar-hide z-[60] max-h-[min(16rem,var(--radix-popover-content-available-height))] w-80 overflow-y-auto overscroll-contain p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onWheel={(event) => event.stopPropagation()}
         onTouchMove={(event) => event.stopPropagation()}
@@ -538,6 +535,7 @@ function RepeatVoiceEditor({
 }
 
 function SubCategoryField({
+  organizationId,
   ready,
   canEdit,
   saving,
@@ -545,6 +543,7 @@ function SubCategoryField({
   options,
   onChange,
 }: {
+  organizationId: string;
   ready: boolean;
   canEdit: boolean;
   saving: boolean;
@@ -552,20 +551,15 @@ function SubCategoryField({
   options: Array<{ id: string; name: string; hasLibraryPhoto: boolean }>;
   onChange: (ids: string[]) => void;
 }) {
+  const photoUrls = useSubCategoryPhotoUrls(
+    organizationId,
+    options.filter((option) => option.hasLibraryPhoto).map((option) => option.id),
+  );
   const selected = options.filter((option) => value.includes(option.id));
   const summary = selected.length > 0 ? selected.map((option) => option.name).join(", ") : "General Content";
   const withPhoto = selected.filter((option) => option.hasLibraryPhoto);
   if (!ready) return <span className="text-sm text-muted-foreground">Simpan katalog dulu.</span>;
-  if (!canEdit) {
-    return (
-      <div className="space-y-1">
-        <span>{summary}</span>
-        {withPhoto.length > 0 ? (
-          <p className="text-xs text-muted-foreground">Foto library dari pilihan ini dikirim ke Canva.</p>
-        ) : null}
-      </div>
-    );
-  }
+  if (!canEdit) return <span>{summary}</span>;
   const toggle = (id: string) => {
     if (value.includes(id)) {
       onChange(value.filter((item) => item !== id));
@@ -578,53 +572,87 @@ function SubCategoryField({
     <div className="space-y-1">
       <Popover modal>
         <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={saving}
+          <div
+            role="button"
+            tabIndex={saving ? -1 : 0}
             aria-label="Sub Category"
-            className="h-auto min-h-9 w-full max-w-md justify-start px-3 py-2 text-left text-sm font-normal"
+            aria-disabled={saving}
+            className={cn(
+              "flex min-h-9 w-full flex-wrap items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-left",
+              saving && "pointer-events-none opacity-50",
+            )}
           >
-            <span className="line-clamp-2">{summary}</span>
-          </Button>
+            {selected.length === 0 ? (
+              <span className="px-1 text-sm text-muted-foreground">General Content</span>
+            ) : selected.map((option) => (
+              <span
+                key={option.id}
+                className="inline-flex max-w-full items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-900"
+              >
+                <span className="truncate" title={option.name}>{option.name}</span>
+                <button
+                  type="button"
+                  className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-violet-700 hover:bg-violet-200"
+                  aria-label={`Hapus ${option.name}`}
+                  disabled={saving}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onChange(value.filter((id) => id !== option.id));
+                  }}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
         </PopoverTrigger>
         <PopoverContent
           align="start"
           collisionPadding={12}
-          className="z-[60] max-h-[min(16rem,var(--radix-popover-content-available-height))] w-80 overflow-y-auto overscroll-contain p-2"
+          className="scrollbar-hide z-[60] max-h-[min(16rem,var(--radix-popover-content-available-height))] w-96 overflow-y-auto overscroll-contain p-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onWheel={(event) => event.stopPropagation()}
           onTouchMove={(event) => event.stopPropagation()}
         >
-          <label className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
+          <label className="flex cursor-pointer items-center gap-2 border-b border-border px-2 py-1.5 text-sm hover:bg-muted">
             <input
               type="checkbox"
-              className="mt-1"
+              className="shrink-0"
               checked={value.length === 0}
               disabled={saving}
               onChange={() => onChange([])}
             />
-            <span>General Content</span>
+            <span className="min-w-0 flex-1">General Content</span>
+            <span className="h-10 w-10 shrink-0" aria-hidden />
           </label>
-          {options.map((option) => (
-            <label key={option.id} className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={value.includes(option.id)}
-                disabled={saving || (!value.includes(option.id) && value.length >= 8)}
-                onChange={() => toggle(option.id)}
-              />
-              <span>
-                {option.name}
-                {option.hasLibraryPhoto ? <span className="mt-0.5 block text-xs text-muted-foreground">Foto library</span> : null}
-              </span>
-            </label>
-          ))}
+          {options.map((option, index) => {
+            const photoUrl = photoUrls[option.id];
+            return (
+              <label
+                key={option.id}
+                className={cn(
+                  "flex cursor-pointer items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted",
+                  index < options.length - 1 && "border-b border-border",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  className="shrink-0"
+                  checked={value.includes(option.id)}
+                  disabled={saving || (!value.includes(option.id) && value.length >= 8)}
+                  onChange={() => toggle(option.id)}
+                />
+                <span className="min-w-0 flex-1">{option.name}</span>
+                {photoUrl ? (
+                  <img src={photoUrl} alt="" className="h-10 w-10 shrink-0 rounded-sm object-cover" />
+                ) : (
+                  <span className="h-10 w-10 shrink-0" aria-hidden />
+                )}
+              </label>
+            );
+          })}
         </PopoverContent>
       </Popover>
-      {selected.length > 0 && withPhoto.length > 0 ? (
-        <p className="text-xs text-muted-foreground">Foto library dari pilihan ini dikirim ke Canva.</p>
-      ) : null}
       {selected.length > 0 && withPhoto.length === 0 ? (
         <p className="text-xs text-muted-foreground">Pilihan ini belum punya foto di product list.</p>
       ) : null}
@@ -659,7 +687,7 @@ function CatalogSelect({
       <PopoverContent
         align="end"
         collisionPadding={12}
-        className="z-[60] max-h-[min(16rem,var(--radix-popover-content-available-height))] w-80 overflow-y-auto overscroll-contain p-2"
+        className="scrollbar-hide z-[60] max-h-[min(16rem,var(--radix-popover-content-available-height))] w-80 overflow-y-auto overscroll-contain p-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onWheel={(event) => event.stopPropagation()}
         onTouchMove={(event) => event.stopPropagation()}
       >
@@ -691,42 +719,75 @@ function CatalogSelect({
   );
 }
 
-function MultiSelect({
-  label,
-  emptyLabel,
-  options,
+function PersonaField({
+  canEdit,
+  saving,
   value,
-  disabled,
-  onToggle,
-  trigger,
+  options,
+  labels,
+  emptyLabel,
+  onChange,
 }: {
-  label: string;
-  emptyLabel: string;
-  options: CatalogOption[];
+  canEdit: boolean;
+  saving: boolean;
   value: string[];
-  disabled: boolean;
-  onToggle: (id: string) => void;
-  trigger?: string;
+  options: CatalogOption[];
+  labels: Map<string, string>;
+  emptyLabel: string;
+  onChange: (ids: string[]) => void;
 }) {
-  const selected = options.filter((option) => value.includes(option.id));
-  const summary = selected.length > 0 ? selected.map((option) => option.label).join(", ") : label;
+  const selected = value
+    .map((id) => {
+      const label = labels.get(id) ?? options.find((option) => option.id === id)?.label;
+      return label ? { id, label } : null;
+    })
+    .filter((option): option is { id: string; label: string } => option != null);
+  if (!canEdit) return <span>{selected.length > 0 ? selected.map((option) => option.label).join(", ") : "—"}</span>;
+  const toggle = (id: string) => {
+    onChange(value.includes(id) ? value.filter((item) => item !== id) : [...value, id]);
+  };
   return (
     <Popover modal>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size={trigger ? "sm" : "default"}
-          disabled={disabled}
-          className={trigger ? "h-7" : "h-auto min-h-9 w-full justify-start px-3 py-2 text-left text-xs font-normal"}
+        <div
+          role="button"
+          tabIndex={saving ? -1 : 0}
+          aria-label="Persona"
+          aria-disabled={saving}
+          className={cn(
+            "flex min-h-9 w-full flex-wrap items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-left",
+            saving && "pointer-events-none opacity-50",
+          )}
         >
-          {trigger ? trigger : <span className="line-clamp-2">{summary}</span>}
-        </Button>
+          {selected.length === 0 ? (
+            <span className="px-1 text-sm text-muted-foreground">—</span>
+          ) : selected.map((option) => (
+            <span
+              key={option.id}
+              className="inline-flex max-w-full items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-900"
+            >
+              <span className="truncate" title={option.label}>{option.label}</span>
+              <button
+                type="button"
+                className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-violet-700 hover:bg-violet-200"
+                aria-label={`Hapus ${option.label}`}
+                disabled={saving}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onChange(value.filter((id) => id !== option.id));
+                }}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
       </PopoverTrigger>
       <PopoverContent
-        align="end"
+        align="start"
         collisionPadding={12}
-        className="z-[60] max-h-[min(16rem,var(--radix-popover-content-available-height))] w-80 overflow-y-auto overscroll-contain p-2"
+        className="scrollbar-hide z-[60] max-h-[min(16rem,var(--radix-popover-content-available-height))] w-80 overflow-y-auto overscroll-contain p-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onWheel={(event) => event.stopPropagation()}
         onTouchMove={(event) => event.stopPropagation()}
       >
@@ -739,8 +800,8 @@ function MultiSelect({
                 type="checkbox"
                 className="mt-1"
                 checked={value.includes(option.id)}
-                disabled={disabled}
-                onChange={() => onToggle(option.id)}
+                disabled={saving}
+                onChange={() => toggle(option.id)}
               />
               <span>{option.label}</span>
             </label>
@@ -1239,7 +1300,7 @@ export default function AiEmployeePage() {
 
                 {page && brief ? (
                   <div className="grid w-full min-w-0 flex-1 content-start grid-cols-12 items-start gap-2">
-                    <div className="col-span-12 flex min-w-0 flex-col gap-2 xl:col-span-8">
+                    <div className="col-span-12 flex min-w-0 flex-col gap-2">
                       <section className="rounded-md border border-border bg-card p-3">
                         <h2 className="mb-2 text-sm font-semibold">{t("aiEmployee.summary.title", "Ringkasan")}</h2>
                         <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
@@ -1258,6 +1319,35 @@ export default function AiEmployeePage() {
                           <div>
                             <dt className="text-xs text-muted-foreground">{t("aiEmployee.summary.performance", "Status kinerja")}</dt>
                             <dd>{statusLabel(page.summary.performanceStatus)} · {page.summary.isActive ? t("aiEmployee.page.active", "Aktif") : t("aiEmployee.page.inactive", "Tidak aktif")}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">{t("aiEmployee.quota.title", "Kuota hari ini")}</dt>
+                            <dd>
+                              {page.quota.cap == null
+                                ? t("aiEmployee.quota.unknown", "{{used}} terpakai", { used: page.quota.used })
+                                : t("aiEmployee.quota.employee", "{{used}} terpakai, {{remaining}} sisa", {
+                                  used: page.quota.used,
+                                  remaining: page.quota.remaining ?? 0,
+                                })}
+                              <span className="text-muted-foreground">
+                                {" · "}
+                                {t("aiEmployee.quota.employeeCap", "Batas karyawan {{cap}} · {{date}} WIB", {
+                                  cap: page.quota.cap ?? "—",
+                                  date: page.quota.usageDate || "—",
+                                })}
+                              </span>
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-muted-foreground">{t("aiEmployee.quota.orgTitle", "Batas organisasi")}</dt>
+                            <dd>
+                              {t("aiEmployee.quota.orgValue", "{{used}} terpakai, {{remaining}} sisa dari {{limit}} · {{date}} UTC", {
+                                used: page.quota.orgUsed,
+                                remaining: page.quota.orgRemaining,
+                                limit: page.quota.orgLimit,
+                                date: page.quota.orgUsageDate || "—",
+                              })}
+                            </dd>
                           </div>
                         </dl>
                       </section>
@@ -1281,42 +1371,9 @@ export default function AiEmployeePage() {
                       </section>
                     </div>
 
-                    <div className="col-span-12 flex min-w-0 flex-col gap-2 xl:col-span-4">
-                      <section className="rounded-md border border-border bg-card p-3">
-                        <h2 className="mb-1 text-sm font-semibold">{t("aiEmployee.quota.title", "Kuota hari ini")}</h2>
-                        <p className="text-sm">
-                          {page.quota.cap == null
-                            ? t("aiEmployee.quota.unknown", "{{used}} terpakai", { used: page.quota.used })
-                            : t("aiEmployee.quota.employee", "{{used}} terpakai, {{remaining}} sisa", {
-                              used: page.quota.used,
-                              remaining: page.quota.remaining ?? 0,
-                            })}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {t("aiEmployee.quota.employeeCap", "Batas karyawan {{cap}} · {{date}} WIB", {
-                            cap: page.quota.cap ?? "—",
-                            date: page.quota.usageDate || "—",
-                          })}
-                        </p>
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          {t("aiEmployee.quota.org", "Batas organisasi: {{used}} terpakai, {{remaining}} sisa dari {{limit}} · {{date}} UTC", {
-                            used: page.quota.orgUsed,
-                            remaining: page.quota.orgRemaining,
-                            limit: page.quota.orgLimit,
-                            date: page.quota.orgUsageDate || "—",
-                          })}
-                        </p>
-                      </section>
-                    </div>
-
                     <div className="col-span-12 flex min-w-0 flex-col gap-2">
                       <section className="rounded-md border border-border bg-card p-3">
-                        <div className="mb-2 flex items-baseline justify-between gap-2">
-                          <h2 className="text-sm font-semibold">{t("aiEmployee.jobDesc.title", "Job desc")}</h2>
-                          <p className="text-xs text-muted-foreground">
-                            {page.routines[0]?.reviewerName || page.summary.reviewerName || "—"}
-                          </p>
-                        </div>
+                        <h2 className="mb-2 text-sm font-semibold">{t("aiEmployee.jobDesc.title", "Job desc")}</h2>
                         {!canEdit ? (
                           <p className="mb-2 text-xs text-muted-foreground">{t("aiEmployee.page.ownerOnly", "Hanya owner yang dapat mengubah data ini.")}</p>
                         ) : null}
@@ -1687,7 +1744,7 @@ export default function AiEmployeePage() {
                                 <FieldHint
                                   wide
                                   label={t("aiEmployee.brief.title", "Brief")}
-                                  text={"Berlaku untuk Content Plan Carousel. Field yang diisi menjadi batas. Field yang dikosongkan melepas batas itu.\n\nKatalog paling banyak satu. Kosong berarti plan tidak dibuat. Satu katalog untuk karyawan ini. Katalog lain membutuhkan karyawan AI baru.\n\nFokus angle kosong: plan memakai idea yang sudah dikunci dan lolos, yang belum punya plan. Angle tidak dibatasi.\nFokus angle diisi: plan hanya dari jalur carousel yang dikunci pada angle itu. Persona dan audiens tidak dikirim.\n\nPilar kosong saat angle terisi: semua pilar yang terkunci pada angle itu ikut antrian.\nPilar diisi: antrian hanya pilar itu.\nPilar kosong saat angle kosong: semua pilar aktif, dipilih yang paling sedikit dipakai. Setelah ada 5 plan, satu pilar tidak boleh melebihi 40%.\n\nProduct Knowledge kosong: daftarnya semua baris yang kategorinya sama dengan katalog.\nProduct Knowledge diisi: hanya baris itu.\nSaat fokus angle terisi, Naya memilih dari daftar itu (paling banyak 30) dan pilihannya dipakai selama ada di daftar.\nSaat fokus angle kosong, yang dikirim paling banyak 3 baris, dan baris yang sudah terpakai dilewati.\n\nReferensi kosong: tidak ada arahan gambar. Satu gambar dipakai di semua slide. Lebih dari satu, Naya memilih satu nomor untuk semua slide. Tempel tersimpan langsung dan tidak lewat tinjau brief.\n\nSuara kosong: tidak ada gaya bahasa.\nCatatan wajib dan catatan terlarang kosong: tidak ada aturan tambahan.\nGaya pengulangan kosong: tidak ada plan kedua. Gaya pertama dipakai hanya setelah plan pertama tayang lebih dari 7 hari dan metriknya di atas median."}
+                                  text={"Berlaku untuk Content Plan Carousel. Field yang diisi menjadi batas. Field yang dikosongkan melepas batas itu.\n\nKatalog paling banyak satu. Kosong berarti plan tidak dibuat. Satu katalog untuk karyawan ini. Katalog lain membutuhkan karyawan AI baru.\n\nFokus angle kosong: tidak ada giliran angle. Idea yang dikunci dan lolos dari angle mana pun ikut. Yang belum punya plan didahulukan. Setelah semua idea punya plan, giliran tetap merata: jumlah plan paling sedikit, lalu yang paling lama tidak dipakai. Idea dan pilar plan terakhir dilewati selama masih ada pilihan. Angle ikut terbawa dari idea.\nFokus angle diisi: giliran menjauh dari plan organisasi yang tanggal postingnya paling baru. Angle yang paling lama tidak keluar didahulukan, dan angle plan terakhir dilewati selama angle lain masih punya idea yang lolos. Idea di angle itu dipilih yang jumlah plannya paling sedikit, lalu yang paling lama tidak dipakai. Idea plan terakhir tidak diulang selama masih ada idea lain yang jumlahnya sama atau lebih sedikit. Idea yang sama boleh kembali lewat pilar yang belum pernah dipasangkan. Persona dan audiens tidak dikirim.\n\nPilar kosong: pilar diambil dari pilar aktif di Content Pillar Tracker. Yang paling sedikit dipakai pada bulan berjalan didahulukan. Pilar plan terakhir dilewati selama masih ada pilar lain yang belum dipasangkan dengan idea itu.\nPilar diisi: giliran hanya di dalam daftar itu, dengan urutan yang sama.\nPasangan idea dan pilar yang sama tidak dibuat dua kali.\n\nProduct Knowledge kosong: daftarnya semua baris yang kategorinya sama dengan katalog.\nProduct Knowledge diisi: hanya baris itu.\nSaat fokus angle terisi, Naya memilih dari daftar itu (paling banyak 30) dan pilihannya dipakai selama ada di daftar.\nSaat fokus angle kosong, yang dikirim paling banyak 3 baris, dan baris yang sudah terpakai dilewati.\n\nReferensi kosong: tidak ada arahan gambar. Satu gambar dipakai di semua slide. Lebih dari satu, Naya memilih satu nomor untuk semua slide. Tempel tersimpan langsung dan tidak lewat tinjau brief.\n\nSuara kosong: tidak ada gaya bahasa.\nCatatan wajib disalin apa adanya ke caption dan ke teks slide terakhir, lalu ikut ke Canva saat plan disetujui.\nCatatan terlarang tidak boleh muncul di judul, caption, concept, visual, teks, atau element, dan ikut sebagai larangan ke Canva.\nBila adegan memuat orang, gambar diminta sebagai foto manusia sungguhan, bukan ilustrasi.\nGaya pengulangan kosong: tidak ada plan kedua. Gaya pertama dipakai hanya setelah plan pertama tayang lebih dari 7 hari dan metriknya di atas median."}
                                 />
                               </DialogTitle>
                               <DialogDescription>{workName("SOP1", t)}</DialogDescription>
@@ -1751,6 +1808,7 @@ export default function AiEmployeePage() {
                                 label: t("aiEmployee.brief.subCategory", "Sub Category"),
                                 hint: "Bisa lebih dari satu, paling banyak 8. Kosong berarti General Content. Foto product list dari yang dipilih dikirim ke Canva. Menghapus plan tidak menghapus produk.",
                                 value: <SubCategoryField
+                                  organizationId={page.organizationId}
                                   ready={sameIds(page.brief.serviceIds, brief.serviceIds) && brief.serviceIds.length === 1}
                                   canEdit={canEdit}
                                   saving={saving}
@@ -1811,18 +1869,18 @@ export default function AiEmployeePage() {
                               {
                                 key: "personas",
                                 label: t("aiEmployee.brief.personas", "Persona"),
-                                value: listed(brief.personaIds, names.personas),
-                                editor: (
-                                  <MultiSelect
-                                    trigger={t("aiEmployee.brief.edit", "Ubah")}
-                                    label={t("aiEmployee.brief.pickPersonas", "Pilih persona")}
-                                    emptyLabel={t("aiEmployee.brief.noPersonas", "Tidak ada persona")}
-                                    options={page.options.personas}
+                                value: (
+                                  <PersonaField
+                                    canEdit={canEdit}
+                                    saving={saving}
                                     value={brief.personaIds}
-                                    disabled={saving}
-                                    onToggle={(id) => setBrief((current) => current ? { ...current, personaIds: toggleId(current.personaIds, id) } : current)}
+                                    options={page.options.personas}
+                                    labels={names.personas}
+                                    emptyLabel={t("aiEmployee.brief.noPersonas", "Tidak ada persona")}
+                                    onChange={(personaIds) => setBrief((current) => current ? { ...current, personaIds } : current)}
                                   />
                                 ),
+                                editor: null,
                               },
                               {
                                 key: "products",
@@ -1991,7 +2049,7 @@ export default function AiEmployeePage() {
                                     {"hint" in row && row.hint ? <FieldHint text={row.hint} label={row.label} /> : null}
                                   </span>
                                 </TableCell>
-                                {row.key === "angles" || row.key === "products" || row.key === "pillars" || row.key === "references" || row.key === "colors" || row.key === "logo" || row.key === "subCategory" || row.key === "autoApprove" ? (
+                                {row.key === "angles" || row.key === "products" || row.key === "pillars" || row.key === "references" || row.key === "colors" || row.key === "logo" || row.key === "subCategory" || row.key === "personas" || row.key === "autoApprove" ? (
                                   <TableCell colSpan={canEdit ? 2 : 1} className={row.key === "colors" || row.key === "logo" ? "min-w-0 overflow-hidden" : "whitespace-pre-wrap"}>{row.value}</TableCell>
                                 ) : (
                                   <>

@@ -24,6 +24,9 @@ describe('social publish path lock', () => {
     const byteCall = facebook.indexOf('uploadFacebookReelsVideo(');
     expect(urlCall).toBeGreaterThan(-1);
     expect(byteCall).toBeGreaterThan(urlCall);
+    const carousel = facebook.indexOf('facebook_publish_path=carousel');
+    expect(carousel).toBeGreaterThan(-1);
+    expect(carousel).toBeLessThan(urlCall);
     expect(facebook).toContain('facebook_file_url_fallback');
     expect(api).toContain('file_url: fileUrl');
     expect(api).toContain('AbortSignal.timeout(FACEBOOK_FILE_URL_TIMEOUT_MS)');

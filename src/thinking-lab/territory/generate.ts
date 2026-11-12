@@ -2,6 +2,7 @@ import { ANCESTOR_STAKE_RULES, ancestorStakeBlock, type AncestorStake } from "@/
 import { territoryLinkInstruction } from "@/thinking-lab/territory/link";
 import { ACTIVE_SET_CAP, MAX_GENERATE_ROUNDS, TARGET_GENERATE_VALID } from "@/thinking-lab/shared/limits";
 import { parseModelJson } from "@/thinking-lab/shared/ai";
+import { sameWording } from "@/thinking-lab/shared/distinct";
 import type { TerritoryParentDenial } from "@/thinking-lab/territory/eligibility";
 import { reviewTerritoryGenerativity, sealTerritoryFacts } from "@/thinking-lab/territory/generativity";
 import {
@@ -206,6 +207,7 @@ export function buildTerritoryGeneratePrompt(input: {
     "Do not name an impact, a requirement, or an evaluation. Those are claims even when the grammar is still a noun phrase.",
     "A short noun phrase is allowed. Do not expand it into a proposition just to make it longer.",
     "Do not restate the parent, repeat an incumbent, or offer a space that can hold only one observation.",
+    "A name that uses the same words as an incumbent, or only adds a word to an incumbent, is that same Territory. Do not return it.",
     ...ANCESTOR_STAKE_RULES,
     ...TERRITORY_STAKE_LINES,
     "Read the earlier audit failures. Do not repeat the mistake that made those Territories fail. A new name that fails for the same reason is still that mistake.",
@@ -408,12 +410,16 @@ export async function runTerritoryGenerate<
     if (input.carryLessons && statements.length === 0) break;
     const room = Math.max(0, ACTIVE_SET_CAP - activeCount);
     const reserved = incumbents.map((row) => row.code);
+    const keptStatements = incumbents
+      .filter((row) => row.admission === "GENERATE_VALID")
+      .map((row) => row.statement);
     const planned = statements.slice(0, room).map((statement) => {
       const code = nextTerritoryCode(reserved);
       reserved.push(code);
       return { code, statement };
     });
     for (const plannedItem of planned) {
+      if (keptStatements.some((statement) => sameWording(plannedItem.statement, statement))) continue;
       const raw = await input.judge(gate.parent, plannedItem.code, plannedItem.statement);
       const tooLong = territoryNameTooLong(plannedItem.statement);
       const activity = territoryNameIsActivity(plannedItem.statement);
@@ -437,6 +443,7 @@ export async function runTerritoryGenerate<
         { ...saved, admission, bigThoughtId: gate.parent.id, relationToParent: facts.relationToParent },
       ];
       if (admission !== "GENERATE_REJECT") activeCount += 1;
+      if (admission === "GENERATE_VALID") keptStatements.push(plannedItem.statement);
     }
     if (countAdmittedTerritories(incumbents) >= TARGET_GENERATE_VALID) break;
   }
