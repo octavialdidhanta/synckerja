@@ -22,6 +22,8 @@ export const CANVA_MCP_ALLOWED_TOOLS = new Set([
   "perform-editing-operations",
   "commit-editing-transaction",
   "cancel-editing-transaction",
+  "read-design",
+  "edit-design",
   "generate-image",
   "get-generate-image-job",
   "upload-asset-from-url",
@@ -121,4 +123,19 @@ export async function callCanvaTool(
   const parsed = parseMcpRpcBody(called.text, 2);
   if (!parsed.ok) throw new Error(parsed.message);
   return parsed.result;
+}
+
+export type CanvaEditingMode = "legacy" | "current";
+
+/**
+ * Which editing tools this Canva MCP offers. The Connect MCP used here has had
+ * start/perform/commit/cancel-editing-transaction; newer Canva MCPs open with
+ * read-design (open_transaction) and edit with edit-design. Prefer the legacy set
+ * whenever it is listed, since it is the one known to work for this app.
+ */
+export function canvaEditingMode(tools: string[]): CanvaEditingMode {
+  const names = new Set(tools.map((name) => name.toLowerCase()));
+  if (names.has("start-editing-transaction") && names.has("perform-editing-operations")) return "legacy";
+  if (names.has("read-design") && names.has("edit-design")) return "current";
+  return "legacy";
 }

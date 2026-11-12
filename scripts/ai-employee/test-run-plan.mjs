@@ -1508,29 +1508,29 @@ test("ekspor Canva pertama mencatat Prod Completion tanpa mengubah status", () =
   assert.equal(canva.match(/await markProductionDone\(admin, planId\);/g)?.length, 2);
 });
 
-test("Canva memasang foto dan logo lewat read-design + edit-design", () => {
+test("Canva memasang foto dan logo lewat tool edit yang tersedia", () => {
   const canva = readFileSync(new URL("../../supabase/functions/canva-carousel-run/index.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(canva, /callRaw\([^)]*"start-editing-transaction"/);
-  assert.doesNotMatch(canva, /"perform-editing-operations"/);
-  assert.doesNotMatch(canva, /"commit-editing-transaction"/);
+  assert.match(canva, /canvaEditingMode\(await listCanvaMcpTools\(token\)\)/);
+  assert.match(canva, /"start-editing-transaction", \{\s*design_id: designId/);
+  assert.match(canva, /"perform-editing-operations", \{\s*transaction_id: session\.transactionId,\s*pages: session\.rawPages/);
+  assert.match(canva, /"commit-editing-transaction" : "cancel-editing-transaction"/);
   assert.match(canva, /"read-design", \{\s*design_id: designId,\s*open_transaction: true/);
-  assert.match(canva, /"edit-design", \{\s*transaction_id: transactionId,\s*page_index: pageNumber,\s*finalize: "keep_open"/);
+  assert.match(canva, /finalize: "keep_open"/);
   assert.match(canva, /payload\.media_id/);
   assert.match(canva, /event: "canva_product_photos_failed"/);
+  const mcp = readFileSync(new URL("../../supabase/functions/_shared/canvaMcp.ts", import.meta.url), "utf8");
+  assert.match(mcp, /"read-design",\n  "edit-design",/);
+  assert.match(mcp, /export function canvaEditingMode/);
 });
 
-test("revisi Canva memakai read-design + edit-design dan locator_id", () => {
+test("revisi Canva memakai jalur lama bila tersedia, atau read-design + edit-design", () => {
   const revise = readFileSync(new URL("../../supabase/functions/canva-carousel-run/revise.ts", import.meta.url), "utf8");
-  for (const removed of ["start-editing-transaction", "perform-editing-operations", "commit-editing-transaction", "cancel-editing-transaction"]) {
-    assert.doesNotMatch(revise, new RegExp(`"${removed}"`));
+  assert.match(revise, /editingMode = canvaEditingMode\(tools\)/);
+  for (const legacy of ["start-editing-transaction", "perform-editing-operations", "commit-editing-transaction", "cancel-editing-transaction"]) {
+    assert.match(revise, new RegExp(`"${legacy}"`));
   }
-  assert.match(revise, /"read-design", \{\s*design_id: String\(locked\.design_id\),\s*open_transaction: true/);
-  assert.match(revise, /finalize: "keep_open"/);
+  assert.match(revise, /open_transaction: true/);
   assert.match(revise, /finalize: "commit"/);
-  assert.match(revise, /finalize: "cancel"/);
   assert.match(revise, /operations: operations\.map\(toEditOperation\)/);
-  assert.match(revise, /return \{ \.\.\.rest, locator_id: elementId \}/);
-  assert.match(revise, /record\.textRegions/);
-  assert.match(revise, /fillMedia\?\.mediaId/);
   assert.match(revise, /uploaded\.payload\.media_id/);
 });

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { callCanvaTool } from "../_shared/canvaMcp.ts";
+import { callCanvaTool, canvaEditingMode, listCanvaMcpTools } from "../_shared/canvaMcp.ts";
 import { readCanvaToolJson } from "../_shared/canvaMcpParse.ts";
 import { getCanvaAccessToken } from "../_shared/canvaToken.ts";
 
@@ -651,6 +651,7 @@ export async function reviseCarousel(
 
   let transactionId = "";
   let token = "";
+  let editingMode: "legacy" | "current" = "legacy";
   try {
     const { data: commentRows } = await admin
       .from("link_comments")
@@ -666,19 +667,33 @@ export async function reviseCarousel(
     if (comments.length === 0) throw new Error("slide_comments_missing");
 
     token = await getCanvaAccessToken(admin, organizationId);
-    const started = await callEdit(admin, organizationId, token, "read-design", {
-      design_id: String(locked.design_id),
-      open_transaction: true,
-      filter: { fields: ["page_metadata", "design_content"] },
-      user_intent: "membuka desain carousel untuk revisi slide",
-    });
+    let tools: string[];
+    try {
+      tools = await listCanvaMcpTools(token);
+    } catch (error) {
+      if (publicError(error) !== "canva_unauthorized") throw error;
+      token = await getCanvaAccessToken(admin, organizationId, { forceRefresh: true });
+      tools = await listCanvaMcpTools(token);
+    }
+    editingMode = canvaEditingMode(tools);
+    const started = editingMode === "legacy"
+      ? await callEdit(admin, organizationId, token, "start-editing-transaction", {
+        design_id: String(locked.design_id),
+        user_intent: "membuka desain carousel untuk revisi slide",
+      })
+      : await callEdit(admin, organizationId, token, "read-design", {
+        design_id: String(locked.design_id),
+        open_transaction: true,
+        filter: { fields: ["page_metadata", "design_content"] },
+        user_intent: "membuka desain carousel untuk revisi slide",
+      });
     token = started.token;
     if (String(started.payload.status ?? "") === "failed") throw new Error("revision_edit_failed");
     transactionId = findTransactionId(started.payload);
-    const pages = Array.isArray(started.payload.page_metadata)
+    let pages = editingMode === "current" && Array.isArray(started.payload.page_metadata)
       ? started.payload.page_metadata.filter((item) => asRecord(item))
       : findPages(started.payload);
-    const content = findPages(asRecord(started.payload.design_content));
+    const content = editingMode === "current" ? findPages(asRecord(started.payload.design_content)) : [];
     if (!transactionId || pages.length === 0) throw new Error("revision_edit_failed");
 
     const found = new Map<string, SlideElement>();
@@ -816,14 +831,23 @@ export async function reviseCarousel(
     for (const [page, operations] of grouped) {
       operations.sort((left, right) => rank.indexOf(String(left.type)) - rank.indexOf(String(right.type)));
       const info = pageInfo.find((item) => item.page === page);
-      const edited = await callEdit(admin, organizationId, token, "edit-design", {
-        transaction_id: transactionId,
-        page_index: page,
-        finalize: "keep_open",
-        ...(info?.responsive ? { is_responsive: true } : {}),
-        operations: operations.map(toEditOperation),
-        user_intent: "merevisi teks, tipografi, warna, elemen, dan tata letak slide",
-      });
+      const edited = editingMode === "legacy"
+        ? await callEdit(admin, organizationId, token, "perform-editing-operations", {
+          transaction_id: transactionId,
+          pages,
+          page_index: page,
+          operations,
+          user_intent: "merevisi teks, tipografi, warna, elemen, dan tata letak slide",
+        })
+        : await callEdit(admin, organizationId, token, "edit-design", {
+          transaction_id: transactionId,
+          page_index: page,
+          finalize: "keep_open",
+          ...(info?.responsive ? { is_responsive: true } : {}),
+          operations: operations.map(toEditOperation),
+          user_intent: "merevisi teks, tipografi, warna, elemen, dan tata letak slide",
+        });
+      if (editingMode === "legacy" && Array.isArray(edited.payload.pages)) pages = edited.payload.pages;
       token = edited.token;
       if (String(edited.payload.status ?? "") === "failed") throw new Error("revision_edit_failed");
       const results = edited.payload.edit_operation_results;
@@ -833,11 +857,16 @@ export async function reviseCarousel(
       })) throw new Error("revision_edit_failed");
     }
 
-    const committed = await callEdit(admin, organizationId, token, "edit-design", {
-      transaction_id: transactionId,
-      finalize: "commit",
-      user_intent: "menyimpan revisi carousel",
-    });
+    const committed = editingMode === "legacy"
+      ? await callEdit(admin, organizationId, token, "commit-editing-transaction", {
+        transaction_id: transactionId,
+        user_intent: "menyimpan revisi carousel",
+      })
+      : await callEdit(admin, organizationId, token, "edit-design", {
+        transaction_id: transactionId,
+        finalize: "commit",
+        user_intent: "menyimpan revisi carousel",
+      });
     if (String(committed.payload.status ?? "") === "failed") throw new Error("revision_commit_failed");
     transactionId = "";
 
@@ -857,11 +886,17 @@ export async function reviseCarousel(
     await exportImages();
   } catch (error) {
     if (transactionId) {
-      await callEdit(admin, organizationId, token, "edit-design", {
-        transaction_id: transactionId,
-        finalize: "cancel",
-        user_intent: "membatalkan revisi yang belum disimpan",
-      }).catch(() => undefined);
+      const cancelled = editingMode === "legacy"
+        ? callEdit(admin, organizationId, token, "cancel-editing-transaction", {
+          transaction_id: transactionId,
+          user_intent: "membatalkan revisi yang belum disimpan",
+        })
+        : callEdit(admin, organizationId, token, "edit-design", {
+          transaction_id: transactionId,
+          finalize: "cancel",
+          user_intent: "membatalkan revisi yang belum disimpan",
+        });
+      await cancelled.catch(() => undefined);
     }
     const message = publicError(error);
     const attempts = Number(locked.revision_attempts ?? 1);
