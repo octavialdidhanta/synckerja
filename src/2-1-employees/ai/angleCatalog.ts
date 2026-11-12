@@ -23,16 +23,23 @@ export function pillarsForLockedIdeas<
 }
 
 /**
- * Brief pillar dropdown: every pillar, with the ones already locked on an idea of the chosen
- * angles listed first. Picking a pillar that is not locked yet lets the run build a new path for it.
+ * Brief pillar dropdown in three groups:
+ * - locked: locked on an idea of the chosen angles (shown with a lock, used or not)
+ * - used: not locked but already used by a plan this month
+ * - unused: everything else
+ * Each group lists the least used pillar first, then by name.
  */
 export function groupBriefPillars<P extends { id: string; label: string }>(
   pillars: P[],
   lockedIds: ReadonlySet<string>,
-): { locked: P[]; other: P[] } {
-  const byLabel = (left: P, right: P) => left.label.localeCompare(right.label, "id");
+  usage: Readonly<Record<string, { count: number }>> = {},
+): { locked: P[]; used: P[]; unused: P[] } {
+  const countOf = (pillar: P) => usage[pillar.id]?.count ?? 0;
+  const order = (left: P, right: P) =>
+    countOf(left) - countOf(right) || left.label.localeCompare(right.label, "id");
   return {
-    locked: pillars.filter((pillar) => lockedIds.has(pillar.id)).sort(byLabel),
-    other: pillars.filter((pillar) => !lockedIds.has(pillar.id)).sort(byLabel),
+    locked: pillars.filter((pillar) => lockedIds.has(pillar.id)).sort(order),
+    used: pillars.filter((pillar) => !lockedIds.has(pillar.id) && countOf(pillar) > 0).sort(order),
+    unused: pillars.filter((pillar) => !lockedIds.has(pillar.id) && countOf(pillar) === 0).sort(order),
   };
 }

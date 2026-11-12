@@ -39,6 +39,7 @@ import { anglesForCatalogs, anglesWithLockedIdeas, groupBriefPillars, pillarsFor
 import { canAddScheduleTime } from "./scheduleTimes";
 import type { AngleOption, BriefChange, BriefDraft, CatalogOption, RoutineRow, ScheduleRow } from "./types";
 import { useSubCategoryPhotoUrls } from "./subCategoryPhotos";
+import { useBriefPillarUsage, type PillarFunnel, type PillarUsage } from "./pillarUsage";
 import { useAiEmployeePage } from "./useAiEmployeePage";
 
 const WEEKDAYS = [
@@ -340,9 +341,8 @@ function ProductKnowledgeField({
   value,
   disabled,
   onChange,
-  lockedIds,
-  lockedLabel = "",
-  otherLabel = "",
+  pillarGroups,
+  onOpen,
 }: {
   emptyLabel: string;
   placeholder: string;
@@ -351,10 +351,14 @@ function ProductKnowledgeField({
   value: string[];
   disabled: boolean;
   onChange: (next: string[]) => void;
-  /** When set, options are split into a locked group (shown first, with a lock icon) and the rest. */
-  lockedIds?: ReadonlySet<string>;
-  lockedLabel?: string;
-  otherLabel?: string;
+  /** Brief pillars: split into locked / used this month / unused, with usage and funnel badges. */
+  pillarGroups?: {
+    lockedIds: ReadonlySet<string>;
+    usage: Readonly<Record<string, PillarUsage>>;
+    funnel: Readonly<Record<string, PillarFunnel>>;
+    labels: { locked: string; used: string; unused: string; usedTimes: (count: number) => string };
+  };
+  onOpen?: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -366,13 +370,20 @@ function ProductKnowledgeField({
     if (!needle) return true;
     return option.label.toLowerCase().includes(needle);
   });
+  const funnelLabel: Record<PillarFunnel, string> = { top: "TOFU", middle: "MOFU", bottom: "BOFU" };
   const renderOption = (option: CatalogOption, locked: boolean) => {
     const picked = value.includes(option.id);
     const blocked = !picked && value.length >= limit;
+    const used = pillarGroups?.usage[option.id];
+    const stage = pillarGroups?.funnel[option.id];
+    const usedTitle = used && used.count > 0
+      ? `${pillarGroups?.labels.usedTimes(used.count)}${used.titles.length > 0 ? `:\n• ${used.titles.join("\n• ")}${used.count > used.titles.length ? "\n• …" : ""}` : ""}`
+      : undefined;
     return (
       <button
         key={option.id}
         type="button"
+        title={usedTitle}
         disabled={disabled || blocked}
         className={cn(
           "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40",
@@ -385,12 +396,33 @@ function ProductKnowledgeField({
         }}
       >
         <span className="min-w-0 flex-1 truncate">{option.label}</span>
-        {locked ? <Lock className="h-3.5 w-3.5 shrink-0 text-amber-600" aria-label="Sudah dipakai di idea" /> : null}
+        {stage ? (
+          <span className="shrink-0 rounded bg-muted px-1 text-[10px] font-medium text-muted-foreground">{funnelLabel[stage]}</span>
+        ) : null}
+        {pillarGroups ? (
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
+              used && used.count > 0 ? "bg-sky-100 text-sky-800" : "bg-muted text-muted-foreground",
+            )}
+            aria-label={pillarGroups.labels.usedTimes(used?.count ?? 0)}
+          >
+            {used?.count ?? 0}×
+          </span>
+        ) : null}
+        {locked ? <Lock className="h-3.5 w-3.5 shrink-0 text-amber-600" aria-label="Terkunci di idea" /> : null}
       </button>
     );
   };
   return (
-    <Popover open={open} onOpenChange={(next) => { if (!disabled) setOpen(next); }}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (disabled) return;
+        if (next && !open) onOpen?.();
+        setOpen(next);
+      }}
+    >
       <PopoverTrigger asChild>
         <div className="flex min-h-9 w-full flex-wrap items-center gap-1 rounded-md border border-input bg-background px-2 py-1">
           {selected.map((product) => (
@@ -443,25 +475,27 @@ function ProductKnowledgeField({
       >
         {visible.length === 0 ? (
           <p className="px-2 py-1.5 text-xs text-muted-foreground">{emptyLabel}</p>
-        ) : lockedIds ? (
+        ) : pillarGroups ? (
           (() => {
-            const groups = groupBriefPillars(visible, lockedIds);
-            return (
-              <>
-                {groups.locked.length > 0 ? (
-                  <p className="px-2 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {lockedLabel}
-                  </p>
-                ) : null}
-                {groups.locked.map((option) => renderOption(option, true))}
-                {groups.other.length > 0 ? (
-                  <p className="mt-1 border-t border-border/60 px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {otherLabel}
-                  </p>
-                ) : null}
-                {groups.other.map((option) => renderOption(option, false))}
-              </>
-            );
+            const groups = groupBriefPillars(visible, pillarGroups.lockedIds, pillarGroups.usage);
+            const sections = [
+              { key: "locked", label: pillarGroups.labels.locked, rows: groups.locked, locked: true },
+              { key: "used", label: pillarGroups.labels.used, rows: groups.used, locked: false },
+              { key: "unused", label: pillarGroups.labels.unused, rows: groups.unused, locked: false },
+            ].filter((section) => section.rows.length > 0);
+            return sections.map((section, index) => (
+              <div key={section.key}>
+                <p
+                  className={cn(
+                    "px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
+                    index === 0 ? "pt-1.5" : "mt-1 border-t border-border/60 pt-2",
+                  )}
+                >
+                  {section.label} ({section.rows.length})
+                </p>
+                {section.rows.map((option) => renderOption(option, section.locked))}
+              </div>
+            ));
           })()
         ) : (
           visible.map((option) => renderOption(option, false))
@@ -1297,6 +1331,11 @@ export default function AiEmployeePage() {
   const visiblePillars = page && brief
     ? pillarsForLockedIdeas(page.options.pillars, page.options.angles, brief.angleIds)
     : [];
+  const pillarUsage = useBriefPillarUsage(
+    page?.organizationId,
+    brief?.serviceIds[0] ?? null,
+    page?.options.pillars.map((pillar) => pillar.id) ?? [],
+  );
 
   const visibleProducts = page && brief
     ? page.options.products.filter((product) => {
@@ -1866,7 +1905,7 @@ export default function AiEmployeePage() {
                               {
                                 key: "pillars",
                                 label: t("aiEmployee.brief.pillars", "Pilar"),
-                                hint: "Kosong berarti AI bebas memilih dari semua pilar. Pilar bergembok sudah dipakai di idea pada angle terpilih. Pilih pilar lain kalau mau AI membuat path baru di pilar itu untuk idea yang belum punya pilar. Paling banyak 12.",
+                                hint: "Kosong berarti AI bebas memilih dari semua pilar. Gembok = terkunci di idea pada angle terpilih. Angka = jumlah plan katalog ini yang memakai pilar itu bulan ini (arahkan kursor untuk melihat judulnya). TOFU/MOFU/BOFU = tahap funnel. Pilih pilar yang belum terkunci kalau mau AI membuat path baru di pilar itu. Paling banyak 12.",
                                 value: (
                                   <ProductKnowledgeField
                                     placeholder={t("aiEmployee.brief.pillars", "Pilar")}
@@ -1874,9 +1913,18 @@ export default function AiEmployeePage() {
                                       ? t("aiEmployee.brief.pickAngleFirst", "Pilih angle dulu")
                                       : t("aiEmployee.brief.noPillars", "Tidak ada pilar")}
                                     options={page.options.pillars}
-                                    lockedIds={new Set(visiblePillars.map((pillar) => pillar.id))}
-                                    lockedLabel={t("aiEmployee.brief.lockedPillars", "Sudah dipakai di idea")}
-                                    otherLabel={t("aiEmployee.brief.otherPillars", "Pilar lain")}
+                                    pillarGroups={{
+                                      lockedIds: new Set(visiblePillars.map((pillar) => pillar.id)),
+                                      usage: pillarUsage.usage,
+                                      funnel: pillarUsage.funnel,
+                                      labels: {
+                                        locked: t("aiEmployee.brief.lockedPillars", "Terkunci di idea"),
+                                        used: t("aiEmployee.brief.usedPillars", "Sudah dipakai bulan ini"),
+                                        unused: t("aiEmployee.brief.unusedPillars", "Belum dipakai bulan ini"),
+                                        usedTimes: (count) => `Dipakai ${count}× bulan ini`,
+                                      },
+                                    }}
+                                    onOpen={pillarUsage.reload}
                                     value={brief.pillarIds}
                                     disabled={saving || !canEdit || brief.angleIds.length === 0}
                                     onChange={(pillarIds) => setBrief((current) => current ? { ...current, pillarIds } : current)}

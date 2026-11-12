@@ -63,17 +63,25 @@ describe("groupBriefPillars", () => {
     { id: "audit", label: "Audit Akun Publik" },
     { id: "edu", label: "Edukasi" },
     { id: "behind", label: "Behind The Scene" },
+    { id: "promo", label: "Promo" },
   ];
 
-  it("lists locked pillars first and keeps every other pillar pickable", () => {
-    const groups = groupBriefPillars(pillars, new Set(["green", "audit"]));
+  it("splits locked, used this month, and unused pillars, least used first", () => {
+    const groups = groupBriefPillars(pillars, new Set(["green", "audit"]), {
+      green: { count: 2 },
+      audit: { count: 0 },
+      edu: { count: 3 },
+      promo: { count: 1 },
+    });
     expect(groups.locked.map((row) => row.id)).toEqual(["audit", "green"]);
-    expect(groups.other.map((row) => row.id)).toEqual(["behind", "edu"]);
+    expect(groups.used.map((row) => row.id)).toEqual(["promo", "edu"]);
+    expect(groups.unused.map((row) => row.id)).toEqual(["behind"]);
   });
 
-  it("puts everything under other when nothing is locked", () => {
+  it("puts everything under unused when nothing is locked or used", () => {
     const groups = groupBriefPillars(pillars, new Set());
     expect(groups.locked).toEqual([]);
-    expect(groups.other).toHaveLength(4);
+    expect(groups.used).toEqual([]);
+    expect(groups.unused.map((row) => row.id)).toEqual(["audit", "behind", "edu", "green", "promo"]);
   });
 });
