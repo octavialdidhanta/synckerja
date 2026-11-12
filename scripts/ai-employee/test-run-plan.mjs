@@ -1507,3 +1507,14 @@ test("ekspor Canva pertama mencatat Prod Completion tanpa mengubah status", () =
   assert.match(canva, /\.or\("production_status\.is\.null,production_status\.eq\.Need Review"\)/);
   assert.equal(canva.match(/await markProductionDone\(admin, planId\);/g)?.length, 2);
 });
+
+test("Canva memasang foto dan logo lewat read-design + edit-design", () => {
+  const canva = readFileSync(new URL("../../supabase/functions/canva-carousel-run/index.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(canva, /callRaw\([^)]*"start-editing-transaction"/);
+  assert.doesNotMatch(canva, /"perform-editing-operations"/);
+  assert.doesNotMatch(canva, /"commit-editing-transaction"/);
+  assert.match(canva, /"read-design", \{\s*design_id: designId,\s*open_transaction: true/);
+  assert.match(canva, /"edit-design", \{\s*transaction_id: transactionId,\s*page_index: pageNumber,\s*finalize: "keep_open"/);
+  assert.match(canva, /payload\.media_id/);
+  assert.match(canva, /event: "canva_product_photos_failed"/);
+});
