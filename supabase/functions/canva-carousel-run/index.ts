@@ -2,7 +2,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, layoutOnlyDescription } from "../_shared/canvaCarouselBrief.ts";
-import { callCanvaTool, listCanvaMcpTools } from "../_shared/canvaMcp.ts";
+import { callCanvaTool, canvaEditingMode, listCanvaMcpTools, type CanvaEditingMode } from "../_shared/canvaMcp.ts";
 import { readCanvaToolJson } from "../_shared/canvaMcpParse.ts";
 import { getCanvaAccessToken } from "../_shared/canvaToken.ts";
 import { Image } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
@@ -267,11 +267,47 @@ function logoAssetId(payload: Record<string, unknown>): string {
   return /^[a-zA-Z0-9_-]{1,50}$/.test(id) ? id : "";
 }
 
-type EditPage = { id: string; pageNumber: number; width: number; height: number };
+type EditPage = { id: string; pageNumber: number; width: number; height: number; responsive: boolean };
+type EditSession = {
+  mode: CanvaEditingMode;
+  transactionId: string;
+  pages: EditPage[];
+  /** Legacy perform-editing-operations wants the pages it returned last. */
+  rawPages: unknown[];
+};
+
+async function editingModeFor(admin: SupabaseClient, organizationId: string, token: string): Promise<{ token: string; mode: CanvaEditingMode }> {
+  try {
+    return { token, mode: canvaEditingMode(await listCanvaMcpTools(token)) };
+  } catch (error) {
+    if (publicError(error) !== "canva_unauthorized") throw error;
+    const refreshed = await accessToken(admin, organizationId, true);
+    return { token: refreshed, mode: canvaEditingMode(await listCanvaMcpTools(refreshed)) };
+  }
+}
+
+function readEditPages(rows: unknown[]): EditPage[] {
+  return rows.flatMap((item, index) => {
+    const page = asRecord(item);
+    const id = String(page?.page_id ?? page?.id ?? "").trim();
+    const listed = Number(page?.page_number ?? page?.page_index ?? page?.index ?? 0);
+    const number = Number.isInteger(listed) && listed >= 1 ? listed : index + 1;
+    const size = asRecord(page?.dimensions) ?? asRecord(page?.dimension) ?? {};
+    if (!id) return [];
+    return [{
+      id,
+      pageNumber: number,
+      width: Number(size.width) > 0 ? Number(size.width) : 1080,
+      height: Number(size.height) > 0 ? Number(size.height) : 1350,
+      responsive: page?.is_responsive === true || page?.type === "responsive",
+    }];
+  });
+}
 
 /**
- * Opens an editing transaction with read-design (open_transaction). Canva removed the
- * start-editing-transaction tool; edits now go through edit-design.
+ * Opens an editing transaction with whichever tool set this Canva MCP lists:
+ * start-editing-transaction (legacy, used by this app so far) or read-design
+ * with open_transaction (current).
  */
 async function openEditing(
   admin: SupabaseClient,
@@ -279,8 +315,21 @@ async function openEditing(
   token: string,
   designId: string,
   intent: string,
-): Promise<{ token: string; transactionId: string; pages: EditPage[] }> {
-  const opened = await callRaw(admin, organizationId, token, "read-design", {
+): Promise<{ token: string; session: EditSession }> {
+  const detected = await editingModeFor(admin, organizationId, token);
+  if (detected.mode === "legacy") {
+    const started = await callRaw(admin, organizationId, detected.token, "start-editing-transaction", {
+      design_id: designId,
+      user_intent: intent,
+    });
+    const rawPages = Array.isArray(started.payload.pages) ? started.payload.pages : [];
+    const transactionId = String(
+      started.payload.transaction_id ?? nestedRecord(started.payload, "transaction")?.id
+        ?? nestedRecord(started.payload, "transaction")?.transaction_id ?? "",
+    ).trim();
+    return { token: started.token, session: { mode: "legacy", transactionId, pages: readEditPages(rawPages), rawPages } };
+  }
+  const opened = await callRaw(admin, organizationId, detected.token, "read-design", {
     design_id: designId,
     open_transaction: true,
     filter: { fields: ["page_metadata"] },
@@ -289,20 +338,7 @@ async function openEditing(
   const transaction = asRecord(opened.payload.transaction);
   const transactionId = String(transaction?.transaction_id ?? opened.payload.transaction_id ?? "").trim();
   const rows = Array.isArray(opened.payload.page_metadata) ? opened.payload.page_metadata : [];
-  const pages = rows.flatMap((item, index) => {
-    const page = asRecord(item);
-    const id = String(page?.id ?? page?.page_id ?? "").trim();
-    const number = Number(page?.page_number ?? page?.index ?? index + 1);
-    const size = asRecord(page?.dimensions) ?? asRecord(page?.dimension) ?? {};
-    if (!id || !Number.isInteger(number) || number < 1) return [];
-    return [{
-      id,
-      pageNumber: number,
-      width: Number(size.width) > 0 ? Number(size.width) : 1080,
-      height: Number(size.height) > 0 ? Number(size.height) : 1350,
-    }];
-  });
-  return { token: opened.token, transactionId, pages };
+  return { token: opened.token, session: { mode: "current", transactionId, pages: readEditPages(rows), rawPages: [] } };
 }
 
 function editFailed(payload: Record<string, unknown>): boolean {
@@ -318,13 +354,24 @@ async function editPage(
   admin: SupabaseClient,
   organizationId: string,
   token: string,
-  transactionId: string,
+  session: EditSession,
   pageNumber: number,
   operations: Record<string, unknown>[],
   intent: string,
 ): Promise<{ token: string; ok: boolean }> {
+  if (session.mode === "legacy") {
+    const edited = await callRaw(admin, organizationId, token, "perform-editing-operations", {
+      transaction_id: session.transactionId,
+      pages: session.rawPages,
+      page_index: pageNumber,
+      operations,
+      user_intent: intent,
+    });
+    if (Array.isArray(edited.payload.pages)) session.rawPages = edited.payload.pages;
+    return { token: edited.token, ok: !editFailed(edited.payload) };
+  }
   const edited = await callRaw(admin, organizationId, token, "edit-design", {
-    transaction_id: transactionId,
+    transaction_id: session.transactionId,
     page_index: pageNumber,
     finalize: "keep_open",
     operations,
@@ -337,15 +384,20 @@ async function finishEditing(
   admin: SupabaseClient,
   organizationId: string,
   token: string,
-  transactionId: string,
+  session: EditSession,
   finalize: "commit" | "cancel",
   intent: string,
 ): Promise<{ token: string; ok: boolean }> {
-  const done = await callRaw(admin, organizationId, token, "edit-design", {
-    transaction_id: transactionId,
-    finalize,
-    user_intent: intent,
-  });
+  const done = session.mode === "legacy"
+    ? await callRaw(admin, organizationId, token, finalize === "commit" ? "commit-editing-transaction" : "cancel-editing-transaction", {
+      transaction_id: session.transactionId,
+      user_intent: intent,
+    })
+    : await callRaw(admin, organizationId, token, "edit-design", {
+      transaction_id: session.transactionId,
+      finalize,
+      user_intent: intent,
+    });
   return { token: done.token, ok: !editFailed(done.payload) };
 }
 
@@ -403,12 +455,14 @@ async function placeLogoInDesign(
 
   const opened = await openEditing(admin, organizationId, token, designId, "membuka desain untuk menempelkan logo perusahaan");
   token = opened.token;
-  if (!opened.transactionId || opened.pages.length === 0) throw new Error("logo_place_failed");
+  const session = opened.session;
+  const logoPages = session.pages.filter((page) => !page.responsive);
+  if (!session.transactionId || logoPages.length === 0) throw new Error("logo_place_failed");
   let inserted = 0;
   try {
-    for (const page of opened.pages) {
+    for (const page of logoPages) {
       const box = Math.max(72, Math.round(Math.min(page.width, page.height) * 0.16));
-      const edited = await editPage(admin, organizationId, token, opened.transactionId, page.pageNumber, [{
+      const edited = await editPage(admin, organizationId, token, session, page.pageNumber, [{
         type: "insert_fill",
         page_id: page.id,
         asset_type: "image",
@@ -424,10 +478,10 @@ async function placeLogoInDesign(
       inserted += 1;
     }
     if (inserted === 0) throw new Error("logo_place_failed");
-    const committed = await finishEditing(admin, organizationId, token, opened.transactionId, "commit", "menyimpan logo perusahaan di setiap slide");
+    const committed = await finishEditing(admin, organizationId, token, session, "commit", "menyimpan logo perusahaan di setiap slide");
     if (!committed.ok) throw new Error("logo_place_failed");
   } catch (error) {
-    await finishEditing(admin, organizationId, token, opened.transactionId, "cancel", "membatalkan logo yang gagal dipasang").catch(() => undefined);
+    await finishEditing(admin, organizationId, token, session, "cancel", "membatalkan logo yang gagal dipasang").catch(() => undefined);
     throw error;
   }
 }
@@ -560,16 +614,18 @@ async function placeProductPhotos(
 
   const opened = await openEditing(admin, organizationId, token, designId, "membuka desain untuk menempelkan foto produk");
   token = opened.token;
-  if (!opened.transactionId || opened.pages.length === 0) throw new Error("product_photo_place_failed");
+  const session = opened.session;
+  const photoPages = session.pages.filter((page) => !page.responsive);
+  if (!session.transactionId || photoPages.length === 0) throw new Error("product_photo_place_failed");
   let inserted = 0;
   // One real photo, on the last page (the closing slide). Other pages keep Canva's own food shots.
-  const lastPage = opened.pages.reduce((last, page) => (page.pageNumber > last.pageNumber ? page : last), opened.pages[0]);
+  const lastPage = photoPages.reduce((last, page) => (page.pageNumber > last.pageNumber ? page : last), photoPages[0]);
   const asset = assets[0];
   try {
     for (const page of [lastPage]) {
       const width = Math.round(page.width * 0.62);
       const height = Math.round(page.height * 0.46);
-      const edited = await editPage(admin, organizationId, token, opened.transactionId, page.pageNumber, [{
+      const edited = await editPage(admin, organizationId, token, session, page.pageNumber, [{
         type: "insert_fill",
         page_id: page.id,
         asset_type: "image",
@@ -584,10 +640,10 @@ async function placeProductPhotos(
       if (edited.ok) inserted += 1;
     }
     if (inserted === 0) throw new Error("product_photo_place_failed");
-    const committed = await finishEditing(admin, organizationId, token, opened.transactionId, "commit", "menyimpan foto produk di slide");
+    const committed = await finishEditing(admin, organizationId, token, session, "commit", "menyimpan foto produk di slide");
     if (!committed.ok) throw new Error("product_photo_place_failed");
   } catch (error) {
-    await finishEditing(admin, organizationId, token, opened.transactionId, "cancel", "membatalkan foto produk yang gagal dipasang").catch(() => undefined);
+    await finishEditing(admin, organizationId, token, session, "cancel", "membatalkan foto produk yang gagal dipasang").catch(() => undefined);
     throw error;
   }
 }
