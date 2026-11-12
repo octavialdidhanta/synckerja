@@ -1127,17 +1127,6 @@ export default function AiEmployeePage() {
     setCopyEmail2(current.summary.reportCopyEmail2 ?? "");
   }, [copyKey]);
 
-  useEffect(() => {
-    if (!page || !brief || brief.angleIds.length === 0) return;
-    const allowed = new Set(
-      page.options.angles
-        .filter((angle) => brief.angleIds.includes(angle.id))
-        .flatMap((angle) => angle.pillarIds),
-    );
-    if (brief.pillarIds.every((id) => allowed.has(id))) return;
-    setBrief({ ...brief, pillarIds: brief.pillarIds.filter((id) => allowed.has(id)) });
-  }, [page, brief]);
-
   const names = useMemo(() => {
     if (!page) {
       return {
