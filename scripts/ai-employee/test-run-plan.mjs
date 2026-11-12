@@ -1499,3 +1499,11 @@ test("run menyimpan menu pilihan dan Canva hanya mengirim foto menu itu", () => 
   assert.match(canva, /select\("pic_id, organization_id, sub_service_id, sub_service_ids"\)/);
   assert.match(canva, /if \(picked\.length > 0\) return libraryPhotos/);
 });
+
+test("ekspor Canva pertama mencatat Prod Completion tanpa mengubah status", () => {
+  const canva = readFileSync(new URL("../../supabase/functions/canva-carousel-run/index.ts", import.meta.url), "utf8");
+  assert.match(canva, /async function markProductionDone/);
+  assert.match(canva, /\.is\("production_completion_date", null\)/);
+  assert.match(canva, /\.or\("production_status\.is\.null,production_status\.eq\.Need Review"\)/);
+  assert.equal(canva.match(/await markProductionDone\(admin, planId\);/g)?.length, 2);
+});
