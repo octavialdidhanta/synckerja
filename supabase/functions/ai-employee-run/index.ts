@@ -65,6 +65,10 @@ import {
 } from "../_shared/aiEmployee/planDraft.mjs";
 
 /** Extra carousel paths a focused run may build after every queued path was rejected. */
+/** Wall-clock budget for model work in one run; the worker is stopped at 150s. */
+const RUN_TIME_BUDGET_MS = 105_000;
+/** Temperature for a draft retry after a rejection, so the rewrite actually differs. */
+const RETRY_TEMPERATURE = 0.7;
 const MAX_PATH_REFILLS = 1;
 /** Pillar proposals tried per refill (each costs up to 2 model calls). */
 const MAX_REFILL_PATH_ATTEMPTS = 4;
@@ -282,6 +286,9 @@ Deno.serve(async (req: Request) => {
 
   let runId: string | null = null;
   let modelCalls = 0;
+  // Supabase stops the worker at 150s wall clock; stop starting model calls well before that.
+  const runStartedAt = Date.now();
+  let timeBudgetHit = false;
   let planId: string | null = null;
   let workInstruction = instruction;
   let jobTaken = false;
@@ -615,7 +622,11 @@ Deno.serve(async (req: Request) => {
         if (loaded.status < 200 || loaded.status >= 300) throw new Error("context_failed");
         return rowsOf(loaded.body);
       };
-      const modelScript = async (prompt: string): Promise<ModelResult> => {
+      const modelScript = async (prompt: string, temperature = 0): Promise<ModelResult> => {
+        if (Date.now() - runStartedAt > RUN_TIME_BUDGET_MS) {
+          timeBudgetHit = true;
+          return { kind: "quota" };
+        }
         const reserved = await rpc("ai_employee_reserve_model_call", {
           p_employee_id: employeeId,
           p_run_id: runId,
@@ -633,6 +644,7 @@ Deno.serve(async (req: Request) => {
           organizationId: employee.organization_id,
           userId: modelUserId,
           prompt,
+          temperature,
         });
         const modelResponse = await fetch(modelCall.url, modelCall.init);
         const modelBody = await readJson(modelResponse) as { script?: unknown };
@@ -687,6 +699,7 @@ Deno.serve(async (req: Request) => {
       let lastReject = "";
       let preparedCarouselPath = false;
       const closeSop1 = async (status: "succeeded" | "failed" | "deferred" | "late", label: string, openCount: number) => {
+        if (label === "quota" && timeBudgetHit) label = "time_budget";
         const note = `sop1 ${label} steps=${steps.length} open=${openCount} plans=${planIds.length} calls=${modelCalls}${preparedCarouselPath ? " path=1" : ""}${lastReject ? ` reject=${lastReject}` : ""}`;
         await finish(status, note);
         await refreshKrs();
@@ -1264,6 +1277,8 @@ Deno.serve(async (req: Request) => {
         let executionId: string | null = null;
         for (let attempt = 1; attempt <= 3 && stop === "done"; attempt += 1) {
           const drafted = await withRetry(async () => {
+            // A retry after a rejected draft needs a different answer; at temperature 0 the
+            // model wrote the same title three times in a row.
             const result = await modelScript(buildSop1Prompt({
               day,
               pillar: choice,
@@ -1280,7 +1295,7 @@ Deno.serve(async (req: Request) => {
               path: promptPath,
               avoid,
               menus,
-            }));
+            }), avoid ? RETRY_TEMPERATURE : 0);
             if (result.kind !== "ok") return result;
             const parsed = parseCarouselDraft(result.script, draftNotes);
             if (parsed) parsed.slides = normalizeCarouselReference(parsed.slides, referencePositions(promptBrief));

@@ -1534,3 +1534,14 @@ test("revisi Canva memakai jalur lama bila tersedia, atau read-design + edit-des
   assert.match(revise, /operations: operations\.map\(toEditOperation\)/);
   assert.match(revise, /uploaded\.payload\.media_id/);
 });
+
+test("run berhenti sebelum batas 150 detik dan retry draf memakai temperature lebih tinggi", () => {
+  const run = readFileSync(new URL("../../supabase/functions/ai-employee-run/index.ts", import.meta.url), "utf8");
+  assert.match(run, /const RUN_TIME_BUDGET_MS = 105_000;/);
+  assert.match(run, /if \(Date\.now\(\) - runStartedAt > RUN_TIME_BUDGET_MS\) \{\s*timeBudgetHit = true;\s*return \{ kind: "quota" \};/);
+  assert.match(run, /if \(label === "quota" && timeBudgetHit\) label = "time_budget";/);
+  assert.match(run, /\}\), avoid \? RETRY_TEMPERATURE : 0\);/);
+  const call = scriptAiCall({ url: "https://x.supabase.co", serviceRoleKey: "k", organizationId: "o", userId: "u", prompt: "p", temperature: 0.7 });
+  assert.equal(JSON.parse(call.init.body).temperature, 0.7);
+  assert.equal(JSON.parse(scriptAiCall({ url: "https://x.supabase.co", serviceRoleKey: "k", organizationId: "o", userId: "u", prompt: "p" }).init.body).temperature, 0);
+});
