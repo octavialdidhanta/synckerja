@@ -39,6 +39,7 @@ import { anglesForCatalogs, anglesWithLockedIdeas, groupBriefPillars, pillarsFor
 import { canAddScheduleTime } from "./scheduleTimes";
 import type { AngleOption, BriefChange, BriefDraft, CatalogOption, RoutineRow, ScheduleRow } from "./types";
 import { useSubCategoryPhotoUrls } from "./subCategoryPhotos";
+import { useSopRunning } from "./runningSop";
 import { useBriefPillarUsage, type PillarFunnel, type PillarUsage } from "./pillarUsage";
 import { useAiEmployeePage } from "./useAiEmployeePage";
 
@@ -1066,6 +1067,10 @@ export default function AiEmployeePage() {
   const { t, dateLocale } = useAppTranslation();
   const { toast } = useToast();
   const model = useAiEmployeePage(employeeId);
+  // Spinner next to "Berikutnya" while a Content Plan run is going; refresh when it ends.
+  const sopRunning = useSopRunning(employeeId, "SOP1", () => {
+    void model.reload();
+  });
   const showContent = useDebouncedReady(!model.showFullPageSkeleton, 200);
   const [brief, setBrief] = useState<BriefDraft | null>(null);
   const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
@@ -1533,7 +1538,19 @@ export default function AiEmployeePage() {
                                     />
                                   </TableCell>
                                   <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                                    <span className="block truncate">{formatWhen(original?.nextRunAt ?? null, dateLocale)}</span>
+                                    <span className="flex min-w-0 items-center gap-1.5">
+                                      <span className="truncate">{formatWhen(original?.nextRunAt ?? null, dateLocale)}</span>
+                                      {sopRunning || generating ? (
+                                        <span
+                                          role="status"
+                                          title={t("aiEmployee.schedule.running", "Sedang berjalan")}
+                                          aria-label={t("aiEmployee.schedule.running", "Sedang berjalan")}
+                                          className="inline-flex shrink-0"
+                                        >
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" aria-hidden />
+                                        </span>
+                                      ) : null}
+                                    </span>
                                   </TableCell>
                                   <TableCell>
                                     <DropdownMenu
