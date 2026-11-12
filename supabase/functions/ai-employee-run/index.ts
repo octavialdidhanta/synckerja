@@ -39,6 +39,7 @@ import {
   referencePositions,
   parseChatReply,
   parseExecutionVerdict,
+  copyClaimTokens,
   copyCollides,
   copyFingerprint,
   hookFromElement,
@@ -1105,6 +1106,8 @@ Deno.serve(async (req: Request) => {
       let failure = { status: 0, message: "model_failed" };
       const seenPriorIds = new Set<string>();
       const copyMemory: CopyPrior[] = [];
+      // Product Knowledge picked in the brief: its claims may repeat across plans.
+      const claimTokens = copyClaimTokens(product.filter((row) => row.selected === true));
       const pillarNameOf = (id: string) => {
         const known = pillars.find((row) => String(row.id ?? "") === id);
         if (known?.name) return String(known.name);
@@ -1251,9 +1254,17 @@ Deno.serve(async (req: Request) => {
           const parsed = parseCarouselDraft(drafted.script, draftNotes);
           if (!parsed) { idea.skip = true; break; }
           const candidate = { ...parsed, post_date: day, content_pillar_id: choice.id, service_id: service.id };
-          const collision = copyCollides(candidate, compared);
+          const collision = copyCollides(candidate, compared, { claimTokens });
           if (collision) {
-            lastReject = "copy";
+            lastReject = `copy:${collision.field}@${String(collision.title ?? "").replace(/[^\p{L}\p{N} ]+/gu, "").slice(0, 30)}`;
+            console.log(JSON.stringify({
+              event: "sop1_copy_reject",
+              run_id: runId,
+              attempt,
+              field: collision.field,
+              prior_title: collision.title,
+              draft_title: candidate.title,
+            }));
             if (attempt >= 3) { idea.skip = true; break; }
             avoid = collision.reason;
             continue;
