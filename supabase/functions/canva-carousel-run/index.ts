@@ -373,6 +373,20 @@ async function placeLogoInDesign(
   if (String(committed.payload.status ?? "").toLowerCase() === "failed") throw new Error("logo_place_failed");
 }
 
+/**
+ * Canva's first export is the production deliverable: the table already shows Need Review
+ * from the images, so record when it was finished. Only fills an empty date while the plan
+ * is not under revision; production_status itself is left as it is.
+ */
+async function markProductionDone(admin: SupabaseClient, planId: string): Promise<void> {
+  await admin
+    .from("social_media_plans")
+    .update({ production_completion_date: new Date().toISOString() })
+    .eq("id", planId)
+    .is("production_completion_date", null)
+    .or("production_status.is.null,production_status.eq.Need Review");
+}
+
 type ProductPhoto = { name: string; path: string };
 
 async function briefProductPhotos(
@@ -733,6 +747,7 @@ async function exportCarouselImages(
           .eq("id", planId)
           .eq("production_status", "Request Revision");
       }
+      await markProductionDone(admin, planId);
       await admin
         .from("canva_carousel_runs")
         .update({
@@ -760,6 +775,7 @@ async function exportCarouselImages(
             .eq("id", planId)
             .eq("production_status", "Request Revision");
         }
+        await markProductionDone(admin, planId);
         await admin
           .from("canva_carousel_runs")
           .update({
