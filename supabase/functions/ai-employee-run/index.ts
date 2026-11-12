@@ -65,7 +65,7 @@ import {
 /** Extra carousel paths a focused run may build after every queued path was rejected. */
 const MAX_PATH_REFILLS = 1;
 /** Pillar proposals tried per refill (each costs up to 2 model calls). */
-const MAX_REFILL_PATH_ATTEMPTS = 2;
+const MAX_REFILL_PATH_ATTEMPTS = 4;
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -861,6 +861,14 @@ Deno.serve(async (req: Request) => {
             if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
             return left.createdAt.localeCompare(right.createdAt);
           });
+          // A refill skips every idea whose path was rejected, not only that idea/pillar pair:
+          // another pillar on the same idea gives the same copy and is rejected again.
+          const rejectedIdeaIds = new Set([...extraBlocked].map((pair) => pair.split(":")[0]).filter(Boolean));
+          if (rejectedIdeaIds.size > 0) {
+            for (let index = candidates.length - 1; index >= 0; index -= 1) {
+              if (rejectedIdeaIds.has(candidates[index].id)) candidates.splice(index, 1);
+            }
+          }
           if (candidates.length === 0) return { kind: "blocked" };
           const pillarQuery = await admin
             .from("content_pillars")
