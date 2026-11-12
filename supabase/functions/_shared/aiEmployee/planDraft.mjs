@@ -1433,7 +1433,7 @@ export function publicModelFailure(status, body) {
   return { status: Number(status) || 0, message: (message || "model_failed").slice(0, 200) };
 }
 
-export function scriptAiCall({ url, serviceRoleKey, anonKey, internalSecret, organizationId, userId, prompt }) {
+export function scriptAiCall({ url, serviceRoleKey, anonKey, internalSecret, organizationId, userId, prompt, temperature = 0 }) {
   const bearer = String(serviceRoleKey || anonKey || "");
   return {
     url: `${String(url).replace(/\/+$/, "")}/functions/v1/generate-script-ai`,
@@ -1450,7 +1450,7 @@ export function scriptAiCall({ url, serviceRoleKey, anonKey, internalSecret, org
         organization_id: organizationId,
         user_id: userId,
         prompt,
-        temperature: 0,
+        temperature: Number.isFinite(Number(temperature)) ? Math.min(Math.max(Number(temperature), 0), 1) : 0,
       }),
     },
   };
