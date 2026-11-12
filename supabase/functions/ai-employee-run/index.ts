@@ -62,6 +62,11 @@ import {
   validatePlanDraft,
 } from "../_shared/aiEmployee/planDraft.mjs";
 
+/** Extra carousel paths a focused run may build after every queued path was rejected. */
+const MAX_PATH_REFILLS = 1;
+/** Pillar proposals tried per refill (each costs up to 2 model calls). */
+const MAX_REFILL_PATH_ATTEMPTS = 2;
+
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-synckerja-internal-secret",
@@ -739,9 +744,17 @@ Deno.serve(async (req: Request) => {
       }
       let openTurn: Record<string, unknown> | null = null;
       let openPillar: { id: string; name: string } | null = null;
+      // Set inside the block below: builds a new carousel path when every queued path was rejected.
+      let refillCarouselPath:
+        | ((blocked: Set<string>) => Promise<{ kind: string; ideaId?: string; pillarId?: string }>)
+        | null = null;
       {
         const textOf = (value: unknown) => (typeof value === "string" ? value.trim() : "");
-        const prepareCarouselPath = async (mode: "path" | "open"): Promise<
+        const prepareCarouselPath = async (
+          mode: "path" | "open",
+          extraBlocked: Set<string> = new Set(),
+          maxAttempts = 6,
+        ): Promise<
           | { kind: "ready"; ideaId: string; pillarId: string; openIdea?: Record<string, unknown>; openPillar?: { id: string; name: string } }
           | { kind: "blocked" }
           | { kind: "unconfirmed" }
@@ -927,10 +940,10 @@ Deno.serve(async (req: Request) => {
                 .reduce((latestStamp, idea) => (idea.lastUsed > latestStamp ? idea.lastUsed : latestStamp), ""),
             }))
             : [];
-          const blockedPairs = new Set(takenPairs);
+          const blockedPairs = new Set([...takenPairs, ...extraBlocked]);
           const ask = (prompt: string) => withRetry(() => modelScript(prompt));
           let attempts = 0;
-          while (attempts < 6) {
+          while (attempts < maxAttempts) {
             const turn = chooseContentTurn({
               angles: turnAngles,
               ideas: turnIdeas,
@@ -1024,6 +1037,9 @@ Deno.serve(async (req: Request) => {
           }
           return { kind: "unconfirmed" };
         };
+        if (focused) {
+          refillCarouselPath = (blocked) => prepareCarouselPath("path", blocked, MAX_REFILL_PATH_ATTEMPTS);
+        }
         const prepared = await prepareCarouselPath(focused ? "path" : "open");
         if (prepared.kind === "quota") {
           await closeSop1("deferred", "quota", open.length);
@@ -1113,17 +1129,49 @@ Deno.serve(async (req: Request) => {
       }
       let dayIndex = 0;
       let ideaTries = 0;
-      const ideaCap = focused ? Math.max(carouselPaths.length, 1) : 1;
+      let ideaCap = focused ? Math.max(carouselPaths.length, 1) : 1;
+      let pathRefills = 0;
+      const rejectedPairs = new Set<string>();
+      const pathPair = (row: Record<string, unknown>) => `${String(row.idea_id ?? "")}:${String(row.content_pillar_id ?? "")}`;
+      const nextPath = () => carouselPaths.find((row) => row.used !== true && row.skip !== true) ?? null;
       while (dayIndex < open.length && stop === "done") {
+        // Every queued path was rejected (e.g. copy too close to earlier plans):
+        // build a path for another locked idea before giving up on this run.
+        if (
+          focused &&
+          refillCarouselPath &&
+          pathRefills < MAX_PATH_REFILLS &&
+          (!nextPath() || ideaTries >= ideaCap)
+        ) {
+          pathRefills += 1;
+          for (const row of carouselPaths) {
+            if (row.skip === true || row.used === true) rejectedPairs.add(pathPair(row));
+          }
+          const refilled = await refillCarouselPath(rejectedPairs);
+          if (refilled.kind === "quota") {
+            stop = "quota";
+            break;
+          }
+          if (refilled.kind === "ready") {
+            if (!dryRun) {
+              const loaded = await loadScope("carousel_paths", {});
+              carouselPaths = orderCopyFallbackPaths(
+                loaded.filter((row: Record<string, unknown>) => !rejectedPairs.has(pathPair(row))),
+                refilled.ideaId,
+                refilled.pillarId,
+              );
+            }
+            adoptPathPillars(carouselPaths);
+            ideaCap = ideaTries + Math.max(carouselPaths.filter((row) => row.used !== true && row.skip !== true).length, 1);
+          }
+        }
         ideaTries += 1;
         if (ideaTries > ideaCap) {
           stop = "ideas_exhausted";
           break;
         }
         const day = open[dayIndex];
-        const path = focused
-          ? carouselPaths.find((row) => row.used !== true && row.skip !== true) ?? null
-          : null;
+        const path = focused ? nextPath() : null;
         const idea = focused ? path : (openTurn && openTurn.skip !== true ? openTurn : null);
         if (!idea) {
           stop = "ideas_exhausted";
