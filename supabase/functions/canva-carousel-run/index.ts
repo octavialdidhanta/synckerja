@@ -259,9 +259,94 @@ function nestedRecord(value: unknown, key: string): Record<string, unknown> | nu
 
 function logoAssetId(payload: Record<string, unknown>): string {
   const job = asRecord(payload.job) ?? payload;
-  const asset = asRecord(job.asset) ?? asRecord(payload.asset);
-  const id = String(job.asset_id ?? payload.asset_id ?? asset?.id ?? "").trim();
+  const asset = asRecord(job.asset) ?? asRecord(payload.asset) ?? asRecord(job.media) ?? asRecord(payload.media);
+  // upload-asset-from-url now answers with media_id; older answers used asset_id.
+  const id = String(
+    payload.media_id ?? job.media_id ?? job.asset_id ?? payload.asset_id ?? asset?.id ?? "",
+  ).trim();
   return /^[a-zA-Z0-9_-]{1,50}$/.test(id) ? id : "";
+}
+
+type EditPage = { id: string; pageNumber: number; width: number; height: number };
+
+/**
+ * Opens an editing transaction with read-design (open_transaction). Canva removed the
+ * start-editing-transaction tool; edits now go through edit-design.
+ */
+async function openEditing(
+  admin: SupabaseClient,
+  organizationId: string,
+  token: string,
+  designId: string,
+  intent: string,
+): Promise<{ token: string; transactionId: string; pages: EditPage[] }> {
+  const opened = await callRaw(admin, organizationId, token, "read-design", {
+    design_id: designId,
+    open_transaction: true,
+    filter: { fields: ["page_metadata"] },
+    user_intent: intent,
+  });
+  const transaction = asRecord(opened.payload.transaction);
+  const transactionId = String(transaction?.transaction_id ?? opened.payload.transaction_id ?? "").trim();
+  const rows = Array.isArray(opened.payload.page_metadata) ? opened.payload.page_metadata : [];
+  const pages = rows.flatMap((item, index) => {
+    const page = asRecord(item);
+    const id = String(page?.id ?? page?.page_id ?? "").trim();
+    const number = Number(page?.page_number ?? page?.index ?? index + 1);
+    const size = asRecord(page?.dimensions) ?? asRecord(page?.dimension) ?? {};
+    if (!id || !Number.isInteger(number) || number < 1) return [];
+    return [{
+      id,
+      pageNumber: number,
+      width: Number(size.width) > 0 ? Number(size.width) : 1080,
+      height: Number(size.height) > 0 ? Number(size.height) : 1350,
+    }];
+  });
+  return { token: opened.token, transactionId, pages };
+}
+
+function editFailed(payload: Record<string, unknown>): boolean {
+  if (String(payload.status ?? "").toLowerCase() === "failed") return true;
+  const results = payload.edit_operation_results ?? payload.operation_results;
+  return Array.isArray(results) && results.some((result) => {
+    const status = String(asRecord(result)?.status ?? "").toLowerCase();
+    return status === "failed" || status === "failure" || status === "error";
+  });
+}
+
+async function editPage(
+  admin: SupabaseClient,
+  organizationId: string,
+  token: string,
+  transactionId: string,
+  pageNumber: number,
+  operations: Record<string, unknown>[],
+  intent: string,
+): Promise<{ token: string; ok: boolean }> {
+  const edited = await callRaw(admin, organizationId, token, "edit-design", {
+    transaction_id: transactionId,
+    page_index: pageNumber,
+    finalize: "keep_open",
+    operations,
+    user_intent: intent,
+  });
+  return { token: edited.token, ok: !editFailed(edited.payload) };
+}
+
+async function finishEditing(
+  admin: SupabaseClient,
+  organizationId: string,
+  token: string,
+  transactionId: string,
+  finalize: "commit" | "cancel",
+  intent: string,
+): Promise<{ token: string; ok: boolean }> {
+  const done = await callRaw(admin, organizationId, token, "edit-design", {
+    transaction_id: transactionId,
+    finalize,
+    user_intent: intent,
+  });
+  return { token: done.token, ok: !editFailed(done.payload) };
 }
 
 async function pollLogoUpload(
@@ -316,61 +401,35 @@ async function placeLogoInDesign(
   }
   if (!assetId) throw new Error("logo_place_failed");
 
-  const started = await callRaw(admin, organizationId, token, "start-editing-transaction", {
-    design_id: designId,
-    user_intent: "membuka desain untuk menempelkan logo perusahaan",
-  });
-  token = started.token;
-  const transactionId = String(started.payload.transaction_id ?? nestedRecord(started.payload, "transaction")?.id ?? "").trim();
-  let pages = Array.isArray(started.payload.pages) ? started.payload.pages : [];
-  if (!transactionId || pages.length === 0) throw new Error("logo_place_failed");
+  const opened = await openEditing(admin, organizationId, token, designId, "membuka desain untuk menempelkan logo perusahaan");
+  token = opened.token;
+  if (!opened.transactionId || opened.pages.length === 0) throw new Error("logo_place_failed");
   let inserted = 0;
-  const pageList = [...pages];
-
-  for (const item of pageList) {
-    const page = asRecord(item);
-    if (!page || page.is_responsive === true) continue;
-    const pageId = String(page.page_id ?? "").trim();
-    const number = Number(page.page_number ?? page.page_index ?? 0);
-    const pageIndex = number === 0 ? 1 : number;
-    const dimension = asRecord(page.dimension) ?? {};
-    const pageWidth = Number(dimension.width) > 0 ? Number(dimension.width) : 1080;
-    const pageHeight = Number(dimension.height) > 0 ? Number(dimension.height) : 1440;
-    if (!pageId || !Number.isInteger(pageIndex) || pageIndex < 1) continue;
-    const box = Math.max(72, Math.round(Math.min(pageWidth, pageHeight) * 0.16));
-    const edited = await callRaw(admin, organizationId, token, "perform-editing-operations", {
-      transaction_id: transactionId,
-      pages,
-      page_index: pageIndex,
-      user_intent: "menempelkan logo perusahaan di tengah atas slide",
-      operations: [{
+  try {
+    for (const page of opened.pages) {
+      const box = Math.max(72, Math.round(Math.min(page.width, page.height) * 0.16));
+      const edited = await editPage(admin, organizationId, token, opened.transactionId, page.pageNumber, [{
         type: "insert_fill",
-        page_id: pageId,
+        page_id: page.id,
         asset_type: "image",
         asset_id: assetId,
         alt_text: "Logo perusahaan",
-        top: Math.round(Math.min(pageWidth, pageHeight) * 0.03),
-        left: Math.round((pageWidth - box) / 2),
+        top: Math.round(Math.min(page.width, page.height) * 0.03),
+        left: Math.round((page.width - box) / 2),
         width: box,
         height: box,
-      }],
-    });
-    token = edited.token;
-    if (Array.isArray(edited.payload.pages)) pages = edited.payload.pages;
-    inserted += 1;
-    const results = edited.payload.edit_operation_results;
-    if (Array.isArray(results) && results.some((result) => {
-      const status = String(asRecord(result)?.status ?? "").toLowerCase();
-      return status === "failed" || status === "failure" || status === "error";
-    })) throw new Error("logo_place_failed");
+      }], "menempelkan logo perusahaan di tengah atas slide");
+      token = edited.token;
+      if (!edited.ok) throw new Error("logo_place_failed");
+      inserted += 1;
+    }
+    if (inserted === 0) throw new Error("logo_place_failed");
+    const committed = await finishEditing(admin, organizationId, token, opened.transactionId, "commit", "menyimpan logo perusahaan di setiap slide");
+    if (!committed.ok) throw new Error("logo_place_failed");
+  } catch (error) {
+    await finishEditing(admin, organizationId, token, opened.transactionId, "cancel", "membatalkan logo yang gagal dipasang").catch(() => undefined);
+    throw error;
   }
-
-  if (inserted === 0) throw new Error("logo_place_failed");
-  const committed = await callRaw(admin, organizationId, token, "commit-editing-transaction", {
-    transaction_id: transactionId,
-    user_intent: "menyimpan logo perusahaan di setiap slide",
-  });
-  if (String(committed.payload.status ?? "").toLowerCase() === "failed") throw new Error("logo_place_failed");
 }
 
 /**
@@ -497,60 +556,38 @@ async function placeProductPhotos(
     }
     if (assetId) assets.push({ name: photo.name, assetId });
   }
-  if (assets.length === 0) return;
+  if (assets.length === 0) throw new Error("product_photo_upload_failed");
 
-  const started = await callRaw(admin, organizationId, token, "start-editing-transaction", {
-    design_id: designId,
-    user_intent: "membuka desain untuk menempelkan foto produk",
-  });
-  token = started.token;
-  const transactionId = String(started.payload.transaction_id ?? nestedRecord(started.payload, "transaction")?.id ?? "").trim();
-  let pages = Array.isArray(started.payload.pages) ? started.payload.pages : [];
-  if (!transactionId || pages.length === 0) throw new Error("product_photo_place_failed");
+  const opened = await openEditing(admin, organizationId, token, designId, "membuka desain untuk menempelkan foto produk");
+  token = opened.token;
+  if (!opened.transactionId || opened.pages.length === 0) throw new Error("product_photo_place_failed");
   let inserted = 0;
-  const pageList = [...pages];
-
-  for (const [index, item] of pageList.entries()) {
-    const page = asRecord(item);
-    if (!page || page.is_responsive === true) continue;
-    const pageId = String(page.page_id ?? "").trim();
-    const number = Number(page.page_number ?? page.page_index ?? 0);
-    const pageIndex = number === 0 ? index + 1 : number;
-    const dimension = asRecord(page.dimension) ?? {};
-    const pageWidth = Number(dimension.width) > 0 ? Number(dimension.width) : 1080;
-    const pageHeight = Number(dimension.height) > 0 ? Number(dimension.height) : 1350;
-    const asset = assets[(pageIndex - 1) % assets.length];
-    if (!pageId || !asset || !Number.isInteger(pageIndex) || pageIndex < 1) continue;
-    const width = Math.round(pageWidth * 0.62);
-    const height = Math.round(pageHeight * 0.46);
-    const edited = await callRaw(admin, organizationId, token, "perform-editing-operations", {
-      transaction_id: transactionId,
-      pages,
-      page_index: pageIndex,
-      user_intent: "menempelkan foto produk di tengah slide",
-      operations: [{
+  try {
+    for (const page of opened.pages) {
+      const asset = assets[(page.pageNumber - 1) % assets.length];
+      const width = Math.round(page.width * 0.62);
+      const height = Math.round(page.height * 0.46);
+      const edited = await editPage(admin, organizationId, token, opened.transactionId, page.pageNumber, [{
         type: "insert_fill",
-        page_id: pageId,
+        page_id: page.id,
         asset_type: "image",
         asset_id: asset.assetId,
         alt_text: asset.name || "Foto produk",
-        top: Math.round(pageHeight * 0.22),
-        left: Math.round((pageWidth - width) / 2),
+        top: Math.round(page.height * 0.22),
+        left: Math.round((page.width - width) / 2),
         width,
         height,
-      }],
-    });
-    token = edited.token;
-    if (Array.isArray(edited.payload.pages)) pages = edited.payload.pages;
-    inserted += 1;
+      }], "menempelkan foto produk di tengah slide");
+      token = edited.token;
+      if (edited.ok) inserted += 1;
+    }
+    if (inserted === 0) throw new Error("product_photo_place_failed");
+    const committed = await finishEditing(admin, organizationId, token, opened.transactionId, "commit", "menyimpan foto produk di slide");
+    if (!committed.ok) throw new Error("product_photo_place_failed");
+  } catch (error) {
+    await finishEditing(admin, organizationId, token, opened.transactionId, "cancel", "membatalkan foto produk yang gagal dipasang").catch(() => undefined);
+    throw error;
   }
-
-  if (inserted === 0) throw new Error("product_photo_place_failed");
-  const committed = await callRaw(admin, organizationId, token, "commit-editing-transaction", {
-    transaction_id: transactionId,
-    user_intent: "menyimpan foto produk di slide",
-  });
-  if (String(committed.payload.status ?? "").toLowerCase() === "failed") throw new Error("product_photo_place_failed");
 }
 
 async function selectedLogo(
@@ -662,8 +699,14 @@ async function exportCarouselImages(
         const photos = await briefProductPhotos(admin, planId);
         if (photos.length > 0) {
           await placeProductPhotos(admin, organizationId, token, String(locked.design_id), photos);
+          console.log(JSON.stringify({ event: "canva_product_photos_placed", plan_id: planId, photos: photos.map((photo) => photo.name) }));
         }
       } catch (error) {
+        console.log(JSON.stringify({
+          event: "canva_product_photos_failed",
+          plan_id: planId,
+          error: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300),
+        }));
         if (publicError(error) === "canva_unauthorized") throw error;
       }
       const logoChoice = await selectedLogo(admin, planId);
@@ -674,6 +717,11 @@ async function exportCarouselImages(
           await placeLogoInDesign(admin, organizationId, token, String(locked.design_id), logoChoice.path);
           placedInDesign = true;
         } catch (error) {
+          console.log(JSON.stringify({
+            event: "canva_logo_failed",
+            plan_id: planId,
+            error: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300),
+          }));
           if (publicError(error) === "logo_missing") throw error;
         }
       }
