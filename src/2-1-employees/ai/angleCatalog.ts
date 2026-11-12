@@ -21,3 +21,18 @@ export function pillarsForLockedIdeas<
   );
   return pillars.filter((pillar) => allowed.has(pillar.id));
 }
+
+/**
+ * Brief pillar dropdown: every pillar, with the ones already locked on an idea of the chosen
+ * angles listed first. Picking a pillar that is not locked yet lets the run build a new path for it.
+ */
+export function groupBriefPillars<P extends { id: string; label: string }>(
+  pillars: P[],
+  lockedIds: ReadonlySet<string>,
+): { locked: P[]; other: P[] } {
+  const byLabel = (left: P, right: P) => left.label.localeCompare(right.label, "id");
+  return {
+    locked: pillars.filter((pillar) => lockedIds.has(pillar.id)).sort(byLabel),
+    other: pillars.filter((pillar) => !lockedIds.has(pillar.id)).sort(byLabel),
+  };
+}

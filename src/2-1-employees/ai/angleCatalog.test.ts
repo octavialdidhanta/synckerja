@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anglesForCatalogs, anglesWithLockedIdeas, pillarsForLockedIdeas } from "./angleCatalog";
+import { anglesForCatalogs, anglesWithLockedIdeas, groupBriefPillars, pillarsForLockedIdeas } from "./angleCatalog";
 
 const options = [
   { id: "a", serviceId: "synckerja" },
@@ -54,5 +54,26 @@ describe("pillarsForLockedIdeas", () => {
 
   it("shows nothing until an angle is selected", () => {
     expect(pillarsForLockedIdeas(pillars, angles, [])).toEqual([]);
+  });
+});
+
+describe("groupBriefPillars", () => {
+  const pillars = [
+    { id: "green", label: "Green Flags" },
+    { id: "audit", label: "Audit Akun Publik" },
+    { id: "edu", label: "Edukasi" },
+    { id: "behind", label: "Behind The Scene" },
+  ];
+
+  it("lists locked pillars first and keeps every other pillar pickable", () => {
+    const groups = groupBriefPillars(pillars, new Set(["green", "audit"]));
+    expect(groups.locked.map((row) => row.id)).toEqual(["audit", "green"]);
+    expect(groups.other.map((row) => row.id)).toEqual(["behind", "edu"]);
+  });
+
+  it("puts everything under other when nothing is locked", () => {
+    const groups = groupBriefPillars(pillars, new Set());
+    expect(groups.locked).toEqual([]);
+    expect(groups.other).toHaveLength(4);
   });
 });
