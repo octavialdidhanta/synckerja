@@ -53,6 +53,12 @@ function pageNumber(record: Record<string, unknown>): number | null {
 
 function elementText(record: Record<string, unknown>): string {
   if (typeof record.text === "string" && record.text.trim()) return record.text.trim();
+  if (Array.isArray(record.textRegions)) {
+    return record.textRegions.map((region) => {
+      const item = asRecord(region);
+      return typeof item?.characters === "string" ? item.characters : "";
+    }).join("").trim();
+  }
   if (typeof record.plain_text === "string" && record.plain_text.trim()) return record.plain_text.trim();
   if (!Array.isArray(record.regions)) return "";
   return record.regions.map((region) => {
@@ -71,10 +77,10 @@ function readBox(record: Record<string, unknown>): Box {
   const position = asRecord(container.position) ?? asRecord(record.position) ?? {};
   const dimension = asRecord(container.dimension) ?? asRecord(record.dimension) ?? asRecord(record.bounding_box) ?? {};
   return {
-    top: finite(position.top),
-    left: finite(position.left),
-    width: finite(dimension.width ?? dimension.w),
-    height: finite(dimension.height ?? dimension.h),
+    top: finite(position.top ?? record.top),
+    left: finite(position.left ?? record.left),
+    width: finite(dimension.width ?? dimension.w ?? record.width),
+    height: finite(dimension.height ?? dimension.h ?? record.height),
   };
 }
 
@@ -95,12 +101,18 @@ function collectElements(value: unknown, inheritedPage: number | null, found: Ma
   const record = asRecord(value);
   if (!record) return;
   const page = pageNumber(record) ?? inheritedPage;
-  const elementId = typeof record.element_id === "string" ? record.element_id.trim() : "";
+  // read-design design_content: elements carry locator_id ("PB…-LB…"), text in textRegions,
+  // images in fill.media.mediaId. edit-design operations address elements by locator_id.
+  const locator = typeof record.locator_id === "string" && record.locator_id.includes("-") ? record.locator_id.trim() : "";
+  const elementId = locator || (typeof record.element_id === "string" ? record.element_id.trim() : "");
   const text = elementText(record).slice(0, 500);
-  const assetId = typeof record.asset_id === "string" ? record.asset_id.trim() : "";
+  const fillMedia = asRecord(asRecord(record.fill)?.media);
+  const assetId = typeof record.asset_id === "string"
+    ? record.asset_id.trim()
+    : typeof fillMedia?.mediaId === "string" && fillMedia.type !== "video" ? String(fillMedia.mediaId).trim() : "";
   const typeName = String(record.type ?? asRecord(record.containerElement)?.type ?? "").toLowerCase();
   const kind = typeName === "image" || assetId ? "image" : text ? "text" : "";
-  if (elementId && page && kind && record.editable !== false) {
+  if (elementId && page && kind && record.editable !== false && record.isLocked !== true) {
     const key = `${page}:${elementId}`;
     const previous = found.get(key);
     found.set(key, {
@@ -115,25 +127,43 @@ function collectElements(value: unknown, inheritedPage: number | null, found: Ma
   for (const child of Object.values(record)) collectElements(child, page, found);
 }
 
-function readPageInfo(pages: unknown[]): PageInfo[] {
+function readPageInfo(pages: unknown[], content: unknown[] = []): PageInfo[] {
   const found: PageInfo[] = [];
-  for (const item of pages) {
+  for (const [index, item] of pages.entries()) {
     const record = asRecord(item);
     if (!record) continue;
-    const page = pageNumber(record);
+    const page = pageNumber(record) ?? (Number(record.index) >= 1 ? Number(record.index) : index + 1);
     if (!page) continue;
-    const dimension = asRecord(record.dimension) ?? {};
+    const dimension = asRecord(record.dimensions) ?? asRecord(record.dimension) ?? {};
     const width = finite(dimension.width);
     const height = finite(dimension.height);
+    const pageId = typeof record.page_id === "string" ? record.page_id.trim() : typeof record.id === "string" ? record.id.trim() : "";
+    const body = asRecord(content.find((entry) => asRecord(entry)?.id === pageId)) ?? asRecord(content[index]);
     found.push({
       page,
-      pageId: typeof record.page_id === "string" ? record.page_id.trim() : "",
+      pageId,
       width: width && width > 0 ? width : 1080,
       height: height && height > 0 ? height : 1350,
-      responsive: record.is_responsive === true,
+      responsive: record.is_responsive === true || body?.type === "responsive",
     });
   }
   return found;
+}
+
+/** Elements of each design_content page, numbered by the page's position. */
+function collectContentElements(content: unknown[], found: Map<string, SlideElement>): void {
+  for (const [index, item] of content.entries()) {
+    const page = asRecord(item);
+    if (!page || page.isEditable === false) continue;
+    collectElements(page.elements, index + 1, found);
+  }
+}
+
+/** edit-design addresses elements by locator_id; the planner works with element_id. */
+function toEditOperation(operation: Record<string, unknown>): Record<string, unknown> {
+  if (!("element_id" in operation)) return operation;
+  const { element_id: elementId, ...rest } = operation;
+  return { ...rest, locator_id: elementId };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -269,8 +299,8 @@ async function generatedMediaId(
           user_intent: "menyimpan foto revisi sebagai aset",
         });
         token = uploaded.token;
-        const asset = asRecord(uploaded.payload.asset);
-        const assetId = String(uploaded.payload.asset_id ?? asset?.id ?? "").trim();
+        const asset = asRecord(uploaded.payload.asset) ?? asRecord(uploaded.payload.media);
+        const assetId = String(uploaded.payload.media_id ?? uploaded.payload.asset_id ?? asset?.id ?? "").trim();
         if (assetId && String(uploaded.payload.status ?? "").toLowerCase() !== "failed") {
           return { token, mediaId: assetId };
         }
@@ -636,19 +666,25 @@ export async function reviseCarousel(
     if (comments.length === 0) throw new Error("slide_comments_missing");
 
     token = await getCanvaAccessToken(admin, organizationId);
-    const started = await callEdit(admin, organizationId, token, "start-editing-transaction", {
+    const started = await callEdit(admin, organizationId, token, "read-design", {
       design_id: String(locked.design_id),
+      open_transaction: true,
+      filter: { fields: ["page_metadata", "design_content"] },
       user_intent: "membuka desain carousel untuk revisi slide",
     });
     token = started.token;
     if (String(started.payload.status ?? "") === "failed") throw new Error("revision_edit_failed");
     transactionId = findTransactionId(started.payload);
-    const pages = findPages(started.payload);
+    const pages = Array.isArray(started.payload.page_metadata)
+      ? started.payload.page_metadata.filter((item) => asRecord(item))
+      : findPages(started.payload);
+    const content = findPages(asRecord(started.payload.design_content));
     if (!transactionId || pages.length === 0) throw new Error("revision_edit_failed");
 
     const found = new Map<string, SlideElement>();
-    collectElements(started.payload, null, found);
-    const pageInfo = readPageInfo(pages);
+    collectContentElements(content, found);
+    if (found.size === 0) collectElements(started.payload, null, found);
+    const pageInfo = readPageInfo(pages, content);
 
     const bySlide = new Map<number, { ids: string[]; text: string }>();
     for (const comment of comments) {
@@ -779,11 +815,13 @@ export async function reviseCarousel(
     }
     for (const [page, operations] of grouped) {
       operations.sort((left, right) => rank.indexOf(String(left.type)) - rank.indexOf(String(right.type)));
-      const edited = await callEdit(admin, organizationId, token, "perform-editing-operations", {
+      const info = pageInfo.find((item) => item.page === page);
+      const edited = await callEdit(admin, organizationId, token, "edit-design", {
         transaction_id: transactionId,
-        pages,
         page_index: page,
-        operations,
+        finalize: "keep_open",
+        ...(info?.responsive ? { is_responsive: true } : {}),
+        operations: operations.map(toEditOperation),
         user_intent: "merevisi teks, tipografi, warna, elemen, dan tata letak slide",
       });
       token = edited.token;
@@ -795,8 +833,9 @@ export async function reviseCarousel(
       })) throw new Error("revision_edit_failed");
     }
 
-    const committed = await callEdit(admin, organizationId, token, "commit-editing-transaction", {
+    const committed = await callEdit(admin, organizationId, token, "edit-design", {
       transaction_id: transactionId,
+      finalize: "commit",
       user_intent: "menyimpan revisi carousel",
     });
     if (String(committed.payload.status ?? "") === "failed") throw new Error("revision_commit_failed");
@@ -818,8 +857,9 @@ export async function reviseCarousel(
     await exportImages();
   } catch (error) {
     if (transactionId) {
-      await callEdit(admin, organizationId, token, "cancel-editing-transaction", {
+      await callEdit(admin, organizationId, token, "edit-design", {
         transaction_id: transactionId,
+        finalize: "cancel",
         user_intent: "membatalkan revisi yang belum disimpan",
       }).catch(() => undefined);
     }
