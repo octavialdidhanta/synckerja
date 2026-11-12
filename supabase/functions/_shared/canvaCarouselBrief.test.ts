@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, layoutOnlyDescription } from "./canvaCarouselBrief.ts";
+import { FOOD_PHOTO_RULE, PERSON_PHOTO_RULE, buildCanvaCarouselBrief, carouselPalette, carouselReferencePosition, carouselSlidesFromBrief, layoutOnlyDescription } from "./canvaCarouselBrief.ts";
 
 const storyboard = [
   "| Timing | Visual | VO (Voice Over) | Scene Visual | Element Lainnya | Tagging |",
@@ -24,7 +24,7 @@ Deno.test("carouselSlidesFromBrief rejects a storyboard without scene text", () 
   assertEquals(carouselSlidesFromBrief(empty), []);
 });
 
-Deno.test("buildCanvaCarouselBrief reserves the center for a library product photo", () => {
+Deno.test("buildCanvaCarouselBrief reserves the last page center for one library product photo", () => {
   const brief = buildCanvaCarouselBrief({
     title: "Menu",
     caption: "",
@@ -32,7 +32,11 @@ Deno.test("buildCanvaCarouselBrief reserves the center for a library product pho
     productPhotos: ["Ayam Kampung (Paha / Sayap / Dada)"],
   });
   assertEquals(brief.includes("Ayam Kampung (Paha / Sayap / Dada)"), true);
-  assertEquals(brief.includes("Leave the center of every page empty"), true);
+  assertEquals(brief.includes("goes in the center of the last page only"), true);
+  assertEquals(brief.includes("Keep the center empty for the real product photo."), true);
+  assertEquals(brief.includes("Leave the center of every page empty"), false);
+  assertEquals(brief.includes("Setting only, no food drawn: Anak menjawab dengan tenang"), true);
+  assertEquals(brief.includes("Real menu shown: Ayam Kampung (Paha / Sayap / Dada)."), true);
 });
 
 Deno.test("buildCanvaCarouselBrief keeps the 4:5 ratio and every slide", () => {
@@ -43,7 +47,7 @@ Deno.test("buildCanvaCarouselBrief keeps the 4:5 ratio and every slide", () => {
   });
   assertEquals(brief.includes("4:5"), true);
   assertEquals(brief.includes("Page 1"), true);
-  assertEquals(brief.includes("Photograph a real human with natural skin and a real camera. Not an illustration, cartoon, 3D render, or synthetic face. Scene: Ibu bertanya di meja makan"), true);
+  assertEquals(brief.includes("Real person photo. Scene: Ibu bertanya di meja makan"), true);
   assertEquals(brief.includes("#kemandirian"), true);
 });
 
@@ -64,7 +68,7 @@ Deno.test("carouselSlidesFromBrief keeps copy, hook, and other elements", () => 
     slides,
   });
   assertEquals(brief.includes("Write only: Ibu mengira sibuk adalah sayang. | Sibuk bukan sayang"), true);
-  assertEquals(brief.includes("Photograph a real human with natural skin and a real camera. Not an illustration, cartoon, 3D render, or synthetic face. Scene: Ibu memandang kalender. Kalender menutup wajah"), true);
+  assertEquals(brief.includes("Real person photo. Scene: Ibu memandang kalender. Kalender menutup wajah"), true);
   assertEquals(brief.includes("Write only: Anak butuh ibu yang hadir. | Kontras ekspresi ibu dan anak"), true);
   assertEquals(brief.includes("Visual hook:"), false);
   const locked = buildCanvaCarouselBrief({
@@ -144,7 +148,7 @@ Deno.test("carouselReferencePosition keeps one agreed slot", () => {
   assertEquals(directed.includes("Gambar ibu dan anak"), false);
   assertEquals(/Write only:[^\n]*Apa yang ingin kamu lakukan hari ini/.test(directed), false);
   assertEquals(directed.includes("Write only: Ajarkan keseimbangan. | Keseimbangan & Kehadiran"), true);
-  assertEquals(directed.includes("Photograph a real human with natural skin and a real camera. Not an illustration, cartoon, 3D render, or synthetic face. Scene: Anak di meja belajar. anak bingung dengan tumpukan buku"), true);
+  assertEquals(directed.includes("Real person photo. Scene: Anak di meja belajar. anak bingung dengan tumpukan buku"), true);
   const mixed = slides.map((slide, index) => (
     index === 1 ? { ...slide, elements: slide.elements.replace("Referensi 2", "Referensi 4") } : slide
   ));
@@ -170,8 +174,34 @@ Deno.test("buildCanvaCarouselBrief writes the required note and photographs a pe
   assertEquals(brief.includes("Cantumkan nomor telepon"), false);
   assertEquals(brief.includes("Do not write any of this: harga promo"), true);
   assertEquals(brief.includes("Write only: Hubungi jam buka. | Ajakan singkat di bawah | 081234567890"), true);
-  assertEquals(brief.includes("Draw: Sate kambing di atas piring"), true);
-  assertEquals(brief.includes("Photograph a real human with natural skin and a real camera"), true);
+  assertEquals(brief.includes("Real food photo. Scene: Sate kambing di atas piring"), true);
+  assertEquals(brief.split(FOOD_PHOTO_RULE).length - 1, 1);
+  assertEquals(brief.includes("Draw: Sate kambing di atas piring"), false);
+  assertEquals(brief.includes(PERSON_PHOTO_RULE), true);
   assertEquals(brief.includes("Scene: Penjual sate tersenyum"), true);
   assertEquals(brief.includes("Do not draw a substitute picture of the food."), false);
+});
+
+Deno.test("buildCanvaCarouselBrief shortens scenes so the last page always fits", () => {
+  const long = "Pelanggan tersenyum sambil memegang tusuk sate kambing di warung yang ramai dengan lampu hangat dan asap tipis dari panggangan, ".repeat(4);
+  const rows = Array.from({ length: 8 }, (_, index) =>
+    `| Slide ${index + 1} |  | ${long} | Kalimat slide ${index + 1} yang cukup panjang untuk dibaca. | Ajakan singkat. |  |`);
+  const slides = carouselSlidesFromBrief([
+    "| Timing | Visual | Scene Visual | Teks | Element Lainnya | Tagging |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...rows,
+  ].join("\n"));
+  const brief = buildCanvaCarouselBrief({
+    title: "Panjang",
+    caption: "Caption #tes",
+    slides,
+    productPhotos: ["Sate Kambing Full Daging"],
+    requiredNote: "Cantumkan nomor telepon 085923305709 di slide terakhir.",
+  });
+  assertEquals(brief.length <= 3500, true);
+  assertEquals(brief.includes("Page 8"), true);
+  assertEquals(brief.includes("Keep the center empty for the real product photo."), true);
+  assertEquals(brief.includes("Write only the listed words."), true);
+  assertEquals(brief.split(FOOD_PHOTO_RULE).length - 1, 1);
+  assertEquals(brief.split(PERSON_PHOTO_RULE).length - 1, 1);
 });
